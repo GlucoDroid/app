@@ -22,6 +22,7 @@
 package tk.glucodata;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.text.InputType;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,24 +32,31 @@ import android.widget.TextView;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
+import static java.lang.System.currentTimeMillis;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+
 //import org.w3c.dom.Text;
 
 class Dialogs {
-float density;
-ViewGroup exportscreen=null;
-TextView exportlabel=null;
+private	final static String LOG_ID="Dialogs";
+private float density;
+private ViewGroup exportscreen=null;
+ TextView exportlabel=null;
 Dialogs(float density) {
 	this.density=density;
 	}
-Button exportbutton(Activity activity,String label, int type) {
+private Button exportbutton(MainActivity activity,String label, int type) {
 	Button but=new Button(activity);
 	but.setText(label);
         but.setOnClickListener(
 		v-> {
 		if(type==4)
-		    (( MainActivity)v.getContext()).algexporter(type,label,".html");
+		    algexporter(activity,   type,label,".html");
 		   else
-		    (( MainActivity)v.getContext()).exporter(type,label);
+		    exporter( activity,  type,label);
 		    });
     return but;
 	}
@@ -96,5 +104,34 @@ void showexport(MainActivity activity,int width,int height) {
 	activity.setonback(() ->
         		exportscreen.setVisibility(View.GONE));
 	}
+static	final DateFormat fname=             new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss", Locale.US);
+static void algexporter(MainActivity context,int type,String prefix,String ext) {
+	final long time=currentTimeMillis();
+	final String datestr=fname.format(time)      ;
+        final String filename = prefix+datestr+ext;
+        exportdata(context,type,filename);
+	}
+static void exporter(MainActivity context,int type,String prefix) {
+        algexporter(context,type,prefix,".tsv");
+	}
+
+
+static private void exportdata(MainActivity 	context,int type,String name) {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        //intent.setType("text/tsv");
+        intent.putExtra(Intent.EXTRA_TITLE, name);
+	intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true);
+//      ((ActivityResultLauncher<Intent>)exports[type]).launch(intent);
+      	int request= MainActivity.REQUEST_EXPORT|type;
+	try {
+		context.startActivityForResult(intent, request);
+		} catch(Throwable th) {
+
+		Log.stack(LOG_ID,"ACTION_CREATE_DOCUMENT",th);
+		}
+    }
+
 
 	}
