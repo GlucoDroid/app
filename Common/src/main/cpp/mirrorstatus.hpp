@@ -16,11 +16,57 @@
 /*      You should have received a copy of the GNU General Public License            */
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
-/*      Fri Jan 27 12:35:09 CET 2023                                                 */
+/*      Tue Apr 11 15:42:30 CEST 2023                                                 */
+#include "maxsendtohost.h"
 
-
+extern pid_t getTid();
 
 #pragma once
+struct mirrorstatus_t {
+	struct {
+		int sendmessage=-1;
+		int runs=0;
+		bool recv=false;
+		void running(bool on) {
+			if(on) {
+				++runs;
+				sendmessage=-1;
+				recv=false;
+				}
+			else
+				--runs;
+			
+			}
+		} toblue[2];
+	struct {
+		pid_t tid=0;
+		bool activereceivethread=false;
+		//bool hassocket;
+//		bool ingetcom=false;
+	 	bool ininterpret=false;
+		bool ingetcom() {
+			return tid!=0;
+			}
+		void running(bool on) {
+			if(on) {
+				tid=getTid();
+				ininterpret=false;
+				}
+			else
+				tid=0;
+			};
+		} receive;
 
-constexpr const int maxsendtohost=4;
-constexpr const int maxallhosts=8;
+	struct {
+//		bool hassocket;
+		bool running=false;
+		bool locked=false;
+		void start() {
+			running=true;
+			}
+		void stop() {
+			running=false;
+			}
+		} sender;
+	};
+extern mirrorstatus_t mirrorstatus[maxallhosts];
