@@ -23,8 +23,8 @@ package tk.glucodata;
 import static android.view.View.GONE;
 import static java.net.HttpURLConnection.HTTP_OK;
 
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Backup.getedit;
-import static tk.glucodata.Libreview.getstring;
 import static tk.glucodata.Log.stackline;
 import static tk.glucodata.Natives.setNightUploader;
 import static tk.glucodata.RingTones.EnableControls;
@@ -42,8 +42,10 @@ import android.text.InputType;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ScrollView;
 
 import androidx.annotation.Keep;
 
@@ -58,6 +60,19 @@ import java.net.URL;
 public class NightPost  {
 	private static final String LOG_ID="NightPost";
 
+static String getstring(HttpURLConnection con)  throws IOException{
+	try(BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+		StringBuffer response = new StringBuffer();
+		String inputLine;
+		while ((inputLine = in.readLine()) != null) {
+			response.append(inputLine);
+			}
+		return response.toString();
+		}
+	finally {
+		con.disconnect();
+		}
+	}
 
 private static  String getstart(HttpURLConnection con,int max)  throws IOException{
 	try(var in = con.getInputStream()) {
@@ -142,8 +157,11 @@ public static void  config(MainActivity act, View settingsview) {
 	clear.setOnClickListener(v->  askclearupload(act));
 	var wake=getbutton(act,act.getString(R.string.sendnow));
 	wake.setOnClickListener(v-> Natives.wakeuploader());
-	var help=getbutton(act,R.string.helpname);
-	help.setOnClickListener(v-> help(R.string.NightPost,act));
+	Button help;
+	if(!isWearable) {
+		help=getbutton(act,R.string.helpname);
+		help.setOnClickListener(v-> help(R.string.NightPost,act));
+		}
 	boolean useuploader=Natives.getuseuploader();
 	var activebox=getcheckbox(act,R.string.active,useuploader);
        var visible = new CheckBox(act);
@@ -155,7 +173,7 @@ public static void  config(MainActivity act, View settingsview) {
                         else
                                         editsecret.setTransformationMethod(new PasswordTransformationMethod());
                         });
-	final Layout layout=new Layout(act, (lay, w, h) -> {
+	final Layout layout=isWearable?new Layout(act, (lay, w, h) -> { return new int[] {w,h};}, new View[]{secretlabel},new View[]{visible},new View[]{editsecret},new View[]{urllabel},new View[]{url},new View[]{activebox,clear},new View[]{wake,cancel},new View[]{save}):new Layout(act, (lay, w, h) -> {
 		var height=GlucoseCurve.getheight();
 		var width=GlucoseCurve.getwidth();
                         if(w>=width||h>=height) {
@@ -166,9 +184,30 @@ public static void  config(MainActivity act, View settingsview) {
                                 lay.setX((width-w)/2); lay.setY(0);
                                 };
                         return new int[] {w,h};}, new View[]{urllabel,url},new View[]{secretlabel,visible,editsecret},new View[]{activebox,clear,wake},new View[]{help,cancel,save});
+
+	
+		int laypar;
+		final View allview=isWearable?new ScrollView(act):layout;
+		if(isWearable) {
+			((ScrollView)allview).addView(layout);
+			laypar=ViewGroup.LayoutParams.MATCH_PARENT;
+			layout.setBackgroundColor(tk.glucodata.Applic.backgroundcolor);
+/*		      int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;
+		       url.setPadding(pad,0,0,0);
+		       secretlabel.setPadding(pad,0,0,0);
+		       visible.setPadding(0,0,pad,0); */
+		}
+		else {
+			laypar=ViewGroup.LayoutParams.WRAP_CONTENT;
+		      allview.setBackgroundResource(R.drawable.dialogbackground);
+		      int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;
+		       allview.setPadding(pad,pad,pad,pad);
+	       	}
+
+		act.addContentView(allview, new ViewGroup.LayoutParams(laypar,laypar));
 	Runnable closerun=()-> {
-		layout.setVisibility(GONE);
-		removeContentView(layout);
+		allview.setVisibility(GONE);
+		removeContentView(allview);
 		EnableControls(settingsview,true);
 		};
 	act.setonback(closerun);
@@ -181,10 +220,6 @@ public static void  config(MainActivity act, View settingsview) {
 			closerun.run();
 			setNightUploader(url.getText().toString(),editsecret.getText().toString(),activebox.isChecked());
 			});
-	      layout.setBackgroundResource(R.drawable.dialogbackground);
-	      int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;
-	       layout.setPadding(pad,pad,pad,pad);
-		act.addContentView(layout, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 	
 	}
  }
