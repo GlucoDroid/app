@@ -27,16 +27,25 @@
             android:columnCount="12"
             android:paddingTop="18dp"
             android:paddingBottom="30dp"
-            android:paddingLeft="25dp"
+            android:paddingLeft="30dp"
             android:paddingRight="8dp"
 
             >
-            <TextView
-                android:id="@+id/bluestate"
+            <CheckBox
+                android:id="@+id/usebluetooth"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_column="0"
                 android:layout_columnSpan="3"
+                android:layout_row="0"
+                android:text="@string/use_bluetooth" />
+            <TextView
+                android:id="@+id/bluestate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_column="3"
+                android:layout_columnSpan="2"
+            android:paddingLeft="5dp"
                 android:layout_row="0"
                 android:text="" />
 
@@ -44,21 +53,13 @@
                 android:id="@+id/streamhistory"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_column="3"
+                android:layout_column="5"
                 android:layout_columnSpan="2"
                 android:layout_row="0"
                 android:text="@string/streamhistory" />
 
 
 
-            <CheckBox
-                android:id="@+id/usebluetooth"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_column="5"
-                android:layout_columnSpan="2"
-                android:layout_row="0"
-                android:text="@string/use_bluetooth" />
             <CheckBox
                 android:id="@+id/priority"
                 android:layout_width="wrap_content"
@@ -67,14 +68,6 @@
                 android:layout_columnSpan="1"
                 android:layout_row="0"
                 android:text="@string/high_priority" />
-            <CheckBox
-                android:id="@+id/android13"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_column="8"
-                android:layout_columnSpan="2"
-                android:layout_row="0"
-                android:text="@string/android13" />
 
             <TextView
                 android:id="@+id/scan"
@@ -253,6 +246,7 @@
                 android:layout_columnSpan="2" />
 
             <TextView
+                android:id="@+id/android13"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_column="0"

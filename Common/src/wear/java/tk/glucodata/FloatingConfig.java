@@ -46,6 +46,7 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -117,7 +118,9 @@ static public void show(MainActivity act,View view) {
 	var touch=Natives.getfloatingTouchable();
 	var touchable=getcheckbox(act,R.string.touchable,touch);
 	var close=getbutton(act,R.string.closename);
+   close.setIncludeFontPadding(false);
 
+//	close.setPadding(0,0,0,0);
 	var color=Natives.getfloatingbackground();
 	boolean transp= Color.alpha(color)!=0xFF;
 	var transparentview=getcheckbox(act,R.string.transparent,transp);
@@ -127,6 +130,12 @@ static public void show(MainActivity act,View view) {
 
 	var foreground=getbutton(act,R.string.foreground);
 
+//	foreground.setPadding(0,0,0,0);
+//	backgroundview.setPadding(0,0,0,0);
+
+
+   foreground.setIncludeFontPadding(false);
+   backgroundview.setIncludeFontPadding(false);
 
 
 	var timeshow=getcheckbox(act,R.string.time,Floating.showtime);
@@ -151,8 +160,26 @@ static public void show(MainActivity act,View view) {
 		Natives.sethidefloatinJuggluco(!isChecked);
 		});
 
-	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{sizelabel,sizeview,hide},new View[]{timeshow,transparentview},  new View[]{foreground,backgroundview},new View[]{close});
-
+	int butheight=(int)(height*0.2);
+	int labelheight=(int)(height*0.1);
+     foreground.setMinimumHeight(butheight);
+	foreground.setMinHeight(butheight);
+     backgroundview.setMinimumHeight(butheight);
+	backgroundview.setMinHeight(butheight);
+	close.setMinHeight(butheight);
+     close.setMinimumHeight(butheight);
+     /*
+	hide.setMinHeight(labelheight);
+     hide.setMinimumHeight(labelheight);
+	sizeview.setMinHeight(labelheight);
+     sizeview.setMinimumHeight(labelheight);
+	touchable.setMinHeight(labelheight);
+     touchable.setMinimumHeight(labelheight);
+	sizelabel.setMinHeight(labelheight);
+     sizelabel.setMinimumHeight(labelheight);
+     */
+	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{sizelabel,sizeview,hide}, new View[]{timeshow,transparentview}, new View[]{foreground,backgroundview},new View[]{close});
+	layout.setPadding(0,(int)(tk.glucodata.GlucoseCurve.metrics.density*2.0),0,0);
 	transparentview.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
 		background=true;
 		Floating.setbackgroundalpha(isChecked?0:0xff);
@@ -176,8 +203,14 @@ static public void show(MainActivity act,View view) {
 		rewritefloating(act);
 
 		});
-
-
+/*
+   var scroll=new ScrollView(act);
+	scroll.setFillViewport(true);
+	scroll.setSmoothScrollingEnabled(false);
+   scroll.setScrollbarFadingEnabled(true);
+   scroll.setVerticalScrollBarEnabled(true);
+   scroll.addView(layout);
+   */
 	       act.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
 	act.setonback(()-> {
 		view.setVisibility(VISIBLE);

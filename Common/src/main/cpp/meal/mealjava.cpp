@@ -22,9 +22,11 @@
 #ifdef USE_MEAL
 #include <algorithm>
 #include <string.h>
+#include <string_view>
 #include "Meal.hpp"
 #include "fromjava.h"
 
+extern jstring myNewStringUTF(JNIEnv *env,const std::string_view str);
 extern Meal *meals;
 extern "C" JNIEXPORT void JNICALL fromjava(saveingredient)(JNIEnv *env, jclass thiz,jint pos, jstring jname,jstring junit,jfloat carbo) {
 	ingredients_t &ingr=meals->getingredients();
@@ -38,7 +40,7 @@ extern "C" JNIEXPORT void JNICALL fromjava(saveingredient)(JNIEnv *env, jclass t
 	int maxnamelen=add.name.size()-1;
 	if(rawlen<=maxnamelen||(jnamelen==rawlen&&(jnamelen=maxnamelen))) {
 		env->GetStringUTFRegion(jname, 0,jnamelen, add.name.data());
-		add.name.data()[jnamelen]='\0';
+		add.name.data()[rawlen]='\0';
 		}
 	else {
 		char tmpbuf[rawlen];
@@ -56,7 +58,7 @@ extern "C" JNIEXPORT void JNICALL fromjava(saveingredient)(JNIEnv *env, jclass t
 	char *newunit= unit.data();
 	if(junitlen<=maxunitlen||(rawunitlen==junitlen&&(junitlen=maxunitlen))) {
 		env->GetStringUTFRegion(junit, 0,junitlen,newunit);
-		newunit[junitlen]='\0';
+		newunit[rawunitlen]='\0';
 		}
 	else {
 		char tmpbuf[rawunitlen];
@@ -100,13 +102,23 @@ extern "C" JNIEXPORT jint JNICALL fromjava(ingredientUsed)(JNIEnv *env, jclass t
 	return meals->getingredients()[index].used;
 	}
 extern "C" JNIEXPORT jstring JNICALL fromjava(ingredientUnitName)(JNIEnv *env, jclass thiz,jint index) {
-	return env->NewStringUTF(meals->getunits()[meals->getingredients()[index].unit].data());
+	return myNewStringUTF(env,meals->getunits()[meals->getingredients()[index].unit].data());
 	}
 extern "C" JNIEXPORT jint JNICALL fromjava(ingredientUnit)(JNIEnv *env, jclass thiz,jint index) {
 	return meals->getingredients()[index].unit;
 	}
+/*
+extern "C" JNIEXPORT jbyteArray JNICALL fromjava(ingredientNameBytes)(JNIEnv *env, jclass thiz,jint index) {
+   const char *name=meals->getingredients()[index].name.data();
+   const int len=strlen(name)+1;
+	jbyteArray uit=env->NewByteArray(len);
+	env->SetByteArrayRegion(uit, 0, len,(const jbyte*)name);
+   return uit;
+	}
+	*/
 extern "C" JNIEXPORT jstring JNICALL fromjava(ingredientName)(JNIEnv *env, jclass thiz,jint index) {
-	return env->NewStringUTF(meals->getingredients()[index].name.data());
+        const char *name=meals->getingredients()[index].name.data();
+	return myNewStringUTF(env,name);
 	}
 
 
@@ -123,7 +135,7 @@ extern "C" JNIEXPORT jfloat JNICALL fromjava(getitemamount)(JNIEnv *env, jclass 
 extern "C" JNIEXPORT jstring JNICALL fromjava(getitemingredientname)(JNIEnv *env, jclass thiz,jint mealptr,jint pos) {
 	const char * ingr=meals->datameal()->getitemingredientname(mealptr,pos);
 	if(ingr)
-		return env->NewStringUTF(ingr);
+		return myNewStringUTF(env,ingr);
 	return nullptr;
 	}
 extern "C" JNIEXPORT jint JNICALL fromjava(getitemingredient)(JNIEnv *env, jclass thiz,jint mealptr,jint pos) {
@@ -163,7 +175,7 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(getunits)(JNIEnv *env, jclass c
 	env->DeleteLocalRef(carlist);
 	env->CallBooleanMethod(arlist,add, env->NewStringUTF( ""));
 	 for(int i=0;i<len;i++) {
-	 	    env->CallBooleanMethod(arlist,add, env->NewStringUTF( meals->datameal()->units[i].data()));
+	 	    env->CallBooleanMethod(arlist,add, myNewStringUTF(env, meals->datameal()->units[i].data()));
 		  }
 	return arlist;
 	}

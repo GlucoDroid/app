@@ -406,8 +406,13 @@ extern	bool hasnotiset();
 
 extern int getdeltaindex(float rate);
 #define NOT_DETERMINED ""
+#ifdef XDRIPARROWS
+#define DOUBLETHRESHOLD 3.5f
+#else
+#define DOUBLETHRESHOLD 3.0f
+#endif
 int getdeltaindex(float rate) {
-	if(rate>=3.5f)
+	if(rate>=DOUBLETHRESHOLD)
                 return 1;
 	if(rate>=2.0f)
                 return 2;
@@ -417,7 +422,7 @@ int getdeltaindex(float rate) {
                 return 4;
 	if(rate>-2.0f)
                 return 5;
-	if(rate>-3.5f)
+	if(rate>DOUBLETHRESHOLD)
                 return 6;
 	if(isnan(rate))
 		return 0;

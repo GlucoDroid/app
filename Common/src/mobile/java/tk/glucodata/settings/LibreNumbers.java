@@ -113,12 +113,14 @@ public static void    mklayout(Activity context, int night, CheckBox donum, int[
 	var help=getbutton(context,R.string.helpname);
 
 	var sendnumbers=getcheckbox(context,donum.getText().toString(),donum.isChecked());
+	var remark=new TextView(context);
 	if(!canSendNumbers(night)) {
 		sendnumbers.setEnabled(false);
+		remark.setText(R.string.libresetalllabels);
 		}
 
 	recycle.setLayoutParams(new ViewGroup.LayoutParams(   ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
-    final ViewGroup  librenumlayout=new Layout(context,(x,w,h)->{ hideSystemUI(); return new int[] {w,h}; },new View[] {recycle},new View[]{help,sendnumbers,close});
+    final ViewGroup  librenumlayout=new Layout(context,(x,w,h)->{ hideSystemUI(); return new int[] {w,h}; },new View[] {recycle},new View[]{remark},new View[]{help,sendnumbers,close});
 
 	librenumlayout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight,MainActivity.systembarBottom);
 	var adapt = new LibreNumberAdapter(librenumlayout,sendnumbers,night);

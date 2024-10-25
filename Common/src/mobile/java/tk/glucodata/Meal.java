@@ -477,7 +477,6 @@ static public class IngredientViewAdapter extends RecyclerView.Adapter<Ingredien
         return new IngredientViewHolder(view,ingrindex);
 
     }
-
 	@Override
 	public void onBindViewHolder(final IngredientViewHolder holder, int pos) {
 		TextView text=(TextView)holder.itemView;
@@ -926,4 +925,16 @@ static void	shownutrients(MainActivity act,int id,boolean showzero,TriConsumer<S
 		});
 
 }
-}
+/*
+static private String getIngredientName(int pos) {
+    byte[] bytes=Natives.ingredientNameBytes(pos);
+    try {
+      return new String(bytes);
+      }
+      catch(Throwable th) {
+         Log.stack(LOG_ID,"getIngredientName("+pos+")",th);
+         return "illegal character";
+         }
+   }
+*/
+} 

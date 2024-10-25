@@ -738,7 +738,7 @@ public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status)  {
 
 @Override
 public boolean matchDeviceName(String deviceName,String address) {
-	if(!deviceName.startsWith("ABBOTT")) {
+	if(deviceName==null||!deviceName.startsWith("ABBOTT")) {
 		return false;
 		}
 	return SerialNumber.equals(deviceName.substring(6));

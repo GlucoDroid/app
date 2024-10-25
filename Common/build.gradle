@@ -75,7 +75,7 @@ android {
          manifestPlaceholders["debuggable"] = "false"
          manifestPlaceholders["requireWatch"] = "true"
 
-	     versionName '8.2.3'
+	     versionName '8.2.7'
 //	multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -111,8 +111,8 @@ android {
             //	targetSdk 26
 	//******  Zet op rollout op 100% ******
             	dimension 'libreVersion'
-		versionCode                                                 480                                                                                               //LIBRE2ONLY
-	//	versionName '8.2.3-no3'
+		versionCode                                                                     500                                                                                                                                       //LIBRE2ONLY
+	//	versionName '8.2.7-no3'
 		versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
 		    externalNativeBuild.cmake {
@@ -130,7 +130,7 @@ android {
 //	   minSdk 23
             dimension 'libreVersion'
 		versionNameSuffix '-li3'
-		versionCode                                                481                                                                                               //LIBRE3
+		versionCode                                                                    501                                                                                                                                       //LIBRE3
 	//******  Zet op rollout op 100% ******
 
            	buildConfigField 'int', 'libreVersion', '3'
@@ -146,7 +146,7 @@ android {
 		minSdkVersion 21
             	dimension 'SiBionics'
 		versionNameSuffix '-si'
-		versionCode                                           481                                                                                            
+		versionCode                                                               501                                                                                                                                    
 	        buildConfigField 'int', 'SiBionics', '1'
 	         externalNativeBuild.cmake {
 			cppFlags "   -DSIBIONICS=1 "
@@ -154,7 +154,7 @@ android {
 		}
         nosi {
             	dimension 'SiBionics'
-		versionCode                                                 480                                                                                            
+		versionCode                                                                     500                                                                                                                                    
 		versionNameSuffix '-nosi'
 	        buildConfigField 'int', 'SiBionics', '0'
 	         externalNativeBuild.cmake {
@@ -170,9 +170,9 @@ android {
             dimension 'wearos'
 		minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-		versionCode                                                482                                                                                               //WATCH
+		versionCode                                                                    502                                                                                                                                       //WATCH
 	//******  Zet op rollout op 100% ******
-		//versionName '8.2.3-wear'
+		//versionName '8.2.7-wear'
 		versionNameSuffix '-wear'
 		signingConfig signingConfigs.alg
 
@@ -193,8 +193,8 @@ android {
 
 //        minSdk 19
             dimension 'wearos'
-		versionCode                                                482                                                                                               //WATCH
-		//versionName '8.2.3-small'
+		versionCode                                                                    502                                                                                                                                       //WATCH
+		//versionName '8.2.7-small'
 		versionNameSuffix '-small'
 		signingConfig signingConfigs.alg
 
@@ -468,11 +468,16 @@ buildTypes {
             java.srcDirs = ['src/mobileSi/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
+            res.srcDirs= ['src/mobileSi/res']
             }
        mobileLibreOldSi {
             java.srcDirs = ['src/mobileSi/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
+            }
+       mobileLibreOldNosi {
+            java.srcDirs = ['src/mobileNosi/java']
+           res.srcDirs= ['src/mobileNosi/res']
             }
 
          wearLibre3Si{
@@ -525,15 +530,15 @@ dependencies {
   implementation 'com.android.support:support-annotations:28.0.0'
 
     implementation "androidx.appcompat:appcompat:$APPCOMPAT"
-    implementation 'androidx.activity:activity:1.9.2'
+    implementation 'androidx.activity:activity:1.9.3'
 	implementation 'androidx.core:core:1.13.1'
    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.20'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.0.20'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.0.21'
     implementation "com.google.android.gms:play-services-base:$GMSBASE"
  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0'
-  mobileImplementation 'androidx.health.connect:connect-client:1.1.0-alpha09'
+  mobileImplementation 'androidx.health.connect:connect-client:1.1.0-alpha10'
 //  mobileImplementation files('/n/ojka/Downloads/ciq-companion-app-sdk-2.0.3.aar');
   mobileImplementation "com.garmin.connectiq:ciq-companion-app-sdk:2.0.3@aar"
 
@@ -542,10 +547,10 @@ dependencies {
   // implementation 'com.google.android.gms:play-services-wearable:10.2.0' Needed for China? https://developer.android.com/training/wearables/creating-app-china#data-layer
 
 
-    wearImplementation 'androidx.activity:activity-ktx:1.9.2'
+    wearImplementation 'androidx.activity:activity-ktx:1.9.3'
     wearImplementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     wearImplementation 'com.google.android.material:material:1.12.0'
-    wearImplementation 'androidx.databinding:viewbinding:8.7.0'
+    wearImplementation 'androidx.databinding:viewbinding:8.7.1'
     wearImplementation 'androidx.core:core-ktx:1.13.1'
 
 
@@ -562,7 +567,8 @@ dependencies {
     wearImplementation 'androidx.wear.watchface:watchface:1.2.1'
     wearImplementation 'androidx.wear.watchface:watchface-complications-rendering:1.2.1'
     wearImplementation 'androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1'
-
+     wearImplementation 'androidx.core:core-splashscreen:1.2.0-alpha02'
+     wearImplementation 'androidx.wear.protolayout:protolayout-external-protobuf:1.2.1'
 configurations {
 mobileLibre3SiImplementation {}
 mobileLibreOldSiImplementation {}

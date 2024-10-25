@@ -1,4 +1,4 @@
-
+srcdir=$(shell pwd)
 CXX=g++-10
 CXXFLAGS=-std=c++20 -I./share -static-libstdc++   
 export APP_ABI=fx86_64
@@ -128,4 +128,4 @@ statedata: statedata.cpp timestr.cpp logs.cpp
 .PHONY: tags
 
 tags:
-	ctags -R --c++-kinds=+p --fields=+iaS --extra=+q .
+	ctags --c++-kinds=+p --fields=+iaS --extra=+q  $(srcdir)/*.cpp $(srcdir)/*.c $(srcdir)/*.hpp $(srcdir)/*.h $(srcdir)/*.cpp $(srcdir)/*.hpp $(srcdir)/*.h $(srcdir)/*.c $(srcdir)/net/watchserver/*.cpp $(srcdir)/net/watchserver/*.hpp $(srcdir)/net/watchserver/*.h $(srcdir)/net/watchserver/*.c $(srcdir)/net/libreview/*.cpp $(srcdir)/net/libreview/*.hpp $(srcdir)/net/libreview/*.h $(srcdir)/net/libreview/*.c $(srcdir)/sibionics/*.hpp $(srcdir)/sibionics/*.cpp $(srcdir)/dexcom/*.hpp $(srcdir)/dexcom/*.cpp

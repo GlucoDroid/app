@@ -336,6 +336,7 @@
  <string name="changestartbutton">Change start</string>
  <string name="floatjuggluco">Above</string>
  <string name="uploader">Uploader</string>
+ <string name="upload">Upload</string>
  <string name="sibionics">Sibionics</string>
  <string name="mmolL">mmol/L</string>
  <string name="mgdL">mg/dL</string>
@@ -356,4 +357,5 @@
    <string name="text">Text</string>
    <string name="arrow">Arrow</string>
    <string name="notalldata">WARNING: “Receive from” not set, without sending all data.</string>
+<string name="libresetalllabels">You can only check “Send amounts” after you have specified what to do with all labels. If you do not want to send numbers under a label to Libreview, check “Don’t send”.</string>
 </resources>

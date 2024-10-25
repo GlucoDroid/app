@@ -99,7 +99,7 @@ static jmethodID summaryready=nullptr;
 static jmethodID showsensorinfo=nullptr;
 #endif
 jmethodID  jdoglucose=nullptr, jupdateDevices=nullptr, jbluetoothEnabled=nullptr,jspeak=nullptr, jresetWearOS=nullptr;
-jclass JNIApplic;
+jclass JNIApplic,JNIString;
 #ifdef OLDEVERSENSE
 #ifndef  WEAROS
 jclass EverSense;
@@ -146,9 +146,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 	vmptr=vm;
 	   JNIEnv* env=nullptr;
 	LOGAR("JNI_OnLoad");
+/*
 #ifndef NOLOG
    showlimits();
-#endif
+#endif 
+*/
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
         return JNI_ERR;
       }
@@ -170,6 +172,12 @@ else {
 
 }
 
+{const static jclass cl=env->FindClass("java/lang/String");
+if(cl) {
+	JNIString = (jclass)env->NewGlobalRef(cl);
+	env->DeleteLocalRef(cl);
+   }
+}
 {
 const static jclass cl=env->FindClass("tk/glucodata/Applic");
 if(cl) {

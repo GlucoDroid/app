@@ -35,7 +35,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 class Watch {
-static private final boolean TestBridge=doLog;
+static private final boolean TestBridge=BuildConfig.DEBUG;
 static private float glucose=80f;
 static private float trend=-5.2f;
 static private final  String LOG_ID="Watch";

@@ -166,8 +166,11 @@ static public   void show(MainActivity context, View view) {
    var space1=new Space(context);
    var space2=new Space(context);
 //      Layout layout=new Layout(context,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{new Space(context),allradio[1],allradio[2]},new View[]{allradio[0],allradio[3]},new View[]{defaultbox,select},  new View[]{close});
+
       Layout layout=new Layout(context,(l, w, h)-> { return new int[] {w,h}; },new View[]{allradio[2]},new View[]{space1,allradio[0],allradio[1],space2},new View[]{defaultbox,select},  new View[]{close});
       layout.setBackgroundColor(Applic.backgroundcolor);
+   var density=tk.glucodata.GlucoseCurve.metrics.density;
+	layout.setPadding(0,(int)(density*7.0),0,0);
       close.setOnClickListener(v-> {});
       MainActivity.setonback(()-> {
          removeContentView(layout); 
@@ -212,6 +215,7 @@ static public   void show(MainActivity context, View view) {
    view.setLayoutParams( new ViewGroup.LayoutParams((int)(width*0.72), (int)(height*0.72)));
    var density=tk.glucodata.GlucoseCurve.metrics.density;
    preview.setPadding(0,(int)(density*18.0),0,0);
+  // preview.setPadding(0,(int)(height*0.07875),0,0);
 //   preview.setPadding(0,(int)(density*30.0),0,0);
 /*	allradio[1].setPadding(0,0,0,0);
 	allradio[2].setPadding(0,0,(int)(density*22.0),0); */

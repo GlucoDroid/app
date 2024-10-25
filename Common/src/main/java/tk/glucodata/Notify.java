@@ -48,7 +48,6 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -573,15 +572,38 @@ void overwriteglucose(int kind) {
 	static final String stopalarm= "StopAlarm";
 	final static int penmutable= android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M? PendingIntent.FLAG_IMMUTABLE:0;
 
-//StatusIcon icons=isWearable?null:new StatusIcon();
+private final boolean makeicon=!isWearable&&tk.glucodata.BuildConfig.minSDK>=23;
+private final StatusIcon icons=makeicon?new StatusIcon():null;
+
+static private String getglstring(float glvalue) {
+               if(Applic.unit==1) {
+                  if(glvalue<2.2f) {
+	                  return "2.2>";
+                     }
+                  if(glvalue>(500.0/Applic.mgdLmult)) {
+                     return "27.8<" ;
+                     }
+                   var glstr=format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
+                   if(glstr.charAt(glstr.length()-1)=='0') 
+                           glstr=glstr.substring(0, glstr.length()-2);
+                    return glstr;
+                   }
+               else {
+                  int intval=(int)glvalue;
+                  if(intval<40)
+                     return "40>"; 
+                   if(intval>500)
+                     return "500<";
+                   return format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
+                    }
+                  }
 
 private void setIcon( Notification.Builder GluNotBuilder,float glvalue) {
- /*        if(!isWearable&&tk.glucodata.BuildConfig.minSDK>=23) {
-               final var glstr=format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
-               final var icon=icons.getIcon(glstr); //Become too small. 
+        if(makeicon) {
+               final var icon=icons.getIcon(getglstring(glvalue));  
 			      GluNotBuilder.setSmallIcon(icon);
             }
-          else*/  {
+          else  {
 		         var draw= GlucoseDraw.getgludraw(glvalue);
 			      GluNotBuilder.setSmallIcon(draw);
                }

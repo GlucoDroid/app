@@ -25,8 +25,12 @@
 #include <cinttypes>
 #include <cmath>
 #include <algorithm>
+#include <string_view>
 #include "settings.hpp"
 #include <jni.h>
+extern jclass JNIString;
+
+extern jstring myNewStringUTF(JNIEnv *env,const std::string_view str);
 //#include "fromjava.h"
 #include "config.h"
 #include "datbackup.hpp"
@@ -234,7 +238,7 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(getLabels)(JNIEnv *env, jclass 
 	 env->DeleteLocalRef(carlist);
 
 	 for(int i=0;i<len;i++) {
-	 	    env->CallBooleanMethod(arlist,add, env->NewStringUTF(settings->getlabel(i).data()));
+	 	    env->CallBooleanMethod(arlist,add, myNewStringUTF(env,settings->getlabel(i).data()));
 		  }
         env->CallBooleanMethod(arlist,add, env->NewStringUTF(""));
 	return arlist;
@@ -250,8 +254,8 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(getShortcuts)(JNIEnv *env, jcla
 
 	 for(int i=0;i<len;i++) {
 		jobject arel=env->NewObject(carlist,init,2);
-		env->CallBooleanMethod(arel,add, env->NewStringUTF(settings->data()->shorts[i].name));
-		env->CallBooleanMethod(arel,add, env->NewStringUTF(settings->data()->shorts[i].value));
+		env->CallBooleanMethod(arel,add, myNewStringUTF(env,settings->data()->shorts[i].name));
+		env->CallBooleanMethod(arel,add, myNewStringUTF(env,settings->data()->shorts[i].value));
 	 	env->CallBooleanMethod(arlist,add, arel);
 	 	env->DeleteLocalRef(arel);
 		 }
@@ -725,12 +729,6 @@ bool savefield(JNIEnv *env,jstring jin,uint8_t *out) {
 	mix(mixpass, reinterpret_cast<uint8_t *>(tmp), out, len+1);
 	return true;
 	}
-jstring getfield(JNIEnv *env,uint8_t *in,int len) {
-	int totlen=len+1;
-	char tmp[totlen];		
-	mix(mixpass,in ,reinterpret_cast<uint8_t*>( tmp), totlen);
-	return env->NewStringUTF(tmp);
-	}
 extern "C" JNIEXPORT void  JNICALL   fromjava(savelibrerubbish)(JNIEnv *env, jclass cl,jstring FirstName,jstring LastName,jint dat,jstring GuardianFirstName,jstring GuardianLastName) {
 	settings->data()->DateOfBirth=dat;
 	savefield(env,FirstName, settings->data()->FirstName);
@@ -740,6 +738,12 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(savelibrerubbish)(JNIEnv *env, jcl
 	}
 
 	/*
+jstring getfield(JNIEnv *env,uint8_t *in,int len) {
+	int totlen=len+1;
+	char tmp[totlen];		
+	mix(mixpass,in ,reinterpret_cast<uint8_t*>( tmp), totlen);
+	return env->NewStringUTF(tmp);
+	}
 std::array<char,sizeof(settings->data->getLastName)>getLastName() {
 	std::array<char,sizeof(settings->data->getLastName)> name;
 	mix(mixpass, settings->data->getLastName,reinterpret_cast<uint8_t*>( name.data()), name.size());
@@ -1016,7 +1020,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getheartrate)(JNIEnv *env, jcl
 
 jobjectArray  mkjavastringarray(JNIEnv *env,BroadcastListeners<0> *listen) {
         const int len= listen->nr;
-        jobjectArray  sensjar = env->NewObjectArray(len,env->FindClass("java/lang/String"),nullptr);
+        jobjectArray  sensjar = env->NewObjectArray(len,JNIString,nullptr);
          for(int i=0;i<len;i++) {
                  env->SetObjectArrayElement(sensjar,i,env->NewStringUTF(listen->name[i]));
                   }
@@ -1179,7 +1183,7 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setApiSecret)(JNIEnv *env, jclass 
 #endif
 	 }
 extern "C" JNIEXPORT jstring  JNICALL   fromjava(getApiSecret)(JNIEnv *env, jclass cl) {
-	 return env->NewStringUTF(settings->data()->apisecret);
+	 return myNewStringUTF(env,settings->data()->apisecret);
 	}
 extern void stopsslwatchthread() ;
 extern std::string startsslwatchthread() ;
@@ -1215,7 +1219,7 @@ extern "C" JNIEXPORT jstring  JNICALL   fromjava(getnightuploadurl)(JNIEnv *env,
 	return env->NewStringUTF(settings->data()->nightuploadname);
 	}
 extern "C" JNIEXPORT jstring  JNICALL   fromjava(getnightuploadsecret)(JNIEnv *env, jclass cl) {
-	return env->NewStringUTF(settings->data()->nightuploadsecret);
+	return myNewStringUTF(env,settings->data()->nightuploadsecret);
 	}
 	extern	void enduploaderthread();
 extern "C" JNIEXPORT void  JNICALL   fromjava(setNightUploader)(JNIEnv *env, jclass cl,jstring jurl,jstring jsecret,jboolean active,jboolean v3) {
@@ -1681,7 +1685,13 @@ extern "C" JNIEXPORT jint  JNICALL   fromjava(getComplicationTextBorderColor)(JN
 	return settings->data()->ComplicationTextBorderColor;
 	}
 
-
-
-
 #endif
+
+jstring myNewStringUTF(JNIEnv *env,const std::string_view str){
+    const int len=str.size();
+    jbyteArray strBytes = env->NewByteArray(len);
+    env->SetByteArrayRegion(strBytes, 0, len, (const jbyte*)str.data());
+    const static jmethodID ctor = env->GetMethodID(JNIString, "<init>", "([B)V");
+    jstring jstr = (jstring) env->NewObject(JNIString, ctor, strBytes);
+    return jstr;
+}

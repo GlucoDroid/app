@@ -148,29 +148,7 @@ constexpr time_t basesecs=1262304000L;
 //constexpr const int endsensorsecs= (14*24-1)*60*60; 
 //constexpr const int days15=(15*24*60*60);
 #include "secs.h"
-struct streamdata {
-	int libreversion;
-	int sensorindex;
-	SensorGlucoseData *hist;
-	streamdata(int libreversion,int sensorindex,SensorGlucoseData *sens):libreversion(libreversion),sensorindex(sensorindex),hist(sens) {}
-	streamdata(int libreversion,int sensorindex):streamdata(libreversion,sensorindex,sensors->getSensorData(sensorindex)) {}
-	streamdata(int libreversion,const char *sensorname):streamdata(libreversion,sensors->sensorindex(sensorname)) {}
-	virtual bool good() const {
-		return true;
-		};
-	virtual ~streamdata() {};
-
-	};
-struct libre3stream:streamdata {
-	libre3stream(int sensindex,SensorGlucoseData *sens): streamdata(3, sensindex,sens){};
-	};
-#ifdef SIBIONICS
-#include "sibionics/SiContext.hpp"
-struct sistream:streamdata {
-	SiContext sicontext;
-	sistream(int sensindex,SensorGlucoseData *sens): streamdata(0x10, sensindex,sens),sicontext(sens){ };
-	};
-#endif
+#include "streamdata.hpp"
 struct libre2stream:streamdata {
 	int startsincebase;
 	jbyte person=0;
@@ -188,10 +166,6 @@ public:
 //		hist->mutex.unlock();
 
 		}
-
-
-
-
 	const data_t *getident() const {
 		return hist->getsensorident();
 		}
@@ -220,7 +194,6 @@ void renewstate() {
 
 const AlgorithmResults *  processTooth(data_t * bluedata, scanstate *newstate,uint32_t nutime) ;
 };
-
 extern pathconcat sensorbasedir;
 inline  static  const AlgorithmResults  __attribute__((unused)) *Initialized=reinterpret_cast<const AlgorithmResults *>(1ul);
 #define ALGDUP_VALUE Initialized

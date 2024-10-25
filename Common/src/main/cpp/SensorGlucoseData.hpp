@@ -1175,21 +1175,23 @@ void saveglucosedata(Mmap<ScanData> &scans,uint32_t &count,time_t tim,int id,int
 bool hasStreamID(const int id) const {
 	return polls[id].id==id&&polls[id].g;
 	}
-int savepollallIDsonly(time_t tim,const int id,int glu,int trend,float change) {
+template <int secs> int savepollallIDsonly(time_t tim,const int id,int glu,int trend,float change) {
 	int count=getinfo()->pollcount;
 	if(count<id) {
 		LOGGER("savepollallIDsonly count=%d<id=%d\n",count,id);
-		const uint32_t startiter=tim-(id-count)*60;
-		if(!count) {
-			LOGAR("savepollallIDsonly !count");
-			const auto starttime=getinfo()->starttime;
-			if(starttime>startiter||(startiter-starttime)>60*60) {
-				const uint32_t newstart=startiter-80;
-				getinfo()->starttime=newstart;
-				LOGGER("new start=%d\n",newstart);
-				}
-			}
-		for(uint32_t timiter=startiter;count<id;++count,timiter+=60)  {
+		const uint32_t startiter=tim-(id-count)*secs;
+      if constexpr (secs==60) {
+         if(!count) {
+            LOGAR("savepollallIDsonly !count");
+            const auto starttime=getinfo()->starttime;
+            if(starttime>startiter||(startiter-starttime)>60*60) {
+               const uint32_t newstart=startiter-80;
+               getinfo()->starttime=newstart;
+               LOGGER("new start=%d\n",newstart);
+               }
+             }
+            }
+		for(uint32_t timiter=startiter;count<id;++count,timiter+=secs)  {
 			if(!polls[count].t||polls[count].id!=count)
 				polls[count]={timiter,count,0,0,0.0};
 			}
@@ -1201,8 +1203,8 @@ int savepollallIDsonly(time_t tim,const int id,int glu,int trend,float change) {
 	polls[id]={static_cast<uint32_t>(tim),id,glu,trend,change};
 	return count;
 	}
-bool savepollallIDs(time_t tim,const int id,int glu,int trend,float change) {
-	int count=savepollallIDsonly(tim,id,glu,trend,change);
+template <int secs> bool savepollallIDs(time_t tim,const int id,int glu,int trend,float change) {
+	int count=savepollallIDsonly<secs>(tim,id,glu,trend,change);
 	if(id==count)
 		getinfo()->pollcount=id+1;
 	else {
@@ -1216,8 +1218,8 @@ bool savepollallIDs(time_t tim,const int id,int glu,int trend,float change) {
 
 
 void consecutivelifecount() {
-	int pos=getinfo()->lastLifeCountReceived;
-	int count=getinfo()->pollcount;
+	const int pos=getinfo()->lastLifeCountReceived;
+	const int count=getinfo()->pollcount;
 	for(int i=pos+1;i<count;i++) {
 		if(!polls[i].g&&!isnan(polls[i].ch)) {
 			getinfo()->lastLifeCountReceived=i-1;
@@ -1225,7 +1227,7 @@ void consecutivelifecount() {
 			return;
 			}
 		}
-	int newrec=count-1;
+	const int newrec=count-1;
 	if(newrec>0)
 		getinfo()->lastLifeCountReceived=newrec;
 	LOGGER("consecutivelifecount2 getinfo()->lastLifeCountReceived=%d\n",newrec);

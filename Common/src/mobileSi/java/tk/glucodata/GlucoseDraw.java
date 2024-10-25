@@ -16,18 +16,12 @@
 /*      You should have received a copy of the GNU General Public License            */
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
-/*      Sun Apr 16 20:59:10 CEST 2023                                                 */
+/*      Fri Jan 27 15:32:11 CET 2023                                                 */
 
 
 package tk.glucodata;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.splashscreen.SplashScreen;
 
-class Specific {
-static void start(Object context) { }
-
-static    void splash(AppCompatActivity act) {
-       SplashScreen.installSplashScreen(act);
-      }
-};
+class GlucoseDraw  { 
+   static int getgludraw(float val) { return 0; } 
+   };

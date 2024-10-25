@@ -65,8 +65,8 @@ fun getview(type: ComplicationType):GlucoseValue {
   //           width=MainActivity.screenwidth
              }
            else {
-             width = 100
-             height = 100
+             width = 150
+             height = 150
             }
          glview= GlucoseValue(width,height)
          }

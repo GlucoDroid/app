@@ -197,16 +197,19 @@ inline const NVGcolor *getthreehour() {
 
 #include "jugglucotext.hpp"
 extern NVGcontext* genVG;
-
-inline int mk12time(int hour,int min,char *buf) {
+inline int mk12hourmin(int hour,int min,char *buf) {
       int hour12 = hour % 12;
       if(!hour12) hour12 = 12;
-      int len=sprintf(buf,"%d:%02d",hour12,min);
+      return sprintf(buf,"%d:%02d",hour12,min);
+      }
+inline int mk12time(int hour,int min,char *buf) {
+      const int len=mk12hourmin(hour,min,buf);
       if(hour>=12) {
          memcpy(buf+len,"pm",3);
          }
-       else
-         memcpy(buf+len,"am",3);
+       else {
+          memcpy(buf + len, "am", 3);
+        }
        return len+2;
        }
 
@@ -221,6 +224,12 @@ inline int mktime(int hour,int min, char *buf) {
    if(hour24()) 
       return  mk24time(hour,min,buf);
    return  mk12time(hour,min,buf);
+   }
+
+inline int mkhourminstr(int hour,int min, char *buf) {
+   if(hour24()) 
+      return  mk24time(hour,min,buf);
+   return  mk12hourmin(hour,min,buf);
    }
 inline int datestr(const time_t tim,char *buf) {
 	struct tm tmbuf;

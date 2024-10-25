@@ -409,8 +409,10 @@ new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View
 		int[] ret={w,h};
 		return ret;
 		},views);
-   if(isWearable)
-       layout.setPadding(0,0,0,0);
+   if(isWearable) {
+//       layout.setPadding(0, (int) (GlucoseCurve.metrics.density*10),0,0);
+       layout.setPadding(0, 0,0,0);
+       }
      else
         layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight,MainActivity.systembarBottom);
 	var scroll=new ScrollView(context);	
@@ -545,7 +547,13 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
         });
 
         mgdl.setText(R.string.mgdL);
-        View[] row0 = isWearable?new View[]{new Space(context),mmolL, mgdl,new Space(context)}:new View[]{unitlabel, mmolL, mgdl};
+
+	     final   int padmg=(int)(tk.glucodata.GlucoseCurve.metrics.density*8.0);
+        mgdl.setPadding(0,0,padmg,0);
+        mgdl.setPadding(0,0,0,0);
+        mmolL.setPadding(0,0,0,0);
+         var leftspace=new Space(context);
+        View[] row0 = isWearable?new View[]{leftspace,mmolL, mgdl,new Space(context)}:new View[]{unitlabel, mmolL, mgdl};
 
         TextView graphlabel = new TextView(context);
         graphlabel.setText(R.string.graphrange);
@@ -553,7 +561,7 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
         glow.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
         glow.setImeOptions(editoptions);
-        glow.setMinEms(2);
+        glow.setMinEms(1);
 
 
         TextView line = new TextView(context);
@@ -565,13 +573,16 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
         ghigh.setMinEms(2);
         View[] row1 = {graphlabel, glow, line, ghigh};
 
+        graphlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*3.0),0,0,0);
+        ghigh.setPadding(ghigh.getPaddingLeft(),ghigh.getPaddingTop(),(int)(tk.glucodata.GlucoseCurve.metrics.density*3.0),ghigh.getPaddingBottom());
+
         TextView targetlabel = new TextView(context);
         targetlabel.setText(R.string.targetrange);
         tlow = new EditText(context);
 
 
         tlow.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        tlow.setMinEms(2);
+        tlow.setMinEms(1);
         tlow.setImeOptions(editoptions);
         TextView line2=new TextView(context); line2.setText("-");
         thigh = new EditText(context);
@@ -690,6 +701,7 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 	fixatey.setChecked(!Natives.getfixatey());
 	if(!isWearable)
 		reverseorientation.setChecked((Natives.getScreenOrientation()&SCREEN_ORIENTATION_REVERSE_LANDSCAPE)!=0);
+//   else fixatey.setPadding(0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0); 
 	bluetooth.setText(R.string.sensorviabluetooth);
 	final boolean blueused=Natives.getusebluetooth();
 
@@ -827,12 +839,28 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 
 	       
 
-	       var uploader=getbutton(context,R.string.uploader);
+          
+/*          alarmbut.setMinimumWidth(0);
+          alarmbut.setMinWidth(0);
+          alarmbut.setPadding(0,alarmbut.getPaddingTop(),0,alarmbut.getPaddingBottom());  */
+	       var uploader=getbutton(context,R.string.upload);
+         
+          uploader.setMinimumWidth(0);
+          uploader.setMinWidth(0);
+         var uppad=(int)(tk.glucodata.GlucoseCurve.metrics.density*9.0);
+          uploader.setPadding(uppad,alarmbut.getPaddingTop(),uppad,alarmbut.getPaddingBottom());
+
+          alarmbut.setMinimumWidth(0);
+          alarmbut.setMinWidth(0);
+          alarmbut.setPadding(uppad,alarmbut.getPaddingTop(),uppad,alarmbut.getPaddingBottom());
+
+//   else fixatey.setPadding(0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0); 
 	       var floatconfig=getbutton(context,R.string.floatglucoseshort);
 
 	       floatconfig.setOnClickListener(v-> tk.glucodata.FloatingConfig.show(context,thelayout[0]));
 		CheckBox floatglucose=new CheckBox(context);
-		floatglucose.setText("      " );
+		floatglucose.setText("   " );
+//		floatglucose.setText("      " );
 
 
 		floatglucose.setChecked(Natives.getfloatglucose());
@@ -995,21 +1023,22 @@ var	horlayout= new HorizontalScrollView(context);
 	scroller.setSmoothScrollingEnabled(false);
    scroller.setVerticalScrollBarEnabled(Applic.scrollbar);
 //	scroller.setHorizontalScrollBarEnabled(Applic.horiScrollbar);
-   scroller.setScrollbarFadingEnabled(false);//Crash with NestedScrollView
+   scroller.setScrollbarFadingEnabled(true);//Crash with NestedScrollView
 	scroller.setFillViewport(true);
 	scroller.setPadding(0,0,0,0);
 
    settinglayout=scroller;
 
 
+	   final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0);
 	if(isWearable) {
-	   lay.setPadding(0,0,0,0);
+
+	   lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*0.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),pad,pad);
 		display.setOnClickListener(v -> {
 			tk.glucodata.Display.display(context, settinglayout);
 		});
 		}
      else {
-	final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0);
 	   lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom);
       }
 

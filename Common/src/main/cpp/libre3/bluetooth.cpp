@@ -171,12 +171,12 @@ static jlong save3current(SensorGlucoseData *sens, const oneminute *minptr) {
 			rateofchange=trend2rate(minptr->trend);
 			}
 		const float rate= rateofchange/100.0f;
-		sens->savepollallIDs(now,minptr->lifeCount,curval,minptr->trend,rate);
+		sens->savepollallIDs<60>(now,minptr->lifeCount,curval,minptr->trend,rate);
 		res=glucoseback(curval,rate,sens);
 		sens->consecutivelifecount();
 		}
 	else {
-		sens->savepollallIDsonly(now,minptr->lifeCount,0,0,NAN);
+		sens->savepollallIDsonly<60>(now,minptr->lifeCount,0,0,NAN);
 /*		if(curval==32800) {
 			sens->replacesensor=true;
 			}*/
@@ -235,21 +235,21 @@ extern "C" JNIEXPORT  jlong JNICALL fromjava(saveLibre3MinuteL)(JNIEnv *env, jcl
 		LOGSTRING("saveLibre3Minute length jmindata =0\n");
 		return 0LL;
 		}
-        jbyte *mindata = (jbyte*)env->GetPrimitiveArrayCritical(jmindata, nullptr);
+        const jbyte *mindata = (jbyte*)env->GetPrimitiveArrayCritical(jmindata, nullptr);
         if(!mindata) {
 		LOGSTRING("saveLibre3Minute mindata =null\n");
 		return 0LL;
 		}
 
 	LOGSTRING("saveLibre3Minute\n");
-	destruct _dest([env,jmindata,mindata](){env->ReleasePrimitiveArrayCritical(jmindata,mindata, 0);});
+	destruct _dest([env,jmindata,mindata](){env->ReleasePrimitiveArrayCritical(jmindata,const_cast<jbyte*>(mindata), JNI_ABORT);});
 
-	const oneminute *minptr=reinterpret_cast<oneminute*>(mindata);
+	const oneminute *minptr=reinterpret_cast<const oneminute*>(mindata);
 	jlong res=save3current(sens,minptr);
 	save3history(sens,minptr);
 
 	backup->wakebackup(Backup::wakestream);
-					wakewithcurrent();
+	wakewithcurrent();
 
 	return res;
 	}
@@ -283,14 +283,14 @@ extern "C" JNIEXPORT  jboolean JNICALL fromjava(saveLibre3fastData)(JNIEnv *env,
 		LOGSTRING("saveLibre3fastData len!=sizeof(fastData)\n");
 		return false;
 		}
-        jbyte *fastdata = (jbyte*)env->GetPrimitiveArrayCritical(jfastdata, nullptr);
+        const jbyte *fastdata = (jbyte*)env->GetPrimitiveArrayCritical(jfastdata, nullptr);
         if(!fastdata) {
 		LOGSTRING("saveLibre3fastData fastdata=null\n");
 		return false;
 		}
-	destruct _dest([env,jfastdata,fastdata](){env->ReleasePrimitiveArrayCritical(jfastdata,fastdata, 0);});
+	destruct _dest([env,jfastdata,fastdata](){env->ReleasePrimitiveArrayCritical(jfastdata,const_cast<jbyte*>(fastdata), JNI_ABORT);});
 
-	const fastData *fastptr=reinterpret_cast<fastData*>(fastdata);
+	const fastData *fastptr=reinterpret_cast<const fastData*>(fastdata);
 
 	auto histval= fastptr->historicMgDl;
 	const auto histcount=fastptr->getHistoricLifeCount();
@@ -324,7 +324,7 @@ extern "C" JNIEXPORT  jboolean JNICALL fromjava(saveLibre3fastData)(JNIEnv *env,
 					return false;
 					}
 				LOGSTRING("save fastdata\n");
-				sens->savepollallIDs(wastime,lifecount,curval,0,NAN);
+				sens->savepollallIDs<60>(wastime,lifecount,curval,0,NAN);
 				sens->backstream(lifecount);
 				if(lifecount>=(sens->pollcount()-2))
 					backup->wakebackup(Backup::wakestream);
@@ -395,12 +395,12 @@ extern "C" JNIEXPORT  jboolean JNICALL fromjava(saveLibre3History)(JNIEnv *env, 
 		LOGGER("saveLibre3History len<4 %d\n",len);
 		return false;
 		}
-    jbyte *history = (jbyte*)env->GetPrimitiveArrayCritical(jhistory, nullptr);
+    const jbyte *history = (jbyte*)env->GetPrimitiveArrayCritical(jhistory, nullptr);
     if(!history) {
 		LOGSTRING("saveLibre3History (jbyte*)env->GetPrimitiveArrayCritical(jhistory, nullptr)=null\n");
 		return false;
 		}
-	destruct _dest([env,jhistory,history](){env->ReleasePrimitiveArrayCritical(jhistory,history, 0);});
+	destruct _dest([env,jhistory,history](){env->ReleasePrimitiveArrayCritical(jhistory,const_cast<jbyte*>(history), JNI_ABORT);});
 	return  saveLibre3History(sens, history,len);
 	}
 
@@ -433,12 +433,12 @@ extern "C" JNIEXPORT  jint JNICALL  fromjava(libre3processpatchstatus)(JNIEnv *e
 		LOGGER("libre3processpatchstatus length(jstatus)==%d!=%d\n",len,(int)sizeof(Patchstatus));
 		return -1;
 		}
-        jbyte *status = (jbyte*)env->GetPrimitiveArrayCritical(jstatus, nullptr);
+        const jbyte *status = (jbyte*)env->GetPrimitiveArrayCritical(jstatus, nullptr);
         if(!status) {
 		LOGSTRING("libre3processpatchstatus status =null\n");
 		return -1;
 		}
-	destruct _dest([env,jstatus,status](){env->ReleasePrimitiveArrayCritical(jstatus,status, 0);});
+	destruct _dest([env,jstatus,status](){env->ReleasePrimitiveArrayCritical(jstatus,const_cast<jbyte*>(status), JNI_ABORT);});
 	LOGSTRING("libre3processpatchstatus\n");
 	const Patchstatus *pstatus=reinterpret_cast<const Patchstatus *>(status);
 	LOGGER("patchState=%d, totalEvents=%d, lifeCount=%d, errorData=%d, eventData=%d, index=%d, currentLifeCount=%d, stackDisconnectReason=%d, appDisconnectReason=%d\n", pstatus->patchState, pstatus->totalEvents(), pstatus->lifeCount, pstatus->errorData, pstatus->getEventData(), pstatus->index, pstatus->currentLifeCount, pstatus->stackDisconnectReason, pstatus->appDisconnectReason);
@@ -461,13 +461,14 @@ extern "C" JNIEXPORT  int JNICALL  fromjava(libre3EventLog)(JNIEnv *env, jclass 
 		LOGSTRING("libre3EventLog jlogdata =null\n");
 		return -1;
 		}	
-        jbyte *logdata = (jbyte*)env->GetPrimitiveArrayCritical(jlogdata, nullptr);
+        const jbyte *logdata = (jbyte*)env->GetPrimitiveArrayCritical(jlogdata, nullptr);
         if(!logdata) {
 		LOGSTRING("libre3EventLog logdata =null\n");
 		return -1;
 		}
 	LOGSTRING("libre3EventLog\n");
-	destruct _dest([env,jlogdata,logdata](){env->ReleasePrimitiveArrayCritical(jlogdata,logdata, 0);});
+	destruct _dest([env,jlogdata,logdata](){env->ReleasePrimitiveArrayCritical(jlogdata,const_cast<jbyte*>(logdata), JNI_ABORT);});
+	
 	const jint len = env->GetArrayLength(jlogdata);
 	int units=len/7;
 	const EventLog *events=reinterpret_cast<const EventLog *>(logdata);

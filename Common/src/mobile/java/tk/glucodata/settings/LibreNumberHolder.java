@@ -47,6 +47,10 @@ import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.GlucoseCurve.getheight;
 import static tk.glucodata.GlucoseCurve.getwidth;
+import static tk.glucodata.MainActivity.systembarBottom;
+import static tk.glucodata.MainActivity.systembarLeft;
+import static tk.glucodata.MainActivity.systembarRight;
+import static tk.glucodata.MainActivity.systembarTop;
 import static tk.glucodata.Natives.canSendNumbers;
 import static tk.glucodata.Natives.setlibrenum;
 import static tk.glucodata.RingTones.EnableControls;
@@ -103,14 +107,13 @@ void sendoptions(View labelview,int pos) {
 	EditText weight=layout.findViewById(R.id.weight);
 	weight.setImeOptions(editoptions);
          Button help=layout.findViewById(R.id.help);
-	help.setOnClickListener(v->{tk.glucodata.help.basehelp(context.getString(R.string.setlibrenumtype),context,l-> { } , (hv,w,h)-> {return new int[] {
-	getwidth(),getheight() };} , new ViewGroup.MarginLayoutParams(MATCH_PARENT, MATCH_PARENT)); }); ;
+	help.setOnClickListener(v->{tk.glucodata.help.basehelp(context.getString(R.string.setlibrenumtype),context,l-> { } , (hv,w,h)-> {return new int[] { getwidth()-systembarLeft-systembarRight,getheight() - MainActivity.systembarTop*3/4- systembarBottom };} , new ViewGroup.MarginLayoutParams(MATCH_PARENT, MATCH_PARENT)); }); ;
 
 	measuredgrid grid=layout.findViewById(R.id.librenum);
 	grid.setmeasure((l,w,h)-> {
 		int height= getheight();
 		int width= getwidth();
-		l.setY(MainActivity.systembarTop);
+		l.setY(systembarTop);
 		int x=(width>w)?((width-w)/2):0;
 		l.setX(x);
             //	return new int[]{w,Math.min(h,height-MainActivity.systembarTop)};

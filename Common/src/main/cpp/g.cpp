@@ -861,12 +861,13 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(hasSibionics)(JNIEnv *env, jcl
 		  }
    return false;
 	} 
+extern jclass JNIString;
 
 #ifdef LIBRE3
 extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(activeSensors)(JNIEnv *env, jclass cl) {
 	setusedsensors();
 	const int len= usedsensors.size();
-	jobjectArray  sensjar = env->NewObjectArray(len,env->FindClass("java/lang/String"),nullptr);
+	jobjectArray  sensjar = env->NewObjectArray(len,JNIString,nullptr);
 	
 	LOGGER("activeSensors libre3 len=%d\n",len);
 	 for(int i=0;i<len;i++) {
@@ -892,7 +893,7 @@ extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(activeSensors)(JNIEnv *env
 		  if(sens&&!sens->isLibre3())
 		  	names[uitlen++]=sensors->shortsensorname(index)->data();
 		  }
-	jobjectArray  sensjar = env->NewObjectArray(uitlen,env->FindClass("java/lang/String"),nullptr);
+	jobjectArray  sensjar = env->NewObjectArray(uitlen,JNIString,nullptr);
 	for(int i=0;i<uitlen;i++)
 	     env->SetObjectArrayElement(sensjar,i,env->NewStringUTF(names[i]));
 

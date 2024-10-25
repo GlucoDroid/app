@@ -20,7 +20,11 @@
 
 
 #include <jni.h>
+#include <string_view>
 #include "fromjava.h"
+extern jclass JNIString;
+
+extern jstring myNewStringUTF(JNIEnv *env,const std::string_view str);
 #ifdef WEAROS
 extern "C" JNIEXPORT jlong  JNICALL   fromjava(foodsearch)(JNIEnv *env, jclass cl, jstring jzoek) {
 	return 0LL;
@@ -95,7 +99,7 @@ extern "C" JNIEXPORT jstring  JNICALL   fromjava(foodlabel)(JNIEnv *env, jclass 
 //	char buf[50];
 //	snprintf(buf,50,"food %d",ind);
 //	return env->NewStringUTF(buf);
-	return env->NewStringUTF(nutrients.foodlabel(ind));
+	return myNewStringUTF(env,nutrients.foodlabel(ind));
 	}
 
 /*
@@ -112,7 +116,7 @@ extern "C" JNIEXPORT jint  JNICALL   fromjava(foodnr)(JNIEnv *env, jclass cl) {
 
 
 extern "C" JNIEXPORT jstring  JNICALL   fromjava(idfoodlabel)(JNIEnv *env, jclass cl, jint ind) {
-	return env->NewStringUTF(nutrients.foodlabel(ind));
+	return myNewStringUTF(env,nutrients.foodlabel(ind));
 	}
 extern "C" JNIEXPORT jint  JNICALL   fromjava(getfoodid)(JNIEnv *env, jclass cl, jlong ptr,jint pos) {
 	std::vector<uint32_t> *vectptr=reinterpret_cast<std::vector<uint32_t>*>(ptr) ;
@@ -128,17 +132,17 @@ extern "C" JNIEXPORT jintArray  JNICALL   fromjava(getcomponents)(JNIEnv *env, j
 
 extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(getcomponentlabels)(JNIEnv *env, jclass cl) {
 	int len=nutrients.compnr();
-	jobjectArray  namejar = env->NewObjectArray(len,env->FindClass("java/lang/String"),nullptr);
+	jobjectArray  namejar = env->NewObjectArray(len,JNIString,nullptr);
 	 for(int i=0;i<len;i++) {
-		 env->SetObjectArrayElement(namejar,i,env->NewStringUTF(nutrients.complabel(i)));
+		 env->SetObjectArrayElement(namejar,i,myNewStringUTF(env,nutrients.complabel(i)));
 		  }
 	return namejar;
 	}
 extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(getcomponentunits)(JNIEnv *env, jclass cl) {
 	int len=nutrients.compnr();
-	jobjectArray  namejar = env->NewObjectArray(len,env->FindClass("java/lang/String"),nullptr);
+	jobjectArray  namejar = env->NewObjectArray(len,JNIString,nullptr);
 	 for(int i=0;i<len;i++) {
-		 env->SetObjectArrayElement(namejar,i,env->NewStringUTF(nutrients.compunit(i)));
+		 env->SetObjectArrayElement(namejar,i,myNewStringUTF(env,nutrients.compunit(i)));
 		  }
 	return namejar;
 	}

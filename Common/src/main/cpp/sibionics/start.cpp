@@ -28,7 +28,7 @@
 #include <string_view>
 #include <mutex>
 #include "SensorGlucoseData.hpp"
-#include "libre2.hpp" //PUT sistream etc in different header?
+#include "streamdata.hpp" 
 #include "fromjava.h"
 #include "destruct.hpp"
 #include "sibionics/AlgorithmContext.hpp"
@@ -94,6 +94,8 @@ extern "C" JNIEXPORT int JNICALL   fromjava(getSIindex)(JNIEnv *env, jclass cl,j
    } */
 
 extern bool savejson(SensorGlucoseData *sens,std::string_view, int index,const AlgorithmContext *alg );
+
+extern data_t *fromjbyteArray(JNIEnv *env,jbyteArray jar,jint len=-1);
 
 extern "C" JNIEXPORT jlong JNICALL   fromjava(SIprocessData)(JNIEnv *envin, jclass cl,jlong dataptr, jbyteArray bluetoothdata,jlong mmsec) {
 if(!dataptr) {

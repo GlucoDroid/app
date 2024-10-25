@@ -754,7 +754,7 @@ public static native void setComplicationBackgroundColor(int val);
 public static native int getComplicationBackgroundColor( );
 public static native void setComplicationTextBorderColor(int val);
 public static native int getComplicationTextBorderColor( );
-
+public static native byte[] ingredientNameBytes(int index);
 //public static native void sendxdripold();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }

@@ -21,7 +21,8 @@
 
 package tk.glucodata;
 
-
+import androidx.activity.OnBackPressedCallback;
+import androidx.activity.OnBackPressedDispatcher;
 import static android.content.Intent.EXTRA_PERMISSION_GROUP_NAME;
 import static android.graphics.Color.BLUE;
 import static android.graphics.Color.WHITE;
@@ -230,7 +231,7 @@ boolean glversion() {
 		try {
 		Log.i(LOG_ID,"OpenGl "+Double.parseDouble(configurationInfo.getGlEsVersion()));
 		if(( configurationInfo.reqGlEsVersion>>16)<openglversion) {
-			help.help("This program requires OpenGL ES "+openglversion+".0 or higher. Your smartphone has OpenGL ES "+ Double.parseDouble(configurationInfo.getGlEsVersion())+" so can't be used.\n\n\n\n\n",this,l->finish());
+			help.help("This program requires OpenGL ES "+openglversion+".0 or higher. This device has OpenGL ES "+ Double.parseDouble(configurationInfo.getGlEsVersion())+" so can't be used.\n\n\n\n\n",this,l->finish());
 			return false;
 			}
 		   } catch(Throwable e){
@@ -320,6 +321,9 @@ void showSystemBarsAppearance() {
    } */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if(isWearable) {
+		   Specific.splash(this);
+         }
         super.onCreate(savedInstanceState);
 // 	Log.testAppend((byte)7,(short) -4);
 if(Build.VERSION.SDK_INT >= 30)  {
@@ -374,7 +378,8 @@ if(Build.VERSION.SDK_INT >= 30)  {
 	if(Menus.on)
 		Menus.show(this);
    // ExtraActivity.specifics(this);
-	/*new OnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+   /*
+	new OnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
     	@Override
 		public void handleOnBackPressed() {
 		Log.d(LOG_ID, "handleOnBackPressed");
@@ -383,7 +388,20 @@ if(Build.VERSION.SDK_INT >= 30)  {
 			moveTaskToBack(true);
 			}
 	  }
-	}); */
+	});  
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+               Log.d(LOG_ID, "handleOnBackPressed");
+               if(!backinapp())  {
+                  Log.d(LOG_ID, "moveTaskToBack");
+                  moveTaskToBack(true);
+                  }
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, callback);
+      Log.d(LOG_ID, "handleOnBackPressed callback added");
+*/
     }
 void handleIntent(Intent intent) {
 	if(intent==null)
@@ -1318,23 +1336,25 @@ static public void clearonback() {
 	}
 boolean backinapp()  {
 	Log.d(LOG_ID,"backinapp");
-	    if(curve!=null&&(curve.render.stepresult & STEPBACK) == STEPBACK) {
-		Natives.pressedback();
-		curve.render.stepresult = 0;
-		hideSystemUI();
-		if(Menus.on)
-			Menus.show(this);
-		else
-			curve.requestRender();
-		return true;
+	if(curve!=null&&(curve.render.stepresult & STEPBACK) == STEPBACK) {
+	   Log.d(LOG_ID,"backinapp natives");
+         Natives.pressedback();
+         curve.render.stepresult = 0;
+         hideSystemUI();
+         if(Menus.on)
+            Menus.show(this);
+         else
+            curve.requestRender();
+         return true;
 		} 
-	    else {
+	 else {
+	   Log.d(LOG_ID,"backinapp doonback");
 		return doonback();
 		}
 	   }
 
 	@Override
-	public	void onBackPressed() {
+	public	void onBackPressed()   {
 		Log.d(LOG_ID, "onBackPressed");
 		if(!backinapp())  {
 			Log.d(LOG_ID, "moveTaskToBack");

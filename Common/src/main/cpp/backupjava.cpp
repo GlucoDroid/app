@@ -24,8 +24,9 @@
 #include "fromjava.h"
 #include "datbackup.hpp"
 #include "net/netstuff.hpp"
-
-
+#include <string_view>
+extern jclass JNIString;
+extern jstring myNewStringUTF(JNIEnv *env,const std::string_view str);
 void netwakeup();
 extern bool networkpresent;
 
@@ -60,9 +61,9 @@ extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(getbackupIPs)(JNIEnv *env,
 		LOGGER("host.nr==%d\n",len);
 		host.nr=len=0;
 		}
-	jobjectArray  ipar = env->NewObjectArray(len,env->FindClass("java/lang/String"),nullptr);
+	jobjectArray  ipar = env->NewObjectArray(len,JNIString,nullptr);
 	if(!ipar) {
-		LOGGER(R"(NewObjectArray(%d,env->FindClass("java/lang/String")==null)""\n",len);
+		LOGGER(R"(NewObjectArray(%d,JNIString==null)""\n",len);
 		return nullptr;
 		}
 	if(len>0) {
@@ -169,13 +170,13 @@ extern "C" JNIEXPORT jboolean JNICALL   fromjava(getbackuptestip)(JNIEnv *envin,
 	}
 extern "C" JNIEXPORT jstring JNICALL   fromjava(getbackuplabel)(JNIEnv *envin, jclass cl,jint pos) {
 	if(const char *label=gethostlabel(pos))
-		return envin->NewStringUTF(label);
+		return myNewStringUTF(envin,label);
 	return nullptr;
 	}
 extern "C" JNIEXPORT jstring JNICALL   fromjava(getbackuppassword)(JNIEnv *envin, jclass cl,jint pos) {
 	if(!backup||pos>=backup->gethostnr())
 		return nullptr;
-	return envin->NewStringUTF(backup->getpass(pos).data());
+	return myNewStringUTF(envin,backup->getpass(pos).data());
 	}
 extern "C" JNIEXPORT jstring JNICALL   fromjava(getbackuphostport)(JNIEnv *envin, jclass cl,jint pos) {
 	if(!backup||pos>=backup->gethostnr())
@@ -292,6 +293,7 @@ extern "C" JNIEXPORT jint JNICALL   fromjava(changebackuphost)(JNIEnv *env, jcla
 	LOGAR("changebackuphost const std::lock_guard<std::mutex> lock(change_host_mutex)");
   const std::lock_guard<std::mutex> lock(change_host_mutex);
 #endif
+LOGGER("changebackuphost(%d,%p,%d,%d,%p,%d,%d,%d,%d%,%d,%d,%d,%p,%ld,%p,%d,%d)\n", pos, jnames, nr, detect, jport, nums, stream, scans, recover, receive, activeonly, passiveonly, jpass, starttime, jlabel, testip, hashostname);
 	jint portlen= env->GetStringUTFLength( jport);
 	jint jlen = env->GetStringLength( jport);
 	char port[portlen+1]; env->GetStringUTFRegion( jport, 0,jlen, port); port[portlen]='\0';

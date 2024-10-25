@@ -334,5 +334,6 @@
 <string name="text">Tekst</string>
 <string name="arrow">Pijl</string>
    <string name="notalldata">LETOP: “Ontvang van” niet aangevinkt, zonder alle data te zenden.</string>
-
+<string name="libresetalllabels">Je kunt “Zend hoeveelheden” pas aanvinken, nadat voor alle labels is aangegeven wat ermee moet gebeuren. Als je getallen onder een label niet naar Libreview wilt sturen, vink je “Zend niet” aan.</string>
 </resources>
+

@@ -688,6 +688,7 @@ int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,stri
 	int portint=atoi(port.data());
 	if(portint>65535||portint<1024) {
 		LOGGER("port out of range %d\n",portint);
+		return -1;
 		}
 
  	struct oldnet {
@@ -751,6 +752,10 @@ int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,stri
 		thehost.hostname=true;
 		if(env) {
 			jstring  jhostname=(jstring)env->GetObjectArrayElement(jnames,0);
+			if(!jhostname) {
+				LOGAR("no hostname");
+				return -8;
+				}
 			int namelen= env->GetStringUTFLength( jhostname);
 			if(namelen>=maxhostname) { //terminanting zero
 				LOGGER("supplied name too long %d>%d\n",namelen,maxhostname);

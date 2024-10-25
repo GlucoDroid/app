@@ -60,7 +60,8 @@ import static tk.glucodata.Log.doLog;
 public class SensorBluetooth {
 static void	setAutoconnect(boolean val) {
 	Natives.setAndroid13(val);
-	SuperGattCallback.autoconnect=val;
+	if(!isWearable)
+		SuperGattCallback.autoconnect=val;
 	}
 public static SensorBluetooth blueone=null;
 public static void startscan() {
@@ -781,7 +782,7 @@ static public   void goscan() {
 
     public SensorBluetooth() {
         Log.v(LOG_ID,"SensorBluetooth");
-        SuperGattCallback.autoconnect=Natives.getAndroid13();
+        SuperGattCallback.autoconnect=!isWearable&&Natives.getAndroid13();
 
         SuperGattCallback.glucosealarms.sensorinit();
     }
@@ -900,6 +901,7 @@ private void addBondStateReceiver() {
 					    Log.i(LOG_ID,"Broadcast: "+bondState+ " "+address);
 				    }
 				}
+				cb.bonded();
 				return;
 				}
 			}

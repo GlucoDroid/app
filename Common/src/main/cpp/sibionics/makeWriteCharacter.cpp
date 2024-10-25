@@ -81,7 +81,7 @@ int  main(int argc,char **argv) {
 #else
 
 #include "SensorGlucoseData.hpp"
-#include "libre2.hpp" //PUT sistream etc in different header?
+#include "streamdata.hpp" 
 #include "fromjava.h"
 #include "share/hexstr.hpp"
 extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(getSiWriteCharacter)(JNIEnv *env, jclass cl,jlong dataptr) {

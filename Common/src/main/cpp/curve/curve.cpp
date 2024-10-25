@@ -485,12 +485,25 @@ int hourmin(const time_t tim,char buf[8]) {
 	 //snprintf(buf,6,"%02d:%02d",stm->tm_hour,mktmmin(stm));
    return  mktime(stm->tm_hour,mktmmin(stm),buf);
 	}
+   /*
 int largedaystr(const time_t tim,char *buf) {
         LOGAR("largedaystr");
 	struct tm stmbuf;
 	localtime_r(&tim,&stmbuf);
-   int len=mktime(stmbuf.tm_hour,mktmmin(&stmbuf),buf);
+   int len=mkhourminstr(stmbuf.tm_hour,mktmmin(&stmbuf),buf);
  	len+=sprintf(buf+len," %s %02d %s %d",usedtext->daylabel[stmbuf.tm_wday],stmbuf.tm_mday,usedtext->monthlabel[stmbuf.tm_mon],1900+stmbuf.tm_year);
+   return len;
+	} */
+int largedaystr(const time_t tim,char *buf) {
+        LOGAR("largedaystr");
+	struct tm stmbuf;
+	localtime_r(&tim,&stmbuf);
+   int len=mkhourminstr(stmbuf.tm_hour,mktmmin(&stmbuf),buf);
+#ifdef WEAROS
+ 	len+=sprintf(buf+len," %s %02d %s",usedtext->daylabel[stmbuf.tm_wday],stmbuf.tm_mday,usedtext->monthlabel[stmbuf.tm_mon]);
+#else
+ 	len+=sprintf(buf+len," %s %02d %s %d",usedtext->daylabel[stmbuf.tm_wday],stmbuf.tm_mday,usedtext->monthlabel[stmbuf.tm_mon],1900+stmbuf.tm_year);
+#endif
    return len;
 	}
 
@@ -1441,19 +1454,26 @@ template <class LT> void glucoselines(const float last,const float smallfontline
 		startld =  dwidth/2+dleft;
 		}
 
-
 	uint32_t keer=floorf(ceil(gmin)/step);
 	uint32_t startl=keer*step;
 //	const float endline=(dleft+dwidth)>nupos?nupos:(dwidth+dleft);
 	const float endline=last;
 	LOGGER("glucoselines: unit=%f unit2=%f step=%d (%g) startl=%d (%g)\n",unit,unit2,step,gconvert(step),startl,gconvert(startl));
+#ifdef WEAROS
+   const auto endlevel=dheight-smallfontlineheight;
+   const auto startlevel=2.5*smallfontlineheight;
+#endif
 	for(auto y=startl+step;y<gmax;y+=step) {
 		float dy=transy(y);
 		nvgBeginPath(genVG);
 	 	nvgMoveTo(genVG,dleft ,dy) ;
 		nvgLineTo( genVG, endline,dy);
 		nvgStroke(genVG);
+#ifdef WEAROS
+		if(dy>startlevel&&dy<endlevel) {
+#else
 		if(dy>smallfontlineheight) {
+#endif
 			constexpr const int  bufsize=50;
 			char buf[bufsize];
 #ifdef CONV18
@@ -1503,7 +1523,8 @@ void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
 	nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_TOP);
 	const float timehight=
 	#ifdef WEAROS
-		smallfontlineheight*1.6
+	//	smallfontlineheight*1.6
+		smallfontlineheight*1.35f
 	#else
 		0
 	#endif
@@ -2017,6 +2038,8 @@ LOGGER("showbluevalue %zd\n",used.size());
 		#endif
 		const float getx= xpos+headsize*.9f+8*dwidth/headsize;
 
+constexpr const bool showcurrentdate=true;
+if(showcurrentdate) {
 		const float datehigh=smallfontlineheight*.72;
 		
 		nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
@@ -2027,7 +2050,7 @@ LOGGER("showbluevalue %zd\n",used.size());
 		const float timex =
 			getx
 		#ifdef WEAROS
-			-timelen
+			-timelen*.85f
 		#endif
 		;
 /*
@@ -2049,6 +2072,7 @@ LOGGER("showbluevalue %zd\n",used.size());
 
 		LOGGER("xpos=%d dwidth=%.1f headsize=%.1f density=%.1f getx=%.1f timex=%.1f\n",xpos,dwidth,headsize, density,getx,timex);
 		}
+      }
 	showlastsstream(nu, getx,used) ;
 	}
 
@@ -2098,15 +2122,7 @@ if(timdis>0&&((duration/timdis)<grens)) {
 		#endif
 
 		char tbuf[70];
-uint32_t showtime=
-	#ifdef WEAROS
-	(endtime+starttime)/2
-	#else
-	starttime
-	#endif
-	;
 
-		daystr(showtime,tbuf);
 		nvgFillColor(genVG, *
 		#ifdef WEAROS
 		getdarkgray()
@@ -2115,21 +2131,35 @@ uint32_t showtime=
 		#endif
 		);
 	float xpos;
-	#ifdef WEAROS
+   int timelen;
+#ifdef WEAROS
 		xpos= dwidth/2+dleft;
+
+     time_t showtime= (endtime+starttime)/2;
+	struct tm tmbuf;
+	 struct tm *stm=localtime_r(&showtime,&tmbuf);
+		nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
+      timelen=strlen(usedtext->daylabel[stm->tm_wday]);
+      memcpy(tbuf,usedtext->daylabel[stm->tm_wday],timelen);
+		nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_BOTTOM);
+		nvgText(genVG,xpos ,dheight+datehigh*.2f, tbuf, tbuf+timelen);
+
+	   timelen=sprintf(tbuf,"%02d-%02d-%d",stm->tm_mday,stm->tm_mon+1,1900+stm->tm_year);
+   
 		nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_TOP);
+		nvgText(genVG,xpos ,datehigh*.68f+statusbarheight, tbuf, tbuf+timelen);
 	#else
+		timelen=daystr(starttime,tbuf);
 		xpos= settings->data()->levelleft?timelen*.75:0;
 		nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
+		nvgText(genVG,xpos ,datehigh+statusbarheight, tbuf, tbuf+timelen);
 	#endif
 
 		LOGGER("displaytime %s\n",tbuf);
-		nvgText(genVG,xpos ,datehigh+statusbarheight, tbuf, NULL);
 #ifndef WEAROS
 		if(nu>=endtime) {
 			daystr(endtime,tbuf);
 			nvgTextAlign(genVG,NVG_ALIGN_RIGHT|NVG_ALIGN_TOP);
-			nvgText(genVG, dwidth+dleft,datehigh+statusbarheight, tbuf, NULL);
 			}
 #endif
 		}
@@ -3383,7 +3413,7 @@ static bool  inmenu(float x,float y) ;
 	static bool speakmenutap(float x,float y) ;
 
 static int largepausedaystr(const time_t tim,char *buf) {
-        LOGAR("largedaystr");
+        LOGAR("largepausedaystr");
 	struct tm stmbuf;
 	localtime_r(&tim,&stmbuf);
  	//return sprintf(buf,"%s %02d %s %d\n%02d:%02d",usedtext->speakdaylabel[stmbuf.tm_wday],stmbuf.tm_mday,usedtext->monthlabel[stmbuf.tm_mon],1900+stmbuf.tm_year,stmbuf.tm_hour,mktmmin(&stmbuf));

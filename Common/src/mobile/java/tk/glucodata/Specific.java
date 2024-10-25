@@ -30,4 +30,6 @@ static void start(Application context) {
 	SuperGattCallback.doGadgetbridge=Natives.getgadgetbridge();
 	}
 
+static    void splash(Object act) { }
+
 };
