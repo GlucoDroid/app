@@ -74,6 +74,8 @@ constexpr int maxdays=
 #else
 30;
 #endif
+
+constexpr const int maxdaysDex=12;
 constexpr const int stdMaxDaysSI=24;
 constexpr const int maxdaysSI=
 
@@ -197,7 +199,7 @@ uint16_t startid;
 uint16_t interval;
 uint16_t pollstart;
 uint8_t dupl:7;
-bool uselater:1;
+bool dexcom:1;
 uint8_t days:7;
 bool sibionics:1;
 union {
@@ -220,35 +222,37 @@ struct {
    };
    };
 union {
-struct {
-   struct { 
-      int len;
-      signed char data[6];
-      int16_t extra;
-      } info;
-	struct {
-		uint32_t bluestart;	
-		union {
-			struct { int len;
-				signed char data[6];
-				uint8_t sensorgenDONTUSE;
-				bool reserved2;
-				} blueinfo;
-			uint8_t streamingAuthenticationData[12];
-			};
-		};
-      };
-
-
-   struct {
+   struct { //Libre 2
+      struct { 
+         int len;
+         signed char data[6];
+         int16_t extra;
+         } info;
+      struct {
+         uint32_t bluestart;	 
+         union {
+            struct { int len; //Libre 2 EU
+               signed char data[6];
+               uint8_t sensorgenDONTUSE;
+               bool reserved2;
+               } blueinfo;
+            uint8_t streamingAuthenticationData[12]; //Libre 2 US
+            };
+         };
+         };
+   struct { //Sibionics
        char siBlueToothNum[9];
-       char siBetween;
+       bool notchinese:1;
+       char siBetween:7;
        uint8_t siDeviceNamelen;
        char8_t siToken;
        char8_t siDeviceName[16];
-
 	};
-    };
+  struct { //Dexcom g7
+      std::array<uint8_t,16> sharedKey;  
+      char DexDeviceName[12];
+      };
+  };
 uint32_t pollcount;
 double pollinterval; 
 uint32_t lockcount;
@@ -297,6 +301,7 @@ struct {
    bool sendLibre[20*24*4];
    uint16_t healthconnectiter;
    };
+uint16_t broadcastfrom;
 };
 
 void clearLibreSendEnd(int start) {
@@ -364,8 +369,9 @@ const int historybytes(int perhour=4)  {
 #ifndef SIHISTORY
    if(isSibionics()) return 4*elsize;
 #endif
+//   if(isDexcom()) return 4*elsize;
 	const auto days=getinfo()->days;
-	if(elsize<10||elsize>20||days<14||days>maxdays) {
+	if(elsize<10||elsize>20||days<10||days>maxdays) {
 		LOGGER("%s: historybytes error elsize=%d days=%d\n",shortsensorname()->data(),elsize,days);
 		haserror=true;
 		return 0;
@@ -411,17 +417,22 @@ const int glucosebytes()const {
 bool waiting=true;
 const int32_t maxpos() const {
   if(isSibionics())
-     return maxSIhours*perhour();
-	return getinfo()->days*24*perhour();
-	}
+       return maxSIhours*perhour();
+  return getinfo()->days*24*perhour();
+  }
+
+ int streamperhour() const {
+  	if(isDexcom()) 
+		return 12;
+	else return 60;
+ 	}
 const int32_t maxstreampos() const {
-  constexpr const int streamperhour=60;
   if(isSibionics())
-     return maxSIhours*streamperhour;
+     return maxSIhours*streamperhour();
    auto days=getinfo()->days;
-   if(days<15)
+   if(days<15&&!isDexcom())
       days=15;
-   return days*24*streamperhour;
+   return days*24*streamperhour();
    }
 int streamingIsEnabled() const{
 	return getinfo()->streamingIsEnabled;
@@ -430,18 +441,20 @@ void setbluetoothOn(int val) {
 	getinfo()->streamingIsEnabled=val;
 	}
 uint32_t getfirsttime() const {
-	uint32_t locfirstpos=getstarthistory()+1;
-	for(int pos=locfirstpos,end=std::min(getAllendhistory(),maxpos());pos<end;pos++) {
-		int16_t id =getid(pos);
-		uint32_t tim=timeatpos(pos);
-		if(id&&tim)
-			return tim;
-		}
-	LOGGER("%s: no history\n",shortsensorname()->data());
+	if(isLibre()) {
+	   uint32_t locfirstpos=getstarthistory()+1;
+	   for(int pos=locfirstpos,end=std::min(getAllendhistory(),maxpos());pos<end;pos++) {
+		   int16_t id =getid(pos);
+		   uint32_t tim=timeatpos(pos);
+		   if(id&&tim)
+			   return tim;
+		   }
+	   LOGGER("%s: no history\n",shortsensorname()->data());
+	   }
 
 	return  firstpolltime();
 	}
-void checkhistory(std::ostream &os) {
+/*void checkhistory(std::ostream &os) {
 	int interval=getinterval();
 	int minhistinterval=interval/60;
 	uint32_t locfirstpos=getstarthistory()+1;
@@ -474,6 +487,7 @@ void checkhistory(std::ostream &os) {
 	os<<"total difference: "<<som<<" seconds "<<som/60.0<<" minutes"<<std::endl;
 
 	}
+   */
 int getinterval() const {
 	if(getinfo()->interval)
 		return getinfo()->interval;
@@ -487,7 +501,7 @@ const int perhour() const {
 	return 60/getmininterval();
 	}
 int getweardurationMIN() const {
-   const int wear=isLibre2()?getinfo()->wearduration:getinfo()->wearduration2;
+   const int wear=(isLibre2()||isDexcom())?getinfo()->wearduration:getinfo()->wearduration2;
    if(wear)
          return wear;
    return 14*24*60;
@@ -495,6 +509,13 @@ int getweardurationMIN() const {
 int getweardurationSEC() const {
    return getweardurationMIN() *60;
    }
+
+int getWarmupMIN() const {
+   const int warmup=(isLibre2()||isDexcom())?getinfo()->warmup:getinfo()->warmup2;
+   if(warmup)
+         return warmup;
+   return 60;
+   } 
 uint32_t officialendtime() const {
 	return getstarttime()+getweardurationSEC();
 	}
@@ -617,7 +638,30 @@ bool savenewhistory(int pos, int lifeCount, uint16_t mgL) {
 //        saveel(pos,wastime,lifeCount, {0,mgL});
 	return true;
 	}
+#ifdef DEXCOM
+void saveDexFuture(int frompos,uint32_t fromtime, int mgdL) { //20 minutes later
+	if(mgdL>401||mgdL<39) {
+		LOGGER("saveDexFuture %d invalid %d mg/dL\n",frompos,mgdL);
+		return;
+		}
+   constexpr const int minfuture=10;
+	const int pos=frompos+minfuture/5;
+	#ifdef NOLOG
+	const uint32_t
+	#else
+	const time_t
+	#endif
+	wastime=fromtime+minfuture*60;
 
+	Glucose *item=getglucose(pos);
+	item->time=wastime;
+	item->id=pos;
+	item->glu[1]=mgdL*10;
+	setendhistory(pos+1);
+
+	LOGGER("saveDexFuture %d %.1f  %s",pos,(mgdL*10)/convfactor,ctime(&wastime));
+	}
+#endif
 
 uint32_t timeatpos(int pos)  const {
 	const Glucose* gl= getglucose(pos);
@@ -727,28 +771,34 @@ bool hasbluetooth() const {
 	return getinfo()->bluestart!=bluestartunknown;
 	}
 bool canusestreaming() const {
- 	return  isSibionics()||isLibre3()||hasbluetooth();
+ 	return  isSibionics()||isLibre3()||hasbluetooth()||isDexcom();
  //	return  hasbluetooth();
 	}
-
-const sensorname_t * othershortsensorname() const {
+const std::string_view othershortsensorname() const {
 	if(isSibionics()) {
        const char *name=(char *)&getinfo()->siToken;
        if(*name)
-	         return reinterpret_cast<const sensorname_t *>(name);
+	         return {name,11};
       }
-	return reinterpret_cast<const sensorname_t *>(sensordir.data()+sensordir.length()-11);
+   else {
+      if(isDexcom()) {
+         return {sensordir.data()+sensordir.length()-12,12};
+         }
+       }
+	return {sensordir.data()+sensordir.length()-11,11};
 	}
-
+[[nodiscard]]  std::array<uint8_t,4> getDexPin() const {
+	return *reinterpret_cast<const std::array<uint8_t,4>*>(sensordir.data()+sensordir.length()-4);
+   }
 //typedef array<char,11>  sensorname_t;
-const sensorname_t * shortsensorname() const {
+[[nodiscard]] const sensorname_t * shortsensorname() const {
 	return reinterpret_cast<const sensorname_t *>(sensordir.data()+sensordir.length()-11);
 	}
 typedef std::array<char,16>  longsensorname_t;
-const longsensorname_t * sensorname() const {
+[[nodiscard]] const longsensorname_t * sensorname() const {
 	return reinterpret_cast<const longsensorname_t *>(sensordir.data()+sensordir.length()-16);
 	}
-std::string_view showsensorname() const {
+[[nodiscard]] std::string_view showsensorname() const {
 	if(isSibionics()) 
 	      return std::string_view((char *)getinfo()->siDeviceName,getinfo()->siDeviceNamelen);
      else {
@@ -832,17 +882,30 @@ E07A-000T3YL1R50
  bool isSibionics() const {
 	return getinfo()->sibionics;
 	}
+ bool isDexcom() const {
+	return getinfo()->dexcom;
+	}
  bool isLibre3() const {
-	return !isSibionics()&&(getinfo()->interval==interval5);
+	return !isSibionics()&&!isDexcom()&&(getinfo()->interval==interval5);
 	}
  bool isLibre2() const {
-   return !isSibionics()&&!isLibre3();
+   return !(isSibionics()||isDexcom()||getinfo()->interval==interval5);
    }
+bool isLibre() const {
+	return !(isSibionics()||isDexcom());
+	}
+int streaminterval() const {
+	const int res=isDexcom()?5:1;
+	LOGGER("streaminterval()=%d\n",res);
+	return res;
+	}
 	/*
  bool libreviewable() const {
 	return !isLibre3()&&pollcount();
 	} */
+
 static	constexpr uint16_t interval5=5*60;
+#ifdef LIBRE3
 static bool mkdatabase3(string_view sensordir,time_t start,uint32_t pin,const char *address,uint16_t warmup, uint16_t wearduration) {
      LOGGER("mkdatabase3 %s,%s",sensordir.data(),ctime(&start));
 	mkdir(sensordir.data(),0700);
@@ -867,6 +930,8 @@ static bool mkdatabase3(string_view sensordir,time_t start,uint32_t pin,const ch
 
 	return true;
 	}
+#endif
+#ifdef SIBIONICS 
 static bool mkdatabaseSI(string_view sensordir,string_view sensorgegs,uint32_t now,bool hasnum) {
      LOGGER("mkdatabaseSI %s,%s\n",sensordir.data(),sensorgegs.data());
 	mkdir(sensordir.data(),0700);
@@ -896,7 +961,33 @@ static bool mkdatabaseSI(string_view sensordir,string_view sensorgegs,uint32_t n
 
 	return true;
 	}
+#endif
 
+#ifdef DEXCOM
+static bool mkdatabaseDex(string_view sensordir,string_view sensorgegs,uint32_t now) {
+   LOGGER("mkdatabaseDex %s,%s\n",sensordir.data(),sensorgegs.data());
+	mkdir(sensordir.data(),0700);
+	pathconcat infoname(sensordir,infopdat);
+	if(access(infoname,F_OK)!=-1)  {
+		Readall<uint8_t> inf(infoname);
+		if(inf.data()&&inf.size()>=sizeof(Info)) {
+			const Info *in=reinterpret_cast<const Info*>(inf.data());
+			if(in->pollcount&&in->starttime>1700000000&&in->dupl>0&&in->dexcom)
+				return false;
+			}
+		}
+	uint32_t start=now;
+    Info inf{.starttime=(uint32_t)now,.lastscantime=(uint32_t)start,.starthistory=0,.endhistory=0,.scancount=0,.startid=0,.interval=interval5,.dupl=3,.dexcom=true,.days=maxdaysDex ,.warmup=30,.wearduration=14400,.lastLifeCountReceived=1,.pollcount=0};
+    inf.siIdlen=sensorgegs.size();
+    memcpy(inf.siId,sensorgegs.data(),inf.siIdlen);
+	writeall(infoname,&inf,sizeof(inf));
+
+//        settings->data()->balanced_priority=false;
+ //       settings->data()->android13=true;
+	return true;
+	}
+
+#endif
 	/*
 bool bluetoothfirst() const {
 	return !getinfo()->blueinfo.data[4]&&!getinfo()->blueinfo.data[5];
@@ -936,9 +1027,12 @@ bool unused() const {
 	const auto *info=getinfo();
 	return info->pollcount==0&&info->scancount==0&&info->endhistory==0;
 	}
+bool canscan() const {
+	return !(isDexcom()||isSibionics()||isLibre3());
+	}
 private:
 size_t maxscansize()  {
-   if(isSibionics()||isLibre3()) return 4;
+   if(!canscan()) return 4;
 	if(!getinfo()) 	 {
 		LOGGER("%s: maxscansize()  getinfo()==null",shortsensorname()->data());
 		haserror=true;
@@ -1000,6 +1094,10 @@ specstart(spec),
  ,statefile3(sensordir,"state3.json")
 #endif
 {
+if(isDexcom()) 
+   LOGGER("%s sensor is Dexcom\n",shortsensorname()->data());
+else
+   LOGGER("%s sensor is not Dexcom\n",shortsensorname()->data());
 if(error()) {
 	LOGGER("SensorGlucoseData %s %s Error\n",sensordir.data(),baseuit.data());
 	return;
@@ -1069,7 +1167,7 @@ SensorGlucoseData(string_view sensin): SensorGlucoseData(sensin,globalbasedir.si
 	}
 //bool haserror=false;
 bool error() const {
-	if(!haserror&&meminfo.data()&& historydata.data()&&polls.data()&& (isSibionics()||isLibre3()||(scans.data()&& trends.data())))
+	if(!haserror&&meminfo.data()&& historydata.data()&&polls.data()&& (!canscan()||(scans.data()&& trends.data())))
 		return false;	
 	return true;
 	}
@@ -1221,16 +1319,16 @@ void consecutivelifecount() {
 	const int pos=getinfo()->lastLifeCountReceived;
 	const int count=getinfo()->pollcount;
 	for(int i=pos+1;i<count;i++) {
-		if(!polls[i].g&&!isnan(polls[i].ch)) {
-			getinfo()->lastLifeCountReceived=i-1;
-			LOGGER("consecutivelifecount1 getinfo()->lastLifeCountReceived=%d\n",i-1);
-			return;
-			}
-		}
+	     if(!polls[i].g&&!isnan(polls[i].ch)) {
+		  getinfo()->lastLifeCountReceived=i-1;
+		  LOGGER("consecutivelifecount1 getinfo()->lastLifeCountReceived=%d\n",i-1);
+		  return;
+		  }
+	     }
 	const int newrec=count-1;
 	if(newrec>0)
 		getinfo()->lastLifeCountReceived=newrec;
-	LOGGER("consecutivelifecount2 getinfo()->lastLifeCountReceived=%d\n",newrec);
+	LOGGER("consecutivelifecount2 getinfo()->lastLifeCountReceived=%d (was %d)\n",newrec,pos);
 	}
 void fastupdatelifecount(int fastcount) {
 	if(getinfo()->lastLifeCountReceived<fastcount) {
@@ -1673,11 +1771,11 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
 					case 0: return 0;
 					case 1: {
 						wrotehistory=true;
-						vect.reserve(2+sendhiststart);
+						vect.reserve(3+sendhiststart);
 						break;
 						};
 					default:
-						vect.reserve(1+sendhiststart);
+						vect.reserve(2+sendhiststart);
 
 					};
 				};break;
@@ -1688,37 +1786,44 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
 					case 0: return 0;
 					case 1: {
 						wrotehistory=true;
-						vect.reserve(2+sendhiststart);
+						vect.reserve(3+sendhiststart);
 						break;
 						};
 					default:
-					vect.reserve(1+sendhiststart);
+					vect.reserve(2+sendhiststart);
 					};
 				break;
 				}
 			default: 
-				vect.reserve(1);
+				vect.reserve(2);
 				break;
 			};
 		vect.push_back({reinterpret_cast<uint8_t*>(&pollinfo),off,len});
 	  bool updateStarttime=false;
-	      if(isSibionics()&&!getinfo()->update[ind].siStream&&getinfo()->siDeviceName[0]&&
+	  if(isSibionics()&&!getinfo()->update[ind].siStream&&getinfo()->siDeviceName[0]&&
                                  getinfo()->deviceaddress[0]&&
                                  getinfo()->siDeviceNamelen>3) {
 			updateStarttime=true;
-      			LOGAR("updateStream send starttime, deviceName and deviceAddress");
+         LOGAR("updateStream send starttime, deviceName and deviceAddress");
 			vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starttime),offsetof(Info,starttime),4});
-			vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->siDeviceNamelen),offsetof(Info,siDeviceNamelen),18});
+			vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->siDeviceNamelen-1),offsetof(Info,siDeviceNamelen)-1,19});
 			vect.push_back({reinterpret_cast<const senddata_t *>(getinfo()->deviceaddress),offsetof(Info,deviceaddress),deviceaddresslen});
          }
         else {
+         if(isDexcom()&&!getinfo()->update[ind].siStream&&pollcount()) {
+			   updateStarttime=true;
+           LOGAR("updateStream send starttime");
+			   vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starttime),offsetof(Info,starttime),4});
+            }
          if(sendhiststart) {
             vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starthistory),offsetof(Info,starthistory),sizeof(getinfo()->starthistory)});
             }
-            if(wrotehistory) {
+         if(wrotehistory) {
                vect.push_back({reinterpret_cast<const senddata_t *>(&endinfo),offsetof(Info,endStreamhistory),sizeof(endinfo)});
                }
            }
+
+			vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->broadcastfrom),offsetof(Info,broadcastfrom),sizeof(getinfo()->broadcastfrom)});
 		 if(!senddata(pass,sock,vect, infopath,cmd,reinterpret_cast<const uint8_t *>(&streamstart),sizeof(streamstart))) {
 			LOGSTRING("GLU: senddata info.data failed\n");
 			return 0;
@@ -1740,7 +1845,7 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
 			LOGSTRING("startchanged\n");
 			}
 		if(sendhiststart) getinfo()->update[ind].sendhiststart=false;
-		if(isLibre3()) {
+		if(isLibre3()||isDexcom()) {
 			int endhistory=getScanendhistory();	
 			if(oldsendhistory(pass,sock,ind,sensindex,true,endhistory))
 				return 1;
@@ -1797,7 +1902,22 @@ void setSiIndex(int index)  {
 uint32_t receivehistory=0;
 int retried=0;
 bool scannedAddress=false;
-int broadcastfrom=INT_MAX;
+void setbroadcastfrom(int br) {
+   LOGGER("setbroadcastfrom(%d)\n",br);
+    getinfo()->broadcastfrom=br;
+    }
+int getbroadcastfrom() const {
+    return getinfo()->broadcastfrom;
+    }
+
+
+void setNotchinese() {
+   if(isSibionics()) getinfo()->notchinese=true;
+    }
+bool notchinese() const {
+   return isSibionics()&&getinfo()->notchinese;
+   }
+int previousstream=-1;
 };
 
 struct lastscan_t {

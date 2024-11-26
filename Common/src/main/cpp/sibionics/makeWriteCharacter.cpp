@@ -22,7 +22,6 @@
 
 
 #include <array>
-#include <array>
 #include <string_view>
 #include <iostream>
 #include <stdio.h>
@@ -30,11 +29,16 @@
 #include <type_traits>
 #include "contconcat.hpp"
 
+#include "SensorGlucoseData.hpp"
+#include "streamdata.hpp" 
+#include "fromjava.h"
+#include "share/hexstr.hpp"
 
+/*
 static int8_t oneel(const char *start) {
 	return strtol(start,nullptr,16);
 	}
-static auto deviceArray(std::string_view address) {
+auto deviceArray(std::string_view address) {
 	std::array<int8_t,6>  ar{};
 	int pos=address.find_last_of(':',-1)+1;
 	const char *start=address.data();
@@ -45,7 +49,14 @@ static auto deviceArray(std::string_view address) {
 		pos=std::string_view(start,pos-1).find_last_of(':',-1)+1;
 		}
 	return ar;
-	}
+	} */
+
+std::array<int8_t,6>  deviceArray(const char address[]) {
+   std::array<int8_t,6> uitar;
+   auto *uit=uitar.data();
+   sscanf(address,"%hhX:%hhX:%hhX:%hhX:%hhX:%hhX",uit+5,uit+4,uit+3,uit+2,uit+1,uit);
+   return uitar;
+   }
 
 
 template <typename T1,typename T2,std::size_t N> T1 sum(T2 (&vect)[N],T1 start) {
@@ -59,7 +70,7 @@ template <typename T1,typename T2> T1 sum(T2 vect,T1 start) {
 
 static auto makeWriteCharacter(int index, std::string_view address) {
         std::array<int8_t,2> &indexAr = *reinterpret_cast<array<int8_t,2>*>(&index);
-        auto AddArr=deviceArray(address);
+        auto AddArr=deviceArray(address.data());
          int8_t startAr[] = {-86, 85, 7};
 	int8_t zeros[] = {0, 0, 0, 0,0, 0, 0, 0};
         const auto su = sum(AddArr, sum(indexAr, sum(startAr,0))) ;
@@ -80,26 +91,50 @@ int  main(int argc,char **argv) {
    } 
 #else
 
-#include "SensorGlucoseData.hpp"
-#include "streamdata.hpp" 
-#include "fromjava.h"
-#include "share/hexstr.hpp"
-extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(getSiWriteCharacter)(JNIEnv *env, jclass cl,jlong dataptr) {
+
+extern Data_t askindexdata(jlong index) ;
+extern "C" JNIEXPORT jboolean JNICALL   fromjava(siNotchinese)(JNIEnv *env, jclass cl,jlong dataptr) {
+	const SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
+	if(!usedhist)
+		return false;
+	return usedhist->notchinese();
+   }
+   
+extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(siAsknewdata)(JNIEnv *env, jclass cl,jlong dataptr) {
 	if(!dataptr)
 		return nullptr;
 	const SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
 	if(!usedhist)
 		return nullptr;
 	const int index=usedhist->getSiIndex();
-	const auto address=usedhist->deviceaddress();
-   const auto codes=makeWriteCharacter(index,address);
-   const auto *data=codes.data();
-	const int len=codes.size();
-   hexstr hex((const uint8_t *)data,len);
-   LOGGER("getSiWriteCharacter(index=%d)=%s\n",index,hex.str());
-	jbyteArray uit=env->NewByteArray(len);
-	env->SetByteArrayRegion(uit, 0, len,data);
-	return uit;
+#ifdef NOTCHINESE
+	if(usedhist->notchinese()) {
+		auto dat=askindexdata(index);
+		int len=dat.used;
+		jbyte *data=(jbyte*)dat.data->data();
+		jbyteArray uit=env->NewByteArray(len);
+		env->SetByteArrayRegion(uit, 0, len,data);
+		#ifndef NOLOG
+		hexstr hex((const uint8_t *)data,len);
+		LOGGER("siAsknewdata(index=%d)=%s\n",index,hex.str());
+		#endif
+		return uit;
+		}
+	else 
+#endif
+   {
+	   const auto address=usedhist->deviceaddress();
+	   const auto codes=makeWriteCharacter(index,address);
+	   const auto *data=codes.data();
+	   const int len=codes.size();
+	   #ifndef NOLOG
+	   hexstr hex((const uint8_t *)data,len);
+	   LOGGER("siAsknewdata(index=%d)=%s\n",index,hex.str());
+	   #endif
+		jbyteArray uit=env->NewByteArray(len);
+		env->SetByteArrayRegion(uit, 0, len,data);
+		return uit;
+	    }
 	}
 #endif
 #endif

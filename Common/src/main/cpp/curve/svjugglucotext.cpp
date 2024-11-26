@@ -73,7 +73,7 @@ jugglucotext svtext {
 		"Inställningar",
 
 #if defined(SIBIONICS)
-		"Sibionics",
+		"Photo",
 #else
 		"Om",
 #endif

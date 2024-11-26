@@ -1,3 +1,5 @@
+
+#ifdef LIBRE3
 /*      This file is part of Juggluco, an Android app to receive and display         */
 /*      glucose values from Freestyle Libre 2 and 3 sensors.                         */
 /*                                                                                   */
@@ -526,3 +528,5 @@ extern "C" JNIEXPORT  jbyteArray JNICALL  fromjava(libre3EventLogControl)(JNIEnv
 	env->SetByteArrayRegion(uit, 0, comlen,command);
         return uit;
         }
+
+#endif

@@ -87,7 +87,7 @@ static void getvalues() {
 		}
 	}
 
-static private ArrayList<Voice> voiceChoice=new ArrayList();
+static final private ArrayList<Voice> voiceChoice=new ArrayList<>();
 void setvalues() {
 	if(engine!=null) {
 		var loc=getlocale();

@@ -346,7 +346,7 @@ bool sendlibre3viewdata(bool hasnewcurrent,uint32_t nu) {
 		if(sensdata->isLibre3()) 
 			break;
 		else {
-         if(!sensdata->isSibionics()) {
+         if(sensdata->isLibre()) {
             if(notsendall2(startsensor)) {
                settings->data()->haslibre2=true; 
                } 
@@ -378,7 +378,7 @@ bool sendlibre3viewdata(bool hasnewcurrent,uint32_t nu) {
 				}
 			}
 		else {
-         if(!sensdata->isSibionics()) {
+         if(sensdata->isLibre()) {
             if(notsendall2(i)) {
                settings->data()->haslibre2=true; 
                } 

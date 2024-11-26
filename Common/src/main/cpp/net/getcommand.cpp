@@ -707,6 +707,7 @@ static bool savefileonce(const struct fileonce_t *gegs) {
 	if((gegs->dowith&streamupdatebit)) {
 		const auto [sendindex,startpos]=getstartinfo(gegs,start);
 		processglucosevalue(sendindex,startpos);
+
 		}
 	else {
 		if((gegs->dowith&starthistoryupdate)) {

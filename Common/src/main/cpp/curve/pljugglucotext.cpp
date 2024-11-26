@@ -99,7 +99,7 @@ jugglucotext pltext {
 		"Sensor",
 		"Ustawienia",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
 		"Informacje",
 #endif

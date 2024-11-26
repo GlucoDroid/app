@@ -104,10 +104,10 @@ int getglucosestr(uint32_t nonconvert,char *glucosestr,int maxglucosestr);
 
 extern float threshold(float drate);
 extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclass cl) {
-	const uint32_t nu=time(nullptr);	
+//	const uint32_t nu=time(nullptr);
 	const auto [hist,index]=getlaststream(maxwatchage);
 	if(!hist)  {
-		LOGSTRINGTAG("getlaststream(nu)=null\n");
+		LOGSTRINGTAG("getlaststream(maxwatchage)=null\n");
 		return nullptr;
 		}
 	const ScanData *poll=hist->lastpoll();
@@ -136,7 +136,7 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclas
 		return nullptr;
 		}
 	const jlong tim=poll->gettime();
-	const char *sensorid=hist->othershortsensorname()->data();
+	const char *sensorid=hist->othershortsensorname().data();
 	LOGGERTAG("strGlucose(%lld,%s,%s,%.1f)\n",(long long)tim,buf,sensorid,poll->ch);
 	const float rateofchange=( nonconvert<glucoselowest||nonconvert>glucosehighest)?NAN:threshold(poll->ch);
 	return env->NewObject(item,iconstruct,tim,env->NewStringUTF(buf),env->NewStringUTF(sensorid),rateofchange,index);

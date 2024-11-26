@@ -85,7 +85,7 @@ private Button exportbutton(MainActivity activity,String label, int type) {
 
 
 EditText days;
-void showexport(MainActivity activity,int width,int height) {
+public void showexport(MainActivity activity,int width,int height) {
 	if(exportscreen==null) {
 		Button num=exportbutton(activity,activity.getString(R.string.amountsname),0);
 		Button scan=exportbutton(activity,activity.getString(R.string.scansname),1);

@@ -1,3 +1,10 @@
+remove NONOJVM
+Knoppen over scherm
+-Sensor scherm door rssi
+-uploader?
+
+in wearOS settings:
+   voor labels meer linker margin
 hostname in mirror kan aan staat bij passive only.
 Procompiled share libraries don't run under Android 15 TargetSDK=35 with 16kb
 On Android 15, is notification only shown after restart of Juggluco

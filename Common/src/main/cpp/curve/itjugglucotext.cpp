@@ -109,7 +109,7 @@ static jugglucotext ittext {
 		"Sensore",
 		"Impostazione",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
 "About",
 #endif

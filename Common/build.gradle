@@ -20,9 +20,9 @@ if(task.contains("LibreOldNosi")&&!task.contains("Wear")) {
 
    }
 else {
-       ndkver = '28.0.12433566'
+       ndkver = '28.0.12674087'
       APPCOMPAT = '1.7.0'
-      GMSWEAR = '18.2.0'
+      GMSWEAR = '19.0.0'
      GMSBASE = '18.5.0'
       MINSDK = 21
    CPPSTD = "-std=gnu++26"
@@ -68,14 +68,15 @@ android {
     defaultConfig {
         minSdk        MINSDK
         targetSdk 34
+//        targetSdk 24
         buildConfigField 'int', 'targetSDK', "$targetSdk"
         buildConfigField 'int', 'minSDK', "$minSdk"
         compileSdk 35
         applicationId "tk.glucodata"
-         manifestPlaceholders["debuggable"] = "false"
-         manifestPlaceholders["requireWatch"] = "true"
+         manifestPlaceholders["debuggable"] = "true"
+         manifestPlaceholders["requireWatch"] = "false"
 
-	     versionName '8.2.7'
+	     versionName '9.0.0'
 //	multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -87,6 +88,7 @@ android {
                 version "3.22.1"
 //		cppFlags  " -DAPPID=\\\"$applicationId\\\"   -DAPPVERSION=\\\"$versionName\\\" "
 		cppFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
+		cFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
         arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
 
 
@@ -99,28 +101,40 @@ android {
     buildToolsVersion '33.0.0'
     }
 
-    flavorDimensions 'wearos','libreVersion','SiBionics'
+flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
+//    flavorDimensions 'wearos','libreVersion','SiBionics', 'DexCom'
 
     productFlavors {
 
-        libreOld {
-//        minSdk 19
-            //minSdk 19
-//            minSdk 21
+        dex {
+            dimension 'DexCom'
+            versionNameSuffix '-x'
+            buildConfigField 'int', 'DexCom', '1'
+            externalNativeBuild.cmake {
+			     arguments "-DDEXCOM=TRUE"
+                cppFlags "   -DDEXCOM=1 "
+                cFlags "   -DDEXCOM=1 "
+            }
+        }
+        nodex {
+            dimension 'DexCom'
+            versionNameSuffix '-nox'
+            buildConfigField 'int', 'DexCom', '0'
+            externalNativeBuild.cmake {
+            }
+        }
 
-            //	targetSdk 26
+        libreOld {
 	//******  Zet op rollout op 100% ******
-            	dimension 'libreVersion'
-		versionCode                                                                     500                                                                                                                                       //LIBRE2ONLY
-	//	versionName '8.2.7-no3'
-		versionNameSuffix '-no3'
+            dimension 'libreVersion'
+            versionCode                                                                            507                 //LIBRE2ONLY
+         //	versionName '9.0.0-no3'
+            versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
 		    externalNativeBuild.cmake {
-//			cppFlags "  -DAPPVERSION=\\\"$versionName\\\" "
 
             	}
-
-		}
+		   }
         libre3 {
             // targetSdk 26
 	   minSdk 26
@@ -130,13 +144,14 @@ android {
 //	   minSdk 23
             dimension 'libreVersion'
 		versionNameSuffix '-li3'
-		versionCode                                                                    501                                                                                                                                       //LIBRE3
+		versionCode                                                                           508                                                                                                                                                     //LIBRE3
 	//******  Zet op rollout op 100% ******
 
            	buildConfigField 'int', 'libreVersion', '3'
 		    externalNativeBuild.cmake {
 			arguments "-Dlibre3=TRUE"
 			cppFlags "   -DLIBRE3=1 "
+			cFlags "   -DLIBRE3=1 "
 
             }
 
@@ -144,21 +159,22 @@ android {
         si {
 	  	minSdk 21
 		minSdkVersion 21
-            	dimension 'SiBionics'
+      dimension 'SiBionics'
 		versionNameSuffix '-si'
-		versionCode                                                               501                                                                                                                                    
-	        buildConfigField 'int', 'SiBionics', '1'
-	         externalNativeBuild.cmake {
-			cppFlags "   -DSIBIONICS=1 "
-            		}
+		versionCode                                                                      508            
+	   buildConfigField 'int', 'SiBionics', '1'
+	   externalNativeBuild.cmake {
+         cppFlags "   -DSIBIONICS=1 "
+         cFlags "   -DSIBIONICS=1 "
+        	}
 		}
         nosi {
-            	dimension 'SiBionics'
-		versionCode                                                                     500                                                                                                                                    
-		versionNameSuffix '-nosi'
-	        buildConfigField 'int', 'SiBionics', '0'
-	         externalNativeBuild.cmake {
-            		}
+        	dimension 'SiBionics'
+         versionCode         507            
+         versionNameSuffix '-nosi'
+	      buildConfigField 'int', 'SiBionics', '0'
+	      externalNativeBuild.cmake {
+         		}
 		}
 
         wear {
@@ -170,9 +186,9 @@ android {
             dimension 'wearos'
 		minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-		versionCode                                                                    502                                                                                                                                       //WATCH
+		versionCode                                                                           509                                                                                                                                                     //WATCH
 	//******  Zet op rollout op 100% ******
-		//versionName '8.2.7-wear'
+		//versionName '9.0.0-wear'
 		versionNameSuffix '-wear'
 		signingConfig signingConfigs.alg
 
@@ -181,6 +197,7 @@ android {
             externalNativeBuild.cmake {
 	        arguments "-DWEAROS=TRUE"
                 cppFlags " -DWEAROS=1  -DUSEDIN=1   "
+                cFlags " -DWEAROS=1  -DUSEDIN=1   "
 
                 }
 
@@ -193,8 +210,8 @@ android {
 
 //        minSdk 19
             dimension 'wearos'
-		versionCode                                                                    502                                                                                                                                       //WATCH
-		//versionName '8.2.7-small'
+		versionCode                                                                           509                                                                                                                                                     //WATCH
+		//versionName '9.0.0-small'
 		versionNameSuffix '-small'
 		signingConfig signingConfigs.alg
 
@@ -202,6 +219,7 @@ android {
             externalNativeBuild.cmake {
 	        arguments "-DWEAROS=TRUE"
                 cppFlags " -DWEAROS=1  -DUSEDIN=1   "
+                cFlags " -DWEAROS=1  -DUSEDIN=1   "
 
                 }
 
@@ -234,6 +252,7 @@ buildTypes {
             debuggable false
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
 
 
                 }
@@ -255,7 +274,9 @@ buildTypes {
             jniDebuggable false
             debuggable false
             externalNativeBuild.cmake {
-                cppFlags " -std=gnu++2b","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DSCANLOG=1"
+//                 arguments "-DANDROID_SANITIZE=hwaddress"
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DSCANLOG=1"
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DSCANLOG=1"
 
 
                 }
@@ -278,6 +299,7 @@ buildTypes {
         buildConfigField 'int', 'isReleaseID', '1'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           //, "-DSCANLOG=1" , "-DNOLOG=1"
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           //, "-DSCANLOG=1" , "-DNOLOG=1"
 //                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1"         //, "-DSCANLOG=1" , "-DNOLOG=1"
 
 
@@ -295,6 +317,7 @@ buildTypes {
         buildConfigField 'int', 'doLog', '1'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+                cFlags  "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
 
 	    	}
             debuggable true
@@ -318,6 +341,7 @@ buildTypes {
            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DDEBUG=1", "-DSCANLOG=1",  "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+                cFlags "-DDEBUG=1", "-DSCANLOG=1",  "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
 //               arguments " -DCMAKE_CXX_FLAGS=' -DCMAKE_VERBOSE_MAKEFILE=1 -DDEBUG=1 -DSCANLOG=1 -DRELEASEDIR=1'"
                 }
             }
@@ -339,7 +363,9 @@ buildTypes {
 	    shrinkResources false 
 
             externalNativeBuild.cmake {
+//                 arguments "-DANDROID_SANITIZE=hwaddress"
                 cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+                cFlags "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
 
             	}
             }
@@ -358,6 +384,7 @@ buildTypes {
             signingConfig signingConfigs.alg
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\"","-DNDK_DEBUG=1","-UNDEBUG"
+                cFlags "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\"","-DNDK_DEBUG=1","-UNDEBUG"
 
 
             }
@@ -376,6 +403,7 @@ buildTypes {
         buildConfigField 'int', 'isReleaseID', '0'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
+                cFlags "-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
 
 //         cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1" //, "-DNOLOG=1"
 //	         cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1", "-DNOLOG=1"
@@ -397,6 +425,7 @@ buildTypes {
         buildConfigField 'int', 'doLog', '1'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DRELEASEID=1", "-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1"
+                cFlags "-DRELEASEID=1", "-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1"
                // cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1"
 	    	}
         }
@@ -409,6 +438,7 @@ buildTypes {
         buildConfigField 'int', 'doLog', '1'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DRELEASEID=1","-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1","-DNDK_DEBUG=1","-UNDEBUG"
+                cFlags "-DRELEASEID=1","-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1","-DNDK_DEBUG=1","-UNDEBUG"
 		}
 
             versionNameSuffix 'DEBUGRELEASE'
@@ -464,36 +494,65 @@ buildTypes {
         aidl true
     }
        sourceSets {
-       mobileLibre3Si {
+       mobileLibre3SiDex {
             java.srcDirs = ['src/mobileSi/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
             res.srcDirs= ['src/mobileSi/res']
             }
-       mobileLibreOldSi {
+           mobileLibre3SiNodex {
+               java.srcDirs = ['src/mobileSi/java']
+               jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
+               manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
+               res.srcDirs= ['src/mobileSi/res']
+           }
+       mobileLibreOldSiDex {
             java.srcDirs = ['src/mobileSi/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
             }
-       mobileLibreOldNosi {
-            java.srcDirs = ['src/mobileNosi/java']
-           res.srcDirs= ['src/mobileNosi/res']
-            }
+           mobileLibreOldSiNodex {
+               java.srcDirs = ['src/mobileSi/java']
+               jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
+               manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
+           }
+           mobileLibreOldNosiDex {
+               java.srcDirs = ['src/mobileNosi/java']
+               res.srcDirs= ['src/mobileNosi/res']
+           }
+           mobileLibreOldNosiNodex {
+               java.srcDirs = ['src/mobileNosi/java']
+               res.srcDirs= ['src/mobileNosi/res']
+           }
 
-         wearLibre3Si{
+           wearLibre3SiDex{
+               java.srcDirs = ['src/wearSi/java']
+               jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
+           }
+
+           wearLibre3SiNodex{
             java.srcDirs = ['src/wearSi/java']
             jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
             }
-         wearLibreOldSi{
+         wearLibreOldSiDex{
             java.srcDirs = ['src/wearSi/java']
             jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
             }
-         smallLibre3Si{
+           wearLibreOldSiNodex{
+               java.srcDirs = ['src/wearSi/java']
+               jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
+           }
+         smallLibre3SiNodex{
             java.srcDirs = ['src/smallSi/java']
             jniLibs.srcDirs = [ 'src/smallSi/jniLibs']
             }
+           smallLibre3SiDex{
+               java.srcDirs = ['src/smallSi/java']
+               jniLibs.srcDirs = [ 'src/smallSi/jniLibs']
+           }
 
-         smallLibreOldSi{
+
+           smallLibreOldSiNodex{
             java.srcDirs = ['src/smallSi/java']
             jniLibs.srcDirs = [ 'src/smallSi/jniLibs']
             }
@@ -526,12 +585,12 @@ dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.startup:startup-runtime:1.2.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
-    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.core:core-ktx:1.15.0'
   implementation 'com.android.support:support-annotations:28.0.0'
 
     implementation "androidx.appcompat:appcompat:$APPCOMPAT"
     implementation 'androidx.activity:activity:1.9.3'
-	implementation 'androidx.core:core:1.13.1'
+	implementation 'androidx.core:core:1.15.0'
    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21'
@@ -548,10 +607,10 @@ dependencies {
 
 
     wearImplementation 'androidx.activity:activity-ktx:1.9.3'
-    wearImplementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    wearImplementation 'androidx.constraintlayout:constraintlayout:2.2.0'
     wearImplementation 'com.google.android.material:material:1.12.0'
-    wearImplementation 'androidx.databinding:viewbinding:8.7.1'
-    wearImplementation 'androidx.core:core-ktx:1.13.1'
+    wearImplementation 'androidx.databinding:viewbinding:8.7.2'
+    wearImplementation 'androidx.core:core-ktx:1.15.0'
 
 
     wearImplementation 'androidx.wear:wear:1.3.0'
@@ -570,13 +629,20 @@ dependencies {
      wearImplementation 'androidx.core:core-splashscreen:1.2.0-alpha02'
      wearImplementation 'androidx.wear.protolayout:protolayout-external-protobuf:1.2.1'
 configurations {
-mobileLibre3SiImplementation {}
-mobileLibreOldSiImplementation {}
+mobileLibre3SiDexImplementation {}
+mobileLibreOldSiDexImplementation {}
+    mobileLibre3SiNodexImplementation {}
+    mobileLibreOldSiNodexImplementation {}
 }
-mobileLibre3SiImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
-mobileLibre3SiImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
-    mobileLibreOldSiImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
-mobileLibreOldSiImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    mobileLibre3SiNodexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    mobileLibre3SiNodexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    mobileLibreOldSiNodexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    mobileLibreOldSiNodexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+
+    mobileLibre3SiDexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    mobileLibre3SiDexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    mobileLibreOldSiDexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    mobileLibreOldSiDexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
 
 }
 

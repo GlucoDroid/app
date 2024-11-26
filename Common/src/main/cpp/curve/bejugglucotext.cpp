@@ -80,7 +80,7 @@ jugglucotext betext {
 		"Датчык",
 		"Налады",
 #if defined(SIBIONICS)
-		"Sibionics",
+		"Photo",
 #else
 		"Аб Juggluco",
 #endif

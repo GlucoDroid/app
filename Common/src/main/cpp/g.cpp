@@ -439,7 +439,7 @@ extern "C" JNIEXPORT void JNICALL   fromjava(finishSensor)(JNIEnv *env, jclass c
 	}
 extern bool streamHistory() ;
 #ifdef SIBIONICS
-extern bool siInit();
+extern bool siInit(bool);
 #endif
 
 extern "C" JNIEXPORT jlong JNICALL   fromjava(getdataptr)(JNIEnv *env, jclass cl,jstring jsensor) {
@@ -466,8 +466,8 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(getdataptr)(JNIEnv *env, jclass cl
 	streamdata *data;
 #ifdef SIBIONICS
 	if(sens->isSibionics()) {
-      LOGGER("getdataptr(%s) isSibinics\n",sensor);
-	   if(!siInit()) {
+      LOGGER("getdataptr(%s) isSibinics notchinese=%d\n",sensor,sens->notchinese());
+	   if(!siInit(sens->notchinese())) {
          LOGAR("siInit()==false");
          return 0LL;
          }
@@ -476,6 +476,14 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(getdataptr)(JNIEnv *env, jclass cl
   else 
 #endif
   {
+#ifdef DEXCOM
+	if(sens->isDexcom()) {
+      LOGGER("getdataptr(%s) Dexcom\n",sensor);
+      data = new dexcomstream(sensorindex,sens);
+     }
+else
+#endif
+{
       if(sens->isLibre3()) {
          LOGGER("getdataptr(%s) Libre3\n",sensor);
          data= new libre3stream(sensorindex,sens);
@@ -490,6 +498,7 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(getdataptr)(JNIEnv *env, jclass cl
             }
          }
         }
+      }
 	if(data->good())
 		return reinterpret_cast<jlong>(data);
 	LOGSTRING("getdataptr(): !data->good()\n");
@@ -501,6 +510,7 @@ extern "C" JNIEXPORT void JNICALL   fromjava(freedataptr)(JNIEnv *envin, jclass 
 	delete sdata;
 	}
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(askstreamingEnabled)(JNIEnv *env, jclass cl,jlong dataptr) {
+   if(!dataptr) return false;
 	return reinterpret_cast<streamdata *>(dataptr)->hist ->streamingIsEnabled()==1; 
 	}
 extern "C" JNIEXPORT void JNICALL  fromjava(setDeviceAddress)(JNIEnv *env, jclass cl,jlong dataptr,jstring jdeviceAddress ) {
@@ -509,17 +519,18 @@ extern "C" JNIEXPORT void JNICALL  fromjava(setDeviceAddress)(JNIEnv *env, jclas
 	SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
 	if(!usedhist)
 		return;
-  char *deviceaddress=usedhist->deviceaddress();
+   char *deviceaddress=usedhist->deviceaddress();
 	if(!jdeviceAddress) {
-		deviceaddress[0]='\0';
-       } else {
+		  deviceaddress[0]='\0';
+        } 
+   else {
 		const jint getlen= std::min(env->GetStringUTFLength( jdeviceAddress),17);
 		env->GetStringUTFRegion(jdeviceAddress, 0,getlen,deviceaddress);
 		deviceaddress[getlen]='\0';
-	    usedhist->scannedAddress=true;
-	}
-	  LOGGER("setDeviceAddress(%s)\n", deviceaddress);
-     }
+	   usedhist->scannedAddress=true;
+	    }
+   LOGGER("setDeviceAddress(%s)\n", deviceaddress);
+   }
 
 extern "C" JNIEXPORT int JNICALL   fromjava(getLibreVersion)(JNIEnv *envin, jclass cl,jlong dataptr) {
 	if(!dataptr)
@@ -560,17 +571,26 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(getShowSensorName)(JNIEnv *envin
 	return envin->NewStringUTF(name);
 	} */
 
-extern "C" JNIEXPORT jstring JNICALL   fromjava(getDeviceAddress)(JNIEnv *envin, jclass cl,jlong dataptr) {
+extern "C" JNIEXPORT jstring JNICALL   fromjava(getDeviceAddress)(JNIEnv *envin, jclass cl,jlong dataptr,jboolean getnew) {
 	if(!dataptr) {
       LOGAR("getDeviceAddress(null)");
 		return nullptr;
       }
 	const SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
-	if(!usedhist)
+	if(!usedhist) {
+      LOGAR("getDeviceAddress() usedhist==null");
 		return nullptr;
+      }
 	const char *address=usedhist->deviceaddress();
-	if(!*address||(usedhist->isSibionics()&&!usedhist->scannedAddress))
+	if(!*address) {
+      LOGAR("deviceaddress()==null");
 		return nullptr;
+      }
+	if((getnew&&!usedhist->scannedAddress&&!usedhist->isLibre())) {
+//	if((getnew&&!usedhist->scannedAddress&&usedhist->isSibionics())) {
+      LOGAR("getDeviceAddress() !libre getnew");
+		return nullptr;
+      }
 	LOGGER("getDeviceAddress()=%s\n",address);
 	return envin->NewStringUTF(address);
 	}

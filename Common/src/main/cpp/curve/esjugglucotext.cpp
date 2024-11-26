@@ -103,7 +103,7 @@ jugglucotext estext {
 "Sensor",
 "Ajustes",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
 "Acerca",
 #endif

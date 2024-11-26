@@ -79,6 +79,8 @@ import tk.glucodata.settings.Broadcasts;
 //import static tk.glucodata.MessageSender.messagesender;
 
 public class Applic extends Application {
+
+static final boolean hasNotChinese=false;
 public static final  boolean scrollbar=true;
 public static final  boolean horiScrollbar=true;
 static final float mgdLmult= doLog?18.0182f:18.0f;
@@ -153,6 +155,9 @@ private void RunOnUiThreader(Runnable action) {
 		action.run();
 		}
 	}
+static public void postDelayed(Runnable action,int mmsecs) {
+          Applic.app.getHandler().postDelayed( action ,mmsecs);
+          }
 static  public void RunOnUiThread(Runnable action) {
  	app.RunOnUiThreader(action);
 	}
@@ -257,7 +262,8 @@ public void onTerminate () {
 	}
 }
 
-static final String[] scanpermissions=( (Build.VERSION.SDK_INT >= 31)? (new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT}):new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION});
+static final String[] scanpermissions=( (Build.VERSION.SDK_INT >= 31)? (new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT}):((Build.VERSION.SDK_INT >= 29)?new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_BACKGROUND_LOCATION}:new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION}));
+
 
 
 static String[] hasPermissions(Context context, String[] perms) {
@@ -510,6 +516,7 @@ public static void initwearos(Context app) {
 	}*/
 boolean initproc() {
 	if(!initproccalled) {
+
 //		DisplayMetrics metrics= getResources().getDisplayMetrics();
 	//	initscreenwidth= metrics.widthPixels;
 	//	Log.i("Applic","initproc width="+initscreenwidth);
@@ -536,6 +543,7 @@ boolean initproc() {
 		if(isWearable) {
 			 tk.glucodata.glucosecomplication.GlucoseValue.updateall();
 			 }
+//      Sibionics.testsibionics();
 		}
 	return true;
 	}
@@ -595,22 +603,17 @@ static void updatescreen() {
 static float headfontsize;
 
 boolean needsnatives() {
+  Log.i(LOG_ID,"needsnatives");
 	final var res=getResources();
-        var metrics=GlucoseCurve.metrics= res.getDisplayMetrics();
-
-        MainActivity.screenheight= metrics.heightPixels; 
-      MainActivity.screenwidth= metrics.widthPixels;
-        Log.i(LOG_ID,"heightPixels="+GlucoseCurve.metrics.heightPixels+" widthPixels="+GlucoseCurve.metrics.widthPixels);
-	var newinitscreenwidth= Math.max(GlucoseCurve.metrics.heightPixels,GlucoseCurve.metrics.widthPixels);
-	boolean ret;
-		final float menufontsize = res.getDimension(R.dimen.abc_text_size_menu_material);
-	       Log.i(LOG_ID,"needsnatives");
-		initscreenwidth=newinitscreenwidth;
-	   	final double screensize=(newinitscreenwidth/menufontsize);
-	     Log.i(LOG_ID,"initscreenwidth="+newinitscreenwidth);
-	     Log.i(LOG_ID,"menufontsize="+menufontsize);
-	     Log.i(LOG_ID,"screensize="+screensize);
-		final boolean smallsize=screensize<34.0;
+   var metrics=GlucoseCurve.metrics= res.getDisplayMetrics();
+  MainActivity.screenheight= metrics.heightPixels; 
+  MainActivity.screenwidth= metrics.widthPixels;
+  Log.i(LOG_ID,"heightPixels="+GlucoseCurve.metrics.heightPixels+" widthPixels="+GlucoseCurve.metrics.widthPixels);
+  var newinitscreenwidth= Math.max(GlucoseCurve.metrics.heightPixels,GlucoseCurve.metrics.widthPixels);
+  boolean ret;
+  final float menufontsize = res.getDimension(R.dimen.abc_text_size_menu_material);
+	final double screensize=(newinitscreenwidth/menufontsize);
+  final boolean smallsize=screensize<34.0;
 	if(newinitscreenwidth!=initscreenwidth)  {
          if(smallsize!= NumberView.smallScreen) {
             NumberView.smallScreen=smallsize;
@@ -620,12 +623,16 @@ boolean needsnatives() {
             ret=false;
          }
 	else
-		ret=false;
-		headfontsize = res.getDimension(R.dimen.abc_text_size_display_4_material);
-		Notify.glucosesize= headfontsize*.35f;
-		smallfontsize = res.getDimension(R.dimen.abc_text_size_small_material);
-		Natives.setfontsize(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
-      Notify.mkpaint();
+	   ret=false;
+	initscreenwidth=newinitscreenwidth;
+	Log.i(LOG_ID,"initscreenwidth="+newinitscreenwidth);
+	Log.i(LOG_ID,"menufontsize="+menufontsize);
+	Log.i(LOG_ID,"screensize="+screensize);
+	headfontsize = res.getDimension(R.dimen.abc_text_size_display_4_material);
+	Notify.glucosesize= headfontsize*.35f;
+	smallfontsize = res.getDimension(R.dimen.abc_text_size_small_material);
+	Natives.setfontsize(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
+   Notify.mkpaint();
 	return ret;
 	}
    /*
@@ -690,23 +697,25 @@ static public void resetWearOS() {
 	}
 private static	void initbroadcasts() {
 
-	Floating.init(); //sets initVersion
+	Floating.init(); 
    final var initversion=Natives.getinitVersion();
-	if(initversion<29) {
-		if(initversion<22) {
-			if(initversion<14) {
-				if(initversion<13) {
-					Broadcasts.updateall();
-					}
-				if(Notify.arrowNotify!=null)
-					Natives.setfloatingFontsize((int) Notify.glucosesize);
-				Natives.setfloatingbackground(WHITE);
-				 Natives.setfloatingforeground(BLACK);
-				}
-			}
-		sethour24(DateFormat.is24HourFormat(app));
-      Natives.setinitVersion(29);
-		}
+	if(initversion<30) {
+      if(initversion<29) {
+         if(initversion<22) {
+            if(initversion<14) {
+               if(initversion<13) {
+                  Broadcasts.updateall();
+                  }
+               if(Notify.arrowNotify!=null)
+                  Natives.setfloatingFontsize((int) Notify.glucosesize);
+               Natives.setfloatingbackground(WHITE);
+                Natives.setfloatingforeground(BLACK);
+               }
+            }
+         sethour24(DateFormat.is24HourFormat(app));
+         }
+      Natives.setinitVersion(30);
+      }
 
    setjavahour24(Natives.gethour24());
 	XInfuus.setlibrenames();

@@ -100,7 +100,7 @@ static jugglucotext nltext {
 		"Sensor",
 		"Instellingen",
 #if defined(SIBIONICS)
-"Sibionics",
+"Foto",
 #else
 "About",
 #endif

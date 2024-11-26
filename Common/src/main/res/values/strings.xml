@@ -357,5 +357,9 @@
    <string name="text">Text</string>
    <string name="arrow">Arrow</string>
    <string name="notalldata">WARNING: “Receive from” not set, without sending all data.</string>
-<string name="libresetalllabels">You can only check “Send amounts” after you have specified what to do with all labels. If you do not want to send numbers under a label to Libreview, check “Don’t send”.</string>
+<string name="libresetalllabels">You can only check “Send amounts” after you have specified for each label what should be done with it.</string>
+   <string name="photo">Photo</string>
+   <string name="photomessage">Scan the data matrix of a Dexcom G7 or Chinese market Sibionics sensor.</string>
+   <string name="exchanges">Exchange data</string>
+   <string name="dexfuture">Predict (Dexcom)</string>
 </resources>

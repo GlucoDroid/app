@@ -150,8 +150,30 @@ int SensorGlucoseData::updateKAuth(crypt_t *pass,int sock,int ind)  {
 	}
 //	int histend=sendStream?getStreamendhistory():getendhistory(); 
 int SensorGlucoseData::updatescan(crypt_t *pass,int sock,int ind,int sensorindex,bool dotoch,int sendstream)  {
+	if(isDexcom()) {
+		LOGGER("GLU: DEX updatescan ind=%d sensorindex=%d\n",ind,sensorindex);
+		if(!pollcount()||! getinfo()->update[ind].siScan) {
+		  std::vector<subdata> vect;
+		  vect.reserve(3);
+		  vect.push_back({meminfo.data(),0,offsetof(Info,lastLifeCountReceived)});
+		  vect.push_back({meminfo.data()+offsetof(Info,siIdlen),offsetof(Info,siIdlen),sizeof(Info::siIdlen)+ sizeof(Info::siId) });
+		   if(!senddata(pass,sock,vect, infopath)) {
+			  LOGAR("GLU: senddata info.data failed");
+			  return 0;
+			 }
+		   getinfo()->update[ind].siScan=true;
+		   return 5;
+		   }
+		else {
+			if(getinfo()->update[ind].sendstreaming) {
+				getinfo()->update[ind].sendstreaming=false;
+				return 5;
+				}
+			}
+		return 2;
+		}
 	if(isSibionics()) {
-		LOGGER("GLU: updatescan ind=%d sensorindex=%d\n",ind,sensorindex);
+		LOGGER("GLU: Sibionics updatescan ind=%d sensorindex=%d\n",ind,sensorindex);
 		if(!getinfo()->update[ind].siScan&&getinfo()->siIdlen>16&&getinfo()->siId[0]) {
 			LOGGER("GLU: updatescan Write Start: ind=%d sensorindex=%d\n",ind,sensorindex);
 

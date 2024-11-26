@@ -751,7 +751,7 @@ jugglucotext engtext {
       };
 void setfloatptr() {
         }
-
+void removelibs() {}
 /*
 extern std::string_view dRELEASE;
 extern std::string_view dMANUFACTURER;

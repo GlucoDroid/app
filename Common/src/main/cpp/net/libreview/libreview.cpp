@@ -1040,7 +1040,7 @@ void libreviewthread() {
 	libreviewrunning=true;
 	const char view[]{"VIEW"};
 	LOGGERN(view,sizeof(view)-1);
-       prctl(PR_SET_NAME, view, 0, 0, 0);
+   prctl(PR_SET_NAME, view, 0, 0, 0);
 	int waitmin=10;
 	while(true) {
 		  if(!networkpresent||!librecondition.dobackup) {
@@ -1230,7 +1230,7 @@ void clearfromDate(const uint32_t starttime, bool initall=true) {
          }
 		
 		for(int i=index+1;i<=lastsens;i++) {
-			if(SensorGlucoseData *sens=sensors->getSensorData(i);sens&&!sens->isSibionics()) {
+			if(SensorGlucoseData *sens=sensors->getSensorData(i);sens&&sens->isLibre()) {
 				auto *info=sens->getinfo();
 				info->clearLibreSendAll();
 				info->putsensor=false;
@@ -1269,7 +1269,7 @@ static void clearlibregegs() {
 	settings->data()->startlibreview=0;
 	settings->data()->startlibre3view=0;
 	sensors->onallsensors([](SensorGlucoseData *sens) {
-      if(!sens->isSibionics())  {
+      if(sens->isLibre())  {
          auto *info=sens->getinfo();
          info->clearLibreSendAll();
          info->putsensor=false;

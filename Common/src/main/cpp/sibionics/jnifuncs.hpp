@@ -5,6 +5,7 @@ algtype(processAlgorithmContext) vers(processAlgorithmContext);
 algtype(getAlgorithmVersion) vers(getAlgorithmVersion);
 algtype(releaseAlgorithmContext) vers(releaseAlgorithmContext);
 
+
 static bool vers(getJNIfunctions)() {
 	static	std::string_view alglib=jniAlglib;
 	void *handle=openlib(alglib);
@@ -19,8 +20,6 @@ static bool vers(getJNIfunctions)() {
 		return false;
 	 	}
       }
-//Java_com_algorithm_v1_11_13_1b_NativeAlgorithmLibraryV1_11_13B_getAlgorithmVersion
-//Java_com_algorithm_v1_11_13_1b_NativeAlgorithmLibraryV1_11_13B_" #x
 {	constexpr const char str[]=algjavastr(getAlgorithmVersion);
 	vers(getAlgorithmVersion)= (algtype(getAlgorithmVersion)) dlsym(handle,str);
 	 if(!vers(getAlgorithmVersion)) {
@@ -65,7 +64,7 @@ static bool vers(getJNIfunctions)() {
 	}
 
 double SiContext::vers(process)(int index,double value, double temp) {
-   const auto res= vers(processAlgorithmContext)(subenv,nullptr,reinterpret_cast<jobject>(vers(algcontext)),index,value,temp,0.0,targetlow,targethigh);
+   const auto res= vers(processAlgorithmContext)(subenv,nullptr,reinterpret_cast<jobject>(algcontext),index,value,temp,0.0,targetlow,targethigh);
 	 LOGGER("processAlgorithmContext(%p,%d,%f,%f,%f,%f,%f)=%f\n",algcontext,index,value,temp,0.0,targetlow,targethigh,res);
 	 return res;
 	};
@@ -98,7 +97,8 @@ AlgorithmContext *vers(initAlgorithm)(SensorGlucoseData *sens, setjson_t setjson
         return nullptr;
     }
     auto algcontext=reinterpret_cast<AlgorithmContext *>(jalg);
-     loadjson(sens, sens->vers(statefile).data(),algcontext,setjson); 
+//     loadjson(sens, sens->vers(statefile).data(),algcontext,setjson); 
+     loadjson(sens, sens->statefile.data(),algcontext,setjson); 
      return algcontext;
      }
 #endif
@@ -124,3 +124,6 @@ static bool vers(getNativefunctions)() {
      LOGAR("found Nativefunctions");
      return true;
 	}
+
+
+

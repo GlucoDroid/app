@@ -22,7 +22,7 @@
 #ifdef SIBIONICS
 
 #include "config.h"
-#define SI3ONLY
+//#define SI3ONLY
 //#define SIHISTORY
 #include <dlfcn.h>
 #include <string_view>
@@ -64,7 +64,7 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(addSIscangetName)(JNIEnv *env, j
       }
    return nullptr;
    }
-extern "C" JNIEXPORT void JNICALL   fromjava(saveDeviceName)(JNIEnv *env, jclass cl,jlong dataptr,jstring jdeviceName) {
+extern "C" JNIEXPORT void JNICALL   fromjava(siSaveDeviceName)(JNIEnv *env, jclass cl,jlong dataptr,jstring jdeviceName) {
 	if(!dataptr)
 		return;
 	streamdata *sdata=reinterpret_cast<streamdata *>(dataptr);
@@ -84,7 +84,6 @@ extern "C" JNIEXPORT void JNICALL   fromjava(saveDeviceName)(JNIEnv *env, jclass
   // sendstreaming(sens);  //TODO??
    }
 
-
 /*
 extern "C" JNIEXPORT int JNICALL   fromjava(getSIindex)(JNIEnv *env, jclass cl,jlong dataptr) {
 	if(!dataptr)
@@ -97,6 +96,9 @@ extern bool savejson(SensorGlucoseData *sens,std::string_view, int index,const A
 
 extern data_t *fromjbyteArray(JNIEnv *env,jbyteArray jar,jint len=-1);
 
+extern "C" JNIEXPORT void JNICALL   fromjava(EverSenseClear)(JNIEnv *env, jclass cl,jlong dataptr) {
+ 	reinterpret_cast<streamdata *>(dataptr)->hist->setbroadcastfrom(INT_MAX);
+	}
 extern "C" JNIEXPORT jlong JNICALL   fromjava(SIprocessData)(JNIEnv *envin, jclass cl,jlong dataptr, jbyteArray bluetoothdata,jlong mmsec) {
 if(!dataptr) {
    LOGAR("SIprocessData dataptr==null");
@@ -111,7 +113,15 @@ if(!dataptr) {
       LOGAR("SIprocessData SensorGlucoseData==null");
       return 0LL;
      }
- return sdata->sicontext.processData(sens,timsec,bluedata->data(),bluedata->size(),sdata->sensorindex);
+#ifdef NOTCHINESE
+   if(sens->notchinese()) {
+	 return sdata->sicontext.processData2(sens,timsec,bluedata,sdata->sensorindex);
+   	}
+   else   
+#endif
+   {
+	 return sdata->sicontext.processData(sens,timsec,bluedata->data(),bluedata->size(),sdata->sensorindex);
+	 }
 }
 extern std::string_view libdirname;
 #include "sibionics/json.hpp"
@@ -134,19 +144,8 @@ void *openlib(std::string_view libname) {
 //"_ZN21NativeAlgorithmV1_1_223getJsonAlgorithmContextEv";
 //_ZN22NativeAlgorithmV1_1_3B23getJsonAlgorithmContextEv
 //_ZN22NativeAlgorithmV1_1_3B23setJsonAlgorithmContextEPc
-#define algtype(x) x##_t
 //#define algjavastr(x) "Java_com_algorithm_v1_11_13_1b_NativeAlgorithmLibraryV1_11_13B_" #x
-
-extern "C" {
-typedef  jobject JNICALL (*algtype(getAlgorithmContextFromNative))(JNIEnv *env, jclass thiz);
-typedef  jint JNICALL (*algtype(initAlgorithmContext))(JNIEnv *env, jclass thiz,jobject alg,jint i,jstring strarg);
-typedef  jdouble JNICALL (*algtype(processAlgorithmContext))(JNIEnv *env, jclass thiz,jobject algContext,jint index,jdouble value, jdouble temp,jdouble dzero,jdouble low,jdouble high);
-typedef  jstring JNICALL (*algtype(getAlgorithmVersion))(JNIEnv *env, jclass thiz);
-
-typedef  jint JNICALL (*algtype(releaseAlgorithmContext))(JNIEnv *env, jclass thiz,jobject algContext);
-//    public static native int releaseAlgorithmContext(AlgorithmContext algorithmContext);
-
-};
+#include "jnidef.h"
 
 extern JNIEnv *subenv;
 
@@ -166,34 +165,54 @@ extern bool loadjson(SensorGlucoseData *sens, const char *statename,const Algori
 #define vers(x) x 
 #undef algjavastr
 
-constexpr const double targetlow=3.9;
-constexpr const double targethigh=7.8;
+
+#undef targetlow 
+#undef targethigh
+#define targetlow 3.9
+#define targethigh 7.8
 #define algjavastr(x) "Java_com_algorithm_v1_11_13_1b_NativeAlgorithmLibraryV1_11_13B_" #x
+
 
 #include "jnifuncs.hpp"
 #else
 #undef jniAlglib 
 #undef vers
 #undef algjavastr
-constexpr const double targetlow=4.4;
-constexpr const double targethigh=11.1;
-#define jniAlglib 	"/libnative-algorithm-jni-v112.so";
-#define algjavastr(x) "Java_com_algorithm_v1_11_12_NativeAlgorithmLibraryV1_11_12_" #x
-#define algLibName "/libnative-algorithm-v1_1_2.so"
-#define jsonname(et,end) "_ZN21NativeAlgorithmV1_1_223" #et  "JsonAlgorithmContext" #end
-#define vers(x) x
+
+#undef targetlow 
+#undef targethigh
+#ifdef NOTCHINESE
+#define targetlow 4.4
+#define targethigh 11.1
+//#define jniAlglib 	"/libnative-algorithm-jni-v112.so";
+
+#define jniAlglib 	"/libnative-algorithm-jni-v112F.so";
+//#define algjavastr(x) "Java_com_algorithm_v1_11_12_NativeAlgorithmLibraryV1_11_12_" #x
+#define algjavastr(x) "Java_com_algorithm_v1_11_12_1f_NativeAlgorithmLibraryV1_11_12F_" #x
+
+//#define algLibName "/libnative-algorithm-v1_1_2.so"
+#define algLibName "/libnative-algorithm-v1_1_2F.so";
+
+//#define jsonname(et,end) "_ZN21NativeAlgorithmV1_1_223" #et  "JsonAlgorithmContext" #end
+
+#define jsonname(et,end) "_ZN22NativeAlgorithmV1_1_2F23" #et  "JsonAlgorithmContext" #end
+#define vers(x) x ## 2
 
 #include "jnifuncs.hpp"
+#endif
 
-#ifdef SIHISTORY
+//#ifdef SIHISTORY
+#if 1
 #undef algLibName 
 #undef jniAlglib 
 #undef vers
 #undef algjavastr
 #undef jsonname
 
-constexpr const double targetlow=3.9;
-constexpr const double targethigh=7.8;
+#undef targetlow 
+#undef targethigh
+#define targetlow 3.9
+#define targethigh 7.8
 #define jsonname(et,end) "_ZN22NativeAlgorithmV1_1_3B23" #et  "JsonAlgorithmContext" #end //Makes one in 5 minutes
 #define algLibName "/libnative-algorithm-v1_1_3_B.so";
 #define jniAlglib 	"/libnative-algorithm-jni-v113B.so";
@@ -205,13 +224,88 @@ constexpr const double targethigh=7.8;
 
 #endif
 #endif
- bool siInit() {
-   static bool init=getNativefunctions()&&getJNIfunctions() 
-#ifdef SIHISTORY
-&& getNativefunctions3() &&getJNIfunctions3()
+
+#ifdef NOTCHINESE
+#define datahandlestr(x) "Java_com_no_sisense_enanddecryption_CGMDataHandle130_" #x
+
+#define	algDatahandleName "/libdata-handle-lib.so";
+algtype(V120SpiltData) V120SpiltData;
+algtype(v120RegisterKey) v120RegisterKey;
+algtype(V120ApplyAuthentication) V120ApplyAuthentication;
+algtype(V120RawData) V120RawData;
+algtype(V120Activation) V120Activation;
+algtype(V120IsecUpdate) V120IsecUpdate;
+static bool getDatahandle() {
+	std::string_view alglib=algDatahandleName;
+	void *handle=openlib(alglib);
+	if(!handle) {
+		LOGGER("dlopen %s failed: %s\n",alglib.data(),dlerror());
+		return false;
+		}
+{	constexpr const char str[]=datahandlestr(V120SpiltData);
+	V120SpiltData= (algtype(V120SpiltData)) dlsym(handle,str);
+	 if(!V120SpiltData) {
+	 	LOGGER("dlsym %s failed: %s\n",str,dlerror());
+		return false;
+	 	}
+}
+
+{	constexpr const char str[]=datahandlestr(v120RegisterKey);
+	v120RegisterKey= (algtype(v120RegisterKey)) dlsym(handle,str);
+	 if(!v120RegisterKey) {
+	 	LOGGER("dlsym %s failed: %s\n",str,dlerror());
+		return false;
+	 	}
+}
+{	constexpr const char str[]=datahandlestr(V120ApplyAuthentication);
+	V120ApplyAuthentication= (algtype(V120ApplyAuthentication)) dlsym(handle,str);
+	 if(!V120ApplyAuthentication) {
+	 	LOGGER("dlsym %s failed: %s\n",str,dlerror());
+		return false;
+	 	}
+}
+{	constexpr const char str[]=datahandlestr(V120RawData);
+	V120RawData= (algtype(V120RawData)) dlsym(handle,str);
+	 if(!V120RawData) {
+	 	LOGGER("dlsym %s failed: %s\n",str,dlerror());
+		return false;
+	 	}
+}
+{	constexpr const char str[]=datahandlestr(V120Activation);
+	V120Activation= (algtype(V120Activation)) dlsym(handle,str);
+	 if(!V120Activation) {
+	 	LOGGER("dlsym %s failed: %s\n",str,dlerror());
+		return false;
+	 	}
+}
+{	constexpr const char str[]=datahandlestr(V120IsecUpdate);
+	V120IsecUpdate= (algtype(V120IsecUpdate)) dlsym(handle,str);
+	 if(!V120IsecUpdate) {
+	 	LOGGER("dlsym %s failed: %s\n",str,dlerror());
+		return false;
+	 	}
+}
+
+     LOGAR("found datahandle functions");
+     return true;
+	}
 #endif
-   ;
+#ifdef NOTCHINESE
+bool siInit2()  {
+   static bool init=getNativefunctions2()&&getJNIfunctions2()&&getDatahandle();
    return init;
+   }
+#endif
+bool siInit3()  {
+   static bool init=getNativefunctions3()&&getJNIfunctions3() ;
+   return init;
+   }
+ bool siInit(bool notchinese) {
+#ifdef NOTCHINESE
+   if(notchinese)
+      return siInit2();
+#endif
+   return siInit3();
    };
 
 #include <charconv>
@@ -275,28 +369,35 @@ bool savejson(SensorGlucoseData *sens,const string_view name,int index,const Alg
 	return true;
 	}
 #include "sibionics/SiContext.hpp"
-   SiContext::SiContext(SensorGlucoseData *sens): algcontext(initAlgorithm(sens,setjson))
-#ifdef SIHISTORY
-,algcontext3(initAlgorithm3(sens,setjson3))
-#endif
-   {
 
+void  	SiContext::setNotchinese(SensorGlucoseData *sens) {
+   sens->setNotchinese();
+    notchinese=true;
+#ifdef NOTCHINESE
+    this->~SiContext();
+   auto res= siInit2();
+   algcontext=initAlgorithm2(sens,setjson2);
+#endif
+   }
+SiContext::SiContext(SensorGlucoseData *sens): algcontext(
+#ifdef NOTCHINESE
+        sens->notchinese()?initAlgorithm2(sens,setjson2):
+#endif
+
+        initAlgorithm3(sens,setjson3)),notchinese(sens->notchinese()) {
    	};
 SiContext::~SiContext() {
 #ifndef NOLOG
 	int res=
 #endif
-	releaseAlgorithmContext(subenv,nullptr, reinterpret_cast<jobject>(algcontext));
-	LOGGER("releaseAlgorithmContext(%p)=%d\n",algcontext,res);
+	(
+#ifdef NOTCHINESE
+            notchinese?releaseAlgorithmContext2:
+#endif
+
+    releaseAlgorithmContext3)(subenv,nullptr, reinterpret_cast<jobject>(algcontext));
+	LOGGER("releaseAlgorithmContext(%p)=%d notchinese=%d\n",algcontext,res,notchinese);
    delete algcontext;
-	#ifdef SIHISTORY
-#ifndef NOLOG
-	res=
-#endif
-	releaseAlgorithmContext3(subenv,nullptr, reinterpret_cast<jobject>(algcontext3));
-	LOGGER("releaseAlgorithmContext3(%p)=%d\n",algcontext3,res);
-   delete algcontext2;
-#endif
 	};
 #else
 bool siInit() {return false;}

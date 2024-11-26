@@ -131,7 +131,7 @@ static public void show(MainActivity act) {
 	}); 
         Button aboutview=view.findViewById(R.id.about);
         if(tk.glucodata.BuildConfig.SiBionics==1) {
-         aboutview.setText(R.string.sibionics);
+         aboutview.setText(R.string.photo);
         aboutview.setOnClickListener(v ->
               Sibionics.scan(act));
             }

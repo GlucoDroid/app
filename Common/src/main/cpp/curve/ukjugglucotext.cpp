@@ -82,7 +82,7 @@ jugglucotext uktext {
 		"Датчик",
 		"Налашт.",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
 		"Аб Juggluco",
 #endif

@@ -18,7 +18,7 @@
 /*                                                                                   */
 /*      Fri Jan 27 12:36:58 CET 2023                                                 */
 /*
-#ifndef NOLOG
+#ifndef NOLOG //TODO remove
 #define NONOJVM 1
 #endif
 */
@@ -174,9 +174,11 @@ static int overwritename() {
 }
 #endif
 #endif
-
 extern	void inithour24();
+// linkopenssl();
+extern void removelibs();
 int setfilesdir(const string_view filesdir,const char *country) {
+// linkopenssl();
 	LOGGER("setfilesdir %s %s convfactor=%f\n",filesdir.data(),country?country:"null",convfactor);
 	globalbasedir=filesdir;
 	numbasedir.set(globalbasedir,"nums");
@@ -223,6 +225,7 @@ extern bool speakout;
 	speakout=settings->data()->talktouch;
 #endif
 #endif
+
 	return 0;
 	}
 int startmeals() {
@@ -243,16 +246,17 @@ int startmeals() {
 	return 0;
 	}
 void startsensors() {
-	if(!sensors) {
-		LOGSTRING("voor sensors\n");
-		Sensoren::create(sensorbasedir);
-		LOGSTRING("na creat\n");
-		sensors= new(std::nothrow) Sensoren(sensorbasedir);
-		if(!sensors)
-			return ;
-		destructsensors.reset(sensors);
-		LOGSTRING("Na sensors\n");
-		if(settings->data()->initVersion<27) {
+   if(!sensors) {
+	LOGSTRING("voor sensors\n");
+	Sensoren::create(sensorbasedir);
+	LOGSTRING("na creat\n");
+	sensors= new(std::nothrow) Sensoren(sensorbasedir);
+	if(!sensors)
+		return ;
+	destructsensors.reset(sensors);
+	LOGSTRING("Na sensors\n");
+   if(settings->data()->initVersion<30) {
+	   if(settings->data()->initVersion<27) {
          if( settings->data()->initVersion<21) {
             sensors->onallsensors([](SensorGlucoseData *hist ) {
                auto start=hist->getstarthistory();
@@ -276,10 +280,12 @@ void startsensors() {
                   info->oldhealthconnectiter=0;
                   }
                   });
-			}
+		   }
 
+      if(settings->data()->initVersion>5) removelibs();
 		}
-	}
+    }
+  }
 
 
 extern void			startlibrethread();

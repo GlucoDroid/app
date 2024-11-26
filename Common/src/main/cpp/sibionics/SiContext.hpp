@@ -27,20 +27,22 @@
 #include "config.h"
 class SensorGlucoseData;
 #include "AlgorithmContext.hpp"
+template <typename T> struct gegs;
+typedef gegs<signed char> data_t;
 class SiContext {
 private:
    AlgorithmContext *algcontext;
-#ifdef SIHISTORY
-   AlgorithmContext *algcontext3;
-#endif
-    double process(int index,double value, double temp);
-#ifdef SIHISTORY
+   bool notchinese;
+    double process2(int index,double value, double temp);
     double process3(int index,double value, double temp);
-void	 saveSi3(SensorGlucoseData *sens,int index,uint32_t eventTime,bool save,int value,float temp,bool savejson) ;
-#endif
+//void	 saveSi3(SensorGlucoseData *sens,int index,uint32_t eventTime,bool save,int value,float temp,bool savejson) ;
+   void  	setNotchinese(SensorGlucoseData *sens);
 public:
    SiContext(SensorGlucoseData *sens);
     jlong processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data,int totlen,int sensorindex) ;
+#ifdef NOTCHINESE
+    jlong processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *data,int sensorindex) ;
+#endif
    ~SiContext();
 
     };

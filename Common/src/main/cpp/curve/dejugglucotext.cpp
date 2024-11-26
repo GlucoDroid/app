@@ -102,7 +102,7 @@ jugglucotext detext {
 "Einstellungen",
 
 #if defined(SIBIONICS)
-"Sibionics",
+"Foto",
 #else
 "About",
 #endif

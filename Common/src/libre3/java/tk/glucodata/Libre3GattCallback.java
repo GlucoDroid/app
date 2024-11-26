@@ -29,7 +29,7 @@ import android.bluetooth.BluetoothGattService;
 import android.os.Looper;
 import android.os.PowerManager;
 
-import java.security.SecureRandom;
+//import java.security.SecureRandom;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -208,8 +208,8 @@ private final void checkBluetoothGatt(BluetoothGatt bluetoothGatt) {
 
         @Override // android.bluetooth.BluetoothGattCallback
      public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
-		  checkBluetoothGatt(bluetoothGatt);
-	       Log.i(LOG_ID, SerialNumber + ": "+ "onServicesDiscovered status="+status);
+	  checkBluetoothGatt(bluetoothGatt);
+          Log.i(LOG_ID, SerialNumber + ": "+ "onServicesDiscovered status="+status);
           if (status == GATT_SUCCESS) {
                 if(!getservices()) {
                   dodisconnect(bluetoothGatt);
@@ -258,7 +258,8 @@ private final byte[] r2=new byte[16];
 private final byte[] nonce1=new byte[7];
 
 private  void	randomr2() {
-      (new SecureRandom()).nextBytes(r2);
+//      (new SecureRandom()).nextBytes(r2);
+      Random.fillbytes(r2);
 	//vul r2 met random bytes
 	}
 private void setr1none(byte[] rdtData) {
@@ -418,7 +419,7 @@ private    void save_history(byte[] value) {
 @Override 
 public void onCharacteristicChanged(BluetoothGatt bluetoothGatt, BluetoothGattCharacteristic bluetoothGattCharacteristic) {
 
-		checkBluetoothGatt(bluetoothGatt);
+        checkBluetoothGatt(bluetoothGatt);
 	onCharacteristicChanged33(bluetoothGatt, bluetoothGattCharacteristic, bluetoothGattCharacteristic.getValue());
 	}
 static final private String charglucosedata= "CHAR_GLUCOSE_DATA".intern();
@@ -604,11 +605,11 @@ private void disconnected(int status) {
 	}
 
 private  void  setsuccess(long timmsec,String str) {
-	 wrotepass[0]=timmsec;
+	wrotepass[0]=timmsec;
 	handshake =str;
 	}
 private  void  setfailure(String str) {
-	 wrotepass[1]= System.currentTimeMillis();
+	wrotepass[1]= System.currentTimeMillis();
 	handshake =str;
 	}
 private void handleonDescriptorWrite(BluetoothGattCharacteristic characteristic) {
@@ -1115,7 +1116,7 @@ private void receivedpatchstatus(byte[] value) {
 
 @Override
 public boolean matchDeviceName(String deviceName,String address) {
-	final var thisaddress = Natives.getDeviceAddress(dataptr);
+	final var thisaddress = Natives.getDeviceAddress(dataptr,false);
 	return thisaddress!=null&&address!=null&&address.equals(thisaddress);
 	}
 

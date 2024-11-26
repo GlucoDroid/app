@@ -119,10 +119,12 @@ void setname(const char *label)  {
 	for(int i=0;i<maxnamelen;i++) {
 		if(!label[i]) {
 			memcpy(name+i,zeros,maxnamelen-i);
+			LOGGER("setname(%s)\n",name);
 			return;
 			}
 		name[i]=label[i];
 		}
+	 LOGGER("setname(%s)\n",name);
 	}
 bool	haspass() const {
 	const uint64_t *p=reinterpret_cast<const uint64_t *>(&pass);

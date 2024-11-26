@@ -45,6 +45,7 @@ import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_BALANCED;
 import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH;
 import static android.bluetooth.BluetoothGatt.GATT_SUCCESS;
 import static android.content.Context.POWER_SERVICE;
+import static java.util.Objects.nonNull;
 import static tk.glucodata.Applic.app;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Gen2.errorP1;
@@ -724,8 +725,12 @@ private void endBLEHandler() {
     }
 @Override
 	public void close() {
-		Log.i(LOG_ID,"close");
-		endBLEHandler();
+	   endBLEHandler();
+      final var gatt=mBluetoothGatt;
+      if(nonNull(gatt)) {
+         disablenotification(gatt,BLELogincharacteristic);
+         disablenotification(gatt, CompositeRawDatacharacteristic) ;
+         }
 		super.close();
 		}
 @Override

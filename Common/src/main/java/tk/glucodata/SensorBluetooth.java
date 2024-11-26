@@ -60,7 +60,7 @@ import static tk.glucodata.Log.doLog;
 public class SensorBluetooth {
 static void	setAutoconnect(boolean val) {
 	Natives.setAndroid13(val);
-	if(!isWearable)
+//	if(!isWearable)
 		SuperGattCallback.autoconnect=val;
 	}
 public static SensorBluetooth blueone=null;
@@ -215,11 +215,11 @@ final	private ScanSettings mScanSettings;
 	private final ScanCallback mScanCallback = new ScanCallback() {
 		@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 	private synchronized boolean processScanResult(ScanResult scanResult) {
-		    if(gattcallbacks.size()<1) {
-			Log.w(LOG_ID,"No Sensors to search for");
-			SensorBluetooth.this.stopScan(false);
-			return true;
-		    }
+       if(gattcallbacks.size()<1) {
+            Log.w(LOG_ID,"No Sensors to search for");
+            SensorBluetooth.this.stopScan(false);
+            return true;
+		     }
 		return checkdevice(scanResult.getDevice());
 		}
 //	private  boolean resultbusy=false;
@@ -245,7 +245,7 @@ final	private ScanSettings mScanSettings;
 			    Log.v(LOG_ID,"onBatchScanResults");
 			   final var len=list.size();
 			    for(int i=0;i < len&& !processScanResult(list.get(i));++i)
-				;
+				               ;
 		//	    resultbusy=false;
 			     }
 		     }
@@ -259,21 +259,20 @@ final	private ScanSettings mScanSettings;
 				    "SCAN_FAILED_FEATURE_UNSUPPORTED" };
 			    Log.d(LOG_ID,"BLE SCAN ERROR: scan failed with error code: " + ((errorCode<scanerror.length)?scanerror[errorCode]:"")+" "+errorCode);
 		      }
-		    if (errorCode != SCAN_FAILED_ALREADY_STARTED) {
-			SensorBluetooth.this.stopScan(false);
-			if (errorCode != SCAN_FAILED_FEATURE_UNSUPPORTED) {
-
-			    SensorBluetooth.this.startScan(scaninterval) ;
-			}
+		   if(errorCode != SCAN_FAILED_ALREADY_STARTED) {
+            SensorBluetooth.this.stopScan(false);
+			if(errorCode != SCAN_FAILED_FEATURE_UNSUPPORTED) {
+            SensorBluetooth.this.startScan(scaninterval) ;
+            }
 		    }
 		}
 	    };
+private static final  boolean filter=true;
 	@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 	Scanner21() {
 		ScanSettings.Builder builder = new ScanSettings.Builder();
 		builder.setReportDelay(0);
 		mScanSettings = builder.build();
-
 		Log.i(LOG_ID,"Scanner21");
 		}
 	@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
@@ -286,25 +285,39 @@ final	private ScanSettings mScanSettings;
 	public boolean start()  {
 	    if(mBluetoothLeScanner!=null) {
 	       Log.i(LOG_ID,"Scanner21.start");
+           // mScanFilters=null;
             mScanFilters=new ArrayList<>();
-            Log.d(LOG_ID,"SCAN: starting scan.");
-           	for(var cb: gattcallbacks)   {
-				Log.d(LOG_ID,"serial number: " + cb.SerialNumber);
-				if (cb.mActiveDeviceAddress != null) {
-					 Log.d(LOG_ID,"address: " + cb.mActiveDeviceAddress);
-					}
-				final var service=cb.getService();
-				if(service==null) {
-					Log.i(LOG_ID,"getService should return UUID");
-					mScanFilters=null;
-					break;
-					}
-				else {
-					ScanFilter.Builder builder2 = new ScanFilter.Builder();
-					builder2.setServiceUuid(new ParcelUuid(service));
-					mScanFilters.add(builder2.build());
-					}
-				}
+           if(filter) {
+             Log.d(LOG_ID,"SCAN: starting scan.");
+             for(var cb: gattcallbacks)   {
+              Log.d(LOG_ID,"serial number: " + cb.SerialNumber);
+              final var address=Natives.getDeviceAddress(cb.dataptr,false);
+              if(address!= null) {
+                  Log.d(LOG_ID,"address: " + address);
+		  /*(
+                  if(BluetoothAdapter.checkBluetoothAddress(address)) {
+                     ScanFilter.Builder builder2 = new ScanFilter.Builder();
+                     builder2.setDeviceAddress(address);
+                     mScanFilters.add(builder2.build());
+                     continue;
+                     } */
+              }
+           final var service=cb.getService();
+           if(service==null) {
+              Log.i(LOG_ID,"getService should return UUID");
+              mScanFilters=null;
+              break;
+              }
+           else {
+              ScanFilter.Builder builder2 = new ScanFilter.Builder();
+              builder2.setServiceUuid(new ParcelUuid(service));
+              mScanFilters.add(builder2.build());
+              }
+          }
+	       }
+           else {
+                  mScanFilters=null;
+                  }
 		try {
 		     this.mBluetoothLeScanner.startScan(mScanFilters, mScanSettings, mScanCallback);
 		     } 
@@ -686,11 +699,16 @@ boolean checkandconnect(SuperGattCallback  cb,long delay) {
 	return true;
 	}
 SuperGattCallback getGattCallback(String name, long dataptr) {
-	if(libreVersion==3||tk.glucodata.BuildConfig.SiBionics==1) {
+	if(libreVersion==3||tk.glucodata.BuildConfig.SiBionics==1||tk.glucodata.BuildConfig.DexCom==1) {
 		int vers = Natives.getLibreVersion(dataptr);
 		if(libreVersion==3) {
 			if (vers == 3) {
 				return new Libre3GattCallback(name, dataptr);
+				}
+			}
+		if(tk.glucodata.BuildConfig.DexCom==1) {
+			if(vers==0x40) {
+				return new DexGattCallback(name, dataptr);
 				}
 			}
 		if(tk.glucodata.BuildConfig.SiBionics==1) {
@@ -782,7 +800,8 @@ static public   void goscan() {
 
     public SensorBluetooth() {
         Log.v(LOG_ID,"SensorBluetooth");
-        SuperGattCallback.autoconnect=!isWearable&&Natives.getAndroid13();
+//        SuperGattCallback.autoconnect=!isWearable&&Natives.getAndroid13();
+        SuperGattCallback.autoconnect=Natives.getAndroid13();
 
         SuperGattCallback.glucosealarms.sensorinit();
     }

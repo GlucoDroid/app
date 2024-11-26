@@ -1,3 +1,4 @@
+#ifdef LIBRE3
 /*      This file is part of Juggluco, an Android app to receive and display         */
 /*      glucose values from Freestyle Libre 2 and 3 sensors.                         */
 /*                                                                                   */
@@ -17,7 +18,6 @@
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
 /*      Fri Jan 27 15:22:01 CET 2023                                                 */
-
 
 #include <jni.h>
 #include <ctime>
@@ -253,4 +253,4 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(interpret3NFC2)(JNIEnv *env, jclass 
 
 
 
-
+#endif

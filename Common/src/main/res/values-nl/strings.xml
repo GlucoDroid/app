@@ -334,6 +334,10 @@
 <string name="text">Tekst</string>
 <string name="arrow">Pijl</string>
    <string name="notalldata">LETOP: “Ontvang van” niet aangevinkt, zonder alle data te zenden.</string>
-<string name="libresetalllabels">Je kunt “Zend hoeveelheden” pas aanvinken, nadat voor alle labels is aangegeven wat ermee moet gebeuren. Als je getallen onder een label niet naar Libreview wilt sturen, vink je “Zend niet” aan.</string>
+<string name="libresetalllabels">Je kunt ‘Zend hoeveelheden’ pas aanvinken nadat je voor elk label hebt aangegeven wat ermee moet gebeuren.</string>
+   <string name="photo">Foto</string>
+<string name="photomessage">Scan the data matrix of a Dexcom G7 or Chinese market Sibionics sensor.</string>
+   <string name="exchanges">Deel gegevens</string>
+   <string name="dexfuture">Voorspel (Dexcom)</string>
 </resources>
 

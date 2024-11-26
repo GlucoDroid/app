@@ -22,10 +22,13 @@
 #ifndef INOUT_H
 #define INOUT_H
 
+#include <stdint.h>
+#include <stdlib.h>
 #include <string>
 #include <array>
 #include <string_view>
 #include <vector>
+#include <new>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -446,10 +449,16 @@ struct gegs{
 typedef T type;
 int len;
 T buf[];
+
+void clear() {
+	memset(buf,'\0',len*sizeof(T));
+	}
 int length() const { return len; };
 int size() const { return length(); }
 T * data() { return buf; };
 const T * data() const { return buf; };
+T * end() { return buf+size(); };
+const T * end() const { return buf+size(); };
 static gegs *readfile(const char name[]) ;
 //static gegs * newex(int len) ;
 static gegs * newex(int len) {
@@ -486,6 +495,9 @@ static gegs * newex( const gegs *in) {
 static void deleteex( const gegs *geg) {
 	operator delete[] (reinterpret_cast<unsigned char *>(const_cast<gegs*>(geg)), std::align_val_t(alignof(struct gegs)));
 	}
+void operator delete(void * p) {
+   operator delete[] (reinterpret_cast<unsigned char *>(p), std::align_val_t(alignof(struct gegs)));
+    } 
 };
 //typedef gegs<unsigned char> data_t;
 
@@ -501,4 +513,76 @@ template<typename T> gegs<T> *gegs<T>::readfile(const char name[]) {
 	return nullptr;
 	}
 typedef gegs<signed char> data_t;
+
+class _jbyteArray;
+typedef _jbyteArray*    jbyteArray;
+class _jintArray;
+typedef _jintArray*    jintArray;
+
+template <typename T>
+struct Gegs {
+   gegs<T> *data;
+   int used;
+Gegs(int len):data(gegs<T>::newex(len)),used(0) {
+   }
+void clear() {
+	data->clear();
+	used=0;
+	}
+int size() const {
+   return used;
+   };
+int capacity() const {
+   return data->size();
+   };
+template <typename Typ,  std::size_t  N> 
+Gegs( const std::array<Typ,N> &ar): data(gegs<T>::newex(N)),used(N) {
+	memcpy(data->buf,ar.data(),N*sizeof(T));
+	}
+
+template <typename Typ,  std::size_t  N> 
+Gegs(const Typ (&array)[N]): data(gegs<T>::newex(N)),used(N) {
+	memcpy(data->buf,array,N*sizeof(T));
+	}
+operator jbyteArray() {
+	static_assert(sizeof(T)==1);
+	return (jbyteArray)data;
+	}
+operator jintArray() {
+	static_assert(sizeof(T)==4);
+	return (jintArray)data;
+	}
+template <typename Typ> 
+Gegs( const std::vector<Typ> &ar): data(gegs<T>::newex(ar.size())),used(ar.size()) {
+    static_assert(sizeof(T)==sizeof(Typ), "Elements should be the same size");
+	memcpy(data->buf,ar.data(),ar.size()*sizeof(T));
+	}
+Gegs( const Gegs &in):data(gegs<T>::newex(in.data->length())),used(in.used)  {
+	memcpy(data->buf,in.data->buf,in.data->length()*sizeof(T));
+	}
+Gegs( Gegs &&in):data(in.data),used(in.used)  {
+   in.data=nullptr;
+   in.used=0;
+	}
+Gegs( gegs<T> *dat,int used):data(dat),used(used)  { 
+   }
+~Gegs() {
+   gegs<T>::deleteex(data);
+   };
+ Gegs operator=(Gegs&& other) {
+   std::swap(data,other.data);
+   used=other.used;
+   return *this;
+   }
+ Gegs operator=(const Gegs& other) {
+   gegs<T>::deleteex(data);
+   data=gegs<T>::newex(other.data);
+   used=other.used;
+   return *this;
+   }
+   };
+
+typedef Gegs<signed char> Data_t;
+
+
 #endif

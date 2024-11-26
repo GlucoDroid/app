@@ -2144,7 +2144,7 @@ int mkidid(char *outiter,int base,int pos) {
 
 char *writetreatment(char *outiter,const int numbase,const int pos,const Num*num,int border,int borderID) {
 	const int type=num->type;
-	if(type>=settings->varcount()||!settings->data()->Nightnums[type].kind) {
+	if(type<0||type>=settings->varcount()||!settings->data()->Nightnums[type].kind) {
 		return outiter;
 		}
 	const time_t tim=num->gettime();
@@ -2706,7 +2706,7 @@ extern int mkididV3(char *outiter,int base,int pos) ;
 char *writetreatmentv3(char *outiter,const int numbase,const int pos,const Num*num,uint32_t modified,bool invalid,int borderID) {
 	const int typein=num->type;
 	const int type=num->type&Numdata::otherbits;
-	if(typein>=settings->varcount()||!settings->data()->Nightnums[type].kind) {
+	if(typein<0||typein>=settings->varcount()||!settings->data()->Nightnums[type].kind) {
 		if(!invalid||!(typein&Numdata::removedbit))
 			return outiter;
 		}
@@ -2717,7 +2717,7 @@ char *writetreatmentv3(char *outiter,const int numbase,const int pos,const Num*n
 	addar(outiter,R"({"app":"Juggluco","eventType":"<none>","created_at":")");
 	outiter+=sprintf(outiter,R"(%04d-%02d-%02dT%02d:%02d:%02d.000Z","date":%lu000,)",tmbuf.tm_year+1900,tmbuf.tm_mon+1,tmbuf.tm_mday, tmbuf.tm_hour, tmbuf.tm_min,tmbuf.tm_sec,tim);
 	LOGAR("before printvar");
-	if(type<settings->varcount()&&settings->data()->Nightnums[type].kind) {
+	if(type>=0&&type<settings->varcount()&&settings->data()->Nightnums[type].kind) {
 		float w=0.0f;
 		 if((w=longNightWeight(type))!=0.0f) {
 			

@@ -176,7 +176,7 @@ struct Tings {
 	int32_t shortnr;
 	std::array<Shortcut,maxvarnr> shorts;
 	uint8_t  mealvar;
-	uint8_t  reserved4;
+	uint8_t  dexcomPredict;
 	uint16_t nightsensor;
 	float roundto;
 	color_t colors[maxcolors];

@@ -1,18 +1,23 @@
 #pragma once
-#ifndef WEAROS
 #ifdef OLDEVERSENSE 
 #include <thread>
 #include "settings/settings.hpp"
 #include "SensorGlucoseData.hpp"
-inline void sendEverSenseold(const SensorGlucoseData *sens,int startpos,int endpos) {
-	if(settings->data()->everSenseBroadcast.nr) {
 
-extern void sendEverSenseoldthread(const SensorGlucoseData *sens,int startpos,int endpos);
-		std::thread EverSensethread(sendEverSenseoldthread,sens,startpos,endpos);
-		EverSensethread.detach();
-		}
+   extern void sendEverSenseoldthread(const SensorGlucoseData *sens,int startpos,int endpos,int modulo);
+
+inline void sendEverSenseold( SensorGlucoseData *sens,int modulo) {
+	if(settings->data()->everSenseBroadcast.nr) {
+	    const int	startpos=sens->getbroadcastfrom();
+	    const int endpos=sens->pollcount();
+	    LOGGER("broadcastfrom %d endpos=%d modulo=%d\n",startpos,endpos,modulo);
+	    if(endpos>startpos) {
+	       std::thread EverSensethread(sendEverSenseoldthread,sens,startpos,endpos,modulo);
+	       EverSensethread.detach();
+	       sens->setbroadcastfrom(INT_MAX);
+	       }
+	   }
 	}
-#endif
 #else
-#define sendEverSenseold(sens, startpos, endpos) 
+#define sendEverSenseold(sens, modulo) 
 #endif

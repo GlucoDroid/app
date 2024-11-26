@@ -136,7 +136,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setlabel)(JNIEnv *env, jclass 
 	settings->data()->vars[index].name[len]='\0';
 	settings->data()->vars[index].prec=prec;
 	settings->data()->vars[index].weight=settings->tomgperL(weight);
-	if(index>=settings->varcount())  {
+	if(index>=settings->varcount()||index<0)  {
 		settings->varcount()=index+1;
 		mkheights() ;
 		}
@@ -1648,6 +1648,7 @@ void inithour24() {
 	hour24clock=settings->data()->hour24;
 	settimefont() ;
 	}
+
 extern "C" JNIEXPORT void  JNICALL   fromjava(sethour24)(JNIEnv *env, jclass cl,jboolean val) {
 	settings->data()->hour24=val;
 	hour24clock=val;
@@ -1657,6 +1658,12 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(gethour24)(JNIEnv *env, jclass
 	return settings->data()->hour24;
 	}
 
+extern "C" JNIEXPORT void  JNICALL   fromjava(setdexcomPredict)(JNIEnv *env, jclass cl,jboolean val) {
+	settings->data()->dexcomPredict=val;
+	}
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getdexcomPredict)(JNIEnv *env, jclass cl) {
+	return settings->data()->dexcomPredict;
+	}
 
 #ifdef WEAROS
 extern "C" JNIEXPORT void  JNICALL   fromjava(setComplicationArrowColor)(JNIEnv *env, jclass cl,jint val) {

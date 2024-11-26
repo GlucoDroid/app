@@ -104,7 +104,7 @@ static View[] reopen=new View[5];
 static int reopennr=0;
     //    SearchLayout search;
     Layout search;
-    Dialogs dialogs;
+    public Dialogs dialogs;
     private static final String LOG_ID = "GlucoseCurve";
 static   public float smallfontsize;
     Calendar cal = Calendar.getInstance();

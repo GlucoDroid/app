@@ -22,7 +22,7 @@
 
 #include "config.h"
 //#define LOGGER(...)  { fprintf(errorlogfile,__VA_ARGS__); fflush(errorlogfile); }
-
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/types.h>
@@ -66,7 +66,7 @@
 #ifdef __cplusplus
 extern "C" {
 #else
-typedef char bool;
+//typedef char bool;
 #endif
 //extern bool mute;
 typedef int (*opent)(const char* __path, int __flags, ...);

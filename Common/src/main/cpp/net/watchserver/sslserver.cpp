@@ -29,6 +29,8 @@ char privatekey[]="privkey.pem";
 #ifdef __ANDROID_API__
 #include <android/dlext.h>
 #endif
+#include <unistd.h>
+
 #include <string>
 #include <string_view>
 #include <sys/prctl.h>
@@ -45,17 +47,11 @@ void (*OPENSSL_add_all_algorithms_noconfptr)(void)=NULL;
 
 void (*SSL_load_error_stringsptr)(void)=NULL;
 
-int logcallback(const char *str, size_t len, void *u) {
-#ifndef NOLOG
-	const char *format=(const char *)u;
-	loggert(format,str);
-#endif
-	return 0;
-	}
+extern int logcallback(const char *str, size_t len, void *u) ;
 
 SSL_CTX *(*SSL_CTX_newptr)(const SSL_METHOD *method);
-void (*ERR_print_errors_cbptr)(int (*cb)(const char *str, size_t len, void *u), void *u);
 
+extern void (*ERR_print_errors_cbptr)(int (*cb)(const char *str, size_t len, void *u), void *u);
 int (*SSL_CTX_use_certificate_chain_fileptr)(SSL_CTX *ctx, const char *file);
 
 //int (*SSL_CTX_use_certificate_ASN1ptr)(SSL_CTX *ctx, int len, unsigned char *d);
@@ -81,125 +77,11 @@ void  sslerror(const char *format) {
 	}
 
 
-/*
-struct android_namespace_t *ns =
-    android_create_namespace(
-      "trustme",
-      "/system/lib64/",
-      "/system/lib64/",
-      ANDROID_NAMESPACE_TYPE_SHARED |
-      ANDROID_NAMESPACE_TYPE_ISOLATED,
-      "/system/:/data/:/vendor/",
-      NULL);
-
-*/
-
-
-
-
-typedef struct android_namespace_t* (*android_get_exported_namespace_t)(const char*) ;
-
-
-typedef struct android_namespace_t * (*android_create_namespace_t)(
-    const char* name, const char* ld_library_path, const char* default_library_path, uint64_t type,
-    const char* permitted_when_isolated_path, struct android_namespace_t* parent);
-
-/*
-      "trustme",
-      "/system/lib64/",
-      "/system/lib64/",
-      ANDROID_NAMESPACE_TYPE_SHARED |
-      ANDROID_NAMESPACE_TYPE_ISOLATED,
-      "/system/:/data/:/vendor/",
-      NULL); */
-
 extern std::string_view globalbasedir;
 
-#ifdef __ANDROID_API__
-	#if defined(__aarch64__) || defined(__x86_64__) 
-	const char *systembase[]={"/system/lib64"};
-	#else
-	const char *systembase[]={"/system/lib"};
-	#endif
-#else
-	#if defined(__x86_64__) 
-	const char *systembase[]={"/usr/lib/x86_64-linux-gnu","/usr/lib64","/usr/lib"};
-
-	#elif defined(__i386__)
-	const char *systembase[]={"/usr/lib/i386-linux-gnu","/usr/lib32","/usr/lib"};
-	#else
-	const char *systembase[]={"/usr/lib"};
-	#endif
-#endif
-void * dlopener(std::string_view filename,int flags) {
-#ifdef __ANDROID_API__
-pathconcat localname(globalbasedir,filename);
-
-if(void *handle=dlopen(localname.data(),flags))
-	return handle;
-LOGGER("dlopen %s\n",dlerror());
-#endif
-for(const char *base:systembase) {
-	pathconcat sysname(base,filename);
-	if(void *handle=dlopen(sysname.data(),flags)) {
-		LOGGER("dlopen %s\n", sysname.data());
-		return handle;
-		}
-	LOGGER("%s: %s\n",sysname.data(),dlerror());
-	}
-#if __ANDROID_API__ >= 21
-android_create_namespace_t android_create_namespace= (android_create_namespace_t)dlsym(RTLD_DEFAULT, "android_create_namespace");
-if(android_create_namespace) {
-	static const android_dlextinfo dlextinfo = {
-	  .flags = ANDROID_DLEXT_USE_NAMESPACE,
-//	  .library_namespace = android_get_exported_namespace("vndk")
-	  .library_namespace = android_create_namespace(
-	      "thisspace",
-	      "/system/lib64/",
-	      "/system/lib64/",
-	      3,
-	      "/system/:/data/:/vendor/",
-	      NULL)
-		};
-	if(dlextinfo.library_namespace) { 
-		if(void *handle=android_dlopen_ext(filename.data(), flags, &dlextinfo)) {
-			return handle;
-			}
-		else
-			LOGGER("android_dlopen_ext %s\n",dlerror());
-		}
-	else {
-		LOGSTRING("android_create_namespace failed\n");
-		}
-	}
-else {
-	LOGGER("dlsym %s\n",dlerror());
-	}
-#endif	
-
-#ifdef __ANDROID_API__
-pathconcat sysname(systembase[0],filename);
-Readall file(sysname.data());
-if(!file) {
-	flerror("%s\n",sysname.data());
-	return nullptr;
-	}
-if(!writeall(localname.data(),file.data(),file.size())) {
-	return nullptr;
-	}
-
-return dlopen(localname.data(),flags);
-#else
-return nullptr;
-#endif
-
-}
 
 
 
-
-//char fullchainfileonly[]="bundle_chained.crt";
-//char privatekey[]="private.key";
 static pathconcat chainfilename;
 static pathconcat private_file;
 static bool getkeynames() {
@@ -219,94 +101,73 @@ std::string haskeyfiles() {
 	}
 	return "";
 	}
+
+extern void *opencrypto();
+extern void *openssl();
+extern void * dlopener(std::string_view filename,int flags);
 std::string loadsslfunctions() {
+   #ifndef  __ANDROID_API__
+   char cryptolib[]="libcrypto.so.3";
+   void* cryptohandle;
+   if(!(cryptohandle=dlopener(cryptolib, RTLD_NOW))&&(cryptolib[12]='\0', !(cryptohandle=dlopener(cryptolib, RTLD_NOW)))) {
+         cryptolib[12]='.';
+        return  std::string("dlopen==nullptr: ")+std::string(dlerror());
+        }
+   #else
+   void* cryptohandle=opencrypto();
+   if(!cryptohandle) {
+        return  std::string("dlopen==nullptr: ")+std::string(dlerror());
+        }
+   #endif
+   #define hgetsym(handle,name) *((void **)&name##ptr)=dlsym(handle, #name)
+   #define getsym(name) hgetsym(handle,name)
+   #define symtest(name) if(!(getsym(name))) { dlclose(handle);dlclose(cryptohandle);return std::string(dlerror());;}
+   if(!(hgetsym(cryptohandle,ERR_print_errors_cb))) {
+        dlclose(cryptohandle);
+        return std::string("hgetsym ERR_print_errors_cb fails");
+      }
 
-
-#ifdef __ANDROID_API__
-   setenv("LD_LIBRARY_PATH",globalbasedir.data(), 1);
-#endif
-
-char cryptolib[]="libcrypto.so"      
-#ifndef  __ANDROID_API__
-".3"
-#endif
-;
-void* cryptohandle;
-  if(!(cryptohandle=dlopener(cryptolib, RTLD_NOW))
-#ifndef  __ANDROID_API__
-&&(cryptolib[12]='\0', !(cryptohandle=dlopener(cryptolib, RTLD_NOW)))) {
-cryptolib[12]='.';
+   #ifndef  __ANDROID_API__
+   char libssl[]="libssl.so.3";
+   const char *libname=libssl;
+     void *handle;
+     if(!(handle=dlopener(libname, RTLD_NOW))&&(libssl[9]='\0',!(handle=dlopener(libname, RTLD_NOW)))) {
+         libssl[9]='.';
+        return std::string("dlopen==nullptr: ")+std::string(dlerror());
+        }
 #else
-) {
+     void *handle=openssl();
+     if(!handle) {
+        return std::string("dlopen==nullptr: ")+std::string(dlerror());
+        }
 #endif
-	  return  std::string("dlopen==nullptr: ")+std::string(dlerror());
-//	  dlclose(cryptohandle);
-	  }
-#define hgetsym(handle,name) *((void **)&name##ptr)=dlsym(handle, #name)
-#define getsym(name) hgetsym(handle,name)
-#define symtest(name) if(!(getsym(name))) { dlclose(handle);dlclose(cryptohandle);return std::string(dlerror());;}
-if(!(hgetsym(cryptohandle,ERR_print_errors_cb))) {
-	  dlclose(cryptohandle);
-	  return std::string("hgetsym ERR_print_errors_cb fails");
-	}
+     *((void **)&TheMethod)=dlsym(handle, "TLSv1_2_server_method");
+     if(!TheMethod) {
+        LOGGER("dlsym(TLSv1_2_server_method): %s\n",dlerror());
+      *((void **)&TheMethod)=dlsym(handle, "SSLv23_method");
+         if(!TheMethod) {
+            dlclose(handle);
+            return std::string("dlsym(SSLv23_method): ")+std::string(dlerror());
+            }
+      }
 
-char libssl[]="libssl.so"      
-#ifndef  __ANDROID_API__
-".3"
-#endif
-;
-const char *libname=libssl;
-  void *handle;
-  if(!(handle=dlopener(libname, RTLD_NOW))
-#ifndef  __ANDROID_API__
-&&(libssl[9]='\0',!(handle=dlopener(libname, RTLD_NOW)))) {
-libssl[9]='.';
-#else
-) {
-#endif
-	  return std::string("dlopen==nullptr: ")+std::string(dlerror());
-	  }
-  *((void **)&TheMethod)=dlsym(handle, "TLSv1_2_server_method");
- // *((void **)&TheMethod)=dlsym(handle, "TLS_method");
-  if(!TheMethod) {
-	  LOGGER("dlsym(TLSv1_2_server_method): %s\n",dlerror());
-  	*((void **)&TheMethod)=dlsym(handle, "SSLv23_method");
-  		if(!TheMethod) {
-			dlclose(handle);
-	  		return std::string("dlsym(SSLv23_method): ")+std::string(dlerror());
-			}
-  	}
-
-//  *((void **)&SSL_library_init_ptr)=dlsym(handle, "SSL_library_init_ptr");
    getsym(SSL_library_init);
    getsym(OPENSSL_add_all_algorithms_noconf);
    getsym(SSL_load_error_strings);
-//s/^.*([^a-zA-Z]*\([a-zA-Z_]*\)ptr.*$/symtest(\1);/g
-symtest(SSL_CTX_new);
-symtest(SSL_CTX_use_certificate_chain_file);
-//symtest(SSL_CTX_use_certificate_ASN1);
-//symtest(SSL_CTX_use_PrivateKey_ASN1);
-symtest(SSL_CTX_use_PrivateKey_file);
-symtest(SSL_CTX_check_private_key);
-symtest(SSL_accept);
-symtest(SSL_read);
-symtest(SSL_write);
-symtest(SSL_get_fd);
-symtest(SSL_free);
-symtest(SSL_new);
-symtest(SSL_set_fd);
-symtest(SSL_CTX_free);
-/*
-if(!(getsym(ERR_reason_error_string))) {
-	LOGGER("%s ",dlerror());
-	}
-
-if(!(getsym(ERR_peek_last_error))) {
-	LOGGER("%s ",dlerror());
-	}
-*/
-return "";
-}
+   symtest(SSL_CTX_new);
+   symtest(SSL_CTX_use_certificate_chain_file);
+   symtest(SSL_CTX_use_PrivateKey_file);
+   symtest(SSL_CTX_check_private_key);
+   symtest(SSL_accept);
+   symtest(SSL_read);
+   symtest(SSL_write);
+   symtest(SSL_get_fd);
+   symtest(SSL_free);
+   symtest(SSL_new);
+   symtest(SSL_set_fd);
+   symtest(SSL_CTX_free);
+   return "";
+ }
 
 
 
@@ -446,5 +307,33 @@ if(SSL_CTX_use_PrivateKey_fileptr(ctx, private_file.data(), SSL_FILETYPE_PEM) <=
 	return "";
    }
 
+
+
+/*
+extern void linkopenssl();
+void linkopenssl() {
+//const char *filename="/apex/com.android.conscrypt/lib64/libssl.so";
+const char *filename="/system/lib64/libssl.so";
+void * handle;
+   if((handle=bypass_loader_dlopen(filename,RTLD_LAZY|RTLD_GLOBAL))) {
+     LOGGER("bypass_loader_dlopen %s succeeded\n",filename);
+  }
+else {
+      LOGGER("dlopen %s failed\n",filename);
+      return;
+    }
+    const char *symbol;
+   SSL_CTX *(*SSL_CTX_newptr)(const SSL_METHOD *method);
+    symbol= "SSL_CTX_new";
+   if( (*(void **) (&SSL_CTX_newptr)=dlsym(handle, symbol))) {
+      LOGGER("dlsym %s success!\n",symbol);
+      }
+   else {
+      LOGGER("dlsym %s failed: %s\n",symbol,dlerror());
+      }
+
+//   dlclose(handle);
+}
+*/
 #endif
 #endif

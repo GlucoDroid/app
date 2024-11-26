@@ -758,13 +758,13 @@ public  void mkbackupview(MainActivity act) {
    if(!isWearable&&!Natives.getsystemUI()) {
 	   act.showSystemUI();
       Applic.app.getHandler().postDelayed( ()->{
-      realmkbackupview(act); },1);
+      realmkbackupview(act,true); },1);
       }
     else
-      realmkbackupview(act);
+      realmkbackupview(act,true);
 //	Applic.app.getHandler().postDelayed( ()-> realmkbackupview(act),1); //for what was it needed?
 	}
-private  void realmkbackupview(MainActivity act) {
+public  void realmkbackupview(MainActivity act,boolean lightback) {
 configchanged=false;
  // activity=act;
  String[] thishost=gethostnames();
@@ -861,7 +861,7 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 	recycle.setAdapter(hostadapt);
 	recycle.setLayoutParams(new ViewGroup.LayoutParams(  MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 	Runnable closerun= ()-> {
-   	act.lightBars(!getInvertColors( ));
+	    if(lightback) act.lightBars(!getInvertColors( ));
 		if(hostview!=null)
 			removeContentView(hostview);
 		hidekeyboard(act);

@@ -50,13 +50,13 @@ class MessageSender(val activity: Context):CapabilityClient.OnCapabilityChangedL
         isGalaxy(localnodeall) }
 
     var nodes: Set<Node>? = null
-    var nexttimes:LongArray?=null
+    private var nexttimes:LongArray?=null
 
     private fun setnodes(ns:Set<Node>) {
         nodes = ns
         val len: Int = nodes?.size ?: 0
         nexttimes = LongArray(len)
-	sendnetinfo();
+        sendnetinfo();
     }
     public fun nulltimes() {
         nexttimes?.fill(0L)
@@ -414,7 +414,7 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
              var  othernode=nodes.elementAt(it)
             val nu = System.currentTimeMillis()
             if(times!![it] > nu) {
-	    	Log.i(LOG_ID,"times!![it] > nu) it=$id times!![it]=${times!![it]} nu=$nu ")
+                Log.i(LOG_ID,"times!![it] > nu) it=$id times!![it]=${times!![it]} nu=$nu ")
                 return
             }
 	if(sender.localnode==null) {
@@ -457,21 +457,21 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
             val times = sender.nexttimes
             val nextnetinfo = nu + netwait
             val num = nodes.size
-            for (i in 0 until num) {
+            for(i in 0 until num) {
                 val node: Node = nodes.elementAt(i)
                 if (times!![i] < nu) {
                     val name = if (isWearable) sender.localnode else node.id
-		    if(name==null) {
-		    	Log.d(LOG_ID,"name=null")
-		    	continue
-			}
+                    if(name==null) {
+                        Log.d(LOG_ID,"name=null")
+                        continue
+                        }
                     val netinfo = Natives.getmynetinfo(name, isWearable, 0, isGalaxy(node)) ?: continue
                     sender.sendnetinfo(node, netinfo)
                     times[i] = nextnetinfo
                 } else {
                     Log.i(LOG_ID, "sendnetinfo already done " + node.id)
-                }
-            }
+                  }
+              }
         }
         @JvmStatic 	public fun sendnetinfo() {
 		scope.launch {	

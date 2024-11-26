@@ -28,7 +28,10 @@ struct sistream:streamdata {
 #endif
 
 #ifdef DEXCOM
+#include "dexcom/DexContext.hpp"
 struct dexcomstream:streamdata {
-	dexcomstream(int sensindex,SensorGlucoseData *sens): streamdata(0x40, sensindex,sens){};
+
+	DexContext dexcontext;
+	dexcomstream(int sensindex,SensorGlucoseData *sens): streamdata(0x40, sensindex,sens),dexcontext(sens){};
 	};
 #endif 

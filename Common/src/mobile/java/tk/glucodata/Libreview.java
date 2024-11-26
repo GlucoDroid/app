@@ -835,7 +835,7 @@ var space=getlabel(act,"        ");
                                 lay.setX((width-w)/2); 
                                 };
 			lay.setY(MainActivity.systembarTop);
-                        return new int[] {w,h};}, new View[]{emaillabel,email},new View[]{passlabel,editpass,russia},new View[]{clear,accountid,getaccountid},new View[]{statusview},new View[]{sendtolibreview,librecurrent,libreisviewed,numbers},new View[]{send,help,cancel,ok});
+                        return new int[] {w,h};}, new View[]{emaillabel,email},new View[]{passlabel,editpass,russia},new View[]{clear,accountid,getaccountid},new View[]{statusview},new View[]{ librecurrent,libreisviewed}, new View[]{sendtolibreview,numbers},new View[]{send,help,cancel,ok});
 
 	clear.setOnClickListener(v->  {
 			resendDateDialog(act,layout);
@@ -928,7 +928,7 @@ var space=getlabel(act,"        ");
 		});
 	      layout.setBackgroundResource(R.drawable.dialogbackground);
 	      int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;
-		  layout.setPadding(pad,pad,pad,pad);
+		  layout.setPadding(pad,0,pad,pad);
 		act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
 	
 	}

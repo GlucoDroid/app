@@ -26,6 +26,7 @@ import static com.google.zxing.integration.android.IntentIntegrator.DATA_MATRIX;
 import static com.google.zxing.integration.android.IntentIntegrator.QR_CODE;
 import static tk.glucodata.Applic.Toaster;
 import static tk.glucodata.Applic.isWearable;
+import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MainActivity.REQUEST_BARCODE;
 
 import android.app.Activity;
@@ -103,7 +104,7 @@ static boolean connectSensor(final String scantag) {
 private static void scanZXing(Activity act) {
      if(!isWearable) {
          IntentIntegrator intentIntegrator = new IntentIntegrator(act);
-         intentIntegrator.setPrompt("To use a Sibionic sensor, scan its Data Matrix or QR Code");
+         intentIntegrator.setPrompt(Applic.app.getString(R.string.photomessage));
          intentIntegrator.setOrientationLocked(true); 
          intentIntegrator.setDesiredBarcodeFormats( DATA_MATRIX, QR_CODE);
          intentIntegrator.setRequestCode(REQUEST_BARCODE);
@@ -176,4 +177,14 @@ private static void scanGoogle(MainActivity act) {
    }
 	}
 
-};
+/*
+static void testsibionics() {
+if(doLog) {
+  String tag="^]0106972831640820112312221724122110LT48231127G^]212311271NTK237GAA21";
+  var name=Natives.addSIscangetName(tag);
+  long dataptr=Natives.getdataptr(name);
+  var si=new SiGattCallback(name, dataptr);
+ si.testchanged();
+  }
+};*/
+}

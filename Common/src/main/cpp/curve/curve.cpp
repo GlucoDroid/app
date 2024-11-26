@@ -157,7 +157,7 @@ float smallfontlineheight;
 		float bottom;
 		float height;
 	};} sensorbounds;
-float timelen=300;
+float timelen=300,timeheight;
 union bounds_t{
 	float array[4];
 	struct {float xmin,ymin, xmax,ymax;};
@@ -196,9 +196,22 @@ if(!genVG) {
 	return;
 	}
 if(chinese()) {
-	font=whitefont=blackfont = nvgCreateFont(genVG, "dance-bold","/system/fonts/NotoSansCJK-Regular.ttc");
+	if(-1==(font=whitefont=blackfont = nvgCreateFont(genVG, "dance-bold","/system/fonts/NotoSansCJK-Regular.ttc"))) {
+      LOGAR("font NotoSansCJK-Regular failed");
+	   if(-1==(font=whitefont=blackfont = nvgCreateFont(genVG, "dance-bold","/system/fonts/DroidSansFallback.ttf")))  {
+            LOGAR("font DroidSansFallback failed");
+            }
+      }
+	if(-1==(menufont = nvgCreateFont(genVG, "regular", "/system/fonts/NotoSerifCJK-Regular.ttc"))) {
+      LOGAR("menufont NotoSerifCJK-Regular failed");
+	   if(-1==(menufont = nvgCreateFont(genVG, "regular","/system/fonts/NotoSansCJK-Regular.ttc"))) {
+         LOGAR("menufont NotoSansCJK-Regular failed");
+         if(-1==(menufont = nvgCreateFont(genVG, "regular","/system/fonts/DroidSansFallback.ttf")))  {
+               LOGAR("font DroidSansFallback failed");
+               }
+         }
 
-	menufont = nvgCreateFont(genVG, "regular", "/system/fonts/NotoSerifCJK-Regular.ttc");
+      }
 //TODO free font ???
 	chfontset=CHINESE;
 	}
@@ -291,6 +304,8 @@ constexpr const char menufonts[][41]={
 	constexpr const char timestring[]="29:59";
 	nvgTextBounds(genVG, 0,  0, timestring,timestring+sizeof(timestring)-1, bounds.array);
 	timelen=bounds.xmax-bounds.xmin;
+	timeheight=bounds.ymax-bounds.ymin;
+   LOGGER("timeheight=%f timelen=%f\n",timeheight,timelen);
 
 	const char listitem[]="39-08-2028 09-59 RRRRRRRRRRR 999.9";     
 	nvgTextBounds(genVG, 0,  0, listitem,listitem+sizeof(listitem)-1, bounds.array);
@@ -561,7 +576,8 @@ bool righttime(time_t tim)const {
 	}
 bool operator() (const ScanData *g) const {
 //	if((type&scansearchtype)!=scansearchtype) return false;
-	if(!g)
+//	if(!g) return false;
+	if(!g||!g->valid())
 		return false;
 	uint32_t glu=g->g*10.0;
 	if(g->t&&glu&&glu>=under&&glu<=above&&righttime(g->t)) {
@@ -991,6 +1007,9 @@ pair<int32_t,int32_t> histPositions(const SensorGlucoseData  * hist, const uint3
 	}
 
 template <class TX,class TY> void histcurve(NVGcontext* genVG,const SensorGlucoseData  * hist, const int32_t firstpos, const int32_t lastpos,const TX &xtrans,const TY &ytrans,const int colorindex) {
+	if(hist->isDexcom()&&!settings->data()->dexcomPredict)
+		return;
+
 	const NVGcolor *col=getcolor(colorindex);
 	nvgStrokeColor(genVG, *col);
 	nvgFillColor(genVG,*col);
@@ -1094,7 +1113,12 @@ static uint32_t getnumfirsttime() {
 uint32_t mintime() {
 	uint32_t sent= sensors?sensors->timefirstdata():UINT32_MAX;
 	uint32_t numt=getnumfirsttime();
-	return min(numt,sent);
+   uint32_t tim= min(numt,sent);
+   #ifndef NOLOG
+   time_t t=tim;
+   LOGGER("mintime=%d %s",tim,ctime(&t));
+   #endif
+   return tim;
 	}
 int gmin=2*180;
 int grange=8*180;
@@ -1333,11 +1357,11 @@ static void	showscanner(NVGcontext* genVG,const SensorGlucoseData *hist,int scan
 	const float yunder=y+(showabove?-1:1)*headsize/2.0;
 	nvgFontSize(genVG,mediumfont );
 	nvgText(genVG, endtime,yunder, buf, buf+len);
-	const sensorname_t *sensorname=hist->othershortsensorname();
+	const auto sensorname=hist->othershortsensorname();
 	nvgFontSize(genVG,headsize*.134f );
 	nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
     const auto sensorx=bounds[0] -sensleft;
-	nvgText(genVG,sensorx,yunder, sensorname->begin(), sensorname->end());
+	nvgText(genVG,sensorx,yunder, sensorname.begin(), sensorname.end());
 	const bool showdate=(nu-last.t)>=60*60*12;
 	constexpr const int maxdatebuf=30;
 	int datelen;
@@ -1506,9 +1530,14 @@ const displaytime getdisplaytime(const uint32_t nu,const uint32_t starttime,cons
 	const uint32_t first=uint32_t(ceilf(starttime/(double)tstep))*tstep;	
 	const uint32_t endhier=(nu<endtime)?(nu+tstep-59):(endtime-1);
 	const uint32_t last=uint32_t(floorf(endhier/double(tstep)))*tstep;	
-	LOGGER("getdisplaytime xscale=%.1f %u %u %u\n",xscale,tstep,first,last);
+	LOGGER("getdisplaytime xscale=%f %u %u %u\n",xscale,tstep,first,last);
 	return {tstep,first,last};
 }
+
+static bool timemiddle() {
+   return false;
+   }
+
 template <class LT>
 void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
 
@@ -1520,15 +1549,36 @@ void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
 	#endif
 	nvgFillColor(genVG, *getblack());
 	nvgFontSize(genVG, timefontsize);
-	nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_TOP);
-	const float timehight=
+	float timeY
+#ifdef NOCUTOFF
+   ,lower,upper
+#endif
+   ;
+   if(timemiddle()) {
+	   nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE);
+	   timeY=(dheight-statusbarheight-dbottom)*.5f+statusbarheight;
+#ifdef NOCUTOFF
+      lower=timelen*.5f;
+      upper=dwidth-lower;
+#endif
+      }
+   else {
+	   nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_TOP);
+    timeY=
 	#ifdef WEAROS
-	//	smallfontlineheight*1.6
-		smallfontlineheight*1.35f
-	#else
-		0
+		smallfontlineheight*1.45f + //MODIFIED
+//		smallfontlineheight*1.7f +
 	#endif
-	;
+   statusbarheight
+      ;
+#ifdef NOCUTOFF
+      float straal=dwidth*.5f;
+      float over=straal-timeY;
+      lower=straal-sqrt(pow(straal,2)-pow(over,2))+timelen*.4f;
+      upper=dwidth-lower;
+      LOGGER("lower=%f upper=%f over=%f\n",lower,upper,over);
+#endif
+      }
 	for(auto tim=first;tim<=last;tim+=tstep) {
 		float dtim=transx(tim);
 		char buf[8];
@@ -1551,11 +1601,15 @@ void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
 			nvgStrokeColor(genVG, *getblack());
 			}
 	#ifdef WEAROS
-		 if(tim<=numlast)  
+		 if(tim<=numlast
+#ifdef NOCUTOFF
+       &&dtim>lower&&dtim<upper
+#endif
+       )  
 	#endif
 		 {
         int len=mktime(stm->tm_hour,mktmmin(stm),buf);
-			nvgText(genVG, dtim,timehight+statusbarheight, buf, buf+len);
+			nvgText(genVG, dtim,timeY, buf, buf+len);
 			}
 		nvgBeginPath(genVG);
 		nvgMoveTo(genVG,dtim ,0) ;
@@ -1688,13 +1742,13 @@ std::vector<shownglucose_t> shownglucose;
 #ifndef NOLOG
 //#define TESTVALUE
 #endif
-static void showvalue(const ScanData *poll,const sensorname_t *sensorname, float getx,float gety,int index,uint32_t nu) {
-	LOGGER("showvalue %s\n",sensorname->data());
+static void showvalue(const ScanData *poll,const std::string_view sensorname, float getx,float gety,int index,uint32_t nu) {
+	LOGGER("showvalue %s\n",sensorname.data());
 	float sensory= gety+headsize/3.1;
 	nvgFillColor(genVG, *getblack());
 	nvgFontSize(genVG,mediumfont );
 	nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
-	nvgText(genVG, getx,sensory, sensorname->begin(), sensorname->end());
+	nvgText(genVG, getx,sensory, sensorname.begin(), sensorname.end());
 	nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
 	constexpr const int maxhead=11;
 	char head[maxhead];
@@ -1903,10 +1957,17 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
 			}
 		else {
 			LOGSTRING("poll==null\n");
+         if(hist->notchinese()) {
+             const char eusibinics[]="Unsupported Sibionics Sensor";
+			    nvgText(genVG,getx ,gety, eusibinics, eusibinics+sizeof(eusibinics)-1);
+				 otherproblem=true;
+            }
+         else {
 			time_t starttime=hist->getstarttime();
 			auto wait= nu-starttime;
-			LOGGER("wait=%lu starttime=%lu %s",wait,starttime,ctime(&starttime));
-			if(wait<(60*60)) {
+			const int warmup=hist->getWarmupMIN(); 
+			LOGGER("waited=%lu warmup=%d starttime=%lu %s",wait,warmup,starttime,ctime(&starttime));
+			if(wait<(warmup*60)) {
 				float usegetx=getx-headsize/3;
 				nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
 				nvgFontSize(genVG,headsize/6 );
@@ -1921,9 +1982,9 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
 					}
 				else {
 					const bool isInitialised=(!hist->isLibre2())||sensors->getsensor(sensorindex)->initialized;
-					LOGGER("wait<(60*60) isInitialised=%d\n",isInitialised);
+					LOGGER("wait<(%d*60) isInitialised=%d\n",warmup,isInitialised);
 					static char buf[256];
-					int minutes=60-(wait/60);
+					int minutes=warmup-(wait/60);
 					ends=sprintf(buf,isInitialised?usedtext->readysec.data():usedtext->readysecEnable.data(),minutes);
 					bufptr=buf;
 					}
@@ -1943,6 +2004,7 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
 					};
 				LOGAR("Afgter showerrorvalue(hist,nu,getx,gety)) ");
 				}
+            }
 			}
 
 		}
@@ -1987,7 +2049,7 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
 		for(int i=0;i<used.size();i++) {
 			if(SensorGlucoseData *hist=sensors->getSensorData(used[i])) {
 				LOGSTRING("set waiting=true\n");
-                		hist->waiting=true;
+            hist->waiting=true;
 				}
 			}
 		}
@@ -2116,7 +2178,8 @@ if(timdis>0&&((duration/timdis)<grens)) {
 	   LOGGER("timdis=%d larger than zero\n",timdis);
 		const float datehigh=smallfontlineheight*
 #ifdef WEAROS
-		.71;
+		//.71;
+		.68;
 #else
 		1.5;
 		#endif
@@ -2142,7 +2205,7 @@ if(timdis>0&&((duration/timdis)<grens)) {
       timelen=strlen(usedtext->daylabel[stm->tm_wday]);
       memcpy(tbuf,usedtext->daylabel[stm->tm_wday],timelen);
 		nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_BOTTOM);
-		nvgText(genVG,xpos ,dheight+datehigh*.2f, tbuf, tbuf+timelen);
+		nvgText(genVG,xpos ,dheight+datehigh*.15f, tbuf, tbuf+timelen);
 
 	   timelen=sprintf(tbuf,"%02d-%02d-%d",stm->tm_mday,stm->tm_mon+1,1900+stm->tm_year);
    
@@ -2160,6 +2223,7 @@ if(timdis>0&&((duration/timdis)<grens)) {
 		if(nu>=endtime) {
 			daystr(endtime,tbuf);
 			nvgTextAlign(genVG,NVG_ALIGN_RIGHT|NVG_ALIGN_TOP);
+         nvgText(genVG, dwidth+dleft,datehigh+statusbarheight, tbuf, NULL);
 			}
 #endif
 		}
@@ -2613,6 +2677,7 @@ static bool dohealth(int sensorindex) {
     }
     return false;
 }
+#include "EverSense.hpp"
 void     processglucosevalue(int sendindex,int newstart) {
 //	if(!streamvalueshown) return;
 
@@ -2622,9 +2687,20 @@ extern	bool hasnotiset();
 			return;
 		if(SensorGlucoseData *hist=sensors->getSensorData(sendindex)) {
 			if(newstart>=0) {
-				LOGGER("newstart=%d\n",newstart);
-				hist->backstream(newstart);
-				}
+			   LOGGER("newstart=%d previous=%d\n",newstart,hist->previousstream);
+			   hist->backstream(newstart);
+			   if(newstart<=hist->previousstream) {
+			       hist->previousstream=newstart;
+			       sendEverSenseold(hist,5/hist->streaminterval());
+			       return;
+			       }
+			   if(hist->previousstream==-1) {
+			       sendEverSenseold(hist,5/hist->streaminterval());
+			       }
+			    hist->previousstream=newstart;
+			    }
+			else
+			   hist->previousstream=hist->pollcount()-1;
 			if(const ScanData *poll=hist->lastpoll()) {
 				const time_t tim=poll->t;
 				if(!poll->valid()) {
@@ -3093,6 +3169,7 @@ void lognum(const Num *num) {
 #endif	
 int numfrompos(const float x,const float y) ;
 vector<mealposition> mealpos;
+#ifndef WEAROS
 static int verbosedate(time_t tim,char *buf,int maxbuf=256) {
 	struct tm tmbuf;
 	struct tm *stm=localtime_r(&tim,&tmbuf);
@@ -3100,7 +3177,6 @@ static int verbosedate(time_t tim,char *buf,int maxbuf=256) {
 	const char *dayname=usedtext->speakdaylabel[wdaynr];
 	return snprintf(buf,maxbuf,"%s %d %s %d",dayname,stm->tm_mday,usedtext->monthlabel[stm->tm_mon],1900+stm->tm_year);
 	}
-
 static void speakdate(time_t tim) {
 	constexpr const int maxbuf=256;
 	char buf[maxbuf];
@@ -3108,6 +3184,7 @@ static void speakdate(time_t tim) {
 	LOGGER("speakdate %s\n",buf);
 	speak(buf);
 	}
+#endif
 int64_t screentap(float x,float y) {
 
 #ifndef WEAROS
@@ -3336,7 +3413,7 @@ public:
 	} 
 strconcat  getsensorhelp(string_view starttext,string_view name1,string_view name2,string_view sep1,string_view sep2) {
 	char starts[50],ends[50],pends[50];
-   const sensor *sensor=sensors->getsensor(sensorindex);
+//   const sensor *sensor=sensors->getsensor(sensorindex);
 	time_t stime=hist->getstarttime(),etime= hist->officialendtime();
 	//time_t reallends=hist->isLibre3()?etime:sensor->maxtime();
 	time_t reallends=hist->expectedEndTime();
@@ -3410,7 +3487,9 @@ bool nearbyhistory( const float tapx,const float tapy,  const TX &transx,  const
 static bool  inmenu(float x,float y) ;
 
 
+#ifndef WEAROS
 	static bool speakmenutap(float x,float y) ;
+#endif
 
 static int largepausedaystr(const time_t tim,char *buf) {
         LOGAR("largepausedaystr");

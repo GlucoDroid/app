@@ -72,10 +72,22 @@ extern "C" jbyte*      subGetByteArrayElements(JNIEnv*env, jbyteArray ar, jboole
 		}
 	return buf;
 	}
-
 extern "C"    void        subReleaseByteArrayElements(JNIEnv*, jbyteArray jar, jbyte* car, jint mode) { 
     subLOGGER("subReleaseByteArrayElements(%p,%p,%d)\n",jar,car,mode);
     }
+extern "C" jint*      subGetIntArrayElements(JNIEnv*env, jintArray ar, jboolean* copy) {
+	jint *buf=reinterpret_cast<gegs<jint> *>(ar)->buf;
+	subLOGGER("subGetIntArrayElements(%p,%p)=%p\n",ar,copy,buf);
+	if(copy) {
+		*copy=JNI_FALSE;
+		}
+	return buf;
+	}
+extern "C"    void        subReleaseIntArrayElements(JNIEnv*, jintArray jar, jint* car, jint mode) { 
+    subLOGGER("subReleaseIntArrayElements(%p,%p,%d)\n",jar,car,mode);
+    }
+
+
 
 extern "C"    void        subDeleteLocalRef(JNIEnv*, jobject obj) {
 subLOGGER("subDeleteLocalRef %p\n",obj);
@@ -230,7 +242,7 @@ jobject newAlgContext(va_list) {
 
 //s/[a-z]\+ \(.*\);/constexpr const int \1Field=offsetof(AlgorithmContext,\1); 
 void         subSetLongField(JNIEnv*env,jobject  jobject1,jfieldID  fieldid,jlong  value) {
-   LOGGER("SetLongField %llx\n",value);
+   LOGGER("SetLongField %jx\n",value);
    *fieldvalue<jlong>(jobject1,fieldid)=value;
    }
 void         subSetDoubleField(JNIEnv*env,jobject  jobject1,jfieldID  fieldid,jdouble  value) {
@@ -246,7 +258,7 @@ void         subSetIntField(JNIEnv*env,jobject  jobject1,jfieldID  fieldid,jint 
 jlong        subGetLongField(JNIEnv*env,jobject  jobject1,jfieldID  fieldid) {
 //    uint8_t *alg=reinterpret_cast<uint8_t *>(jobject1);
    jlong value =*fieldvalue<jlong>(jobject1,fieldid);
-   LOGGER("GetLongField()=%llx\n",value);
+   LOGGER("GetLongField()=%jx\n",value);
    return value;
    }
 

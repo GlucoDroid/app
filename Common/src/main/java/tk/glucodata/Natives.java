@@ -23,8 +23,11 @@ package tk.glucodata;
 
 
 
+import android.os.Build;
+
 import com.eveningoutpost.dexdrip.services.broadcastservice.models.GraphLine;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 import tk.glucodata.nums.item;
@@ -39,6 +42,7 @@ static  {
            System.loadLibrary("g");
 	android.util.Log.d(LOG_ID,"after LoadLibrary");
    	Applic.Nativesloaded=true;
+
        }
 
     catch(       Throwable  error) {
@@ -112,7 +116,7 @@ public static native long getsensorptr(long dataptr);
 public static native void setDeviceAddress(long dataptr,String deviceAddress );
 //public static native void setDeviceAddressB(long dataptr,byte[] address );
  
-public static native String getDeviceAddress(long dataptr);
+public static native String getDeviceAddress(long dataptr,boolean getnew);
 //public static native void backupstream(long dataptr);
 
     public static native byte[]    sensorUnlockKey(long dataptr);
@@ -732,10 +736,10 @@ public static native void setHostDeactivated(int pos,boolean val);
 
 //public static native long makeSIdataptr(String gegs);
 //public static native int getSIindex(long dataptr);
-public static native void saveDeviceName(long dataptr,String deviceName);
+public static native void siSaveDeviceName(long dataptr,String deviceName);
 public static native long SIprocessData(long dataptr, byte[] bluetoothdata,long mmsec);
 public static native String getSiBluetoothNum(long dataptr);
-public static native byte[] getSiWriteCharacter(long dataptr);
+public static native byte[] siAsknewdata(long dataptr);
 public static native String addSIscangetName(String jgegs);
 public static native boolean hasSibionics();
 //public static native String getShowSensorName(long dataptr);
@@ -755,6 +759,32 @@ public static native int getComplicationBackgroundColor( );
 public static native void setComplicationTextBorderColor(int val);
 public static native int getComplicationTextBorderColor( );
 public static native byte[] ingredientNameBytes(int index);
+public static native byte[] getSItimecmd( );
+public static native byte[] siAuthBytes(long dataptr);
+public static native boolean siNotchinese(long dataptr);
+public static native byte[] getSIActivation( );
+
+public static native boolean dexPutPubKey(long dataptr,int which ,byte[] input);
+
+public static native byte[] makeRound12bytes(long dataptr,int which);
+public static native boolean dex8AES(long dataptr,byte[] data,int datstart,byte[] out,int outoutstart);
+public static native void dexResetKeys(long dataptr);
+
+public static native void dexcomProcessData(long dataptr, byte[] bluetoothdata,long[] timeres);
+public static native byte[] getDexbackfillcmd(long dataptr);
+public static native boolean dexbackfill(long dataptr, byte[]  bluetoothdata);
+public static native byte[] makeRound3bytes(long dataptr);
+public static native byte[] dexChallenger(byte[] data);
+public static native boolean isAuthenticated(long dataptr);
+public static native int getDexCertSize(byte[] ar);
+public static native void dexSaveDeviceName(long dataptr,String deviceName);
+public static native String dexGetDeviceName(long dataptr);
+public static native boolean dexCandidate(long dataptr,String deviceName,String address);
+public static native void dexEndBackfill(long dataptr);
+public static native void EverSenseClear(long dataptr);
+public static native void setdexcomPredict(boolean val);
+public static native boolean getdexcomPredict( );
+
 //public static native void sendxdripold();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }

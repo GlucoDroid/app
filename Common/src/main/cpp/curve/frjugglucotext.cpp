@@ -105,7 +105,7 @@ jugglucotext frtext {
 		"Capteur",
 		"Paramètres",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
 "A propos",
 #endif

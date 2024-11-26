@@ -997,11 +997,11 @@
 
    }
 
-
+/*
     jint*        subGetIntArrayElements(JNIEnv*env,jintArray  jintArray1,jboolean * jboolean2) {
    LOGSTRING("GetIntArrayElements\n");
 
-   }
+   } */
 
 
     jlong*       subGetLongArrayElements(JNIEnv*env,jlongArray  jlongArray1,jboolean * jboolean2) {
@@ -1040,10 +1040,10 @@
    }
 
 
-    void         subReleaseIntArrayElements(JNIEnv*env,jintArray  jintArray1,jint * jint2,jint  jint3) {
+/*    void         subReleaseIntArrayElements(JNIEnv*env,jintArray  jintArray1,jint * jint2,jint  jint3) {
    LOGSTRING("ReleaseIntArrayElements\n");
 
-   }
+   } */
 
 
     void         subReleaseLongArrayElements(JNIEnv*env,jlongArray  jlongArray1,jlong * jlong2,jint  jint3) {

@@ -38,9 +38,15 @@ import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_BALANCED;
 import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH;
 import static android.bluetooth.BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
 import static android.bluetooth.BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
+import static android.bluetooth.BluetoothProfile.STATE_CONNECTED;
+import static android.bluetooth.BluetoothProfile.STATE_CONNECTING;
+import static android.bluetooth.BluetoothProfile.STATE_DISCONNECTED;
+import static android.bluetooth.BluetoothProfile.STATE_DISCONNECTING;
+import static java.util.Objects.isNull;
 import static tk.glucodata.Applic.app;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.mgdLmult;
+import static tk.glucodata.Log.showbytes;
 import static tk.glucodata.Natives.thresholdchange;
 import static tk.glucodata.SensorBluetooth.blueone;
 
@@ -85,10 +91,11 @@ public static boolean doGadgetbridge=false;
 	public final int sensorgen;
 	int readrssi=9999;
 	protected long sensorstartmsec;
+
 protected	SuperGattCallback(String SerialNumber,long dataptr,int gen) {
 	this.SerialNumber = SerialNumber;
 	this.dataptr = dataptr;
-	mActiveDeviceAddress = Natives.getDeviceAddress(dataptr);
+	mActiveDeviceAddress = Natives.getDeviceAddress(dataptr,true);
 	sensorstartmsec=Natives.getSensorStartmsec(dataptr);
 	sensorgen=gen;
 	Log.i(LOG_ID, "new SuperGattCallback " + SerialNumber + " " + ((mActiveDeviceAddress != null) ? mActiveDeviceAddress : "null"));
@@ -328,22 +335,21 @@ protected void handleGlucoseResult(long res,long timmsec) {
 
 public void searchforDeviceAddress() {
 	Log.i(LOG_ID,SerialNumber+" searchforDeviceAddress()");
-
 	//setDeviceAddress(null);
 	mActiveDeviceAddress = null;
 	close();
 	}	
-	String getinfo() {
-		if(dataptr!=0L)
-			return Natives.getsensortext(dataptr);
-		return "";
-		}
-	public void resetdataptr() {
-		Natives.freedataptr(dataptr);
-		close();
-		dataptr = Natives.getdataptr(SerialNumber);
-		mActiveDeviceAddress = Natives.getDeviceAddress(dataptr);
-	}
+     String getinfo() {
+	     if(dataptr!=0L)
+		     return Natives.getsensortext(dataptr);
+	     return "";
+	     }
+     public void resetdataptr() {
+	     Natives.freedataptr(dataptr);
+	     close();
+	     dataptr = Natives.getdataptr(SerialNumber);
+	     mActiveDeviceAddress = Natives.getDeviceAddress(dataptr,true);
+     }
 
 
 	public void setDevice(BluetoothDevice device) {
@@ -472,14 +478,22 @@ public void searchforDeviceAddress() {
 		Applic.app.getHandler().post(connect);
 	return true;
 	}
+
+private boolean used_priority=false;
 	@SuppressLint("MissingPermission")
 	void setpriority(BluetoothGatt bluegatt) {
 		if(bluegatt!=null) {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-				if (Natives.getpriority())
+				if(Natives.getpriority()) {
 					bluegatt.requestConnectionPriority(use_priority);
-				else
-					bluegatt.requestConnectionPriority(CONNECTION_PRIORITY_BALANCED);
+               used_priority=true;
+               }
+				else {
+               if(used_priority) {
+                  bluegatt.requestConnectionPriority(CONNECTION_PRIORITY_BALANCED);
+                  used_priority=false;
+                  }
+               }
 			}
 			}
 		else {
@@ -487,32 +501,55 @@ public void searchforDeviceAddress() {
 			}
 	}
 
+	boolean    disablenotification(BluetoothGatt gatt, BluetoothGattCharacteristic ch) {
+		if(isNull(gatt)) {
+			return false;
+			}
+		if(isNull(ch))
+			return false;
+		try {
+			gatt.setCharacteristicNotification(ch, false);
+			BluetoothGattDescriptor descriptor = ch.getDescriptor(mCharacteristicConfigDescriptor);
+			if (!descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
+				Log.e(LOG_ID, SerialNumber + " " + "descriptor.setValue())  failed");
+				return false;
+			}
+			return gatt.writeDescriptor(descriptor);
+		}
+		catch(Throwable th) {
+			Log.stack(LOG_ID,"disablenotification",th);
+			return false;
+		}
+	}
 
- protected  final boolean enableNotification(BluetoothGatt mBluetoothGatt, BluetoothGattCharacteristic bluetoothGattCharacteristic) {
- 	return enableGattDescriptor(mBluetoothGatt, bluetoothGattCharacteristic,ENABLE_NOTIFICATION_VALUE);
+ protected  final boolean enableNotification(BluetoothGatt bluetoothGatt1, BluetoothGattCharacteristic bluetoothGattCharacteristic) {
+ 	return enableGattDescriptor(bluetoothGatt1, bluetoothGattCharacteristic,ENABLE_NOTIFICATION_VALUE);
         }
- protected  final boolean enableIndication(BluetoothGatt mBluetoothGatt, BluetoothGattCharacteristic bluetoothGattCharacteristic) {
- 	return enableGattDescriptor( mBluetoothGatt,  bluetoothGattCharacteristic,ENABLE_INDICATION_VALUE);
+ protected  final boolean enableIndication(BluetoothGatt bluetoothGatt1, BluetoothGattCharacteristic bluetoothGattCharacteristic) {
+ 	return enableGattDescriptor( bluetoothGatt1,  bluetoothGattCharacteristic,ENABLE_INDICATION_VALUE);
         }
 @SuppressLint("MissingPermission")
- protected  final boolean enableGattDescriptor(BluetoothGatt mBluetoothGatt, BluetoothGattCharacteristic bluetoothGattCharacteristic,byte[] type) {
-	Log.i(LOG_ID, SerialNumber +" "+	"enableNotification");
-        if(!mBluetoothGatt.setCharacteristicNotification(bluetoothGattCharacteristic, true)) {
-		Log.e(LOG_ID, SerialNumber +" "+"setCharacteristicNotification("+bluetoothGattCharacteristic.getUuid().toString()+",true) failed");
-
-		return false;
-		}
-        BluetoothGattDescriptor descriptor = bluetoothGattCharacteristic.getDescriptor(mCharacteristicConfigDescriptor);
-        if(!descriptor.setValue(type)) {
-		Log.e(LOG_ID, SerialNumber +" "+"descriptor.setValue())  failed");
-		return false;
-		}
-        if(!mBluetoothGatt.writeDescriptor(descriptor)) {
-		Log.e(LOG_ID, SerialNumber +" "+"mBluetoothGatt.writeDescriptor(descriptor))  failed");
-		return false;
-		}
-	return true;
-        }
+ protected  final boolean enableGattDescriptor(BluetoothGatt bluetoothGatt1, BluetoothGattCharacteristic bluetoothGattCharacteristic,byte[] type) {
+     BluetoothGattDescriptor descriptor = bluetoothGattCharacteristic.getDescriptor(mCharacteristicConfigDescriptor);
+     if(!descriptor.setValue(type)) {
+         Log.e(LOG_ID, SerialNumber +" "+"descriptor.setValue())  failed");
+         return false;
+         }
+     final int originalWriteType = bluetoothGattCharacteristic.getWriteType();
+     bluetoothGattCharacteristic.setWriteType( BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+     var success=bluetoothGatt1.writeDescriptor(descriptor);
+     bluetoothGattCharacteristic.setWriteType(originalWriteType);
+     if(!success) {
+         Log.e(LOG_ID, SerialNumber +" "+"bluetoothGatt1.writeDescriptor(descriptor))  failed");
+         return success;
+         }
+      showbytes(LOG_ID+" "+SerialNumber +" "+	"enableNotification ",type);
+      if(!bluetoothGatt1.setCharacteristicNotification(bluetoothGattCharacteristic, type[0]!=0)) {
+         Log.e(LOG_ID, SerialNumber +" "+"setCharacteristicNotification("+bluetoothGattCharacteristic.getUuid().toString()+",true) failed");
+         return false;
+         }
+     return success;
+     }
 
 protected final boolean asknotification(BluetoothGattCharacteristic charac) {
 		return enableNotification(mBluetoothGatt, charac);
@@ -525,4 +562,6 @@ public UUID getService()  {
    }
 public void bonded()  {
    }
+
+
 }

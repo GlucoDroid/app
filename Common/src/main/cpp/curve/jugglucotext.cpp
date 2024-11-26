@@ -100,7 +100,7 @@ jugglucotext engtext {
 		"Settings",
 
 #if defined(SIBIONICS)
-		"Sibionics",
+		"Photo",
 #else
 		"About",
 #endif

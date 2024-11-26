@@ -111,7 +111,7 @@ jugglucotext pttext {
                 "Sensor",
                 "Definições",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
                 "Sobre",
 #endif

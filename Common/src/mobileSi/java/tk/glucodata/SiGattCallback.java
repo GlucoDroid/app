@@ -22,7 +22,9 @@
 package tk.glucodata;
 
 import static android.bluetooth.BluetoothGatt.GATT_SUCCESS;
+import static tk.glucodata.Applic.hasNotChinese;
 import static tk.glucodata.Log.doLog;
+import static tk.glucodata.MyGattCallback.showCharacter;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothGatt;
@@ -30,7 +32,10 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
+import android.content.pm.PackageManager;
 
+
+import androidx.core.app.ActivityCompat;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
@@ -42,17 +47,11 @@ public class SiGattCallback extends SuperGattCallback {
     static private final String LOG_ID = "SiGattCallback";
 static int siNR=0;
     public SiGattCallback(String SerialNumber, long dataptr) {
-        super(SerialNumber, dataptr, 0x10);
-//	mActiveDeviceAddress=null;
-        Log.d(LOG_ID, SerialNumber+" SiGattCallback(..)");
-	++siNR;
+       super(SerialNumber, dataptr, 0x10);
+       Log.d(LOG_ID, SerialNumber+" SiGattCallback(..)");
+       ++siNR;
     }
 
-
-    static void showCharacter(String label, BluetoothGattCharacteristic characteristic) {
-        byte[] value = characteristic.getValue();
-        Log.showbytes(label + " UUID: " + characteristic.getUuid().toString(), value);
-    }
 
 
     @SuppressLint("MissingPermission")
@@ -66,28 +65,17 @@ static int siNR=0;
             Log.showbytes("onDescriptorWrite char: " + characteristic.getUuid().toString() + " desc: " + bluetoothGattDescriptor.getUuid().toString()+" status="+status, value);
         }
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            final byte[] data=Natives.getSiWriteCharacter(dataptr);
-            if(data==null) {
-               var mess="getSiWriteCharacter==null";
-                handshake=mess;
-               wrotepass[1] = tim;
-               Log.e(LOG_ID,mess);
-			       disconnect();
-               return;
-                } 
-            service2.setValue(data);
-//            service2.setWriteType(2);
-            bluetoothGatt.writeCharacteristic(service2);
-			   wrotepass[0] = tim;
-
+            if(Natives.siNotchinese(dataptr))
+               authenticate();
+             else
+               askvalues(bluetoothGatt);
         }
        else {
          var mess="onDescriptorWrite failed";
          handshake=mess;
-			   wrotepass[1] = tim;
-            Log.e(LOG_ID,mess);
-			   disconnect();
-
+	 wrotepass[1] = tim;
+         Log.e(LOG_ID,mess);
+	 disconnect();
          }
     }
 
@@ -103,36 +91,37 @@ static int siNR=0;
             final String[] state = {"DISCONNECTED", "CONNECTING", "CONNECTED", "DISCONNECTING"};
             Log.i(LOG_ID, SerialNumber + " onConnectionStateChange, status:" + status + ", state: " + (newState < state.length ? state[newState] : newState));
         }
-        if (newState == BluetoothProfile.STATE_CONNECTED) {
+        if(newState == BluetoothProfile.STATE_CONNECTED) {
 				constatchange[0] = tim;
             if (!bluetoothGatt.discoverServices()) {
                 Log.e(LOG_ID, "bluetoothGatt.discoverServices()  failed");
 			      disconnect();
             }
+            Natives.EverSenseClear(dataptr);
         } else {
             if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-					if(!autoconnect) {
-						bluetoothGatt.close();
-						mBluetoothGatt = null;
-						if(!stop) {
-							var sensorbluetooth=SensorBluetooth.blueone;
-							if(sensorbluetooth!=null)
-								sensorbluetooth.connectToActiveDevice(this, 0);
-							}
-						}
-					else {
-						if(!stop) {
-							bluetoothGatt.connect();
-							}
-						else {
-							bluetoothGatt.close();
-							mBluetoothGatt = null;
-							}
-						}
-                  }
-				constatstatus = status;
-				constatchange[1] = tim;
-        }
+		   if(!autoconnect) {
+			   bluetoothGatt.close();
+			   mBluetoothGatt = null;
+			   if(!stop) {
+				   var sensorbluetooth=SensorBluetooth.blueone;
+				   if(sensorbluetooth!=null)
+					   sensorbluetooth.connectToActiveDevice(this, 0);
+				   }
+			   }
+		   else {
+			   if(!stop) {
+				   bluetoothGatt.connect();
+				   }
+			   else {
+				   bluetoothGatt.close();
+				   mBluetoothGatt = null;
+				   }
+			   }
+	 	}
+	   constatstatus = status;
+	   constatchange[1] = tim;
+	   }
     }
 
 
@@ -215,42 +204,144 @@ static int siNR=0;
 		}
 
 
+@SuppressLint("MissingPermission")
+private void		askvalues(BluetoothGatt bluetoothGatt) {
+        var tim=System.currentTimeMillis();
+      final byte[] data=Natives.siAsknewdata(dataptr);
+      if(data==null) {
+         var mess="siAsknewdata==null";
+          handshake=mess;
+          wrotepass[1] = tim;
+         Log.e(LOG_ID,mess);
+          disconnect();
+         return;
+          } 
+      if(write2(data))
+         wrotepass[0] = tim;
+   }
 	@Override
 	public void onCharacteristicWrite(BluetoothGatt bluetoothGatt, BluetoothGattCharacteristic bluetoothGattCharacteristic, int status) {
-		Log.d(LOG_ID, bluetoothGatt.getDevice().getAddress() + " onCharacteristicWrite, status:" + status + " UUID:" + bluetoothGattCharacteristic.getUuid().toString());
+      if(Log.doLog) {
+         Log.d(LOG_ID, bluetoothGatt.getDevice().getAddress() + " onCharacteristicWrite, status:" + status + " UUID:" + bluetoothGattCharacteristic.getUuid().toString());
+         }
 	}
 
 
-boolean novalue=false;
-@Override // android.bluetooth.BluetoothGattCallback
-public void onCharacteristicChanged(BluetoothGatt bluetoothGatt, BluetoothGattCharacteristic bluetoothGattCharacteristic) {
-	byte[] value = bluetoothGattCharacteristic.getValue();
+@SuppressLint("MissingPermission")
+private boolean write2(byte[] bytes) {
+   if(service2==null) {
+      disconnect();
+      return false;
+      }
+        
+   service2.setValue(bytes);
+    var blue=mBluetoothGatt;
+    if(blue!=null)
+       return blue.writeCharacteristic(service2);
+    else disconnect();
+    return false;
+   }
+private void   authenticate() {
+//	justAuthenticated=true;
+   if(hasNotChinese)
+      write2(Natives.siAuthBytes(dataptr));
+   }
+
+
+private void   activate() {
+   if(hasNotChinese)
+      write2(Natives.getSIActivation( ));
+   }
+
+private boolean novalue=false;
+
+@SuppressLint("MissingPermission")
+private void  sendtime() {
+   if(hasNotChinese)
+      write2(Natives.getSItimecmd());
+   }
+
+
+private void   processchanged(byte[] value) {
    long timmsec=System.currentTimeMillis();
   long res=Natives.SIprocessData(dataptr, value,timmsec);
   if(res==2L) {
-     if(!novalue) {
-	    novalue=true;
-	    Applic.app.getHandler().postDelayed( ()->   {
-            if(novalue) {
-               Log.e(LOG_ID,"2: postDelayed disconnect");
-               disconnect();
-	       novalue=false;
-               }},30*1000L);
-	       }
+        if(!novalue) {
+          novalue=true;
+          Applic.app.getHandler().postDelayed( ()->   {
+               if(novalue) {
+                  Log.e(LOG_ID,"2: postDelayed disconnect");
+                  disconnect();
+                  novalue=false;
+                  }},30*1000L);
+             }
+         return;
+      };
+  if(res==8L) {
+        if(!novalue) {
+          novalue=true;
+          Applic.app.getHandler().postDelayed( ()->   {
+               if(novalue) {
+                  Log.e(LOG_ID,"2: postDelayed disconnect");
+                  disconnect();
+                  novalue=false;
+                  }},5*60*1000L);
+             }
+         return;
+      };
+  if(res==9L) {
       return;
       }
-   novalue=false;
+  novalue=false;
   if(res==3L) {
-      Log.e(LOG_ID,"3: disconnect");
-      disconnect();
-      return;
-     } 
+         Log.e(LOG_ID,"3: disconnect");
+         disconnect();
+         return;
+        } 
    if(res==1L) {
-      sensorstartmsec=Natives.getSensorStartmsec(dataptr);
+         sensorstartmsec=Natives.getSensorStartmsec(dataptr);
+         return;
+         }
+    if(res==4L) {
+          Applic.app.getHandler().postDelayed( ()->   { authenticate(); },1000L);
+         return;
+         }
+   if(res==5L) { 
+      sendtime();
+      return;
+      }
+    if(res==6L) {
+         activate();
+         return;
+         }
+    if(res==7L) {
+        var blue=mBluetoothGatt;
+        if(blue!=null)
+          askvalues(blue);
       return;
       }
    handleGlucoseResult(res,timmsec);
-    }
+   }
+/*
+void testchanged() {
+if(doLog) {
+   byte [][] examples={
+   {(byte)0x23,(byte)0xF7,(byte)0x6F,(byte)0xD9,(byte)0xF4},
+   {(byte)0x23,(byte)0xF0,(byte)0x6F,(byte)0xDA,(byte)0xFA},
+   {(byte)0x23,(byte)0xF4,(byte)0x6F,(byte)0xDA,(byte)0xFE},
+   {(byte)0x23,(byte)0xF6,(byte)0x6F,(byte)0xDA,(byte)0xF0},
+   {(byte)0x23,(byte)0xFF,(byte)0x6F,(byte)0xDA,(byte)0xF9}};
+      for(var el:examples) {
+         processchanged(el);
+         }
+      }
+   }  */
+@Override // android.bluetooth.BluetoothGattCallback
+public void onCharacteristicChanged(BluetoothGatt bluetoothGatt, BluetoothGattCharacteristic bluetoothGattCharacteristic) {
+   byte[] value = bluetoothGattCharacteristic.getValue();
+   showCharacter("onCharacteristicChanged", bluetoothGattCharacteristic);
+   processchanged(value);
+   }
 
 @Override
 public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status)  {
@@ -267,7 +358,7 @@ public boolean matchDeviceName(String deviceName,String address) {
 	final var len=deviceName.length();
 	 final String bluetoothNum=Natives.getSiBluetoothNum(dataptr);
 	if(bluetoothNum.regionMatches(0,deviceName, len-4,4)) {
-	      Natives.saveDeviceName(dataptr,deviceName);
+	      Natives.siSaveDeviceName(dataptr,deviceName);
 	      return true;
 	      }
      return false;

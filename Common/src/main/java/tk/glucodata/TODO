@@ -1,6 +1,8 @@
+Make floating glucose more fluent.
+
+Remove meer c++ code met #ifdef SIBIONICS DEXCOM LIBRE3
 More pixels for complication?
 No am/pm for current time
-Verander dexcomarrow in voorbeeld glucose broadcast apps
 Vertikale bewegingen om kleur schermpje te bewegen? Knop naar boven laten komen? close er achter?
 Remove ZXing from Google Play version
 Look at order complication types

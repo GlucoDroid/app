@@ -105,7 +105,7 @@ jugglucotext iwtext {
 "חיישן",
 "הגדרות",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
 "על אודות",
 #endif

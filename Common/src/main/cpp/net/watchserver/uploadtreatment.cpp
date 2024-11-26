@@ -175,7 +175,7 @@ bool uploadtreatments(bool useV3) {
 
 char *writetreatmentV3(char *outiter,const int numbase,const int pos,const Num*num,int borderID) {
 	const int type=num->type;
-	if(type>=settings->varcount()||!settings->data()->Nightnums[type].kind) {
+	if(type<0||type>=settings->varcount()||!settings->data()->Nightnums[type].kind) {
 		return outiter;
 		}
 	const time_t tim=num->gettime();

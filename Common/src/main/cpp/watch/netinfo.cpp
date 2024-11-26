@@ -73,11 +73,11 @@ extern updateone &getsendto(int index);
 #include <mutex>
 extern std::mutex change_host_mutex;
 passhost_t * getwearoshost(const bool create,const char *label,bool galaxy,bool remake=false) {
- LOGGER("getwearoshost(%d,%s,%d)\n",create,label,galaxy);
   const std::lock_guard<std::mutex> lock(change_host_mutex);
 
     struct updatedata *update=backup->getupdatedata();
      int nrhost=update->hostnr;
+    LOGGER("getwearoshost(%d,%s,%d) nrhost=%d\n",create,label,galaxy,nrhost);
     passhost_t *hosts=update->allhosts;
     passhost_t *endhosts=update->allhosts+nrhost;
     passhost_t *found= std::find_if(hosts,endhosts,[label](const passhost_t &host){
@@ -271,7 +271,6 @@ static int getreceivefrom(int index,bool receive,bool activeonly,bool passiveonl
 	LOGGER("passiveonly=%d activeonly=%d reconnect=%d getreceivefrom(%d,%d)=%d\n",passiveonly,activeonly,reconnect,index,receive,res);
 	return res;
 	}
-
 
 void		setsendinfo(struct netinfo1 &info,passhost_t *wearhost) {
 			if(usedversion) {

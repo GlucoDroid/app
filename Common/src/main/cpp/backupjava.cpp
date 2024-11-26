@@ -56,6 +56,7 @@ extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(getbackupIPs)(JNIEnv *env,
 		return nullptr;
 		}
 	passhost_t &host=backup->getupdatedata()->allhosts[pos];
+	LOGGER("%s pos=%d nr=%d index=%d\n",host.getnameif(),pos,host.nr,host.index);
 	int len=host.nr;
 	if(len<0||len>maxip) {
 		LOGGER("host.nr==%d\n",len);
@@ -73,6 +74,7 @@ extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(getbackupIPs)(JNIEnv *env,
 		else  {
 			for(int i=0;i<len;i++) {
 				namehost name(host.ips+i);
+				LOGGER("%s\n",name.data());
 				env->SetObjectArrayElement(ipar,i,env->NewStringUTF(name));
 				}
 			}

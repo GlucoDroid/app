@@ -306,18 +306,20 @@ constexpr const int			maxitems=10440;
 						LOGGER("%d nightupload Success\n",sensorid);
 						LOGGER("%d saved nightiter=%d\n", sensorid,len);
 						newstartsensor=sensorid;
-						continue;
+                  continue;
 						}
 					else {
 						LOGSTRING("nightupload failure\n");
 						return false;
 						}
 					}
+            else  {
+				   LOGGER("ADDED nothing %d new positer=%d\n",sensorid,len);
+               sens->getinfo()->nightiter=len;
+               }
 				}
-	//		if(sens->getstarttime()>old) 
 			if(sens->getmaxtime()>nu) 
 				newstartsensor=sensorid;
-
 			}
 		}
 	settings->data()->nightsensor=newstartsensor;

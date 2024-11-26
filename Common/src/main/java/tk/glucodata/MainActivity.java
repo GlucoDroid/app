@@ -63,6 +63,7 @@ import android.content.Intent;
 import android.content.pm.ConfigurationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.nfc.NfcAdapter;
@@ -402,6 +403,7 @@ if(Build.VERSION.SDK_INT >= 30)  {
         getOnBackPressedDispatcher().addCallback(this, callback);
       Log.d(LOG_ID, "handleOnBackPressed callback added");
 */
+
     }
 void handleIntent(Intent intent) {
 	if(intent==null)

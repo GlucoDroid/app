@@ -254,11 +254,11 @@ bluediag(MainActivity act) {
 	starttimeV=view.findViewById(R.id.stage);
 	rssiview=view.findViewById(R.id.rssi);
 	rssiview.setPadding(0,0,0,0);
-   if(!isWearable) {
       CheckBox android13=view.findViewById(R.id.android13);
+      if(android13!=null) {
          android13.setChecked( SuperGattCallback.autoconnect);
          android13.setOnCheckedChangeListener( (buttonView,  isChecked) -> { SensorBluetooth.setAutoconnect(isChecked); });
-        }
+         }
 	info=view.findViewById(R.id.info);
 	Log.i(LOG_ID,"info.setVisibility(INVISIBLE);");
 	info.setVisibility(INVISIBLE);
@@ -512,11 +512,12 @@ static void test() {
 	}
 
 }*/
-void showall() {
+private void showall() {
 Log.i(LOG_ID,"showall");
 //	test();
 	SensorBluetooth  blue=SensorBluetooth.blueone;
 	if(blue!=null&&blue.scantime!=0L) {
+      long lasttime=0;
 		final List<Pair> messages = new ArrayList<>();
 		put(messages,blue.scantime,": Start search for sensors\n");
 		final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();
@@ -525,25 +526,33 @@ Log.i(LOG_ID,"showall");
 			}
 		else {
 			for(SuperGattCallback gatt:gatts) {
-				if(gatt.foundtime>0L)
+				if(gatt.foundtime>blue.scantime) {
+               if(gatt.foundtime>lasttime)
+                  lasttime=gatt.foundtime;
 					put(messages,gatt.foundtime,": Found "+gatt.SerialNumber +"\n");
+               }
 				}
 			}
-		if(blue.scantimeouttime>0L)
-			put(messages,blue.scantimeouttime, ": timeout\n");
-		if(blue.stopscantime>0L)
-			put(messages,blue.stopscantime, ": Stop searching\n");
-		Collections.sort(messages, new onkey());
-		StringBuilder builder= new StringBuilder();
-		    for (Pair entry : messages) {
-				builder.append(datestr(entry.key));
-				builder.append(entry.value);
-			}
-		
-		builder.deleteCharAt(builder.length()-1);
-		scanview.setText(builder);
-		Log.i(LOG_ID,"scanview.setVisibility(VISIBLE);");
-		scanview.setVisibility(VISIBLE);
+      if(lasttime==0L||lasttime>(System.currentTimeMillis()-3*60*1000)) {
+         if(blue.scantimeouttime>blue.scantime)
+            put(messages,blue.scantimeouttime, ": timeout\n");
+         if(blue.stopscantime>blue.scantime)
+            put(messages,blue.stopscantime, ": Stop searching\n");
+         Collections.sort(messages, new onkey());
+         
+         StringBuilder builder= new StringBuilder();
+             for (Pair entry : messages) {
+               builder.append(datestr(entry.key));
+               builder.append(entry.value);
+            }
+         
+         builder.deleteCharAt(builder.length()-1);
+         scanview.setText(builder);
+         Log.i(LOG_ID,"scanview.setVisibility(VISIBLE);");
+         scanview.setVisibility(VISIBLE);
+         }
+      else
+         scanview.setVisibility(GONE);
 		}
 	else  {
 		Log.i(LOG_ID,"scanview.setVisibility(GONE);");

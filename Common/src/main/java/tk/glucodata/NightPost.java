@@ -39,6 +39,7 @@ import static tk.glucodata.util.getlabel;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.os.Build;
 import android.text.InputType;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
@@ -49,6 +50,8 @@ import android.widget.EditText;
 import android.widget.ScrollView;
 
 import androidx.annotation.Keep;
+
+import com.google.android.gms.security.ProviderInstaller;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -61,10 +64,22 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import javax.net.ssl.SSLContext;
+
 import tk.glucodata.settings.LibreNumbers;
 
 public class NightPost  {
 	private static final String LOG_ID="NightPost";
+
+private static void patch() {
+	  try {
+		  ProviderInstaller.installIfNeeded(Applic.app);
+	  }
+	catch(Throwable th) {
+		uploadstatus= "ProviderInstaller.installIfNeeded: \n"+stackline(th);
+		 Log.e(LOG_ID,uploadstatus);
+		  }
+      }
 
 static String getstring(HttpURLConnection con)  throws IOException{
 	try(BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
@@ -97,6 +112,7 @@ final static String success=Applic.app.getString(R.string.success).intern();
 static private String uploadstatus=nothing;
 @Keep
 static public boolean deleteUrl(String urlstring,String secret) {
+	patch();
 	uploadtime=System.currentTimeMillis();
 	Log.i(LOG_ID,"deleteUrl "+urlstring+" "+ secret);
 	try {
@@ -200,6 +216,7 @@ private static String gettoken(long now) {
 private static long uploadtime=System.currentTimeMillis();
 @Keep
 static public int upload(String httpurl,byte[] postdata,String secret,boolean put) {
+	patch();
 	uploadtime=System.currentTimeMillis();
 	Log.i(LOG_ID,"upload("+httpurl+",#"+postdata.length+","+ secret+","+(put?"PUT":"POST")+")");
 	try {

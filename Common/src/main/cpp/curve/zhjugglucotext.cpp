@@ -54,7 +54,7 @@ jugglucotext chiText {
         "传感器",
         "设置",
 #if defined(SIBIONICS)
-"硅基扫码",
+"Photo",
 #else
         "关于",
 #endif

@@ -21,7 +21,6 @@
 #include "config.h"
 #ifdef OLDEVERSENSE 
 #include "EverSense.hpp"
-#ifndef WEAROS
 #include <jni.h>
 #include <span>
 #include <sys/prctl.h>
@@ -29,21 +28,25 @@
 #include "fromjava.h"
 #include "sensoren.hpp"
 extern Sensoren *sensors;
-void toEverSense(JNIEnv *env,const std::span<const ScanData> stream) { 
-	if(stream.size()) {
-		for(const ScanData &el:stream) {
-			if(el.valid()&&(el.getid()%5)==0)	 {
-				extern jclass EverSense;
-				extern jmethodID  sendGlucoseBroadcast;
-				const long long wastime= el.gettime()*1000LL;
-				LOGGER("to EverSense %d %f %lld\n",el.getmgdL(),el.ch,wastime);
-//	broadcastglucose(int mgdl, float rate, long timmsec)
-				env->CallStaticVoidMethod(EverSense,sendGlucoseBroadcast,el.getmgdL(),el.ch,wastime);
-				}
-
-			}
-		}
-	}
+void toEverSense(JNIEnv *env,const std::span<const ScanData> stream,const int modulo) { 
+   if(stream.size()) {
+       for(const ScanData &el:stream) {
+         if(!el.valid()) {
+            LOGGER("to EverSense %d %d %f %lld invalid\n",el.getid(),el.getmgdL(),el.ch,el.gettime());
+            continue;
+            }
+         if((el.getid()%modulo)!=0)	 {
+              LOGGER("to EverSense %d%d!=0 \n",el.getid(),modulo);
+              continue;
+              }
+           extern jclass EverSense;
+           extern jmethodID  sendGlucoseBroadcast;
+           const long long wastime= el.gettime()*1000LL;
+           LOGGER("to EverSense %d %d %f %lld\n",el.getid(),el.getmgdL(),el.ch,el.gettime());
+           env->CallStaticVoidMethod(EverSense,sendGlucoseBroadcast,el.getmgdL(),el.ch,wastime);
+         }
+       }
+   }
 /*
 void sendEverSenseold() {
 	if(!sensors)
@@ -61,21 +64,20 @@ extern JNIEnv *getenv();
 	 EverSenserunning=false;
 	}
 	*/
-void sendEverSenseoldthread(const SensorGlucoseData *sens,int startpos,int endpos) {
-	extern JNIEnv *getenv();
-     JNIEnv *env=getenv();
-	prctl(PR_SET_NAME, "sendtoEverSense", 0, 0, 0);
-	const auto data=sens->getPolldata();
-	const auto start=&data[startpos];
-	const auto end=&data[endpos];
+void sendEverSenseoldthread(const SensorGlucoseData *sens,int startpos,int endpos,int modulo) {
+   extern JNIEnv *getenv();
+   JNIEnv *env=getenv();
+   prctl(PR_SET_NAME, "sendtoEverSense", 0, 0, 0);
+   const auto data=sens->getPolldata();
+   const auto start=&data[startpos];
+   const auto end=&data[endpos];
    uint32_t  starttime=time(nullptr)-4*60*60;
    const auto newstart=sens->firstnotless({start,end},starttime);
-	 if(newstart<end) {
-	    toEverSense(env,{newstart,end});
-	    }
-	 else  {
-	    LOGGER("sendEverSenseold %p>=%p\n",start,end);
-	   }
+   if(newstart<end) {
+	 toEverSense(env,{newstart,end},modulo);
+	 }
+      else  {
+	 LOGGER("sendEverSenseold %p>=%p\n",start,end);
 	}
-#endif
+     }
 #endif

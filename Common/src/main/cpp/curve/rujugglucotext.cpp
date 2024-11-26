@@ -96,7 +96,7 @@ jugglucotext rutext {
 		"Датчик",
 		"Настройки",
 #if defined(SIBIONICS)
-"Sibionics",
+"Photo",
 #else
 		"About",
 #endif
