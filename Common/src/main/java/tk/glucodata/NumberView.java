@@ -273,12 +273,12 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 
         timebutton.setOnClickListener(
                 v -> {
-			layout.setVisibility(INVISIBLE);
-                    gettimeview(context,()-> {
-						layout.setVisibility(VISIBLE);
-						if(keyboard!=null)
-							keyboard.setVisibility(VISIBLE);
-					});
+                  layout.setVisibility(GONE);
+                  gettimeview(context,()-> {
+                     layout.setVisibility(VISIBLE);
+                     if(keyboard!=null)
+                        keyboard.setVisibility(VISIBLE);
+                  });
                 });
 
 	layout.setBackgroundColor( Applic.backgroundcolor);
@@ -727,7 +727,7 @@ void gettimeview(MainActivity activity,Runnable parent) {
 		 m=cal.get(Calendar.MINUTE);
 		}
 	if(keyboard!=null) {
-	    keyboard.setVisibility(INVISIBLE);
+	    keyboard.setVisibility(GONE);
 	    }
 	gettimepicker(activity,h,m,numsettime,parent);
 	}
@@ -820,7 +820,7 @@ activity.setonback(
 		() -> {
 			onclose.run();
 			activity.hideSystemUI();
-			timepicker.setVisibility(INVISIBLE);
+			timepicker.setVisibility(GONE);
 			if(newnumview!=null)
 				EnableControls(newnumview,true);
 

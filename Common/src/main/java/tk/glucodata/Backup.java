@@ -566,7 +566,7 @@ void makehostview(MainActivity act) {
 
 	}
 void changehostview(MainActivity act,final int index,String[] names,boolean dodetect,String port,String pass,View parent) {
-		parent.setVisibility(INVISIBLE);
+		parent.setVisibility(GONE);
 	if(hostview==null)
 		makehostview(act);
 	else {

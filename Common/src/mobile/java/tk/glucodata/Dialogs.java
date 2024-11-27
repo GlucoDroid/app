@@ -88,6 +88,10 @@ private Button exportbutton(MainActivity activity,String label, int type) {
 
 EditText days;
 public void showexport(MainActivity activity,int width,int height,View parent) {
+   if(parent!=null) {
+       parent.setVisibility(GONE);
+       Log.i(LOG_ID, "parent.setVisibility(GONE)");
+       }
 	if(exportscreen==null) {
 		Button num=exportbutton(activity,activity.getString(R.string.amountsname),0);
 		Button scan=exportbutton(activity,activity.getString(R.string.scansname),1);
@@ -149,15 +153,14 @@ public void showexport(MainActivity activity,int width,int height,View parent) {
 			    }
 			   else {
 			    l.setX(0);
-             l.setY(MainActivity.systembarTop*3/4);
+			    l.setY(MainActivity.systembarTop*3/4);
 			   	}
 			   }
 		else {
-			    l.setX((wid-w)/2);
-             l.setY(MainActivity.systembarTop*3/4);
-			}
-			return new int[] {w,h};
-
+		     l.setX((wid-w)/2);
+		    l.setY(MainActivity.systembarTop*3/4);
+		     }
+	       return new int[] {w,h};
 		}, new View[] {help,daylabel,days},gviews,new View[]{exportlabel},lviews);
 		exportscreen.setPadding(rand,rand,rand,rand);
 		exportscreen.setBackgroundColor( Applic.backgroundcolor);
@@ -166,6 +169,7 @@ public void showexport(MainActivity activity,int width,int height,View parent) {
 		}
 	else {
         	exportscreen.setVisibility(VISIBLE);
+         exportscreen.bringToFront();
 		}
 
 	exportlabel.setText(R.string.exporthelp);
@@ -176,26 +180,22 @@ public void showexport(MainActivity activity,int width,int height,View parent) {
 	else  {
 		help.showkeyboard(activity,days);
 		}
-   if(parent!=null) {
-       parent.setVisibility(INVISIBLE);
-       Log.i(LOG_ID, "parent.setVisibility(INVISIBLE)");
-       }
     Log.i(LOG_ID, "parent==null");
      activity.setonback(() -> {
-	 if(smallScreen) {
-		 help.hidekeyboard(activity);
-		 }
-	 else
-		 activity.curve.numberview.hidekeyboard() ;
-	 exportscreen.setVisibility(GONE);
-	 if(parent!=null) {
-	      Log.i(LOG_ID, "parent.setVisibility(VISIBLE)");
-	      parent.setVisibility(VISIBLE);
-	    }
-	 else {
-	    if(Menus.on)
-	       Menus.show(activity);
-	    } });
+       if(smallScreen) {
+          help.hidekeyboard(activity);
+          }
+       else
+          activity.curve.numberview.hidekeyboard() ;
+       exportscreen.setVisibility(GONE);
+       if(parent!=null) {
+            Log.i(LOG_ID, "parent.setVisibility(VISIBLE)");
+            parent.setVisibility(VISIBLE);
+          }
+       else {
+          if(Menus.on)
+             Menus.show(activity);
+          } });
 	}
 static	public final DateFormat fdatename=             new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss", Locale.US);
 static void algexporter(MainActivity context,int type,String prefix,String ext,float days) {

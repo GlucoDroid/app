@@ -666,7 +666,7 @@ static String mktime(int hour,int min) {
 private void mktimedialog( Button but,final int num ,View parent) {
         but.setOnClickListener(
                 v->  {
-		parent.setVisibility(INVISIBLE);
+		parent.setVisibility(GONE);
 		var keys=numberview.keyboard;
 		if(keys!=null) {
 		    keys.setVisibility(INVISIBLE);

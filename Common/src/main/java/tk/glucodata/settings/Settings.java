@@ -318,7 +318,7 @@ void setvalues() {
 
 
 static public void alarmsettings(MainActivity context,View parview,boolean[] issaved) {
-	parview.setVisibility(INVISIBLE);
+	parview.setVisibility(GONE);
 	TextView alarmlow,alarmhigh;
         View[] lowalarm= mkalarm(context,context.getString(R.string.lowglucosealarm),Natives.hasalarmlow(),Natives.alarmlow(),0);
         View[] highalarm=mkalarm(context,context.getString(R.string.highglucosealarm),Natives.hasalarmhigh(),Natives.alarmhigh(),1);
@@ -914,7 +914,7 @@ setvalues();
 }
 
 static private void exchanges(MainActivity context,View parent) {
-  parent.setVisibility(INVISIBLE);
+  parent.setVisibility(GONE);
 	final CheckBox xdripbroadcast = new CheckBox(context);
 	final CheckBox jugglucobroadcast = new CheckBox(context);
 	xdripbroadcast.setText(R.string.xdripbroadcast);
