@@ -495,7 +495,7 @@ void startlibrelink(String lang) {
                             break;
 		     case 1: {
 			switch(item&0xF) {
-                                case 0: dialogs.showexport(( MainActivity)getContext(),getWidth(),getHeight()); break;
+                                case 0: dialogs.showexport(( MainActivity)getContext(),getWidth(),getHeight(),null); break;
 
 
    				case 1: (new Backup()).mkbackupview(( MainActivity)getContext());break;

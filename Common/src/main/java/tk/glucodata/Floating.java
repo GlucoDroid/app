@@ -77,6 +77,8 @@ static void init() {
 	var pos=Natives.getfloatingPos( );
 	final var metrics = Applic.app.getResources().getDisplayMetrics();
 	density=metrics.density;
+//   movethreshold=density*2.0f;
+   movethreshold=density;
 	Log.i(LOG_ID,"density="+density);
 	if(pos!=0) {
 		Floating.xview=pos&0xFFFF;
@@ -299,6 +301,7 @@ private static WindowManager.LayoutParams makeparams(int screenwidth, int screen
 		var ypos= -screenheight*.5f+yview;
 		floatingx=xpos;
 		floatingy=ypos;
+      Log.i(LOG_ID,"Floating glucose: x="+xpos+" y="+ypos);
 
 		var type = (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)?WindowManager.LayoutParams.TYPE_SYSTEM_ALERT: WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 		var flags = FLAG_NOT_FOCUSABLE|(Natives.getfloatingTouchable()?0:WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
@@ -487,7 +490,7 @@ public void	onScreenStateChanged(int state) {
 
 	
 	}
-private static final float movethreshold=6.0f;
+private static float movethreshold=6.0f;
 public boolean onTouchEvent(MotionEvent event) {
 	if(Natives.turnoffalarm()) Notify.stopalarm();
         Log.i(LOG_ID,event.toString());
@@ -495,20 +498,19 @@ public boolean onTouchEvent(MotionEvent event) {
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
 		case MotionEvent.ACTION_BUTTON_PRESS:
             case MotionEvent.ACTION_DOWN:
-
-                Log.i(LOG_ID,"Down");
-		startX= event.getX();
-		startY= event.getY();
-		Log.i(LOG_ID,"startX="+startX+" xview="+xview+" floatglucosex="+floatglucosex);
-	    	if(hide) {
-			Log.i(LOG_ID,"unhide");
-			hide=false;
-			if(Natives.getfloatglucose( ))
-				makefloat();
-			moved =false;
-			downstart=event.getEventTime();
-			return true;
-			} 
+               Log.i(LOG_ID,"Down");
+               startX= event.getX();
+               startY= event.getY();
+               Log.i(LOG_ID,"startX="+startX+" startY="+ xview+" floatglucosex="+floatglucosex);
+               if(hide) {
+                  Log.i(LOG_ID,"unhide");
+                  hide=false;
+                  if(Natives.getfloatglucose( ))
+                     makefloat();
+                  moved =false;
+                  downstart=event.getEventTime();
+                  return true;
+                  } 
 		else {
 			if(startX< floatglucosex ) {
 				Log.i(LOG_ID,"<floatglucosex");
@@ -563,14 +565,16 @@ public boolean onTouchEvent(MotionEvent event) {
 			 downstart=0;
 		break;
    case MotionEvent.ACTION_MOVE: {
-		var distanceX= event.getX() - startX;
-		var distanceY= event.getY() - startY;
-	        Log.i(LOG_ID,"DRAG dx="+distanceX+" dy="+distanceY);
-		var absX=Math.abs(distanceX);
-		var absY=Math.abs(distanceY);
-		if(absX>movethreshold||absY>movethreshold) {
+      final var newx= event.getX();
+      final var newy= event.getY();
+		final var distanceX= newx - startX;
+		final var distanceY= newy - startY;
+      Log.i(LOG_ID,"DRAG dx="+distanceX+" dy="+distanceY);
+//		startX= newx; startY= newy;
+     if(Math.abs(distanceX)>movethreshold||Math.abs(distanceY)>movethreshold) {
 		    moved =true;
-		    translate(distanceX*.45f,distanceY*.45f);
+//		    translate(distanceX*.45f,distanceY*.45f);
+		    translate(distanceX*.30f,distanceY*.30f);
 		    }
 	  	else {
 			if(!moved) {
@@ -578,10 +582,9 @@ public boolean onTouchEvent(MotionEvent event) {
 				    hidefloating();
 				    }
 			}
-			
 
-                }
-                break;
+          }
+         break;
         }
 		} catch(Throwable th) {
 			Log.stack(LOG_ID,"onTouchEvent",th);

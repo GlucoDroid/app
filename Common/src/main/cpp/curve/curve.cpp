@@ -1959,51 +1959,51 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
 			LOGSTRING("poll==null\n");
          if(hist->notchinese()) {
              const char eusibinics[]="Unsupported Sibionics Sensor";
-			    nvgText(genVG,getx ,gety, eusibinics, eusibinics+sizeof(eusibinics)-1);
-				 otherproblem=true;
+	     nvgText(genVG,getx ,gety, eusibinics, eusibinics+sizeof(eusibinics)-1);
+	    otherproblem=true;
             }
-         else {
-			time_t starttime=hist->getstarttime();
-			auto wait= nu-starttime;
-			const int warmup=hist->getWarmupMIN(); 
-			LOGGER("waited=%lu warmup=%d starttime=%lu %s",wait,warmup,starttime,ctime(&starttime));
-			if(wait<(warmup*60)) {
-				float usegetx=getx-headsize/3;
-				nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
-				nvgFontSize(genVG,headsize/6 );
-				getboxwidth(usegetx);
-				const char *bufptr;
-				int ends;
-
-				if(hist->isSibionics()) {
-					static constexpr const std::string_view siwait{"Waiting for connection"sv};
-					bufptr=siwait.data();
-					ends=siwait.size();
-					}
-				else {
-					const bool isInitialised=(!hist->isLibre2())||sensors->getsensor(sensorindex)->initialized;
-					LOGGER("wait<(%d*60) isInitialised=%d\n",warmup,isInitialised);
-					static char buf[256];
-					int minutes=warmup-(wait/60);
-					ends=sprintf(buf,isInitialised?usedtext->readysec.data():usedtext->readysecEnable.data(),minutes);
-					bufptr=buf;
-					}
-				nvgTextBox(genVG,  usegetx, gety, getboxwidth(usegetx), bufptr,bufptr+ends);
-				shownglucose[i].errortext=bufptr;
-				shownglucose[i].glucosevalue=0;
-				shownglucose[i].glucosevaluex=usegetx;
-				shownglucose[i].glucosevaluey=gety+headsize*.5;
-				}
-			else   {
-				LOGAR("age>=maxbluetoothage");
-				switch(showerrorvalue(hist,nu,getx,gety,i)) { //TODO: integrate with same above
-					case 1: neterror=true;break;
-					case 2: usebluetoothoff=true;break;
-					case 3: bluetoothoff=true;break;
-					default: otherproblem=true;
-					};
-				LOGAR("Afgter showerrorvalue(hist,nu,getx,gety)) ");
-				}
+       else {
+	       time_t starttime=hist->getstarttime();
+	       auto wait= nu-starttime;
+	       const int warmup=hist->getWarmupMIN(); 
+	       LOGGER("waited=%lu warmup=%d starttime=%lu %s",wait,warmup,starttime,ctime(&starttime));
+	       
+          if(wait<(warmup*60)) {
+             float usegetx=getx-headsize/3;
+             nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
+             nvgFontSize(genVG,headsize/6 );
+             getboxwidth(usegetx);
+             const char *bufptr;
+             int ends;
+             if(hist->isSibionics()) {
+                static constexpr const std::string_view siwait{"Waiting for connection"sv};
+                bufptr=siwait.data();
+                ends=siwait.size();
+                }
+             else {
+                const bool isInitialised=(!hist->isLibre2())||sensors->getsensor(sensorindex)->initialized;
+                LOGGER("wait<(%d*60) isInitialised=%d\n",warmup,isInitialised);
+                static char buf[256];
+                int minutes=warmup-(wait/60);
+                ends=sprintf(buf,isInitialised?usedtext->readysec.data():usedtext->readysecEnable.data(),minutes);
+                bufptr=buf;
+                }
+             nvgTextBox(genVG,  usegetx, gety, getboxwidth(usegetx), bufptr,bufptr+ends);
+             shownglucose[i].errortext=bufptr;
+             shownglucose[i].glucosevalue=0;
+             shownglucose[i].glucosevaluex=usegetx;
+             shownglucose[i].glucosevaluey=gety+headsize*.5;
+             }
+	       else   {
+		       LOGAR("age>=maxbluetoothage");
+		       switch(showerrorvalue(hist,nu,getx,gety,i)) { //TODO: integrate with same above
+			       case 1: neterror=true;break;
+			       case 2: usebluetoothoff=true;break;
+			       case 3: bluetoothoff=true;break;
+			       default: otherproblem=true;
+			       };
+		       LOGAR("Afgter showerrorvalue(hist,nu,getx,gety)) ");
+		       }
             }
 			}
 

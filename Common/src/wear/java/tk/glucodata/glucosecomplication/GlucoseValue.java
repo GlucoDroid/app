@@ -70,21 +70,26 @@ final  private float density;
     final private float timeoffy;
     final private float numoffy;
     final private float timesize;
-    private float fontsize;
+    float fontsize;
+    static   float upperboundfontsize=1000.0f;
 
     final private Bitmap glucoseBitmap;
     final private Canvas canvas;
     final private Paint glucosePaint=new Paint();
    final private Typeface normaltype, boldtype;
 //    final private Paint agePaint=new Paint();
+void clear() {
+   glucoseBitmap.eraseColor(Color.TRANSPARENT);
+   }
 GlucoseValue(int w,int h) {
 	mapwidth=w;
 	mapheight=h;
     half=0.5f*mapwidth;
     density= mapheight/70.0f;
      fontsize=mapwidth*0.63f;
+     final float usefontsize=fontsize>upperboundfontsize?upperboundfontsize:fontsize;
    glucosePaint.setTextAlign(Paint.Align.CENTER);
-  glucosePaint.setTextSize(fontsize);
+  glucosePaint.setTextSize(usefontsize);
   //agePaint.setARGB(0xFF,0xFF,0,0xFF);
   timesize=mapwidth*0.15f;
   numoffy=mapwidth*0.12f;
@@ -138,15 +143,16 @@ void  setbackground() {
 		}
 	}
 float  drawcenter(String value) {
-        var bounds=new Rect();
-        glucosePaint.setTextSize(fontsize);
-        glucosePaint.getTextBounds(value, 0, value.length(),  bounds);
-        float fsize=fontsize*mapwidth/bounds.right*.87f;
-        glucosePaint.setTextSize(fsize);
-        var des=glucosePaint.descent();
-        var as=glucosePaint.ascent();
-        Log.i(LOG_ID,"descent()="+des+" ascent()="+as+" fontsize="+fontsize);
-        var y = half - (des + as)*.5f;
+       var bounds=new Rect();
+       glucosePaint.setTextSize(fontsize);
+       glucosePaint.getTextBounds(value, 0, value.length(),  bounds);
+       float fsize=fontsize*mapwidth/bounds.right*.87f;
+       final float usefontsize=fsize>upperboundfontsize?upperboundfontsize:fontsize;
+       glucosePaint.setTextSize(usefontsize);
+       var des=glucosePaint.descent();
+       var as=glucosePaint.ascent();
+       Log.i(LOG_ID,"descent()="+des+" ascent()="+as+" fontsize="+fontsize);
+       var y = half - (des + as)*.5f;
        canvas.drawText(value,0,value.length(),half,y,glucosePaint);
        return fsize;
    }

@@ -907,7 +907,7 @@ int streaminterval() const {
 static	constexpr uint16_t interval5=5*60;
 #ifdef LIBRE3
 static bool mkdatabase3(string_view sensordir,time_t start,uint32_t pin,const char *address,uint16_t warmup, uint16_t wearduration) {
-     LOGGER("mkdatabase3 %s,%s",sensordir.data(),ctime(&start));
+     LOGGER("mkdatabase3 warmup=%d wearduration=%d %s,%s",warmup,wearduration,sensordir.data(),ctime(&start));
 	mkdir(sensordir.data(),0700);
 	pathconcat infoname(sensordir,infopdat);
 	if(access(infoname,F_OK)!=-1)  {

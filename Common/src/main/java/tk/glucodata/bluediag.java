@@ -497,46 +497,31 @@ static class onkey implements Comparator<Pair> {
         return (int)(a.key - b.key);
     }
 }
-/*
-static void test() {
-
-	final List<Pair> messages = new ArrayList<>();
-	put(messages,10L,"hallo");
-	put(messages,0L,"one 0");
-	put(messages,5L,"niets");
-	put(messages,50L,"alles");
-	put(messages,0L,"two 0");
-	Collections.sort(messages, new onkey());
-	for(Pair el:messages) {
-		System.out.println("key="+el.key+" value="+		el.value);
-	}
-
-}*/
 private void showall() {
 Log.i(LOG_ID,"showall");
 //	test();
 	SensorBluetooth  blue=SensorBluetooth.blueone;
 	if(blue!=null&&blue.scantime!=0L) {
-      long lasttime=0;
-		final List<Pair> messages = new ArrayList<>();
-		put(messages,blue.scantime,": Start search for sensors\n");
-		final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();
-		if(gatts==null) {
-			Log.i(LOG_ID,"showall gatts==null");
+            long lasttime=0;
+	     final List<Pair> messages = new ArrayList<>();
+	     put(messages,blue.scantime,": Start search for sensors\n");
+	     final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();
+	     if(gatts==null) {
+		     Log.i(LOG_ID,"showall gatts==null");
+		     }
+	     else {
+		 for(SuperGattCallback gatt:gatts) {
+		     if(gatt.foundtime>=blue.scantime) {
+			if(gatt.foundtime>lasttime)
+			   lasttime=gatt.foundtime;
+			 put(messages,gatt.foundtime,": Found "+gatt.SerialNumber +"\n");
 			}
-		else {
-			for(SuperGattCallback gatt:gatts) {
-				if(gatt.foundtime>blue.scantime) {
-               if(gatt.foundtime>lasttime)
-                  lasttime=gatt.foundtime;
-					put(messages,gatt.foundtime,": Found "+gatt.SerialNumber +"\n");
-               }
-				}
-			}
+		       }
+		  }
       if(lasttime==0L||lasttime>(System.currentTimeMillis()-3*60*1000)) {
          if(blue.scantimeouttime>blue.scantime)
             put(messages,blue.scantimeouttime, ": timeout\n");
-         if(blue.stopscantime>blue.scantime)
+         if(blue.stopscantime>=blue.scantime)
             put(messages,blue.stopscantime, ": Stop searching\n");
          Collections.sort(messages, new onkey());
          

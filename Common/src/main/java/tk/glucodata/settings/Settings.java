@@ -656,9 +656,6 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 	fixatex.setChecked(!Natives.getfixatex());
 	fixatey.setChecked(!Natives.getfixatey());
    var exchanges=getbutton(context,R.string.exchanges);
-        exchanges.setOnClickListener(v->{
-        exchanges(context);
-        });
 	if(!isWearable)
 		reverseorientation.setChecked((Natives.getScreenOrientation()&SCREEN_ORIENTATION_REVERSE_LANDSCAPE)!=0);
 //   else fixatey.setPadding(0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0); 
@@ -857,6 +854,9 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 		return ret;
 		},views);
 
+     exchanges.setOnClickListener(v->{
+        exchanges(context,lay);
+        });
 	thelayout[0]=lay;
 		if(advhelp!=null) {
 			advanced.setOnClickListener(v -> {
@@ -913,7 +913,8 @@ var	horlayout= new HorizontalScrollView(context);
 setvalues();
 }
 
-static private void exchanges(MainActivity context) {
+static private void exchanges(MainActivity context,View parent) {
+  parent.setVisibility(INVISIBLE);
 	final CheckBox xdripbroadcast = new CheckBox(context);
 	final CheckBox jugglucobroadcast = new CheckBox(context);
 	xdripbroadcast.setText(R.string.xdripbroadcast);
@@ -1038,28 +1039,30 @@ static private void exchanges(MainActivity context) {
 		);
 		var help = getbutton(context, R.string.helpname);
       help.setOnClickListener(v->{help(R.string.exchangehelp,context); });
-/*      var exportview=getbutton(context,R.string.export);
-     exportview.setOnClickListener(v ->{
-         var c=Applic.app.curve;
-           if(c!=null) {
-              c.dialogs.showexport(context,c.getWidth(),c.getHeight()); 
-              }
-             });
-*/
+      var exportview=getbutton(context,R.string.export);
+
 		lay = new Layout(context, (l, w, h) -> {
 			int[] ret = {w, h};
 			return ret;
-		}, new View[]{librelinkbroadcast, everSensebroadcast},new View[]{xdripbroadcast, jugglucobroadcast}, new View[]{webserver, uploader, libreview}, (Build.VERSION.SDK_INT >= 28) ? new View[]{healthconnect,mirrorview} :new View[]{mirrorview},
+		}, new View[]{librelinkbroadcast, everSensebroadcast},new View[]{xdripbroadcast, jugglucobroadcast}, new View[]{webserver, uploader, libreview}, (Build.VERSION.SDK_INT >= 28) ? new View[]{healthconnect,exportview,mirrorview} :new View[]{exportview,mirrorview},
 				new View[]{help, ok});
 
-	final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0);
+	final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0);
 		lay.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight+pad,MainActivity.systembarBottom);
+		exportview.setOnClickListener(v ->{
+			var c=Applic.app.curve;
+			if(c!=null) {
+				c.dialogs.showexport(context,c.getWidth(),c.getHeight(),lay);
+			}
+		});
       }
+
 	thelayout[0] = lay;
     lay.setBackgroundColor(Applic.backgroundcolor);
 	   context.addContentView(lay, new ViewGroup.LayoutParams( MATCH_PARENT ,MATCH_PARENT));
 
 	context.setonback(() -> {
+     parent.setVisibility(VISIBLE);
 		removeContentView(lay) ;
 		});
 }

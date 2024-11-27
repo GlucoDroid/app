@@ -160,6 +160,10 @@ public int addrow(View [] row) {
         rowend[prevnr]=getChildCount();
 	return rownr;
 	}
+int childWidth(View child) {
+     // return  Math.min(child.getMaximumWidth(),Math.max(child.getMinimumWidth(),child.getMeasuredWidth()));
+      return  Math.max(child.getMinimumWidth(),child.getMeasuredWidth());
+   }
     int rowgeo(final int start,final int row,int widthMeasureSpec, int heightMeasureSpec) {
 	int end=rowend[row];
         int maxWidth=0,totHeight=0;
@@ -176,7 +180,7 @@ public int addrow(View [] row) {
 			}
 		else {
 		     measureChild(child,widthMeasureSpec, heightMeasureSpec);
-		    maxWidth += child.getMeasuredWidth();
+		    maxWidth +=  childWidth(child);
 		    }
 	    not++;
 	    final int h = child.getMeasuredHeight();
@@ -269,7 +273,8 @@ int maxHeight;
 			width=maxwidth;
 			}
 		else {
-			width = child.getMeasuredWidth();
+			width = childWidth(child);
+
 			left=(maxwidth-width)/2+ getPaddingLeft();
 			}
 		child.layout(left, top, left + width, bottom);
@@ -294,7 +299,8 @@ int maxHeight;
 		if(childbaseline<0) childbaseline=(int)(cheight/2-basefromiddle);
 		int tophier=(top+baseline-childbaseline);
 //		int width = child.getMeasuredWidth(); //TODO set next
-		int width = child==matchparent[row]?(maxwidth-maxwidths[row]):child.getMeasuredWidth();
+      int childwidth = childWidth(child);
+		int width = child==matchparent[row]?(maxwidth-maxwidths[row]):childwidth;
 //		int width = (child==matchparent[row]?(maxwidth-maxwidths[row]):0)+child.getMeasuredWidth();
 		int bot= tophier + height;
 		child.layout(left, tophier, left + width, bot);

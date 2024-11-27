@@ -74,7 +74,7 @@ struct nfc1 {
 		   }
 		   error=false;
 		nfc.crc16[0]=0;
-		LOGGER("serialnumber=%s state=%d wearduration=%d\n",nfc.serialnumber,nfc.state,nfc.wearduration);
+		LOGGER("serialnumber=%s state=%d warmup=%d*5 wearduration=%d\n",nfc.serialnumber,nfc.state,nfc.warmup,nfc.wearduration);
 		};
 	};
 
@@ -155,6 +155,7 @@ constexpr const auto dayseconds=24*60*60;
 extern "C" JNIEXPORT jlong JNICALL fromjava(getLibre3secs)(JNIEnv *env, jclass thiz, jbyteArray  nfc1ar) {
 	nfc1 first(env,nfc1ar);
 	if(first.error) {
+      LOGAR("getLibre3secs error");
 		return 0LL;
 		}
  	const auto  name=Sensoren::namelibre3(std::string_view(first.nfc.serialnumber,9));
@@ -207,6 +208,12 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(interpret3NFC2)(JNIEnv *env, jclass 
 	hexstr hex((uint8_t*)nfcout,lens);
 	LOGGERN(hex.str(),hex.size());
 #endif
+#if  defined(TEST) && !defined(NOLOG)
+	char devaddress[18]="30:53:C1:6C:BE:5F";
+	time_t acttime= now;
+   uint32_t pin=0xFFFFFFFFF;
+//	int sensindex=sensors->makelibre3sensorindex(std::string_view(first.nfc.serialnumber,9),acttime,pin,devaddress,now,first.nfc.warmup*5,first.nfc.wearduration);
+#else
 	if(lens!=sizeof(nfc2)) {
 		if(lens==sizeof(nfc2error)) {
 			const nfc2error *nfc=reinterpret_cast<const nfc2error*>(nfcout);
@@ -230,6 +237,7 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(interpret3NFC2)(JNIEnv *env, jclass 
 		LOGGER("NFC: sizeof bytearray=%d sizeof(nfc2)=%ld\n",lens,sizeof(nfc2));
 		return 0LL;
 		}
+
 	const nfc2 *nfc=reinterpret_cast<const nfc2*>(nfcout);
 	char devaddress[18];
 	mkdeviceaddressstr(devaddress,nfc->deviceAddress);
@@ -242,7 +250,9 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(interpret3NFC2)(JNIEnv *env, jclass 
 	hexstr pinhex((uint8_t*)&nfc->pin,4);
 	LOGGER("deviceaddress=%s pin=%s activation: %s",devaddress,pinhex.str(),ctime(&acttime));
 #endif
-	int sensindex=sensors->makelibre3sensorindex(std::string_view(first.nfc.serialnumber,9),acttime,nfc->pin,devaddress,now,first.nfc.warmup,first.nfc.wearduration);
+  const auto pin=nfc->pin;
+#endif
+	int sensindex=sensors->makelibre3sensorindex(std::string_view(first.nfc.serialnumber,9),acttime,pin,devaddress,now,first.nfc.warmup*5,first.nfc.wearduration);
 	SensorGlucoseData *sens=sensors->getSensorData(sensindex);
 	sendstreaming(sens); 
 	libre3stream *streamd=new libre3stream(sensindex,sens);

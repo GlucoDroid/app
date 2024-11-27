@@ -35,6 +35,8 @@ import android.widget.TextView;
 
 import static android.graphics.text.LineBreaker.BREAK_STRATEGY_SIMPLE;
 import static android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY;
+import static android.view.View.GONE;
+import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
@@ -85,7 +87,7 @@ private Button exportbutton(MainActivity activity,String label, int type) {
 
 
 EditText days;
-public void showexport(MainActivity activity,int width,int height) {
+public void showexport(MainActivity activity,int width,int height,View parent) {
 	if(exportscreen==null) {
 		Button num=exportbutton(activity,activity.getString(R.string.amountsname),0);
 		Button scan=exportbutton(activity,activity.getString(R.string.scansname),1);
@@ -165,6 +167,7 @@ public void showexport(MainActivity activity,int width,int height) {
 	else {
         	exportscreen.setVisibility(VISIBLE);
 		}
+
 	exportlabel.setText(R.string.exporthelp);
 	days.requestFocus();
 	if(!smallScreen) {
@@ -173,17 +176,26 @@ public void showexport(MainActivity activity,int width,int height) {
 	else  {
 		help.showkeyboard(activity,days);
 		}
-	activity.setonback(() -> {
-			if(smallScreen) {
-				help.hidekeyboard(activity);
-				}
-			else
-				activity.curve.numberview.hidekeyboard() ;
-        		exportscreen.setVisibility(View.GONE);
-			if(Menus.on)
-				Menus.show(activity);
-			}
-			);
+   if(parent!=null) {
+       parent.setVisibility(INVISIBLE);
+       Log.i(LOG_ID, "parent.setVisibility(INVISIBLE)");
+       }
+    Log.i(LOG_ID, "parent==null");
+     activity.setonback(() -> {
+	 if(smallScreen) {
+		 help.hidekeyboard(activity);
+		 }
+	 else
+		 activity.curve.numberview.hidekeyboard() ;
+	 exportscreen.setVisibility(GONE);
+	 if(parent!=null) {
+	      Log.i(LOG_ID, "parent.setVisibility(VISIBLE)");
+	      parent.setVisibility(VISIBLE);
+	    }
+	 else {
+	    if(Menus.on)
+	       Menus.show(activity);
+	    } });
 	}
 static	public final DateFormat fdatename=             new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss", Locale.US);
 static void algexporter(MainActivity context,int type,String prefix,String ext,float days) {

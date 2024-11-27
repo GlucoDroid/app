@@ -151,7 +151,7 @@ static public void show(MainActivity act) {
 			  Log.i(LOG_ID,"EXPORT");
    		   act.lightBars(!getInvertColors( ));
 		     removeContentView(view);
-		     c.dialogs.showexport(act,c.getWidth(),c.getHeight()); 
+		     c.dialogs.showexport(act,c.getWidth(),c.getHeight(),null); 
 		     }
 
 	}); 

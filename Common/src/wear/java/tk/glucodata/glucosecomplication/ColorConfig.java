@@ -48,6 +48,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Space;
 
 import tk.glucodata.BackGesture;
@@ -194,33 +195,58 @@ static public   void show(MainActivity context, View view) {
          Log.i(LOG_ID,String.format(usedlocale,"col=%x",c));
          setcolor(coltype,c);
          def.setChecked(false);
-       if(coltype==2) {
-          GlucoseValue.newbackground=c;
-          }
-         preview.setImageBitmap(glview.previewbitmap());
-      //	Floating.invalidatefloat();
+	  if(coltype==2) {
+	     GlucoseValue.newbackground=c;
+	     }
+	 preview.setImageBitmap(glview.previewbitmap());
        }, v-> {
             int h=v.getMeasuredHeight();
                 int w=v.getMeasuredWidth();
                 v.setY((int)((height-h)*.5));
                 v.setX((int)((width-w)*.57));
-         }
-      );
-      final var head=getlabel(act,names[radiosel]);
-      var close=getbutton(act,R.string.closename);
-      View view=dialog.getview();
-       preview.setImageBitmap(glview.previewbitmap());
-      //var layout=new FrameLayout(act);
-      //layout.addView(view, new ViewGroup.LayoutParams((int)(width*0.72), (int)(height*0.72)));
+         });
+   final var head=getlabel(act,names[radiosel]);
+   var close=getbutton(act,R.string.closename);
+   View view=dialog.getview();
+   preview.setImageBitmap(glview.previewbitmap());
    view.setLayoutParams( new ViewGroup.LayoutParams((int)(width*0.72), (int)(height*0.72)));
    var density=tk.glucodata.GlucoseCurve.metrics.density;
    preview.setPadding(0,(int)(density*18.0),0,0);
-  // preview.setPadding(0,(int)(height*0.07875),0,0);
-//   preview.setPadding(0,(int)(density*30.0),0,0);
-/*	allradio[1].setPadding(0,0,0,0);
-	allradio[2].setPadding(0,0,(int)(density*22.0),0); */
+   SeekBar fontsizeview;
+   if(radiosel==1) {
+      fontsizeview=new SeekBar(act);
+      float maxfont=glview.fontsize;
+      float currentfont= Math.min(maxfont, GlucoseValue.upperboundfontsize);
+      fontsizeview.setMax((int)(maxfont*100.0));
+      fontsizeview.setProgress((int)(currentfont*100.0));
+      final int fwidth=(int)(0.7f*height);
+      fontsizeview.setMinimumWidth(fwidth);
+      fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+		@Override
+		public  void onProgressChanged (SeekBar seekBar, int progress, boolean fromUser) {
+			var newup=(float)(progress/100.0);
+			GlucoseValue.upperboundfontsize =newup>0.99f*glview.fontsize?1000.0f:newup;
+			Log.i(LOG_ID,"onProgressChanged "+progress+" "+glview.upperboundfontsize);
+			}
+		@Override
+		public void onStartTrackingTouch(SeekBar seekBar) {
+			Log.i(LOG_ID,"onStartTrackingTouch");
+			}
+		@Override
+		public void onStopTrackingTouch(SeekBar seekBar) {
+			Log.i(LOG_ID,"onStopTrackingTouch");
+			glview.clear();
+			preview.setImageBitmap(glview.previewbitmap());
+			}
+		});
 
-      Layout layout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{view},new View[]{preview},new View[]{close});
+	}
+else {
+   fontsizeview=null;
+	}
+
+
+      Layout layout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{view},new View[]{preview},fontsizeview==null?null:new View[]{fontsizeview},new View[]{close});
 
 	var scroll=new ScrollView(act);
 	scroll.addView(layout);

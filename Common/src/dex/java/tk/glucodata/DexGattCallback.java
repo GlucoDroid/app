@@ -412,7 +412,7 @@ private boolean askcertificate(int pha) {
                   wrotepass[1] = System.currentTimeMillis();
                   resetCerts();
                   return;
-                  } 
+                  }  
                 ++phase; //          state = ChallengeReply;
                 byte[] dataaes = new byte[9];
                 Natives.dex8AES(dataptr, value, 9, dataaes, 1);
@@ -572,8 +572,11 @@ private    void getdata(byte[] value) {
                 justdata=true;
                 long[] timeres={timmsec,0L};
                 Natives.dexcomProcessData(dataptr, value, timeres);
-                Log.i(LOG_ID, "dexcomProcessData timeres[0]="+timeres[0]+" timeres[1]="+timeres[1]);
-                 handleGlucoseResult(timeres[1], timeres[0]);
+                final long res= timeres[1];
+                final long newtime= timeres[0];
+                final int glumgdl = (int) (res & 0xFFFFFFFFL);
+                Log.i(LOG_ID, "dexcomProcessData newtime="+newtime+" res="+res+" "+glumgdl+" mg/dL "+(glumgdl/18.0)+ " mmol/L");                  
+                handleGlucoseResult(res, newtime);
                 Applic.scheduler.schedule(()->{
                   if(connected) askbackfill();}, 10, TimeUnit.MILLISECONDS);
                 datatime=timmsec;
