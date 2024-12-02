@@ -516,6 +516,9 @@ int getWarmupMIN() const {
          return warmup;
    return 60;
    } 
+int getWarmupSEC() const {
+	return getWarmupMIN()*60;
+   } 
 uint32_t officialendtime() const {
 	return getstarttime()+getweardurationSEC();
 	}

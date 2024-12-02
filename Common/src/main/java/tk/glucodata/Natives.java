@@ -181,7 +181,10 @@ public static native boolean isreceiving( );
     public static native ArrayList<String> getLabels();
 public static native float getPrecision(int i);
 
-public static native void setsettings(int unit,float glow, float ghigh, float tlow, float thigh);
+//public static native void setranges(float glow, float ghigh, float tlow, float thigh);
+public static native void setGraphRange(float glow,float ghigh);
+public static native void setTargetRange(float tlow,float thigh);
+
 public static native void setalarms(float alow, float ahigh, boolean lowalarm, boolean highalarm, boolean availablealarm,boolean lossalarm);
 
 
@@ -784,6 +787,7 @@ public static native void dexEndBackfill(long dataptr);
 public static native void EverSenseClear(long dataptr);
 public static native void setdexcomPredict(boolean val);
 public static native boolean getdexcomPredict( );
+public static native boolean hasData();
 
 //public static native void sendxdripold();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g

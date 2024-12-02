@@ -45,6 +45,7 @@ import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
 import static android.content.pm.PackageManager.DONT_KILL_APP;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
+import static android.view.View.GONE;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.MessageSender.isGalaxy;
 import static tk.glucodata.Natives.setBlueMessage;
@@ -174,8 +175,19 @@ private static void confirmunsynced(MainActivity act,Runnable save) {
             }
         }).show();
 	}
+static void sendinitwatchapp(Node nod) {
+      var sender=tk.glucodata.MessageSender.getMessageSender();
+		if(sender==null) {
+         Log.e(LOG_ID,"sendintwatchapp getMessageSender()==null");
+         return;
+         }
+      Log.i(LOG_ID,"Init watch app");
+      var nodeName= makenodename(nod);
+      Natives.resetbylabel(nodeName,isGalaxy(nod));
+      sender.startWearOSActivity(nodeName);
+      }
 static public void show(MainActivity context,View parent) {
-   	EnableControls(parent,false);
+   EnableControls(parent,false);
 	nodenum=-1;
 	start=getbutton(context,R.string.initwatchapp);
 	var defaults=getbutton(context,context.getString(R.string.defaults));
@@ -194,6 +206,10 @@ static public void show(MainActivity context,View parent) {
 	direct.setPadding(0,off,0,off);
 
 	remake();
+   if(nodeslist==null||nodeslist.isEmpty()) {
+      start.setVisibility(GONE);
+      defaults.setVisibility(GONE);
+      }
 	var layout=new Layout(context,(l,w,h)-> {
 		var width=GlucoseCurve.getwidth();
 		var height=GlucoseCurve.getheight();
@@ -241,14 +257,7 @@ static public void show(MainActivity context,View parent) {
 		 });
 	start.setOnClickListener(v -> {
 			if(nodenum>=0) {
-				var sender=tk.glucodata.MessageSender.getMessageSender();
-
-				if(sender!=null) {
-					Log.i(LOG_ID,"Init watch app");
-					var nod=nodeslist.get(nodenum);
-					Natives.resetbylabel(makenodename(nod),isGalaxy(nod));
-					sender.startActivity(nod);
-					}
+				sendinitwatchapp(nodeslist.get(nodenum)) ;
 				}
 		 });
 	direct.setOnCheckedChangeListener(

@@ -212,14 +212,8 @@ bool sendtype(int sock,char type) {
 
 extern char *getmirrorerror(const passhost_t *pass);
 
-int shakehands(passhost_t *pass,int &sock,char stype) {
+static int shakehands(passhost_t *pass,int &sock,char stype) {
 	LOGGERTAG("shakehands connection %d\n",sock);
-	
-	destruct closer([&sock]()->void{
-		int so=sock;
-		sock=-1;
-		close(so);; });
-	
 	struct timeval tv;
 	tv.tv_usec = 0;
 	tv.tv_sec = 60*3;
@@ -250,7 +244,6 @@ int shakehands(passhost_t *pass,int &sock,char stype) {
 		sendtype(sock,stype);
 		}
 		
-	closer.active=false;
 	LOGGERTAG("sock=%d\n",sock);
 	return sock;
 	}
@@ -313,7 +306,9 @@ static int connectone( const struct sockaddr_in6  *sin, int &sock,char stype,pas
 				}
 			return ret;
 			}
-		return -1;;		
+		close(so);
+		sock=-1;
+		return -1;;		 //close in shakehands
 		}
 	return -1;
 	}
@@ -337,7 +332,6 @@ bool activate=true;
 	struct pollfd	 cons[10];
 	if(pass->hashostname()) { 
 		struct addrinfo hints{.ai_flags=AI_ADDRCONFIG,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
-	//	struct addrinfo hints{.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
 		struct addrinfo *servinfo=nullptr;
 		destruct serv([&servinfo]{ if(servinfo)freeaddrinfo(servinfo);});
 		const char *host= pass->gethostname(); 
@@ -508,6 +502,9 @@ bool activate=true;
 #endif
 					return ret;	
 					}
+				int so=sock;
+				sock=-1;
+				close(so);
 				if(ret==-2) {
 #ifdef WEAROS_MESSAGES
 					dest.active=false;

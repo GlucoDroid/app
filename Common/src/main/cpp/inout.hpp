@@ -43,6 +43,7 @@
 #include <iomanip>
 #include <stdarg.h>
 #include <unistd.h>
+//#include "myfdsan.h"
 //#include <span>
 //#ifdef OWNLOGGER
 //#define LOGGER(...)  { fprintf(stderr,__VA_ARGS__); fflush(stderr); }
@@ -179,9 +180,16 @@ class Open {
 int fp;
 public:
 Open(const char *name,int flags,int mode): fp{open(name,flags,mode)} {
+	//exchange_owner_tag(fp, 0, getTag());
        }
 Open(const char *name,int flags): fp{open(name,flags)} {
        }
+
+#ifdef __ANDROID_API__
+uint64_t getTag() const {
+	return  reinterpret_cast<uint64_t>(this);
+	}
+#endif
 virtual ~Open() {
   close(fp);
   }
@@ -312,7 +320,8 @@ void *mopen(const char *filename) {
                 }
 	 struct stat st;
         if(fstat(fp,&st)!=0) {
-	       lerror(filename);
+	        lerror(filename);
+		close(fp);
                 return nullptr;
                 }
 	if(len && st.st_size<len) {

@@ -175,7 +175,10 @@ detext.newamount,
 .RisingQuickly="Steigt rasch",
 
 #endif
-.receivingpastvalues="Alte Glukosewerte kommen rein"
+.receivingpastvalues="Alte Glukosewerte kommen rein",
+.receivingdata="Daten kommen herein",
+.unsupportedSibionics="Nicht unterstützter Sibionics-Sensor"sv,
+.waitingforconnection="Wartet auf Verbindung"sv
 		}
 
 

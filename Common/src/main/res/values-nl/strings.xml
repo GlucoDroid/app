@@ -91,7 +91,7 @@
  <string name="numberlabels">Nummer Labels</string>
  <string name="colors">Kleuren</string>
  <string name="remindersname">Herinneren</string>
- <string name="display">Tonen</string>
+ <string name="display">Weergave</string>
  <string name="shutcuts">Shortcuts</string>
  <string name="advanced">Gevorderd</string>
  <string name="newname">Nieuw</string>
@@ -339,5 +339,8 @@
 <string name="photomessage">Scan the data matrix of a Dexcom G7 or Chinese market Sibionics sensor.</string>
    <string name="exchanges">Deel gegevens</string>
    <string name="dexfuture">Voorspel (Dexcom)</string>
+   <string name="initializing">Initialiseren</string>
+<string name="startjuggluco">Juggluco draait op telefoon?\n\nWIFI en Bluetooth ingeschakeld?</string>
+<string name="connected">Verbonden!</string>
 </resources>
 

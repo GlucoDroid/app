@@ -186,7 +186,12 @@ são necessárias. No seu caso, tem problemas com o seguinte ficheiro)",
 .Rising="A subir",
 .RisingQuickly="A subir rapidamente",
 #endif
-.receivingpastvalues="Receiving old values"
+.receivingpastvalues="Receiving old values",
+
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
                 }
 
 

@@ -243,7 +243,17 @@ inline int datestr(const time_t tim,char *buf) {
 
 
 constcol NVGcolor foregroundlightred=  nvgRGBAf2(1, 0.95, 0.95, 1); 
-constcol NVGcolor backgroundlightred=   blackbean; 
+
+//constcol NVGcolor redblack=hexcolor(0x3D2022);
+//constcol NVGcolor redblack=hexcolor(0x4c1210);
+constcol NVGcolor redblack=hexcolor(0x35100b);
+//constcol NVGcolor redblack=hexcolor(0x200b06);
+//constcol NVGcolor redblack=hexcolor(0x270f0c);
+#ifdef WEAROS
+constcol NVGcolor backgroundlightred=   redblack; 
+#else
+constcol NVGcolor backgroundlightred=    blackbean;
+#endif
 
 //#define lightred  *(settings->data()->colors+startincolors+lightredoffset)
 #define unsavecolor (startincolors?backgroundlightred:foregroundlightred)

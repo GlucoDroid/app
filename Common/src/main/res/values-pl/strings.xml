@@ -12,7 +12,7 @@
     <string name="error_nfc_disabled">NFC wyłączone, można je włączyć w ustawieniach.</string>
 
    <string name="kerfstok_missing_title">Kerfstok nie jest zainstalowany na zegarku</string>
-    <string name="kerfstok_missing_message">Kerfstok nie jest zainstalowany na zegarku. Można go pobrać ze sklepu Garmin connect IQ</string>
+    <string name="kerfstok_missing_message">Kerfstok nie jest zainstalowany na zegarku. Można go pobrać ze sklepu Garmin Connect IQ</string>
 
 
     <string name="alarm_description">Zbyt niski lub wysoki poziom glukozy</string>
@@ -170,9 +170,9 @@
  <string name="withoutsensor">Bez sensora</string>
  <string name="wronglibrary">Biblioteka nie działa prawidłowo, spróbuj innej</string>
  <string name="installedlibrary">Zainstalowana biblioteka</string>
- <string name="cantextract">Nie można wyodrębnić %s, spróbuj innego apk</string>
- <string name="connectwithsensor">Naciśnij, by połączyć się z sensorem</string>
- <string name="exchangedata">Naciśnij, by zacząć przesył danych</string>
+ <string name="cantextract">Nie można wyodrębnić %s, spróbuj innego pliku apk</string>
+ <string name="connectwithsensor">Łączenie z sensorem</string>
+ <string name="exchangedata">Przesył danych</string>
  <string name="nonewvalue">&quot;Brak nowej wartości od &quot;</string>
  <string name="lowglucose">&quot; Hipoglikemia!&quot;</string>
  <string name="highglucose">&quot; Hiperglikemia!&quot;</string>
@@ -209,7 +209,7 @@
  <string name="wakelock">Wakelock</string>
  <string name="wifi">Wifi</string>
  <string name="heartrate">Tętno</string>
- <string name="xdripbroadcast">Nadawaj zamiast xDrip</string>
+ <string name="xdripbroadcast">xDrip broadcast</string>
  <string name="sensorpermission">Uprawnienie do dostępu do czujników potrzebne do wyświetlania tętna.</string>
  <string name="sensorpermissionmessage">Ustaw je w Ustawieniach urządzenia, Aplikacje, Uprawnienia, Juggluco</string>
  <string name="floatglucose">Pływ. gluk.</string>
@@ -336,6 +336,7 @@
  <string name="changestartbutton">Zmień początek</string>
  <string name="floatjuggluco">Wyżej</string>
  <string name="uploader">Uploader</string>
+ <string name="upload">Prześlij</string>
  <string name="sibionics">Sibionics</string>
  <string name="mmolL">mmol/L</string>
  <string name="mgdL">mg/dL</string>
@@ -345,4 +346,16 @@
  <string name="streamingnotenabled">&quot; Przesył strumienia nieaktywny&quot;</string>
     <string name="everSensebroadcast">EverSense</string>
  <string name="threshold">Próg</string>
+ <string name="untouchablequestion">Pływająca glukoza ma być niedotykalna?</string>
+
+ <string name="hour12">12h</string>
+<string name="complications">Komplikacje</string>
+    <string name="colors_style_setting_description">Kolor tarczy zegarka</string>
+   <string name="glucosenumbercomplicationlabel">Wartość glukozy</string>
+   <string name="glucosearrowcomplicationlabel">Strzałka glukozy</string>
+   <string name="glucosearrowvaluecomplicationlabel">Wartość + strzałka</string>
+   <string name="text">Tekst</string>
+   <string name="arrow">Strzałka</string>
+   <string name="notalldata">OSTRZEŻENIE: Opcja &quot;Odbieraj&quot; nie jest włączona bez wysyłania wszystkich danych.</string>
+<string name="libresetalllabels">Opcję &quot;Wysyłaj wartości&quot; można zaznaczyć dopiero po określeniu, co zrobić ze wszystkimi etykietami. Jeśli nie chcesz wysyłać liczb pod daną etykietą do Libreview, zaznacz opcję &quot;Nie wysyłaj&quot;.</string>
 </resources>

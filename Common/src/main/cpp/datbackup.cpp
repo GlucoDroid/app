@@ -31,6 +31,10 @@ extern std::vector<Numdata*> numdatas;
  void uptodate(int ind) {
  	LOGGER("uptodate %d\n",ind);
 	lastuptodate[ind]=time(nullptr);
+	#ifdef WEAROS
+	bool rmInitLayout();
+        static bool did=rmInitLayout();
+	#endif
 	}
 
 void uptodate(passhost_t *host) {
@@ -174,7 +178,7 @@ bool netwakeupstream(int sock,passhost_t *pass,crypt_t *ctx){
 bool networkpresent=false;
 
 
-int hostsocks[maxallhosts];
+int hostsocks[maxallhosts]{-1,-1,-1,-1,-1,-1,-1,-1};
 uint32_t lastuptodate[maxallhosts]={};
 std::vector<int> sendsocks;
 std::vector<crypt_t *> crypts;

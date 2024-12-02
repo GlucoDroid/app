@@ -205,15 +205,17 @@ are needed. In your case it has problems with the following file)",
 .labels=labels,
 .checked="checked",
 .unchecked="not checked",
-.Undetermined="",
-.FallingQuickly="Falling quickly",
-.Falling="Falling",
-.Stable="Changing slowly",
-.Rising="Rising",
-.RisingQuickly="Rising quickly",
+.Undetermined=""sv,
+.FallingQuickly="Falling quickly"sv,
+.Falling="Falling"sv,
+.Stable="Changing slowly"sv,
+.Rising="Rising"sv,
+.RisingQuickly="Rising quickly"sv,
 #endif
-.receivingpastvalues="Receiving old values"
-
+.receivingpastvalues="Receiving old values"sv,
+.receivingdata="Receiving data"sv,
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
 		}
 
 

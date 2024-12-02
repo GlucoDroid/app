@@ -186,7 +186,11 @@ seguenti file)",
 .Rising="In aumento",
 .RisingQuickly="In rapido aumento",
 #endif
-.receivingpastvalues="Receiving old values"
+.receivingpastvalues="Receiving old values",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 }
 		;
 #ifdef JUGGLUCO_APP

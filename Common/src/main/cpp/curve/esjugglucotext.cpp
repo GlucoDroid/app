@@ -216,7 +216,11 @@ Se necesitan. En su caso tiene problemas con el siguiente archivo)",
 .Rising="Aumentando",
 .RisingQuickly="Aumentando rápidamente",
 #endif
-.receivingpastvalues="Receiving old values"
+.receivingpastvalues="Receiving old values",
+
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
 
 }
 

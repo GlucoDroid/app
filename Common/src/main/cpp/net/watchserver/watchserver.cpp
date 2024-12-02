@@ -48,6 +48,7 @@
        #include <unistd.h>
        #include <sys/syscall.h> 
 #include <map>
+//#include "myfdsan.h"
 #include "../netstuff.hpp"
 #include "destruct.hpp"
 #include "inout.hpp"
@@ -107,16 +108,19 @@ static bool startwatchserver(bool secure,int port,int *sockptr) {
 			LOGGERWEB("%s\n",nighterrorbuf);
 			continue;
 			}
+//         exchange_owner_tag(sock,0,reinterpret_cast<uint64_t>(sockptr));
 		const int  yes=1;	
 		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
 			nighterror("setsockopt");
 			LOGGERWEB("%s\n",nighterrorbuf);
 			close(sock);
+        //close_with_tag(sock, reinterpret_cast<uint64_t>(sockptr));
 			return false;
 			}
 		if(bind(sock,ips->ai_addr,ips->ai_addrlen)==-1) {
 			nighterror("bind port=%d",port);
 			close(sock);
+        // close_with_tag(sock, reinterpret_cast<uint64_t>(sockptr));
 			LOGGERWEB("%s\n",nighterrorbuf);
 			continue;
 			}
@@ -126,7 +130,8 @@ static bool startwatchserver(bool secure,int port,int *sockptr) {
 	constexpr int const BACKLOG=5;
 	if (listen(sock, BACKLOG) == -1) {
 		nighterror("listen");
-		close(sock);
+      close(sock);
+      //close_with_tag(sock, reinterpret_cast<uint64_t>(sockptr));
 		LOGGERWEB("%s\n",nighterrorbuf);
 		return false;
 		}
@@ -248,6 +253,7 @@ static void watchserverloop(int *sockptr,bool secure)  {
 				if(*sockptr==serversock)
 					*sockptr=-1;
 				close(serversock);
+            //close_with_tag(serversock, reinterpret_cast<uint64_t>(sockptr));
 				LOGARWEB("exit"); return;
 				} 
 			continue;
@@ -301,18 +307,18 @@ void handlewatchsecure(int sock) ;
 		}
 	}
 static bool	plainwatchcommands(int sock);
-void handlewatch(int sock) {
-      const char threadname[]="watchconnect";
-      LOGGERWEB("handlewatch %d\n",sock);
-      prctl(PR_SET_NAME, threadname, 0, 0, 0);
 extern void sendtimeout(int sock,int secs);
 extern void receivetimeout(int sock,int secs) ;
- 	receivetimeout(sock,60);
- 	sendtimeout(sock,5*60);
-	
-	plainwatchcommands(sock);
-	close(sock);
-	}
+
+void handlewatch(int sock) {
+     const char threadname[]="watchconnect";
+     LOGGERWEB("handlewatch %d\n",sock);
+     prctl(PR_SET_NAME, threadname, 0, 0, 0);
+     receivetimeout(sock,60);
+     sendtimeout(sock,5*60);
+     plainwatchcommands(sock);
+     close(sock);
+     }
 
 
 
@@ -348,18 +354,18 @@ static bool sendall(int sock ,const char *buf,int buflen) {
         int itlen,left=buflen;
         LOGGERWEB("sock=%d sendall len=%d\n",sock,buflen);
         for(const char *it=buf;(itlen=send(sock,it,left,0))<left;) {
-		int waser=errno;
-                LOGGERWEB("len=%d\n",itlen);
-                if(itlen<0) {
-			errno=waser;
-			flerror("send(%d,%p,%d)",sock,it,left);
-			if(waser==EINTR)
-				continue;
-			return false;
-                        }
-                it+=itlen;
-                left-=itlen;
-                }
+          int waser=errno;
+          LOGGERWEB("len=%d\n",itlen);
+          if(itlen<0) {
+               errno=waser;
+               flerror("send(%d,%p,%d)",sock,it,left);
+               if(waser==EINTR)
+                  continue;
+               return false;
+               }
+          it+=itlen;
+          left-=itlen;
+          }
         LOGARWEB("success sendall");
         return true;
         }

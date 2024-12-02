@@ -39,7 +39,7 @@
     </style>
 
     <style name="Widget.WatchFace.Button" parent="Widget.MaterialComponents.Button">
-    </style>
+    </style> 
 
 
 

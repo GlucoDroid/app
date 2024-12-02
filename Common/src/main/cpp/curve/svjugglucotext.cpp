@@ -178,7 +178,11 @@ eller Denylist) och ändra sitt eget namn, båda behövs. I ditt fall
   .Rising="Stigande",
   .RisingQuickly="Snabbt stigane",
 #endif
-  .receivingpastvalues="Ta emot gamla värden"
+  .receivingpastvalues="Ta emot gamla värden",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 	};
 
 extern void setusesv() ;

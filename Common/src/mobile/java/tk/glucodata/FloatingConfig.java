@@ -46,6 +46,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -75,6 +76,7 @@ static public void show(MainActivity act,View parent) {
 
 
 	int height=GlucoseCurve.getheight();
+	int width=GlucoseCurve.getwidth();
     AmbilWarnaDialog dialog = new AmbilWarnaDialog(act, initialColor,c-> {
 	Log.i(LOG_ID,String.format(usedlocale,"col=%x",c));
 		setcolor(c);
@@ -84,7 +86,41 @@ static public void show(MainActivity act,View parent) {
     	}
 	);
 	View view=dialog.getview();
-	var  sizelabel=getlabel(act,R.string.fontsize);
+   final String fontstring=Applic.app.getString(R.string.fontsize)+ " ";
+	var  sizelabel=getlabel(act,fontstring);
+
+
+   final int maxfont=height*7/10;
+
+	int currentfont=Natives.getfloatingFontsize();
+   SeekBar fontsizeview=new SeekBar(act);
+      fontsizeview.setMax((int)(maxfont*100.0));
+      fontsizeview.setProgress((int)(currentfont*100.0));
+//      var fwidth=(int)(width*0.8f);
+      fontsizeview.setMinimumWidth((int)(width*.6));
+      final int minimumvalue=500;
+      fontsizeview.setMin(minimumvalue);
+      fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+		@Override
+		public  void onProgressChanged (SeekBar seekBar, int progress, boolean fromUser) {
+//         int newprogress=progress+minimumvalue; 
+			var siz=(int)Math.round(progress/100.0);
+//         if(doLog) sizelabel.setText(fontstring+siz);
+         Natives.setfloatingFontsize(siz);
+          rewritefloating(act);
+			}
+		@Override
+		public void onStartTrackingTouch(SeekBar seekBar) {
+			Log.i(LOG_ID,"onStartTrackingTouch");
+			}
+		@Override
+		public void onStopTrackingTouch(SeekBar seekBar) {
+			}
+		});
+
+
+
+/*
 	var  sizeview= new EditText(act);
               sizeview.setImeOptions(editoptions);
                 sizeview.setMinEms(4);
@@ -118,6 +154,7 @@ static public void show(MainActivity act,View parent) {
                     return false;
                     }};
 	sizeview.setOnEditorActionListener(actlist);
+   */
 
 
 
@@ -167,7 +204,7 @@ static public void show(MainActivity act,View parent) {
 
 
 
-	var leftlayout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{sizelabel,sizeview},new View[]{touchable,transparant}, new View[]{foregroundswitch,backgroundlabel},new View[]{hide,timeshow,floatglucose},new View[]{Help,close});
+	var leftlayout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{sizelabel},new View[]{fontsizeview},new View[]{touchable,transparant}, new View[]{foregroundswitch,backgroundlabel},new View[]{hide,timeshow,floatglucose},new View[]{Help,close});
 	leftlayout.setLayoutParams( new ViewGroup.LayoutParams(WRAP_CONTENT,MATCH_PARENT));
 	view.setLayoutParams( new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
    view.setPadding(0,MainActivity.systembarTop,0,0);

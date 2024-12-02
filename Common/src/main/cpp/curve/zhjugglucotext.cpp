@@ -162,7 +162,11 @@ jugglucotext chiText {
     .Rising = "上升",
     .RisingQuickly = "快速上升",
 #endif
-.receivingpastvalues="Receiving old values"
+.receivingpastvalues="Receiving old values",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 };
 #include "logs.hpp"
 void setusezh() {

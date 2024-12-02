@@ -777,6 +777,8 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
   TextView labport=getlabel(act,R.string.port);
   EditText portview=getnumedit(act, port);
 
+        portview.setMinEms(2);
+
   Button hosts=getbutton(act,R.string.addconnectionbutton);
   Button Help=getbutton(act,R.string.helpname);
    Help.setOnClickListener(v->
@@ -924,7 +926,7 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 
 	    view.setAccessibilityDelegate(tk.glucodata.Layout.accessDeli);
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
-	view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+      view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
        view.setGravity(Gravity.LEFT);
         return new HostViewHolder(view,pview);
 
@@ -937,11 +939,11 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 		 StringBuilder sb = new StringBuilder();
 		String port=Natives.getbackuphostport(pos);
 		long date=Natives.lastuptodate(pos);
-	        boolean passive=Natives.getbackuphostpassive(pos);
+	   boolean passive=Natives.getbackuphostpassive(pos);
 		String label=Natives.getbackuplabel(pos);
-	       boolean stream=Natives.getbackuphoststream(pos);
-	       boolean scans=Natives.getbackuphostscans(pos);
-	       boolean amounts=Natives.getbackuphostnums(pos);
+	   boolean stream=Natives.getbackuphoststream(pos);
+	   boolean scans=Natives.getbackuphostscans(pos);
+	   boolean amounts=Natives.getbackuphostnums(pos);
 		int recnum=Natives.getbackuphostreceive(pos);
 		boolean doreceive= (recnum&2)!=0;
 		  if(label!=null) {

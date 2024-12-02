@@ -44,6 +44,7 @@ import static tk.glucodata.Floating.shoulduseadb;
 import static tk.glucodata.GlucoseCurve.STEPBACK;
 import static tk.glucodata.Log.showbytes;
 import static tk.glucodata.Natives.getInvertColors;
+import static tk.glucodata.Natives.hasData;
 import static tk.glucodata.Natives.hasSibionics;
 import static tk.glucodata.Natives.setShownintro;
 import static tk.glucodata.Natives.wakelibreview;
@@ -116,19 +117,27 @@ public MainActivity() {
 //public class MainActivity extends CarActivity implements NfcAdapter.ReaderCallback  {
 //    boolean    hideSystem=true;
     LaunchShit  permHealth=isWearable?null:new LaunchShit(this);
-    GlucoseCurve curve=null;
+    public GlucoseCurve curve=null;
 //    Button okbutton=null;
     private static final String LOG_ID = "MainActivity";
     private NfcAdapter mNfcAdapter=null;
 boolean started=false;
 void startall() {
-	Log.d(LOG_ID, "startall");
-	if (!started) {
-		startdisplay();
-		// started=true;
-		netinitstep();
-		}
-}
+     Log.d(LOG_ID, "startall");
+     if(!started) {
+	  startdisplay();
+	  netinitstep();
+	    if(!isWearable||Natives.hasData())  {
+	       final int unit=Natives.getunit();
+	       if(!(unit==1||unit==2)) {
+		  Applic.postDelayed(()->tk.glucodata.settings.Settings.set(this),1000L);
+		  }
+		 }
+	    else {
+	       Specific.initScreen(this);
+	       }
+       }
+   }
 boolean askNotify() {
       if(Build.VERSION.SDK_INT >=33)  {
 		var perm= Manifest.permission.POST_NOTIFICATIONS;
@@ -188,32 +197,19 @@ void startdisplay() {
       }
       lightBars(!getInvertColors( ));
       }
-
-
 	setContentView(curve);
-
-
-
-   // setSystemUI(false) ;
-    try {
-	setRequestedOrientation(Natives.getScreenOrientation( ));
-	//setRequestedOrientation(SCREEN_ORIENTATION_PORTRAIT);
-	}
-    catch(       Throwable  error) {
-	String mess=error!=null?error.getMessage():null;
-	if(mess==null) {
-		mess="error";
-		}
-       Log.stack(LOG_ID ,mess,error);
-   }
-
-     getlibrary.getlibrary(this);//after setfilesdir for settings
-     handleIntent(getIntent());
-	final int unit=Natives.getunit();
-	if(!(unit==1||unit==2)) {
-		tk.glucodata.settings.Settings.set(this);
-		}
-
+   try {
+      setRequestedOrientation(Natives.getScreenOrientation( ));
+	   }
+   catch(       Throwable  error) {
+      String mess=error!=null?error.getMessage():null;
+      if(mess==null) {
+         mess="error";
+         }
+          Log.stack(LOG_ID ,mess,error);
+      }
+    getlibrary.getlibrary(this);//after setfilesdir for settings
+    handleIntent(getIntent());
 	var lang=getString(R.string.language);
 	Log.i(LOG_ID,"curlang="+Applic.curlang+" newlang="+lang+" locale="+util.getlocale().getLanguage());
 	if(!lang.equals(Applic.curlang)) {
@@ -222,7 +218,7 @@ void startdisplay() {
 		if(Talker.istalking())	
 			SuperGattCallback.newtalker(this);
 		}
-}
+   }
 static int openglversion=0;
 boolean glversion() {
 	if(openglversion==0) {
@@ -326,84 +322,37 @@ void showSystemBarsAppearance() {
 		   Specific.splash(this);
          }
         super.onCreate(savedInstanceState);
-// 	Log.testAppend((byte)7,(short) -4);
-if(Build.VERSION.SDK_INT >= 30)  {
-        if(!isWearable)
-            EdgeToEdge.enable(this);
-            }
-
-
-//        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
-//if(Build.VERSION.SDK_INT >= 21) 
-{
-        /*    Window window = this.getWindow();
-            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            window.setStatusBarColor(WHITE); */
-        }
-
-
+        if(Build.VERSION.SDK_INT >= 30)  {
+           if(!isWearable)
+               EdgeToEdge.enable(this);
+           }
 		thisone=this;
-	/*
-	if(getRTL())
-		supportRTL();
-	else
-		supportLTR(); */
-	if(Applic.stopprogram >0){
-		Log.e(LOG_ID,"Stop program");
-		if(Applic.stopprogram ==1)
-			outofStorageSpace();
-		else {
-			makefilesfailed();
-			}
-		return;
-		}
-	DisplayMetrics metrics= this.getResources().getDisplayMetrics();
-	screenheight= metrics.heightPixels;
-	screenwidth= metrics.widthPixels;
-        Log.i(LOG_ID,"onCreate start target="+ TargetSDK);
-	if(TargetSDK>30) {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-			alarmsExact(this);
-			}
-		}
-//	setTheme(R.style.AppTheme);
-//	setTheme(R.style.AppTheme);
-	showSystemUI();
-	if(!glversion())
-		return;
-
-    startall();
-//	Log.showLoader();
-    Log.i(LOG_ID,"onCreate end");
-	if(Menus.on)
-		Menus.show(this);
-   // ExtraActivity.specifics(this);
-   /*
-	new OnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-    	@Override
-		public void handleOnBackPressed() {
-		Log.d(LOG_ID, "handleOnBackPressed");
-		if(!backinapp())  {
-			Log.d(LOG_ID, "moveTaskToBack");
-			moveTaskToBack(true);
-			}
-	  }
-	});  
-        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-               Log.d(LOG_ID, "handleOnBackPressed");
-               if(!backinapp())  {
-                  Log.d(LOG_ID, "moveTaskToBack");
-                  moveTaskToBack(true);
-                  }
+      if(Applic.stopprogram >0){
+         Log.e(LOG_ID,"Stop program");
+         if(Applic.stopprogram ==1)
+            outofStorageSpace();
+         else {
+            makefilesfailed();
             }
-        };
-        getOnBackPressedDispatcher().addCallback(this, callback);
-      Log.d(LOG_ID, "handleOnBackPressed callback added");
-*/
-
+         return;
+         }
+      DisplayMetrics metrics= this.getResources().getDisplayMetrics();
+      screenheight= metrics.heightPixels;
+      screenwidth= metrics.widthPixels;
+      Log.i(LOG_ID,"onCreate start target="+ TargetSDK);
+      if(TargetSDK>30) {
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmsExact(this);
+            }
+         }
+      showSystemUI();
+      if(!glversion())
+         return;
+      startall();
+      Log.i(LOG_ID,"onCreate end");
+	   if(Menus.on)
+		   Menus.show(this);
+      Log.i(LOG_ID,"onCreate end");
     }
 void handleIntent(Intent intent) {
 	if(intent==null)
@@ -1046,7 +995,7 @@ public void onRequestPermissionsResult(int requestCode, String[] permissions, in
 			} return; */
 		case LOCATION_PERMISSION_REQUEST_CODE:
 			Log.i(LOG_ID,"LOCATION_PERMISSION_REQUEST_CODE");
-			if (granted) {
+			if(granted) {
             if(systemlocation())
                hasLocationContinue();
 			} else {

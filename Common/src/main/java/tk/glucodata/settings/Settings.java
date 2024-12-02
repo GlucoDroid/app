@@ -38,6 +38,10 @@ import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Backup.getnumedit;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getRTL;
+import static tk.glucodata.Natives.getshowhistories;
+import static tk.glucodata.Natives.getshownumbers;
+import static tk.glucodata.Natives.getshowscans;
+import static tk.glucodata.Natives.getshowstream;
 import static tk.glucodata.Natives.setthreshold;
 import static tk.glucodata.NumberView.avoidSpinnerDropdownFocus;
 import static tk.glucodata.RingTones.EnableControls;
@@ -56,6 +60,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.text.InputType;
 import android.util.TypedValue;
+import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -67,14 +72,19 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.RadioButton;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Space;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.os.LocaleListCompat;
 import androidx.core.widget.NestedScrollView;
+
+//import com.google.android.material.slider.LabelFormatter;
+//import com.google.android.material.slider.RangeSlider;
 
 import java.text.DecimalFormatSymbols;
 import java.util.Arrays;
@@ -302,17 +312,18 @@ void hidekeyboard() {
 boolean scanenabled=true;
 //int addindex=-1;
 
-EditText glow, ghigh ,tlow,thigh;
+//EditText glow, ghigh ,tlow,thigh;
+EditText tlow,thigh;
+static float round(float value,float size)  {
+   return Math.round(value*size)/size;
+   }
 void setvalues() {
-        switch(Natives.getunit()) {
+      final var unit= Natives.getunit();
+        switch(unit) {
             case 1: mmolL.setChecked(true);break;
             case 2: mgdl.setChecked(true);break;
         }
 
-        glow.setText(float2string(Natives.graphlow()));
-        ghigh.setText(float2string(Natives.graphhigh()));
-        tlow.setText(float2string(Natives.targetlow()));
-        thigh.setText(float2string(Natives.targethigh()));
 //        alow.setText( float2string(value));
 	}
 
@@ -390,6 +401,11 @@ static public void alarmsettings(MainActivity context,View parview,boolean[] iss
 	var Save=getbutton(context,R.string.save);
 	var Cancel=getbutton(context,R.string.cancel);
 	View[][] views;
+   /*
+        var graphrange=new RangeSlider(context);
+        graphrange.setValueFrom(0);
+         graphrange.setValueTo(500f);
+         graphrange.setValues(round(Natives.graphlow(),10.0f),round(Natives.graphhigh(),10.0f)); */
 	if(isWearable) {
 		var ala=getlabel(context,R.string.alarms);
 		final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*9.0);
@@ -403,6 +419,12 @@ new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View
       View[] lostrow={lossalarm,losswait,min,ringlossalarm};
 		View[] row6={usealarm,isvalue, ringisvalue};
 		View[] rowshow={help,Cancel,Save};
+      /*
+      var seekbar=new SeekBar(context);
+      seekbar.setMax(100);
+      seekbar.setProgress(4);
+      seekbar.setMinimumWidth((int) (context.curve.getWidth()*0.8f)); */
+
 		views=new View[][]{lowalarm,highalarm,lostrow,row6,rowshow};
 		}	
 	View lay;
@@ -498,14 +520,21 @@ final private static String  codestr=String.valueOf(BuildConfig.VERSION_CODE);
 static private final List<String> supportedlanguages= RU?Arrays.asList("Language","be","de","en","fr","it","nl","pl","pt","ru","sv","uk","zh"):(SPANISH?Arrays.asList("Language","be","de","en","es","fr","it","nl","pl","pt","sv","uk","zh"):Arrays.asList("Language","be","de","en","fr","it","nl","pl","pt","sv","uk","zh"));
 
 //static private final List<String> supportedlanguages= IWRU?Arrays.asList("Language","be","de","en","es","fr","it","iw","nl","pl","pt","ru","sv","uk"):Arrays.asList("Language","be","de","en","es","fr","it","nl","pl","pt","sv","uk");
-static private Spinner languagespinner(MainActivity context, int[] spinpos) {
+static private Spinner languagespinner(MainActivity context) {
 	var spin=  new Spinner(context,isWearable?MODE_DIALOG: MODE_DROPDOWN);
 
-
+	var locales=AppCompatDelegate.getApplicationLocales();
+	int prepos;
+	if(locales.isEmpty()||(prepos=supportedlanguages.indexOf(locales.get(0).getLanguage()))<1)
+		prepos=0;
+	final int pos=prepos;
 	spin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 		@Override
 		public  void onItemSelected (AdapterView<?> parent, View view, int position, long id) {
-			spinpos[0]=position;
+			if(position!=pos) {
+		             var newlocale=(position==0)?getEmptyLocaleList():LocaleListCompat.forLanguageTags(supportedlanguages.get(position));
+			   AppCompatDelegate.setApplicationLocales(newlocale);
+			   }
 			}
 		@Override
 		public  void onNothingSelected (AdapterView<?> parent) {
@@ -515,38 +544,298 @@ static private Spinner languagespinner(MainActivity context, int[] spinpos) {
 	avoidSpinnerDropdownFocus(spin);
 	supportedlanguages.set(0,context.getString(R.string.languagename));
 	spin.setAdapter(new LabelAdapter<String>(context,supportedlanguages,0));
-	var locales=AppCompatDelegate.getApplicationLocales();
-	int pos;
-	if(locales.isEmpty()||(pos=supportedlanguages.indexOf(locales.get(0).getLanguage()))<1)
-		pos=0;
-	
+
 //	var pos=supportedlanguages.indexOf(getlocale().getLanguage()); if(pos<0) pos=0;
 	spin.setSelection(pos);
 
 //	   spin.setPadding(0,0,0,0);
-	spinpos[0]=pos;
 	return spin;
 	}
+static void mkrangelabel(TextView view,int res,float low, float high) {
+     view.setText(Applic.app.getString(res)+" "+float2string(low)+"-"+float2string(high));
+   }
+static private void displaysettings(MainActivity context,Settings settings) {
+/*
+     var graphrange=new RangeSlider(context);
+	 var unit=Natives.getunit();
+	 var maxvalue=unit==1?27.8f:500.0f;
+     final float roundon=unit==1?10.0f:1.0f;
+     float glow= round(Natives.graphlow(),roundon);
+     float ghigh= round(Natives.graphhigh(),roundon);
+     graphrange.setValueFrom(0);
+     final var maxgraph=unit==1?21.0f:378.0f;
+     graphrange.setValueTo(maxgraph);
+     if(unit==1) {
+        graphrange.setStepSize(0.1f);
+        }
+     else {
+        graphrange.setStepSize(1.0f);
+        }
+     if(ghigh>maxgraph)
+      ghigh=maxgraph;
+      if(glow>ghigh)
+         glow=ghigh;
+     graphrange.setValues(glow,ghigh);
+     graphrange.setTickVisible(false);
+     TextView graphlabel = new TextView(context);
+     mkrangelabel(graphlabel,R.string.graphrange,glow,ghigh);
 
+
+       targetrange.setStepSize(0.1f);
+        targetrange.setStepSize(1.0f);
+     final var maxtarget=unit==1?10.0f:180.0f;
+     var targetrange=new RangeSlider(context);
+     targetrange.setTickVisible(false);
+     targetrange.setValueFrom(0);
+     targetrange.setValueTo(maxtarget);
+      float tlow=round(Natives.targetlow(),roundon);
+      float thigh=round(Natives.targethigh(),roundon);
+     if(thigh>maxtarget)
+      thigh=maxtarget;
+      if(tlow>thigh)
+         tlow=thigh;
+     targetrange.setValues(tlow,thigh);
+    TextView targetlabel = new TextView(context);
+     mkrangelabel(targetlabel,R.string.targetrange,tlow,thigh);
+*/
+
+        TextView graphlabel = new TextView(context);
+        graphlabel.setText(R.string.graphrange);
+        var glow = new EditText(context);
+        glow.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+
+        glow.setImeOptions(editoptions);
+        glow.setMinEms(1);
+
+
+        TextView line = new TextView(context);
+        line.setText("-");
+        var ghigh = new EditText(context);
+
+        ghigh.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        ghigh.setImeOptions(editoptions);
+        ghigh.setMinEms(2);
+        glow.setText(float2string(Natives.graphlow()));
+        ghigh.setText(float2string(Natives.graphhigh()));
+        View[] graphrow = {graphlabel, glow, line, ghigh};
+
+	TextView targetlabel = getlabel(context,R.string.targetrange);
+        var tlow = new EditText(context);
+
+        tlow.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        tlow.setMinEms(1);
+        tlow.setImeOptions(editoptions);
+        TextView line2=new TextView(context); line2.setText("-");
+        var thigh = new EditText(context);
+
+        thigh.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        thigh.setMinEms(2);
+        thigh.setImeOptions(editoptions);
+        View[] targetrow = {targetlabel, tlow, line2, thigh};
+
+
+
+        tlow.setText(float2string(Natives.targetlow()));
+        thigh.setText(float2string(Natives.targethigh()));
+
+	CheckBox levelleft= new CheckBox(context);
+	levelleft.setText(R.string.glucoseaxisleft);
+	levelleft.setChecked(Natives.getlevelleft());
+
+    levelleft.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
+	         Natives.setlevelleft(isChecked);
+            });
+
+	var colbut=getbutton(context,R.string.colors);
+   var help=getbutton(context,R.string.helpname);
+  help.setOnClickListener(v->{help(R.string.displayhelp,context); });
+
+    var hour12=getcheckbox(context,R.string.hour12,!Natives.gethour24());
+    hour12.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
+         Applic.sethour24(!isChecked);
+         });
+    var fixed=getcheckbox(context,R.string.clampnow,Natives.getcurrentRelative());
+	 fixed.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setcurrentRelative(isChecked));
+
+
+      /*
+      graphrange.addOnSliderTouchListener(
+         new RangeSlider.OnSliderTouchListener() {
+			 @Override
+			 public void onStartTrackingTouch(@NonNull RangeSlider slider) {
+				 Log.i(LOG_ID,"graph onStartTrackingTouch");
+
+			 }
+
+			 @Override
+			 public void onStopTrackingTouch(@NonNull RangeSlider slider) {
+				 final var values=slider.getValues();
+				 final var low=values.get(0);
+				 final var high=values.get(1);
+            mkrangelabel(graphlabel,R.string.graphrange,low,high);
+				 Log.i(LOG_ID,"stop graphrange "+low+" - "+high);
+				 Natives.setGraphRange(low,high);
+
+			 }
+
+         });
+      targetrange.addOnSliderTouchListener(
+         new RangeSlider.OnSliderTouchListener() {
+           @Override
+           public void onStartTrackingTouch(RangeSlider slider) {
+				Log.i(LOG_ID,"target onStartTrackingTouch");
+           }
+
+           @Override
+           public void onStopTrackingTouch(RangeSlider slider) {
+               final var values=slider.getValues();
+               final var low=values.get(0);
+               final var high=values.get(1);
+               mkrangelabel(targetlabel,R.string.targetrange,low,high);
+               Log.i(LOG_ID,"stop targetrange "+low+" - "+high);
+               Natives.setTargetRange(low,high);
+           }
+         });
+*/
+	TextView scalelabel=getlabel(context,R.string.manuallyscale);
+	CheckBox fixatex =new CheckBox(context);
+
+	CheckBox fixatey =new CheckBox(context);
+
+
+	fixatex.setText(R.string.time);
+	fixatey.setText(R.string.glucose);
+	fixatex.setChecked(!Natives.getfixatex());
+	fixatey.setChecked(!Natives.getfixatey());
+
+		final var threslabel=getlabel(context,R.string.threshold);
+
+		final var thresstring=float2string(Natives.getthreshold());
+		final var threshold=getnumedit(context,thresstring);
+
+      
+      var close=getbutton(context,R.string.closename);
+
+	var langspin=languagespinner(context);
+      Layout lay;
+    if(isWearable)  {
+        targetlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0,0,0);
+        graphlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0,0,0);
+        colbut.setPadding(0,0,0,0);
+   //      Button display=getbutton(context,context.getString(R.string.display));
+ 	var Scans=getcheckbox(context,R.string.scansname,getshowscans()) ;
+ 	var History=getcheckbox(context,R.string.historyname,getshowhistories()) ;
+ 	var Stream=getcheckbox(context,R.string.streamname,getshowstream()) ;
+ 	var Amounts=getcheckbox(context,isWearable?R.string.amountshort:R.string.amountsname,getshownumbers()) ;
+
+Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowscans(isChecked); });
+	History.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowhistories(isChecked); });
+	Stream.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowstream(isChecked); });
+	Amounts.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshownumbers(isChecked); });
+   var space=getlabel(context,"");
+   var space2=getlabel(context,"");
+        lay = new Layout(context, (l, w, h) -> {
+    		      int[] ret={w,h};
+		         return ret;
+               },new View[]{colbut},graphrow,targetrow,new View[]{close},new View[]{space},new View[]{space2},new View[]{scalelabel}, new View[]{fixatex, fixatey},new View[]{threslabel,threshold},new View[] {levelleft},new View[] {hour12,fixed},new View[]{Scans,History},new View[]{Stream,Amounts},new View[]{langspin});
+         }
+      else {	
+      var iob=getcheckbox(context,"IOB",Natives.getIOB());
+        var dexfuture=getcheckbox(context,R.string.dexfuture,Natives.getdexcomPredict());
+         dexfuture.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setdexcomPredict(isChecked) );
+	      CheckBox reverseorientation =getcheckbox(context,R.string.invertscreen,(Natives.getScreenOrientation()&SCREEN_ORIENTATION_REVERSE_LANDSCAPE)!=0);
+         reverseorientation.setOnCheckedChangeListener( (buttonView,  isChecked) ->  {
+				int ori= (isChecked?SCREEN_ORIENTATION_REVERSE_LANDSCAPE:SCREEN_ORIENTATION_LANDSCAPE);
+				Natives.setScreenOrientation(ori);
+				});
+        lay = new Layout(context, (l, w, h) -> {
+    		      int[] ret={w,h};
+		         return ret;
+               },graphrow,new View[]{scalelabel,fixatex, fixatey},targetrow,new View[]{threslabel,threshold,dexfuture},new View[] {levelleft,reverseorientation},new View[] {hour12,langspin,iob,fixed},new View[]{colbut,help,close});
+
+		iob.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
+				if(!Natives.setIOB(isChecked)) {
+					iob.setChecked(false);
+					EnableControls(lay,false);
+					tk.glucodata.help.help(R.string.IOB,context,l->EnableControls(lay,true) );
+					}
+				}
+			);
+         }
+
+     lay.setBackgroundColor(Applic.backgroundcolor);
+   final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0);
+	if(isWearable) {
+	   lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*2.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),pad,pad);
+		}
+     else {
+	   lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom);
+      }
+
+	var scroll=new ScrollView(context);
+	scroll.addView(lay);
+	scroll.setFillViewport(true);
+	scroll.setSmoothScrollingEnabled(false);
+   scroll.setScrollbarFadingEnabled(true);
+   scroll.setVerticalScrollBarEnabled(Applic.scrollbar);
+   context.addContentView(scroll, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+   colbut.setOnClickListener(v-> {
+   		MainActivity.doonback();
+		settings.finish();
+		SetColors.show(context);
+		});
+
+Runnable closerun= () -> {
+      var newthreshold=threshold.getText().toString();
+      if(!thresstring.equals(newthreshold)) {
+	    float thres=str2float(newthreshold);
+	    if(thres>0.8f||thres<0.0f) {
+		  Applic.argToaster(context, "A threshold should 0.0 - 0.8",Toast.LENGTH_LONG);
+	       }
+	     else
+	       setthreshold(thres);
+	    }
+		Natives.setfixatex(!fixatex.isChecked());
+		Natives.setfixatey(!fixatey.isChecked());
+       Natives.setGraphRange(str2float(glow.getText().toString()), str2float(ghigh.getText().toString()));
+      Natives.setTargetRange(str2float(tlow.getText().toString()), str2float(thigh.getText().toString()));
+		removeContentView(scroll) ;
+		};
+	MainActivity.setonback(closerun);
+
+      close.setOnClickListener(v->{
+		   context.poponback();
+         closerun.run();
+      });
+
+   }
+       /*graphrange.setLabelFormatter(f->{
+            var str= Settings.float2string(f);
+          Log.i(LOG_ID,"setLabelformatter "+str);
+          return str;}); */
+//	   graphrange.setLabelBehavior(LabelFormatter.LABEL_WITHIN_BOUNDS);
+//	   graphrange.setLabelBehavior(LabelFormatter.LABEL_FLOATING);
+ //      graphrange.setHaloRadius((int)(tk.glucodata.GlucoseCurve.metrics.density*15.0f));
 private	void mksettings(MainActivity context,boolean[] issaved) {
 
     if(settinglayout==null) {
             TextView unitlabel = new TextView(context);
         unitlabel.setText(R.string.unit);
         mmolL = new RadioButton(context);
+
         mmolL.setOnClickListener(v-> {
-		((Applic) context.getApplication()).setunit(1);
+         ((Applic) context.getApplication()).setunit(1);
                   mgdl.setChecked(false);
-		  recreate(issaved);
+                 recreate(issaved);
                 });
 
             mmolL.setText(R.string.mmolL);
          mgdl = new RadioButton(context);
         mgdl.setOnClickListener(v-> {
-		((Applic) context.getApplication()).setunit(2);
- 		mmolL.setChecked(false);
-		  recreate(issaved);
-        });
+            ((Applic) context.getApplication()).setunit(2);
+            mmolL.setChecked(false);
+              recreate(issaved);
+           });
 
         mgdl.setText(R.string.mgdL);
 
@@ -557,109 +846,49 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
          var leftspace=new Space(context);
         View[] row0 = isWearable?new View[]{leftspace,mmolL, mgdl,new Space(context)}:new View[]{unitlabel, mmolL, mgdl};
 
-        TextView graphlabel = new TextView(context);
-        graphlabel.setText(R.string.graphrange);
-        glow = new EditText(context);
-        glow.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-
-        glow.setImeOptions(editoptions);
-        glow.setMinEms(1);
-
-
-        TextView line = new TextView(context);
-        line.setText("-");
-        ghigh = new EditText(context);
-
-        ghigh.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        ghigh.setImeOptions(editoptions);
-        ghigh.setMinEms(2);
-        View[] row1 = {graphlabel, glow, line, ghigh};
-
-        graphlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*3.0),0,0,0);
-        ghigh.setPadding(ghigh.getPaddingLeft(),ghigh.getPaddingTop(),(int)(tk.glucodata.GlucoseCurve.metrics.density*3.0),ghigh.getPaddingBottom());
-
-        TextView targetlabel = new TextView(context);
-        targetlabel.setText(R.string.targetrange);
-        tlow = new EditText(context);
-
-
-        tlow.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        tlow.setMinEms(1);
-        tlow.setImeOptions(editoptions);
-        TextView line2=new TextView(context); line2.setText("-");
-        thigh = new EditText(context);
-
-        thigh.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        thigh.setMinEms(2);
-        thigh.setImeOptions(editoptions);
-        View[] row2 = {targetlabel, tlow, line2, thigh};
         Button changelabels=new Button(context);
         Button help =new Button(context);
         help.setText(R.string.helpname);
         help.setOnClickListener(v->{help(R.string.settinghelp,(MainActivity)(v.getContext())); });
-       Button cancel =new Button(context);
-        cancel.setText(R.string.cancel);
-	cancel.setOnClickListener(
-		v->{
-	   	context.poponback();
-	       hidekeyboard();
 
-   		context.lightBars(!getInvertColors( ));
-		finish();
-		if(tk.glucodata.Menus.on)
-			tk.glucodata.Menus.show(context);
-
-		});
-       Button ok =new Button(context);
-        ok.setText(R.string.save);
-	CheckBox levelleft= new CheckBox(context);
-	levelleft.setText(R.string.glucoseaxisleft);
-	levelleft.setChecked(Natives.getlevelleft());
+      var close=getbutton(context,R.string.closename);
 //	CheckBox bluetooth= new CheckBox(context);
    CheckBox globalscan = new CheckBox(context);
 	globalscan.setText(R.string.startsapp);
 
 	final var hasnfc=MainActivity.hasnfc;
+      final  CheckBox nfcsound=hasnfc?new CheckBox(context):null;
 	if(hasnfc)  {
+		nfcsound.setText(R.string.nfcsound);
+		nfcsound.setChecked(Natives.nfcsound());
 		scanenabled=IntentscanEnabled();
 		globalscan.setChecked(scanenabled) ; //Value
+		globalscan.setOnCheckedChangeListener( (buttonView,  isChecked) -> 
+			    EnableIntentScanning(isChecked));
+	       nfcsound.setOnCheckedChangeListener((buttonView,  isChecked) -> {
+				Natives.setnfcsound(isChecked);
+				context.setnfc();
+				});
 		}
 	CheckBox camera=!isWearable?new CheckBox(context):null;
-	CheckBox reverseorientation =!isWearable?new CheckBox(context):null;
-	final int diskey=!isWearable?Natives.camerakey():0;
 	if(!isWearable) {
-
+		final int diskey=!isWearable?Natives.camerakey():0;
 		if(diskey>0)  {
 			camera.setText(R.string.disablecamerakey);
 			camera.setChecked(diskey==1);
+			camera.setOnCheckedChangeListener((buttonView,  isChecked) -> {
+				 final int setto = isChecked ? 1 : 2;
+				 Natives.setcamerakey(setto);
+				 });
+
 			}
 			
 		else
 			camera.setVisibility(GONE);
 
-
-		reverseorientation.setText(R.string.invertscreen);
-		}
-      final  CheckBox nfcsound=hasnfc?new CheckBox(context):null;
-	if(hasnfc) {
-		nfcsound.setText(R.string.nfcsound);
-		nfcsound.setChecked(Natives.nfcsound());
 		}
 
-	TextView scalelabel=getlabel(context,R.string.manuallyscale);
-	CheckBox fixatex =new CheckBox(context);
-
-	CheckBox fixatey =new CheckBox(context);
-
-	fixatex.setText(R.string.time);
-	fixatey.setText(R.string.glucose);
-	fixatex.setChecked(!Natives.getfixatex());
-	fixatey.setChecked(!Natives.getfixatey());
    var exchanges=getbutton(context,R.string.exchanges);
-	if(!isWearable)
-		reverseorientation.setChecked((Natives.getScreenOrientation()&SCREEN_ORIENTATION_REVERSE_LANDSCAPE)!=0);
-//   else fixatey.setPadding(0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0); 
-	//bluetooth.setText(R.string.sensorviabluetooth);
 	final boolean blueused=Natives.getusebluetooth();
 
 	//bluetooth.setChecked(blueused);
@@ -668,81 +897,22 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 		alarmsettings(context,settinglayout,issaved);
 		});
 
-	int[] spinpos={0};
-	var langspin=languagespinner(context,spinpos);
-	var startspinpos=spinpos[0];
-	Log.i(LOG_ID,"startspinpos="+startspinpos);
-
-		final var threslabel=getlabel(context,R.string.threshold);
-
-		final var thresstring=float2string(Natives.getthreshold());
-		final var threshold=getnumedit(context,thresstring);
 
 
-    ok.setOnClickListener(v->{
-		final int wasorient=Natives.getScreenOrientation();
-		if(!isWearable) {	
-			if( reverseorientation.isChecked()==((wasorient&SCREEN_ORIENTATION_REVERSE_LANDSCAPE)==0)) {
-				int ori= (reverseorientation.isChecked()?SCREEN_ORIENTATION_REVERSE_LANDSCAPE:SCREEN_ORIENTATION_LANDSCAPE);
-				Natives.setScreenOrientation(ori);
-				}
-			}
-
-		if(hasnfc)  {
-			if(scanenabled!=globalscan.isChecked())
-			    EnableIntentScanning(!scanenabled);
-			    }
+    close.setOnClickListener(v->{
 		    int unit=mmolL.isChecked()?1:(mgdl.isChecked()?2:0);
 		    if(unit==0) {
-            Applic.argToaster(context, R.string.setunitfirst,Toast.LENGTH_SHORT);
+			Applic.argToaster(context, R.string.setunitfirst,Toast.LENGTH_SHORT);
 		   	return;
 		    }
-       Natives.setsettings(unit,str2float(glow.getText().toString()), str2float(ghigh.getText().toString()), str2float(tlow.getText().toString()), str2float(thigh.getText().toString()));
-
-
-	//	   Natives.setwaitwithenablestreaming(waitblue.isChecked());
-		  Natives.setfixatex(!fixatex.isChecked());
-		  Natives.setfixatey(!fixatey.isChecked());
-
-		  if(!isWearable) {
-			  if(diskey > 0) {
-				  final int setto = camera.isChecked() ? 1 : 2;
-				  if (diskey != setto) Natives.setcamerakey(setto);
-			  }
-             }
-      var newthreshold=threshold.getText().toString();
-      if(!thresstring.equals(newthreshold)) {
-         float thres=str2float(newthreshold);
-         if(thres>0.8f||thres<0.0f) {
-               Applic.argToaster(context, "A threshold should 0.0 - 0.8",Toast.LENGTH_LONG);
-            }
-          else
-            setthreshold(thres);
-         }
-		 if(hasnfc) {
-			var was=Natives.nfcsound();
-			boolean moet=nfcsound.isChecked();
-			if(moet!=Natives.nfcsound())  {
-				Natives.setnfcsound(moet);
-				context.setnfc();
-				}
-			}
-		
-
-		Natives.setlevelleft(levelleft.isChecked());
 		   context.poponback();
 		    hidekeyboard();
 		    finish();
-
-      context.lightBars(!getInvertColors( ));
-		if(tk.glucodata.Menus.on) tk.glucodata.Menus.show(context);
-		if(spinpos[0]!=startspinpos) {
-            var newlocale=(spinpos[0]==0)?getEmptyLocaleList():LocaleListCompat.forLanguageTags(supportedlanguages.get(spinpos[0]));
-            AppCompatDelegate.setApplicationLocales(newlocale);
-            }
+	 context.lightBars(!getInvertColors( ));
+	     if(tk.glucodata.Menus.on) tk.glucodata.Menus.show(context);
 
 			});
-
+   var displayview=getbutton(context,R.string.display);
 	Layout[] thelayout=new Layout[1];
 	if(!isWearable) {
 		changelabels.setText(R.string.numberlabels);
@@ -750,25 +920,12 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 			    hidekeyboard();
 			    new LabelsClass(context).mklabellayout(thelayout[0]);});
 			  }
-	var colbut=getbutton(context,R.string.colors);
-        colbut.setOnClickListener(v-> {
-		hidekeyboard();
-		finish();
-		SetColors.show(context);
-		});
 	Button numalarm=getbutton(context,R.string.remindersname);
 	Button advanced=null;
 
-    var hour12=getcheckbox(context,R.string.hour12,!Natives.gethour24());
-	hour12.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
-		Applic.sethour24(!isChecked);
-		});
 
 	View[][] views;
 	final String advhelp=isWearable?null:Natives.advanced();
-		Button display=isWearable?getbutton(context,context.getString(R.string.display)):null;
-	       var fixed=getcheckbox(context,R.string.clampnow,Natives.getcurrentRelative());
-		fixed.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setcurrentRelative(isChecked));
 	if(isWearable) {
 		Button complications;
 		if(BuildConfig.minSDK>=26) {
@@ -790,29 +947,29 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 
 		floatglucose.setChecked(Natives.getfloatglucose());
 		floatglucose.setOnCheckedChangeListener( (buttonView,  isChecked) -> Floating.setfloatglucose(context,isChecked) ) ;
-
+      var space=getlabel(context,"");
+      var space2=getlabel(context,"");
 		View[] camornum=new View[] {alarmbut,numalarm};
 		if(BuildConfig.minSDK>=26) {
-			views = new View[][]{new View[]{getlabel(context, R.string.unit)}, row0, row1, new View[]{scalelabel}, new View[]{fixatex, fixatey}, row2, new View[]{threslabel, threshold}, new View[]{levelleft}, hasnfc ? (new View[]{globalscan, nfcsound}) : null,  new View[]{fixed},new View[]{exchanges }, new View[]{floatconfig, floatglucose}, camornum,  new View[]{colbut, display}, new View[]{hour12, langspin}, new View[]{cancel, ok}, new View[]{complications}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+			views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{exchanges },  new View[]{close},new View[]{space},new View[]{space2},  new View[]{floatconfig, floatglucose}, camornum,new View[]{complications},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
 			;
 		}
 		else{
-			views = new View[][]{new View[]{getlabel(context, R.string.unit)}, row0, row1, new View[]{scalelabel}, new View[]{fixatex, fixatey}, row2, new View[]{threslabel, threshold}, new View[]{levelleft}, hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{fixed},new View[]{exchanges } , new View[]{floatconfig, floatglucose}, camornum,  new View[]{colbut, display}, new View[]{hour12, langspin}, new View[]{cancel, ok}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+			views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null,  new View[]{exchanges } ,new View[]{close},  new View[]{floatconfig, floatglucose}, camornum,  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
 			;
 		}
 		}
 	else {
-		View[] row8;
 		View[] row9;
 		var about=getbutton(context,R.string.aboutname);
 	       about.setOnClickListener(v-> tk.glucodata.GlucoseCurve.doabout(context));
 		if(advhelp!=null) {
 			advanced=new Button(context);
 			advanced.setText(R.string.advanced);
-			row9=new View[]{advanced,changelabels};
+			row9= new View[]{help,advanced,about,close} ;
 			}
 		else {
-			row9=new View[]{changelabels};
+			row9= new View[]{help,about,close} ;
 			}
 
 //      var oldxdrip=getbutton(context,"send old"); oldxdrip.setOnClickListener(v-> tk.glucodata.Natives.sendxdripold());
@@ -820,27 +977,12 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 		glucosenotify.setText(R.string.glucosestatusbar);
 		glucosenotify.setChecked(Natives.getshowalways()) ;
 		glucosenotify.setOnCheckedChangeListener( (buttonView,  isChecked) -> Notify.glucosestatus(isChecked) );
-      var iob=getcheckbox(context,"IOB",Natives.getIOB());
       var floatconfig=getbutton(context,R.string.floatglucose);
 
 
 	    floatconfig.setOnClickListener(v-> tk.glucodata.FloatingConfig.show(context,thelayout[0]));
-     var dexfuture=getcheckbox(context,R.string.dexfuture,Natives.getdexcomPredict());
-		dexfuture.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setdexcomPredict(isChecked) );
 		View[] rowglu=new View[]{floatconfig,glucosenotify};
-		row8=new View[]{exchanges,numalarm,alarmbut};
-
-		views=new View[][]{row0, row1,new View[]{scalelabel,fixatex,fixatey}, row2,new View[]{levelleft,camera,reverseorientation},
-      new View[]{threslabel,threshold,dexfuture},
-		hasnfc?new View[]{nfcsound, globalscan}:null,new View[] {langspin,hour12,colbut,iob,fixed}, rowglu,row8,row9, new View[]{help,about,cancel,ok} };
-		iob.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
-				if(!Natives.setIOB(isChecked)) {
-					iob.setChecked(false);
-					EnableControls(thelayout[0],false);
-					tk.glucodata.help.help(R.string.IOB,context,l->EnableControls(thelayout[0],true) );
-					}
-				}
-			);
+		views=new View[][]{row0, hasnfc?new View[]{nfcsound, globalscan,camera}:null,rowglu,new View[]{exchanges,numalarm,alarmbut},new View[]{changelabels,displayview}, row9};
 		}
 
 	help.setFocusableInTouchMode(true);
@@ -870,14 +1012,14 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 
 
         lay.setBackgroundColor(colorwindowbackground);
-var	horlayout= new HorizontalScrollView(context);
+/*var	horlayout= new HorizontalScrollView(context);
 	horlayout.addView(lay);
 	horlayout.setHorizontalScrollBarEnabled(false);
 	horlayout.setFillViewport(true);
-   horlayout.setPadding(0,0,0,0);
+   horlayout.setPadding(0,0,0,0); */
 
 	ScrollView scroller=new ScrollView(context);
-	scroller.addView(horlayout);
+	scroller.addView(lay);
 	scroller.setSmoothScrollingEnabled(false);
    scroller.setVerticalScrollBarEnabled(Applic.scrollbar);
    scroller.setScrollbarFadingEnabled(true);//Crash with NestedScrollView
@@ -890,9 +1032,6 @@ var	horlayout= new HorizontalScrollView(context);
 	   final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0);
 	if(isWearable) {
 	   lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*2.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),pad,pad);
-		display.setOnClickListener(v -> {
-			tk.glucodata.Display.display(context, settinglayout);
-		});
 		}
      else {
 	   lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom);
@@ -903,6 +1042,9 @@ var	horlayout= new HorizontalScrollView(context);
 	numalarm.setOnClickListener(v-> {
 		new tk.glucodata.setNumAlarm().mkviews(context,settinglayout);
 		});
+    displayview.setOnClickListener(v-> {
+	 displaysettings(context,this);
+	 });
         }
     else {
 
@@ -910,6 +1052,7 @@ var	horlayout= new HorizontalScrollView(context);
 
 	settinglayout.bringToFront();
     }
+
 setvalues();
 }
 
@@ -917,9 +1060,16 @@ static private void exchanges(MainActivity context,View parent) {
   parent.setVisibility(GONE);
 	final CheckBox xdripbroadcast = new CheckBox(context);
 	final CheckBox jugglucobroadcast = new CheckBox(context);
-	xdripbroadcast.setText(R.string.xdripbroadcast);
+
+   if(isWearable)
+      xdripbroadcast.setText("xDrip broadcast");
+   else
+      xdripbroadcast.setText(R.string.xdripbroadcast);
 	xdripbroadcast.setChecked(Natives.getxbroadcast());
-	jugglucobroadcast.setText("Glucodata broadcast");
+   if(isWearable)
+      jugglucobroadcast.setText("Glucodata");
+   else
+      jugglucobroadcast.setText("Glucodata broadcast");
 	jugglucobroadcast.setChecked(Natives.getJugglucobroadcast());
    var mirrorview=getbutton(context,R.string.mirror);
    mirrorview.setOnClickListener(v ->{ (new Backup()).realmkbackupview(context,false); });
@@ -943,10 +1093,10 @@ static private void exchanges(MainActivity context,View parent) {
 					}
 				}
 		);
-   var ok = getbutton(context, R.string.ok);
+   var ok = getbutton(context, R.string.closename);
 	ok.setOnClickListener(
 		v->{
-	   context.doonback();
+	      context.doonback();
 		});
    Layout lay;
 	if (isWearable) {

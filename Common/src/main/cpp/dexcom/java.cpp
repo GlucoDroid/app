@@ -124,22 +124,28 @@ void actual(SensorGlucoseData *sens,jlong *timeres) const {
      LOGGER("new starttime=%d %s",wasstart,ctime(&wasstart));
   #endif
       }
-   sens->sensorerror=false;
    const int index= getindex();
    const auto wastime=nowsec-age;
-
-   save(sens,wastime,index);
-   sens->saveDexFuture(index, wastime,getpredictedmgdL());
-   const auto rate=getRateofChange();
-   sens->consecutivelifecount();
-	backup->wakebackup(Backup::wakestream);
-	wakewithcurrent();
-   if((nowsec-wastime)<maxbluetoothage)  {
-      auto res=glucoseback(mgdL,rate,sens);
-      timeres[1]=res;
+   if(mgdL>=39&&mgdL<=501&&secsSinceStart>=sens->getWarmupSEC()) {
+      save(sens,wastime,index);
+      sens->saveDexFuture(index, wastime,getpredictedmgdL());
+      const auto rate=getRateofChange();
+      sens->consecutivelifecount();
+      backup->wakebackup(Backup::wakestream);
+      wakewithcurrent();
+      if((nowsec-wastime)<maxbluetoothage) {
+         sens->sensorerror=false; 
+         auto res=glucoseback(mgdL,rate,sens);
+         timeres[1]=res;
+         }
+      else {
+         sens->sensorerror=true; 
+         timeres[1]=0LL;
+         }
       }
-   else {
-      timeres[1]=0LL;
+    else {
+         sens->sensorerror=true; 
+         timeres[1]=0LL;
       }
    timeres[0]-=age*1000L;
    }

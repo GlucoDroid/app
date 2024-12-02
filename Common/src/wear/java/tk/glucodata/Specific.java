@@ -21,8 +21,19 @@
 
 package tk.glucodata;
 
+import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+import static tk.glucodata.settings.Settings.removeContentView;
+import static tk.glucodata.util.getlabel;
+
+import android.annotation.SuppressLint;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.splashscreen.SplashScreen;
+import androidx.wear.widget.CurvedTextView;
 
 class Specific {
 static void start(Object context) { }
@@ -30,4 +41,35 @@ static void start(Object context) { }
 static    void splash(AppCompatActivity act) {
        SplashScreen.installSplashScreen(act);
       }
+@SuppressLint("StaticFieldLeak")
+static ViewGroup layout=null;
+@SuppressLint("StaticFieldLeak")
+static TextView text=null;
+
+static boolean settext(String str) {
+   var t=text;
+   if(t!=null) {
+       t.setText(str);
+       return true;
+    }
+   return false;
+   }
+static void rmlayout() {
+   var lay=layout;
+   if(lay!=null) {
+      text=null;
+      layout=null;
+      removeContentView(lay); 
+      }
+   }
+static void initScreen(MainActivity act) {
+	LayoutInflater flater= LayoutInflater.from(act);
+	ViewGroup layout = (ViewGroup) flater.inflate(R.layout.startview ,null, false);
+	text=layout.findViewById(R.id.text2);
+//	layout.setBackgroundColor(Applic.backgroundcolor);
+   Specific.layout=layout;
+	act.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+//   Specific.layout=layout;
+//   Specific.text=text;
+   }
 };

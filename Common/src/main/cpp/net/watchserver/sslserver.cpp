@@ -208,32 +208,31 @@ bool watchcommands(char *rbuf,int len,recdata *outdata,bool secure) ;
 
 static SSL_CTX *globalctx=nullptr;
 
+bool	securewatchcommands(SSL *ssl);
+extern void sendtimeout(int sock,int secs);
+extern void receivetimeout(int sock,int secs) ;
+
 void handlewatchsecure(int sock) {
+   destruct _des([sock]{close(sock);});
 	static SSL_CTX *ctx=globalctx;
 	if(!ctx)
 		return;
-      const char threadname[17]="ssl watchconnect";
-      prctl(PR_SET_NAME, threadname, 0, 0, 0);
-      LOGGER("handlewatchsecure %d\n",sock);
-
-        SSL *ssl=SSL_newptr(ctx);  
+   const char threadname[17]="ssl watchconnect";
+   prctl(PR_SET_NAME, threadname, 0, 0, 0);
+   LOGGER("handlewatchsecure %d\n",sock);
+   SSL *ssl=SSL_newptr(ctx);  
 	if(!ssl)
 		return;
-
-extern void sendtimeout(int sock,int secs);
-extern void receivetimeout(int sock,int secs) ;
  	receivetimeout(sock,60);
  	sendtimeout(sock,5*60);
-        SSL_set_fdptr(ssl, sock); 
-    if ( SSL_acceptptr(ssl)<0)   { 
-        sslerror("SSL_accept: %s");
+   SSL_set_fdptr(ssl, sock); 
+   if(SSL_acceptptr(ssl)<0)   { 
+      sslerror("SSL_accept: %s");
     	SSL_freeptr(ssl);  
-	return;
-	}
-bool	securewatchcommands(SSL *ssl);
+      return;
+      }
 	securewatchcommands(ssl);
-    	SSL_freeptr(ssl);  
-	close(sock);
+   SSL_freeptr(ssl);  
 	}
 
  #include <openssl/err.h>

@@ -71,11 +71,15 @@ import static android.graphics.Color.YELLOW;
 import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
+import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.NumberView.avoidSpinnerDropdownFocus;
 import static tk.glucodata.help.help;
 import static tk.glucodata.settings.Settings.removeContentView;
+import static tk.glucodata.util.getbutton;
+import static tk.glucodata.util.getcheckbox;
+import static tk.glucodata.util.getlabel;
 
 class bluediag {
 
@@ -228,10 +232,51 @@ void	setadapter(Activity act,	final ArrayList<SuperGattCallback> gatts) {
 	spin.setAdapter(adap);
 }
 
+void nogatts(MainActivity act) {
+ var bluestate= getlabel(act, mBluetoothAdapter==null?activity.getString(R.string.nobluetooth):(mBluetoothAdapter.isEnabled()?activity.getString(R.string.bluetoothenabled): activity.getString(R.string.bluetoothdisabled)));
+ final boolean wasused= Natives.getusebluetooth();
+ var usebluetooth=getcheckbox(act, R.string.use_bluetooth,wasused);
+	usebluetooth.setOnCheckedChangeListener(
+		 (buttonView,  isChecked) -> {
+		 	Log.i(LOG_ID,"usebluetooth "+isChecked);
+			 if(isChecked!=wasused) {
+				 act.setbluetoothmain( isChecked);
+				 act.requestRender();
+				 act.doonback();
+				 new bluediag(act);
+			 }
+		 });
+	var close=getbutton(act,R.string.closename);
+   var height=GlucoseCurve.getheight();
+   var width=GlucoseCurve.getwidth();
+  Layout layout = new Layout(act, (l, w, h) -> {
+      l.setX((width-w)/2);
+      l.setY((height-h)/2);
+		int[] ret={w,h};
+		return ret;
+		},new View[]{bluestate},new View[]{usebluetooth},new View[]{close});
+	act.setonback(() -> {
+			removeContentView(layout);
+			});
 
+		close.setOnClickListener(v -> {
+         act.doonback();
+         });
+      layout.setBackgroundResource(R.drawable.dialogbackground);
+	int pads=(int)(GlucoseCurve.metrics.density*(isWearable?2:10));
+   Log.i(LOG_ID,"density="+GlucoseCurve.metrics.density);
+
+	  if(!isWearable)
+	      bluestate.setPadding(pads,0,0,0);
+      layout.setPadding(pads,pads,pads*3,pads);
+   act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+
+   }
 
 bluediag(MainActivity act) {
 	activity=act;
+   final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();
+
 	BluetoothManager mBluetoothManager = (BluetoothManager) act.getSystemService(Context.BLUETOOTH_SERVICE);
         if(mBluetoothManager  != null) {
             mBluetoothAdapter = mBluetoothManager.getAdapter();
@@ -241,11 +286,15 @@ bluediag(MainActivity act) {
 			}
 	    }
    else {
-
-      		Log.e(LOG_ID,"act.getSystemService(Context.BLUETOOTH_SERVICE)==null");
-		return;
+      	Log.e(LOG_ID,"act.getSystemService(Context.BLUETOOTH_SERVICE)==null");
+         return;
 
 	   	}
+
+   if( gatts == null || gatts.size() == 0) {
+      nogatts(act);
+      return;
+      } 
 	LayoutInflater flater= LayoutInflater.from(act);
 	View view = flater.inflate(R.layout.bluesensor, null, false);
 
@@ -298,7 +347,6 @@ bluediag(MainActivity act) {
 
 	View showview=addscroll2!=null?addscroll2:view;
 
-		final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();
 	priority=view.findViewById(R.id.priority);
 	streamhistory=view.findViewById(R.id.streamhistory);
 if(!isWearable) {
@@ -323,7 +371,7 @@ if(!isWearable) {
 	}
 }
 	if (gatts == null || gatts.size()== 0) {
-		priority.setVisibility(GONE);
+		//priority.setVisibility(GONE);
 		forget.setVisibility(GONE);
 		}
 	if(!Natives.optionStreamHistory()) {

@@ -210,7 +210,11 @@ rutext.amount},
 .Rising="Поднимается",
 .RisingQuickly="Быстро растет",
 #endif
-.receivingpastvalues="Получение старых значений"
+.receivingpastvalues="Получение старых значений",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 
 		}
 

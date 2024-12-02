@@ -37,6 +37,7 @@ import static tk.glucodata.GlucoseCurve.STEPBACK;
 import static tk.glucodata.GlucoseCurve.smallfontsize;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MessageSender.initwearos;
+import static tk.glucodata.Natives.hasData;
 import static tk.glucodata.SuperGattCallback.endtalk;
 import static tk.glucodata.util.getlocale;
 
@@ -71,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import tk.glucodata.nums.AllData;
@@ -155,7 +157,7 @@ private void RunOnUiThreader(Runnable action) {
 		action.run();
 		}
 	}
-static public void postDelayed(Runnable action,int mmsecs) {
+static public void postDelayed(Runnable action,long mmsecs) {
           Applic.app.getHandler().postDelayed( action ,mmsecs);
           }
 static  public void RunOnUiThread(Runnable action) {
@@ -356,7 +358,6 @@ void initbluetooth(boolean usebluetooth,Context context,boolean frommain) {
 			else
 				Log.i(LOG_ID,"keeprunning not started="+keeprunning.started);
 			if(frommain)
-			//	explicit((MainActivity)context);
 				((MainActivity)context).askNotify();
 			}
 		}
@@ -374,7 +375,7 @@ public static boolean hasip() {
 	}
 //@RequiresApi(api = Build.VERSION_CODES.M)
 private static boolean hasonAvailable=false;
-
+/*
 public static void sendsettings() {
 	  Log.i(LOG_ID,"sendsettings");
 	     if(!MessageSender.cansend()) {
@@ -385,7 +386,7 @@ public static void sendsettings() {
 		if(sender!=null) {
 			sender.sendsettings();
 			}
-		}
+		} */
 
 static public boolean useWearos() {
 	if(isWearable)
@@ -399,18 +400,18 @@ private void initialize() {
 			connectivityManager.registerNetworkCallback((new NetworkRequest.Builder()).build(), new ConnectivityManager.NetworkCallback() {
 		@Override
 		public void onAvailable(Network network) {
-			   hasonAvailable=true;
-		      Log.i(LOG_ID, "network: onAvailable(" + network+")");
-            if(useWearos()||hasip()) {
-                  Natives.networkpresent();
-     			      MessageSender.reinit();
-                   if(useWearos()) {
-                     MessageSender.sendnetinfo();
-					   Applic.scheduler.schedule(()-> { resetWearOS(); }, 20, TimeUnit.SECONDS);
-                       }
-   		 		Applic.wakemirrors();
-			      }
-		      }
+		   hasonAvailable=true;
+		   Log.i(LOG_ID, "network: onAvailable(" + network+")");
+		   if(useWearos()||hasip()) {
+		     Natives.networkpresent();
+		     MessageSender.reinit();
+			if(useWearos()) {
+			   MessageSender.sendnetinfo();
+			   Applic.scheduler.schedule(()-> { resetWearOS(); }, 20, TimeUnit.SECONDS);
+			   }	
+			  Applic.wakemirrors();
+		    }
+		}
 		@Override
 		public void onUnavailable () {
 			Log.i(LOG_ID,"network: onUnavailable()");
@@ -479,20 +480,7 @@ void domintime() {
 	}
 }
     static final ScheduledExecutorService scheduler =Executors.newScheduledThreadPool(1);
-	/*
-     final Runnable mintimer = () -> {
-     	domintime();
-      };
-     ScheduledFuture<?> mintimeHandle;
-    void setmintime() {
-        final long minute=1000*60;
-        long onderm=currentTimeMillis()%minute;
-        long delay = minute-onderm;
-        mintimeHandle  = scheduler.scheduleAtFixedRate(mintimer, delay,minute ,TimeUnit.MILLISECONDS);
-        }
-    void cancelmintime() {
-        mintimeHandle.cancel(false);
-        } */
+
 void setmintime() {
   registerReceiver(minTimeReceiver, mintimefilter);   
   }
@@ -507,6 +495,7 @@ void startstrictmode() {
 		}
 	}*/
 static boolean initproccalled=false;
+static boolean initStarted=false;
 /*
 public static void initwearos(Context app) {
 	Log.i(LOG_ID,"before new MessageSender");
@@ -514,12 +503,9 @@ public static void initwearos(Context app) {
 	Log.i(LOG_ID,"before sendnetinfo");
 	MessageSender.sendnetinfo();
 	}*/
+static boolean dataAtStart=false;
 boolean initproc() {
 	if(!initproccalled) {
-
-//		DisplayMetrics metrics= getResources().getDisplayMetrics();
-	//	initscreenwidth= metrics.widthPixels;
-	//	Log.i("Applic","initproc width="+initscreenwidth);
 		if(!numio.setlibrary(this))
 			return false;
 		if(isWearable) {
@@ -538,12 +524,24 @@ boolean initproc() {
 		Maintenance.setMaintenancealarm(this);
 		initbroadcasts();
 		initproccalled=true;
-		MessageSender.sendnetinfo();
+		if(isWearable&&!(dataAtStart=hasData())) {
+		  final ScheduledFuture<?>[] askstarthandle={null};
+			askstarthandle[0] = scheduler.scheduleWithFixedDelay(()->{
+		     if(initStarted) {
+				 if(askstarthandle[0]!=null)
+					   askstarthandle[0].cancel(false);
+		       return;
+		       }
+		     else
+				MessageSender.sendaskforstart();
+		      }, 4, 30,TimeUnit.SECONDS);
+		  }
+		else 
+		   MessageSender.sendnetinfo();
 		Specific.start(this);
 		if(isWearable) {
 			 tk.glucodata.glucosecomplication.GlucoseValue.updateall();
 			 }
-//      Sibionics.testsibionics();
 		}
 	return true;
 	}
@@ -573,14 +571,15 @@ public static	int stopprogram=0;
 	}
 
 //static public int backgroundcolor= BLACK;
-static public int backgroundcolor= RED;
+static public int backgroundcolor= isWearable?BLACK:RED;
 void setbackgroundcolor(Context context) {
+if(!isWearable) {
    if(Build.VERSION.SDK_INT >= 21) {
 	    TypedValue typedValue = new TypedValue();
 	    if(context.getTheme().resolveAttribute(android.R.attr.windowBackground, typedValue, true) && typedValue.type >= TypedValue.TYPE_FIRST_COLOR_INT && typedValue.type <= TypedValue.TYPE_LAST_COLOR_INT) 
 		backgroundcolor= typedValue.data;
 		}
-     	
+     }	
     }
 
 //static private Runnable updater=null;
@@ -604,8 +603,8 @@ static float headfontsize;
 
 boolean needsnatives() {
   Log.i(LOG_ID,"needsnatives");
-	final var res=getResources();
-   var metrics=GlucoseCurve.metrics= res.getDisplayMetrics();
+  final var res=getResources();
+  var metrics=GlucoseCurve.metrics= res.getDisplayMetrics();
   MainActivity.screenheight= metrics.heightPixels; 
   MainActivity.screenwidth= metrics.widthPixels;
   Log.i(LOG_ID,"heightPixels="+GlucoseCurve.metrics.heightPixels+" widthPixels="+GlucoseCurve.metrics.widthPixels);
@@ -624,17 +623,17 @@ boolean needsnatives() {
          }
 	else
 	   ret=false;
-	initscreenwidth=newinitscreenwidth;
-	Log.i(LOG_ID,"initscreenwidth="+newinitscreenwidth);
-	Log.i(LOG_ID,"menufontsize="+menufontsize);
-	Log.i(LOG_ID,"screensize="+screensize);
-	headfontsize = res.getDimension(R.dimen.abc_text_size_display_4_material);
-	Notify.glucosesize= headfontsize*.35f;
-	smallfontsize = res.getDimension(R.dimen.abc_text_size_small_material);
-	Natives.setfontsize(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
+     initscreenwidth=newinitscreenwidth;
+     Log.i(LOG_ID,"initscreenwidth="+newinitscreenwidth);
+     Log.i(LOG_ID,"menufontsize="+menufontsize);
+     Log.i(LOG_ID,"screensize="+screensize);
+     headfontsize = res.getDimension(R.dimen.abc_text_size_display_4_material);
+     Notify.glucosesize= headfontsize*.35f;
+     smallfontsize = res.getDimension(R.dimen.abc_text_size_small_material);
+     Natives.setfontsize(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
    Notify.mkpaint();
-	return ret;
-	}
+     return ret;
+     }
    /*
 @Keep
 static void toCalendar(String name) {
@@ -751,6 +750,14 @@ static public void speak(String message) {
 	}
 static public boolean getHeartRate() {
 	return initproccalled&&Natives.getheartrate();
+	}
+@Keep
+static void setinittext(String str) {
+   RunOnUiThread(()-> {Specific.settext(str);});
+	}
+@Keep
+static void rminitlayout() {
+	 RunOnUiThread(()-> {Specific.rmlayout();});
 	}
 }
 

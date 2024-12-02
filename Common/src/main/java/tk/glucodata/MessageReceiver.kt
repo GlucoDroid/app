@@ -35,101 +35,127 @@ import tk.glucodata.Natives.setWearosdefaults
 class MessageReceiver: WearableListenerService() {
     override fun onMessageReceived(messageEvent: MessageEvent) {
         super.onMessageReceived(messageEvent)
-	val data= messageEvent.getData();
+		val data= messageEvent.getData();
         val path= messageEvent.path
         Log.i(LOG_ID,"onMessageReceived start $path"  )
         when(path) {
-	    MessageSender.DEFAULTS_PATH ->  {
-		val sender = tk.glucodata.MessageSender.getMessageSender()
-		if (sender == null) {
-			Log.d(LOG_ID, "messagesender==null")
-			return
-			}
-		var source=  sender.localnode
-		  Log.i(LOG_ID,"path==MessageSender.DEFAULTS_PATH "+source );
-		  setWearosdefaults(source,true);
-		   val context=if(MainActivity.thisone==null)Applic.app;else MainActivity.thisone;
-		   Applic.setbluetooth(context,false)
-		 }
-	    MessageSender.WAKE_PATH -> {
-		Natives.wakehereonly()
-	    	}
-	    MessageSender.WAKESTREAM_PATH -> {
-		Natives.wakestreamhereonly()
-	    	}
-	    MessageSender.DATA_PATH   -> {
-            Natives.message(data);
-	    }
-	    MessageSender.NET_PATH   -> {
-			val sender = tk.glucodata.MessageSender.getMessageSender()
-			if (sender == null) {
-				Log.d(LOG_ID, "messagesender==null")
-				return
-			}
-			val nodes = sender.nodes
-			if (nodes == null || nodes.isEmpty()) {
-				Log.e(LOG_ID, "no nodes")
-				MessageSender.scope.launch {
-					sender.findWearDevicesWithApp()
-				}
-				return
-			}
-			val sourceId = messageEvent.getSourceNodeId()
-			var name: String
-			var galaxy: Boolean
-			if (isWearable) {
-				name = sender.localnode
-				galaxy = true;
-			} else {
-				name = sourceId
-				val it = sender.findnodeid(sourceId)
-				if (it < 0)
+			MessageSender.DEFAULTS_PATH ->  {
+				val sender = tk.glucodata.MessageSender.getMessageSender()
+				if (sender == null) {
+					Log.d(LOG_ID, "messagesender==null")
 					return
-				val node: Node = nodes.elementAt(it)
-				galaxy = isGalaxy(node)
+					}
+				var source=  sender.localnode
+				  Log.i(LOG_ID,"path==MessageSender.DEFAULTS_PATH "+source );
+				  setWearosdefaults(source,true);
+				   val context=if(MainActivity.thisone==null)Applic.app;else MainActivity.thisone;
+				   Applic.setbluetooth(context,false)
+				 }
+			MessageSender.WAKE_PATH -> {
+				Natives.wakehereonly()
+				}
+			MessageSender.WAKESTREAM_PATH -> {
+				Natives.wakestreamhereonly()
+				}
+			MessageSender.DATA_PATH   -> {
+				Natives.message(data);
 			}
-			if (name == null)
-				return
+			MessageSender.NET_PATH   -> {
+				val sender = tk.glucodata.MessageSender.getMessageSender()
+				if (sender == null) {
+					Log.d(LOG_ID, "messagesender==null")
+					return
+				}
+				val nodes = sender.nodes
+				if(nodes == null || nodes.isEmpty()) {
+					Log.e(LOG_ID, "no nodes")
+					MessageSender.scope.launch {
+						sender.findWearDevicesWithApp()
+					}
+					return
+				}
+				val sourceId = messageEvent.getSourceNodeId()
+				var name: String
+				var galaxy: Boolean
+				if (isWearable) {
+					name = sender.localnode
+					galaxy = true;
+				} else {
+					name = sourceId
+					val it = sender.findnodeid(sourceId)
+					if (it < 0)
+						return
+					val node: Node = nodes.elementAt(it)
+					galaxy = isGalaxy(node)
+				}
+				if (name == null)
+					return
 
 
-			if (Natives.setmynetinfo(name, data, galaxy)) {
-				sendnetinfo(sourceId)
+				if(Natives.setmynetinfo(name, data, galaxy)) {
+					sendnetinfo(sourceId)
+				}
 			}
-		}
-		MessageSender.START_PATH ->  {
-		  if(isWearable)
-			   UseWifi.usewifi()
-		   Natives.ontbytesettings(data)
-		   Notify.mkunitstr(Applic.app,Natives.getunit())
-		sendnetinfo(messageEvent.getSourceNodeId())
-		}
-		 MessageSender.SETTINGS_PATH   -> {
-			 Natives.ontbytesettings(data)
-        		Notify.mkunitstr(Applic.app,Natives.getunit())
+			MessageSender.START_PATH ->  {
+			   if(isWearable)
+				  UseWifi.usewifi()
+            Applic.setinittext(Applic.app.getString(R.string.connected));
+			   Applic.initStarted=Natives.ontbytesettings(data)
+			   Notify.mkunitstr(Applic.app,Natives.getunit())
+			   sendnetinfo(messageEvent.getSourceNodeId())
 			}
-		 MessageSender.MESSAGES_PATH -> {
-			 val sender=tk.glucodata.MessageSender.getMessageSender()
-			 if(sender==null) {
-				 Log.d(LOG_ID,"2: messagesender==null")
-				 return
-			 }
-			 val sourceId= messageEvent.getSourceNodeId()
-			 val name:String=(if(isWearable) sender.localnode; else sourceId)?:return
-			val on=booldata(data)
-			Natives.setBlueMessage(name,on)
-		 	}
-		 MessageSender.BLUETOOTH_PATH -> {
-		 	val context=if(MainActivity.thisone==null)Applic.app;else MainActivity.thisone;
-			val on=booldata(data)
-			Log.i(LOG_ID,"set bluetooth $on  ${data[0]}");
-			Applic.setbluetooth(context,on )
-		 	}
+			 MessageSender.SETTINGS_PATH   -> { //Never used
+				 Natives.ontbytesettings(data)
+					Notify.mkunitstr(Applic.app,Natives.getunit())
+				}
+			 MessageSender.MESSAGES_PATH -> {
+				 val sender=tk.glucodata.MessageSender.getMessageSender()
+				 if(sender==null) {
+					 Log.d(LOG_ID,"2: messagesender==null")
+					 return
+				 }
+				 val sourceId= messageEvent.getSourceNodeId()
+				 val name:String=(if(isWearable) sender.localnode; else sourceId)?:return
+				val on=booldata(data)
+				Natives.setBlueMessage(name,on)
+				}
+			 MessageSender.BLUETOOTH_PATH -> {
+				val context=if(MainActivity.thisone==null)Applic.app;else MainActivity.thisone;
+				val on=booldata(data)
+				Log.i(LOG_ID,"set bluetooth $on  ${data[0]}");
+				Applic.setbluetooth(context,on )
+				}
+			 MessageSender.ASKFORSTART_PATH -> {
+				 if(!isWearable) {
+					 val sender = tk.glucodata.MessageSender.getMessageSender()
+					 if (sender == null) {
+						 Log.d(LOG_ID, "3: messagesender==null")
+						 return
+					 }
+					 val sourceId = messageEvent.sourceNodeId
+					 val it = sender.findnodeid(sourceId)
+					 if (it < 0) {
+						 Log.e(LOG_ID, "sender.findnodeid(sourceId)<0")
+						 return
+					 }
+					 val nodes = sender.nodes
+					 if (nodes.isNullOrEmpty()) {
+						 Log.e(LOG_ID, "3: no nodes")
+						 MessageSender.scope.launch {
+							 sender.findWearDevicesWithApp()
+						 }
+						 return;
+					 }
+					 val node: Node = nodes.elementAt(it)
+					 Wearos.sendinitwatchapp(node);
+				 }
+			   }
 	    }
         Log.i(LOG_ID,"onMessageReceived end $path"  )
       }
 
-    companion object {
-        private const val LOG_ID = "MessageReceiver"
+ companion object {
+   private const val LOG_ID = "MessageReceiver"
 	private const val offbyte:Byte=0
 	fun booldata(data:ByteArray):Boolean {
 		return data[0]!=offbyte

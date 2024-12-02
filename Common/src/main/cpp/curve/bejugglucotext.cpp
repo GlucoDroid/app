@@ -164,7 +164,11 @@ jugglucotext betext {
 .RisingQuickly="Хутка падымаецца",
 //.sibionics="Sibionics",
 #endif
-        .receivingpastvalues="Атрыманне старых значэнняў"
+        .receivingpastvalues="Атрыманне старых значэнняў",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 		}
 
 

@@ -1,3 +1,10 @@
+#ifdef WEAROS
+#define NOCUTOFF 1
+#endif
+
+#ifndef NOLOG
+//#define TEST 1
+#endif
 /*      This file is part of Juggluco, an Android app to receive and display         */
 /*      glucose values from Freestyle Libre 2 and 3 sensors.                         */
 /*                                                                                   */
@@ -450,7 +457,11 @@ LOGGER("density=%.1f, head=%.1f, small=%.1f\n",(double)density,(double)head,(dou
 historyStrokeWidth=3*density;
 numcircleStrokeWidth=5/2*density;
 lowGlucoseStrokeWidth=2.5*density;
+#ifndef TEST
 pollCurveStrokeWidth=3*density;
+#else
+pollCurveStrokeWidth=10*density;
+#endif
 hitStrokeWidth=10*density;
 TrendStrokeWidth=15/2*density;
 glucoseLinesStrokeWidth=1.5*density;
@@ -1537,7 +1548,9 @@ const displaytime getdisplaytime(const uint32_t nu,const uint32_t starttime,cons
 static bool timemiddle() {
    return false;
    }
-
+#ifdef NOCUTOFF
+static bool nocutoff=true;
+#endif
 template <class LT>
 void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
 
@@ -1558,8 +1571,10 @@ void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
 	   nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE);
 	   timeY=(dheight-statusbarheight-dbottom)*.5f+statusbarheight;
 #ifdef NOCUTOFF
+if(nocutoff) {
       lower=timelen*.5f;
       upper=dwidth-lower;
+      }
 #endif
       }
    else {
@@ -1572,11 +1587,13 @@ void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
    statusbarheight
       ;
 #ifdef NOCUTOFF
-      float straal=dwidth*.5f;
-      float over=straal-timeY;
-      lower=straal-sqrt(pow(straal,2)-pow(over,2))+timelen*.4f;
-      upper=dwidth-lower;
-      LOGGER("lower=%f upper=%f over=%f\n",lower,upper,over);
+   if(nocutoff) {
+         float straal=dwidth*.5f;
+         float over=straal-timeY;
+         lower=straal-sqrt(pow(straal,2)-pow(over,2))+timelen*.4f;
+         upper=dwidth-lower;
+         LOGGER("lower=%f upper=%f over=%f\n",lower,upper,over);
+      }
 #endif
       }
 	for(auto tim=first;tim<=last;tim+=tstep) {
@@ -1603,7 +1620,7 @@ void timelines(const displaytime *disp, const LT &transx ,uint32_t nu) {
 	#ifdef WEAROS
 		 if(tim<=numlast
 #ifdef NOCUTOFF
-       &&dtim>lower&&dtim<upper
+      &&(!nocutoff||(dtim>lower&&dtim<upper))
 #endif
        )  
 	#endif
@@ -1958,9 +1975,9 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
 		else {
 			LOGSTRING("poll==null\n");
          if(hist->notchinese()) {
-             const char eusibinics[]="Unsupported Sibionics Sensor";
-	     nvgText(genVG,getx ,gety, eusibinics, eusibinics+sizeof(eusibinics)-1);
-	    otherproblem=true;
+             const auto eusibinics=usedtext->unsupportedSibionics;
+             nvgText(genVG,getx ,gety, eusibinics.data(), eusibinics.data()+eusibinics.size());
+             otherproblem=true;
             }
        else {
 	       time_t starttime=hist->getstarttime();
@@ -1975,8 +1992,8 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
              getboxwidth(usegetx);
              const char *bufptr;
              int ends;
-             if(hist->isSibionics()) {
-                static constexpr const std::string_view siwait{"Waiting for connection"sv};
+             if(hist->isSibionics()||(hist->isDexcom()&&!hist->sensorerror)) {
+                const auto siwait=usedtext->waitingforconnection;
                 bufptr=siwait.data();
                 ends=siwait.size();
                 }
@@ -2294,6 +2311,10 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
    bool sibionics[histlen];
 #endif
 	LOGSTRING("before getranges\n");
+#ifdef NOCUTOFF
+   if(histlen)
+      nocutoff=false;
+#endif
 	for(int i=histlen-1;i>=0;--i) {
 		auto his=sensors->getSensorData(hists[i]);
 		if(!his)  {
@@ -2678,73 +2699,84 @@ static bool dohealth(int sensorindex) {
     return false;
 }
 #include "EverSense.hpp"
-void     processglucosevalue(int sendindex,int newstart) {
-//	if(!streamvalueshown) return;
-
 extern	bool hasnotiset();
+void     processglucosevalue(int sendindex,int newstart) {
 	if(settings) {
-		if(!sensors)
-			return;
-		if(SensorGlucoseData *hist=sensors->getSensorData(sendindex)) {
-			if(newstart>=0) {
-			   LOGGER("newstart=%d previous=%d\n",newstart,hist->previousstream);
-			   hist->backstream(newstart);
-			   if(newstart<=hist->previousstream) {
-			       hist->previousstream=newstart;
-			       sendEverSenseold(hist,5/hist->streaminterval());
-			       return;
-			       }
-			   if(hist->previousstream==-1) {
-			       sendEverSenseold(hist,5/hist->streaminterval());
-			       }
-			    hist->previousstream=newstart;
-			    }
-			else
-			   hist->previousstream=hist->pollcount()-1;
-			if(const ScanData *poll=hist->lastpoll()) {
-				const time_t tim=poll->t;
-				if(!poll->valid()) {
-					LOGGER("invalid value %s ",ctime(&tim));
-					return;
-					}
-				const time_t nutime=time(nullptr);
-				const int dif=nutime-tim;
-				if(dif<maxbluetoothage) {
-					if(!usedsensors.size())
-						setusedsensors(nutime);
+	     if(!sensors)
+		     return;
+	     if(SensorGlucoseData *hist=sensors->getSensorData(sendindex)) {
+		     if(newstart>=0) {
+               LOGGER("newstart=%d previous=%d\n",newstart,hist->previousstream);
+               hist->backstream(newstart);
+               if(newstart<=hist->previousstream) {
+                   hist->previousstream=newstart;
+                   sendEverSenseold(hist,5/hist->streaminterval());
+                   return;
+                   }
+               if(hist->previousstream==-1) {
+                   sendEverSenseold(hist,5/hist->streaminterval());
+                   }
+                hist->previousstream=newstart;
+                }
+		     else
+                  hist->previousstream=hist->pollcount()-1;
+		     if(const ScanData *poll=hist->lastpoll()) {
+			     const time_t tim=poll->t;
+			     if(!poll->valid()) {
+				     LOGGER("invalid value %s ",ctime(&tim));
+				     return;
+				     }
+			     const time_t nutime=time(nullptr);
+			     const int dif=nutime-tim;
+			     if(dif<maxbluetoothage) {
+				     if(!usedsensors.size())
+					     setusedsensors(nutime);
 
 
-					const float glu= gconvert(poll->g*10);
-					const int alarm=getalarmcode(poll->g,hist);
-					
-					sensor *senso=sensors->getsensor(sendindex);
-				        bool wasnoblue=settings->data()->nobluetooth;
-					int64_t startsensor=hist->getstarttime()*1000LL;
-					LOGGER("processglucosevalue finished=%d,doglucose(%s,%d,%f,%f,%d,%lld,%d,%lld)\n", senso->finished,hist->shortsensorname()->data(),poll->g,glu,poll->ch,alarm,tim*1000LL,wasnoblue,startsensor);
-					if(senso->finished) {
-						senso->finished=0;
-						backup->resensordata(sendindex);
-						}
-					settings->data()->nobluetooth=true;
-					float rate=poll->ch;
+				     const float glu= gconvert(poll->g*10);
+				     const int alarm=getalarmcode(poll->g,hist);
+				     
+				     sensor *senso=sensors->getsensor(sendindex);
+				     bool wasnoblue=settings->data()->nobluetooth;
+				     int64_t startsensor=hist->getstarttime()*1000LL;
+				     LOGGER("processglucosevalue finished=%d,doglucose(%s,%d,%f,%f,%d,%lld,%d,%lld)\n", senso->finished,hist->shortsensorname()->data(),poll->g,glu,poll->ch,alarm,tim*1000LL,wasnoblue,startsensor);
+				     if(senso->finished) {
+					     senso->finished=0;
+					     backup->resensordata(sendindex);
+					     }
+				     settings->data()->nobluetooth=true;
+				     float rate=poll->ch;
 extern void telldoglucose(const char *name,int32_t mgdl,float glu,float rate,int alarm,int64_t mmsec,bool wasnoblue,int64_t startsensor,intptr_t) ;
 
-					telldoglucose(hist->shortsensorname()->data(),poll->g,glu,rate,alarm,tim*1000LL,wasnoblue,startsensor,dohealth(sendindex)?reinterpret_cast<intptr_t>(hist):0LL);
+				     telldoglucose(hist->shortsensorname()->data(),poll->g,glu,rate,alarm,tim*1000LL,wasnoblue,startsensor,dohealth(sendindex)?reinterpret_cast<intptr_t>(hist):0LL);
 
-				//	wakeuploader();
+			     //	wakeuploader();
 extern				void wakewithcurrent();
-					wakewithcurrent();
+				     wakewithcurrent();
 
-					}
-				else {
-					LOGGER("processglucosevalue too old %s ",ctime(&tim));
-					LOGGER("dist=%d, dif=%d nu %s",maxbluetoothage,dif,ctime(&nutime));
-					}
-				}
-			}
-		else {
-			LOGGER("processglucosevalue no sensor %d\n",sendindex);
-			}
+				     }
+			     else {
+				     LOGGER("processglucosevalue too old %s ",ctime(&tim));
+				     LOGGER("dist=%d, dif=%d nu %s",maxbluetoothage,dif,ctime(&nutime));
+				     }
+			     }
+		     }
+	     else {
+             LOGGER("processglucosevalue no sensor %d\n",sendindex);
+#ifdef WEAROS
+	     	 static int wassensor=(settings->setranges(3*180,12*180,39*18,10*180),-1);
+             if(sendindex>wassensor) {
+                 wassensor=sendindex;
+                extern void setInitText(const char *message);
+                constexpr const int maxbuf=50;
+                char buf[maxbuf];
+                const std::string_view sensor= usedtext->menustr0[1];
+               memcpy(buf,sensor.data(),sensor.size());
+                snprintf(buf+sensor.size(),maxbuf-sensor.size()," %d", wassensor+1);
+                setInitText(buf);
+                }
+#endif
+		 }
 		}
 
 	}

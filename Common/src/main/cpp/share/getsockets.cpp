@@ -47,6 +47,7 @@ static int32_t getadbuid() {
 		lerror("socket failed");
 		return adbuid;
 		}
+	destruct _des([sock]{close(sock);});
 	struct sockaddr_un adb {.sun_family=AF_UNIX,.sun_path{"\0jdwp-control"}};
 
 	 if(connect(sock, (const struct sockaddr *) &adb,15)) {
@@ -62,7 +63,6 @@ static int32_t getadbuid() {
 		return adbuid;
 	 	}
 
- 	close(sock);
 	return adbgegs.uid;
 	}
 

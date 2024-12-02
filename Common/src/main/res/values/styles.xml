@@ -23,5 +23,8 @@
 <style name="MyTextViewStyle" parent="android:Widget.TextView">
     <item name="android:paddingRight">20dp</item>
 </style>
+
+
+
 </resources>
 

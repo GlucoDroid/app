@@ -668,6 +668,7 @@ bool encrypt8AES(const uint8_t *keybytes,const uint8_t *data,unsigned char *uit)
    std::copy_n(data,8,doubleData);
    std::copy_n(data,8,doubleData+8);
    AES_KEY key; 
+   showhex("sharedkey: ",keybytes,16);
    if(AES_set_encrypt_keyptr(keybytes, 128, &key))
       return false;
    AES_encryptptr(doubleData, doubleData, &key);

@@ -115,7 +115,7 @@ jugglucotext pltext {
 		"Na głos",
 		"Pływ. wart."
 		},
-	.menustr2= {"Ostatni odczyt",
+	.menustr2= {"Ostatni skan",
 	"Skany",
 	"Strumień",
 	"Historia",
@@ -172,8 +172,7 @@ hourminstr,
 			"Zrób coś"},
 		{"Procedura trwa zbyt długo",
 			"Zamykam program"},
-		{"Wymień sensor (365)",
-			"Twój sensor nie działa. Usuń ten sensor i uruchom nowy."},
+		{"Wymień sensor (365)", "Twój sensor nie działa. Usuń ten sensor i uruchom nowy."},
 		{"Wymień sensor (368)",
 			"Twój sensor nie działa. Usuń ten sensor i uruchom nowy."},
 		{"",
@@ -184,7 +183,7 @@ hourminstr,
 .libre3scanerror={"FreeStyle Libre 3, Błąd skanowania", 
 	"Spróbuj ponownie"},
 .libre3wrongID={"Błąd, niepoprawny nr ID konta?",
-	"W menu Ustawienia ->Libreview wpisz to samo konto, które zostało użyte do aktywacji sensora"},
+	R"(Powinien być taki sam jak podczas aktywacji sensora. Naciśnij Lewe menu->Ustawienia->Libreview->"Pobierz identyfikator konta", aby pobrać go z Libreview)"},
 .libre3scansuccess={"Sensor FreeStyle Libre 3", 
 	"Wartości stężenia glukozy będą teraz odbierane przez Juggluco"},
 .unknownNFC={"Nieznany błąd skanowania NFC", 
@@ -212,7 +211,11 @@ hourminstr,
 .Rising="Wzrost",
 .RisingQuickly="Szybki wzrost",
 #endif
-.receivingpastvalues="Odbieranie starych wartości"
+.receivingpastvalues="Odbieranie starych wartości",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 
 		}
 

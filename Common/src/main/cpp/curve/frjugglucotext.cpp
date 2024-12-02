@@ -181,7 +181,11 @@ requis. Dans votre cas le fichier suivant pose problème )",
 .Rising="Augmentation",
 .RisingQuickly="Augmentation rapide",
 #endif
-        .receivingpastvalues="Receiving old values"
+        .receivingpastvalues="Receiving old values",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 		}
 
 

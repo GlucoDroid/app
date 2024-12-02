@@ -1324,3 +1324,7 @@ extern "C" JNIEXPORT jint JNICALL   fromjava(getinfogen)(JNIEnv *env, jclass _cl
 	return gen;
 	}
 
+
+extern "C" JNIEXPORT jboolean JNICALL   fromjava(hasData)(JNIEnv *env, jclass _cl) {
+   return sensors->last()>=0||settings->getlabelcount()>0;
+   }

@@ -34,6 +34,10 @@
 #include <stdlib.h>
 
 #include <jni.h>
+
+inline int mytag() {
+   return 0;
+   }
 constexpr const char defaultport[]{
 #ifdef RELEASEID
 "8795"
@@ -156,11 +160,12 @@ void close() {
        LOGGER("updateone close(%d)\n",so);
        if(so>=0) {
 //		mirrorstatus[allindex].sensor.hassocket=false;
-		setsock(-1);
-		::close(so);
-		if(crypt_t *ctx=getcrypt()) {
-			ascon_aead_cleanup(ctx);
-			}
+         setsock(-1);
+//         if(get_owner_tag(so)==mytag()) 
+            ::close(so);
+         if(crypt_t *ctx=getcrypt()) {
+            ascon_aead_cleanup(ctx);
+            }
 		}
 	}
 
@@ -449,7 +454,8 @@ void deletehost(int index) {
 		if(sock>=0) {
 			LOGGER("%d: close(%d)\n",index,sock);
 			::shutdown(sock,SHUT_RDWR);
-			close(sock);
+        // if(get_owner_tag(sock)==mytag()) 
+			::close(sock);
 			hostsocks[index]=-1;
 			}
 		}
@@ -914,12 +920,13 @@ void deactivateHost(int index,bool deactive) {
 			::shutdown(hostsocks[index],SHUT_RDWR);
 			}
 		else {
-			if(host.receivefrom) {
-				int sock=hostsocks[index];
-				if(sock>=0) {
-					LOGGER("%d: close(%d)\n",index,sock);
+		    if(host.receivefrom) {
+			int sock=hostsocks[index];
+			if(sock>=0) {
+				LOGGER("%d: close(%d)\n",index,sock);
 					::shutdown(sock,SHUT_RDWR);
-					close(sock);
+//             if(get_owner_tag(sock)==mytag()) 
+				       ::close(sock);
 					hostsocks[index]=-1;
 					}
 				}

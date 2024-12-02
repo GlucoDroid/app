@@ -26,6 +26,8 @@
 #include <string_view>
 #include <span>
 
+using namespace std::literals;
+
 struct Shortcut_t {const char name[12];const float value;} ;
 constexpr int hourminstrlen=25;
 extern char hourminstr[hourminstrlen];
@@ -98,6 +100,9 @@ std::string_view trends[6];
 std::string_view sibionics;
 #endif
 std::string_view receivingpastvalues;
+std::string_view receivingdata;
+std::string_view unsupportedSibionics;
+std::string_view waitingforconnection;
 };
 
 extern jugglucotext *usedtext;

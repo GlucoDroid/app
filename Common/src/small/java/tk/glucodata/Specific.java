@@ -26,4 +26,7 @@ static void start(Object context) { }
 
 static    void splash(Object act) {
       }
+      static void initScreen(Object obj) {}
+      static void settext(String str) {}
+static void      rmlayout() {}
 };

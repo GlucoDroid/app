@@ -47,6 +47,7 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -74,26 +75,52 @@ static public void show(MainActivity act,View view) {
 	view.setVisibility(INVISIBLE);
 	int height=GlucoseCurve.getheight();
 	int width=GlucoseCurve.getwidth();
-	var  sizelabel=getlabel(act,R.string.fontsizeshort);
+   final String fontstring=Applic.app.getString(R.string.fontsizeshort)+ " ";
+	var  sizelabel=getlabel(act,fontstring);
 
+   int maxfont=Math.min(height*7/10,width*4/10);
 	int pad=height/14;
 	sizelabel.setPadding(pad,0,0,0);
+	int currentfont=Natives.getfloatingFontsize();
+   SeekBar fontsizeview=new SeekBar(act);
+      fontsizeview.setMax((int)(maxfont*100.0));
+      fontsizeview.setProgress((int)(currentfont*100.0));
+//      var fwidth=(int)(width*0.8f);
+      fontsizeview.setMinimumWidth(width);
+      final int minimumvalue=500;
+      fontsizeview.setMin(minimumvalue);
+      fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+	  @Override
+	  public  void onProgressChanged (SeekBar seekBar, int progress, boolean fromUser) {
+//         int newprogress=progress+minimumvalue; 
+	     var siz=(int)Math.round(progress/100.0);
+//	    if(doLog) sizelabel.setText(fontstring+siz);
+	    Natives.setfloatingFontsize(siz);
+	    rewritefloating(act);
+		  }
+		@Override
+		public void onStartTrackingTouch(SeekBar seekBar) {
+			Log.i(LOG_ID,"onStartTrackingTouch");
+			}
+		@Override
+		public void onStopTrackingTouch(SeekBar seekBar) {
+			}
+		});
+  /* 
 	var  sizeview= new EditText(act);
-              sizeview.setImeOptions(editoptions);
-                sizeview.setMinEms(2);
-                sizeview.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+  sizeview.setImeOptions(editoptions);
+    sizeview.setMinEms(2);
+    sizeview.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
-	int fontsize=Natives.getfloatingFontsize();
 	sizeview.setText(fontsize+"");
 //	sizeview.setPadding(pad,0,0,0);
-        TextView.OnEditorActionListener  actlist= new TextView.OnEditorActionListener() {
+  TextView.OnEditorActionListener  actlist= new TextView.OnEditorActionListener() {
                     @Override
                     public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                     if (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER || actionId == EditorInfo.IME_ACTION_DONE) {
                                  Log.i(LOG_ID,"onEditorAction");
 				 try {
 					var siz=Integer.parseInt(String.valueOf(v.getText()));
-					int maxfont=Math.min(height*7/10,width*4/10);
 					if(siz>maxfont) {
 						Toast.makeText(act, act.getString(R.string.fonttoolarge)+maxfont, Toast.LENGTH_SHORT).show();
 						return true;
@@ -112,7 +139,7 @@ static public void show(MainActivity act,View view) {
                     return false;
                     }};
 	sizeview.setOnEditorActionListener(actlist);
-
+*/
 
 
 	var touch=Natives.getfloatingTouchable();
@@ -178,7 +205,7 @@ static public void show(MainActivity act,View view) {
 	sizelabel.setMinHeight(labelheight);
      sizelabel.setMinimumHeight(labelheight);
      */
-	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{sizelabel,sizeview,hide}, new View[]{timeshow,transparentview}, new View[]{foreground,backgroundview},new View[]{close});
+	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{transparentview},new View[]{sizelabel},new View[]{ fontsizeview},new View[]{timeshow,hide}, new View[]{foreground,backgroundview},new View[]{close});
 	layout.setPadding(0,(int)(tk.glucodata.GlucoseCurve.metrics.density*2.0),0,0);
 	transparentview.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
 		background=true;
@@ -203,15 +230,14 @@ static public void show(MainActivity act,View view) {
 		rewritefloating(act);
 
 		});
-/*
+
    var scroll=new ScrollView(act);
 	scroll.setFillViewport(true);
 	scroll.setSmoothScrollingEnabled(false);
    scroll.setScrollbarFadingEnabled(true);
    scroll.setVerticalScrollBarEnabled(true);
    scroll.addView(layout);
-   */
-	       act.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
+    act.addContentView(scroll, new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
 	act.setonback(()-> {
 		view.setVisibility(VISIBLE);
 		removeContentView(layout); 

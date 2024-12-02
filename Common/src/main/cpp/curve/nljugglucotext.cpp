@@ -178,7 +178,10 @@ volgende file)",
 .Rising="Stijgt",
 .RisingQuickly="Stijgt snel",
 #endif
-.receivingpastvalues="Oude glucose waarden komen binnen"
+.receivingpastvalues="Oude glucose waarden komen binnen",
+.receivingdata="Gegevens worden ontvangen",
+.unsupportedSibionics="Niet-ondersteunde Sibionics-sensor"sv,
+.waitingforconnection="Wacht op verbinding"sv
 		}
 
 

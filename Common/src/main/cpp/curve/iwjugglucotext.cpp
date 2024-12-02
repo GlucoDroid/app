@@ -219,7 +219,12 @@ iwtext.newamount,
 .Rising="Rising",
 .RisingQuickly="Rising quickly",
 #endif
-.receivingpastvalues="Receiving old values"
+.receivingpastvalues="Receiving old values",
+
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 }
 
 

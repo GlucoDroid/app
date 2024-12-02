@@ -1,6 +1,7 @@
 <resources>
 <string name="IOB" ></string>
 <string name="healthpermission" ></string>
+<string name="displayhelp" ></string>
 <string name="ringtone" ></string>
 <string name="reminders" ></string>
 <string name="connectionoverview" ></string>

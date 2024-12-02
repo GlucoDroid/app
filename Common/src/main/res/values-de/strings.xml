@@ -87,7 +87,7 @@
   <string name="numberlabels">Zahlenetiketten</string>
   <string name="colors">Farben</string>
   <string name="remindersname">Erinnern</string>
-  <string name="display">Anzeigen</string>
+  <string name="display">Anzeige</string>
   <string name="shutcuts">Shortcuts</string>
   <string name="newname">Neu</string>
   <string name="deletelast">Letztes löschen</string>
@@ -344,4 +344,8 @@
    <string name="photo">Foto</string>
 <string name="photomessage">Scannen Sie die Datenmatrix eines Dexcom G7- oder Sibionics-Sensors vom chinesischen Markt.</string>
    <string name="exchanges">Daten austauschen</string>
+
+   <string name="initializing">Initialisierung</string> 
+   <string name="startjuggluco">Juggluco läuft auf dem Telefon?\n\nWLAN und Bluetooth aktiviert?</string>
+   <string name="connected">Verbunden!</string> 
 </resources>

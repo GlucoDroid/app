@@ -657,6 +657,15 @@ Log.i(LOG_ID, "getdateviewal");
 		dater.date(year,month,day);
 
         });
+	int laypar;
+	if(isWearable) {
+        datepicker=new Layout(activity,
+                (lay, w, h)->{
+			return new int[] {w,h};
+                },new View[]{cancel},new View[] {datepick},new View[] {ok});
+		laypar= MATCH_PARENT;
+		}
+	else {
         datepicker=new Layout(activity,
                 (lay, w, h)->{
 			int height=GlucoseCurve.getheight();
@@ -672,9 +681,11 @@ Log.i(LOG_ID, "getdateviewal");
 
 			return new int[] {w,h};
                 },new View[] {datepick},new View[] {cancel,ok});
+		laypar= WRAP_CONTENT;
+		}
 
-	datepicker.setBackgroundColor( ((Applic)  activity.getApplication()).backgroundcolor);
-        activity.addContentView(datepicker, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+	datepicker.setBackgroundColor( Applic.app.backgroundcolor);
+       activity.addContentView(datepicker, new ViewGroup.LayoutParams(laypar,laypar));
     }
     else {
 	Log.i(LOG_ID, " old");
@@ -734,6 +745,7 @@ void gettimeview(MainActivity activity,Runnable parent) {
 	@SuppressWarnings("deprecation")
 Layout buttonlay;
 public void gettimepicker(MainActivity activity,int hourin, int minin, ObjIntConsumer<Integer> timeset,Runnable onclose) {
+final  boolean buttonsunder=true;
    settime=timeset;
     if(timepicker==null) {
         pick =new TimePicker(activity);
@@ -760,18 +772,28 @@ public void gettimepicker(MainActivity activity,int hourin, int minin, ObjIntCon
 
         });
 	View[][] views;
-	if(smallScreen) {
-		views=new View[][]{new View[]{pick},new View[]{cancel,ok}};
-		}
-	else {
-		buttonlay=new Layout(activity,new View[] {cancel},new View[]{ok});
-		buttonlay.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT , ViewGroup.LayoutParams.MATCH_PARENT));
-	//	buttonlay.setlayoutparams(new viewgroup.layoutparams(   viewgroup.layoutparams.wrap_content, match_parent));
-	  views=new View[][] {new View[] {pick,buttonlay}};
-    //  buttonlay.setPadding(0,MainActivity.systembarTop/2, systembarRight,MainActivity.systembarBottom);
-	 };
+	 int layparwidth,layparheight;
+if(isWearable) {
+		   views=new View[][]{new View[]{cancel},new View[]{pick},new View[]{ok}};
+         layparheight=layparwidth=MATCH_PARENT;
+
+         }
+else {
+   layparheight=ViewGroup.LayoutParams.WRAP_CONTENT;
+	   if(buttonsunder) {
+		   views=new View[][]{new View[]{pick},new View[]{cancel,ok}};
+	      layparwidth=WRAP_CONTENT;
+		   }
+	   else {
+         layparwidth=MATCH_PARENT;
+	      buttonlay=new Layout(activity,new View[] {cancel},new View[]{ok});
+	      buttonlay.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT , ViewGroup.LayoutParams.MATCH_PARENT));
+	     views=new View[][] {new View[] {pick,buttonlay}};
+	    };
+       };
 //		buttonlay.setBackgroundColor( RED);
-	pick.setLayoutParams(new ViewGroup.LayoutParams(smallScreen?WRAP_CONTENT:MATCH_PARENT , ViewGroup.LayoutParams.WRAP_CONTENT));
+//	 var laypar=smallScreen?WRAP_CONTENT:MATCH_PARENT;
+	pick.setLayoutParams(new ViewGroup.LayoutParams(layparwidth ,ViewGroup.LayoutParams.WRAP_CONTENT ));
 //	pick.setLayoutParams(new ViewGroup.LayoutParams(WRAP_CONTENT , ViewGroup.LayoutParams.WRAP_CONTENT));
         Layout layout=new Layout(activity,
 				(lay, w, h)-> {
@@ -797,7 +819,7 @@ public void gettimepicker(MainActivity activity,int hourin, int minin, ObjIntCon
 
 
 		layout.setBackgroundColor( Applic.backgroundcolor);
-        activity.addContentView(layout,  new ViewGroup.LayoutParams(smallScreen?WRAP_CONTENT:MATCH_PARENT, smallScreen?WRAP_CONTENT:MATCH_PARENT));
+        activity.addContentView(layout,  new ViewGroup.LayoutParams(layparwidth,layparwidth));
     //    activity.addContentView(layout,  new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         timepicker=layout;
     }
@@ -808,7 +830,7 @@ public void gettimepicker(MainActivity activity,int hourin, int minin, ObjIntCon
 	}
 
   //    timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
-	if(smallScreen) timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
+	if(buttonsunder) timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
 // timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
 else  {
       pick.setPadding(systembarLeft,MainActivity.systembarTop,0,MainActivity.systembarBottom);

@@ -106,7 +106,10 @@ jclass EverSense;
 jmethodID  sendGlucoseBroadcast=nullptr;
 #endif
 #endif
-
+#ifdef WEAROS
+jmethodID jsetinittext=nullptr;
+jmethodID jrminitlayout=nullptr;
+#endif
 extern void initlibreviewjni(JNIEnv *env);
 
 extern bool jinitmessages(JNIEnv* env);
@@ -198,6 +201,14 @@ if(cl) {
 	if(!(jresetWearOS=env->GetStaticMethodID(JNIApplic,"resetWearOS","()V"))) {
 		LOGAR(R"(jresetWearOS=env->GetStaticMethodID(JNIApplic,"resetWearOS","()V") failed)" "");
 		}
+#ifdef WEAROS
+	if(!(jsetinittext=env->GetStaticMethodID(JNIApplic,"setinittext","(Ljava/lang/String;)V"))) {
+		LOGAR(R"%(jsetinittext=env->GetStaticMethodID(JNIApplic,"setinittext","(Ljava/lang/String;)V)" failed)%" );
+		}
+	if(!(jrminitlayout=env->GetStaticMethodID(JNIApplic,"rminitlayout","()V"))) {
+		LOGAR(R"%(jrminitlayout=env->GetStaticMethodID(JNIApplic,"rminitlayout","()V)" failed)%" );
+		}
+#endif
       /*
 	if(!(jtoCalendar=env->GetStaticMethodID(JNIApplic,"toCalendar","()V"))) {
 		LOGAR(R"(jtoCalendar=env->GetStaticMethodID(JNIApplic,"toCalendar","(Ljava/lang/String;)V") failed)" "");
@@ -697,7 +708,15 @@ defdisplay(meals)
 defdisplay(histories)
 defdisplay(stream)
 defdisplay(numbers)
-
+#ifdef WEAROS
+void setInitText(const char *message) {
+	getenv()->CallStaticVoidMethod(JNIApplic,jsetinittext,getenv()->NewStringUTF(message));
+	}
+bool rmInitLayout() {
+	getenv()->CallStaticVoidMethod(JNIApplic,jrminitlayout);
+   return true;
+	}
+#endif
 void speak(const char *message) {
 	if(message)
 		getenv()->CallStaticVoidMethod(JNIApplic,jspeak,getenv()->NewStringUTF(message));

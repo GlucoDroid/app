@@ -113,11 +113,30 @@ bool hasnotiset() {
 	}
 */
 
-extern "C" JNIEXPORT void  JNICALL   fromjava(setsettings)(JNIEnv *env, jclass cl,jint unit,jfloat glow, jfloat ghigh, jfloat tlow, jfloat thigh) {
-	settings->setunit(unit);
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(setGraphRange)(JNIEnv *env, jclass cl,jfloat glow,jfloat ghigh) {
+	settings->data()->glow=settings->tomgperL(glow);
+	settings->data()->ghigh=settings->tomgperL(ghigh);
+	}
+extern "C" JNIEXPORT void  JNICALL   fromjava(setTargetRange)(JNIEnv *env, jclass cl,jfloat tlow,jfloat thigh) {
+	settings->data()->tlow=settings->tomgperL(tlow);
+	settings->data()->thigh=settings->tomgperL(thigh);
+	}
+/*
+extern "C" JNIEXPORT void  JNICALL   fromjava(setGraphhigh)(JNIEnv *env, jclass cl,jfloat value) {
+	settings->data()->ghigh=settings->tomgperL(value);
+	}
+extern "C" JNIEXPORT void  JNICALL   fromjava(setTargetlow)(JNIEnv *env, jclass cl,jfloat value) {
+	settings->data()->tlow=settings->tomgperL(value);
+	}
+extern "C" JNIEXPORT void  JNICALL   fromjava(setTargethigh)(JNIEnv *env, jclass cl,jfloat value) {
+	settings->data()->thigh=settings->tomgperL(value);
+	} */
+/*
+extern "C" JNIEXPORT void  JNICALL   fromjava(setranges)(JNIEnv *env, jclass cl,jfloat glow, jfloat ghigh, jfloat tlow, jfloat thigh) {
 	settings->setranges( roundf(settings->tomgperL(glow)), roundf(settings->tomgperL(ghigh)), roundf(settings->tomgperL(tlow)), roundf(settings->tomgperL(thigh))) ;
 	}
-/*	
+	
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(toCalendarApp)(JNIEnv *env, jclass cl) {
 	return settings->data()->callapp;
 	}

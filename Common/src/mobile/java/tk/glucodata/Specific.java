@@ -31,5 +31,9 @@ static void start(Application context) {
 	}
 
 static    void splash(Object act) { }
-
+static void settext(String str) {
+   }
+static void    rmlayout() {}
+static void initScreen(Object act) {
+   }
 };

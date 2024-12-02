@@ -164,7 +164,11 @@ jugglucotext uktext {
 .Rising="Підйом",
 .RisingQuickly="Швидко піднімається",
 #endif
-.receivingpastvalues="Отримання старих значень"
+.receivingpastvalues="Отримання старих значень",
+.receivingdata="Receiving data",
+.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
+.waitingforconnection="Waiting for connection"sv
+
 		}
 
 

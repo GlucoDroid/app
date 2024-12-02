@@ -104,7 +104,7 @@ bool savedata(int fp,uint32_t offset, uint32_t len,const unsigned char *data) {
      return true;
      }
 bool close(int fp) {
-   LOGGER("data close %d\n",fp);
+   LOGGER("savedata close %d\n",fp);
 	return ::close(fp)==0;
 
 	}

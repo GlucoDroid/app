@@ -300,8 +300,6 @@ private void sendcertthread() {
                return;
               }
            case RequestAuth: {
-               final var deviceName=mActiveBluetoothDevice.getName();
-               Natives.dexSaveDeviceName(dataptr,deviceName);
                newcertificates=true;
                sleep(40);
                requestAuth();
@@ -403,8 +401,10 @@ private boolean askcertificate(int pha) {
         switch (phase) {
             case RequestAuth: { 
                 byte[] aes = new byte[8];
+                Log.showbytes("random8 ", random8);
                 boolean aesSu = Natives.dex8AES(dataptr, random8, 0, aes, 0);
                 Log.showbytes("dex8AES ", aes);
+                Log.showbytes("value ", value);
                 boolean verified = equalpart(aes, value, 1);
                 Log.i(LOG_ID, "dex8AES(dataptr,random8,aes)=" + aesSu + (verified ? " verified" : " not verified"));
                if(!verified) {
@@ -480,6 +480,8 @@ private boolean askcertificate(int pha) {
             break;
             case SendKeyChallengeOut: {
                Log.i(LOG_ID,"authenticate SendKeyChallengeOut");
+               final var deviceName=mActiveBluetoothDevice.getName();
+               Natives.dexSaveDeviceName(dataptr,deviceName);
                 phase = GetData2; //GetData?
                 write(1, new byte[]{0x06, 0x19});
                 break;
