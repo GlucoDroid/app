@@ -357,5 +357,12 @@
    <string name="text">Tekst</string>
    <string name="arrow">Strzałka</string>
    <string name="notalldata">OSTRZEŻENIE: Opcja &quot;Odbieraj&quot; nie jest włączona bez wysyłania wszystkich danych.</string>
-<string name="libresetalllabels">Opcję &quot;Wysyłaj wartości&quot; można zaznaczyć dopiero po określeniu, co zrobić ze wszystkimi etykietami. Jeśli nie chcesz wysyłać liczb pod daną etykietą do Libreview, zaznacz opcję &quot;Nie wysyłaj&quot;.</string>
+<string name="libresetalllabels">Opcję &quot;Wysyłaj wartości&quot; można zaznaczyć dopiero po określeniu, co należy zrobić z każdą etykietą.</string>
+   <string name="photo">Zeskanuj kod</string>
+   <string name="photomessage">Zeskanuj kod QR sensora Dexcom G7 lub chińskiego sensora Sibionics.</string>
+   <string name="exchanges">Przesył danych</string>
+   <string name="dexfuture">Przewidywanie (Dexcom)</string>
+   <string name="initializing">Uruchomienie</string> 
+   <string name="startjuggluco">Juggluco uruchomione na telefonie? WIFI i Bluetooth włączone?</string> 
+   <string name="connected">Połączono!</string>
 </resources>
