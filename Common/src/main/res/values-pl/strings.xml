@@ -90,7 +90,7 @@
  <string name="numberlabels">Etykiety wart. liczb.</string>
  <string name="colors">Kolory</string>
  <string name="remindersname">Przypomnienia</string>
- <string name="display">Wyświetl</string>
+ <string name="display">Ekran</string>
  <string name="shutcuts">Skróty</string>
  <string name="advanced">Zaawansowane</string>
  <string name="newname">Nowy wpis</string>
@@ -209,7 +209,7 @@
  <string name="wakelock">Wakelock</string>
  <string name="wifi">Wifi</string>
  <string name="heartrate">Tętno</string>
- <string name="xdripbroadcast">xDrip broadcast</string>
+ <string name="xdripbroadcast">Transm. jak z xDrip</string>
  <string name="sensorpermission">Uprawnienie do dostępu do czujników potrzebne do wyświetlania tętna.</string>
  <string name="sensorpermissionmessage">Ustaw je w Ustawieniach urządzenia, Aplikacje, Uprawnienia, Juggluco</string>
  <string name="floatglucose">Pływ. gluk.</string>
@@ -336,7 +336,7 @@
  <string name="changestartbutton">Zmień początek</string>
  <string name="floatjuggluco">Wyżej</string>
  <string name="uploader">Uploader</string>
- <string name="upload">Prześlij</string>
+ <string name="upload">Przesył do NS</string>
  <string name="sibionics">Sibionics</string>
  <string name="mmolL">mmol/L</string>
  <string name="mgdL">mg/dL</string>
