@@ -562,11 +562,12 @@ Log.i(LOG_ID,"showall");
 		     if(gatt.foundtime>=blue.scantime) {
 			if(gatt.foundtime>lasttime)
 			   lasttime=gatt.foundtime;
-			 put(messages,gatt.foundtime,": Found "+gatt.SerialNumber +"\n");
+			final String name=gatt.getDeviceName();
+			put(messages,gatt.foundtime,": Found "+name +"\n");
 			}
 		       }
 		  }
-      if(lasttime==0L||lasttime>(System.currentTimeMillis()-3*60*1000)) {
+      if(lasttime==0L||lasttime>(System.currentTimeMillis()-5*60*1000)) {
          if(blue.scantimeouttime>blue.scantime)
             put(messages,blue.scantimeouttime, ": timeout\n");
          if(blue.stopscantime>=blue.scantime)

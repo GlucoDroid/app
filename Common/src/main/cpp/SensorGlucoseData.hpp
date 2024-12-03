@@ -426,7 +426,7 @@ const int32_t maxpos() const {
 		return 12;
 	else return 60;
  	}
-const int32_t maxstreampos() const {
+int32_t maxstreampos() const {
   if(isSibionics())
      return maxSIhours*streamperhour();
    auto days=getinfo()->days;
@@ -1279,27 +1279,27 @@ bool hasStreamID(const int id) const {
 template <int secs> int savepollallIDsonly(time_t tim,const int id,int glu,int trend,float change) {
 	int count=getinfo()->pollcount;
 	if(count<id) {
-		LOGGER("savepollallIDsonly count=%d<id=%d\n",count,id);
-		const uint32_t startiter=tim-(id-count)*secs;
-      if constexpr (secs==60) {
-         if(!count) {
-            LOGAR("savepollallIDsonly !count");
-            const auto starttime=getinfo()->starttime;
-            if(starttime>startiter||(startiter-starttime)>60*60) {
-               const uint32_t newstart=startiter-80;
-               getinfo()->starttime=newstart;
-               LOGGER("new start=%d\n",newstart);
-               }
-             }
-            }
-		for(uint32_t timiter=startiter;count<id;++count,timiter+=secs)  {
-			if(!polls[count].t||polls[count].id!=count)
-				polls[count]={timiter,count,0,0,0.0};
-			}
-		if(!count) {
-			getinfo()->pollstart=id;	
-			}
-		}
+	   LOGGER("savepollallIDsonly count=%d<id=%d\n",count,id);
+	   const uint32_t startiter=tim-(id-count)*secs;
+	   if constexpr (secs==60) {
+	       if(!count) {
+		  LOGAR("savepollallIDsonly !count");
+		  const auto starttime=getinfo()->starttime;
+		  if(starttime>startiter||(startiter-starttime)>60*60) {
+		     const uint32_t newstart=startiter-80;
+		     getinfo()->starttime=newstart;
+		     LOGGER("new start=%d\n",newstart);
+		     }
+		   }
+		  }
+	  for(uint32_t timiter=startiter;count<id;++count,timiter+=secs)  {
+		  if(!polls[count].t||polls[count].id!=count)
+			  polls[count]={timiter,count,0,0,0.0};
+		  }
+	  if(!count) {
+		  getinfo()->pollstart=id;	
+		  }
+	  }
 	LOGGER("count=%d savepollallIDsonly(%lu,%d,%.1f,%d,%.1f) %s",count,tim,id,glu/convfactordL,trend,change,ctime(&tim));
 	polls[id]={static_cast<uint32_t>(tim),id,glu,trend,change};
 	return count;
@@ -1817,6 +1817,8 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
 			   updateStarttime=true;
            LOGAR("updateStream send starttime");
 			   vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starttime),offsetof(Info,starttime),4});
+			   vect.push_back({reinterpret_cast<const senddata_t *>(getinfo()->DexDeviceName),offsetof(Info,DexDeviceName),12});
+			   vect.push_back({reinterpret_cast<const senddata_t *>(getinfo()->deviceaddress),offsetof(Info,deviceaddress),deviceaddresslen});
             }
          if(sendhiststart) {
             vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starthistory),offsetof(Info,starthistory),sizeof(getinfo()->starthistory)});

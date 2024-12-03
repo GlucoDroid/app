@@ -64,6 +64,8 @@ static int rate2changeindex(float rate) {
         }
         return 5;
     }
+
+  constexpr const int dexmaxtime=907500; //  907385
 constexpr const int DEXSECONDS=5*60;
 extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist);
 extern void wakewithcurrent() ;
@@ -124,9 +126,14 @@ void actual(SensorGlucoseData *sens,jlong *timeres) const {
      LOGGER("new starttime=%d %s",wasstart,ctime(&wasstart));
   #endif
       }
+
    const int index= getindex();
+  LOGGER("secsSinceStart=%d age=%d index=%d\n",secsSinceStart,age,index);
+   showglucose(wasstart);
    const auto wastime=nowsec-age;
-   if(mgdL>=39&&mgdL<=501&&secsSinceStart>=sens->getWarmupSEC()) {
+
+   
+   if(secsSinceStart<=dexmaxtime&&mgdL>=39&&mgdL<=501&&secsSinceStart>=sens->getWarmupSEC()&&index<sens->maxstreampos() ) {
       save(sens,wastime,index);
       sens->saveDexFuture(index, wastime,getpredictedmgdL());
       const auto rate=getRateofChange();
@@ -222,14 +229,22 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *
          return uit; 
    }
 */
+
+static jbyteArray  mkbackfillcmd(JNIEnv *envin, int start,int end) {
+         constexpr const int len=sizeof(struct askfilldata);
+        jbyteArray uit=envin->NewByteArray(len);
+         struct askfilldata data {.starttime=start,.endtime=end};
+         envin->SetByteArrayRegion(uit,0,len,reinterpret_cast<const jbyte*>(&data));
+         return uit; 
+         }
 extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *envin, jclass _cl,jlong dataptr) {
     dexcomstream *sdata=reinterpret_cast<dexcomstream *>(dataptr);
     SensorGlucoseData *sens=sdata->hist;
     auto *info=sens->getinfo();
     const int last=info->pollcount-1;
    const int was=info->lastLifeCountReceived;
+   uint32_t starttime=sens->getstarttime();
    if(last>was) {
-        uint32_t starttime=sens->getstarttime();
         time_t starts=sens->getstream(was)->gettime()+60;
         int start= starts-starttime;
         if(start<DEXSECONDS)
@@ -240,16 +255,32 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *
             LOGGER("getDexbackfillcmd %d<=%d\n",end,start);
             return nullptr;
             } 
+        
         #ifndef NOLOG
         char buf1[27],buf2[27];
         LOGGER("getDexbackfillcmd %d-%d %.23s-%23s\n",end,start,ctime_r(&starts,buf1), ctime_r(&ends,buf2));
         #endif
-         constexpr const int len=sizeof(struct askfilldata);
-        jbyteArray uit=envin->NewByteArray(len);
-         struct askfilldata data {.starttime=start,.endtime=end};
-         envin->SetByteArrayRegion(uit,0,len,reinterpret_cast<const jbyte*>(&data));
-         return uit; 
+        return mkbackfillcmd(envin,start,end);
          }
+     else {
+         auto now=time(nullptr);
+         if((now-starttime)>dexmaxtime) {
+            if(was<3025 ) {
+               int start;
+               if(was>0) {
+                    time_t starts=sens->getstream(was)->gettime()+60;
+                    start= starts-starttime;
+                     if(start<DEXSECONDS)
+                          start=DEXSECONDS;
+                    }
+                else
+                       start=DEXSECONDS;
+              int end=dexmaxtime;
+              LOGGER("ask all backfill %d %d\n",start,end);
+               return mkbackfillcmd(envin,start,end);
+               }
+         }
+      }
    LOGAR("getDexbackfillcmd not needed"); 
    return nullptr;
    }
@@ -295,17 +326,22 @@ void save(SensorGlucoseData *sens,uint32_t wastime,int index) const {
    sens->savepollallIDs<DEXSECONDS>(wastime,index,mgdL, rate2changeindex(rate),rate);
    }
 void backfill(SensorGlucoseData *sens) const {
-   auto id=getindex();
-   const auto starttime= sens->getstarttime();
-   const auto wastime=gettime(starttime);
-   save(sens,wastime,id);
-   if(id<sens->getbroadcastfrom()) sens->setbroadcastfrom(id);
-   sens->backstream(id);
-/*   if(id>=(sens->pollcount()-2)) {
-      backup->wakebackup(Backup::wakestream);
-      }*/
-   sens->fastupdatelifecount(id);
-   }
+    auto id = getindex();
+    LOGGER("secsSinceStart=%d index=%d\n", secsSinceStart, id);
+    const auto starttime = sens->getstarttime();
+    const auto wastime = gettime(starttime);
+    if(id < sens->maxstreampos()) {
+        save(sens, wastime, id);
+        if (id < sens->getbroadcastfrom()) sens->setbroadcastfrom(id);
+        sens->backstream(id);
+        /*   if(id>=(sens->pollcount()-2)) {
+              backup->wakebackup(Backup::wakestream);
+              }*/
+        sens->fastupdatelifecount(id);
+    } else {
+        LOGGER("ERROR id=%d\n", id);
+        }
+    }
    } __attribute__ ((packed));
 extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(dexbackfill)(JNIEnv *envin, jclass cl,jlong dataptr, jbyteArray  bluetoothdata) {
   const auto arlen=envin->GetArrayLength(bluetoothdata);

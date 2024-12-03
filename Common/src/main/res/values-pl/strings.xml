@@ -335,8 +335,8 @@
     <string name="sendfrom">&quot;Wysyłaj od: &quot;</string>
  <string name="changestartbutton">Zmień początek</string>
  <string name="floatjuggluco">Wyżej</string>
- <string name="uploader">Uploader</string>
- <string name="upload">Przesył do NS</string>
+ <string name="uploader">Przesył do NS</string>
+ <string name="upload">Prześlij</string>
  <string name="sibionics">Sibionics</string>
  <string name="mmolL">mmol/L</string>
  <string name="mgdL">mg/dL</string>

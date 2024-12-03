@@ -1115,7 +1115,7 @@ static private void exchanges(MainActivity context,View parent) {
    final var density=tk.glucodata.GlucoseCurve.metrics.density;
 		lay.setPadding((int)(density*8.0),(int)(density*20.0),(int)(density*8.0),(int)(density*2.0));
 	} else {
-		var uploader = getbutton(context, R.string.upload);
+		var uploader = getbutton(context, R.string.uploader);
 		uploader.setOnClickListener(v -> tk.glucodata.NightPost.config(context, thelayout[0]));
 		final CheckBox librelinkbroadcast = new CheckBox(context);
 		final CheckBox libreview = new CheckBox(context);
