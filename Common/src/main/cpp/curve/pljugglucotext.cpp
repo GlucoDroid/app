@@ -99,7 +99,7 @@ jugglucotext pltext {
 		"Sensor",
 		"Ustawienia",
 #if defined(SIBIONICS)
-"Photo",
+"Zeskanuj kod",
 #else
 		"Informacje",
 #endif
@@ -211,10 +211,10 @@ hourminstr,
 .Rising="Wzrost",
 .RisingQuickly="Szybki wzrost",
 #endif
-.receivingpastvalues="Odbieranie starych wartości",
-.receivingdata="Receiving data",
-.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
-.waitingforconnection="Waiting for connection"sv
+.receivingpastvalues="Odbiór starych wartości",
+.receivingdata="Odbiór danych",
+.unsupportedSibionics="Nieobsługiwany sensor Sibionics"sv,
+.waitingforconnection="Czekam na połączenie"sv
 
 
 		}
