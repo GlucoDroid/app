@@ -562,7 +562,7 @@ Log.i(LOG_ID,"showall");
 		     if(gatt.foundtime>=blue.scantime) {
 			if(gatt.foundtime>lasttime)
 			   lasttime=gatt.foundtime;
-			final String name=gatt.getDeviceName();
+			final String name=gatt.mygetDeviceName();
 			put(messages,gatt.foundtime,": Found "+name +"\n");
 			}
 		       }

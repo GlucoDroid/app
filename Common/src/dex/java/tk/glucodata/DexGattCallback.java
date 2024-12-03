@@ -183,7 +183,7 @@ private boolean connected=false;
                 constatchange[1] = tim;
                 if(newState == BluetoothProfile.STATE_DISCONNECTED) {
                   if(datatime==0L)  {
-                     if(misconnect>10)  {
+                     if(misconnect>15)  {
                         misconnect=0;
                         mActiveDeviceAddress=null;
                         }
