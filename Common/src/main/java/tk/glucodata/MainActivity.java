@@ -76,7 +76,9 @@ import android.os.ParcelFileDescriptor;
 import android.provider.Settings;
 import android.text.format.DateFormat;
 import android.util.DisplayMetrics;
+import android.view.GestureDetector;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.Toast;
@@ -352,7 +354,9 @@ void showSystemBarsAppearance() {
       Log.i(LOG_ID,"onCreate end");
 	   if(Menus.on)
 		   Menus.show(this);
-      Log.i(LOG_ID,"onCreate end");
+
+//		var   gestureListener= new ScrollListener(); mGestureDetector = new GestureDetector(this, gestureListener);
+		Log.i(LOG_ID,"onCreate end");
     }
 void handleIntent(Intent intent) {
 	if(intent==null)
@@ -1580,6 +1584,26 @@ public  void setbluetoothmain(boolean on) {
 	if(fineres!=null)
 		fineres.call();
 	}
+/*
+class ScrollListener extends GestureDetector.SimpleOnGestureListener {
+@Override
+   public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+      Log.i(LOG_ID,"onScroll dX="+distanceX+" dY="+distanceY);
+      return false;
+      }
+@Override
+      public boolean onFling (MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+      Log.i(LOG_ID,"onFling volX="+velocityX+"volY="+velocityY);
+      return false;
+      }
+};
+private	GestureDetector mGestureDetector;
+
+@Override
+    public boolean onTouchEvent(MotionEvent event){
+	mGestureDetector.onTouchEvent(event);
+        return super.onTouchEvent(event);
+    }	 */
 }
 
 

@@ -409,8 +409,10 @@ static public void alarmsettings(MainActivity context,View parview,boolean[] iss
 	if(isWearable) {
 		var ala=getlabel(context,R.string.alarms);
 		final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*9.0);
+      var lowspace=new Space(context);
+      var highspace=new Space(context);
    		ala.setPadding(pad,pad,pad,pad);
-		views=new View[][]{new View[]{ala},new View[]{lowalarm[0]},new View[]{lowalarm[1],lowalarm[2]}, new View[]{highalarm[0]},new View[]{highalarm[1],highalarm[2]},
+		views=new View[][]{new View[]{ala},new View[]{lowalarm[0]},new View[]{lowspace,lowalarm[1],lowalarm[2]}, new View[]{highalarm[0]},new View[]{highspace,highalarm[1],highalarm[2]},
 new View[]{lossalarm},new View[]{losswait,min,ringlossalarm},
 new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View[]{Save}};
 //new View[]{isvalue},new View[]{ringisvalue},new View[]{Cancel,Save}, new View[] {toucheverywhere}};
@@ -436,7 +438,7 @@ new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View
    if(isWearable) {
 //       layout.setPadding(0, (int) (GlucoseCurve.metrics.density*10),0,0);
       final int sidepad=(int)(GlucoseCurve.metrics.density*5);
-       layout.setPadding(sidepad, sidepad,sidepad,sidepad);
+       layout.setPadding((int)(GlucoseCurve.metrics.density*2), sidepad,sidepad,sidepad);
        }
      else
         layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight,MainActivity.systembarBottom);
@@ -444,7 +446,7 @@ new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View
 	scroll.addView(layout);
 	scroll.setFillViewport(true);
 	scroll.setSmoothScrollingEnabled(false);
-   scroll.setScrollbarFadingEnabled(false);
+   scroll.setScrollbarFadingEnabled(true);
    scroll.setVerticalScrollBarEnabled(Applic.scrollbar);
 	lay=scroll;
 	/*

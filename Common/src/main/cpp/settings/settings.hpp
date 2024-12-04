@@ -593,7 +593,7 @@ void setconvert(const char *country) {
 			unit=3;
 		setalarms(39*18,13*180,true,true,true,true);
 #ifdef WEAROS
-		setranges(4*180,10*180,4*180,10*180); //The other one is not allowed by Google Play
+		setranges(41*18,10*180,4*180,10*180); //The other one is not allowed by Google Play
 #else
 		setranges(3*180,12*180,39*18,10*180);
 #endif

@@ -558,6 +558,7 @@ void startlibrelink(String lang) {
 
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+//          Log.i(LOG_ID,"onScroll dX="+distanceX+" dY="+distanceY);
         if(down) {
             if((render.stepresult&STEPBACK)==0)
                 if(Natives.translate(distanceX, distanceY, e1.getRawY(), e2.getRawY())!=0)
@@ -634,6 +635,7 @@ void startlibrelink(String lang) {
 */
         @Override
         public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {Log.d(LOG_ID,"onFling");
+      	  // Log.i(LOG_ID,"onFling volX="+velocityX+"volY="+velocityY);
             if(down) {
                 float absx=abs(velocityX);
                 if(absx>2000.0&&absx>abs(velocityY)) {
