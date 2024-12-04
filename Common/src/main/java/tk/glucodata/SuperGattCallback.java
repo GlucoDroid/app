@@ -439,9 +439,8 @@ public void searchforDeviceAddress() {
 				return;
 				} 
 			mDeviceName=device.getName();
-         Log.i(LOG_ID,"deviceName="+mDeviceName);
 				if (tk.glucodata.Log.doLog) {
-					Log.d(LOG_ID, SerialNumber + " Try connection to " + device.getAddress());
+					Log.d(LOG_ID, SerialNumber + " Try connection to " + device.getAddress()+ " "+mDeviceName);
 					}
 				try {
 					if(isWearable)  {

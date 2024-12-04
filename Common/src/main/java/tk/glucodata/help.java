@@ -42,6 +42,8 @@ import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static tk.glucodata.Applic.backgroundcolor;
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.MainActivity.doonback;
 import static tk.glucodata.MainActivity.poponback;
 import static tk.glucodata.MainActivity.setonback;
@@ -130,6 +132,9 @@ public static   void basehelp(int res,Activity act,Consumer<Layout> okproc) {
 		);
       helplayout.setLayoutParams(params);
         helplayout.requestLayout();
+	if(isWearable)
+	      helplayout.setBackgroundColor(backgroundcolor);
+	 else
 	      helplayout.setBackgroundResource(R.drawable.helpbackground);
            act.addContentView(helplayout, params);
 
@@ -184,6 +189,9 @@ public static   void basehelp(int res,Activity act,Consumer<Layout> okproc) {
 	   ,new View[]{helpscroll},new View[]{ok});
 	     whelplayout=new WeakReference<Layout>(helplayout);
 
+	if(isWearable)
+	      helplayout.setBackgroundColor(backgroundcolor);
+	 else
 	      helplayout.setBackgroundResource(R.drawable.helpbackground);
         params.setMargins(
             MainActivity.systembarLeft,

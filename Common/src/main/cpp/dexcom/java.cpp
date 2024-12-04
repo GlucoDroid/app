@@ -115,7 +115,7 @@ void save(SensorGlucoseData *sens,uint32_t wastime,int index) const {
    sens->savepollallIDs<DEXSECONDS>(wastime,index,mgdL, rate2changeindex(rate),rate);
    }
 
-void actual(SensorGlucoseData *sens,jlong *timeres) const {
+void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const {
   uint32_t nowsec=timeres[0]/1000L;
   time_t wasstart=sens->getstarttime();
   LOGGER("was starttime=%d %s",wasstart,ctime(&wasstart));
@@ -151,6 +151,10 @@ void actual(SensorGlucoseData *sens,jlong *timeres) const {
          }
       }
     else {
+    	if(secsSinceStart>dexmaxtime&&sens->getinfo()->lastLifeCountReceived<maxdexcount ) {
+         sensor *sens=sensors->getsensor(sensorindex);
+         sens->endtime=nowsec;
+         }
          sens->sensorerror=true; 
          timeres[1]=0LL;
       }
@@ -185,7 +189,7 @@ if(!dataptr) {
   const CritAr  bluedata(envin,bluetoothdata);
   const glucoseinput *glucose=reinterpret_cast<decltype(glucose)>(bluedata.data());
 
-   glucose->actual(sens,timeres.data());
+   glucose->actual(sens,timeres.data(),sdata->sensorindex);
   }
 struct askfilldata {
    uint8_t cmd=0x59;
@@ -265,7 +269,7 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *
      else {
          auto now=time(nullptr);
          if((now-starttime)>dexmaxtime) {
-            if(was<3025 ) {
+            if(was< maxdexcount ) {
                int start;
                if(was>0) {
                     time_t starts=sens->getstream(was)->gettime()+60;

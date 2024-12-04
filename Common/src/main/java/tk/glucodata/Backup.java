@@ -414,7 +414,10 @@ void makehostview(MainActivity act) {
         editpass.setInputType(InputType.TYPE_TEXT_VARIATION_PASSWORD);
 	editpass.setTransformationMethod(new PasswordTransformationMethod());
         editpass.setMinEms(6);
-       visible = new CheckBox(act); visible.setText(R.string.visible);
+       visible = new CheckBox(act);// visible.setText(R.string.visible);
+       visible.setButtonDrawable(R.drawable.password_visible);
+      visible.setMinimumWidth(0);
+      visible.setMinWidth(0);
 	visible.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
 
         		editpass.setInputType(isChecked?InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -527,7 +530,11 @@ void makehostview(MainActivity act) {
 		vi.setOnCheckedChangeListener(needport);
 		}
   hostview=new ScrollView(act);
+  	visible.setPadding(0,0,(int)(GlucoseCurve.metrics.density*5.0),0);
+  // editpass.setPadding(0,0,0,0);
 
+  	Sendlabel.setPadding((int)(GlucoseCurve.metrics.density*10.0),0,0,0);
+Stream.setPadding(0,0,(int)(GlucoseCurve.metrics.density*5.0),0);
 	Layout layout;
 	if(isWearable) {
 		layout=new Layout(act, (l, w, h) -> {
@@ -535,9 +542,10 @@ void makehostview(MainActivity act) {
 			final int[] ret={w,h};
 			return ret;
 
-		}, new View[]{ Portlabel},new View[] {portedit},new View[]{new Space(act),IPslabel,detect,new Space(act)}, Arrays.copyOfRange(editIPs,0,editIPs.length/2),Arrays.copyOfRange(editIPs,editIPs.length/2,editIPs.length) ,new View[] {testip},new View[] {haslabel},new View[]{label},
-				new View[]{passiveonly},new View[]{activeonly},new View[]{both},new View[] {receive},new View[] {Sendlabel,Amounts},new View[]{Scans,Stream},new View[]{startlabel},new View[]{alldata,fromnow},new View[]{screenpos} ,new View[]{Password,visible },new View[]{editpass},new View[]{delete,Close},new View[] {reset},new View[]{save});
-  	layout.setPadding(0,0,0,0);
+		}, new View[]{ Portlabel},new View[] {portedit},new View[]{new Space(act),IPslabel,detect,new Space(act)}, new View[]{editIPs[0]},new View[]{editIPs[1]},editIPs.length>=3?new View[]{editIPs[2]}:null,editIPs.length>=4?new View[]{editIPs[3]}:null ,new View[] {testip},new View[] {haslabel},new View[]{label},
+				new View[]{passiveonly},new View[]{activeonly},new View[]{both},new View[] {receive},new View[] {Sendlabel,Stream},new View[]{Scans,Amounts},new View[]{startlabel},new View[]{alldata,fromnow},new View[]{screenpos} ,new View[]{Password },new View[]{editpass,visible},new View[]{delete,Close},new View[] {reset},new View[]{save});
+
+  	layout.setPadding((int)(GlucoseCurve.metrics.density*4.0),0,(int)(GlucoseCurve.metrics.density*12.0),(int)(GlucoseCurve.metrics.density*4));
 		}
 	else {
 		layout = new Layout(act, (l, w, h) -> {
@@ -841,6 +849,8 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 		hori.setMinimumHeight(height);
 		hori.addView(layout);
 		lay=hori;
+      int pad=(int)(GlucoseCurve.metrics.density*5);
+		layout.setPadding(pad,pad,pad,pad);
 		}
 	else {
 		var layout=new Layout(act, new View[]{ip,blpan,p2p,labport,portview,Save},new View[]{recycle},new View[] {battery,Help,alarms,staticnum},errorrow,new View[]{Sync,reinit,hosts,Cancel});

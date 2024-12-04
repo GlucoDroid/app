@@ -152,7 +152,7 @@ static public   void show(MainActivity context, View view) {
 			}
 		});
       setradio(allradio,defaultbox);
-      var select=getbutton(context,R.string.colors);
+      var select=getbutton(context,R.string.modify);
       select.setOnClickListener(v-> {
             showcolors(context,defaultbox);
             });

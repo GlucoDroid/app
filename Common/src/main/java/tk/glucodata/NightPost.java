@@ -276,7 +276,8 @@ public static void  config(MainActivity act, View settingsview) {
 	EnableControls(settingsview,false);
 	var urllabel=getlabel(act,"Nightscout URL");
 	var url=getedit(act, Natives.getnightuploadurl());
-	final int minems=isWearable?12:16;
+//	final int minems=isWearable?12:16;
+	final int minems=12;
         url.setMinEms(minems);
 	var secretlabel=getlabel(act,R.string.secret);
 	secretlabel.setPadding(0,0,0,0);
@@ -306,7 +307,10 @@ public static void  config(MainActivity act, View settingsview) {
 	boolean useuploader=Natives.getuseuploader();
 	var activebox=getcheckbox(act,R.string.active,useuploader);
        var visible = new CheckBox(act);
-       visible.setText(R.string.visible);
+       visible.setButtonDrawable(R.drawable.password_visible);
+      visible.setMinimumWidth(0);
+      visible.setMinWidth(0);
+       //visible.setText(R.string.visible);
 	int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;
 	visible.setPadding(0,0,pad,0);
         visible.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
@@ -332,7 +336,7 @@ public static void  config(MainActivity act, View settingsview) {
                                 };
 
 			lay.setY(MainActivity.systembarTop);
-                        return new int[] {w,h};}, new View[]{urllabel,url},new View[]{secretlabel,visible,editsecret},new View[]{statusview},new View[]{activebox,v3box,clear,wake},new View[]{treatments,help,cancel,save});
+                        return new int[] {w,h};}, new View[]{urllabel,url},new View[]{secretlabel,editsecret,visible},new View[]{statusview},new View[]{activebox,v3box,clear,wake},new View[]{treatments,help,cancel,save});
 
 		int laypar;
 		final View allview=isWearable?new ScrollView(act):layout;

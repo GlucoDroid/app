@@ -33,6 +33,8 @@
 using namespace std;
 //char sensorid[]="E007-0M0063KNUJ0";
 //#define sensorid "E007-0M0063KNUJ0"xxxxxx
+inline  constexpr const int maxdexcount=3025 ;
+inline constexpr const int youngsensorsecs=2*60*60;
 inline constexpr const int sensornamelen=16;
 #include "gltype.hpp"
 class SensorGlucoseData;
@@ -556,7 +558,7 @@ SensorGlucoseData *makelibre3sensor(std::string_view shortname,uint32_t starttim
 				continue;
 				}
 
-
+         
 			if(sensor.maxtime() <= oldsecs) {
 				LOGGER("%s old\n", showsensorname(i));
 				break;
@@ -711,12 +713,16 @@ void finishsensor(int ind) {
 		if (!thishist)
 			sensorlist()[ind].present = 0;
 		else {
-			sensorlist()[ind].endtime = thishist->lastused();
-			uint32_t maxtime = thishist->getmaxtime();
-			if (maxtime < nu) {
-				LOGGER("%s finished was %d set to 1\n", sensorlist()[ind].name, sensorlist()[ind].finished);
-				sensorlist()[ind].finished=1;
-			     }
+         if(thishist->isDexcom()&&thishist->pollcount()<maxdexcount&&(nu-sensorlist()[ind].endtime)< youngsensorsecs) {
+               }
+          else {
+            sensorlist()[ind].endtime = thishist->lastused();
+            uint32_t maxtime = thishist->getmaxtime();
+            if(maxtime < nu) {
+               LOGGER("%s finished was %d set to 1\n", sensorlist()[ind].name, sensorlist()[ind].finished);
+               sensorlist()[ind].finished=1;
+                 }
+               }
 			// "TODO test on presence"
 			sensorlist()[ind].present = 1;
 		}
@@ -776,49 +782,55 @@ void finishsensor(int ind) {
 		return 0;
 		}
 
-
 	vector<int> bluetoothactive(uint32_t tim, uint32_t nu) {
 		LOGSTRING("bluetoothactive\n");
 		vector<int> out;
       const uint32_t oldsecs=nu-maxSIhours*60*60;
+      const uint32_t newsecs=nu-youngsensorsecs;
 		for (int i = last(); i >= 0; i--) {
 			const auto &sensor=sensorlist()[i];
 			if (sensor.finished) {
 				LOGGER("%s finished\n", showsensorname(i));
 				continue;
 				}
-			if(!sensor.starttime) {
-				LOGGER("%d no starttime\n",i);
-				continue;
-				}
+         if(sensor.endtime<newsecs) {
+            if(!sensor.starttime) {
+               LOGGER("%d no starttime\n",i);
+               continue;
+               }
 
-            /*
-			if(sensor.starttime<oldsec) {
-				LOGGER("%s start time %ul\n",showsensorname(i),sensor.starttime);
-				break;
-				} */
-			if(sensor.maxtime() <= oldsecs) {
-				LOGGER("%s old\n", showsensorname(i));
-				break;
-				} 
-			const SensorGlucoseData *hist = getSensorData(i);
-			if (!hist) {
-				LOGSTRING("hist==null\n");
-				continue;
-				}
-     const auto sensmax=hist->getmaxtime() ;
-      if(sensmax<=nu) {
-				LOGGER("%s old\n", showsensorname(i));
-            if(sensmax<oldsecs)
+            if(sensor.maxtime() <= oldsecs) {
+               LOGGER("%s old\n", showsensorname(i));
                break;
-				continue;
+               } 
+            const SensorGlucoseData *hist = getSensorData(i);
+            if (!hist) {
+               LOGSTRING("hist==null\n");
+               continue;
+               }
+           const auto sensmax=hist->getmaxtime() ;
+            if(sensmax<=nu) {
+                  LOGGER("%s old\n", showsensorname(i));
+                  if(sensmax<oldsecs)
+                     break;
+                  continue;
+                  }
+            const auto lasttime=hist->lastused() ;
+            bool canuse=hist-> canusestreaming() ;
+            LOGGER("%s: can %suse streaming, lasttime=%d\n",showsensorname(i),canuse?"":"not ",lasttime);
+            if(!canuse|| (lasttime &&  lasttime < tim)) {
+               continue;
+               }
             }
-			const auto lasttime=hist->lastused() ;
-			bool canuse=hist-> canusestreaming() ;
-			LOGGER("%s: can %suse streaming, lasttime=%d\n",showsensorname(i),canuse?"":"not ",lasttime);
-			if(!canuse|| (lasttime &&  lasttime < tim)) {
-				continue;
-				}
+          else {
+            const SensorGlucoseData *hist = getSensorData(i);
+            if (!hist) {
+               LOGSTRING("hist==null\n");
+               continue;
+               }
+            if(!hist-> canusestreaming() )
+               continue;
+            }
 			out.push_back(i);
 		}
 		LOGGER("end bluetoothactive %zu\n",out.size());

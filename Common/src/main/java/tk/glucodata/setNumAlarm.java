@@ -33,6 +33,7 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -342,9 +343,17 @@ void  mkitemlayout(Activity act,View parent) {
 		int[] ret={w,h};
 		return ret;
 		}, views);
+   if(isWearable) {
+      var frame=new FrameLayout(act);
+      frame.addView(itemlayout,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+      itemlayout=frame;
+      }
 	layoutar[0]=itemlayout;
         //itemlayout.setBackgroundColor(Applic.backgroundcolor);
-        itemlayout.setBackgroundResource(R.drawable.dialogbackground);
+        if(!isWearable)
+           itemlayout.setBackgroundResource(R.drawable.dialogbackground);
+         else
+            itemlayout.setBackgroundColor(Applic.backgroundcolor);
 	   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*4.5);
 	   itemlayout.setPadding(pad,0,pad,0);
 	Cancel.setOnClickListener(v->{ 
@@ -400,7 +409,9 @@ void  mkitemlayout(Activity act,View parent) {
 
 
 	);
-        act.addContentView(itemlayout, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        act.addContentView(itemlayout,isWearable?new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT):new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+;
+
 	}
 else  {
 	itemlayout.setVisibility(VISIBLE); 

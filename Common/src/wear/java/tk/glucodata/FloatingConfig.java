@@ -48,6 +48,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Space;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -157,8 +158,7 @@ static public void show(MainActivity act,View view) {
 
 	var foreground=getbutton(act,R.string.foreground);
 
-//	foreground.setPadding(0,0,0,0);
-//	backgroundview.setPadding(0,0,0,0);
+	final   int pad2=(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0);
 
 
    foreground.setIncludeFontPadding(false);
@@ -171,7 +171,6 @@ static public void show(MainActivity act,View view) {
 		Natives.setfloattime(isChecked);
 		rewritefloating(act);
 		});
-	final   int pad2=(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0);
 
 //	timeshow.setPadding(pad,0,0,0);
 	transparentview.setPadding(0,0,pad2,0);
@@ -186,6 +185,10 @@ static public void show(MainActivity act,View view) {
 		hidden[0]=!isChecked;
 		Natives.sethidefloatinJuggluco(!isChecked);
 		});
+
+	final  int butwidth=(int)(width*0.33);
+   backgroundview.setMinWidth(butwidth);
+   backgroundview.setMinimumWidth(butwidth);
 
 	int butheight=(int)(height*0.2);
 	int labelheight=(int)(height*0.1);
@@ -205,8 +208,11 @@ static public void show(MainActivity act,View view) {
 	sizelabel.setMinHeight(labelheight);
      sizelabel.setMinimumHeight(labelheight);
      */
-	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{transparentview},new View[]{sizelabel},new View[]{ fontsizeview},new View[]{timeshow,hide}, new View[]{foreground,backgroundview},new View[]{close});
-	layout.setPadding(0,(int)(tk.glucodata.GlucoseCurve.metrics.density*2.0),0,0);
+   var space1 = new Space(act);
+   var space2 = new Space(act);
+	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{sizelabel},new View[]{ fontsizeview}, new View[]{foreground,backgroundview},new View[]{space1,timeshow,hide,space2},new View[]{transparentview},new View[]{close});
+   int pad3=(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0);
+	layout.setPadding(pad3,pad3,pad3,pad3*2);
 	transparentview.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
 		background=true;
 		Floating.setbackgroundalpha(isChecked?0:0xff);

@@ -88,7 +88,10 @@ public static void show(Activity context,View parent) {
 	editkey.setText(key);
 
        var visible = new CheckBox(context);
-       visible.setText(R.string.visible);
+       //visible.setText(R.string.visible);
+       visible.setButtonDrawable(R.drawable.password_visible);
+      visible.setMinimumWidth(0);
+      visible.setMinWidth(0);
         visible.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
                         editkey.setInputType(isChecked?InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:InputType.TYPE_TEXT_VARIATION_PASSWORD);
                         if(isChecked)

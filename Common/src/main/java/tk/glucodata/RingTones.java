@@ -152,7 +152,7 @@ static private void subEnableControls(View view,boolean enable){
 				 if (isChecked) {
 				 	uri=null;
 					 name.setText(gettitle(context,uri,kind));
-					 Select.setVisibility(INVISIBLE);
+					 Select.setVisibility(GONE);
 				 } else {
 					 Select.setVisibility(VISIBLE);
 				 }
@@ -201,7 +201,7 @@ static private void subEnableControls(View view,boolean enable){
 	sound.setChecked(hassound);
 
 	CheckBox vibration=new CheckBox(context);
-	vibration.setPadding(0,0,rand,0);
+	vibration.setPadding(0,0,rand*2,0);
 
 	vibration.setText(R.string.vibrationname);
 	final boolean hasvibration= Natives.alarmhasvibration(kind);
@@ -276,7 +276,7 @@ View[] durviews;
 	 if(kind<2) {
 	 	start=2;
 		 waitedit.setImeOptions(editoptions);
-		 waitedit.setMinEms(3);
+		 waitedit.setMinEms(2);
 		 waitedit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 		 waitedit.setText(susp+"");
 		views[2]=new View[]{waitlabel,waitedit};
@@ -292,31 +292,12 @@ View[] durviews;
 		views[views.length-1]=new View[]{labv};
 		labv.setPadding(0,0,0,0);
 		}
-	views[views.length-1-hasname]= isWearable?new View[]{Cancel,Save}:new View[]{play,Cancel,Save};
+	views[views.length-1-hasname]= isWearable?new View[]{Save}:new View[]{play,Cancel,Save};
 
 	if(hasflash) {
 		boolean flashalarm= Natives.alarmhasflash(kind);
 		flashview.setChecked(flashalarm);
 		flashview.setText(R.string.flash);
-		/*
-		flashview.setOnCheckedChangeListener(
-			 (buttonView,  isChecked) -> {
-			      var flashperm=Applic.hasPermissions( context, MainActivity.flashpermissions).length==0;
-				//permission.setVisibility(isChecked&&!flashperm?VISIBLE:INVISIBLE);
-				 } 
-				 );
-		var flashperm2=Applic.hasPermissions( context, MainActivity.flashpermissions).length==0;
-		permission.setText(R.string.permission);
-		permission.setVisibility((!flashperm2&&flashalarm)?VISIBLE:INVISIBLE);
-
-		permission.setOnClickListener(v->{
-				var ret=context.flashpermission();
-				if(ret==1)
-					permission.setVisibility(INVISIBLE);
-				 } 
-				 );
-
-*/
 	}
 	else {
 		flashview.setVisibility(INVISIBLE);
@@ -324,7 +305,7 @@ View[] durviews;
 		}
 
 	views[start+2]=isWearable?new View[]{sound,vibration}: (Build.VERSION.SDK_INT <Build.VERSION_CODES.M? new View[]{sound}:new View[]{sound,disturb});
-	views[start+3]=isWearable?new View[]{play}:new View[]{flashview,vibration};
+	views[start+3]=isWearable?new View[]{play,Cancel}:new View[]{flashview,vibration};
 	
 	View lay;
 	ScrollView scroll=new ScrollView(context);
@@ -336,40 +317,21 @@ View[] durviews;
 				lay.setX((width-w)/2);
 				}
 			}
-			//final var height=GlucoseCurve.getheight();
-//			else ret=new int[]{width,height};
 			return new int[]{w,h};}, views);
 		scroll.addView(layout);
-//		lay.setBackgroundColor(tk.glucodata.Applic.backgroundcolor);
 	if(isWearable)  {
 		lay.setBackgroundColor(tk.glucodata.Applic.backgroundcolor);
-		 int laypad=(int)(GlucoseCurve.metrics.density*40.0f);
-		 layout.setPadding(0,laypad,0,laypad);
+//		 int laypad=(int)(GlucoseCurve.metrics.density*(hasname==1?20.0f:35.0f));
+		 int laypad=(int)(GlucoseCurve.metrics.density*10);
+		final int sidepad=(int)(GlucoseCurve.metrics.density*10.0f);
+		 layout.setPadding((int)(GlucoseCurve.metrics.density*6.0f),(int)(GlucoseCurve.metrics.density*7.0f),sidepad,laypad);
 		 }
 	else {
 		lay.setBackgroundResource(R.drawable.dialogbackground);
 		 int laypad=(int)(GlucoseCurve.metrics.density*4.0f);
 		 lay.setPadding(laypad,0,laypad,laypad);
 		 }
-		 /*
-	if(isWearable)  {
-		ScrollView scroll=new ScrollView(context);
-		scroll.addView(layout);
-		lay=scroll;
-		lay.setBackgroundColor(tk.glucodata.Applic.backgroundcolor);
-		 int laypad=(int)(GlucoseCurve.metrics.density*40.0f);
-		 layout.setPadding(0,laypad,0,laypad);
-		}
-	else {
-		lay=layout;
-		lay.setBackgroundResource(R.drawable.dialogbackground);
-		 int laypad=(int)(GlucoseCurve.metrics.density*4.0f);
-		 lay.setPadding(laypad,0,laypad,laypad);
-		}
-		*/
-
 	 context.addContentView(lay, isWearable?new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT):new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
-//	 context.addContentView(lay, isWearable?new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT):new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
 		Save.setOnClickListener(v->{
 			Notify.stopalarm();
 			try {
