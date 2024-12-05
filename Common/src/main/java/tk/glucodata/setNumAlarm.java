@@ -63,10 +63,12 @@ import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getNumAlarm;
 import static tk.glucodata.NumberView.avoidSpinnerDropdownFocus;
 import static tk.glucodata.RingTones.EnableControls;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.help.help;
 import static tk.glucodata.help.hidekeyboard;
 import static tk.glucodata.settings.Settings.editoptions;
 import static tk.glucodata.settings.Settings.float2string;
+import static tk.glucodata.settings.Settings.getGenSpin;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 
@@ -128,8 +130,16 @@ if(genlayout==null) {
             recycle.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT,height));
 
               recycle.setPadding(0,0,0,0); 
-
-
+      if(!useclose) {
+         listclose.setText("");
+         listclose.setVisibility(INVISIBLE);
+         final int butwidth=0;
+         listclose.setMinWidth(butwidth);
+        listclose.setMinimumWidth(butwidth);
+         listclose.setMinHeight(butwidth);
+        listclose.setMinimumHeight(butwidth);
+        listclose.setPadding(0,0,0,0);
+            }
           var listlay= new Layout(act, (l, w, h) -> { int[] ret={w,h}; return ret; },new  View[]{listclose},new View[]{recycle});
 //var listlay=recycle;
            act.addContentView(listlay, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
@@ -179,7 +189,6 @@ if(genlayout==null) {
 		mkitemlayout(act,genlayout);
 		emptyitemlayout();
 		});
-//        act.addContentView(genlayout, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
 	ViewGroup.LayoutParams layparm;
 	if(isWearable) {
 		layparm = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
@@ -241,8 +250,14 @@ public class NumAlarmAdapter extends RecyclerView.Adapter<NumAlarmHolder> {
     public NumAlarmHolder onCreateViewHolder(ViewGroup parent, int viewType) {
     	var view=new TextView( parent.getContext());
       view.setTransformationMethod(null);
-       view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+//       view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+  if(!isWearable)
+           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
+
       view.setLayoutParams(new ViewGroup.LayoutParams(  MATCH_PARENT, WRAP_CONTENT));
+      if(isWearable)
+       view.setGravity(Gravity.CENTER);
+      else
        view.setGravity(Gravity.LEFT);
         return new NumAlarmHolder(view,ok);
 
@@ -320,6 +335,7 @@ void dodelete(View parent,int alarmpos) {
 		itemlayout.setVisibility(GONE); 
       if(!isWearable)
          EnableControls(parent,true);
+      MainActivity.poponback();
 		}
 private void askdelete( View parent,int alarmpos) {
 	 Object[] alarmobj=getNumAlarm(alarmpos);
@@ -345,32 +361,33 @@ private void askdelete( View parent,int alarmpos) {
 
 void  mkitemlayout(Activity act,View parent) {
   if(itemlayout==null) {
-	//spinner=new Spinner(act);
-        spinner=new Spinner(act,isWearable?MODE_DIALOG: MODE_DROPDOWN);
-	avoidSpinnerDropdownFocus(spinner);
+        spinner=getGenSpin(act);
+        if(isWearable)
+                 spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.54));
+		avoidSpinnerDropdownFocus(spinner);
        LabelAdapter<String> labelspinadapt=new LabelAdapter<String>(act,Natives.getLabels(),1);
-        spinner.setAdapter(labelspinadapt);
-    spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-        @Override
-        public  void onItemSelected (AdapterView<?> parent, View view, int position, long id) {
-            labelsel=position;
-        }
-        @Override
-        public  void onNothingSelected (AdapterView<?> parent) {
-            labelsel=-1;
+       spinner.setAdapter(labelspinadapt);
+       spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+              @Override
+              public  void onItemSelected (AdapterView<?> parent, View view, int position, long id) {
+                  labelsel=position;
+              }
+              @Override
+              public  void onNothingSelected (AdapterView<?> parent) {
+                  labelsel=-1;
 
-        } });
-	spinner.clearAnimation();
-	spinner.setOnTouchListener(new View.OnTouchListener() {
-		    @Override
-		    public boolean onTouch(View view, MotionEvent motionEvent) {
-    			hidekeyboard(act);
-			return false;
-		    }
-		});
+              } });
+         spinner.clearAnimation();
+         spinner.setOnTouchListener(new View.OnTouchListener() {
+             @Override
+             public boolean onTouch(View view, MotionEvent motionEvent) {
+               hidekeyboard(act);
+            return false;
+             }
+         });
 	value=new EditText(act);
 	value.setInputType( InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-	value.setMinEms(1);
+	value.setMinEms(isWearable?1:2);
 	value.setImeOptions(editoptions);
 	View[] layoutar=new View[1];
 	startbut=gettimeview(act,minutes,0,layoutar);
@@ -382,47 +399,61 @@ void  mkitemlayout(Activity act,View parent) {
 	if(isWearable) {
       var space1=new Space(act);
       var space2=new Space(act);
+      if(useclose)
 		views=new View[][] {new View[]{space1,startbut,alarmbut,space2},new View[] {spinner,value},new View[]{Cancel,Save},new View[]{Delete}};
+      else {
+//         var space3=new Space(act);
+ //        var space4=new Space(act);
+         //views=new View[][] {new View[]{space1,startbut,alarmbut,space2},new View[] {spinner,value},new View[]{space3,Delete,Save,space4}};
+         views=new View[][] {new View[]{startbut,alarmbut},new View[] {spinner,value},new View[]{Delete,Save}};
+         }
       }
 	else
 		views=new View[][] {new View[] {spinner,value},new View[]{startbut,alarmbut},new View[]{Delete,Cancel,Save}};
 	itemlayout= new Layout(act, (l, w, h) -> {
-//		l.setY((GlucoseCurve.getheight()-h)/2);
 		var height=GlucoseCurve.getheight();
-		if(!isWearable) /*{
-            if(height>h) {
-				l.setY((height - h) / 2.0f);
-			}
-             else 
-                  l.setY(height*.2f);
-		}else */
-			l.setY(MainActivity.systembarTop);
+		if(!isWearable)  {
+         l.setY(MainActivity.systembarTop);
+         }
+       else {
+            if(!useclose) {
+               if(height>h)
+                  l.setY((height-h)/2);
+               }
+         }
 		var width=GlucoseCurve.getwidth();
-		if(width>w)
-			l.setX((width-w)/2);
+		if(width>w) l.setX((width-w)/2);
 		int[] ret={w,h};
 		return ret;
 		}, views);
    if(isWearable) {
-      int butwidth=0;
-	   startbut.setMinWidth(butwidth);
-	  startbut.setMinimumWidth(butwidth);
-	   alarmbut.setMinWidth(butwidth);
-	  alarmbut.setMinimumWidth(butwidth);
-	   Cancel.setMinWidth(butwidth);
-	  Cancel.setMinimumWidth(butwidth);
-	   Save.setMinWidth(butwidth);
-	  Save.setMinimumWidth(butwidth);
-	   Delete.setMinWidth(butwidth);
-	  Delete.setMinimumWidth(butwidth);
-      var scroll=new ScrollView(act);
-      scroll.setFillViewport(true);
-      scroll.setSmoothScrollingEnabled(false);
-      scroll.setScrollbarFadingEnabled(true);
-      scroll.setVerticalScrollBarEnabled(true);
-      scroll.addView(itemlayout,new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-      itemlayout.setPadding(0,(int)(tk.glucodata.GlucoseCurve.metrics.density*15.0f),0,0);
-      itemlayout=scroll;
+      if(useclose) {
+         int butwidth=0;
+         startbut.setMinWidth(butwidth);
+        startbut.setMinimumWidth(butwidth);
+         alarmbut.setMinWidth(butwidth);
+        alarmbut.setMinimumWidth(butwidth);
+         Cancel.setMinWidth(butwidth);
+        Cancel.setMinimumWidth(butwidth);
+         Save.setMinWidth(butwidth);
+        Save.setMinimumWidth(butwidth);
+         Delete.setMinWidth(butwidth);
+        Delete.setMinimumWidth(butwidth);
+         var scroll=new ScrollView(act);
+         scroll.setFillViewport(true);
+         scroll.setSmoothScrollingEnabled(false);
+         scroll.setScrollbarFadingEnabled(true);
+         scroll.setVerticalScrollBarEnabled(true);
+         scroll.addView(itemlayout,new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+         itemlayout.setPadding(0,(int)(tk.glucodata.GlucoseCurve.metrics.density*15.0f),0,0);
+         itemlayout=scroll;
+      }
+    else {
+         var frame =new FrameLayout(act);
+         frame.addView(itemlayout,new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+         itemlayout=frame;
+         itemlayout.setBackgroundColor(Applic.backgroundcolor);
+         }
       }
 	layoutar[0]=itemlayout;
         //itemlayout.setBackgroundColor(Applic.backgroundcolor);
@@ -433,10 +464,7 @@ void  mkitemlayout(Activity act,View parent) {
 	   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*4.5);
 	   itemlayout.setPadding(pad,0,pad,0);
 	Cancel.setOnClickListener(v->{ 
-    		hidekeyboard(act);
-		itemlayout.setVisibility(GONE); 
-//		parok.setVisibility(VISIBLE);
-      if(!isWearable) EnableControls(parent,true);
+      MainActivity.doonback();
 //		genlayout.setVisibility(VISIBLE); 
 		});
 
@@ -449,41 +477,40 @@ void  mkitemlayout(Activity act,View parent) {
 
     		hidekeyboard(act);
 		});
-	Save.setOnClickListener(
+	Save.setOnClickListener( v-> {
 
- v-> {
-   issaved=true;
-    hidekeyboard((Activity)v.getContext());
-	if(labelsel<0) {
-		Log.e(LOG_ID,"labelsel="+labelsel);
-		return;
-		}
-	float val;
-	try {
- 	   val=Float.parseFloat(value.getText().toString());
-		}
-		catch(Exception e) {
-		Log.i(LOG_ID,"parsefloat exception "+value.getText().toString());
-		return;
-		};
-	if(minutes[0]==minutes[1])
-		return;
-	if(alarmpos>=0) {
-		Natives.delNumAlarm(alarmpos);
-		alarmpos=-1;
-		}
-	
-	Log.i(LOG_ID,"save "+labelsel+" "+val+" "+tstring(minutes[0])+ " "+tstring(minutes[1]));
-	Natives.setNumAlarm( labelsel,val,minutes[0],minutes[1]);
+      issaved=true;
+       hidekeyboard((Activity)v.getContext());
+      if(labelsel<0) {
+         Log.e(LOG_ID,"labelsel="+labelsel);
+         return;
+         }
+      float val;
+      try {
+         val=Float.parseFloat(value.getText().toString());
+         }
+         catch(Exception e) {
+         Log.i(LOG_ID,"parsefloat exception "+value.getText().toString());
+         return;
+         };
+      if(minutes[0]==minutes[1])
+         return;
+      if(alarmpos>=0) {
+         Natives.delNumAlarm(alarmpos);
+         alarmpos=-1;
+         }
+      
+      Log.i(LOG_ID,"save "+labelsel+" "+val+" "+tstring(minutes[0])+ " "+tstring(minutes[1]));
+      Natives.setNumAlarm( labelsel,val,minutes[0],minutes[1]);
 
-	numadapt.notifyDataSetChanged();
-	itemlayout.setVisibility(GONE); 
-//	genlayout.setVisibility(VISIBLE); 
-//	    parok.setVisibility(VISIBLE);
-if(!isWearable)
-		EnableControls(parent,true);
-	}
-
+      numadapt.notifyDataSetChanged();
+      itemlayout.setVisibility(GONE); 
+   //	genlayout.setVisibility(VISIBLE); 
+   //	    parok.setVisibility(VISIBLE);
+      if(!isWearable)
+            EnableControls(parent,true);
+      MainActivity.poponback();
+      }
 
 	);
         act.addContentView(itemlayout,isWearable?new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT):new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
@@ -494,15 +521,21 @@ else  {
 	itemlayout.setVisibility(VISIBLE); 
 	itemlayout.bringToFront();
 	}
-
+MainActivity.setonback(()-> {
+          hidekeyboard(act);
+         itemlayout.setVisibility(GONE); 
+   //		parok.setVisibility(VISIBLE);
+         if(!isWearable) EnableControls(parent,true);
+         });
+//		genlayout.setVisibility(VISIBLE); 
 //	parok.setVisibility(INVISIBLE);
    if(!isWearable)
       EnableControls(parent,false);
 	}	
 
 String tstring(int min) {
-	return String.format(usedlocale,"%02d:%02d",min/60,min%60);
-	}
+      return String.format(usedlocale,"%02d:%02d",min/60,min%60);
+      }
     /*
 struct amountalarm {
         float value;

@@ -241,6 +241,7 @@ private void untouchable() {
 //      untouch.setMinLines(2);
 //untouch.setVerticalScrollBarEnabled(true); untouch.setMovementMethod(ScrollingMovementMethod.getInstance()); untouch.setScrollBarStyle(View.SCROLLBARS_INSIDE_INSET);
 //      var lp = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT); untouch.setLayoutParams(lp);
+	
 		var layout=new Layout(context,  
 (v,w,h) -> {
          var wid=ok.getMeasuredWidth()+cancel.getMeasuredWidth();

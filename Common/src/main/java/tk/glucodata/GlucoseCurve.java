@@ -502,6 +502,9 @@ void startlibrelink(String lang) {
 				case 2: {
 				       MainActivity activity = (MainActivity) getContext();
 					if(Natives.staticnum()) {
+                  if(isWearable)
+                     Specific.blockedNum(activity);
+                  else
         					help.help(R.string.staticnum,activity);
 						}
 					else {

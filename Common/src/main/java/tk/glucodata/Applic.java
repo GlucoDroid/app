@@ -600,7 +600,8 @@ static void updatescreen() {
 	updaters.clear();
 	}
 static float headfontsize;
-
+static float mediumfontsize;
+  static public float largefontsize;
 boolean needsnatives() {
   Log.i(LOG_ID,"needsnatives");
   final var res=getResources();
@@ -630,6 +631,8 @@ boolean needsnatives() {
      headfontsize = res.getDimension(R.dimen.abc_text_size_display_4_material);
      Notify.glucosesize= headfontsize*.35f;
      smallfontsize = res.getDimension(R.dimen.abc_text_size_small_material);
+     largefontsize = res.getDimension(R.dimen.abc_text_size_large_material);
+     mediumfontsize = res.getDimension(R.dimen.abc_text_size_medium_material);
      Natives.setfontsize(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
    Notify.mkpaint();
      return ret;
@@ -695,6 +698,9 @@ static public void resetWearOS() {
 	wakemirrors();
 	}
 private static	void initbroadcasts() {
+if(isWearable) {
+	Specific.setclose(!Natives.getdontuseclose());
+	}
 
 	Floating.init(); 
    final var initversion=Natives.getinitVersion();

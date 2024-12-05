@@ -30,6 +30,7 @@ import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.usedlocale;
 import static tk.glucodata.Floating.rewritefloating;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.settings.Settings.editoptions;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
@@ -210,6 +211,8 @@ static public void show(MainActivity act,View view) {
      */
    var space1 = new Space(act);
    var space2 = new Space(act);
+   if(!useclose)
+      close.setVisibility(GONE);
 	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{sizelabel},new View[]{ fontsizeview}, new View[]{foreground,backgroundview},new View[]{space1,timeshow,hide,space2},new View[]{transparentview},new View[]{close});
    int pad3=(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0);
 	layout.setPadding(pad3,pad3,pad3,pad3*2);

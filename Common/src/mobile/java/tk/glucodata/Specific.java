@@ -24,16 +24,28 @@ package tk.glucodata;
 import android.app.Application;
 import android.content.IntentFilter;
 
-class Specific {
-static void start(Application context) {
-	watchdrip.set(Natives.getwatchdrip());
-	SuperGattCallback.doGadgetbridge=Natives.getgadgetbridge();
+public class Specific {
+	static void start(Application context) {
+		watchdrip.set(Natives.getwatchdrip());
+		SuperGattCallback.doGadgetbridge = Natives.getgadgetbridge();
 	}
 
-static    void splash(Object act) { }
-static void settext(String str) {
-   }
-static void    rmlayout() {}
-static void initScreen(Object act) {
-   }
+	static void splash(Object act) {
+	}
+
+	static void settext(String str) {
+	}
+
+	static void rmlayout() {
+	}
+
+	static void initScreen(Object act) {
+	}
+
+	static void blockedNum(Object act) {
+	}
+
+	static public final boolean useclose = true;
+
+	static public  void setclose(boolean c) { }
 };

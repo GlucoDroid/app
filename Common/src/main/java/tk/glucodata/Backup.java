@@ -55,8 +55,11 @@ import android.widget.Toast;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.Locale;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
@@ -78,6 +81,7 @@ import static tk.glucodata.Natives.getbackupHasHostname;
 import static tk.glucodata.Natives.isWearOS;
 import static tk.glucodata.Natives.mirrorStatus;
 import static tk.glucodata.RingTones.EnableControls;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.UseWifi.usewifi;
 import static tk.glucodata.help.hidekeyboard;
 import static tk.glucodata.Applic.isRelease;
@@ -720,6 +724,8 @@ if(!isWearable)
 		deactive.setPadding(0,0, (int) (GlucoseCurve.metrics.density*40),0);
 		}
 	sethtml(info, mirrorStatus(pos));
+	//if(!useclose) close.setVisibility(INVISIBLE);
+	if(!useclose) close.setVisibility(GONE);
 	Layout layout=isWearable?(new Layout(act,new View[]{modify,deactive}, new View[]{info},new View[]{close})):new Layout(act, (l, w, h) -> {
 
       var x=GlucoseCurve.getwidth()-MainActivity.systembarRight-w;
@@ -836,6 +842,7 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 			else
 				UseWifi.stopusewifi();
 			});
+	   if(!useclose) Cancel.setVisibility(INVISIBLE);
 		final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{blpan},new View[]{p2p},new View[]{ip},new View[]{new Space(act),labport,portview,Save,new Space(act)},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{wifi,alarms},errorrow,new View[]{Cancel});
 //		var hori=new NestedScrollView(act);
 		var hori=new ScrollView(act);
@@ -935,13 +942,17 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
     	TextView view=new Button( parent.getContext());
 
 	    view.setAccessibilityDelegate(tk.glucodata.Layout.accessDeli);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+//        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+//        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+   if(!isWearable)
+           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
       view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
        view.setGravity(Gravity.LEFT);
         return new HostViewHolder(view,pview);
 
     }
 
+private static final DateFormat hhmm=             new SimpleDateFormat("HH:mm", Locale.US );
 	@Override
 	public void onBindViewHolder(final HostViewHolder holder, int pos) {
 		TextView text=(TextView)holder.itemView;
@@ -956,17 +967,18 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 	   boolean amounts=Natives.getbackuphostnums(pos);
 		int recnum=Natives.getbackuphostreceive(pos);
 		boolean doreceive= (recnum&2)!=0;
-		  if(label!=null) {
+		if(label!=null) {
 		  	sb.append(label);
 		  	sb.append(" ");
 			}
-
+if(!isWearable) {
 		  sb.append((names!=null&&names.length!=0)?names[0]:(Natives.detectIP(pos)?"Detect":"---"));
 		  if(!passive) {
 			  sb.append(" ");
 			  sb.append(port);
 			  }
 		  sb.append(' ');
+        }
 		 if(amounts) {
 			  sb.append("n");
 			  }
@@ -980,7 +992,8 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 			  sb.append("r");
 		 	}
 		if(date!=0L) {
-			String str=bluediag.datestr(date);
+			String str=isWearable?hhmm.format(date):bluediag.datestr(date);
+
 			sb.append("   \u21CB ").append(str);
 			}
 		text.setText(sb);

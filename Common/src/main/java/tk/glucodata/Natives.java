@@ -788,6 +788,8 @@ public static native void EverSenseClear(long dataptr);
 public static native void setdexcomPredict(boolean val);
 public static native boolean getdexcomPredict( );
 public static native boolean hasData();
+public static native void setdontuseclose(boolean val);
+public static native boolean getdontuseclose( );
 
 //public static native void sendxdripold();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g

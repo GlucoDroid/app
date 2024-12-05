@@ -1685,6 +1685,12 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getdexcomPredict)(JNIEnv *env,
 	}
 
 #ifdef WEAROS
+extern "C" JNIEXPORT void  JNICALL   fromjava(setdontuseclose)(JNIEnv *env, jclass cl,jboolean val) {
+	settings->data()->dontuseclose=val;
+	}
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getdontuseclose)(JNIEnv *env, jclass cl) {
+	return settings->data()->dontuseclose;
+	}
 extern "C" JNIEXPORT void  JNICALL   fromjava(setComplicationArrowColor)(JNIEnv *env, jclass cl,jint val) {
 	settings->data()->ComplicationArrowColor=val;
 	}

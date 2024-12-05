@@ -395,7 +395,9 @@ static private void newsensor(Activity act,String text,String name) {
     int pad=width/30;
     act.runOnUiThread(() -> {
 	TextView tv=getlabel(act,text);
-	tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+//	tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+   if(!isWearable)
+           tv.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
 
         CheckBox calBox = new CheckBox(act);
     calBox.setPadding(0,pad,0,pad);

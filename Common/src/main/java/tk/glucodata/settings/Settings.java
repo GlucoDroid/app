@@ -26,6 +26,7 @@ import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCA
 import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
 import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
 import static android.content.pm.PackageManager.DONT_KILL_APP;
+import static android.graphics.Color.BLACK;
 import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
@@ -45,12 +46,14 @@ import static tk.glucodata.Natives.getshowstream;
 import static tk.glucodata.Natives.setthreshold;
 import static tk.glucodata.NumberView.avoidSpinnerDropdownFocus;
 import static tk.glucodata.RingTones.EnableControls;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.help.help;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
 import static tk.glucodata.util.getlabel;
 import static tk.glucodata.util.getlocale;
 
+import android.app.Activity;
 import android.app.Application;
 import android.content.ComponentName;
 import android.content.Context;
@@ -105,6 +108,8 @@ import tk.glucodata.Menus;
 import tk.glucodata.Natives;
 import tk.glucodata.Notify;
 import tk.glucodata.R;
+import tk.glucodata.Specific;
+
 import java.text.DecimalFormat;
 import java.util.Locale;
 
@@ -520,12 +525,29 @@ final private static String  codestr=String.valueOf(BuildConfig.VERSION_CODE);
 
 //static private final List<String> supportedlanguages= Arrays.asList("Language","be","de","en","fr","it","nl","pl","pt","sv","uk","zh");
 //  static private final List<String> supportedlanguages= Arrays.asList("Language","be","de","en","fr","it","nl","pl","pt","sv","uk");
+//static private final List<String> supportedlanguages= Arrays.asList("Language","be","de","en","fr","it","nl","pl","pt");
 static private final List<String> supportedlanguages= RU?Arrays.asList("Language","be","de","en","fr","it","nl","pl","pt","ru","sv","uk","zh"):(SPANISH?Arrays.asList("Language","be","de","en","es","fr","it","nl","pl","pt","sv","uk","zh"):Arrays.asList("Language","be","de","en","fr","it","nl","pl","pt","sv","uk","zh"));
 
 //static private final List<String> supportedlanguages= IWRU?Arrays.asList("Language","be","de","en","es","fr","it","iw","nl","pl","pt","ru","sv","uk"):Arrays.asList("Language","be","de","en","es","fr","it","nl","pl","pt","sv","uk");
-static private Spinner languagespinner(MainActivity context) {
-	var spin=  new Spinner(context,isWearable?MODE_DIALOG: MODE_DROPDOWN);
+static public Spinner getGenSpin(Activity context) {
+   var spin=  new Spinner(context, MODE_DROPDOWN);
+   if(isWearable) {
+      spin.setPopupBackgroundResource(R.drawable.helpbackground);
+   //   spin.setPopupBackgroundResource(BLACK);
+//      spin.setDropDownVerticalOffset(0);
+      var width= GlucoseCurve.getwidth();
+      spin.setDropDownWidth(width);
+      spin.setDropDownHorizontalOffset(0);
+      }
+     return spin;
+     }
 
+static private Spinner languagespinner(MainActivity context) {
+//	var spin=  new Spinner(context,isWearable?MODE_DIALOG: MODE_DROPDOWN);
+   var spin=  getGenSpin(context);
+   if(isWearable) {
+      spin.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.24));
+      }
 	var locales=AppCompatDelegate.getApplicationLocales();
 	int prepos;
 	if(locales.isEmpty()||(prepos=supportedlanguages.indexOf(locales.get(0).getLanguage()))<1)
@@ -546,7 +568,8 @@ static private Spinner languagespinner(MainActivity context) {
 
 	avoidSpinnerDropdownFocus(spin);
 	supportedlanguages.set(0,context.getString(R.string.languagename));
-	spin.setAdapter(new LabelAdapter<String>(context,supportedlanguages,0));
+   final var adapt=new LabelAdapter<String>(context,supportedlanguages,0);
+	spin.setAdapter(adapt);
 
 //	var pos=supportedlanguages.indexOf(getlocale().getLanguage()); if(pos<0) pos=0;
 	spin.setSelection(pos);
@@ -722,6 +745,8 @@ static private void displaysettings(MainActivity context,Settings settings) {
 	var langspin=languagespinner(context);
       Layout lay;
     if(isWearable)  {
+      if(!useclose)
+          close.setVisibility(GONE);
         targetlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0,0,0);
         graphlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0,0,0);
         colbut.setPadding(0,0,0,0);
@@ -730,19 +755,25 @@ static private void displaysettings(MainActivity context,Settings settings) {
  	var Scans=getcheckbox(context,R.string.scansname,getshowscans()) ;
  	var History=getcheckbox(context,R.string.historyname,getshowhistories()) ;
  	var Stream=getcheckbox(context,R.string.streamname,getshowstream()) ;
- 	var Amounts=getcheckbox(context,isWearable?R.string.amountshort:R.string.amountsname,getshownumbers()) ;
+ 	var Amounts=getcheckbox(context,R.string.amountshort,getshownumbers()) ;
+ 	var setuseclose=getcheckbox(context,R.string.useclose,useclose) ;
+    setuseclose.setOnCheckedChangeListener( (buttonView,  isChecked) -> { 
+         Specific.setclose(isChecked);
+         Natives.setdontuseclose(!isChecked); 
+         context.finish();
+         context.startActivity(context.getIntent());
+      });
 
 Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowscans(isChecked); });
 	History.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowhistories(isChecked); });
 	Stream.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowstream(isChecked); });
 	Amounts.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshownumbers(isChecked); });
    var space=getlabel(context,"");
-   var space2=getlabel(context,"");
 	   fixed.setPadding(0,0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0));
         lay = new Layout(context, (l, w, h) -> {
     		      int[] ret={w,h};
 		         return ret;
-               },new View[]{colbut},graphrow,targetrow,new View[]{close},new View[]{space},new View[]{space2},new View[]{scalelabel}, new View[]{fixatex},new View[]{fixatey},new View[]{threslabel,threshold},new View[] {levelleft},new View[] {hour12},new View[]{fixed},new View[]{Scans},new View[]{History},new View[]{Stream},new View[]{Amounts},new View[]{langspin});
+               },new View[]{colbut},graphrow,targetrow,new View[] {hour12},new View[]{space},new View[]{scalelabel}, new View[]{fixatex},new View[]{fixatey},new View[]{threslabel,threshold},new View[] {levelleft},new View[]{fixed},new View[]{Scans},new View[]{History},new View[]{Stream},new View[]{Amounts},new View[]{setuseclose},new View[]{close},new View[]{langspin});
          }
       else {	
       var iob=getcheckbox(context,"IOB",Natives.getIOB());
@@ -858,6 +889,9 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
         help.setOnClickListener(v->{help(R.string.settinghelp,(MainActivity)(v.getContext())); });
 
       var close=getbutton(context,R.string.closename);
+
+      if(!useclose)
+	 close.setVisibility(GONE);
 //	CheckBox bluetooth= new CheckBox(context);
    CheckBox globalscan = new CheckBox(context);
 	globalscan.setText(R.string.startsapp);
@@ -953,15 +987,15 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 
 		floatglucose.setChecked(Natives.getfloatglucose());
 		floatglucose.setOnCheckedChangeListener( (buttonView,  isChecked) -> Floating.setfloatglucose(context,isChecked) ) ;
-      var space=getlabel(context,"");
-      var space2=getlabel(context,"");
+//      var space=getlabel(context,"");
+ //     var space2=getlabel(context,"");
 		View[] camornum=new View[] {alarmbut,numalarm};
 		if(BuildConfig.minSDK>=26) {
-			views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{exchanges },  new View[]{close},new View[]{space},new View[]{space2},  new View[]{floatconfig, floatglucose}, camornum,new View[]{complications},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+			views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{exchanges },new View[]{complications},  new View[]{floatconfig, floatglucose}, camornum, new View[]{close}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
 			;
 		}
 		else{
-			views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null,  new View[]{exchanges } ,new View[]{close},  new View[]{floatconfig, floatglucose}, camornum,  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+			views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null,  new View[]{exchanges },   new View[]{floatconfig, floatglucose}, camornum,new View[]{close},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
 			;
 		}
 		}
@@ -1100,6 +1134,8 @@ static private void exchanges(MainActivity context,View parent) {
 				}
 		);
    var ok = getbutton(context, R.string.closename);
+	if(!useclose)
+		ok.setVisibility(GONE);
 	ok.setOnClickListener(
 		v->{
 	      context.doonback();

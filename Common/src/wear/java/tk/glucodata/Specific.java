@@ -21,21 +21,32 @@
 
 package tk.glucodata;
 
+import static android.text.Html.TO_HTML_PARAGRAPH_LINES_CONSECUTIVE;
+import static android.text.Html.fromHtml;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static tk.glucodata.Applic.backgroundcolor;
 import static tk.glucodata.settings.Settings.removeContentView;
+import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getlabel;
 
 import android.annotation.SuppressLint;
+import android.text.method.ScrollingMovementMethod;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.wear.widget.CurvedTextView;
+import androidx.wear.widget.WearableLinearLayoutManager;
+import androidx.wear.widget.WearableRecyclerView;
 
-class Specific {
+public class Specific {
 static void start(Object context) { }
 
 static    void splash(AppCompatActivity act) {
@@ -71,5 +82,90 @@ static void initScreen(MainActivity act) {
 	act.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
 //   Specific.layout=layout;
 //   Specific.text=text;
+   }
+/*
+static class TextViewHolder extends WearableRecyclerView.ViewHolder {
+    public TextViewHolder(View view) {
+        super(view);
+
+    }
+
+}
+static public class TextViewAdapter extends WearableRecyclerView.Adapter<TextViewHolder> {
+   TextViewAdapter() {
+	   }
+
+    @NonNull
+	@Override
+    public TextViewHolder  onCreateViewHolder(ViewGroup parent, int viewType) {
+    	var view=new TextView( parent.getContext());
+	 view.setTransformationMethod(null); //	  view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+	 view.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT,  WRAP_CONTENT));
+	  view.setGravity(Gravity.CENTER);
+        return new TextViewHolder(view);
+
+    }
+
+	@Override
+	public void onBindViewHolder(final TextViewHolder holder, int pos) {
+		TextView text=(TextView)holder.itemView;
+        text.setText(fromHtml(Applic.app.getString(R.string.staticnum),TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
+
+		}
+        @Override
+        public int getItemCount() {
+		 return 1;
+        }
+
+}
+static void   blockedNum(MainActivity  act) {
+	    var recycle = new WearableRecyclerView(act);
+           var lin=new WearableLinearLayoutManager(act);
+           recycle.setCircularScrollingGestureEnabled(true);
+//            recycle.setLayoutParams(new ViewGroup.LayoutParams(  (int)(width*.9),ViewGroup.LayoutParams.MATCH_PARENT));
+            recycle.setLayoutManager(lin);
+               recycle.setAdapter(new TextViewAdapter());
+	    recycle.setBackgroundColor(backgroundcolor);
+           act.addContentView(recycle,new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
+		}    static boolean useclose=true;
+static void   blockedNum(MainActivity  act) {
+      var text=new TextView(act);
+        text.setText(fromHtml(Applic.app.getString(R.string.staticnum),TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
+        text.setMovementMethod(new ScrollingMovementMethod());
+       View view=null;
+       if(useclose) {
+          var close=getbutton(act,R.string.closename);
+           close.setOnClickListener(v->{
+               MainActivity.doonback();
+                  });
+            var layout=new Layout(act, (l,w,h)-> { final int[] ret={w,h}; return ret; },new View[]{text},new View[]{close});
+            view=layout;
+            }
+         else
+            view=text;
+        final var view2=view;
+	    view2.setBackgroundColor(backgroundcolor);
+	   MainActivity.setonback(()-> {
+            removeContentView(view2);
+            });
+        act.addContentView(view2,new ViewGroup.LayoutParams((int)(GlucoseCurve.getwidth()*0.7),MATCH_PARENT));
+		} 
+      */
+static void   blockedNum(MainActivity  act) {
+
+			var width=GlucoseCurve.getwidth();
+		help.basehelp(Applic.app.getString(R.string.staticnum),act,xzy->{ }, (l,w,h)-> {
+			var height=GlucoseCurve.getheight();
+			if(height>h)
+				l.setY((height-h)/2);
+			if(width>w)
+				l.setX((width-w)/2);
+			return new int[] {w,h};
+			}, new ViewGroup.MarginLayoutParams((int)(width*0.85), WRAP_CONTENT));
+		}
+
+static public boolean useclose=false;
+static public void setclose(boolean val) {
+   useclose=val;
    }
 };

@@ -73,8 +73,8 @@ android {
         buildConfigField 'int', 'minSDK', "$minSdk"
         compileSdk 35
         applicationId "tk.glucodata"
-         manifestPlaceholders["debuggable"] = "false"
-         manifestPlaceholders["requireWatch"] = "true"
+         manifestPlaceholders["debuggable"] = "true"
+         manifestPlaceholders["requireWatch"] = "false"
 
 	     versionName '9.0.7'
 //	multiDexEnabled true

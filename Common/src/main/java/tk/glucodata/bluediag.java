@@ -75,6 +75,7 @@ import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.NumberView.avoidSpinnerDropdownFocus;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.help.help;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
@@ -249,6 +250,8 @@ void nogatts(MainActivity act) {
 	var close=getbutton(act,R.string.closename);
    var height=GlucoseCurve.getheight();
    var width=GlucoseCurve.getwidth();
+   if(!useclose)
+      close.setVisibility(GONE);
   Layout layout = new Layout(act, (l, w, h) -> {
       l.setX((width-w)/2);
       l.setY((height-h)/2);
@@ -445,6 +448,8 @@ if(!isWearable) {
 			}
 		}
 	spin=view.findViewById(R.id.sensors);
+   if(isWearable)
+      spin.setPopupBackgroundResource(R.drawable.helpbackground);
 	boolean[] first={true};
 	spin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 		@Override
@@ -494,6 +499,8 @@ if(!isWearable) {
 
 	 Button close=view.findViewById(R.id.close);
 	 close.setOnClickListener(v-> act.doonback());
+   if(!useclose)
+      close.setVisibility(GONE);
 
       view.setBackgroundColor( Applic.backgroundcolor);
 	show(act,showview);

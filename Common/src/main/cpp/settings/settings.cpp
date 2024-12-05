@@ -18,9 +18,9 @@
 /*                                                                                   */
 /*      Fri Jan 27 12:36:58 CET 2023                                                 */
 
-/*#ifndef NOLOG //TODO remove
+#ifndef NOLOG //TODO remove
 #define NONOJVM 1
-#endif */
+#endif 
 
 #include <signal.h>
 #include "logs.hpp"

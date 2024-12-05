@@ -60,6 +60,7 @@ public List<T>  getarray() {
       //Log.i(LOG_ID,"getDropDownView "+position);
         if (convertView == null) {
             convertView = mInflater.inflate(android.R.layout.simple_spinner_dropdown_item, parent, false);
+           //  convertView.setBackgroundColor(Applic.backgroundcolor);
         }
 	
 	TextView text= ((TextView)(convertView.findViewById(android.R.id.text1)));
@@ -112,6 +113,7 @@ public List<T>  getarray() {
        //Log.i(LOG_ID,"getView "+position);
            if (convertView == null) {
                 convertView = mInflater.inflate(android.R.layout.simple_spinner_item, parent, false);
+      //  	convertView.setBackgroundColor(Applic.backgroundcolor);
             }
 	var text=((TextView)(convertView.findViewById(android.R.id.text1)));
 	if(position<ar.size()) {

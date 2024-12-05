@@ -707,26 +707,23 @@ void finishsensor(int ind) {
 	if(ind>=0&&ind<=last())
 		sensorlist()[ind].finished=1;
 	}
-	void checkinfo(const int ind, uint32_t nu) {
-		const SensorGlucoseData *thishist = getSensorData(ind);
-//	thishist=hist[ind];
-		if (!thishist)
-			sensorlist()[ind].present = 0;
-		else {
-         if(thishist->isDexcom()&&thishist->pollcount()<maxdexcount&&(nu-sensorlist()[ind].endtime)< youngsensorsecs) {
-               }
-          else {
-            sensorlist()[ind].endtime = thishist->lastused();
-            uint32_t maxtime = thishist->getmaxtime();
-            if(maxtime < nu) {
-               LOGGER("%s finished was %d set to 1\n", sensorlist()[ind].name, sensorlist()[ind].finished);
-               sensorlist()[ind].finished=1;
-                 }
-               }
-			// "TODO test on presence"
-			sensorlist()[ind].present = 1;
-		}
-	}
+  void checkinfo(const int ind, uint32_t nu) {
+     const SensorGlucoseData *thishist = getSensorData(ind);
+     if (!thishist)
+	sensorlist()[ind].present = 0;
+     else {
+	uint32_t maxtime = thishist->getmaxtime();
+	if(maxtime < nu) {
+	   if(!(thishist->isDexcom()&&thishist->pollcount()<maxdexcount&&(nu-sensorlist()[ind].endtime)< youngsensorsecs)) {
+	       LOGGER("%s finished was %d set to 1\n", sensorlist()[ind].name, sensorlist()[ind].finished);
+	       sensorlist()[ind].finished=1;
+	      }
+	   }
+	 sensorlist()[ind].endtime = thishist->lastused();
+	 sensorlist()[ind].present = 1;
+	 }
+	       // "TODO test on presence"
+     }
 
 	void checkall() {
 		const uint32_t nu = time(nullptr);

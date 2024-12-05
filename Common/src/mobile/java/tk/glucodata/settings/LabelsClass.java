@@ -26,6 +26,7 @@ import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.MainActivity.getscreenwidth;
 import static tk.glucodata.NumberView.avoidSpinnerDropdownFocus;
 import static tk.glucodata.RingTones.EnableControls;
@@ -339,7 +340,9 @@ static public class LabelListAdapter extends RecyclerView.Adapter<LabelListHolde
     	Button view=new Button( parent.getContext());
 
 	view.setTransformationMethod(null);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+   //     view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+   if(!isWearable)
+           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
 	view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         return new LabelListHolder(view,settings,onsave,this.parlayout);

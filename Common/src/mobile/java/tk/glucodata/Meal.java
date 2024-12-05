@@ -54,6 +54,7 @@ import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.NumberView.avoidSpinnerDropdownFocus;
 import static tk.glucodata.NumberView.geteditview;
 
@@ -84,7 +85,9 @@ static public class MealItemViewAdapter extends RecyclerView.Adapter<MealItemVie
     	Button view=new Button( parent.getContext());
 
 	view.setTransformationMethod(null);
-		view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+//	  view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+   if(!isWearable)
+           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.mediumfontsize);
 	view.setLayoutParams(new ViewGroup.LayoutParams(  MATCH_PARENT, WRAP_CONTENT));
 //       view.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
 //       view.setGravity(Gravity.CENTER_VERTICAL | Gravity.FILL_HORIZONTAL);
@@ -470,7 +473,9 @@ static public class IngredientViewAdapter extends RecyclerView.Adapter<Ingredien
     	Button view=new Button( parent.getContext());
 
 	view.setTransformationMethod(null);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+   //     view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+   if(!isWearable)
+           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.mediumfontsize);
 	ViewGroup.LayoutParams params= new ViewGroup.LayoutParams(  MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 	view.setLayoutParams(params);
        	view.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
@@ -704,7 +709,10 @@ static public class MealDatabaseViewAdapter extends RecyclerView.Adapter<MealDat
     public MealDatabaseViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
     	Button view=new Button( parent.getContext());
 	view.setTransformationMethod(null);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+   //     view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+
+   if(!isWearable)
+           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.mediumfontsize);
 	view.setLayoutParams(new ViewGroup.LayoutParams(  MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
        view.setGravity(Gravity.LEFT);
         return new MealDatabaseViewHolder(view,hitptr,give);
@@ -809,7 +817,9 @@ static void	shownutrients(MainActivity act,int id,boolean showzero,TriConsumer<S
 	TextView ingred=new TextView(act);
 	final String label= Natives.idfoodlabel(id);
 	ingred.setText(label);
-        ingred.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+//        ingred.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+   if(!isWearable)
+           ingred.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
 	int[] ingr=Natives.getcomponents(id);
 	int rows=2;
 	for(int el:ingr) {

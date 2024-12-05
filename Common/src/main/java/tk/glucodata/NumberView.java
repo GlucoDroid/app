@@ -37,10 +37,12 @@ import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.DatePicker;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ListPopupWindow;
 import android.widget.PopupWindow;
 import android.widget.ScrollView;
+import android.widget.Space;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.TimePicker;
@@ -74,10 +76,13 @@ import static tk.glucodata.GlucoseCurve.mktime;
 import static tk.glucodata.MainActivity.systembarLeft;
 import static tk.glucodata.MainActivity.systembarRight;
 import static tk.glucodata.RingTones.EnableControls;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.settings.Settings.editoptions;
+import static tk.glucodata.settings.Settings.getGenSpin;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getlabel;
+
 
 public class NumberView {
 public static  boolean smallScreen=false;
@@ -182,12 +187,19 @@ public static String minhourstr(long mmsec) {
    }
 public   View addnumberview(MainActivity context,final int bron,final long time,final float value,final int type,final int tmpmealptr) {
     if(newnumview==null) {
-        datebutton = new Button(context);
+       // var mat = new MaterialButton(context); mat.setCornerRadius(GlucoseCurve.dpToPx(30)); datebutton=mat; 
+      datebutton = new Button(context);
+	datebutton.setMinWidth(0);
+	datebutton.setMinimumWidth(0);
         datebutton.setOnClickListener(
                 v -> getdateview(context));
 	source=new TextView(context);
         dateview=datebutton;
         timebutton = new Button(context);
+
+	timebutton.setMinWidth(0);
+	timebutton.setMinimumWidth(0);
+//        var mat2 = new MaterialButton(context); timebutton=mat2; mat2.setCornerRadius(GlucoseCurve.dpToPx(30));
 
         timeview=timebutton;
 	mealbutton=getbutton(context,R.string.mealname);
@@ -203,15 +215,25 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 	else  {
 		valueedit = geteditview(context,new editfocus());
 		}
+	valueedit.setMinEms(isWearable?1:4);
 
-	valueedit.setMinEms(4);
 //        View[] row1 = {getspinner(context), valueedit};
         deletebutton = new Button(context);
+	deletebutton.setMinWidth(0);
+	deletebutton.setMinimumWidth(0);
+ //       deletebutton = new MaterialButton(context);
+//      ((MaterialButton) deletebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         deletebutton.setText(R.string.delete);
 
         Button cancel = new Button(context);
         cancel.setText(R.string.cancel);
+	cancel.setMinWidth(0);
+	cancel.setMinimumWidth(0);
         savebutton = new Button(context);
+	savebutton.setMinWidth(0);
+	savebutton.setMinimumWidth(0);
+//        savebutton = new MaterialButton(context);
+ //     ((MaterialButton) savebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         savebutton.setText(R.string.save);
 
 	Button helpbutton;
@@ -219,7 +241,37 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 		helpbutton=getbutton(context,R.string.helpname);
 		helpbutton.setOnClickListener(v-> help.help(R.string.newamount,context));
 		}
-        Layout layout = isWearable?new Layout(context,new View[] {source},new View[]{datebutton,timebutton} ,new View[]{getspinner(context), valueedit}, new View[]{messagetext,savebutton,deletebutton},new View[]{cancel}):new Layout(context, (lay, w, h) -> {
+	else {
+	   if(!useclose) cancel.setVisibility(GONE);
+		}
+      Layout layout;
+    if(isWearable) {
+		int height=GlucoseCurve.getheight();
+		int width=GlucoseCurve.getwidth();
+      if(useclose)  {
+          layout = new Layout(context, (lay,w,h) -> { 
+            if(height>h)
+               lay.setY((height-h)*.5f);
+            if(width>w)
+               lay.setX((width-w)*.5f);
+          return new int[]{w,h}; }, new View[] {source},new View[]{datebutton,timebutton} ,new View[]{getspinner(context), valueedit}, new View[]{messagetext,savebutton,deletebutton},new View[]{cancel});
+      }
+      else {
+      var space1=new Space(context);
+      var space2=new Space(context);
+      var space3=new Space(context);
+      var space4=new Space(context);
+       layout = new Layout(context, (lay,w,h) -> {
+            if(height>h)
+               lay.setY((height-h)*.5f);
+            if(width>w)
+               lay.setX((width-w)*.5f);
+   return new int[]{w,h};
+   }, new View[]{space1,datebutton,timebutton,space2} ,new View[]{getspinner(context), valueedit}, new View[]{space3,messagetext,savebutton,deletebutton,space4});
+   }
+      }
+  else { 
+   layout=new Layout(context, (lay, w, h) -> {
 		int wid=GlucoseCurve.getwidth()- systembarRight;
 		if(!smallScreen) {
 			Log.i(LOG_ID,"no smallScreen");
@@ -266,10 +318,11 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 			Log.i(LOG_ID,"smallScreen");
 			if(wid>w)
 			    lay.setX((wid - w)/2);
-          lay.setY(MainActivity.systembarTop*3/4);
+		      lay.setY(MainActivity.systembarTop*3/4);
 			}
 
 			return new int[] {w,h}; },new View[]{helpbutton,getspinner(context), valueedit},new View[]{datebutton, mealbutton,source,timebutton},new View[]{cancel,messagetext,deletebutton, savebutton});
+         }
 
         timebutton.setOnClickListener(
                 v -> {
@@ -281,7 +334,6 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
                   });
                 });
 
-	layout.setBackgroundColor( Applic.backgroundcolor);
 
 
 
@@ -299,17 +351,26 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 
 			});
 	if(isWearable) {
-		ScrollView hori=new ScrollView(context);
-		hori.setFillViewport(true);
-      hori.setScrollbarFadingEnabled(false);
-		hori.addView(layout);
-		newnumview=hori;
+		if(useclose) {
+		   ScrollView hori=new ScrollView(context);
+		   hori.setFillViewport(true);
+		  hori.setScrollbarFadingEnabled(false);
+		   hori.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+		   newnumview=hori;
+		   }
+		 else {
+		   var frame=new FrameLayout(context);
+		   frame.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+
+		   newnumview=frame;
+		 	}
 
 		}
 	else  {
 		newnumview=layout;
 		} 
-        savebutton.setOnClickListener(v -> {
+	newnumview.setBackgroundColor( Applic.backgroundcolor);
+  savebutton.setOnClickListener(v -> {
 		MainActivity act=(MainActivity)v.getContext();
 		GlucoseCurve.reopener();
 		if(saveamount(act,timeview,  valueedit,newmealptr[0],lasttime)) {
@@ -382,7 +443,10 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 	mealbutton.setOnClickListener(menucall);
 	lasttime=time;
 	Date dat = new Date(time);
-	datebutton.setText(DateFormat.getDateInstance(DateFormat.DEFAULT).format(dat));
+   if(isWearable)
+      datebutton.setText(DateFormat.getDateInstance(DateFormat.SHORT).format(dat));
+   else
+	   datebutton.setText(DateFormat.getDateInstance(DateFormat.DEFAULT).format(dat));
 //     timebutton.setText(DateFormat.getTimeInstance(DateFormat.SHORT).format(dat));
      timebutton.setText(minhourstr(time));
 	if(value< Float.MAX_VALUE)
@@ -659,6 +723,8 @@ Log.i(LOG_ID, "getdateviewal");
         });
 	int laypar;
 	if(isWearable) {
+         if(!useclose)
+            cancel.setVisibility(GONE);
         datepicker=new Layout(activity,
                 (lay, w, h)->{
 			return new int[] {w,h};
@@ -774,6 +840,8 @@ final  boolean buttonsunder=true;
 	View[][] views;
 	 int layparwidth,layparheight;
 if(isWearable) {
+      if(!useclose)
+            cancel.setVisibility(GONE);
 		   views=new View[][]{new View[]{cancel},new View[]{pick},new View[]{ok}};
          layparheight=layparwidth=MATCH_PARENT;
 
@@ -785,6 +853,8 @@ else {
 	      layparwidth=WRAP_CONTENT;
 		   }
 	   else {
+	if(!useclose)
+		cancel.setVisibility(GONE);
          layparwidth=MATCH_PARENT;
 	      buttonlay=new Layout(activity,new View[] {cancel},new View[]{ok});
 	      buttonlay.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT , ViewGroup.LayoutParams.MATCH_PARENT));
@@ -875,7 +945,9 @@ void setmealbutton(int labelsel,long hitptr) {
 	}
 Spinner getspinner(Activity context) {
 if(spinner==null) {
-        spinner=new Spinner(context,isWearable?MODE_DIALOG: MODE_DROPDOWN);
+     spinner=getGenSpin(context);
+     if(isWearable)
+	 spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.54));
 	final int minheight=GlucoseCurve.dpToPx(48);
 	spinner.setMinimumHeight(minheight);
 	avoidSpinnerDropdownFocus(spinner);

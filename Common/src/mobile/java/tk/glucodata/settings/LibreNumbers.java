@@ -44,6 +44,7 @@ import tk.glucodata.R;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.MainActivity.poponback;
 import static tk.glucodata.MainActivity.setonback;
 import static tk.glucodata.Natives.canSendNumbers;
@@ -78,7 +79,9 @@ static public class LibreNumberAdapter extends RecyclerView.Adapter<LibreNumberH
     	Button view=new Button( parent.getContext());
 
 	view.setTransformationMethod(null);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+   //     view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+   if(!isWearable)
+           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
 	view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         return new LibreNumberHolder(view,layout,sendnumbers,night);

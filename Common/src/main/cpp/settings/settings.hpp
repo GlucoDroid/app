@@ -216,7 +216,8 @@ struct Tings {
 	int32_t floatglucose;
 
 	char newYuApiKey[41];
-	char reserved7;//*
+	char reserved7:7;//*
+   bool dontuseclose:1;
 	uint16_t libredeletednr;
 	int32_t libre2NUMiter;
 

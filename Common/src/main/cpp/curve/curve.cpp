@@ -637,7 +637,6 @@ daylabel:
 
 
 pair<const ScanData*,const ScanData*> getScanRange(const ScanData *scan,const int len,const uint32_t start,const uint32_t end) {
-
 	ScanData scanst{.t=start};
 	const ScanData *endscan= scan+len;
 	auto comp=[](const ScanData &el,const ScanData &se ){return el.t<se.t;};
@@ -705,25 +704,18 @@ std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t star
 //static uint32_t pollgapdist=5*60;
 static uint32_t pollgapdist=330;
 pair<const ScanData*,const ScanData*> getScanRangeRuim(const ScanData *scan,const int len,const uint32_t start,const uint32_t end) {
+	return getScanRange(scan,len,start-pollgapdist,end+pollgapdist);
+   }	
+/*
+pair<const ScanData*,const ScanData*> getScanRangeRuim(const ScanData *scan,const int len,const uint32_t start,const uint32_t end) {
 	auto [low,high]= getScanRange(scan,len,start,end);
 	const ScanData *endscan= scan+len;
-	/*
-	ScanData scanst{.t=start};
-	const ScanData *endscan= scan+len;
-	auto comp=[](const ScanData &el,const ScanData &se ){return el.t<se.t;};
-  	const ScanData *low=lower_bound(scan,endscan, scanst,comp);
-	if(low==endscan) {
-		return {endscan,endscan};
-		}
-	scanst.t=end;
-  	const ScanData *high=upper_bound(low,endscan, scanst,comp);*/
-
-	if(low>scan&&(low->t-(low-1)->t)<pollgapdist)
+	if(low>scan&&(low->t-(low-1)->t)<=pollgapdist)
 		low--;
-	if(high<endscan&&((high+1)->t-high->t)<pollgapdist)
+	if(high<endscan&&((high+1)->t-high->t)<=pollgapdist)
 		high++;
 	return {low,high};
-	}
+	} */
 
 static void		sidenum(const float posx,const float posy,const char *buf,const int len,const bool hit) {
 		int align= NVG_ALIGN_MIDDLE;
@@ -2333,6 +2325,8 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
 		{
 			scan=his->getPolldata();
 			pollranges[i] =getScanRangeRuim(scan.data(),scan.size(),starttime,endtime) ;
+        // LOGGER("getScanRangeRuim(start=%d end=%d)=id %d-%d\n",starttime,endtime,pollranges[i].first->getid(), (pollranges[i].second-1)->getid());
+
 #ifdef SI5MIN
          sibionics[i]=his->isSibionics();
 #endif
@@ -3443,7 +3437,7 @@ public:
 	 prevtouch.time = chrono::steady_clock::now();
 	LOGGER("histgegs %s",ctime(&nu));
 	} 
-strconcat  getsensorhelp(string_view starttext,string_view name1,string_view name2,string_view sep1,string_view sep2) {
+strconcat  getsensorhelp(string_view starttext,string_view name1,string_view name2,string_view sep1,string_view sep2,string_view endstr="") {
 	char starts[50],ends[50],pends[50];
 //   const sensor *sensor=sensors->getsensor(sensorindex);
 	time_t stime=hist->getstarttime(),etime= hist->officialendtime();
@@ -3453,7 +3447,7 @@ strconcat  getsensorhelp(string_view starttext,string_view name1,string_view nam
 	time_t lastscan=hist->getlastscantime();
 	time_t lastpolltime=hist->getlastpolltime();
 	return strconcat(string_view(""),starttext ,name1,hist->showsensorname(),name2,usedtext->sensorstarted,sep2,string_view(starts, datestr(stime,starts)),!hist->isLibre2()?"":sep1,!hist->isLibre2()?"":usedtext->lastscanned,!hist->isLibre2()?"":sep2,!hist->isLibre2()?"":string_view(lastscanbuf,datestr(lastscan,lastscanbuf)),lastpolltime>0?strconcat(string_view(""),sep1,usedtext->laststream,sep2):"",lastpolltime>0?string_view(lastpollbuf,datestr(lastpolltime,lastpollbuf)):"",nu<etime?strconcat(string_view(""),sep1,usedtext->sensorends,sep2):"",
-nu<etime?string_view(ends, datestr(etime,ends)):string_view("",0),sep1,usedtext->sensorexpectedend,sep2,string_view(pends, datestr(reallends,pends)));;
+nu<etime?string_view(ends, datestr(etime,ends)):string_view("",0),sep1,usedtext->sensorexpectedend,sep2,string_view(pends, datestr(reallends,pends)),endstr);;
 	}
 
 #ifndef WEAROS
@@ -3477,7 +3471,7 @@ virtual int display() override {
 //histgegs gegs(
 strconcat getsensortext(const int sensorindex,const SensorGlucoseData *hist) {
 		histgegs gegs(sensorindex,hist);
-		return gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>");
+		return gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>","<br><br>");
 		}
 
 static void showhistory(const int sensorindex,const SensorGlucoseData *hist,const float tapx, const float tapy) {
@@ -3485,7 +3479,7 @@ static void showhistory(const int sensorindex,const SensorGlucoseData *hist,cons
 						histgegs gegs(sensorindex,hist);
 
 extern void callshowsensorinfo(const char *text);
-						callshowsensorinfo(gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>").data());
+						callshowsensorinfo(gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>","<br><br>").data());
 #else
 						::prevtouch.x=tapx;
 						::prevtouch.y=tapy;

@@ -34,6 +34,7 @@ import static tk.glucodata.Natives.setComplicationArrowColor;
 import static tk.glucodata.Natives.setComplicationBackgroundColor;
 import static tk.glucodata.Natives.setComplicationTextBorderColor;
 import static tk.glucodata.Natives.setComplicationTextColor;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
@@ -168,6 +169,7 @@ static public   void show(MainActivity context, View view) {
    var space2=new Space(context);
 //      Layout layout=new Layout(context,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{new Space(context),allradio[1],allradio[2]},new View[]{allradio[0],allradio[3]},new View[]{defaultbox,select},  new View[]{close});
 
+	if(!useclose) close.setVisibility(INVISIBLE);
       Layout layout=new Layout(context,(l, w, h)-> { return new int[] {w,h}; },new View[]{allradio[2]},new View[]{space1,allradio[0],allradio[1],space2},new View[]{defaultbox,select},  new View[]{close});
       layout.setBackgroundColor(Applic.backgroundcolor);
    var density=tk.glucodata.GlucoseCurve.metrics.density;
@@ -245,6 +247,7 @@ else {
    fontsizeview=null;
 	}
 
+	if(!useclose) close.setVisibility(GONE);
 
       Layout layout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{view},new View[]{preview},fontsizeview==null?null:new View[]{fontsizeview},new View[]{close});
 

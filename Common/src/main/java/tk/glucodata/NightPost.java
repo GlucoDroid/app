@@ -28,6 +28,7 @@ import static tk.glucodata.Backup.getedit;
 import static tk.glucodata.Log.stackline;
 import static tk.glucodata.Natives.setNightUploader;
 import static tk.glucodata.RingTones.EnableControls;
+import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.bluediag.datestr;
 import static tk.glucodata.help.help;
 import static tk.glucodata.settings.Settings.editoptions;
@@ -324,7 +325,8 @@ public static void  config(MainActivity act, View settingsview) {
 	  var statusview=getlabel(act,datestr(uploadtime)+": "+uploadstatus);
 	  int statuspad=  (int)tk.glucodata.GlucoseCurve.metrics.density*7;
 	statusview.setPadding(statuspad,statuspad,statuspad,statuspad);
-
+	if(!useclose)
+		cancel.setVisibility(GONE);
 	final Layout layout=isWearable?new Layout(act, (lay, w, h) -> { return new int[] {w,h};}, new View[]{secretlabel},new View[]{visible},new View[]{editsecret},new View[]{urllabel},new View[]{url},new View[]{statusview},new View[]{clear},new View[]{wake},new View[]{activebox,cancel},new View[]{save}):new Layout(act, (lay, w, h) -> {
 		var height=GlucoseCurve.getheight();
 		var width=GlucoseCurve.getwidth();

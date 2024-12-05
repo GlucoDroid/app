@@ -21,12 +21,34 @@
 
 package tk.glucodata;
 
-class Specific {
-static void start(Object context) { }
+import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static tk.glucodata.settings.Settings.removeContentView;
 
-static    void splash(Object act) {
-      }
-      static void initScreen(Object obj) {}
-      static void settext(String str) {}
+import android.annotation.SuppressLint;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
+public class Specific {
+static void start(Object context) { }
+static    void splash(Object act) { }
+static void initScreen(Object obj) {}
+static void settext(String str) {}
 static void      rmlayout() {}
+
+static void   blockedNum(MainActivity  act) {
+			var width=GlucoseCurve.getwidth();
+		help.basehelp(Applic.app.getString(R.string.staticnum),act,xzy->{ }, (l,w,h)-> {
+			var height=GlucoseCurve.getheight();
+			if(height>h)
+				l.setY((height-h)/2);
+			if(width>w)
+				l.setX((width-w)/2);
+			return new int[] {w,h};
+			}, new ViewGroup.MarginLayoutParams((int)(width*0.85), WRAP_CONTENT));
+		}
+
+static public boolean useclose=false;
+static public void setclose(boolean val) {
+   useclose=val;
+   }
 };
