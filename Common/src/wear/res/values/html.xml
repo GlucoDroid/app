@@ -43,6 +43,8 @@ is set to prevent entering amounts in this app, because they will be
 overridden by amounts received from the mirror connection.</p>
 <p>If this app doesn\'t
 receive amounts from a mirror connection, unset this option.</p>
+<br>
+<br>
 ]]>
 </string>
 </resources>

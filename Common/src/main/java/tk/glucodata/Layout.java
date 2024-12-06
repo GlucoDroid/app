@@ -33,8 +33,7 @@ import android.widget.TextView;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 public class Layout extends ViewGroup {
-static View.AccessibilityDelegate  accessDeli=
-	new View.AccessibilityDelegate () {
+static View.AccessibilityDelegate  accessDeli=new View.AccessibilityDelegate () {
 		@Override
 		public void onInitializeAccessibilityNodeInfo( View host, AccessibilityNodeInfo info) {
 			String message=(host  instanceof TextView)? ((TextView)host).getText().toString() :host.toString();
@@ -164,75 +163,72 @@ int childWidth(View child) {
      // return  Math.min(child.getMaximumWidth(),Math.max(child.getMinimumWidth(),child.getMeasuredWidth()));
       return  Math.max(child.getMinimumWidth(),child.getMeasuredWidth());
    }
-    int rowgeo(final int start,final int row,int widthMeasureSpec, int heightMeasureSpec) {
-	int end=rowend[row];
-        int maxWidth=0,totHeight=0;
-        int maxbaseline=0;
+int rowgeo(final int start,final int row,int widthMeasureSpec, int heightMeasureSpec) {
+   int end=rowend[row];
+   int maxWidth=0,totHeight=0;
+   int maxbaseline=0;
 	int not=0;
 	matchparent[row]=null;
-        for(int c=start;c<end;c++) {
-            View child = getChildAt(c);
+   for(int c=start;c<end;c++) {
+       View child = getChildAt(c);
 	    if(child.getVisibility()!=GONE) {
-		ViewGroup.LayoutParams  params ;
-		if((params=child.getLayoutParams())!=null&&params.width==MATCH_PARENT) {
-			matchparent[row]=child;
-		 	measureChild(child,1, heightMeasureSpec);
-			}
-		else {
-		     measureChild(child,widthMeasureSpec, heightMeasureSpec);
-		    maxWidth +=  childWidth(child);
-		    }
-	    not++;
-	    final int h = child.getMeasuredHeight();
-	    if (totHeight < h) totHeight = h;
-	    // Log.i(LOG_ID,"rowgeo "+row+" h="+h+" rowHeight="+totHeight);
-	    int baseline=child.getBaseline();
-	    if(baseline<0)
-		baseline=(int)(h/2-basefromiddle);
-
-	    if(baseline>maxbaseline)
-		maxbaseline=baseline;
-		}
-            }
+          ViewGroup.LayoutParams  params ;
+          if((params=child.getLayoutParams())!=null&&params.width==MATCH_PARENT) {
+               matchparent[row]=child;
+               measureChild(child,1, heightMeasureSpec);
+               }
+          else {
+                measureChild(child,widthMeasureSpec, heightMeasureSpec);
+                maxWidth +=  childWidth(child);
+                }
+          not++;
+          final int h = child.getMeasuredHeight();
+          if (totHeight < h) totHeight = h;
+          int baseline=child.getBaseline();
+          if(baseline<0) baseline=(int)(h/2-basefromiddle);
+          if(baseline>maxbaseline) maxbaseline=baseline;
+         }
+   }
 	notgone[row]=not;
 	maxwidths[row]=maxWidth;
 	baselines[row]=maxbaseline;
-        return totHeight;
+    return totHeight;
     }
 int rowmax;
 int totHeight;
 int maxHeight; 
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+@Override
+protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
        
 //        measureChildren(WRAP_CONTENT, WRAP_CONTENT);
 //        measureChildren(widthMeasureSpec, heightMeasureSpec);
 
 
-        totHeight =  getPaddingTop() + getPaddingBottom();
+   totHeight =  getPaddingTop() + getPaddingBottom();
 	// Log.i(LOG_ID,"heightpadding="+totHeight);
 	maxHeight=0; 
 	rowmax=-1;
-        for(int i=0,start=0;i<rownr;i++) {
-		int height= rowgeo(start, i,widthMeasureSpec, heightMeasureSpec);
-		if(height>maxHeight) {
-			maxHeight=height;
-			rowmax=i;
-			}
-		totHeight += height;
-		start=rowend[i];
-		}
+   for(int i=0,start=0;i<rownr;i++) {
+         int height= rowgeo(start, i,widthMeasureSpec, heightMeasureSpec);
+         if(height>maxHeight) {
+            maxHeight=height;
+            rowmax=i;
+            }
+         totHeight += height;
+         start=rowend[i];
+         }
 
-        int maxWidth = 0;
-	for(int el:maxwidths)
+   int maxWidth = 0;
+	for(int el:maxwidths) {
 		if(el>maxWidth)
 			maxWidth=el;
-        maxWidth+=                getPaddingLeft() + getPaddingRight();
+      }
+   maxWidth+=getPaddingLeft() + getPaddingRight();
 	if(totHeight< getSuggestedMinimumHeight())
 		totHeight = getSuggestedMinimumHeight();
-        maxWidth = Math.max(maxWidth, getSuggestedMinimumWidth());
+    maxWidth = Math.max(maxWidth, getSuggestedMinimumWidth());
 	// Log.i(LOG_ID,"maxWidth="+maxWidth);
-        int    prevrw = resolveSizeAndState(maxWidth, widthMeasureSpec, 0);
+   int    prevrw = resolveSizeAndState(maxWidth, widthMeasureSpec, 0);
 	// Log.i(LOG_ID,"Width="+prevrw);
 
 	 int prevrh=resolveSizeAndState(totHeight, heightMeasureSpec, 0);
@@ -252,61 +248,85 @@ int maxHeight;
 
 
     */
-    final int layrow(final int top,final int start,final int row,final int maxheight) {
-	final int end=rowend[row];
-	final int baseline=baselines[row];
-       int maxwidth=getWidth()-getPaddingLeft()-getPaddingRight();
-    	int nr=notgone[row];
-	if(nr==0) 
-		return top;
-	if(nr==1) {
-                View child=null;
-		for(int i=start;i<end&&(child=getChildAt(i)).getVisibility()==GONE;i++) {
-			};
-		int height= Math.min(child.getMeasuredHeight(),maxheight);
-		int bottom=top+height;
-		int width;
-		int left;
-//	        ViewGroup.LayoutParams  params ; if((params=child.getLayoutParams())!=null&&params.width==MATCH_PARENT) {
-	        if(child==matchparent[row]) {
-			left=getPaddingLeft();
-			width=maxwidth;
-			}
-		else {
-			width = childWidth(child);
+/*public boolean round=false;
+int getwidth(int topin,int maxheight) {
+   final var width=getWidth();
+   if(!round)
+      return width;
+   var top=topin+maxheight*.3; 
+   Log.i(LOG_ID,"y="+top);
+   var half=width*.5;
+   if(top>=half)
+      return width;
+  var left=half-top;
+  return (int)(Math.sqrt(Math.pow(half,2)-Math.pow(left,2))*2);
+   }
+int getleft(int hierwidth) {
+   if(!round)
+      getPaddingLeft();
+   var width=getWidth();
+   return (int)((width-hierwidth)*.5+ getPaddingLeft());
+   } */
+final int layrow(final int top,final int start,final int row,final int maxheight) {
+   int nr=notgone[row];
+  if(nr==0) return top;
 
-			left=(maxwidth-width)/2+ getPaddingLeft();
-			}
-		child.layout(left, top, left + width, bottom);
-		return bottom;
-		}
-        int left = getPaddingLeft();
-		
-	int tussen;
-	if(matchparent[row]==null)
-		tussen=(maxwidth-maxwidths[row])/(nr-1);
-	else {
-		tussen=0;
-		}	
-        int bottom=0;
-        for(int i = start; i < end; i++) {
-            View child = getChildAt(i);
-	    if(child.getVisibility()!=GONE) {
-		int childbaseline=child.getBaseline();
-	//	int height= child.getMeasuredHeight();
-		final int cheight= child.getMeasuredHeight();
-		int height= Math.min(cheight,maxheight);
-		if(childbaseline<0) childbaseline=(int)(cheight/2-basefromiddle);
-		int tophier=(top+baseline-childbaseline);
-//		int width = child.getMeasuredWidth(); //TODO set next
-      int childwidth = childWidth(child);
-		int width = child==matchparent[row]?(maxwidth-maxwidths[row]):childwidth;
-//		int width = (child==matchparent[row]?(maxwidth-maxwidths[row]):0)+child.getMeasuredWidth();
-		int bot= tophier + height;
-		child.layout(left, tophier, left + width, bot);
-		if(bot>bottom) bottom=bot;
-		left += (width+tussen);
-		}
+  // var hierwidth=getwidth(top,getChildAt(0).getMeasuredHeight());
+//   var hierleft=getleft(hierwidth);
+   var hierwidth=getWidth();
+   var hierleft=getPaddingLeft();
+   Log.i(LOG_ID,"width="+getWidth()+" hierwidth="+hierwidth+"padleft="+getPaddingLeft()+" hierleft="+hierleft);
+   final int end=rowend[row];
+   final int baseline=baselines[row];
+   int maxwidth=hierwidth-getPaddingLeft()-getPaddingRight();
+   if(nr==1) {
+      View child=null;
+      for(int i=start;i<end&&(child=getChildAt(i)).getVisibility()==GONE;i++) {
+              };
+      int height= Math.min(child.getMeasuredHeight(),maxheight);
+      int bottom=top+height;
+      int width;
+      int left;
+      if(child==matchparent[row]) {
+            left=hierleft;
+            width=maxwidth;
+            }
+       else {
+            width = childWidth(child);
+            left=(maxwidth-width)/2+ getPaddingLeft();
+             }
+       child.layout(left, top, left + width, bottom);
+       return bottom;
+       }
+   int left =hierleft; 
+  int tussen;
+  if(matchparent[row]==null) {
+       tussen=(maxwidth-maxwidths[row])/(nr-1);
+      if(tussen<0)
+         tussen=0;
+      }
+  else {
+        tussen=0;
+	}	
+  int bottom=0;
+  for(int i = start; i < end; i++) {
+      View child = getChildAt(i);
+      if(child.getVisibility()!=GONE) {
+         int childbaseline=child.getBaseline();
+      //	int height= child.getMeasuredHeight();
+         final int cheight= child.getMeasuredHeight();
+         int height= Math.min(cheight,maxheight);
+         if(childbaseline<0) childbaseline=(int)(cheight/2-basefromiddle);
+         int tophier=(top+baseline-childbaseline);
+   //		int width = child.getMeasuredWidth(); //TODO set next
+         int childwidth = childWidth(child);
+         int width = child==matchparent[row]?(maxwidth-maxwidths[row]):childwidth;
+   //		int width = (child==matchparent[row]?(maxwidth-maxwidths[row]):0)+child.getMeasuredWidth();
+         int bot= tophier + height;
+         child.layout(left, tophier, left + width, bot);
+         if(bot>bottom) bottom=bot;
+         left += (width+tussen);
+         }
            }
 	// // Log.i(LOG_ID,row+" width="+(left-tussen));
         return bottom;

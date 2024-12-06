@@ -152,17 +152,15 @@ static void   blockedNum(MainActivity  act) {
 		} 
       */
 static void   blockedNum(MainActivity  act) {
-
-			var width=GlucoseCurve.getwidth();
-		help.basehelp(Applic.app.getString(R.string.staticnum),act,xzy->{ }, (l,w,h)-> {
-			var height=GlucoseCurve.getheight();
-			if(height>h)
-				l.setY((height-h)/2);
-			if(width>w)
-				l.setX((width-w)/2);
-			return new int[] {w,h};
-			}, new ViewGroup.MarginLayoutParams((int)(width*0.85), WRAP_CONTENT));
-		}
+    var width=GlucoseCurve.getwidth();
+    help.basehelp(Applic.app.getString(R.string.staticnum),act,xzy->{ }, (l,w,h)-> {
+         var height=GlucoseCurve.getheight();
+//			if(height>h) l.setY((height-h)/2);
+         if(width>w)
+                 l.setX(((width-w)*.55f));
+         return new int[] {w,h};
+         }, new ViewGroup.MarginLayoutParams((int)(width*0.8), WRAP_CONTENT));
+    }
 
 static public boolean useclose=false;
 static public void setclose(boolean val) {

@@ -91,7 +91,7 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
 	public static   void  basehelp(String text,Activity act,Consumer<ViewGroup>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
        hidekeyboard(act);
 	    ScrollView       helpscroll=new ScrollView(act);
-           TextView helpview=new TextView(act);
+        TextView helpview=new TextView(act);
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         helpview.setText(fromHtml(text,TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
@@ -99,46 +99,39 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
     else {
 			helpview.setText(fromHtml(text));
 	}
-	   int pad=(int)(GlucoseCurve.getDensity()*7.0);
-	   helpview.setPadding(pad,pad,pad,pad);
            helpview.setTextColor(Color.WHITE);
            helpview.setTextIsSelectable(true);
 	helpview.setMovementMethod(LinkMovementMethod.getInstance());
  	    helpview.setLinksClickable(true);
-           helpscroll.addView(helpview);
        helpscroll.setVerticalScrollBarEnabled(Applic.scrollbar);
-      helpscroll.setScrollbarFadingEnabled(false);
+      helpscroll.setScrollbarFadingEnabled(true);
 	   
            Button ok=new Button(act);
-        if(useclose) 
+       ViewGroup helplayout;
+       if(isWearable) {
+           if(useclose)
+               ok.setText(R.string.ok);
+           else
+               ok.setVisibility(View.INVISIBLE);
+          ViewGroup  layout=new Layout(act, place::place,new View[]{ok}, new View[]{helpview});
+//          params.setMargins( 0, (int)(GlucoseCurve.metrics.density*10.0), 0,(int)(GlucoseCurve.metrics.density*50.0) );
+          //params.setMargins( 0, (int)(GlucoseCurve.metrics.density*10.0), 0,0);
+          layout.setBackgroundColor(backgroundcolor);
+           helpscroll.addView(layout,params);
+          helpscroll.setBackgroundColor(backgroundcolor);
+           helplayout=helpscroll; 
+            act.addContentView(helplayout,new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
+            }
+       else {
            ok.setText(R.string.ok);
-        else
-         ok.setVisibility(GONE);
-
-           ViewGroup  helplayout=new Layout(act,
-
-	   (l,w,h)-> {
-
-          var af=MainActivity.systembarTop*3/4;
+         int pad=(int)(GlucoseCurve.getDensity()*7.0);
+         helpview.setPadding(pad,pad,pad,pad);
+           helpscroll.addView(helpview);
+           helplayout=new Layout(act, (l,w,h)-> {
+            var af=MainActivity.systembarTop*3/4;
             l.setY(af);
-	       return place.place(l,w,h -af); 
-		}, new View[]{helpscroll},new View[]{ok});
-	if(isWearable) {
-	   params.setMargins(
-	   0,
-	       (int)(GlucoseCurve.metrics.density*5.0),
-	       0,
-		0 
-		   );
-	    helplayout.setBackgroundColor(backgroundcolor);
-//	     var frame=new DismissibleFrameLayout(act);
-	     var frame=new FrameLayout(act);
-	    frame.setBackgroundColor(backgroundcolor);
-	     frame.addView(helplayout,params);
-	      helplayout=frame; 
-           act.addContentView(helplayout,new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
-	      }
-	 else {
+                return place.place(l,w,h -af); 
+            }, new View[]{helpscroll},new View[]{ok});
         params.setMargins(
             MainActivity.systembarLeft,
             0,
@@ -171,36 +164,28 @@ final var helplayout2=helplayout;
 	@SuppressLint("deprecation")
 	public static   void help(String text,Activity act,Consumer<Layout>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
 		Log.i(LOG_ID,"help");
-       hidekeyboard(act);
+      hidekeyboard(act);
       Button ok;
-    Layout helplayout;
-
-       if(whelplayout==null||((helplayout=whelplayout.get())==null)||act!=helplayout.getContext()||( (ok=	okbutton.get())==null) ) {
-
-	    ScrollView       helpscroll=new ScrollView(act);
-           TextView helpview=new TextView(act);
-	   int pad=(int)(GlucoseCurve.getDensity()*7.0);
-	   helpview.setPadding(pad,pad,pad,pad);
-
-           helpview.setTextColor(Color.WHITE);
-           helpview.setTextIsSelectable(true);
-	    whelpview=new WeakReference<TextView>(helpview);
-		helpview.setMovementMethod(LinkMovementMethod.getInstance());
- 	    helpview.setLinksClickable(true);
-           helpscroll.addView(helpview);
-       helpscroll.setVerticalScrollBarEnabled(Applic.scrollbar);
-      helpscroll.setScrollbarFadingEnabled(false);
-	   
-           ok=new Button(act);
-        if(useclose) 
-           ok.setText(R.string.ok);
-        else
-         ok.setVisibility(GONE);
-	   okbutton=new WeakReference<Button>(ok);
-	   
-	var width=GlucoseCurve.getwidth();
-
-           helplayout=new Layout(act, (l,w,h)-> {
+      Layout helplayout;
+      if(whelplayout==null||((helplayout=whelplayout.get())==null)||act!=helplayout.getContext()||( (ok=	okbutton.get())==null) ) {
+	     ScrollView       helpscroll=new ScrollView(act);
+         TextView helpview=new TextView(act);
+         int pad=(int)(GlucoseCurve.getDensity()*7.0);
+         helpview.setPadding(pad,pad,pad,pad);
+         helpview.setTextColor(Color.WHITE);
+         helpview.setTextIsSelectable(true);
+         whelpview=new WeakReference<TextView>(helpview);
+         helpview.setMovementMethod(LinkMovementMethod.getInstance());
+         helpview.setLinksClickable(true);
+         helpscroll.addView(helpview);
+         helpscroll.setVerticalScrollBarEnabled(Applic.scrollbar);
+         helpscroll.setScrollbarFadingEnabled(false);
+         ok=new Button(act);
+         if(useclose) ok.setText(R.string.ok);
+         else ok.setVisibility(GONE);
+	      okbutton=new WeakReference<Button>(ok);
+         var width=GlucoseCurve.getwidth();
+         helplayout=new Layout(act, (l,w,h)-> {
              var af=MainActivity.systembarTop*3/4;
                l.setY(af);
              return place.place(l,w,h -af); 

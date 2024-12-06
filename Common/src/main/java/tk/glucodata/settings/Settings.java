@@ -443,7 +443,7 @@ new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View
    if(isWearable) {
 //       layout.setPadding(0, (int) (GlucoseCurve.metrics.density*10),0,0);
       final int sidepad=(int)(GlucoseCurve.metrics.density*5);
-       layout.setPadding((int)(GlucoseCurve.metrics.density*2), sidepad,sidepad,sidepad);
+       layout.setPadding((int)(GlucoseCurve.metrics.density*2), sidepad,(int)(GlucoseCurve.metrics.density*7),sidepad);
        }
      else
         layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight,MainActivity.systembarBottom);

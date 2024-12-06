@@ -712,15 +712,18 @@ void finishsensor(int ind) {
      if (!thishist)
 	sensorlist()[ind].present = 0;
      else {
-	uint32_t maxtime = thishist->getmaxtime();
-	if(maxtime < nu) {
-	   if(!(thishist->isDexcom()&&thishist->pollcount()<maxdexcount&&(nu-sensorlist()[ind].endtime)< youngsensorsecs)) {
-	       LOGGER("%s finished was %d set to 1\n", sensorlist()[ind].name, sensorlist()[ind].finished);
-	       sensorlist()[ind].finished=1;
-	      }
-	   }
-	 sensorlist()[ind].endtime = thishist->lastused();
-	 sensorlist()[ind].present = 1;
+      sensorlist()[ind].present = 1;
+      uint32_t maxtime = thishist->getmaxtime();
+      if(maxtime < nu) {
+         if(thishist->isDexcom()&&thishist->pollcount()<maxdexcount&&(nu-sensorlist()[ind].endtime)< youngsensorsecs) {
+            return;
+            }
+         else {
+             LOGGER("%s finished was %d set to 1\n", sensorlist()[ind].name, sensorlist()[ind].finished);
+             sensorlist()[ind].finished=1;
+            }
+         }
+       sensorlist()[ind].endtime = thishist->lastused();
 	 }
 	       // "TODO test on presence"
      }

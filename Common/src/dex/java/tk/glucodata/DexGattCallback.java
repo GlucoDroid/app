@@ -138,7 +138,7 @@ public class DexGattCallback extends SuperGattCallback {
     }
   private boolean bonded=false;
 
-
+//private long connectedtime=0L;
 private boolean connected=false;
     @SuppressLint("MissingPermission")
     @Override
@@ -193,8 +193,12 @@ private boolean connected=false;
                   close();
                   if(!stop) {
                       var sensorbluetooth = SensorBluetooth.blueone;
-                      if (sensorbluetooth != null)
-                         sensorbluetooth.connectToActiveDevice(this,justdata?3000:0);
+                      if (sensorbluetooth != null) {
+                         long alreadywaited=tim-constatchange[0]; 
+                         long stillwait=justdata?(7000-alreadywaited):0;
+                         Log.i(LOG_ID,"justdata="+justdata+" alreadywaited="+alreadywaited+" stillwait="+stillwait);
+                         sensorbluetooth.connectToActiveDevice(this,stillwait);
+                         }
                      }
                  }          
             }

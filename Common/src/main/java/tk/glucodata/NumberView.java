@@ -189,16 +189,12 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
     if(newnumview==null) {
        // var mat = new MaterialButton(context); mat.setCornerRadius(GlucoseCurve.dpToPx(30)); datebutton=mat; 
       datebutton = new Button(context);
-	datebutton.setMinWidth(0);
-	datebutton.setMinimumWidth(0);
         datebutton.setOnClickListener(
                 v -> getdateview(context));
 	source=new TextView(context);
         dateview=datebutton;
         timebutton = new Button(context);
 
-	timebutton.setMinWidth(0);
-	timebutton.setMinimumWidth(0);
 //        var mat2 = new MaterialButton(context); timebutton=mat2; mat2.setCornerRadius(GlucoseCurve.dpToPx(30));
 
         timeview=timebutton;
@@ -219,19 +215,26 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 
 //        View[] row1 = {getspinner(context), valueedit};
         deletebutton = new Button(context);
-	deletebutton.setMinWidth(0);
-	deletebutton.setMinimumWidth(0);
+
  //       deletebutton = new MaterialButton(context);
 //      ((MaterialButton) deletebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         deletebutton.setText(R.string.delete);
 
         Button cancel = new Button(context);
         cancel.setText(R.string.cancel);
-	cancel.setMinWidth(0);
-	cancel.setMinimumWidth(0);
         savebutton = new Button(context);
-	savebutton.setMinWidth(0);
-	savebutton.setMinimumWidth(0);
+	if(isWearable) {
+	   cancel.setMinWidth(0);
+	   cancel.setMinimumWidth(0);
+	   savebutton.setMinWidth(0);
+	   savebutton.setMinimumWidth(0);
+	   deletebutton.setMinWidth(0);
+	   deletebutton.setMinimumWidth(0);
+	   datebutton.setMinWidth(0);
+	   datebutton.setMinimumWidth(0);
+	   timebutton.setMinWidth(0);
+	   timebutton.setMinimumWidth(0);
+	   }
 //        savebutton = new MaterialButton(context);
  //     ((MaterialButton) savebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         savebutton.setText(R.string.save);

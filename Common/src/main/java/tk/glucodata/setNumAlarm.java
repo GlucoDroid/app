@@ -129,8 +129,11 @@ if(genlayout==null) {
 			   var height=GlucoseCurve.getheight();
             recycle.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT,height));
 
-              recycle.setPadding(0,0,0,0); 
+              recycle.setPadding(0,0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0f)); 
       if(!useclose) {
+              recycle.setPadding(0,(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0f),0,(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0f));
+         listclose.setVisibility(GONE);
+      /*
          listclose.setText("");
          listclose.setVisibility(INVISIBLE);
          final int butwidth=0;
@@ -138,8 +141,12 @@ if(genlayout==null) {
         listclose.setMinimumWidth(butwidth);
          listclose.setMinHeight(butwidth);
         listclose.setMinimumHeight(butwidth);
-        listclose.setPadding(0,0,0,0);
+        listclose.setPadding(0,0,0,0); */
             }
+	 else  {
+              recycle.setPadding(0,0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0f)); 
+	      listclose.setPadding(0,0,0,0); 
+	      }
           var listlay= new Layout(act, (l, w, h) -> { int[] ret={w,h}; return ret; },new  View[]{listclose},new View[]{recycle});
 //var listlay=recycle;
            act.addContentView(listlay, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
@@ -251,8 +258,8 @@ public class NumAlarmAdapter extends RecyclerView.Adapter<NumAlarmHolder> {
     	var view=new TextView( parent.getContext());
       view.setTransformationMethod(null);
 //       view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
-  if(!isWearable)
-           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
+//          view.setTextSize(TypedValue.COMPLEX_UNIT_PX, isWearable?Applic.mediumfontsize:Applic.largefontsize);
+          view.setTextSize(TypedValue.COMPLEX_UNIT_PX, Applic.largefontsize);
 
       view.setLayoutParams(new ViewGroup.LayoutParams(  MATCH_PARENT, WRAP_CONTENT));
       if(isWearable)

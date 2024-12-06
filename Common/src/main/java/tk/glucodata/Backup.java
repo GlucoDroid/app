@@ -28,6 +28,7 @@ import android.content.DialogInterface;
 import android.content.res.TypedArray;
 import android.graphics.BlendMode;
 import android.graphics.BlendModeColorFilter;
+import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -74,6 +75,7 @@ import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static tk.glucodata.Applic.backgroundcolor;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.BuildConfig.isReleaseID;
+import static tk.glucodata.GlucoseCurve.width;
 import static tk.glucodata.Natives.getBlueMessage;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getWifi;
@@ -549,7 +551,7 @@ Stream.setPadding(0,0,(int)(GlucoseCurve.metrics.density*5.0),0);
 		}, new View[]{ Portlabel},new View[] {portedit},new View[]{new Space(act),IPslabel,detect,new Space(act)}, new View[]{editIPs[0]},new View[]{editIPs[1]},editIPs.length>=3?new View[]{editIPs[2]}:null,editIPs.length>=4?new View[]{editIPs[3]}:null ,new View[] {testip},new View[] {haslabel},new View[]{label},
 				new View[]{passiveonly},new View[]{activeonly},new View[]{both},new View[] {receive},new View[] {Sendlabel,Stream},new View[]{Scans,Amounts},new View[]{startlabel},new View[]{alldata,fromnow},new View[]{screenpos} ,new View[]{Password },new View[]{editpass,visible},new View[]{delete,Close},new View[] {reset},new View[]{save});
 
-  	layout.setPadding((int)(GlucoseCurve.metrics.density*4.0),0,(int)(GlucoseCurve.metrics.density*12.0),(int)(GlucoseCurve.metrics.density*4));
+  	layout.setPadding((int)(GlucoseCurve.metrics.density*4.0),0,(int)(GlucoseCurve.metrics.density*14.0),(int)(GlucoseCurve.metrics.density*4));
 		}
 	else {
 		layout = new Layout(act, (l, w, h) -> {
@@ -571,7 +573,7 @@ Stream.setPadding(0,0,(int)(GlucoseCurve.metrics.density*5.0),0);
 //	hostview.setSmoothScrollingEnabled(false);
 	hostview.setSmoothScrollingEnabled(true);
     hostview.setVerticalScrollBarEnabled(Applic.scrollbar);
-    hostview.setScrollbarFadingEnabled(false);
+    hostview.setScrollbarFadingEnabled(true);
 //	act.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         act.addContentView(hostview, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
         hostview.setBackgroundColor(backgroundcolor);
@@ -659,9 +661,6 @@ void changehostview(MainActivity act,final int index,String[] names,boolean dode
 	sendchecked=new boolean[]{amounts,scans,stream};
 	sendfrom[2].setText( tk.glucodata.util.timestring(Natives.getstarttime()));
 	if(!isasender) {
-	/*	for(View v:sendfrom) 
-			v.setVisibility(VISIBLE);
-		sendfrom[2].setText(GarminStatus.timestring(Natives.getstarttime()));*/
 		reset.setVisibility(GONE);
 		}
 	else {
@@ -700,6 +699,7 @@ if(!isWearable)
 	var close=getbutton(act,R.string.closename);
 	var modify=getbutton(act,R.string.modify);
 
+
 //  	var help=getbutton(act,R.string.helpname);
 	var info=new TextView(act);
    /*
@@ -716,39 +716,70 @@ if(!isWearable)
               a.recycle();     
               */
      int pad=(int)(GlucoseCurve.metrics.density*7.0);
-   info.setPadding(pad,0,pad,0);
+     if(!isWearable)
+      info.setPadding(pad,0,pad,0);
 	var deactive=getcheckbox(act,R.string.off,Natives.getHostDeactivated(pos));
-	deactive.setOnCheckedChangeListener( (buttonView,  isChecked)-> Natives.setHostDeactivated(pos,isChecked));
+	deactive.setOnCheckedChangeListener( (buttonView,  isChecked)->  {
+             Natives.setHostDeactivated(pos,isChecked);
+		       hostadapt.notifyItemChanged(pos);
+            }
+             );
+             /*
 	if(isWearable) {
 		modify.setPadding((int) (GlucoseCurve.metrics.density*23),0,0,0);
 		deactive.setPadding(0,0, (int) (GlucoseCurve.metrics.density*40),0);
-		}
+		} */
+   if(isWearable) {
+      int minw=width/3;
+      modify.setMinimumWidth(minw);
+      modify.setMinWidth(minw);
+      deactive.setMinimumWidth(0);
+      deactive.setMinWidth(0);
+		modify.setPadding(0,0,0,0);
+		deactive.setPadding(0,0, 0,0);
+      }
 	sethtml(info, mirrorStatus(pos));
 	//if(!useclose) close.setVisibility(INVISIBLE);
-	if(!useclose) close.setVisibility(GONE);
-	Layout layout=isWearable?(new Layout(act,new View[]{modify,deactive}, new View[]{info},new View[]{close})):new Layout(act, (l, w, h) -> {
 
-      var x=GlucoseCurve.getwidth()-MainActivity.systembarRight-w;
-      if(x<MainActivity.systembarLeft)
-         x=MainActivity.systembarLeft;
-		l.setX(GlucoseCurve.getwidth()-MainActivity.systembarRight-w);
-		l.setY(MainActivity.systembarTop);
-		final int[] lret={w,h};
-		return lret;
-	},new View[]{modify,deactive,close} , new View[]{info});
-	if(isWearable)
+	ViewGroup layall;
+
+	if(isWearable) {
+	    if(!useclose) close.setVisibility(GONE);
+      var space1=new Space(act);
+      var space2=new Space(act);
+	    Layout layout=new Layout(act,new View[]{space1,deactive,modify,space2}, new View[]{info},new View[]{close});
+//      layout.round=true;
 		layout.setBackgroundColor(Applic.backgroundcolor);
+		layout.setPadding((int)(GlucoseCurve.metrics.density*15),(int)(GlucoseCurve.metrics.density*20),(int)(GlucoseCurve.metrics.density*10), (int)(GlucoseCurve.metrics.density*10));
+      var scroll= new ScrollView(act);
+		scroll.setFillViewport(true);
+      scroll.setVerticalScrollBarEnabled(true);
+      scroll.setScrollbarFadingEnabled(true);
+		scroll.setSmoothScrollingEnabled(true);
+		scroll.addView(layout);
+      layall=scroll;
+      }
 	else {
+	Layout layout=new Layout(act, (l, w, h) -> {
+         var x=GlucoseCurve.getwidth()-MainActivity.systembarRight-w;
+         if(x<MainActivity.systembarLeft)
+            x=MainActivity.systembarLeft;
+         l.setX(GlucoseCurve.getwidth()-MainActivity.systembarRight-w);
+         l.setY(MainActivity.systembarTop);
+         final int[] lret={w,h};
+         return lret;
+         },new View[]{modify,deactive,close} , new View[]{info});
 	    // info.setPadding(pad,0,pad,0);
 	      layout.setBackgroundResource(R.drawable.dialogbackground);
 //	      layout.setRotation(90);
+		layall=layout;
 	      }
 
-   	modify.setOnClickListener(v-> 	changehostview(act,pos,layout));
+   modify.setOnClickListener(v-> 	changehostview(act,pos,layall));
 	final var lpar=isWearable?MATCH_PARENT:ViewGroup.LayoutParams.WRAP_CONTENT;
-	act.addContentView(layout, new ViewGroup.LayoutParams(lpar,lpar));
+	act.addContentView(layall, new ViewGroup.LayoutParams(lpar,lpar));
 	Runnable closerun= ()-> {
-		removeContentView(layout);
+		removeContentView(layall);
 
 if(!isWearable)
 		EnableControls(parview,true);
@@ -850,14 +881,14 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 //		hori.setSmoothScrollingEnabled(false);
        hori.setVerticalScrollBarEnabled(Applic.scrollbar);
 //       hori.setHorizontalScrollBarEnabled(Applic.horiScrollbar);
-      hori.setScrollbarFadingEnabled(false);
+      hori.setScrollbarFadingEnabled(true);
 		hori.setSmoothScrollingEnabled(true);
 		int height=GlucoseCurve.getheight();
 		hori.setMinimumHeight(height);
 		hori.addView(layout);
 		lay=hori;
       int pad=(int)(GlucoseCurve.metrics.density*5);
-		layout.setPadding(pad,pad,pad,pad);
+		layout.setPadding((int)(GlucoseCurve.metrics.density*2.5),pad,(int)(GlucoseCurve.metrics.density*9),pad);
 		}
 	else {
 		var layout=new Layout(act, new View[]{ip,blpan,p2p,labport,portview,Save},new View[]{recycle},new View[] {battery,Help,alarms,staticnum},errorrow,new View[]{Sync,reinit,hosts,Cancel});
@@ -943,9 +974,9 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 
 	    view.setAccessibilityDelegate(tk.glucodata.Layout.accessDeli);
 //        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
-//        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
    if(!isWearable)
-           view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
+         view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
+         // view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
       view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
        view.setGravity(Gravity.LEFT);
         return new HostViewHolder(view,pview);
@@ -966,7 +997,10 @@ private static final DateFormat hhmm=             new SimpleDateFormat("HH:mm", 
 	   boolean scans=Natives.getbackuphostscans(pos);
 	   boolean amounts=Natives.getbackuphostnums(pos);
 		int recnum=Natives.getbackuphostreceive(pos);
+      boolean off=Natives.getHostDeactivated(pos);
 		boolean doreceive= (recnum&2)!=0;
+      if(off)
+          text.setPaintFlags(text.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
 		if(label!=null) {
 		  	sb.append(label);
 		  	sb.append(" ");
