@@ -186,7 +186,7 @@ static public void show(MainActivity act,View view) {
 		hidden[0]=!isChecked;
 		Natives.sethidefloatinJuggluco(!isChecked);
 		});
-
+/*
 	final  int butwidth=(int)(width*0.33);
    backgroundview.setMinWidth(butwidth);
    backgroundview.setMinimumWidth(butwidth);
@@ -199,7 +199,6 @@ static public void show(MainActivity act,View view) {
 	backgroundview.setMinHeight(butheight);
 	close.setMinHeight(butheight);
      close.setMinimumHeight(butheight);
-     /*
 	hide.setMinHeight(labelheight);
      hide.setMinimumHeight(labelheight);
 	sizeview.setMinHeight(labelheight);

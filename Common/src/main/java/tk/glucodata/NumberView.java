@@ -223,7 +223,7 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
         Button cancel = new Button(context);
         cancel.setText(R.string.cancel);
         savebutton = new Button(context);
-	if(isWearable) {
+/*	if(isWearable) {
 	   cancel.setMinWidth(0);
 	   cancel.setMinimumWidth(0);
 	   savebutton.setMinWidth(0);
@@ -234,7 +234,7 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 	   datebutton.setMinimumWidth(0);
 	   timebutton.setMinWidth(0);
 	   timebutton.setMinimumWidth(0);
-	   }
+	   } */
 //        savebutton = new MaterialButton(context);
  //     ((MaterialButton) savebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         savebutton.setText(R.string.save);
@@ -248,16 +248,19 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 	   if(!useclose) cancel.setVisibility(GONE);
 		}
       Layout layout;
+
     if(isWearable) {
 		int height=GlucoseCurve.getheight();
 		int width=GlucoseCurve.getwidth();
+      var lab1=getlabel(context," ");
+      var lab2=getlabel(context," ");
       if(useclose)  {
           layout = new Layout(context, (lay,w,h) -> { 
             if(height>h)
-               lay.setY((height-h)*.5f);
+               lay.setY((height-h)*.5f+GlucoseCurve.metrics.density*10.0f);
             if(width>w)
                lay.setX((width-w)*.5f);
-          return new int[]{w,h}; }, new View[] {source},new View[]{datebutton,timebutton} ,new View[]{getspinner(context), valueedit}, new View[]{messagetext,savebutton,deletebutton},new View[]{cancel});
+          return new int[]{w,h}; }, new View[]{lab1,datebutton,timebutton,lab2} ,new View[]{getspinner(context), valueedit}, new View[]{messagetext,savebutton,deletebutton},new View[]{cancel});
       }
       else {
       var space1=new Space(context);
@@ -272,6 +275,9 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
    return new int[]{w,h};
    }, new View[]{space1,datebutton,timebutton,space2} ,new View[]{getspinner(context), valueedit}, new View[]{space3,messagetext,savebutton,deletebutton,space4});
    }
+
+//	   int sidepad=(int)(GlucoseCurve.metrics.density*20);
+ //       layout.setPadding(sidepad,0,sidepad,0);
       }
   else { 
    layout=new Layout(context, (lay, w, h) -> {
@@ -354,7 +360,7 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 
 			});
 	if(isWearable) {
-		if(useclose) {
+		if(false) {
 		   ScrollView hori=new ScrollView(context);
 		   hori.setFillViewport(true);
 		  hori.setScrollbarFadingEnabled(false);
@@ -706,12 +712,16 @@ Log.i(LOG_ID, "getdateviewal");
 	datepick =new DatePicker(activity);
 	datepick.setCalendarViewShown(false);
         Button cancel=new Button(activity);
+//        cancel.setBackgroundResource(R.drawable.button_selector);
+//        cancel.setBackgroundResource(R.drawable.button_selector2);
+
         cancel.setText(R.string.cancel);
         cancel.setOnClickListener(vi -> { 
 		activity.doonback();
 		});
         Button ok=new Button(activity);
         ok.setText(R.string.ok);
+ //      ok.setBackgroundResource(R.drawable.button_selector2);
         ok.setOnClickListener(vi -> {
 		activity.doonback();
 		if(keyboard!=null)
@@ -733,6 +743,7 @@ Log.i(LOG_ID, "getdateviewal");
 			return new int[] {w,h};
                 },new View[]{cancel},new View[] {datepick},new View[] {ok});
 		laypar= MATCH_PARENT;
+       datepicker.setPadding(0,(int)(GlucoseCurve.metrics.density*5.0),0,(int)(GlucoseCurve.metrics.density*2.0));
 		}
 	else {
         datepicker=new Layout(activity,
@@ -843,8 +854,7 @@ final  boolean buttonsunder=true;
 	View[][] views;
 	 int layparwidth,layparheight;
 if(isWearable) {
-      if(!useclose)
-            cancel.setVisibility(GONE);
+      if(!useclose) cancel.setVisibility(GONE);
 		   views=new View[][]{new View[]{cancel},new View[]{pick},new View[]{ok}};
          layparheight=layparwidth=MATCH_PARENT;
 
@@ -856,8 +866,6 @@ else {
 	      layparwidth=WRAP_CONTENT;
 		   }
 	   else {
-	if(!useclose)
-		cancel.setVisibility(GONE);
          layparwidth=MATCH_PARENT;
 	      buttonlay=new Layout(activity,new View[] {cancel},new View[]{ok});
 	      buttonlay.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT , ViewGroup.LayoutParams.MATCH_PARENT));
@@ -895,6 +903,8 @@ else {
         activity.addContentView(layout,  new ViewGroup.LayoutParams(layparwidth,layparwidth));
     //    activity.addContentView(layout,  new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         timepicker=layout;
+   if(isWearable)
+          layout.setPadding(0,(int)(GlucoseCurve.metrics.density*5.0),0,(int)(GlucoseCurve.metrics.density*2.0));
     }
     else {
 	timepicker.requestLayout();
@@ -903,11 +913,13 @@ else {
 	}
 
   //    timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
+if(!isWearable) {
 	if(buttonsunder) timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
 // timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
-else  {
-      pick.setPadding(systembarLeft,MainActivity.systembarTop,0,MainActivity.systembarBottom);
-     buttonlay.setPadding(0,MainActivity.systembarTop/2, systembarRight,MainActivity.systembarBottom);
+   else  {
+         pick.setPadding(systembarLeft,MainActivity.systembarTop,0,MainActivity.systembarBottom);
+        buttonlay.setPadding(0,MainActivity.systembarTop/2, systembarRight,MainActivity.systembarBottom);
+        }
      }
 
      pick.setIs24HourView(Applic.hour24);
@@ -950,7 +962,8 @@ Spinner getspinner(Activity context) {
 if(spinner==null) {
      spinner=getGenSpin(context);
      if(isWearable)
-	 spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.54));
+	         spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.60));
+//	 spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.54));
 	final int minheight=GlucoseCurve.dpToPx(48);
 	spinner.setMinimumHeight(minheight);
 	avoidSpinnerDropdownFocus(spinner);

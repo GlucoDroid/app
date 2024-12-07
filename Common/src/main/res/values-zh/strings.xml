@@ -246,7 +246,7 @@
 <string name="noapplisteningto">"没有应用程序监听 "</string>
 <string name="secret">api_secret</string>
 <string name="withoutsaving">不保存离开？</string>
-<string name="active">开启悬浮窗</string>
+<string name="active">活性</string>
 <string name="usessl">使用 SSL</string>
 <string name="fullchain">完整链</string>
 

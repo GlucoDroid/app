@@ -188,7 +188,7 @@ void showinfo(final SuperGattCallback gatt,MainActivity act) {
 
 	Log.i(LOG_ID,"info.setVisibility(VISIBLE);");
 	info.setVisibility(VISIBLE);
-	info.setOnClickListener(v->  showsensorinfo(gatt.getinfo(),(MainActivity) info.getContext()));
+	info.setOnClickListener(v->  showsensorinfo(gatt.getinfo(),act));
 	}
 TextView[] keytimes; TextView keyinfo;
 TextView[] glucosetimes; TextView glucoseinfo;

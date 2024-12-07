@@ -63,7 +63,6 @@ import android.graphics.Color;
 import android.os.Build;
 import android.text.InputType;
 import android.util.TypedValue;
-import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -443,7 +442,7 @@ new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View
    if(isWearable) {
 //       layout.setPadding(0, (int) (GlucoseCurve.metrics.density*10),0,0);
       final int sidepad=(int)(GlucoseCurve.metrics.density*5);
-       layout.setPadding((int)(GlucoseCurve.metrics.density*2), sidepad,(int)(GlucoseCurve.metrics.density*7),sidepad);
+       layout.setPadding((int)(GlucoseCurve.metrics.density*8), sidepad,(int)(GlucoseCurve.metrics.density*12),sidepad);
        }
      else
         layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight,MainActivity.systembarBottom);
@@ -747,9 +746,9 @@ static private void displaysettings(MainActivity context,Settings settings) {
     if(isWearable)  {
       if(!useclose)
           close.setVisibility(GONE);
-        targetlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0,0,0);
-        graphlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0,0,0);
-        colbut.setPadding(0,0,0,0);
+        targetlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*8.0),0,0,0);
+        graphlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*8.0),0,0,0);
+        //colbut.setPadding(0,0,0,0);
         threslabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*7.0),0,0,0);
    //      Button display=getbutton(context,context.getString(R.string.display));
  	var Scans=getcheckbox(context,R.string.scansname,getshowscans()) ;
@@ -768,12 +767,11 @@ Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshows
 	History.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowhistories(isChecked); });
 	Stream.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowstream(isChecked); });
 	Amounts.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshownumbers(isChecked); });
-   var space=getlabel(context,"");
 	   fixed.setPadding(0,0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0));
         lay = new Layout(context, (l, w, h) -> {
     		      int[] ret={w,h};
 		         return ret;
-               },new View[]{colbut},graphrow,targetrow,new View[] {hour12},new View[]{space},new View[]{scalelabel}, new View[]{fixatex},new View[]{fixatey},new View[]{threslabel,threshold},new View[] {levelleft},new View[]{fixed},new View[]{Scans},new View[]{History},new View[]{Stream},new View[]{Amounts},new View[]{setuseclose},new View[]{close},new View[]{langspin});
+               },new View[]{colbut},graphrow,targetrow,new View[] {hour12},new View[]{scalelabel}, new View[]{fixatex},new View[]{fixatey},new View[]{threslabel,threshold},new View[] {levelleft},new View[]{fixed},new View[]{Scans},new View[]{History},new View[]{Stream},new View[]{Amounts},new View[]{setuseclose},new View[]{close},new View[]{langspin});
          }
       else {	
       var iob=getcheckbox(context,"IOB",Natives.getIOB());
@@ -802,7 +800,7 @@ Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshows
      lay.setBackgroundColor(Applic.backgroundcolor);
 	if(isWearable) {
       final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0);
-	   lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*15.0),pad*2);
+	   lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*6.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0),pad*2);
 		}
      else {
       final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*8.0);
@@ -973,8 +971,7 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 			complications.setOnClickListener(v -> tk.glucodata.glucosecomplication.ColorConfig.show(context, thelayout[0]));
 		}
 
-      alarmbut.setMinimumWidth(0);
-      alarmbut.setMinWidth(0);
+//      alarmbut.setMinimumWidth(0); alarmbut.setMinWidth(0);
 		var uppad=(int)(tk.glucodata.GlucoseCurve.metrics.density*9.0);
       alarmbut.setPadding(uppad,alarmbut.getPaddingTop(),uppad,alarmbut.getPaddingBottom());
 
@@ -991,11 +988,11 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
  //     var space2=getlabel(context,"");
 		View[] camornum=new View[] {alarmbut,numalarm};
 		if(BuildConfig.minSDK>=26) {
-			views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{exchanges },new View[]{complications},  new View[]{floatconfig, floatglucose}, camornum, new View[]{close}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+			views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null,new View[]{floatconfig, floatglucose},new View[]{complications}, new View[]{exchanges },   camornum, new View[]{close}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
 			;
 		}
 		else{
-			views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null,  new View[]{exchanges },   new View[]{floatconfig, floatglucose}, camornum,new View[]{close},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+			views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{floatconfig, floatglucose}, new View[]{exchanges },    camornum,new View[]{close},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
 			;
 		}
 		}
@@ -1071,7 +1068,7 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 
 	   final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0);
 	if(isWearable) {
-	   lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*3.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),pad,pad);
+	   lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*14.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*14.0),pad);
 		}
      else {
 	   lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom);
@@ -1144,8 +1141,7 @@ static private void exchanges(MainActivity context,View parent) {
 	if (isWearable) {
 		var uploader = getbutton(context, R.string.upload);
 		uploader.setOnClickListener(v -> tk.glucodata.NightPost.config(context, thelayout[0]));
-		uploader.setMinimumWidth(0);
-		uploader.setMinWidth(0);
+//		uploader.setMinimumWidth(0); uploader.setMinWidth(0);
 		//        var uppad=(int)(tk.glucodata.GlucoseCurve.metrics.density*9.0);
 //          uploader.setPadding(uppad,alarmbut.getPaddingTop(),uppad,alarmbut.getPaddingBottom());
 
@@ -1155,7 +1151,7 @@ static private void exchanges(MainActivity context,View parent) {
 		},new View[]{xdripbroadcast},new View[]{uploader,mirrorview}  ,new View[]{jugglucobroadcast}, new View[]{ok});
 
    final var density=tk.glucodata.GlucoseCurve.metrics.density;
-		lay.setPadding((int)(density*8.0),(int)(density*20.0),(int)(density*8.0),(int)(density*2.0));
+		lay.setPadding((int)(density*8.0),(int)(density*25.0),(int)(density*8.0),(int)(density*2.0));
 	} else {
 		var uploader = getbutton(context, R.string.uploader);
 		uploader.setOnClickListener(v -> tk.glucodata.NightPost.config(context, thelayout[0]));

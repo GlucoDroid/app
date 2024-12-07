@@ -49,6 +49,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ScrollView;
+import android.widget.Space;
 
 import androidx.annotation.Keep;
 
@@ -327,7 +328,14 @@ public static void  config(MainActivity act, View settingsview) {
 	statusview.setPadding(statuspad,statuspad,statuspad,statuspad);
 	if(!useclose)
 		cancel.setVisibility(GONE);
-	final Layout layout=isWearable?new Layout(act, (lay, w, h) -> { return new int[] {w,h};}, new View[]{secretlabel},new View[]{visible},new View[]{editsecret},new View[]{urllabel},new View[]{url},new View[]{statusview},new View[]{clear},new View[]{wake},new View[]{activebox,cancel},new View[]{save}):new Layout(act, (lay, w, h) -> {
+   Layout layout;
+   if(isWearable) {
+      var space1=new Space(act);
+      var space2=new Space(act);
+	   layout=new Layout(act, (lay, w, h) -> { return new int[] {w,h};}, new View[]{secretlabel},new View[]{visible},new View[]{editsecret},new View[]{urllabel},new View[]{url},new View[]{statusview},new View[]{clear},new View[]{wake},new View[]{space1,activebox,cancel,space2},new View[]{save});
+   }
+      else {
+	layout=new Layout(act, (lay, w, h) -> {
 		var height=GlucoseCurve.getheight();
 		var width=GlucoseCurve.getwidth();
                         if(w>=width||h>=height) {
@@ -340,12 +348,15 @@ public static void  config(MainActivity act, View settingsview) {
 			lay.setY(MainActivity.systembarTop);
                         return new int[] {w,h};}, new View[]{urllabel,url},new View[]{secretlabel,editsecret,visible},new View[]{statusview},new View[]{activebox,v3box,clear,wake},new View[]{treatments,help,cancel,save});
 
+      }
 		int laypar;
 		final View allview=isWearable?new ScrollView(act):layout;
 		if(isWearable) {
 			((ScrollView)allview).addView(layout);
 			laypar=ViewGroup.LayoutParams.MATCH_PARENT;
 			layout.setBackgroundColor(tk.glucodata.Applic.backgroundcolor);
+	       int allpad=  (int)tk.glucodata.GlucoseCurve.metrics.density*8;
+		    layout.setPadding(allpad,allpad,(int)(GlucoseCurve.metrics.density*12.0),allpad);
 		} else {
 			int[] nochangeamounts={0};
 			treatments.setOnCheckedChangeListener( (buttonView,  isChecked) -> {

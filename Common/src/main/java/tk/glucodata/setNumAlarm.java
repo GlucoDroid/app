@@ -145,10 +145,11 @@ if(genlayout==null) {
             }
 	 else  {
               recycle.setPadding(0,0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0f)); 
-	      listclose.setPadding(0,0,0,0); 
+//	      listclose.setPadding(0,0,0,0); 
 	      }
           var listlay= new Layout(act, (l, w, h) -> { int[] ret={w,h}; return ret; },new  View[]{listclose},new View[]{recycle});
 //var listlay=recycle;
+      listlay.setPadding(0,(int)(tk.glucodata.GlucoseCurve.metrics.density*1.0f),0,0);
            act.addContentView(listlay, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
            listlay.setBackgroundColor(Applic.backgroundcolor);
             act.setonback( () -> {
@@ -198,6 +199,8 @@ if(genlayout==null) {
 		});
 	ViewGroup.LayoutParams layparm;
 	if(isWearable) {
+         final int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*2.0f);
+         genlayout.setPadding(pad,pad,pad,pad);
 		layparm = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 /*        var  gestureListener= new ScrollListener();
         var mGestureDetector = new GestureDetector(act, gestureListener);
@@ -435,6 +438,7 @@ void  mkitemlayout(Activity act,View parent) {
 		}, views);
    if(isWearable) {
       if(useclose) {
+      /*
          int butwidth=0;
          startbut.setMinWidth(butwidth);
         startbut.setMinimumWidth(butwidth);
@@ -445,7 +449,7 @@ void  mkitemlayout(Activity act,View parent) {
          Save.setMinWidth(butwidth);
         Save.setMinimumWidth(butwidth);
          Delete.setMinWidth(butwidth);
-        Delete.setMinimumWidth(butwidth);
+        Delete.setMinimumWidth(butwidth); */
          var scroll=new ScrollView(act);
          scroll.setFillViewport(true);
          scroll.setSmoothScrollingEnabled(false);

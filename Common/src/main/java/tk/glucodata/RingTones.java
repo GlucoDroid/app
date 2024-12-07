@@ -36,6 +36,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ScrollView;
+import android.widget.Space;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -186,9 +187,10 @@ static private void subEnableControls(View view,boolean enable){
 		EditText duredit=new EditText(context);
 		duredit.setImeOptions(editoptions);
 		duredit.setMinEms(3);
-	        duredit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+      duredit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 		duredit.setText(duration+"");
 		duredit.setMinimumHeight(minheight);
+	duredit.setPadding(duredit.getPaddingLeft(),duredit.getPaddingTop(),duredit.getPaddingRight()+(int)(GlucoseCurve.metrics.density*20),duredit.getPaddingBottom());
 	 TextView waitlabel=getlabel(context,R.string.minuteddeactivated);
 		waitlabel.setPadding(rand*2,0,0,0);
 	 flashview=new CheckBox(context);
@@ -260,7 +262,7 @@ static private void subEnableControls(View view,boolean enable){
 View[] durviews;
 	if(isWearable) {
 		TextView durlabel=getlabel(context,R.string.duractionsec);
-		durlabel.setPadding(rand*2,0,0,0);
+		durlabel.setPadding( (int)(13.0*GlucoseCurve.metrics.density),0,0,0);
 		durviews=new View[]{durlabel,duredit};
 		}
 	else {
@@ -287,12 +289,21 @@ View[] durviews;
 
 	views[0]=new View[]{name};
 	views[start+1]=soundselect;
-	if(hasname==1) {
-		View labv=getlabel(context,label);
-		views[views.length-1]=new View[]{labv};
-		labv.setPadding(0,0,0,0);
-		}
-	views[views.length-1-hasname]= isWearable?new View[]{Save}:new View[]{play,Cancel,Save};
+   if(isWearable) {
+      if(hasname==1) {
+            View labv=getlabel(context,label);
+            views[views.length-2]= new View[]{labv};
+            }
+      views[views.length-1]= new View[]{Save};
+      }
+   else {
+      if(hasname==1) {
+         View labv=getlabel(context,label);
+         views[views.length-1]=new View[]{labv};
+        // labv.setPadding(0,0,0,0);
+         }
+      views[views.length-1-hasname]= isWearable?new View[]{Save}:new View[]{play,Cancel,Save};
+      }
 
 	if(hasflash) {
 		boolean flashalarm= Natives.alarmhasflash(kind);
@@ -304,8 +315,16 @@ View[] durviews;
 		//permission.setVisibility(INVISIBLE);
 		}
 
-	views[start+2]=isWearable?new View[]{sound,vibration}: (Build.VERSION.SDK_INT <Build.VERSION_CODES.M? new View[]{sound}:new View[]{sound,disturb});
-	views[start+3]=isWearable?new View[]{play,Cancel}:new View[]{flashview,vibration};
+   if(isWearable) {
+      var space1=new Space(context);
+      var space2=new Space(context);
+      views[start+2]=new View[]{sound,vibration};
+      views[start+3]=new View[]{space1,play,Cancel,space2};
+      }
+   else  {
+      views[start+2]=(Build.VERSION.SDK_INT <Build.VERSION_CODES.M? new View[]{sound}:new View[]{sound,disturb});
+      views[start+3]=new View[]{flashview,vibration};
+   }
 	
 	View lay;
 	ScrollView scroll=new ScrollView(context);
@@ -322,9 +341,9 @@ View[] durviews;
 	if(isWearable)  {
 		lay.setBackgroundColor(tk.glucodata.Applic.backgroundcolor);
 //		 int laypad=(int)(GlucoseCurve.metrics.density*(hasname==1?20.0f:35.0f));
-		 int laypad=(int)(GlucoseCurve.metrics.density*10);
+		 int laypad=(int)(GlucoseCurve.metrics.density*14);
 		final int sidepad=(int)(GlucoseCurve.metrics.density*10.0f);
-		 layout.setPadding((int)(GlucoseCurve.metrics.density*6.0f),(int)(GlucoseCurve.metrics.density*7.0f),sidepad,laypad);
+		 layout.setPadding((int)(GlucoseCurve.metrics.density*13.0f),(int)(GlucoseCurve.metrics.density*7.0f),(int)(GlucoseCurve.metrics.density*13.0f),laypad);
 		 }
 	else {
 		lay.setBackgroundResource(R.drawable.dialogbackground);

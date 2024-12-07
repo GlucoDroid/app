@@ -115,7 +115,7 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
                ok.setVisibility(View.INVISIBLE);
           ViewGroup  layout=new Layout(act, place::place,new View[]{ok}, new View[]{helpview});
 //          params.setMargins( 0, (int)(GlucoseCurve.metrics.density*10.0), 0,(int)(GlucoseCurve.metrics.density*50.0) );
-          //params.setMargins( 0, (int)(GlucoseCurve.metrics.density*10.0), 0,0);
+          params.setMargins( 0, (int)(GlucoseCurve.metrics.density*3.0), 0,0);
           layout.setBackgroundColor(backgroundcolor);
            helpscroll.addView(layout,params);
           helpscroll.setBackgroundColor(backgroundcolor);

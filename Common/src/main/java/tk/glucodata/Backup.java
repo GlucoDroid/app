@@ -422,8 +422,7 @@ void makehostview(MainActivity act) {
         editpass.setMinEms(6);
        visible = new CheckBox(act);// visible.setText(R.string.visible);
        visible.setButtonDrawable(R.drawable.password_visible);
-      visible.setMinimumWidth(0);
-      visible.setMinWidth(0);
+//      visible.setMinimumWidth(0); visible.setMinWidth(0);
 	visible.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
 
         		editpass.setInputType(isChecked?InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -551,7 +550,7 @@ Stream.setPadding(0,0,(int)(GlucoseCurve.metrics.density*5.0),0);
 		}, new View[]{ Portlabel},new View[] {portedit},new View[]{new Space(act),IPslabel,detect,new Space(act)}, new View[]{editIPs[0]},new View[]{editIPs[1]},editIPs.length>=3?new View[]{editIPs[2]}:null,editIPs.length>=4?new View[]{editIPs[3]}:null ,new View[] {testip},new View[] {haslabel},new View[]{label},
 				new View[]{passiveonly},new View[]{activeonly},new View[]{both},new View[] {receive},new View[] {Sendlabel,Stream},new View[]{Scans,Amounts},new View[]{startlabel},new View[]{alldata,fromnow},new View[]{screenpos} ,new View[]{Password },new View[]{editpass,visible},new View[]{delete,Close},new View[] {reset},new View[]{save});
 
-  	layout.setPadding((int)(GlucoseCurve.metrics.density*4.0),0,(int)(GlucoseCurve.metrics.density*14.0),(int)(GlucoseCurve.metrics.density*4));
+  	layout.setPadding((int)(GlucoseCurve.metrics.density*4.0),0,(int)(GlucoseCurve.metrics.density*10.0),(int)(GlucoseCurve.metrics.density*4));
 		}
 	else {
 		layout = new Layout(act, (l, w, h) -> {
@@ -661,7 +660,7 @@ void changehostview(MainActivity act,final int index,String[] names,boolean dode
 	sendchecked=new boolean[]{amounts,scans,stream};
 	sendfrom[2].setText( tk.glucodata.util.timestring(Natives.getstarttime()));
 	if(!isasender) {
-		reset.setVisibility(GONE);
+		reset.setVisibility(INVISIBLE);
 		}
 	else {
 		reset.setVisibility(VISIBLE);
@@ -729,15 +728,15 @@ if(!isWearable)
 		modify.setPadding((int) (GlucoseCurve.metrics.density*23),0,0,0);
 		deactive.setPadding(0,0, (int) (GlucoseCurve.metrics.density*40),0);
 		} */
-   if(isWearable) {
+/*   if(isWearable) {
       int minw=width/3;
       modify.setMinimumWidth(minw);
       modify.setMinWidth(minw);
       deactive.setMinimumWidth(0);
       deactive.setMinWidth(0);
-		modify.setPadding(0,0,0,0);
-		deactive.setPadding(0,0, 0,0);
-      }
+		//modify.setPadding(0,0,0,0);
+//		deactive.setPadding(0,0, 0,0);
+      } */
 	sethtml(info, mirrorStatus(pos));
 	//if(!useclose) close.setVisibility(INVISIBLE);
 
@@ -746,11 +745,11 @@ if(!isWearable)
 	if(isWearable) {
 	    if(!useclose) close.setVisibility(GONE);
       var space1=new Space(act);
-      var space2=new Space(act);
+      var space2=getlabel(act,"      ");
 	    Layout layout=new Layout(act,new View[]{space1,deactive,modify,space2}, new View[]{info},new View[]{close});
 //      layout.round=true;
 		layout.setBackgroundColor(Applic.backgroundcolor);
-		layout.setPadding((int)(GlucoseCurve.metrics.density*15),(int)(GlucoseCurve.metrics.density*20),(int)(GlucoseCurve.metrics.density*10), (int)(GlucoseCurve.metrics.density*10));
+		layout.setPadding((int)(GlucoseCurve.metrics.density*15),(int)(GlucoseCurve.metrics.density*30),(int)(GlucoseCurve.metrics.density*10), (int)(GlucoseCurve.metrics.density*25));
       var scroll= new ScrollView(act);
 		scroll.setFillViewport(true);
       scroll.setVerticalScrollBarEnabled(true);
@@ -874,7 +873,9 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 				UseWifi.stopusewifi();
 			});
 	   if(!useclose) Cancel.setVisibility(INVISIBLE);
-		final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{blpan},new View[]{p2p},new View[]{ip},new View[]{new Space(act),labport,portview,Save,new Space(act)},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{wifi,alarms},errorrow,new View[]{Cancel});
+      var space1=new Space(act);
+      var space2=new Space(act);
+		final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{blpan},new View[]{p2p},new View[]{ip},new View[]{new Space(act),labport,portview,Save,new Space(act)},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{space1,wifi,alarms,space2},errorrow,new View[]{Cancel});
 //		var hori=new NestedScrollView(act);
 		var hori=new ScrollView(act);
 		hori.setFillViewport(true);
@@ -888,7 +889,7 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 		hori.addView(layout);
 		lay=hori;
       int pad=(int)(GlucoseCurve.metrics.density*5);
-		layout.setPadding((int)(GlucoseCurve.metrics.density*2.5),pad,(int)(GlucoseCurve.metrics.density*9),pad);
+		layout.setPadding((int)(GlucoseCurve.metrics.density*6),pad,(int)(GlucoseCurve.metrics.density*9),pad);
 		}
 	else {
 		var layout=new Layout(act, new View[]{ip,blpan,p2p,labport,portview,Save},new View[]{recycle},new View[] {battery,Help,alarms,staticnum},errorrow,new View[]{Sync,reinit,hosts,Cancel});
@@ -970,12 +971,12 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
     @NonNull
 	@Override
     public HostViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-    	TextView view=new Button( parent.getContext());
+    	TextView view=new TextView( parent.getContext());
 
 	    view.setAccessibilityDelegate(tk.glucodata.Layout.accessDeli);
 //        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
    if(!isWearable)
-         view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
+         view.setTextSize(TypedValue.COMPLEX_UNIT_PX,isWearable?Applic.mediumfontsize:Applic.largefontsize);
          // view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
       view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
        view.setGravity(Gravity.LEFT);
