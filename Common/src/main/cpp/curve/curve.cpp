@@ -1133,11 +1133,12 @@ void setdiffcurrent() {
 	//diffcurrent=(uint64_t)time(nullptr)-starttime;
 	auto now=time(nullptr);
 	diffcurrent=now-starttime;
+	LOGGER("now=%u starttime=%u diffcurrent=%d\n",now,starttime,diffcurrent);
 	if(diffcurrent>(duration*5/6)) {
 		doclamp=false;
+      return;
 		}
 	doclamp=true;
-	LOGGER("now=%u starttime=%u diffcurrent=%d\n",now,starttime,diffcurrent);
 	}
 extern bool nowclamp;
 void setstarttime(uint32_t newstart) {
@@ -1434,9 +1435,10 @@ static pair<int,int> getextremes(const vector<int> &hists, const pair<const Scan
 	int gmin=6000;
 	const int histlen=hists.size();
 	for(int i=0;i<histlen;i++) {
-		if(1||showhistories) {
+     const auto his=sensors->getSensorData(hists[i]);
+      if(!his->isDexcom()||(showhistories&&settings->data()->dexcomPredict)) {
 			for(auto pos=histpositions[i].first,last=histpositions[i].second;pos<=last;pos++) {
-				int glu=sensors->getSensorData(hists[i])->sputnikglucose(pos);
+				int glu=his->sputnikglucose(pos);
 				if(glu) {
 					if(glu>gmax)
 					     gmax=glu;
@@ -2332,7 +2334,12 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
 #endif
 			}
 //		if(showhistories)
-			histpositions[i]= histPositions(his, starttime,  endtime); 
+
+      const auto senso=sensors->getSensorData(hists[i]);
+      if(!senso->isDexcom()||(showhistories&&settings->data()->dexcomPredict))
+            histpositions[i]= histPositions(his, starttime,  endtime); 
+       else
+            histpositions[i]= {0,0}; 
 		 }
 	LOGGER("Before numdatas[i]->getInRange(%u,%u)\n",starttime,endtime);
 	for(int i=0;i< numdatas.size();i++) 

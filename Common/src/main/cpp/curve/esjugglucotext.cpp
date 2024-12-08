@@ -1,6 +1,7 @@
 #include "config.h"
 #ifdef SPANISH
 #include "jugglucotext.hpp"
+#include "jugglucotext.hpp"
 #ifndef WEAROS
 constexpr static std::string_view eslabels[]={"Fast Insuli",
 "Carbohidra",
@@ -36,9 +37,9 @@ constexpr static Shortcut_t esshortinit[]=
         .07f},
         {"Mix mushro",
         .07300000f}};
-
-;
 #endif
+
+extern jugglucotext estext;
 
 jugglucotext estext {
 .daylabel={"Dom",
@@ -49,7 +50,7 @@ jugglucotext estext {
 "Vie",
 "Sab"},
 .speakdaylabel={ "Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"},
-	.monthlabel={
+.monthlabel={
        "Ene",
        "Feb",
        "Mar",
@@ -63,10 +64,11 @@ jugglucotext estext {
        "Nov",
        "Dic"},
 
+
 .scanned="Escaneado",
 .readysecEnable="Sensor listo en %d minutos. Escanee nuevamente para habilitar la transmisión.",
 .readysec="Sensor listo en %d minutos.",
-.networkproblem="No hay glucosa en el espejo",
+.networkproblem="No hay glucosa del espejo",
 .enablebluetooth="Habilitar Bluetooth",
 .useBluetoothOff="'Usar Bluetooth' desactivado",
 .noconnectionerror=": Sin conexión",
@@ -79,13 +81,13 @@ jugglucotext estext {
 .middle="Media",
 #endif
 .history="Historial",
-// .historyinfo="Una vez cada 15 minutos.\nRecordado en el sensor durante 8 horas.\nEl escaneo los transfiere a este programa.\nSensor: ",
-// .history3info="Una vez cada 5 minutos.\nRecordado en el sensor durante 14 días.\nTransferido por Bluetooth a este programa.\nSensor: ",
+// .historyinfo="Una vez cada 15 minutos.\nSe recuerdan en el sensor durante 8 horas.\nAl escanearlos, se transfieren a este programa.\nSensor: ",
+// .history3info="Una vez cada 5 minutos.\nSe recuerdan en el sensor durante 14 días.\nSe transfieren por Bluetooth a este programa.\nSensor: ",
 .sensorstarted= "Iniciado:",
-.lastscanned="Último escaneo:",
+.lastscanned="Último escaneado:",
 .laststream="Última transmisión:",
-.sensorends="Termina:",
-	.sensorexpectedend="Expected to end: ",
+.sensorends="Finaliza oficialmente: ",
+.sensorexpectedend="Finalización prevista: ",
 #ifndef WEAROS
 .newamount="Nueva cantidad",
 .averageglucose="Glucosa promedio: ",
@@ -93,17 +95,17 @@ jugglucotext estext {
 .timeactive="%.1f%% del tiempo activo",
 .nrmeasurement="Número de mediciones: %d",
 .EstimatedA1C="A1C estimada: %.1f%% (%d mmol/mol)",
-.GMI="Indicador de Manejo de Glucosa: %.1f%% (%d mmol/mol)",
+.GMI="Indicador de gestión de glucosa: %.1f%% (%d mmol/mol)",
 .SD="SD: %.2f",
 .glucose_variability="Variabilidad de la glucosa: %.1f%%",
-      .menustr0={
-"Interfaz",
+.menustr0={
+"Interfaz        ",
 "Menús",
 "Reloj",
 "Sensor",
 "Ajustes",
 #if defined(SIBIONICS)
-"Photo",
+"Foto",
 #else
 "Acerca",
 #endif
@@ -150,82 +152,79 @@ estext.amount},
 
 .scanerrors={
 {"Error de escaneo (%d)",
-"Intentar otra vez"},
+"Intentar de nuevo"},
 {"Error de instalación",
 "?"},
 {"Error de procesamiento de datos",
-"Intentar otra vez"},
-{"Activando Sensor",
+"Intentar de nuevo"},
+{"Activando sensor",
 ""},
-{"El sensor definitivamente ha terminado",
+{"El sensor ha finalizado definitivamente",
 ""},
 
-{"Sensor listo",
+{"Sensor listo en",
 "%d minutos"},
-{"373: Error del sensor",
-"Inténtalo de nuevo más tarde"},
+{"Error de sensor (373)",
+"Intentar de nuevo más tarde"},
 {"Nuevo sensor inicializado",
-"Escanear nuevamente para usarlo"},
+"Escanear de nuevo para usarlo"},
 {"",
-"Bloquea contacto durante escaneo"},
+"Bloquea el tacto durante el escaneo"},
 {"",
 ""},
-{"Error de inicialización de la biblioteca",
+{"Error de inicialización de biblioteca",
 "¿Faltan bibliotecas compartidas?"},
-{"Error de inicialización de clase",
-"Hacer algo"},
-{"El trámite tarda demasiado",
+{"Clase Error de inicialización",
+"Haz algo"},
+{"El procedimiento tarda demasiado",
 "Cierro el programa"},
-{"365: Reemplazar sensor",
-"Su sensor no funciona. Retire su sensor y comience uno nuevo."},
-{"368: Reemplazar sensor",
-"Su sensor no funciona. Retire su sensor y comience uno nuevo."},
+{"Reemplazar sensor (365)", "Tu sensor no está funcionando. Por favor, retira tu sensor y empieza uno nuevo."},
+{"Reemplazar sensor (368)",
+"Tu sensor no está funcionando. Retire su sensor y comience uno nuevo."},
 {"",
 ""},
-{"Error de exploración",
-"Intentar otra vez"}},
+{"Error de escaneo",
+"Inténtelo de nuevo"}},
 
-.libre3scanerror={"FreeStyle Libre 3, Error de escaneo",
-"Intentar otra vez"},
-.libre3wrongID={"Error, ¿ID de cuenta incorrecto?",
-"Especifique en Configuración->Libreview la misma cuenta utilizada para activar el sensor"},
+.libre3scanerror={"FreeStyle Libre 3, error de escaneo",
+"Inténtelo de nuevo"},
+.libre3wrongID={"Error, ¿ID de cuenta incorrecta?",
+R"(Debería ser el mismo que cuando se activa el sensor. Use el menú izquierdo->Configuración->Libreview->"Obtener ID de cuenta" para recuperarlo de Libreview.)"},
 .libre3scansuccess= {"Sensor FreeStyle Libre 3",
-"Jugggluco ahora recibirá los valores de glucosa"},
+"Juggluco recibirá ahora los valores de glucosa"},
 .unknownNFC={"Error de escaneo NFC no reconocido",
-"Intentar otra vez"},
+"Inténtelo de nuevo"},
 .nolibre3={"Sensor FreeStyle Libre 3",
-"No es compatible con esta versión de Juggluco"},
+"Descargue la versión correcta de https://www.juggluco.nl/download.html"},
 #ifndef WEAROS
 .advancedstart= R"(<h1>Dispositivo modificado</h1>
-<p>Una de las bibliotecas utilizadas por esta aplicación tiene un ERROR que hace
-que se bloquée si detecta ciertos archivos. Su dispositivo contiene algunos de
+<p>Una de las bibliotecas utilizadas por esta aplicación tiene un ERROR que hace que
+se bloquee si detecta ciertos archivos. Su dispositivo contiene algunos de
 estos archivos. Este programa contiene un truco para evitar este ERROR, pero
-Probablemente sea mejor hacer que estos archivos sean indetectables en algún otro
-forma. Magisk, por ejemplo, tiene la opción de ocultar la raíz para ciertos
-aplicaciones (Magiskhide o Denylist) y cambiar su propio nombre, tanto
-Se necesitan. En su caso tiene problemas con el siguiente archivo)",
+probablemente sea mejor hacer que estos archivos sean indetectables de alguna otra
+manera. Magisk, por ejemplo, tiene la opción de ocultar la raíz para ciertas
+aplicaciones (Magiskhide o Denylist) ycambiar su propio nombre, ambos
+son necesarios. En tu caso tiene problemas con el siguiente archivo)",
 .add_s=true,
 .shortinit=esshortinit,
 .labels=eslabels,
-.checked="comprobado",
-.unchecked="no marcado",
-.Undetermined="",
-.FallingQuickly="Disminuyendo rápidamente",
-.Falling="Disminuyendo",
-.Stable="Cambiando lentamente",
-.Rising="Aumentando",
-.RisingQuickly="Aumentando rápidamente",
+.checked="checked",
+.unchecked="not checked",
+.Undetermined=""sv,
+.FallingQuickly="Cayendo rápidamente"sv,
+.Falling="Cayendo"sv,
+.Stable="Cambiando lentamente"sv,
+.Rising="Aumentando"sv,
+.RisingQuickly="Aumentando rápidamente"sv,
 #endif
-.receivingpastvalues="Receiving old values",
-
-.receivingdata="Receiving data",
-.unsupportedSibionics="Unsupported Sibionics Sensor"sv,
-.waitingforconnection="Waiting for connection"sv
-
+.receivingpastvalues="Recibiendo valores antiguos"sv,
+.receivingdata="Recibiendo datos"sv,
+.unsupportedSibionics="Sensor Sibionics no compatible"sv,
+.waitingforconnection="Esperando conexión"sv
 }
 
-
 ;
+
 
 #include "logs.hpp"
 extern void setusees() ;
@@ -234,3 +233,4 @@ void setusees() {
   usedtext= &estext;
   }
 #endif
+

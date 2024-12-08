@@ -385,8 +385,11 @@ extern void setdiffcurrent();
 
 extern int diffcurrent;
 extern bool nowclamp;
+
+extern bool doclamp;
 bool nowclamp=false;
 static void setdiffcurrent(bool val) {
+   doclamp=false;
    nowclamp=val;
    /*
 	if(val) {
