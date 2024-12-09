@@ -190,6 +190,80 @@ bool sameaddress(const  struct sockaddr *addr, const struct sockaddr_in6  *known
 	}
 //&hosts[hostlen-1]
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include "destruct.hpp"
+//#define LOGGER printf
+static bool same_address(const struct sockaddr *addr1,const struct sockaddr *addr2 ) {
+    switch(addr1->sa_family) {
+      case AF_INET: {
+         if(addr2->sa_family==AF_INET6) return sameaddress(addr1, (const struct sockaddr_in6*)  addr2);
+        const struct sockaddr_in *ip1 = (const struct sockaddr_in *)addr1;
+        const struct sockaddr_in *ip2 = (const struct sockaddr_in *)addr2;
+        return ip1->sin_addr.s_addr==ip2->sin_addr.s_addr;
+         }
+      case    AF_INET6: {
+        if(addr2->sa_family==AF_INET) return sameaddress(addr2, (const struct sockaddr_in6*)  addr1);
+        const struct sockaddr_in6 *ip1 = (const struct sockaddr_in6 *)addr1;
+        const struct sockaddr_in6 *ip2 = (const struct sockaddr_in6 *)addr2;
+        return !memcmp(ip1->sin6_addr.s6_addr,ip2->sin6_addr.s6_addr,16);
+         }
+       }
+     return false;
+       }
+#ifndef NOLOG
+static void address(char *ipstr,int ipstrlen,const struct sockaddr *addr) {
+    void *addr_ptr;
+
+    if (addr->sa_family == AF_INET) {
+        struct sockaddr_in *ipv4 = (struct sockaddr_in *)addr;
+        addr_ptr = &(ipv4->sin_addr);
+    } else if (addr->sa_family == AF_INET6) {
+        struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)addr;
+        addr_ptr = &(ipv6->sin6_addr);
+    } else {
+        printf("Unsupported address family\n");
+        return;
+    }
+
+    inet_ntop(addr->sa_family, addr_ptr, ipstr, ipstrlen);
+}
+#endif
+bool testhostname(const char *hostname,const struct sockaddr *addr) {
+    struct addrinfo hints{.ai_family = AF_UNSPEC,.ai_socktype = SOCK_STREAM};
+
+   struct addrinfo  *firstaddr=nullptr;
+    if(int errcode = getaddrinfo(hostname, NULL, &hints, &firstaddr)) {
+       LOGGER("getaddrinfo: %s\n", gai_strerror(errcode));
+       return false;
+       }
+#ifndef NOLOG
+         char ipstr2[INET6_ADDRSTRLEN];
+          address(ipstr2,sizeof(ipstr2), addr);
+#endif
+    destruct _dest( [firstaddr]{freeaddrinfo(firstaddr);});
+    for(struct addrinfo  *addri = firstaddr; addri != NULL; addri = addri->ai_next) {
+#ifndef NOLOG
+         char ipstr1[INET6_ADDRSTRLEN];
+          address(ipstr1,sizeof(ipstr1), addri->ai_addr);
+#endif
+        if(same_address(addri->ai_addr, addr)) {
+            LOGGER("%s == %s \n",ipstr1,ipstr2);
+            return true;
+            }
+         else {
+             LOGGER("%s != %s \n",ipstr1,ipstr2);
+             }
+      }
+
+    return false;
+   }
+
 static bool testreceivemagic(passhost_t *pass,int sock) {
 #include "receivemagic.h"
 #include "sendmagic.hpp"
@@ -404,12 +478,14 @@ globalsocket=serversock;
 						if(host.deactivated)
 							continue;
 						if((host.passive())&&host.hasname&&!memcmp(host.getname(),name,passhost_t::maxnamelen)) { 
-							bool nothostreg=!host.hasip(addrptr)&&(!host.detect||!host.addiphasfamport(addrptr));
-							if(!host.noip&&nothostreg) {
-								serverprint("label %s host %d wrong ip",name,h);
-								LOGGERTAG("%s\n",servererrorbuf);
-								continue;
-								}
+                     if(!host.noip) {
+                        bool nothostreg=!host.hasip(addrptr)&&(!host.detect||!host.addiphasfamport(addrptr));
+                        if(nothostreg) {
+                           serverprint("label %s host %d wrong ip",name,h);
+                           LOGGERTAG("%s\n",servererrorbuf);
+                           continue;
+                           }
+                         }
 							LOGSTRINGTAG("take \n");
 							hit=&host;
 							goto RIGHTHOST;

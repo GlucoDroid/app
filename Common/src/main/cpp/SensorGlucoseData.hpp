@@ -1097,10 +1097,6 @@ specstart(spec),
  ,statefile3(sensordir,"state3.json")
 #endif
 {
-if(isDexcom()) 
-   LOGGER("%s sensor is Dexcom\n",shortsensorname()->data());
-else
-   LOGGER("%s sensor is not Dexcom\n",shortsensorname()->data());
 if(error()) {
 	LOGGER("SensorGlucoseData %s %s Error\n",sensordir.data(),baseuit.data());
 	return;

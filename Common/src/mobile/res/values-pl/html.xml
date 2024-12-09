@@ -326,12 +326,6 @@ To modify, change the html files in https://github.com/j-kaltes/Jugglucohelp -->
 <p><br/> <br/></p>
 ]]>
 </string>
-<string name="index" >
-<![CDATA[
-<h2 class="western">
-<p><a href="https://www.juggluco.nl/Juggluco">https://www.juggluco.nl/Juggluco</a></p>
-]]>
-</string>
 <string name="introhelp" >
 <![CDATA[
 

@@ -449,9 +449,6 @@ void makehostview(MainActivity act) {
 			Applic.argToaster(act,R.string.allsentnoreceive ,Toast.LENGTH_LONG);
 			return;
 			}		
-		if(!receiver&& !(Amounts.isChecked()&& Stream.isChecked()&& Scans.isChecked())) {
-			Applic.argToaster(act,R.string.notalldata ,Toast.LENGTH_LONG);
-			}		
 		hidekeyboard(act); //USE
 		int hostnr=Natives.backuphostNr( );
 		String[] names=new String[editIPs.length];
@@ -468,6 +465,7 @@ void makehostview(MainActivity act) {
 		int ipmax=editIPs.length-(dodetect?1:0)-(haslabel.isChecked()?1:0);
 		if(struse>=ipmax)
 			struse=ipmax;
+
 		if((testip.isChecked()&&!dodetect)||activeonly.isChecked()) {
 			if(struse==0) {
 				Applic.argToaster(act, R.string.specifyip,Toast.LENGTH_SHORT);
@@ -477,7 +475,7 @@ void makehostview(MainActivity act) {
 
 		long starttime=(alldata.getVisibility()!=VISIBLE||alldata.isChecked())?0L:(fromnow.isChecked()? System.currentTimeMillis():Natives.getstarttime())/1000L;
 
-		int pos=Natives.changebackuphost(hostindex,names,struse,dodetect,portedit.getText().toString(), Amounts.isChecked(),Stream.isChecked(),Scans.isChecked(),restore.isChecked(),receiver,activeonly.isChecked(),passiveonly.isChecked(),Password.isChecked()?editpass.getText().toString():null,starttime,haslabel.isChecked()?label.getText().toString():null,testip.isChecked(),(!passiveonly.isChecked())&&checkhostname.isChecked());
+		int pos=Natives.changebackuphost(hostindex,names,struse,dodetect,portedit.getText().toString(), Amounts.isChecked(),Stream.isChecked(),Scans.isChecked(),restore.isChecked(),receiver,activeonly.isChecked(),passiveonly.isChecked(),Password.isChecked()?editpass.getText().toString():null,starttime,haslabel.isChecked()?label.getText().toString():null,testip.isChecked(),checkhostname.isChecked());
 
 		if(pos<0) {
 			String mess= switch (pos) {
@@ -492,6 +490,13 @@ void makehostview(MainActivity act) {
 			Applic.argToaster(act,mess,Toast.LENGTH_SHORT);
 			return ;
 			}	
+
+		if(!receiver&& !(Amounts.isChecked()&& Stream.isChecked()&& Scans.isChecked())) {
+			Applic.argToaster(act,R.string.notalldata ,Toast.LENGTH_LONG);
+			}		
+      if(checkhostname.isChecked()) {
+			  Applic.argToaster(act,"hostname is slow",Toast.LENGTH_LONG);
+            }
 		configchanged=true;
 		if(pos==hostnr)  {
 			delete.setVisibility(VISIBLE);

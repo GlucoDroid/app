@@ -541,7 +541,7 @@ int startsensor=0;
 
 	{
 	int usedsensor=0;
-	uint32_t starttimeiter=starttime;
+	uint32_t starttimeiter=settings->data()->startlibretime;
 	int i=last;
 	for(;i>=0;i--) {
 		int index=sensints[i];

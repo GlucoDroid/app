@@ -272,12 +272,12 @@ void	removeunused() {
 void	deletelast() {
 	int l=last();
 	if(l>=0) {
-		const auto *old=hist[l];
-      if(old&&old->unused()) {
-         delete	old;
-         hist[l]=nullptr;
-         }
-		}
+	   const auto *old=hist[l];
+          if(old&&old->unused()) {
+               delete	old;
+               hist[l]=nullptr;
+               }
+          }
 	}
     int addsensor(const span<const char> name) {
          return addsensor(std::string_view(name.data(),name.size()));

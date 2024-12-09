@@ -147,7 +147,7 @@ float  drawcenter(String value) {
        glucosePaint.setTextSize(fontsize);
        glucosePaint.getTextBounds(value, 0, value.length(),  bounds);
        float fsize=fontsize*mapwidth/bounds.right*.87f;
-       final float usefontsize=fsize>upperboundfontsize?upperboundfontsize:fontsize;
+       final float usefontsize=fsize>upperboundfontsize?upperboundfontsize:fsize;
        glucosePaint.setTextSize(usefontsize);
        var des=glucosePaint.descent();
        var as=glucosePaint.ascent();

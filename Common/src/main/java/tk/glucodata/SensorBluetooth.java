@@ -587,7 +587,7 @@ public boolean connectDevices(long delayMillis) {
 	    }
 	  return false;
     	}
-private boolean updateDevicers() {
+boolean updateDevicers() {
 	if(!Natives.getusebluetooth()) {
 		Log.d(LOG_ID,"updateDevicers !getusebluetooth()");
 		destruct(); 

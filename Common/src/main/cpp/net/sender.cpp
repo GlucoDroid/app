@@ -331,85 +331,85 @@ bool activate=true;
 
 	struct pollfd	 cons[10];
 	if(pass->hashostname()) { 
-		struct addrinfo hints{.ai_flags=AI_ADDRCONFIG,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
-		struct addrinfo *servinfo=nullptr;
-		destruct serv([&servinfo]{ if(servinfo)freeaddrinfo(servinfo);});
-		const char *host= pass->gethostname(); 
-		char port[10];
-		sprintf(port,"%d",pass->getport());
-		LOGGERTAG("connect to %s %s\n",host,port);
-		if(int error=getaddrinfo(host,port,&hints,&servinfo)) {
-			char *buf=getmirrorerror(pass);
-			#ifndef NOLOG
-			int len=
-			#endif
-			snprintf(buf, maxmirrortext,"connect %s %s failed: %s\n",host,port,gai_strerror(error));
-			LOGGERN(buf,len);
-			return -1;
-			}
-		else {
-			for(struct addrinfo *iter=servinfo;iter!=nullptr;iter=iter->ai_next) {
-			const struct sockaddr *sa=iter->ai_addr;
-			const struct sockaddr_in6  *sin;
-			switch(sa->sa_family) {
-				case AF_INET6: sin= reinterpret_cast<const struct sockaddr_in6*>(iter->ai_addr);
-				 	break;
-				case AF_INET: {
-					auto *tmp=reinterpret_cast<sockaddr_in6*>(alloca(sizeof(sockaddr_in6 )));
-					*tmp={.sin6_family=AF_INET6, .sin6_port=((struct sockaddr_in *)sa)->sin_port, .sin6_addr=v426(sa)};	
-					sin=const_cast<const sockaddr_in6*>(tmp);
-					break;
-					}
-				default: {
-					LOGGERTAG("unknown family %d\n",sa->sa_family);
-					return -1;
+             struct addrinfo hints{.ai_flags=AI_ADDRCONFIG,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
+             struct addrinfo *servinfo=nullptr;
+             destruct serv([&servinfo]{ if(servinfo)freeaddrinfo(servinfo);});
+             const char *host= pass->gethostname(); 
+             char port[10];
+             sprintf(port,"%d",pass->getport());
+             LOGGERTAG("connect to %s %s\n",host,port);
+             if(int error=getaddrinfo(host,port,&hints,&servinfo)) {
+                  char *buf=getmirrorerror(pass);
+                  #ifndef NOLOG
+                  int len=
+                  #endif
+                  snprintf(buf, maxmirrortext,"connect %s %s failed: %s\n",host,port,gai_strerror(error));
+                  LOGGERN(buf,len);
+                  return -1;
+                  }
+             else {
+                  for(struct addrinfo *iter=servinfo;iter!=nullptr;iter=iter->ai_next) {
+                  const struct sockaddr *sa=iter->ai_addr;
+                  const struct sockaddr_in6  *sin;
+                  switch(sa->sa_family) {
+                          case AF_INET6: sin= reinterpret_cast<const struct sockaddr_in6*>(iter->ai_addr);
+                                  break;
+                          case AF_INET: {
+                                  auto *tmp=reinterpret_cast<sockaddr_in6*>(alloca(sizeof(sockaddr_in6 )));
+                                  *tmp={.sin6_family=AF_INET6, .sin6_port=((struct sockaddr_in *)sa)->sin_port, .sin6_addr=v426(sa)};	
+                                  sin=const_cast<const sockaddr_in6*>(tmp);
+                                  break;
+                                  }
+                          default: {
+                                  LOGGERTAG("unknown family %d\n",sa->sa_family);
+                                  return -1;
 
-					}
-					};
+                                  }
+                                  };
 
-			if(int ret=connectone(sin,sock, stype,pass,cons,use
-	#if defined(WEAROS_MESSAGES)
-								  ,activate
-	#endif
-		);ret>=0) {
+                  if(int ret=connectone(sin,sock, stype,pass,cons,use
+  #if defined(WEAROS_MESSAGES)
+                                                            ,activate
+  #endif
+          );ret>=0) {
 
-				LOGGERTAG("found %s:%s sock=%d\n",host,port,ret);
-				return ret;
-				}
+                          LOGGERTAG("found %s:%s sock=%d\n",host,port,ret);
+                          return ret;
+                          }
 
-			LOGGERTAG("wait %s\n",host);
-           		}
+                  LOGGERTAG("wait %s\n",host);
+                  }
 
-			}
-	} else {
-		const int nr=pass->nr;
-		LOGGERTAG("makeconnection nr=%d\n",nr);
-		if(nr<=0) {
-			savemessage(pass,"connection has on %d ips\n",nr);
-			return -1;
-			}
-		if(nr>=maxip) {
-			pass->nr=0;
-			savemessage(pass,"connection has on %d ips\n",nr);
-			return -1;
-			}
-		for(int i=0;i<nr;i++) {
-			const struct sockaddr_in6  *sin=&pass->ips[i];
-			if(int ret=connectone(sin,sock, stype,pass,cons,use
-	#if defined(WEAROS_MESSAGES)
-								  ,activate
-	#endif
+                  }
+     } else {
+             const int nr=pass->nr;
+             LOGGERTAG("makeconnection nr=%d\n",nr);
+             if(nr<=0) {
+                     savemessage(pass,"connection has on %d ips\n",nr);
+                     return -1;
+                     }
+             if(nr>=maxip) {
+                     pass->nr=0;
+                     savemessage(pass,"connection has on %d ips\n",nr);
+                     return -1;
+                     }
+             for(int i=0;i<nr;i++) {
+                     const struct sockaddr_in6  *sin=&pass->ips[i];
+                     if(int ret=connectone(sin,sock, stype,pass,cons,use
+     #if defined(WEAROS_MESSAGES)
+                                                               ,activate
+     #endif
 
 
 
-			) ;ret>=0)  {
-				LOGGERTAG("%d: found %d\n",i,ret);
-				return ret;
-				}
+                     ) ;ret>=0)  {
+                             LOGGERTAG("%d: found %d\n",i,ret);
+                             return ret;
+                             }
 
-			LOGGERTAG("wait %d\n",i);
-			}
-	    }
+                     LOGGERTAG("wait %d\n",i);
+                     }
+         }
 #ifdef WEAROS_MESSAGES
 	dest.active=activate;
 #endif

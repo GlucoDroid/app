@@ -74,6 +74,7 @@ static public int	getcolor() {
 		}
 
 static public void show(MainActivity act,View view) {
+   final boolean  wasfloating=Natives.getfloatglucose();
 	view.setVisibility(INVISIBLE);
 	int height=GlucoseCurve.getheight();
 	int width=GlucoseCurve.getwidth();
@@ -249,7 +250,8 @@ static public void show(MainActivity act,View view) {
 	act.setonback(()-> {
 		view.setVisibility(VISIBLE);
 		removeContentView(layout); 
-		if(hidden[0]) {
+      Floating.setfloatglucose(act, wasfloating);
+      if(hidden[0]) {
 			Floating.removeFloating();
 			}
 		});

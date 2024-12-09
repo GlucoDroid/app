@@ -88,7 +88,7 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
 		  basehelp(text,act,okproc,(v,w,h)-> new int[] {w,h},new ViewGroup.MarginLayoutParams(MATCH_PARENT, MATCH_PARENT)) ;
 		}
 	@SuppressWarnings("deprecation")
-	public static   void  basehelp(String text,Activity act,Consumer<ViewGroup>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
+  public static   void  basehelp(String text,Activity act,Consumer<ViewGroup>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
        hidekeyboard(act);
 	    ScrollView       helpscroll=new ScrollView(act);
         TextView helpview=new TextView(act);
@@ -109,11 +109,14 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
            Button ok=new Button(act);
        ViewGroup helplayout;
        if(isWearable) {
+//        helpview.setPadding(0,0,0,(int)(GlucoseCurve.metrics.density*30.0)); 
+        helpview.setPadding(0,0,0,(int)(GlucoseCurve.getheight()*.20)); 
            if(useclose)
                ok.setText(R.string.ok);
            else
                ok.setVisibility(View.INVISIBLE);
           ViewGroup  layout=new Layout(act, place::place,new View[]{ok}, new View[]{helpview});
+
 //          params.setMargins( 0, (int)(GlucoseCurve.metrics.density*10.0), 0,(int)(GlucoseCurve.metrics.density*50.0) );
           params.setMargins( 0, (int)(GlucoseCurve.metrics.density*3.0), 0,0);
           layout.setBackgroundColor(backgroundcolor);

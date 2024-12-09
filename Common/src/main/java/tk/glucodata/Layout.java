@@ -275,7 +275,7 @@ final int layrow(final int top,final int start,final int row,final int maxheight
 //   var hierleft=getleft(hierwidth);
    var hierwidth=getWidth();
    var hierleft=getPaddingLeft();
-   Log.i(LOG_ID,"width="+getWidth()+" hierwidth="+hierwidth+"padleft="+getPaddingLeft()+" hierleft="+hierleft);
+//   Log.i(LOG_ID,"width="+getWidth()+" hierwidth="+hierwidth+"padleft="+getPaddingLeft()+" hierleft="+hierleft);
    final int end=rowend[row];
    final int baseline=baselines[row];
    int maxwidth=hierwidth-getPaddingLeft()-getPaddingRight();

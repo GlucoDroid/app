@@ -38,6 +38,8 @@
            }; 
 #endif
 #include "netstuff.hpp"
+extern bool testhostname(const char *hostname,const struct sockaddr *addr);
+extern bool sameaddress(const  struct sockaddr *addr, const struct sockaddr_in6  *known);
 constexpr const int maxip=4;
 
 //union { struct sockaddr_in6 ips[maxip];
@@ -131,8 +133,9 @@ bool	haspass() const {
 	return *p||p[1];
 	};
 bool hasip(const struct sockaddr *addrptr) const {
-
- bool sameaddress(const  struct sockaddr *addr, const struct sockaddr_in6  *known);
+        if(hashostname()) {
+                return testhostname(gethostname(),addrptr);
+                }
 	for(int i=0;i<nr;i++)
 		if(sameaddress(addrptr,ips+i))
 			return true;

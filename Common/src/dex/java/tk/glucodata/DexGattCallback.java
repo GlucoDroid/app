@@ -183,7 +183,8 @@ private boolean connected=false;
                 constatchange[1] = tim;
                 if(newState == BluetoothProfile.STATE_DISCONNECTED) {
                   if(datatime==0L)  {
-                     if(misconnect>15)  {
+                     if(misconnect>(autoconnect?10:30))  {
+                        Log.i(LOG_ID,"misconnect="+misconnect+" try new address");
                         misconnect=0;
                         mActiveDeviceAddress=null;
                         }
@@ -195,7 +196,8 @@ private boolean connected=false;
                       var sensorbluetooth = SensorBluetooth.blueone;
                       if (sensorbluetooth != null) {
                          long alreadywaited=tim-constatchange[0]; 
-                         long stillwait=justdata?(7000-alreadywaited):0;
+                         //long stillwait=justdata?(6700-alreadywaited):0;
+                         long stillwait=justdata?3000:0;
                          Log.i(LOG_ID,"justdata="+justdata+" alreadywaited="+alreadywaited+" stillwait="+stillwait);
                          sensorbluetooth.connectToActiveDevice(this,stillwait);
                          }

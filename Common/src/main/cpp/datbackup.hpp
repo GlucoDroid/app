@@ -779,17 +779,17 @@ int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,stri
 		if(env) {
 			jstring  jhostname=(jstring)env->GetObjectArrayElement(jnames,0);
 			if(!jhostname) {
-				LOGAR("no hostname");
-            if(newhost&&sendto) {
-			      --getupdatedata()->sendnr;
-               }
+                              LOGAR("no hostname");
+                              if(newhost&&sendto) {
+                                          --getupdatedata()->sendnr;
+                              }
 				return -8;
 				}
 			int namelen= env->GetStringUTFLength( jhostname);
 			if(namelen>=maxhostname) { //terminanting zero
 				LOGGER("supplied name too long %d>%d\n",namelen,maxhostname);
             if(newhost&&sendto) {
-			      --getupdatedata()->sendnr;
+		     --getupdatedata()->sendnr;
                }
 				return -5;
 				}
@@ -818,7 +818,7 @@ int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,stri
 		}
 	int ret=index;
 	if(res<0) {
-      LOGGER("changehost res(%d)<0",res);
+               LOGGER("changehost res(%d)<0",res);
 		thehost.nr=0;
 		ret=-2;
 		}
@@ -831,7 +831,7 @@ int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,stri
 			thehost.detect=false;
 		}
 	else {
-		if(res==0&&!(passiveonly&&!testip))   {
+		if(!hashostname&&res==0&&!(passiveonly&&!testip))   {
 			LOGSTRING("res==0&&!(passiveonly&&!testip))\n");
 			ret=-2;
 			}

@@ -1,3 +1,12 @@
+Bij reset connections wordt unbonded, bijvoorbeeld bij verwijderen sensor.
+- Reset connecties niet?
+- unbond niet?
+
+
+Mirror give only warning if there are no errors.
+Floating glucose moet of nie aangezet worden of aanstaan in setting na WearOS floating config
+BLocked translations?
+WearOS sensor close button staat verkeerd
 Graph range not set to right value
 Geen controls nodig in settings
 

@@ -2,15 +2,11 @@
 <string name="staticnum" >
 <![CDATA[
 <h1 align="center">&nbsp;&nbsp;&nbsp;&nbsp;Blocked</h1>
-<p><b>Das linkes Menü -&gt; </b></span><span lang="de-DE"><b>Klon</b></span><span lang="de-DE"><b>
--&gt; „</b></span><span lang="de-DE"><b>Klon sendet Mengen</b></span><span lang="de-DE">“
+<p><b>Das linkes Menü -&gt; Klon -&gt; „Klon sendet Mengen“</b>
 ist  eingestellt, </span><span lang="de-DE">so</span><span lang="de-DE">dass
-die Eingabe von </span><span lang="de-DE">Mengen</span><span lang="de-DE">
-in dieser App verhindert wird, da diese durch von der </span><span lang="de-DE">Klon</span><span lang="de-DE">verbindung
-empfangene </span><span lang="de-DE">Mengen</span><span lang="de-DE">
-überschrieben werden.</span></p>
-<p style="line-height: 100%; margin-bottom: 0in">Wenn diese App keine
-Mengen von einer Klonverbindung empfängt, deaktivieren Sie diese
+die Eingabe von Mengen in dieser App verhindert wird, da diese durch von der Klon verbindung
+empfangene Mengen überschrieben werden.</p>
+<p>Wenn diese App keine Mengen von einer Klonverbindung empfängt, deaktivieren Sie diese
 Option.</p>
 ]]>
 </string>
