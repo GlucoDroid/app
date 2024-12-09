@@ -366,4 +366,5 @@
    <string name="initializing">Uruchomienie</string> 
    <string name="startjuggluco">Juggluco uruchomione na telefonie?\n\nWIFI i Bluetooth włączone?</string> 
    <string name="connected">Połączono!</string>
+   <string name="useclose">Przycisk "zamknij"</string>
 </resources>
