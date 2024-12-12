@@ -68,6 +68,9 @@ import androidx.core.widget.NestedScrollView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import static android.graphics.Color.WHITE;
+import static android.graphics.Color.GREEN;
+import static android.graphics.Color.YELLOW;
 import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
@@ -76,6 +79,7 @@ import static tk.glucodata.Applic.backgroundcolor;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.BuildConfig.isReleaseID;
 import static tk.glucodata.GlucoseCurve.width;
+import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Natives.getBlueMessage;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getWifi;
@@ -734,8 +738,8 @@ if(!isWearable)
               a.recycle();     
               */
      int pad=(int)(GlucoseCurve.metrics.density*7.0);
-     if(!isWearable)
-      info.setPadding(pad,0,pad,0);
+     if(!isWearable) info.setPadding(pad,0,pad,0);
+
 	var deactive=getcheckbox(act,R.string.off,Natives.getHostDeactivated(pos));
 	deactive.setOnCheckedChangeListener( (buttonView,  isChecked)->  {
              Natives.setHostDeactivated(pos,isChecked);
@@ -834,7 +838,8 @@ configchanged=false;
  String[] thishost=gethostnames();
  if(thishost[3]!=null)
  	Natives.networkpresent();
- TextView ip=getlabel(act,"wlan: "+thishost[1]);
+ TextView ip= isWearable? getlabel(act,thishost[1]):
+      getlabel(act,"wlan: "+thishost[1]);
 View p2p= (thishost[0]==null)?new Space(act):getlabel(act,"p2p: "+thishost[0]);
 View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[2]);
   String port=Natives.getreceiveport();
@@ -875,9 +880,13 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 	staticnum.setOnCheckedChangeListener( (buttonView,  isChecked)-> Natives.setstaticnum(isChecked));
 	staticnum.setText(R.string.dontchangeamounts);
 	staticnum.setChecked(Natives.staticnum());
-	var lineheight=staticnum.getLineHeight();
-
-	recycle.setMinimumHeight(lineheight*6);
+   if(!isWearable) {
+      var lineheight=staticnum.getLineHeight();
+      recycle.setMinimumHeight(lineheight*6);
+      }
+   else {
+          recycle.setPadding(0,(int)(GlucoseCurve.metrics.density*3.0),0,(int)(GlucoseCurve.metrics.density*3.0));
+      }
 	View lay;
 
 	var errstr=Natives.serverError();
@@ -895,7 +904,12 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 	   if(!useclose) Cancel.setVisibility(INVISIBLE);
       var space1=new Space(act);
       var space2=new Space(act);
-		final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{blpan},new View[]{p2p},new View[]{ip},new View[]{new Space(act),labport,portview,Save,new Space(act)},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{space1,wifi,alarms,space2},errorrow,new View[]{Cancel});
+      var space3=new Space(act);
+      var space4=new Space(act);
+      if(doLog)
+         ip.setText("2a01:59f:a075:b0d1:a4ef:afff:fec4:59f2");
+		//final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{blpan},new View[]{p2p},new View[]{ip},new View[]{new Space(act),labport,portview,Save,new Space(act)},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{space1,wifi,alarms,space2},errorrow,new View[]{Cancel});
+		final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{space3,labport,portview,Save,space4},new View[]{ip},new View[]{blpan},new View[]{p2p},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{space1,wifi,alarms,space2},errorrow,new View[]{Cancel});
 //		var hori=new NestedScrollView(act);
 		var hori=new ScrollView(act);
 		hori.setFillViewport(true);
@@ -995,11 +1009,19 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
 
 	    view.setAccessibilityDelegate(tk.glucodata.Layout.accessDeli);
 //        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
-   if(!isWearable)
-         view.setTextSize(TypedValue.COMPLEX_UNIT_PX,isWearable?Applic.mediumfontsize:Applic.largefontsize);
          // view.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
       view.setLayoutParams(new ViewGroup.LayoutParams(  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-       view.setGravity(Gravity.LEFT);
+      final var af=(int)(GlucoseCurve.metrics.density*7.0);
+      if(isWearable) {
+          view.setGravity(Gravity.CENTER);
+          view.setPadding(0,0,0,af);
+          }
+      else {
+         view.setTextSize(TypedValue.COMPLEX_UNIT_PX,isWearable?Applic.mediumfontsize:Applic.largefontsize);
+          view.setGravity(Gravity.LEFT);
+          view.setPadding((int)(GlucoseCurve.metrics.density*10.0),0,0,af);
+          }
+         view.setTextColor(YELLOW);
         return new HostViewHolder(view,pview);
 
     }
