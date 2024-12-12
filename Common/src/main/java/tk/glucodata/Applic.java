@@ -656,7 +656,7 @@ static void doglucose(String SerialNumber, int mgdl, float gl, float rate, int a
 	if(!wasblueoff) {
 		Applic.dontusebluetooth();
 		}
-	SuperGattCallback.dowithglucose( SerialNumber,  mgdl,  gl, rate,  alarm,  timmsec,sensorstartmsec);
+	SuperGattCallback.dowithglucose( SerialNumber,  mgdl,  gl, rate,  alarm,  timmsec,sensorstartmsec,Notify.glucosetimeout);
 	if(!isWearable) {
 			if(sensorptr!=0L) {
 			 if(Build.VERSION.SDK_INT >= 28) {

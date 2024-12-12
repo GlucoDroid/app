@@ -367,4 +367,5 @@
    <string name="startjuggluco">Juggluco running on phone?\n\nWIFI and Bluetooth enabled?</string> 
    <string name="connected">Connected!</string> 
    <string name="useclose">Close button</string> 
+   <string name="alarmclock">\u23F0</string> 
 </resources>

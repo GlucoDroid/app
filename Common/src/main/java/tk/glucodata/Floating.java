@@ -39,7 +39,7 @@ import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getlabel;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Canvas;

@@ -188,7 +188,7 @@ static public   void show(MainActivity context, View view) {
        context.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
       };
 
-   static public void showcolors(MainActivity act,CheckBox def) {
+static public void showcolors(MainActivity act,CheckBox def) {
       var glview=new GlucoseValue(150,150);
       int coltype=radiosel;
       int initialColor=getcolordef(coltype);
@@ -215,7 +215,6 @@ static public   void show(MainActivity context, View view) {
    preview.setImageBitmap(glview.previewbitmap());
    view.setLayoutParams( new ViewGroup.LayoutParams((int)(width*0.72), (int)(height*0.72)));
    var density=tk.glucodata.GlucoseCurve.metrics.density;
-   preview.setPadding(0,(int)(density*18.0),0,0);
    SeekBar fontsizeview;
    if(radiosel==1) {
       fontsizeview=new SeekBar(act);
@@ -223,7 +222,9 @@ static public   void show(MainActivity context, View view) {
       float currentfont= Math.min(maxfont, GlucoseValue.upperboundfontsize);
       fontsizeview.setMax((int)(maxfont*100.0));
       fontsizeview.setProgress((int)(currentfont*100.0));
-      final int fwidth=(int)(0.7f*height);
+      final int fwidth=(int)(0.9f*width);
+      fontsizeview.setPadding((int)(density*10),(int)(density*18.0),(int)(density*10),0);
+     // fontsizeview.setMinimumWidth(width);
       fontsizeview.setMinimumWidth(fwidth);
       fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 		@Override
@@ -246,21 +247,21 @@ static public   void show(MainActivity context, View view) {
 
 	}
 else {
+   preview.setPadding(0,(int)(density*18.0),0,0);
    fontsizeview=null;
 	}
 
 	if(!useclose) close.setVisibility(GONE);
 
-      Layout layout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{view},new View[]{preview},fontsizeview==null?null:new View[]{fontsizeview},new View[]{close});
-
+      Layout layout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{view},fontsizeview==null?null:new View[]{fontsizeview},new View[]{preview},new View[]{close});
 	var scroll=new ScrollView(act);
 	scroll.addView(layout);
 	scroll.setFillViewport(true);
 	scroll.setSmoothScrollingEnabled(false);
-   scroll.setScrollbarFadingEnabled(false);
+   scroll.setScrollbarFadingEnabled(true);
    scroll.setVerticalScrollBarEnabled(true);
-      act.addContentView(scroll,  new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
-      scroll.setBackgroundColor(Applic.backgroundcolor);
+   act.addContentView(scroll,  new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
+   scroll.setBackgroundColor(Applic.backgroundcolor);
 //        scroll.setOnTouchListener(new BackGesture(act));
       MainActivity.setonback(()-> { 
          removeContentView(scroll); 

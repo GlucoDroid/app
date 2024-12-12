@@ -37,7 +37,7 @@ import static tk.glucodata.settings.Settings.hideSystemUI;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getlabel;
 
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.content.DialogInterface;
 import android.text.InputType;
 import android.util.TypedValue;

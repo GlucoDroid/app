@@ -74,25 +74,25 @@ static public int	getcolor() {
 		}
 
 static public void show(MainActivity act,View view) {
-   final boolean  wasfloating=Natives.getfloatglucose();
-	view.setVisibility(INVISIBLE);
-	int height=GlucoseCurve.getheight();
-	int width=GlucoseCurve.getwidth();
-   final String fontstring=Applic.app.getString(R.string.fontsizeshort)+ " ";
-	var  sizelabel=getlabel(act,fontstring);
-
-   int maxfont=Math.min(height*7/10,width*4/10);
-	int pad=height/14;
-	sizelabel.setPadding(pad,0,0,0);
-	int currentfont=Natives.getfloatingFontsize();
-   SeekBar fontsizeview=new SeekBar(act);
-      fontsizeview.setMax((int)(maxfont*100.0));
-      fontsizeview.setProgress((int)(currentfont*100.0));
+  final boolean  wasfloating=Natives.getfloatglucose();
+  view.setVisibility(INVISIBLE);
+  int height=GlucoseCurve.getheight();
+  int width=GlucoseCurve.getwidth();
+  final String fontstring=Applic.app.getString(R.string.fontsizeshort)+ " ";
+  var  sizelabel=getlabel(act,fontstring);
+  int maxfont=Math.min(height*7/10,width*4/10);
+  int pad=height/14;
+  sizelabel.setPadding(pad,0,0,0);
+  int currentfont=Natives.getfloatingFontsize();
+  SeekBar fontsizeview=new SeekBar(act);
+  fontsizeview.setMax((int)(maxfont*100.0));
+  fontsizeview.setProgress((int)(currentfont*100.0));
 //      var fwidth=(int)(width*0.8f);
-      fontsizeview.setMinimumWidth(width);
-      final int minimumvalue=500;
-      fontsizeview.setMin(minimumvalue);
-      fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+  fontsizeview.setMinimumWidth(width);
+  final int minimumvalue=500;
+  fontsizeview.setMin(minimumvalue);
+              
+  fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 	  @Override
 	  public  void onProgressChanged (SeekBar seekBar, int progress, boolean fromUser) {
 //         int newprogress=progress+minimumvalue; 
@@ -148,7 +148,7 @@ static public void show(MainActivity act,View view) {
 	var touch=Natives.getfloatingTouchable();
 	var touchable=getcheckbox(act,R.string.touchable,touch);
 	var close=getbutton(act,R.string.closename);
-   close.setIncludeFontPadding(false);
+       close.setIncludeFontPadding(false);
 
 //	close.setPadding(0,0,0,0);
 	var color=Natives.getfloatingbackground();

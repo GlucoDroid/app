@@ -89,19 +89,21 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
 		}
 	@SuppressWarnings("deprecation")
   public static   void  basehelp(String text,Activity act,Consumer<ViewGroup>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
-       hidekeyboard(act);
-	    ScrollView       helpscroll=new ScrollView(act);
-        TextView helpview=new TextView(act);
+    hidekeyboard(act);
+    ScrollView       helpscroll=new ScrollView(act);
+    TextView helpview=new TextView(act);
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         helpview.setText(fromHtml(text,TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
     }
     else {
-			helpview.setText(fromHtml(text));
+	helpview.setText(fromHtml(text));
 	}
-           helpview.setTextColor(Color.WHITE);
-           helpview.setTextIsSelectable(true);
-	helpview.setMovementMethod(LinkMovementMethod.getInstance());
+     helpview.setTextColor(Color.WHITE);
+     helpview.setTextIsSelectable(true);
+     helpview.setScroller(null);
+     helpview.setMovementMethod(LinkMovementMethod.getInstance());
+//     helpview.setMovementMethod(null);
  	    helpview.setLinksClickable(true);
        helpscroll.setVerticalScrollBarEnabled(Applic.scrollbar);
       helpscroll.setScrollbarFadingEnabled(true);
@@ -178,7 +180,9 @@ final var helplayout2=helplayout;
          helpview.setTextColor(Color.WHITE);
          helpview.setTextIsSelectable(true);
          whelpview=new WeakReference<TextView>(helpview);
-         helpview.setMovementMethod(LinkMovementMethod.getInstance());
+     //    helpview.setMovementMethod(LinkMovementMethod.getInstance());
+
+     helpview.setMovementMethod(null);
          helpview.setLinksClickable(true);
          helpscroll.addView(helpview);
          helpscroll.setVerticalScrollBarEnabled(Applic.scrollbar);

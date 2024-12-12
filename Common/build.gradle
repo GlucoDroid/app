@@ -79,7 +79,7 @@ android {
          manifestPlaceholders["debuggable"] = "true"
          manifestPlaceholders["requireWatch"] = "false"
 
-	     versionName '9.0.12'
+	     versionName '9.0.13'
 //	multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -130,8 +130,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
         libreOld {
 	//******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode                                                                                                           538                                                                               //LIBRE2ONLY
-         //	versionName '9.0.12-no3'
+            versionCode                                                                                                              541                                                                                     //LIBRE2ONLY
+         //	versionName '9.0.13-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
 		    externalNativeBuild.cmake {
@@ -147,7 +147,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 //	   minSdk 23
             dimension 'libreVersion'
 		versionNameSuffix '-li3'
-		versionCode                                                                                                          539                                                                                                                                                                                                                   //LIBRE3
+		versionCode                                                                                                             542                                                                                                                                                                                                                         //LIBRE3
 	//******  Zet op rollout op 100% ******
 
            	buildConfigField 'int', 'libreVersion', '3'
@@ -164,7 +164,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 		minSdkVersion 21
       dimension 'SiBionics'
 		versionNameSuffix '-si'
-		versionCode                                                                                                     539                                                                          
+		versionCode                                                                                                        542                                                                                
 	   buildConfigField 'int', 'SiBionics', '1'
 	   externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -173,7 +173,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 		}
         nosi {
         	dimension 'SiBionics'
-         versionCode                                        538                                                                          
+         versionCode                                           541                                                                                
          versionNameSuffix '-nosi'
 	      buildConfigField 'int', 'SiBionics', '0'
 	      externalNativeBuild.cmake {
@@ -189,9 +189,9 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
             dimension 'wearos'
 		minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-		versionCode                                                                                                          540                                                                                                                                                                                                                   //WATCH
+		versionCode                                                                                                             543                                                                                                                                                                                                                         //WATCH
 	//******  Zet op rollout op 100% ******
-		//versionName '9.0.12-wear'
+		//versionName '9.0.13-wear'
 		versionNameSuffix '-wear'
 		signingConfig signingConfigs.alg
 
@@ -213,8 +213,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 
 //        minSdk 19
             dimension 'wearos'
-		versionCode                                                                                                          540                                                                                                                                                                                                                   //WATCH
-		//versionName '9.0.12-small'
+		versionCode                                                                                                             543                                                                                                                                                                                                                         //WATCH
+		//versionName '9.0.13-small'
 		versionNameSuffix '-small'
 		signingConfig signingConfigs.alg
 
@@ -612,7 +612,7 @@ dependencies {
     wearImplementation 'androidx.activity:activity-ktx:1.9.3'
     wearImplementation 'androidx.constraintlayout:constraintlayout:2.2.0'
     wearImplementation 'com.google.android.material:material:1.12.0'
-    wearImplementation 'androidx.databinding:viewbinding:8.7.2'
+    wearImplementation 'androidx.databinding:viewbinding:8.7.3'
     wearImplementation 'androidx.core:core-ktx:1.15.0'
 
 

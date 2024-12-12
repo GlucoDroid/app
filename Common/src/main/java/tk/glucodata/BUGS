@@ -1,12 +1,12 @@
-Bij reset connections wordt unbonded, bijvoorbeeld bij verwijderen sensor.
-- Reset connecties niet?
-- unbond niet?
+
+AlertDialog allCaps on phone
+Clock Alarm should be turned off when app is killed
+
+Search info getoond onder Bluediag
 
 
-Mirror give only warning if there are no errors.
-Floating glucose moet of nie aangezet worden of aanstaan in setting na WearOS floating config
-BLocked translations?
-WearOS sensor close button staat verkeerd
+Blocked translations?
+
 Graph range not set to right value
 Geen controls nodig in settings
 
@@ -23,15 +23,10 @@ Knoppen over scherm
 in wearOS settings:
    voor labels meer linker margin
 hostname in mirror kan aan staat bij passive only.
-Procompiled share libraries don't run under Android 15 TargetSDK=35 with 16kb
+Procompiled shared libraries don't run under Android 15 TargetSDK=35 with 16kb
 On Android 15, is notification only shown after restart of Juggluco
-Have to scroll down in settings. 
 
-Google Play requirements:
-- Scrollbar in Sensor?
-- Horizonscroll bar in sensor screen is in top and fades
-- Apps versies moeten verschillende versienummers hebben
-- WearOS versie, moet required voor watch gebruiken?
+Have to scroll down in settings. 
 
 
 Bij klein scherm linker en rechter menu buiten beeld.

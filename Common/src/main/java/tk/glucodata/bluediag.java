@@ -34,7 +34,7 @@ Last success:		Last failure:	 Fail Info
 */
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
@@ -130,19 +130,29 @@ void setrow(long[] times, TextView[]  timeviews, TextView info) {
 
 
 public static void showsensorinfo(String text,MainActivity act) {
+               var width=GlucoseCurve.getwidth();
 		help.basehelp(text,act,xzy->{
 		}, (l,w,h)-> {
 			var height=GlucoseCurve.getheight();
-			var width=GlucoseCurve.getwidth();
 			if(height>h)
 				l.setY((height-h)/2);
 			if(width>w)
 				l.setX((width-w)/2);
 			return new int[] {w,h};
-			}, new ViewGroup.MarginLayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+			}, new ViewGroup.MarginLayoutParams((int)(width*.8), WRAP_CONTENT));
 		}
 
 void showinfo(final SuperGattCallback gatt,MainActivity act) {
+
+	if(Natives.optionStreamHistory()&&gatt.sensorgen<2) {
+       streamhistory.setVisibility(VISIBLE);
+      alarmclock.setVisibility(GONE);
+		}
+    else  {
+		streamhistory.setVisibility(GONE);
+      alarmclock.setVisibility(gatt.sensorgen==0x40?VISIBLE:GONE);
+      }
+
 	starttimeV.setText(datestr(gatt.starttime));
 	if(gatt.streamingEnabled() )
 		streaming.setText(R.string.streamingenabled);
@@ -197,7 +207,8 @@ private BluetoothAdapter mBluetoothAdapter=null;
 //boolean setwakelock=false;
 CheckBox usebluetooth;
 boolean wasuse;
-CheckBox priority,streamhistory;
+CheckBox priority,streamhistory, alarmclock;
+
 Button locationpermission;
 TextView scanview;
 MainActivity activity;
@@ -352,6 +363,8 @@ bluediag(MainActivity act) {
 
 	priority=view.findViewById(R.id.priority);
 	streamhistory=view.findViewById(R.id.streamhistory);
+	alarmclock=view.findViewById(R.id.alarmclock);
+   alarmclock.setChecked(Natives.getalarmclock());
 if(!isWearable) {
 	Button finish = view.findViewById(R.id.finish);
 	if (gatts != null && gatts.size() > 0) {
@@ -376,9 +389,6 @@ if(!isWearable) {
 	if (gatts == null || gatts.size()== 0) {
 		//priority.setVisibility(GONE);
 		forget.setVisibility(GONE);
-		}
-	if(!Natives.optionStreamHistory()) {
-		streamhistory.setVisibility(GONE);
 		}
 	contimes=new TextView[]{view.findViewById(R.id.consuccess) , view.findViewById(R.id.confail)};
 	constatus=view.findViewById(R.id.constatus);
@@ -410,6 +420,8 @@ if(!isWearable) {
 
 
 	streamhistory.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setStreamHistory(isChecked) );
+	alarmclock.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setalarmclock(isChecked) );
+
      if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 	priority.setOnCheckedChangeListener(
                  (buttonView,  isChecked) -> {

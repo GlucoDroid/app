@@ -41,8 +41,8 @@ static final private String LOG_ID="NumAlarm";
         @Override
         public void onReceive(Context context, Intent intent) {
 	   String action=intent.getAction();
-         Applic app=(Applic) context.getApplicationContext();
-        app.initproc();
+           Applic app=(Applic) context.getApplicationContext();
+          app.initproc();
 	   Log.i(LOG_ID,"onReceive "+((action!=null)?action:" null"));
 	   handlealarm(app);
 	   if(action!=null) {
@@ -54,10 +54,10 @@ static final private String LOG_ID="NumAlarm";
 					}
 			}
          else {
-	   	   if(Notify.stopalarm.equals(action)) {
-               Log.i(LOG_ID,"Stop Alarm");
-			      Notify.stopalarm();
-               }
+             if(Notify.stopalarm.equals(action)) {
+                Log.i(LOG_ID,"Stop Alarm");
+	        Notify.stopalarm();
+                }
             }
 		}
 //		if(!keeprunning.started&&(Intent.ACTION_BOOT_COMPLETED.equals(action))) 
@@ -111,7 +111,7 @@ static void	   handlealarm(Application context) {
 		setalarm(context,first);
 	}
 static    void setalarm(Context context, long alarmtime) {
-        final int alarmrequest = 0;
+        final int alarmrequest = 6;
         Intent alarmintent = new Intent(context, NumAlarm.class);
 
 	final int alarmflags;

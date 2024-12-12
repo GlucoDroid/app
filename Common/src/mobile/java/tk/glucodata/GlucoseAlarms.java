@@ -31,8 +31,7 @@ public GlucoseAlarms(Application context) {
 	super(context);
 	}
 
-public	void handlealarm() {
-		SensorBluetooth.reconnectall();
+/*public	void handlealarmOnly() {
 		final var view=Floating.floatview;
 		if(view!=null) {
 			view.postInvalidate();
@@ -43,6 +42,52 @@ public	void handlealarm() {
 		boolean shouldwake = Natives.shouldwakesender();
 		final long tryagain = nu + showtime;
 		long nexttime=tryagain;
+		if(!haslossalarm) {
+			Notify.onenot.oldnotification(wastime);
+			}
+		else  {
+			final long afterwait = waitmmsec() + wastime;
+			if(afterwait > nu) {
+				Log.i(LOG_ID, "handlealarm notify");
+				Notify.onenot.oldnotification(wastime);
+				SuperGattCallback.previousglucose=null;
+				nexttime = (afterwait < tryagain)  ? afterwait : tryagain;
+		      LossOfSensorAlarm.setalarm(Applic.app, nexttime);
+			} else {
+				if(!saidloss) {
+					Log.i(LOG_ID, "handlealarm alarm");
+					long lasttime=Natives.lastglucosetime( );
+					if(lasttime!=0L)
+						wastime=lasttime;
+					Notify.onenot.lossalarm(wastime);
+					 if(SuperGattCallback.doWearInt)  {
+						WearInt.missingalarm(nu );
+						}
+					saidloss = true;
+					}
+			}
+			}
+		if (shouldwake) {
+			MessageSender.sendwakestream();
+			Natives.wakestreamsender();
+			}
+		GlucoseWidget.oldvalue(wastime);
+	}
+  */ 
+public	void handlealarm() {
+		SensorBluetooth.reconnectall();
+		final var view=Floating.floatview;
+		if(view!=null) {
+			view.postInvalidate();
+			}
+		final boolean haslossalarm=hasalarmloss();
+	    long wastime = MyGattCallback.lastfoundL;
+
+	final long nu = System.currentTimeMillis();
+		boolean shouldwake = Natives.shouldwakesender();
+		final long tryagain = nu + Notify.glucosetimeout;
+
+	long nexttime=tryagain;
 		if(!haslossalarm) {
 			Notify.onenot.oldnotification(wastime);
 			}

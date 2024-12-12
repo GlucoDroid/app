@@ -115,6 +115,10 @@
             android:enabled="true"
             android:exported="true"/>
         <receiver
+            android:name=".ConnectReceiver"
+            android:enabled="true"
+            android:exported="true"/>
+        <receiver
             android:name=".Maintenance"
             android:enabled="true"
             android:exported="true"/>

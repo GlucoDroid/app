@@ -1684,6 +1684,21 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getdexcomPredict)(JNIEnv *env,
 	return settings->data()->dexcomPredict;
 	}
 
+extern "C" JNIEXPORT void  JNICALL   fromjava(setalarmclock)(JNIEnv *env, jclass cl,jboolean val) {
+	settings->data()->noalarmclock=
+#ifdef WEAROS
+   !
+#endif
+   val;
+	}
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getalarmclock)(JNIEnv *env, jclass cl) {
+	return 
+
+#ifdef WEAROS
+   !
+#endif
+   settings->data()->noalarmclock;
+	}
 #ifdef WEAROS
 extern "C" JNIEXPORT void  JNICALL   fromjava(setdontuseclose)(JNIEnv *env, jclass cl,jboolean val) {
 	settings->data()->dontuseclose=val;

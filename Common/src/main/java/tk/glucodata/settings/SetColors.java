@@ -21,7 +21,7 @@
 
 package tk.glucodata.settings;
 
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.content.DialogInterface;
 
 import tk.glucodata.Applic;

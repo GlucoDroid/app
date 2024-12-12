@@ -342,5 +342,6 @@
    <string name="initializing">Initialiseren</string>
 <string name="startjuggluco">Juggluco draait op telefoon?\n\nWIFI en Bluetooth ingeschakeld?</string>
 <string name="connected">Verbonden!</string>
+   <string name="useclose">Sluitknop</string> 
 </resources>
 

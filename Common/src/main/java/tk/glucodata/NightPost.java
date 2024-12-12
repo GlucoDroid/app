@@ -37,7 +37,7 @@ import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
 import static tk.glucodata.util.getlabel;
 
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Build;
@@ -263,7 +263,7 @@ static public int upload(String httpurl,byte[] postdata,String secret,boolean pu
  	}
 private static	void askclearupload(Context context) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle(R.string.resendquestion).
+        builder.setTitle(" ").setMessage(R.string.resendquestion).
            setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
 			Natives.resetuploader();

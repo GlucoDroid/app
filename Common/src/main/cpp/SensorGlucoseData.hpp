@@ -302,6 +302,7 @@ struct {
    uint16_t healthconnectiter;
    };
 uint16_t broadcastfrom;
+uint32_t libreStarttime;
 };
 
 void clearLibreSendEnd(int start) {

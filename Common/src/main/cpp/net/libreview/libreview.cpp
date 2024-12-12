@@ -549,6 +549,14 @@ int startsensor=0;
 		auto *info=sensdata->getinfo();
 		if(!info->libreviewsendall) {
 			if(sensdata->isLibre2()) {
+            if(info->libreStarttime) {
+               LOGGER("set starttimeiter=%d=libreStarttime=%d\n", starttimeiter,info->libreStarttime);
+               starttimeiter=info->libreStarttime;
+               }
+            else {
+               LOGGER("set libreStarttime=%d\n", starttimeiter);
+               info->libreStarttime=starttimeiter;
+               }
 				const bool userealhistory=  (info->startedwithStreamhistory&&( info->libreviewnotsendHistory>= info->startedwithStreamhistory||info->startedwithStreamhistory==1))
 						||!sensdata->pollcount();
 				switchrealhistory(sensdata,userealhistory);

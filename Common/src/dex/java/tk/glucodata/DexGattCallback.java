@@ -21,21 +21,28 @@
 
 package tk.glucodata;
 
+import static android.app.PendingIntent.getBroadcast;
 import static android.bluetooth.BluetoothDevice.BOND_BONDED;
 import static android.bluetooth.BluetoothDevice.BOND_NONE;
 import static android.bluetooth.BluetoothGatt.GATT_SUCCESS;
+import static android.content.Context.ALARM_SERVICE;
 import static java.util.Objects.nonNull;
 import static tk.glucodata.Applic.app;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MyGattCallback.showCharacter;
+import static tk.glucodata.Natives.getalarmclock;
 
 import android.annotation.SuppressLint;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import 	android.bluetooth.BluetoothDevice;
+import android.content.Context;
+import android.content.Intent;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -56,6 +63,7 @@ public class DexGattCallback extends SuperGattCallback {
         super(SerialNumber, dataptr, 0x40);
         //deviceName=Natives.dexGetDeviceName(dataptr);
         Log.d(LOG_ID, SerialNumber + " DexGattCallback(..)");
+        showtime=6*60*1000L;
     }
 
     static private byte[] lencode(int which, int code) {
@@ -82,7 +90,12 @@ public class DexGattCallback extends SuperGattCallback {
     private static final int GetData = SendKeyChallengeOut + 1;
     private static final int GetData2 = GetData + 1;
 
-
+private void docmd0(BluetoothGatt bluetoothGatt) {
+     certinbufiter = 0;
+     certinbuf=new byte[160];
+     phase = Round1;
+     cmd(bluetoothGatt,0x0);
+   }
     @SuppressLint("MissingPermission")
     @Override // android.bluetooth.BluetoothGattCallback
     public void onDescriptorWrite(BluetoothGatt bluetoothGatt, BluetoothGattDescriptor bluetoothGattDescriptor, int status) {
@@ -117,10 +130,7 @@ public class DexGattCallback extends SuperGattCallback {
                  phase = RequestAuth;
                  requestAuth();
              } else {
-                 certinbufiter = 0;
-                 certinbuf=new byte[160];
-                 phase = Round1;
-                 cmd(bluetoothGatt,0x0);
+               docmd0(bluetoothGatt);
                  //Applic.scheduler.schedule(() -> { cmd(bluetoothGatt, 0x0); }, 500, TimeUnit.MILLISECONDS);
 //                             postDelayed(()->cmd(0x0),200);
              }
@@ -183,7 +193,7 @@ private boolean connected=false;
                 constatchange[1] = tim;
                 if(newState == BluetoothProfile.STATE_DISCONNECTED) {
                   if(datatime==0L)  {
-                     if(misconnect>(autoconnect?10:30))  {
+                     if((foundtime+15*60*1000L)<tim)  {
                         Log.i(LOG_ID,"misconnect="+misconnect+" try new address");
                         misconnect=0;
                         mActiveDeviceAddress=null;
@@ -195,11 +205,24 @@ private boolean connected=false;
                   if(!stop) {
                       var sensorbluetooth = SensorBluetooth.blueone;
                       if (sensorbluetooth != null) {
-                         long alreadywaited=tim-constatchange[0]; 
-                         //long stillwait=justdata?(6700-alreadywaited):0;
-                         long stillwait=justdata?3000:0;
-                         Log.i(LOG_ID,"justdata="+justdata+" alreadywaited="+alreadywaited+" stillwait="+stillwait);
-                         sensorbluetooth.connectToActiveDevice(this,stillwait);
+                        if(justdata) {
+                            long alreadywaited = tim - constatchange[0];
+                            if(getalarmclock()) {
+                                //long stillwait=justdata?(6700-alreadywaited):0;
+                                final long mmsectimebetween = 5 * 60 * 1000;
+                                long stillwait = mmsectimebetween - alreadywaited - 3000;
+                                Log.i(LOG_ID, "justdata=" + justdata + " alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
+                                setalarm(tim+stillwait);
+                            } else {
+                                long stillwait = 7000 - alreadywaited;
+                                Log.i(LOG_ID, "alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
+                                sensorbluetooth.connectToActiveDevice(this, stillwait);
+                            }
+                        }
+                        else {
+                                Log.i(LOG_ID,"connect direct");
+                                sensorbluetooth.connectToActiveDevice(this,0);
+                                }
                          }
                      }
                  }          
@@ -472,7 +495,7 @@ private boolean askcertificate(int pha) {
                 if(certsize < 0) {
                     handshake = "certsize < 0";
                     wrotepass[1] = System.currentTimeMillis();
-                    resetCerts();
+                     resetCerts();
                 }   
                 }
             ;
@@ -630,7 +653,8 @@ private    void getdata(byte[] value) {
 
  private void resetCerts() {
         Natives.dexResetKeys(dataptr);
-        disconnect();
+         disconnect();
+//        docmd0(mBluetoothGatt);
     }
 
 
@@ -673,6 +697,7 @@ private    void getdata(byte[] value) {
 
     @Override
     public void free() {
+        cancelalarm();
         unbond();
         super.free();
     }
@@ -807,6 +832,46 @@ public void close() {
    resetconnect();
    super.close();
    }
+
+
+
+static private PendingIntent mkintents(Context context,String id,int alarmrequest) {
+       final int alarmflags;
+       if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+               alarmflags = PendingIntent.FLAG_IMMUTABLE;
+               }
+       else
+                alarmflags = 0;
+       Intent alarmintent = new Intent(context, ConnectReceiver.class);
+       alarmintent.setAction(id);
+       return getBroadcast(context, alarmrequest++, alarmintent, alarmflags);
+     }
+private PendingIntent onalarm=null;
+static private int alarmrequest=14;
+private void setalarm(long alarmtime) {
+	try {
+            Context context=Applic.app;
+            if(onalarm==null)
+               onalarm= mkintents(context,SerialNumber,alarmrequest++);
+            Log.i(LOG_ID,"setalarm "+alarmtime);
+            AlarmManager manager= (AlarmManager) context.getSystemService(ALARM_SERVICE);
+            manager.setAlarmClock(new AlarmManager.AlarmClockInfo(alarmtime, onalarm), onalarm);
+            }
+	   catch(Throwable e) {
+	   	Log.stack(LOG_ID,"setalarm", e);
+		   }
+	finally {
+		Log.i(LOG_ID,"after setalarm");
+		}
+    }
+private void cancelalarm() {
+	if(onalarm!=null) {
+		Log.i(LOG_ID,"cancelalarm");
+		AlarmManager manager= (AlarmManager) Applic.app.getSystemService(ALARM_SERVICE);
+		manager.cancel(onalarm);
+		onalarm=null;//TODO: ?????
+		}
+	}
 }
 
 

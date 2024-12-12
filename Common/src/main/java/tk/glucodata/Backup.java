@@ -22,7 +22,7 @@
 package tk.glucodata;
 
 import android.annotation.SuppressLint;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.TypedArray;
@@ -247,7 +247,21 @@ public	static void setradio(RadioButton[] radios) {
 	}
 private void deleteconfirmation(MainActivity act) {
         AlertDialog.Builder builder = new AlertDialog.Builder(act);
-        builder.setTitle(R.string.deleteconnection).
+//	 setMessage(mess).
+	String title=null;
+	try {
+		title = label.getText().toString();
+		if (title == null || title.isEmpty()) {
+			if (editIPs[0] != null) {
+				title = editIPs[0].getText().toString();
+			}
+		}
+	} catch(Throwable th) {
+		Log.stack(LOG_ID,"title",th)	;
+	}
+		if(title==null|| title.isEmpty())
+			title="  ";
+        builder.setTitle(title).setMessage(R.string.deleteconnection).
 //	 setMessage(mess).
            setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
@@ -754,7 +768,8 @@ if(!isWearable)
 	    Layout layout=new Layout(act,new View[]{space1,deactive,modify,space2}, new View[]{info},new View[]{close});
 //      layout.round=true;
 		layout.setBackgroundColor(Applic.backgroundcolor);
-		layout.setPadding((int)(GlucoseCurve.metrics.density*15),(int)(GlucoseCurve.metrics.density*30),(int)(GlucoseCurve.metrics.density*10), (int)(GlucoseCurve.metrics.density*25));
+      var leftpad=(int)(GlucoseCurve.getwidth()*.1);
+		layout.setPadding(leftpad,leftpad,(int)(GlucoseCurve.getwidth()*0.08), leftpad*2);
       var scroll= new ScrollView(act);
 		scroll.setFillViewport(true);
       scroll.setVerticalScrollBarEnabled(true);

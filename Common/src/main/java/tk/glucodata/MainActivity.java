@@ -56,7 +56,7 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlarmManager;
-import android.app.AlertDialog;
+//import androidx.appcompat.app.AlertDialog;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -85,6 +85,7 @@ import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.UiThread;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
@@ -700,7 +701,7 @@ void activateresult(boolean res) {
     AlertDialog.Builder builder = new AlertDialog.Builder(this);
     builder.setNegativeButton(R.string.ok, (dialog, id) -> { // User cancelled the dialog
 	requestRender();
-	}).setMessage(message).show().setCanceledOnTouchOutside(false);
+	}).setTitle("  ").setMessage(message).show().setCanceledOnTouchOutside(false);
 }
 
     @Override
@@ -1381,7 +1382,7 @@ void showindialog(String message,boolean cancel) {
 		if(!isWearable) {
 			Applic.app.numdata.stopalarm();
 			}
-	    }).setMessage(message).create();;
+	    }).setTitle("  ").setMessage(message).create();;
 	   dialog.setCanceledOnTouchOutside(false);
 	    dialog.setOnShowListener(a ->  {
 //	    	final var colres= android.R.color.holo_red_light;
@@ -1391,7 +1392,11 @@ void showindialog(String message,boolean cancel) {
 		final var col=
 		   (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)?getResources().getColor(colres, getTheme()):
     			getResources().getColor(colres);
-		  dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(col);
+		 var negbut=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        negbut.setTextColor(col);
+//        negbut.setAllCaps(false);
+//        var dens=GlucoseCurve.getDensity();
+//        negbut.setPadding((int)(dens*10),0,0,0);
 		}	
     		);
 	    dialog.show();

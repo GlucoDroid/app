@@ -42,6 +42,15 @@
         android:layout_column="11"
         android:text="@string/streamhistory" />
 
+      <CheckBox
+          android:id="@+id/alarmclock"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_row="0"
+          android:layout_columnSpan="6"
+          android:layout_column="11"
+          android:visibility="gone"
+          android:text="@string/alarmclock" />
     <Button
         android:id="@+id/locationpermission"
         android:layout_width="wrap_content"

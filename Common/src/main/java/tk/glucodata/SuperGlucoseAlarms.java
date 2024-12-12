@@ -31,7 +31,7 @@ public SuperGlucoseAlarms(Application context) {
 	Notify.init(context);
 	}
 
-static final long showtime = Notify.glucosetimeout;
+//static final long showtime = Notify.glucosetimeout;
 
 
 public	static long waitmmsec() {
@@ -72,22 +72,24 @@ public	void handlealarm() {
 			Natives.wakestreamsender();
 	}
 */
-	public  void sensorinit() {
-		if (hasalarmloss()) {
-			Notify.shownovalue();
-			saidloss = false;
-			final long nu = System.currentTimeMillis();
-			MyGattCallback.oldtime = nu + showtime;
-			LossOfSensorAlarm.setalarm(Applic.app, nu + waitmmsec());
-		}
-	}
+public  void sensorinit() {
+    if (hasalarmloss()) {
+         Notify.shownovalue();
+         saidloss = false;
+         final long nu = System.currentTimeMillis();
+         SuperGattCallback.lastfoundL=nu;
+         MyGattCallback.oldtime = nu + Notify.glucosetimeout;
+         LossOfSensorAlarm.setalarm(Applic.app, nu + waitmmsec());
+    }
+}
 
-public void setagealarm(final long numsec) {
-		Notify.stoplossalarm();
-		saidloss = false;
-		MyGattCallback.oldtime = numsec + showtime;
-		LossOfSensorAlarm.setalarm(Applic.app, MyGattCallback.oldtime);
-	}
+public void setagealarm(final long numsec,long showtime) {
+    Notify.stoplossalarm();
+    saidloss = false;
+    SuperGattCallback.lastfoundL=numsec;
+    MyGattCallback.oldtime = numsec + showtime;
+    LossOfSensorAlarm.setalarm(Applic.app, MyGattCallback.oldtime);
+    }
 
 
 

@@ -348,4 +348,5 @@
    <string name="initializing">Initialisierung</string> 
    <string name="startjuggluco">Juggluco läuft auf dem Telefon?\n\nWLAN und Bluetooth aktiviert?</string>
    <string name="connected">Verbunden!</string> 
+   <string name="useclose">Schließknopf</string> 
 </resources>

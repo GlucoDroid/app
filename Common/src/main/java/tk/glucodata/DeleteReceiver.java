@@ -52,7 +52,7 @@ public class DeleteReceiver extends BroadcastReceiver {
     static PendingIntent getDeleteIntent() {
         Intent intent = new Intent(Applic.app, DeleteReceiver.class);
         intent.setAction(clearnotification);
-	final int deleterequest = 124;
+	final int deleterequest = 2;
         return PendingIntent.getBroadcast(Applic.app, deleterequest, intent, PendingIntent.FLAG_UPDATE_CURRENT|penmutable);
     }
 

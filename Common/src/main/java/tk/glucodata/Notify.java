@@ -566,8 +566,8 @@ void overwriteglucose(int kind) {
 
 
 	static final String fromnotification="FromNotification";
-	final static int forcecloserequest=7812;
-	final static int stopalarmrequest=7810;
+	final static int forcecloserequest=10;
+	final static int stopalarmrequest=8;
 	static final String closename= "ForceClose";
 	static final String stopalarm= "StopAlarm";
 	final static int penmutable= android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M? PendingIntent.FLAG_IMMUTABLE:0;

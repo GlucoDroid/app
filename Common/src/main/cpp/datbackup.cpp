@@ -560,7 +560,9 @@ void resensordata(int sensorindex) {
 	}
 
 int getgetsendnr() {
-	return backup->getupdatedata()->sendnr;
+        if(backup)
+           return backup->getupdatedata()->sendnr;
+         return 0;
 	}
 void wakesender() {
 	 backup->getupdatedata()->wakesender();	
