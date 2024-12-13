@@ -161,6 +161,8 @@ void mknovalue() {
    drawcenter(novalue);
    }
 Bitmap getnovalue() {
+    setbackground();
+    glucosePaint.setColor(getTextColor());
    mknovalue();
     return glucoseBitmap;
     }

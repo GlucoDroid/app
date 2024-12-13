@@ -906,8 +906,7 @@ View blpan= (thishost[2]==null)?new Space(act):getlabel(act,"bt-pan: "+thishost[
       var space2=new Space(act);
       var space3=new Space(act);
       var space4=new Space(act);
-      if(doLog)
-         ip.setText("2a01:59f:a075:b0d1:a4ef:afff:fec4:59f2");
+//      if(doLog) ip.setText("2a01:59f:a075:b0d1:a4ef:afff:fec4:59f2");
 		//final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{blpan},new View[]{p2p},new View[]{ip},new View[]{new Space(act),labport,portview,Save,new Space(act)},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{space1,wifi,alarms,space2},errorrow,new View[]{Cancel});
 		final Layout layout=new Layout(act, new View[]{getlabel(act,act.getString(R.string.thishost))},new View[]{space3,labport,portview,Save,space4},new View[]{ip},new View[]{blpan},new View[]{p2p},new View[]{recycle},new View[] {hosts},new View[]{staticnum},new View[]{Sync,reinit},new View[]{space1,wifi,alarms,space2},errorrow,new View[]{Cancel});
 //		var hori=new NestedScrollView(act);

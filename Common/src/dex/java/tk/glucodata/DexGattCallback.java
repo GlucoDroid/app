@@ -210,7 +210,7 @@ private boolean connected=false;
                             if(getalarmclock()) {
                                 //long stillwait=justdata?(6700-alreadywaited):0;
                                 final long mmsectimebetween = 5 * 60 * 1000;
-                                long stillwait = mmsectimebetween - alreadywaited - 3000;
+                                long stillwait = mmsectimebetween - alreadywaited - 4000;
                                 Log.i(LOG_ID, "justdata=" + justdata + " alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
                                 setalarm(tim+stillwait);
                             } else {

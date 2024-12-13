@@ -39,8 +39,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.LinearInterpolator;
 import android.widget.CheckBox;
 import android.widget.ScrollView;
+import android.widget.Scroller;
+import android.widget.Space;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -48,6 +51,7 @@ import java.util.ArrayList;
 import tk.glucodata.Applic;
 import tk.glucodata.Consumer;
 import tk.glucodata.EverSense;
+import tk.glucodata.GlucoseCurve;
 import tk.glucodata.JugglucoSend;
 import tk.glucodata.Layout;
 import tk.glucodata.MainActivity;
@@ -87,7 +91,6 @@ static private void  getselected(MainActivity context, View parent,String title,
 
 	int len= names.size();
 	if(len==0) {
-	//	if(!isWearable)	EnableControls(parent,true);
 		Applic.argToaster(context, context.getString(R.string.noapplisteningto)+title, Toast.LENGTH_SHORT);
 		String[] niets=new String[0];
 		saveproc.accept(niets);
@@ -103,13 +106,21 @@ static private void  getselected(MainActivity context, View parent,String title,
 		final var name=names.get(i);
 		final var checked=isElement(name,selected);
 		onechecked=onechecked||checked;
-		views[i+startids]=new View[]{getcheckbox(context,name,checked)};
+                var box=getcheckbox(context,name,checked);
+//                 box.setScroller(new Scroller(context, new LinearInterpolator()));
+//                 box.setScroller(new Scroller(context));
+ //               box.setHorizontallyScrolling(true);
+		views[i+startids]=new View[]{box};
 		}
 	final boolean finalonechecked=onechecked;
 	var save=getbutton(context, R.string.save);
 
 	var cancel=getbutton(context, R.string.cancel);
-	views[endlen]=new View[]{cancel,save};
+        if(isWearable)
+           views[endlen]=new View[]{new Space(context),cancel,save,new Space(context)};
+        else
+           views[endlen]=new View[]{cancel,save};
+
         var layout = new Layout(context,
                 (l, w, h) -> {
 			if(!isWearable) {
@@ -132,11 +143,15 @@ static private void  getselected(MainActivity context, View parent,String title,
 	   theview=layout;
 	   }
 	  else {
-	   	int pad=(int)(getscreenwidth(context)*.16);
+/*	   	int pad=(int)(getscreenwidth(context)*.16);
 		if(len>0) {
-			cancel.setPadding(pad,0,0,0);
-			save.setPadding(0,0,pad,0);
-			}
+			cancel.setPadding(pad,cancel.getPaddingTop(),cancel.getPaddingRight(),cancel.getPaddingBottom());
+			save.setPadding(save.getPaddingLeft(),save.getPaddingTop(),pad,save.getPaddingBottom());
+			} */
+
+                var bottom=(int)(GlucoseCurve.getheight()*.11);
+	        layout.setPadding((int)(GlucoseCurve.getheight()*.07),(int)tk.glucodata.GlucoseCurve.metrics.density,(int)(GlucoseCurve.getheight()*.08),bottom);
+
         	layout.setBackgroundColor(Applic.backgroundcolor);
 		final var scroll=new ScrollView(context);
 		scroll.addView(layout);

@@ -5,13 +5,11 @@ Clock Alarm should be turned off when app is killed
 Search info getoond onder Bluediag
 
 
-Blocked translations?
 
 Graph range not set to right value
 Geen controls nodig in settings
 
 In WearInitView eindigen taps in curve below:
-- no value te groot en kleur heeft te weinig contrast
 Enkel key proberen als bonded?
 Als nearby devices faalt moet het later gevraagd worden
 
@@ -26,7 +24,6 @@ hostname in mirror kan aan staat bij passive only.
 Procompiled shared libraries don't run under Android 15 TargetSDK=35 with 16kb
 On Android 15, is notification only shown after restart of Juggluco
 
-Have to scroll down in settings. 
 
 
 Bij klein scherm linker en rechter menu buiten beeld.
