@@ -787,13 +787,14 @@ static public void startMain() {
     intent.putExtra(Notify.fromnotification,true);
     intent.addCategory(Intent. CATEGORY_LAUNCHER ) ;
     intent.setAction(Intent. ACTION_MAIN ) ;
-    intent.setFlags(Intent. FLAG_ACTIVITY_CLEAR_TOP | Intent. FLAG_ACTIVITY_SINGLE_TOP );
     if(act!=null) {
+       intent.setFlags(Intent. FLAG_ACTIVITY_CLEAR_TOP | Intent. FLAG_ACTIVITY_SINGLE_TOP );
         Log.i(LOG_ID,"startActivityIfNeeded( new Intent(Applic.app,MainActivity)). ");
         act.startActivityIfNeeded( intent,0);
         }
     else {
-        Log.i(LOG_ID,"MainActivity.thisone=null");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Log.i(LOG_ID,"startActivity MainActivity.thisone==null");
         keeprunning.theservice.startActivity( intent);
         }
       }

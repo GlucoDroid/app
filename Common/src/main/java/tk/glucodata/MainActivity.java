@@ -329,7 +329,7 @@ void showSystemBarsAppearance() {
            if(!isWearable)
                EdgeToEdge.enable(this);
            }
-		thisone=this;
+      thisone=this;
       if(Applic.stopprogram >0){
          Log.e(LOG_ID,"Stop program");
          if(Applic.stopprogram ==1)
