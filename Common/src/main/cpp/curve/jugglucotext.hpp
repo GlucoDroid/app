@@ -91,18 +91,19 @@ bool add_s;
 const std::span<const Shortcut_t> shortinit;
 const std::span<const std::string_view> labels;
 charptr_t  checked,unchecked;
-union {
-struct {
 std::string_view Undetermined, FallingQuickly,Falling, Stable, Rising, RisingQuickly;
-};
-std::string_view trends[6];
-};
 std::string_view sibionics;
 #endif
 std::string_view receivingpastvalues;
 std::string_view receivingdata;
 std::string_view unsupportedSibionics;
 std::string_view waitingforconnection;
+#ifndef WEAROS
+std::string_view getTrendName(int type) const {
+    const std::string_view *trends=&Undetermined; 
+    return trends[type];
+   }
+#endif
 };
 
 extern jugglucotext *usedtext;

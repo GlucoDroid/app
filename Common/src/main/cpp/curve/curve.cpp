@@ -1404,7 +1404,8 @@ static void	showscanner(NVGcontext* genVG,const SensorGlucoseData *hist,int scan
 			ptr+=len;
 			*ptr++='\n';
 			}
-		auto trend=usedtext->trends[last.tr];
+//		auto trend=usedtext->trends[last.tr];
+		const auto trend=usedtext->getTrendName(last.tr);
 		memcpy(ptr,trend.data(),trend.size());
 		ptr+=trend.size();
 		*ptr++='\n';
@@ -3267,7 +3268,9 @@ int64_t screentap(float x,float y) {
 					if(el.glucosevalue > 0) {
 						constexpr const int maxvalue = 80;
 						char value[maxvalue];
-						auto trend = usedtext->trends[el.glucosetrend];
+//						auto trend = usedtext->trends[el.glucosetrend];
+						const auto trend = usedtext->getTrendName(el.glucosetrend);
+
 						memcpy(value, trend.data(), trend.size());
 						char *ptr = value + trend.size();
 						*ptr++ = '\n';

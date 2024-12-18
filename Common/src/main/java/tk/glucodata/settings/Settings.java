@@ -37,6 +37,7 @@ import static android.widget.Spinner.MODE_DROPDOWN;
 import static androidx.core.os.LocaleListCompat.getEmptyLocaleList;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Backup.getnumedit;
+import static tk.glucodata.Layout.getMargins;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getRTL;
 import static tk.glucodata.Natives.getshowhistories;
@@ -413,10 +414,11 @@ static public void alarmsettings(MainActivity context,View parview,boolean[] iss
 	if(isWearable) {
 		var ala=getlabel(context,R.string.alarms);
 		final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*9.0);
-      var lowspace=new Space(context);
-      var highspace=new Space(context);
    		ala.setPadding(pad,pad,pad,pad);
-		views=new View[][]{new View[]{ala},new View[]{lowalarm[0]},new View[]{lowspace,lowalarm[1],lowalarm[2]}, new View[]{highalarm[0]},new View[]{highspace,highalarm[1],highalarm[2]},
+		final var width= GlucoseCurve.getwidth();
+        getMargins(lowalarm[1]).leftMargin=(int)(width*.08);
+        getMargins(highalarm[1]).leftMargin=(int)(width*.08);
+		views=new View[][]{new View[]{ala},new View[]{lowalarm[0]},new View[]{lowalarm[1],lowalarm[2]}, new View[]{highalarm[0]},new View[]{highalarm[1],highalarm[2]},
 new View[]{lossalarm},new View[]{losswait,min,ringlossalarm},
 new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View[]{Save}};
 //new View[]{isvalue},new View[]{ringisvalue},new View[]{Cancel,Save}, new View[] {toucheverywhere}};
@@ -969,6 +971,10 @@ private	void mksettings(MainActivity context,boolean[] issaved) {
 		if(BuildConfig.minSDK>=26) {
 			complications = getbutton(context, R.string.complications);
 			complications.setOnClickListener(v -> tk.glucodata.glucosecomplication.ColorConfig.show(context, thelayout[0]));
+                        final var margins=getMargins(complications);
+                        margins.topMargin= (int)(tk.glucodata.GlucoseCurve.metrics.density*3.0);
+                        margins.bottomMargin= (int)(tk.glucodata.GlucoseCurve.metrics.density*4.0);
+
 		}
 
 //      alarmbut.setMinimumWidth(0); alarmbut.setMinWidth(0);

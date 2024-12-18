@@ -120,7 +120,7 @@
 <string name="additem">Ajouter entrée</string>
 <string name="round">"Arrondi "</string>
 <string name="repeat">Répéter</string>
-<string name="ingredient">Ingrédient</string>
+<string name="ingredient">Ingrédient: </string>
 <string name="select">Choisir</string>
 <string name="carbohydrate">Glucides: </string>
 <string name="carbo">Glucide</string>

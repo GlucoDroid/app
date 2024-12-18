@@ -120,7 +120,7 @@
  <string name="additem">Дадаць элемент</string>
  <string name="round">"Акругленне "</string>
  <string name="repeat">Паўтарыць</string>
- <string name="ingredient">Інгрэдыент</string>
+ <string name="ingredient">Інгрэдыент: </string>
  <string name="select">Выберыце</string>
  <string name="carbohydrate">Вугляводы: </string>
  <string name="carbo">Вугляводы</string>

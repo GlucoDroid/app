@@ -29,7 +29,7 @@
 #include "config.h"
 #include "inout.hpp"
 #include "countryunits.hpp"
-#include "curve/jugglucotext.hpp"
+#include "jugglucotext.hpp"
 extern int showui;
 struct Settings;
 extern Settings *settings;

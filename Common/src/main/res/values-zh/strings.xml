@@ -121,7 +121,7 @@
  <string name="additem">添加项目</string>
  <string name="round">"四舍五入 "</string>
  <string name="repeat">重复</string>
- <string name="ingredient">成分</string>
+ <string name="ingredient">成分: </string>
  <string name="select">选择声音</string>
  <string name="carbohydrate">碳水化合物：</string>
  <string name="carbo">碳水化合物</string>

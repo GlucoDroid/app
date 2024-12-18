@@ -117,7 +117,7 @@
   <string name="additem">Komponente hinzufügen</string>
   <string name="round">"runden "</string>
   <string name="repeat">Wiederholen</string>
- <string name="ingredient">Zutat</string>
+ <string name="ingredient">Zutat: </string>
   <string name="select">Auswählen</string>
   <string name="carbohydrate">Kohlenhydrat: </string>
   <string name="carbo">Kohlenhydrate</string>

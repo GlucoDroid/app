@@ -1029,7 +1029,7 @@ bool bluetoothback() {
 
 bool unused() const {
 	const auto *info=getinfo();
-	return info->pollcount==0&&info->scancount==0&&info->endhistory==0;
+	return (info->pollcount==0&&info->scancount==0&&info->endhistory==0);
 	}
 bool canscan() const {
 	return !(isDexcom()||isSibionics()||isLibre3());

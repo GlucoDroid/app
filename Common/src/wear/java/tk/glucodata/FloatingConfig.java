@@ -30,12 +30,14 @@ import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.usedlocale;
 import static tk.glucodata.Floating.rewritefloating;
+import static tk.glucodata.MainActivity.screenheight;
 import static tk.glucodata.Specific.useclose;
 import static tk.glucodata.settings.Settings.editoptions;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
 import static tk.glucodata.util.getlabel;
+import static tk.glucodata.Layout.getMargins;
 
 import android.graphics.Color;
 import android.text.InputType;
@@ -73,6 +75,7 @@ static public int	getcolor() {
 		return background?Natives.getfloatingbackground( ):Natives.getfloatingforeground( );
 		}
 
+
 static public void show(MainActivity act,View view) {
   final boolean  wasfloating=Natives.getfloatglucose();
   view.setVisibility(INVISIBLE);
@@ -84,19 +87,22 @@ static public void show(MainActivity act,View view) {
   int pad=height/14;
   sizelabel.setPadding(pad,0,0,0);
   int currentfont=Natives.getfloatingFontsize();
+   if(currentfont<5||currentfont>(int)(screenheight*.8)) {
+        currentfont=(int)Notify.glucosesize; 
+        }
   SeekBar fontsizeview=new SeekBar(act);
-  fontsizeview.setMax((int)(maxfont*100.0));
-  fontsizeview.setProgress((int)(currentfont*100.0));
+  fontsizeview.setMax((int)((maxfont-5)*100.0));
+  fontsizeview.setProgress((int)((currentfont-5)*100.0));
 //      var fwidth=(int)(width*0.8f);
   fontsizeview.setMinimumWidth(width);
-  final int minimumvalue=500;
-  fontsizeview.setMin(minimumvalue);
+//  final int minimumvalue=500;
+//  fontsizeview.setMin(minimumvalue);
               
   fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 	  @Override
 	  public  void onProgressChanged (SeekBar seekBar, int progress, boolean fromUser) {
 //         int newprogress=progress+minimumvalue; 
-	     var siz=(int)Math.round(progress/100.0);
+	     var siz=(int)Math.round(progress/100.0)+5;
 //	    if(doLog) sizelabel.setText(fontstring+siz);
 	    Natives.setfloatingFontsize(siz);
 	    rewritefloating(act);
@@ -187,33 +193,17 @@ static public void show(MainActivity act,View view) {
 		hidden[0]=!isChecked;
 		Natives.sethidefloatinJuggluco(!isChecked);
 		});
-/*
-	final  int butwidth=(int)(width*0.33);
-   backgroundview.setMinWidth(butwidth);
-   backgroundview.setMinimumWidth(butwidth);
-
-	int butheight=(int)(height*0.2);
-	int labelheight=(int)(height*0.1);
-     foreground.setMinimumHeight(butheight);
-	foreground.setMinHeight(butheight);
-     backgroundview.setMinimumHeight(butheight);
-	backgroundview.setMinHeight(butheight);
-	close.setMinHeight(butheight);
-     close.setMinimumHeight(butheight);
-	hide.setMinHeight(labelheight);
-     hide.setMinimumHeight(labelheight);
-	sizeview.setMinHeight(labelheight);
-     sizeview.setMinimumHeight(labelheight);
-	touchable.setMinHeight(labelheight);
-     touchable.setMinimumHeight(labelheight);
-	sizelabel.setMinHeight(labelheight);
-     sizelabel.setMinimumHeight(labelheight);
-     */
-   var space1 = new Space(act);
-   var space2 = new Space(act);
+/*   var space1 = new Space(act);
+   var space2 = new Space(act); */
+   
+    var sidemargin=(int)(GlucoseCurve.getwidth()*0.015f);
+    getMargins(foreground).leftMargin=sidemargin;
+    getMargins(backgroundview).rightMargin=sidemargin;
+    getMargins(timeshow).leftMargin=(int)(GlucoseCurve.getwidth()*0.05f);
+//    getMargins(hide).rightMargin=(int)(GlucoseCurve.getwidth()*0.08f);
    if(!useclose)
       close.setVisibility(GONE);
-	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{sizelabel},new View[]{ fontsizeview}, new View[]{foreground,backgroundview},new View[]{space1,timeshow,hide,space2},new View[]{transparentview},new View[]{close});
+	Layout layout=new Layout(act,(l,w,h)-> { return new int[] {w,h}; },new View[]{touchable},new View[]{sizelabel},new View[]{ fontsizeview}, new View[]{foreground,backgroundview},new View[]{timeshow,hide},new View[]{transparentview},new View[]{close});
    int pad3=(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0);
 	layout.setPadding(pad3,pad3,pad3,pad3*2);
 	transparentview.setOnCheckedChangeListener( (buttonView,  isChecked) -> {

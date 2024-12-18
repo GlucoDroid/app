@@ -115,7 +115,7 @@
     <string name="highglucoseshort">"Высокий сахар!"</string>
     <string name="historyname">История</string>
     <string name="info">Инфо</string>
-    <string name="ingredient">Что ем</string>
+    <string name="ingredient">Что ем: </string>
     <string name="initwatchapp">Запустить приложение watch app</string>
     <string name="installedlibrary">Установленная библиотека</string>
     <string name="invaliddays">"' недействительный. Дни должны быть натуральным числом."</string>

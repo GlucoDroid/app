@@ -28,10 +28,13 @@ import androidx.recyclerview.widget.RecyclerView;
 
 public class IngredientViewHolder extends RecyclerView.ViewHolder {
 
-    public IngredientViewHolder(View view, Consptr setindex) {
-        super(view);
-       view.setOnClickListener(v -> setindex.cons.accept(getAbsoluteAdapterPosition()));
-
+    public IngredientViewHolder(View view, Meal.IngredientViewAdapter adapt) {
+       super(view);
+       view.setOnClickListener(v -> {
+           var pos=getAbsoluteAdapterPosition();
+           var res=adapt.results;
+           adapt.ingrindex.cons.accept(res==null?pos:res[pos]);
+           });
     }
 
 }

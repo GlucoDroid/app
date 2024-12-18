@@ -34,10 +34,11 @@
 #include <stdlib.h>
 
 #include <jni.h>
-
+#include "myfdsan.h"
 inline int mytag() {
    return 0;
    }
+
 constexpr const char defaultport[]{
 #ifdef RELEASEID
 "8795"
@@ -162,7 +163,7 @@ void close() {
 //        mirrorstatus[allindex].sensor.hassocket=false;
          setsock(-1);
 //         if(get_owner_tag(so)==mytag()) 
-            ::close(so);
+            ::sockclose(so);
          if(crypt_t *ctx=getcrypt()) {
             ascon_aead_cleanup(ctx);
             }
@@ -454,7 +455,7 @@ void deletehost(int index) {
             LOGGER("%d: close(%d)\n",index,sock);
             ::shutdown(sock,SHUT_RDWR);
         // if(get_owner_tag(sock)==mytag()) 
-            ::close(sock);
+            ::sockclose(sock);
             hostsocks[index]=-1;
             }
         }
@@ -925,7 +926,7 @@ void deactivateHost(int index,bool deactive) {
                 LOGGER("%d: close(%d)\n",index,sock);
                     ::shutdown(sock,SHUT_RDWR);
 //             if(get_owner_tag(sock)==mytag()) 
-                       ::close(sock);
+                     ::sockclose(sock);
                     hostsocks[index]=-1;
                     }
                 }

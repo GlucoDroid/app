@@ -120,7 +120,7 @@
  <string name="additem">Додати елемент</string>
  <string name="round">"Округлення "</string>
  <string name="repeat">Повторіть</string>
- <string name="ingredient">Інгредієнт</string>
+ <string name="ingredient">Інгредієнт: </string>
  <string name="select">Виберіть</string>
  <string name="carbohydrate">Вуглеводи: </string>
  <string name="carbo">Вуглеводи</string>

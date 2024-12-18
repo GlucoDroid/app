@@ -25,6 +25,7 @@ import static java.net.HttpURLConnection.HTTP_OK;
 
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Backup.getedit;
+import static tk.glucodata.Layout.getMargins;
 import static tk.glucodata.Log.stackline;
 import static tk.glucodata.Natives.setNightUploader;
 import static tk.glucodata.RingTones.EnableControls;
@@ -312,6 +313,7 @@ public static void  config(MainActivity act, View settingsview) {
        visible.setButtonDrawable(R.drawable.password_visible);
       visible.setMinimumWidth(0);
       visible.setMinWidth(0);
+        getMargins(wake).topMargin= (int)(GlucoseCurve.metrics.density*7.0);
        //visible.setText(R.string.visible);
 	int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;
 	visible.setPadding(0,0,pad,0);

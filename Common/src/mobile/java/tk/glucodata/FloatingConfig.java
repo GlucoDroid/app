@@ -30,13 +30,16 @@ import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.usedlocale;
 import static tk.glucodata.Floating.rewritefloating;
+import static tk.glucodata.Layout.getMargins;
 import static tk.glucodata.settings.Settings.editoptions;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
 import static tk.glucodata.util.getlabel;
+import static tk.glucodata.MainActivity.screenheight;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.text.InputType;
 import android.view.KeyEvent;
 import android.view.View;
@@ -46,6 +49,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -93,18 +97,24 @@ static public void show(MainActivity act,View parent) {
    final int maxfont=height*7/10;
 
 	int currentfont=Natives.getfloatingFontsize();
+     if(currentfont<5||currentfont>(int)(screenheight*.8)) {
+                currentfont=(int)Notify.glucosesize; 
+                }
+
    SeekBar fontsizeview=new SeekBar(act);
-      fontsizeview.setMax((int)(maxfont*100.0));
-      fontsizeview.setProgress((int)(currentfont*100.0));
+      fontsizeview.setMax((int)((maxfont-5)*100.0));
+      fontsizeview.setProgress((int)((currentfont-5)*100.0));
 //      var fwidth=(int)(width*0.8f);
-      fontsizeview.setMinimumWidth((int)(width*.6));
-      final int minimumvalue=500;
-      fontsizeview.setMin(minimumvalue);
-      fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      fontsizeview.setMinimumWidth((int)(width*.5));
+//      final int minimumvalue=500;
+/*    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        fontsizeview.setMin(minimumvalue);
+    }*/
+    fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 		@Override
 		public  void onProgressChanged (SeekBar seekBar, int progress, boolean fromUser) {
 //         int newprogress=progress+minimumvalue; 
-			var siz=(int)Math.round(progress/100.0);
+			var siz=(int)Math.round(progress/100.0)+5;
 //         if(doLog) sizelabel.setText(fontstring+siz);
          Natives.setfloatingFontsize(siz);
           rewritefloating(act);
@@ -170,7 +180,7 @@ static public void show(MainActivity act,View parent) {
 			view.setVisibility(INVISIBLE);
 		}
 	var close=getbutton(act,R.string.closename);
-	CompoundButton foregroundswitch;
+//	CompoundButton foregroundswitch;
 
 	Layout layout;
 	CheckBox floatglucose=new CheckBox(act);
@@ -179,12 +189,19 @@ static public void show(MainActivity act,View parent) {
 	floatglucose.setOnCheckedChangeListener( (buttonView,  isChecked) -> Floating.setfloatglucose(act,isChecked) ) ;
 	var Help=getbutton(act,R.string.helpname);
 	Help.setOnClickListener(v-> help.help(R.string.floatingconfig,act));
-	foregroundswitch=new Switch(act);
-	foregroundswitch.setChecked(background);
-	foregroundswitch.setText(R.string.foreground);
-	var  backgroundlabel=getlabel(act,R.string.background);
-	backgroundlabel.setTextColor(WHITE);
-	foregroundswitch.setTextColor(WHITE);
+
+
+    var    foregroundbutton = new RadioButton(act);
+      var   backgroundbutton = new RadioButton(act);
+        foregroundbutton.setText(R.string.foreground);
+        backgroundbutton.setText(R.string.background);
+	foregroundbutton.setChecked(!background);
+	backgroundbutton.setChecked(background);
+	backgroundbutton.setTextColor(WHITE);
+	foregroundbutton.setTextColor(WHITE);
+
+//    getMargins(backgroundbutton).rightMargin=getMargins(foregroundbutton).leftMargin=(int)(width*0.1);
+//	backgroundbutton.setChecked(background);
 
 	var timeshow=getcheckbox(act,R.string.time,Floating.showtime);
 	timeshow.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
@@ -204,7 +221,7 @@ static public void show(MainActivity act,View parent) {
 
 
 
-	var leftlayout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{sizelabel},new View[]{fontsizeview},new View[]{touchable,transparant}, new View[]{foregroundswitch,backgroundlabel},new View[]{hide,timeshow,floatglucose},new View[]{Help,close});
+	var leftlayout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{sizelabel},new View[]{fontsizeview},new View[]{foregroundbutton,touchable}, new View[]{backgroundbutton,transparant},new View[]{hide,timeshow,floatglucose},new View[]{Help,close});
 	leftlayout.setLayoutParams( new ViewGroup.LayoutParams(WRAP_CONTENT,MATCH_PARENT));
 	view.setLayoutParams( new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
    view.setPadding(0,MainActivity.systembarTop,0,0);
@@ -222,14 +239,33 @@ static public void show(MainActivity act,View parent) {
 	touchable.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
 		Floating.setTouchable(isChecked);
 		});
-
+/*
 	foregroundswitch.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
 		background=isChecked;
 		removeContentView(layout);
 		act.poponback();
 		show(act,parent);
 
-	});
+	});*/
+
+
+        foregroundbutton.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
+            Log.i(LOG_ID,"foregroundbutton "+isChecked);
+            backgroundbutton.setChecked(!isChecked);
+            background=!isChecked;
+            removeContentView(layout);
+            act.poponback();
+            show(act,parent);
+            });
+
+        backgroundbutton.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
+            Log.i(LOG_ID,"backgroundbutton "+isChecked);
+            foregroundbutton.setChecked(!isChecked);
+            });
+
+
+
+
 
 	       act.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
 	Button noclose= act.findViewById(R.id.closeambi);

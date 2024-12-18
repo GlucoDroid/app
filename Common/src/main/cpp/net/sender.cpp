@@ -45,7 +45,7 @@
 #include "passhost.hpp"
 #include "crypt.h"
 #include "makerandom.hpp"
-
+#include "myfdsan.h"
 #define lerrortag(...) lerror("sender: " __VA_ARGS__)
 #define LOGGERTAG(...) LOGGER("sender: " __VA_ARGS__)
 #define LOGSTRINGTAG(...) LOGSTRING("sender: " __VA_ARGS__)
@@ -278,7 +278,7 @@ static int connectone( const struct sockaddr_in6  *sin, int &sock,char stype,pas
 		}
 
 	if(!unblock(so)) {
-		close(so);
+		sockclose(so);
 		return -1;
 		}
 	LOGGERTAG("try  %s sock=%d\n", name.data(),so);
@@ -289,7 +289,7 @@ static int connectone( const struct sockaddr_in6  *sin, int &sock,char stype,pas
 			}
 		else {
 			LOGSTRINGTAG("close\n");
-			close(so);
+			sockclose(so);
 			return -1;
 			}
 		}
@@ -302,11 +302,11 @@ static int connectone( const struct sockaddr_in6  *sin, int &sock,char stype,pas
 		if(int ret=shakehands(pass,sock,stype);ret>=0) {
 			LOGGERTAG("before poll %d\n",sock);
 			for(int w=0;w<use;w++) {
-				close(cons[w].fd);
+				sockclose(cons[w].fd);
 				}
 			return ret;
 			}
-		close(so);
+		sockclose(so);
 		sock=-1;
 		return -1;;		 //close in shakehands
 		}
@@ -443,7 +443,7 @@ bool activate=true;
 			if(cons[i].revents & POLLRDHUP){
 				savemessage(pass," %d: POLLRDHUP",cons[i].fd);
 				LOGGERTAG("%s\n",getmirrorerror(pass));
-				close(cons[i].fd); 
+				sockclose(cons[i].fd); 
 				continue;
 				}
 			if(cons[i].revents &POLLERR){
@@ -470,19 +470,19 @@ bool activate=true;
 				savemessage(pass,"POLLERR: %s",errstr);
 
 				LOGGERTAG("%s (%d) socket=%d\n",getmirrorerror(pass),error,cons[i].fd);
-				close(cons[i].fd); 
+				sockclose(cons[i].fd); 
 				continue;
 				}
 			if(cons[i].revents &POLLHUP){
 				savemessage(pass,"socket %d: POLLHUP",cons[i].fd);
 				LOGGERTAG("%s\n",getmirrorerror(pass));
-				close(cons[i].fd);
+				sockclose(cons[i].fd);
 				continue;
 				}
 			if(cons[i].revents &POLLNVAL){
 				savemessage(pass,"socket %d: POLLNVAL\n",cons[i].fd);
 				LOGGERTAG("%s\n",getmirrorerror(pass));
-				close(cons[i].fd);
+				sockclose(cons[i].fd);
 				continue;
 				}
 			if(cons[i].revents & POLLOUT){
@@ -491,10 +491,10 @@ bool activate=true;
 				int ret;
 				if((ret=shakehands(pass,sock,stype))>=0) {
 					for(int w=0;w<newuse;w++) {
-						close(cons[w].fd);
+						sockclose(cons[w].fd);
 						}
 					for(int w=i+1;w<use;w++) {
-						close(cons[w].fd);
+						sockclose(cons[w].fd);
 						}
 					LOGGERTAG("via poll %d\n",sock);
 #ifdef WEAROS_MESSAGES
@@ -504,7 +504,7 @@ bool activate=true;
 					}
 				int so=sock;
 				sock=-1;
-				close(so);
+				sockclose(so);
 				if(ret==-2) {
 #ifdef WEAROS_MESSAGES
 					dest.active=false;
@@ -528,6 +528,7 @@ bool activate=true;
 int makeconnection(passhost_t *pass,int &sock,crypt_t*ctx,char stype) {
 	int res=makeconnection2(pass,sock,stype);
 	if(res>=0) {
+        const auto tag=get_owner_tag(res);
 		*getmirrorerror(pass)='\0';
 		if(ctx)
 			sendpassinit(sock,pass,ctx);

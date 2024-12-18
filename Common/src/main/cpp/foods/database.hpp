@@ -86,7 +86,6 @@ unsigned compnr() const {
 	}
 template <typename Ret,typename Mat> 
 auto matches(Ret &got,const Mat &reg) const {
-//	auto label=[this](const uint32_t ind) {return reinterpret_cast<const char *>(getbase()+foods[ind]);};
 	auto label=[this](const uint32_t ind) {return foodlabel(ind);};
 	return ::matches(0,foodnr(),back_inserter(got),reg,label); 
 }
@@ -98,15 +97,11 @@ auto matches(cont &inp,Ret &got,const Mat &reg) const {
 
 //s/(\([^()]*\))\([^;]*\);/reinterpret_cast<\1>(\2);
 double component(const unsigned ind,const unsigned comp) const {
-//	const uint32_t (&comref)[head.foods_nr][head.comps_nr]= *reinterpret_cast<const uint32_t(*)[head.foods_nr][head.comps_nr]>(components); 
-//	const uint32_t el=comref[ind][comp];
 	const uint32_t *ar=reinterpret_cast<const uint32_t*>(components);
 	const uint32_t el= ar[ind*head.comps_nr+comp];
 	return (el==std::numeric_limits<uint32_t>::max())?std::numeric_limits<double>::quiet_NaN(): double(el)/1000;
 	}
 const uint32_t * getcomponents(const unsigned ind) const {
-//	const uint32_t (&comref)[head.foods_nr][head.comps_nr]= *reinterpret_cast<const uint32_t(*)[head.foods_nr][head.comps_nr]>(components); 
-//	const uint32_t el=comref[ind][comp];
 	const uint32_t *ar=reinterpret_cast<const uint32_t*>(components);
 	const uint32_t *els= ar+ind*head.comps_nr;
 	return els;

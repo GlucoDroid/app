@@ -76,10 +76,11 @@ android {
         buildConfigField 'int', 'minSDK', "$minSdk"
         compileSdk 35
         applicationId "tk.glucodata"
-         manifestPlaceholders["debuggable"] = "true"
-         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "false"
+         manifestPlaceholders["requireWatch"] = "true"
 
-	     versionName '9.0.14'
+
+	     versionName '9.0.15'
 //	multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -130,8 +131,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
         libreOld {
 	//******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode                                                                                                                    547                                                                                                 //LIBRE2ONLY
-         //	versionName '9.0.14-no3'
+            versionCode                                                                                                                       550                                                                                                       //LIBRE2ONLY
+         //	versionName '9.0.15-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
 		    externalNativeBuild.cmake {
@@ -147,7 +148,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 //	   minSdk 23
             dimension 'libreVersion'
 		versionNameSuffix '-li3'
-		versionCode                                                                                                                   548                                                                                                                                                                                                                                     //LIBRE3
+		versionCode                                                                                                                      551                                                                                                                                                                                                                                           //LIBRE3
 	//******  Zet op rollout op 100% ******
 
            	buildConfigField 'int', 'libreVersion', '3'
@@ -164,7 +165,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 		minSdkVersion 21
       dimension 'SiBionics'
 		versionNameSuffix '-si'
-		versionCode                                                                                                              548                                                                                            
+		versionCode                                                                                                                 551                                                                                                  
 	   buildConfigField 'int', 'SiBionics', '1'
 	   externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -173,7 +174,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 		}
         nosi {
         	dimension 'SiBionics'
-         versionCode                                                 547                                                                                            
+         versionCode                                                    550                                                                                                  
          versionNameSuffix '-nosi'
 	      buildConfigField 'int', 'SiBionics', '0'
 	      externalNativeBuild.cmake {
@@ -189,9 +190,9 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
             dimension 'wearos'
 		minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-		versionCode                                                                                                                   549                                                                                                                                                                                                                                     //WATCH
+		versionCode                                                                                                                      552                                                                                                                                                                                                                                           //WATCH
 	//******  Zet op rollout op 100% ******
-		//versionName '9.0.14-wear'
+		//versionName '9.0.15-wear'
 		versionNameSuffix '-wear'
 		signingConfig signingConfigs.alg
 
@@ -213,8 +214,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 
 //        minSdk 19
             dimension 'wearos'
-		versionCode                                                                                                                   549                                                                                                                                                                                                                                     //WATCH
-		//versionName '9.0.14-small'
+		versionCode                                                                                                                      552                                                                                                                                                                                                                                           //WATCH
+		//versionName '9.0.15-small'
 		versionNameSuffix '-small'
 		signingConfig signingConfigs.alg
 
@@ -596,8 +597,8 @@ dependencies {
 	implementation 'androidx.core:core:1.15.0'
    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.0.21'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
     implementation "com.google.android.gms:play-services-base:$GMSBASE"
  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0'
   mobileImplementation 'androidx.health.connect:connect-client:1.1.0-alpha10'

@@ -281,10 +281,10 @@ void tobluetooth(int hostnr,bool sender,int *sockin, int *sockother,std::binary_
          }
          *sockin=-1;
          shutdown(sock,SHUT_RDWR);
-         close(sock);
+         sockclose(sock);
          status.running(false);
-        LOGGERTAG("%d %d Return from thread\n",hostnr,sender);
-               return;
+         LOGGERTAG("%d %d Return from thread\n",hostnr,sender);
+         return;
        }
 	/*
         while(!(status.sendmessage=sendmessage(phonehost,phonesender,buf,inlen))) {
@@ -298,15 +298,17 @@ void closesock(int &sock) {
 	if(tmpsock!=-1) {
 		sock=-1;
 		shutdown(tmpsock,SHUT_RDWR);
-		close(tmpsock);
+		sockclose(tmpsock);
 		}
 }
 static void messagereceivecommands(passhost_t *pass) {
 	const int index=pass-getBackupHosts().data();
 	LOGGERTAG("messagereceivecommands %d start\n",index);
-	if(messagereceiversockets[index]!=-1)
-		 shutdown(messagereceiversockets[index],SHUT_RDWR);
-	 for(int i=0;wearmessages[index];i++) {
+	if(messagereceiversockets[index]!=-1) {
+		shutdown(messagereceiversockets[index],SHUT_RDWR);
+		messagereceiversockets[index]=-1;
+        }
+	for(int i=0;wearmessages[index];i++) {
 		int sockpair[2];
 		if(socketpair(AF_LOCAL,SOCK_STREAM,0,sockpair)!=0) {
 			lerror("socketpair");
@@ -338,8 +340,9 @@ extern	void receiversockopt(int new_fd);
 		 LOGGERTAG("%d message join\n",index);
 		 shutdown(messagereceiversockets[index],SHUT_RDWR);
 		th.join();
-		if(recsock!=-1)
+		if(recsock!=-1) {
 			closesock(recsock);
+            }
 		LOGSTRINGTAG("try again\n");
 		 }
 	LOGGERTAG("messagereceivecommands wearmessages[%d]==false\n",index);

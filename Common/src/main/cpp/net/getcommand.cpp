@@ -32,7 +32,6 @@
 #include "datbackup.hpp"
 #include "aligner.hpp"
 #include "mirrorerror.h"
-#include "curve/jugglucotext.hpp"
 
 #define lerrortag(...) lerror("getcommands: " __VA_ARGS__)
 #define LOGGERTAG(...) LOGGER("getcommands: " __VA_ARGS__)
@@ -689,11 +688,14 @@ static std::pair<int,int> getstartinfo(const struct fileonce_t *gegs,const uint8
 	return {sendindex,startpos};
 	}	
 void sethistorystart(int,int);
-       extern void setInitText(const char *message);
+#ifdef WEAROS
+#include "curve/jugglucotext.hpp"
+ extern void setInitText(const char *message);
 static bool startedreceiving() {
        setInitText(usedtext->receivingdata.data());
        return true;
    }
+#endif
 static bool savefileonce(const struct fileonce_t *gegs) {
 	const int nr=gegs->nr;
 	const uint8_t *start=reinterpret_cast<const uint8_t*>(&gegs->gegs[nr]);

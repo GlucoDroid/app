@@ -115,7 +115,7 @@
   <string name="additem">Lägg till</string>
   <string name="round">"Avrunda "</string>
   <string name="repeat">Upprepa</string>
-  <string name="ingredient">Ingrediens</string>
+  <string name="ingredient">Ingrediens: </string>
   <string name="select">Välj</string>
   <string name="carbohydrate">Kolhydrater: </string>
   <string name="carbo">Kolhydrater</string>

@@ -39,11 +39,11 @@ extern bool networkpresent;
 #define javapackage "tk/glucodata/"
 
 extern void resetnetwork();
-static void keepnet(uint32_t wastime,uint32_t nu) {
+static void keepnet(uint32_t wastime,uint32_t nu,int minutes) {
 	const bool fromother=backup&&networkpresent&&settings->data()->nobluetooth ;
 	if(fromother) {
 		const uint32_t age=nu-wastime;
-		constexpr const int requestage=126;
+		const int requestage=minutes*108;
 		if(age>requestage) {
 			static uint32_t nextwake=0;
 			if(nu>nextwake) {
@@ -68,9 +68,14 @@ std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) {
 	const SensorGlucoseData *take=nullptr;
    int pos=-1;
    const int total=usedsensors.size();
+   int  minutes=15;
+
 	for(int i=0;i<total ;i++) {
 		const int index=usedsensors[i];
 		const SensorGlucoseData *hist=sensors->getSensorData(index);
+        const int hiermin=hist->streaminterval();
+        if(hiermin<minutes)
+            minutes=hiermin;
 		const ScanData *poll=hist->lastpoll();
 		if(poll) {
 			uint32_t then=poll->t;
@@ -81,7 +86,7 @@ std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) {
 				}
 			}
 		}
-	keepnet(mintime,nu);
+	keepnet(mintime,nu,minutes);
    if(total>1)
       ++pos;
 	return {take,pos};

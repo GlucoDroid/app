@@ -26,6 +26,7 @@ import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static tk.glucodata.Applic.usedlocale;
+import static tk.glucodata.Layout.getMargins;
 import static tk.glucodata.Natives.getComplicationArrowColor;
 import static tk.glucodata.Natives.getComplicationBackgroundColor;
 import static tk.glucodata.Natives.getComplicationTextBorderColor;
@@ -252,6 +253,11 @@ else {
 	}
 
 	if(!useclose) close.setVisibility(GONE);
+    else {
+        var margins=getMargins(close);
+        margins.topMargin= (int)(density*2.0);
+        margins.bottomMargin= (int)(density*3.0);
+        }
 
       Layout layout=new Layout(act,(l, w, h)-> { return new int[] {w,h}; },new View[]{head},new View[]{view},fontsizeview==null?null:new View[]{fontsizeview},new View[]{preview},new View[]{close});
 	var scroll=new ScrollView(act);

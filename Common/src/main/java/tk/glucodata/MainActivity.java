@@ -356,9 +356,11 @@ void showSystemBarsAppearance() {
 	   if(Menus.on)
 		   Menus.show(this);
 
-//		var   gestureListener= new ScrollListener(); mGestureDetector = new GestureDetector(this, gestureListener);
+//		var gestureListener= new Layout.ScrollListener(); mGestureDetector = new GestureDetector(this, gestureListener);
 		Log.i(LOG_ID,"onCreate end");
     }
+
+//GestureDetector mGestureDetector;
 void handleIntent(Intent intent) {
 	if(intent==null)
 		return;
@@ -1270,6 +1272,9 @@ public NumberView getnumberview() {
 	}
 
 final static private Deque<Runnable> backrun = new ArrayDeque<>();
+static public int onbacknr() {
+        return backrun.size();
+        }
 static public void setonback(Runnable run) {
 	Log.i(LOG_ID,"setonback");
 	backrun.addFirst(run);

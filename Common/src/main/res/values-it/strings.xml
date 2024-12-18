@@ -121,7 +121,7 @@
  <string name="additem">Aggiungi Item</string>
  <string name="round">"Arrotonda "</string>
  <string name="repeat">Ripeti</string>
- <string name="ingredient">Ingredienti</string>
+ <string name="ingredient">Ingredienti: </string>
  <string name="select">Seleziona</string>
  <string name="carbohydrate">"Carboidrati: "</string>
  <string name="carbo">"Carboidrati"</string>

@@ -45,6 +45,7 @@
        #include <sys/syscall.h> 
 #include "destruct.hpp"
 #include "logs.hpp"
+#include "myfdsan.h"
 #ifndef LOGGER
 #define LOGGER(...) fprintf(stderr,__VA_ARGS__)
 #endif
@@ -110,17 +111,18 @@ static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bo
 		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
 			servererror("setsockopt close(%d)",sock);
 			LOGGERTAG("%s\n",servererrorbuf);
-			close(sock);
+			sockclose(sock);
 			return false;
 			}
 		if(bind(sock,ips->ai_addr,ips->ai_addrlen)==-1) {
 			servererror("bind port=%s",port);
 			LOGGERTAG("%s close(%d)\n",servererrorbuf,sock);
-			close(sock);
+			sockclose(sock);
 			continue;
 			}
 		break;
 		}
+        const auto tag=get_owner_tag(sock);
 	constexpr int const BACKLOG=5;
 	if(listen(sock, BACKLOG) == -1) {
 		if(*shutdownreceiver) {
@@ -403,6 +405,7 @@ globalsocket=serversock;
 		socklen_t sin_size = sizeof(their_addr) ;
 		LOGGERTAG("accept(%d,%p,%d)\n",serversock,addrptr,sin_size);
 		int new_fd = accept(serversock, addrptr, &sin_size);
+        const auto tag=get_owner_tag(new_fd);
 		LOGGERTAG("na accept(serversock=%d)=%d\n",serversock,new_fd);
 		if (new_fd == -1) {
 			int ern=errno;
@@ -416,7 +419,7 @@ globalsocket=serversock;
 				case EINVAL:
 				case ENOTSOCK:
 				case EOPNOTSUPP: 
-				close(serversock);
+				sockclose(serversock);
 				if(serversock==globalsocket)
 					globalsocket=-1;
 				return true;
@@ -425,7 +428,7 @@ globalsocket=serversock;
 			}
 		if(!networkpresent) {
 			LOGGERTAG("serverloop !networkpresent close %d\n",new_fd);
-			close(new_fd);
+			sockclose(new_fd);
 			continue;
 			}
 		{
@@ -501,7 +504,7 @@ globalsocket=serversock;
 
 				}
 			LOGGER("Wrong host close(%d)\n",new_fd);
-			close(new_fd);
+			sockclose(new_fd);
 			continue;
 			}
 	RIGHTHOST:
@@ -509,7 +512,7 @@ globalsocket=serversock;
 //		   const int keepidle = 10*60;
 
 		if(!testreceivemagic(hit,new_fd)) {
-			close(new_fd);
+			sockclose(new_fd);
 			continue;
 			}
 	*servererrorbuf='\0';
@@ -549,7 +552,7 @@ globalsocket=serversock;
 			socks[pos]=-1;
 			LOGGERTAG("%d close(%d) prev\n",pos, oldsock);
 			shutdown(oldsock,SHUT_RDWR);
-			close(oldsock);
+			sockclose(oldsock);
 			}
 /*
 		int len=name.size();

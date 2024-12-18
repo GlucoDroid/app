@@ -76,3 +76,4 @@
 #ifndef WEAROS
 #define OLDEVERSENSE 1
 #endif
+

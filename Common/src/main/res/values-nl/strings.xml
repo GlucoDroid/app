@@ -122,7 +122,7 @@
  <string name="additem">Component toevoegen</string>
  <string name="round">"Afronden "</string>
  <string name="repeat">Herhaal</string>
- <string name="ingredient">Ingrediënt</string>
+ <string name="ingredient">Ingrediënt: </string>
  <string name="select">Selecteren</string>
  <string name="carbohydrate">Koolhydraten: </string>
  <string name="carbo">Koolhydraten</string>

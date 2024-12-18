@@ -263,7 +263,7 @@ void	removeunused() {
 			const SensorGlucoseData *hist = getSensorData(l);
 			if(hist->unused()) {
 				--infoblockptr()->last;
-	         sendstartsensors(l); 
+	            sendstartsensors(l); 
 				delete hist;
 				}
 

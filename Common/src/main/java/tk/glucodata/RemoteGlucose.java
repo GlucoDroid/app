@@ -125,8 +125,8 @@ final RemoteViews arrowremote(int kind, notGlucose glucose,final boolean alarm) 
 	   }
 
 
-	if(glucose==null) {
-			return remoteViews;
+	if(glucose==null||glucose.value==null) {
+		return remoteViews;
 	}
 	var gety = (canvas.getHeight()-timeHeight) * 0.98f;
 	var getx = notglucosex;

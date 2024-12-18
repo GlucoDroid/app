@@ -121,7 +121,7 @@
  <string name="additem">Dodaj pozycję</string>
  <string name="round">&quot;Zaokr.&quot;</string>
  <string name="repeat">Powtórz</string>
- <string name="ingredient">Składnik</string>
+ <string name="ingredient">Składnik: </string>
  <string name="select">Wybierz</string>
  <string name="carbohydrate">Węglowodany:</string>
  <string name="carbo">Węglowodany</string>

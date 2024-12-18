@@ -70,12 +70,8 @@ class WatchFaceConfigStateHolder(
 
     val uiState: StateFlow<EditWatchFaceUiState> =
         flow<EditWatchFaceUiState> {
-            editorSession = EditorSession.createOnWatchEditorSession(
-                activity = activity
-            )
-
+            editorSession = EditorSession.createOnWatchEditorSession( activity = activity)
             extractsUserStyles(editorSession.userStyleSchema)
-
             emitAll(
                 combine(
                     editorSession.userStyle,
@@ -203,8 +199,8 @@ class WatchFaceConfigStateHolder(
     )
 
     companion object {
-       val complicationids = intArrayOf( TOP_COMPLICATION_ID , BOTTOM_COMPLICATION_ID ,  EXTREMERIGHT_COMPLICATION_ID  ,           RIGHT_COMPLICATION_ID );
-        private const val TAG = "WatchFaceConfigStateHolder"
+       val complicationids = intArrayOf( TOP_COMPLICATION_ID , BOTTOM_COMPLICATION_ID ,  EXTREMERIGHT_COMPLICATION_ID  ,           RIGHT_COMPLICATION_ID ); 
+       private const val TAG = "WatchFaceConfigStateHolder"
 
         // To convert the double representing the arm length to valid float value in the range the
         // slider can support, we need to multiply the original value times 1,000.

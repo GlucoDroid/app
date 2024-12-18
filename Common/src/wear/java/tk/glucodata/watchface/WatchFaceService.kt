@@ -29,6 +29,8 @@ import androidx.wear.watchface.*
 import androidx.wear.watchface.WatchFaceService
 import androidx.wear.watchface.style.CurrentUserStyleRepository
 import androidx.wear.watchface.style.UserStyleSchema
+import tk.glucodata.Applic
+import tk.glucodata.MainActivity
 import tk.glucodata.watchface.utils.createComplicationSlotManager
 import tk.glucodata.watchface.utils.createUserStyleSchema
 
@@ -52,27 +54,40 @@ class WatchFaceService : WatchFaceService() {
         context = applicationContext,
         currentUserStyleRepository = currentUserStyleRepository
     )
+
 class Mytaplistener: WatchFace.TapListener {
+        val xtapmax:Int;val ytapmin:Int;val ytapmax:Int;
+    init {
+//        xtapmin=(MainActivity.screenwidth*.35).toInt()
+//        xtapmax=(MainActivity.screenwidth*.65).toInt()
+        xtapmax=(MainActivity.screenwidth*.30).toInt()
+        ytapmin=(MainActivity.screenheight*.48).toInt()
+        ytapmax=(MainActivity.screenheight*.70).toInt()
+        Log.i(LOG_ID,"init xtapmax=$xtapmax ytapmin=$ytapmin ytapmax=$ytapmax ")
+        }
 	@UiThread
 	override fun onTapEvent(
         tapType: Int,
         tapEvent: TapEvent,
         complicationSlot: ComplicationSlot?
 	) {
-	//Log.d(TAG,"Tap ${tapEvent.xPos} ${tapEvent.yPos}")
-	if(tk.glucodata.Natives.turnoffalarm())
-                tk.glucodata.Notify.stopalarm();
+	if(tk.glucodata.Natives.turnoffalarm()) tk.glucodata.Notify.stopalarm();
+	Log.d(LOG_ID,"Tap ${tapEvent.xPos} ${tapEvent.yPos}")
+    if(tapEvent.xPos <xtapmax &&tapEvent.yPos>=ytapmin&&tapEvent.yPos<ytapmax) {
+        Applic.RunOnUiThread { Applic.startMain() }
+    }
 
 	}
 
 }
+
     override suspend fun createWatchFace(
         surfaceHolder: SurfaceHolder,
         watchState: WatchState,
         complicationSlotsManager: ComplicationSlotsManager,
         currentUserStyleRepository: CurrentUserStyleRepository
     ): WatchFace {
-        Log.d(TAG, "createWatchFace()")
+        Log.d(LOG_ID, "createWatchFace()")
 
         // Creates class that renders the watch face.
         val renderer = WatchRenderer(
@@ -83,7 +98,6 @@ class Mytaplistener: WatchFace.TapListener {
             currentUserStyleRepository = currentUserStyleRepository,
             canvasType = CanvasType.HARDWARE
         )
-
         // Creates the watch face.
         return WatchFace(
             watchFaceType = WatchFaceType.DIGITAL,
@@ -92,6 +106,6 @@ class Mytaplistener: WatchFace.TapListener {
     }
 
     companion object {
-        const val TAG = "WatchFaceService"
+        const val LOG_ID = "WatchFaceService"
     }
 }

@@ -792,6 +792,7 @@ public static native void setdontuseclose(boolean val);
 public static native boolean getdontuseclose( );
 public static native void setalarmclock(boolean val);
 public static native boolean getalarmclock( );
+public static native int[] searchIngredient(String label);
 
 //public static native void sendxdripold();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g

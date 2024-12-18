@@ -276,7 +276,7 @@ static void sendup(passhost_t *hostptr) {
 		else
 			LOGGER("%d: failure %d\n",agettid(),sock);	
 
-		close(sock);
+		sockclose(sock);
 		}
 	}
 
@@ -345,8 +345,8 @@ void activereceivethread(int allindex,passhost_t *pass) {
 		if(current&Backup::wakeend) {
 			int sockwas=hostsocks[allindex];
 			hostsocks[allindex]=-1;
-			close(sockwas);
-		       delete active_receive[h];
+			sockclose(sockwas);
+		    delete active_receive[h];
 			active_receive[h]=nullptr;
 			LOGGER("end activereceivethread close(%d)\n",sockwas);
 			return;
@@ -366,7 +366,7 @@ void activereceivethread(int allindex,passhost_t *pass) {
 		LOGAR("before activegetcommands");
 		activegetcommands(sock,pass,ctxptr); 
 		LOGGER("after activegetcommands close(%d)\n",sock);
-		close(sock);
+		sockclose(sock);
 //		status.hassocket=false;
 		sock=-1;
 	}
@@ -459,7 +459,7 @@ void passivesender(int sock,passhost_t *pass)  {
 	LOGGER("passivesender %d\n",sock);
 	 if(!networkpresent) {
 	 	LOGGER("!networkpresent close and return sock=%d\n",sock);
-		close(sock);
+		sockclose(sock);
 		return;
 		}
 	int h=pass->index;
@@ -471,7 +471,7 @@ void passivesender(int sock,passhost_t *pass)  {
 			LOGGER("passivesender shutdown oldsock %d\n",oldsock);
 			host.setsock(-1);
 			::shutdown(oldsock,SHUT_RDWR);
-			close(oldsock);
+			sockclose(oldsock);
 			}
 		const bool haspas= pass->haspass();
 		if(haspas) {
@@ -479,7 +479,7 @@ void passivesender(int sock,passhost_t *pass)  {
 			bool	receivepassinit(int ,passhost_t *,crypt_t *);
 			if(!receivepassinit(sock,pass,host.getcrypt()))  {
 				LOGGER("close(%d)\n",sock);
-				close(sock);
+				sockclose(sock);
 				return ;
 				}
 			}

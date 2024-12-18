@@ -139,36 +139,17 @@ val updater:Runnable= object: Runnable{
         }
     }
     private val sensorlist: SensorEventListener
-    /*    private static Object cloneObject(Object obj) {
-            try {
-                Object clone = obj.getClass().newInstance();
-                for (Field field : obj.getClass().getDeclaredFields()) {
-                    if (!Modifier.isFinal(field.getModifiers())) {
-                        field.setAccessible(true);
-                        field.set(clone, field.get(obj));
-                    }
-                }
-                return clone;
-            } catch (Exception e) {
-                Log.stack(TAG,"cloneObject ",e);
-                return null;
-            }
-        } */
-
     init {
         Log.i(LOG_ID,"init")
-     sensorlist=    object:SensorEventListener {
+        sensorlist=    object:SensorEventListener {
         override fun onAccuracyChanged( sensor: Sensor, accuracy: Int ): Unit {
 
         }
-        override fun onSensorChanged(event: SensorEvent) {
+override fun onSensorChanged(event: SensorEvent) {
             if(event.accuracy>=SENSOR_STATUS_ACCURACY_LOW){
-//            if(event.accuracy==SENSOR_STATUS_ACCURACY_MEDIUM||event.accuracy==SENSOR_STATUS_ACCURACY_HIGH) 
                 heartrate= event.values[0]
-              //  Log.i( LOG_ID, "onSensorChanged accuracy=" + event.accuracy + " HR=" + heartrate);
             }
             else {
-               // Log.i(LOG_ID, "onSensorChanged low accuracy=${event.accuracy} HR=${event.values[0]}");
                 heartrate= Float.NaN
             }
         }
@@ -187,35 +168,35 @@ val updater:Runnable= object: Runnable{
             currentUserStyleRepository.userStyle.collect { userStyle -> updateWatchFaceData(userStyle) }
         }
 
-	setscreenupdater(updater)
+   setscreenupdater(updater)
 
-//	thisone=this
+//   thisone=this
     }
 
 
 private fun registersensor(on:Boolean):Boolean {
-	if(on==registered)
-		return on
-	heartrate= Float.NaN
-	if(sensor!=null) {
-		Log.i(LOG_ID,"registersensor($on) sensor!=null")
-		if(on) {
-			manage.registerListener(sensorlist, sensor, SENSOR_DELAY_NORMAL)
-			}
-		else  {
-		       manage.unregisterListener(sensorlist);
-			}
-	     registered=on;
-	     }
+   if(on==registered)
+      return on
+   heartrate= Float.NaN
+   if(sensor!=null) {
+      Log.i(LOG_ID,"registersensor($on) sensor!=null")
+      if(on) {
+         manage.registerListener(sensorlist, sensor, SENSOR_DELAY_NORMAL)
+         }
+      else  {
+             manage.unregisterListener(sensorlist);
+         }
+        registered=on;
+        }
     else
-		Log.i(LOG_ID,"registersensor($on) sensor==null")
+      Log.i(LOG_ID,"registersensor($on) sensor==null")
     return  registered
-	 }
-	 /*
+    }
+    /*
 override fun shouldAnimate(): Boolean {
-	return true;
-	}
-	*/
+   return true;
+   }
+   */
 
     /*
      * Triggered when the user makes changes to the watch face through the settings activity. The
@@ -223,7 +204,7 @@ override fun shouldAnimate(): Boolean {
      */
     private fun updateWatchFaceData(userStyle: UserStyle) {
         Log.d(LOG_ID, "updateWatchFace(): $userStyle")
-	registersensor(Applic.getHeartRate())
+   registersensor(Applic.getHeartRate())
 
         var newWatchFaceData: WatchFaceData=watchFaceData 
         // Loops through user style and applies new values to watchFaceData.
@@ -235,7 +216,7 @@ override fun shouldAnimate(): Boolean {
                     }
             }
         }
-	if( watchFaceData != newWatchFaceData) {
+   if( watchFaceData != newWatchFaceData) {
             watchFaceData = newWatchFaceData
 
             // Recreates Color and ComplicationDrawable from resource ids.
@@ -250,9 +231,9 @@ override fun shouldAnimate(): Boolean {
             // drawables.
             for ((_, complication) in complicationSlotsManager.complicationSlots) {
                 ComplicationDrawable.getDrawable( context, watchFaceColors.complicationStyleDrawableId)?.let { 
-		        it.activeStyle.borderColor= TRANSPARENT
+              it.activeStyle.borderColor= TRANSPARENT
                         it.ambientStyle.borderColor= TRANSPARENT
-		        (complication.renderer as CanvasComplicationDrawable).drawable = it
+              (complication.renderer as CanvasComplicationDrawable).drawable = it
                 }
             }
         }
@@ -266,7 +247,7 @@ override fun shouldAnimate(): Boolean {
             registersensor(false)
         }
 
-	removescreenupdater(updater)
+   removescreenupdater(updater)
         scope.cancel("WatchRenderer scope clear() request")
         super.onDestroy()
     }
@@ -290,12 +271,7 @@ private fun watchtime(canvas:Canvas,localtime: LocalTime) {
             val timex = width * 0.49f
             timePaint.textSize = height * .25f
             timePaint.setTextAlign(Align.CENTER)
-            drawText(
-                String.format("%02d:%02d", localtime.getHour(), localtime.getMinute()),
-                timex,
-                timey,
-                timePaint
-            )
+            drawText( String.format("%02d:%02d", localtime.getHour(), localtime.getMinute()), timex, timey, timePaint)
         } else {
             val timex = width * 0.71f
             val hour = localtime.getHour();
@@ -305,23 +281,18 @@ private fun watchtime(canvas:Canvas,localtime: LocalTime) {
                 hour12 = 12;
             timePaint.textSize = height * .22f
             timePaint.setTextAlign(Align.RIGHT)
-            drawText(
-                String.format("%d:%02d", hour12, localtime.getMinute()),
-                timex,
-                timey,
-                timePaint
-            )
+            drawText( String.format("%d:%02d", hour12, localtime.getMinute()), timex, timey, timePaint)
             timePaint.textSize *= 0.4f
             timePaint.setTextAlign(Align.LEFT)
             drawText(daypart, timex, timey, timePaint)
+            }
         }
-        }
-	}
+    }
 
 private var rendertime:Long=0L
 
-    override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime,sharedAssets:InnerAssets) {
-	registersensor(Applic.getHeartRate())
+override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime,sharedAssets:InnerAssets) {
+   registersensor(Applic.getHeartRate())
     Log.i(LOG_ID, "render");
         canvas.drawColor(BLACK)
         drawComplications(canvas, zonedDateTime)
@@ -341,18 +312,18 @@ private var rendertime:Long=0L
                     agePaint.setARGB(0xFF, 0xFF, 0, 0xFF)
                 }
 
-              glucosePaint.textSize =canvas.height*.25f
-		val localtime= zonedDateTime.toLocalTime()
-		watchtime(canvas,localtime)
+                glucosePaint.textSize =canvas.height*.25f
+      val localtime= zonedDateTime.toLocalTime()
+      watchtime(canvas,localtime)
                 if(glucose!=null)  {
-   			val density=canvas.height/250.0f
-			val getx= canvas.width*0.5f
-			val gety= canvas.height*0.66f
-			showglucose(canvas,glucosePaint,agePaint,getx,gety,density,unixtime,glucose)
-			}
-		else
-		   	Log.i(LOG_ID,"glucose==null")
-	 if(!heartrate.isNaN()) {
+            val density=canvas.height/250.0f
+         val getx= canvas.width*0.5f
+         val gety= canvas.height*0.66f
+         showglucose(canvas,glucosePaint,agePaint,getx,gety,density,unixtime,glucose)
+         }
+      else
+            Log.i(LOG_ID,"glucose==null")
+    if(!heartrate.isNaN()) {
          with(canvas) {
              timePaint.textSize= height * .08f
              timePaint.setTextAlign(Align.RIGHT)
@@ -365,8 +336,8 @@ private var rendertime:Long=0L
                  timePaint
              )
          }
-	 	}
-	}
+       }
+   }
     }
 
 
@@ -393,21 +364,11 @@ private var rendertime:Long=0L
         private const val LOG_ID = "WatchRenderer"
 
        private  const val    measureheart=true;
-//	private  var thisone:WatchRenderer?=null
-/*
-  public fun setheartrate(on:Boolean):Boolean {
-      val wasone=thisone
-      if(wasone==null) {
-      		Log.i(LOG_ID,"sethearrate($on) wasone==null")
-            return false;
-	    }
-	return wasone.registersensor(on)
-	} */
     private val timePaint = Paint().apply {
         isAntiAlias = true
         textAlign = Align.CENTER
         color = WHITE
-    	}
+       }
     private val glucosePaint = Paint().apply {
         isAntiAlias = true
         textAlign = Align.CENTER
@@ -416,43 +377,43 @@ private var rendertime:Long=0L
     private val agePaint = Paint().apply {
         setARGB(0xFF,0xFF,0,0xFF)
        }
-private fun	showglucose(canvas:Canvas,glucosePaint:Paint,agePaint:Paint,getxin:Float,gety:Float,density:Float,unixtime:Long,glucose:strGlucose)  {
-		var getx=getxin
-		    Log.i(LOG_ID,"glucose=${glucose.value} time=${glucose.time}")
-		     var age:Int=(unixtime-glucose.time).toInt()
-//		     val oldage=(60.0f*5.0f)
+private fun   showglucose(canvas:Canvas,glucosePaint:Paint,agePaint:Paint,getxin:Float,gety:Float,density:Float,unixtime:Long,glucose:strGlucose)  {
+      var getx=getxin
+          Log.i(LOG_ID,"glucose=${glucose.value} time=${glucose.time}")
+           var age:Int=(unixtime-glucose.time).toInt()
+//           val oldage=(60.0f*5.0f)
 
-     		     val oldage=tk.glucodata.Notify.glucosetimeoutSEC
-		   if(age<oldage) {
-		   	with(canvas) {
-			    if(age<0) age=0
-			   val rate=glucose.rate
-				if(rate.isNaN()) {
-//					getx=width*0.45f
-					getx*=0.82f
-					}
-				else  {
-				    CommonCanvas.drawarrow(this,glucosePaint,density,rate,width*.25f,height*.55f)
-				    }
-			    drawText(glucose.value,getx,gety, glucosePaint)
-			    val idbounds=Rect()
-			    glucosePaint.textSize/=5.0f
-			    val sensorid=glucose.sensorid
-			    glucosePaint.getTextBounds(sensorid, 0,sensorid.length, idbounds)
-			    val yid= gety+idbounds.height()*1.5f
-			    val wid= idbounds.width()
-			    val relage=age*wid/oldage
-			    val xage= getx-wid*.5f
-			    val hid= idbounds.height()
-			    drawRect( xage,yid-hid*1.05f,xage +relage, yid+0.07f*hid,agePaint)
-			    drawText(sensorid,getx,yid, glucosePaint)
-			    }
-		 	}
-		else {
-			Log.i(LOG_ID,"age ($age) >= oldage ($oldage)")
-			}
+                val oldage=tk.glucodata.Notify.glucosetimeoutSEC
+         if(age<oldage) {
+            with(canvas) {
+             if(age<0) age=0
+            val rate=glucose.rate
+            if(rate.isNaN()) {
+//               getx=width*0.45f
+               getx*=0.82f
+               }
+            else  {
+                CommonCanvas.drawarrow(this,glucosePaint,density,rate,width*.25f,height*.55f)
+                }
+             drawText(glucose.value,getx,gety, glucosePaint)
+             val idbounds=Rect()
+             glucosePaint.textSize/=5.0f
+             val sensorid=glucose.sensorid
+             glucosePaint.getTextBounds(sensorid, 0,sensorid.length, idbounds)
+             val yid= gety+idbounds.height()*1.5f
+             val wid= idbounds.width()
+             val relage=age*wid/oldage
+             val xage= getx-wid*.5f
+             val hid= idbounds.height()
+             drawRect( xage,yid-hid*1.05f,xage +relage, yid+0.07f*hid,agePaint)
+             drawText(sensorid,getx,yid, glucosePaint)
+             }
+          }
+      else {
+         Log.i(LOG_ID,"age ($age) >= oldage ($oldage)")
+         }
 
-	}
+   }
     }
 
 

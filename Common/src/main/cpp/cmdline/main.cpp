@@ -342,7 +342,7 @@ char *api_secret=nullptr,*sslport=nullptr;
 		   case 'X': xremote=true;
 		   	case 'x': {
 				if(optarg) {
-					cerr<<"eXport arg:"<<optarg<<':'<<endl;
+					cout<<"eXport arg:"<<optarg<<':'<<endl;
 					if(!optarg[1]) {
 						switch(optarg[0]) {
 							case '+': xdripserver=1;goto XDRIPSUCCESS;break;
@@ -354,7 +354,7 @@ char *api_secret=nullptr,*sslport=nullptr;
 					return 10;
 					}
 				else {
-					cerr<<"eXport arg\n";
+					cout<<"eXport arg\n";
 					xdripserver=1;
 					}
 
@@ -372,11 +372,13 @@ char *api_secret=nullptr,*sslport=nullptr;
 			   break;
 		       case 'G': unit=2;break;
 		       case 'Z':
-				reinitpos=atoi(optarg); 
-				cerr<<"Reinit "<<reinitpos--<<endl;
+                 if(reinitpos==-1) {
+                    reinitpos=atoi(optarg); 
+                    cout<<"Reinit "<<reinitpos--<<endl;
+                    }
 				break;
 		       case 'R': rmindex=atoi(optarg); 
-			cerr<<"remove "<<rmindex--<<endl;
+                 cout<<"remove "<<rmindex--<<endl;
 		       		break;
 		       case 'C': changer=atoi(optarg)-1; 
 		       		break;
@@ -411,7 +413,7 @@ char *api_secret=nullptr,*sslport=nullptr;
 				if(optarg) {
 					#define toshort(x) x[0]|(x[1]<<8)
 
-					cerr<<"use_ssl:"<<optarg<<':'<<endl;
+					cout<<"use_ssl:"<<optarg<<':'<<endl;
 					const short arg=toshort( optarg);
 					switch(arg) {
 						case toshort("+"): use_ssl=1;;break;
@@ -423,7 +425,7 @@ char *api_secret=nullptr,*sslport=nullptr;
 						};
 					}
 				else {
-					cerr<<"use_ssl\n";
+					cout<<"use_ssl\n";
 					use_ssl=1;
 					}
 
@@ -432,7 +434,7 @@ char *api_secret=nullptr,*sslport=nullptr;
 				if(optarg) {
 					#define toshort(x) x[0]|(x[1]<<8)
 
-					cerr<<"treatments:"<<optarg<<':'<<endl;
+					cout<<"treatments:"<<optarg<<':'<<endl;
 					const short arg=toshort( optarg);
 					switch(arg) {
 						case toshort("+"): give_treatments=1;;break;
@@ -444,7 +446,7 @@ char *api_secret=nullptr,*sslport=nullptr;
 						};
 					}
 				else {
-					cerr<<"treatments\n";
+					cout<<"treatments\n";
 					give_treatments=1;
 					}
 
@@ -543,8 +545,12 @@ static constexpr const	char defaultname[]="jugglucodata";
 		}
 	if(argc==1)
 		return 0;
-	if(reinitpos>=0)
+	if(reinitpos>=0) {
 		backup->resethost(reinitpos) ;
+        //return 1234;
+        LOGGER("resthost %d\n",reinitpos);
+		did=true;
+        }
 	bool sender=	nums||scans||stream;
 	int hostnr=backup->gethostnr();
 	if(!sender&&!receive) {
@@ -605,8 +611,10 @@ static constexpr const	char defaultname[]="jugglucodata";
 			 help(argv[0]); 
 			 return 0;
 			}
-		if(did)
+		if(did) {
+            LOGAR("did return 1234");
 			return 1234;
+            }
 		return 0;
 		}
 	else {

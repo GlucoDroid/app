@@ -121,7 +121,7 @@
  <string name="additem">Add Item</string>
  <string name="round">"Round "</string>
  <string name="repeat">Repeat</string>
- <string name="ingredient">Ingredient</string>
+ <string name="ingredient">Ingredient: </string>
  <string name="select">Select</string>
  <string name="carbohydrate">Carbohydrate: </string>
  <string name="carbo">Carbohydrate</string>

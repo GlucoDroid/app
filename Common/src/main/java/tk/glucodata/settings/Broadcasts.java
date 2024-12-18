@@ -150,7 +150,7 @@ static private void  getselected(MainActivity context, View parent,String title,
 			} */
 
                 var bottom=(int)(GlucoseCurve.getheight()*.11);
-	        layout.setPadding((int)(GlucoseCurve.getheight()*.07),(int)tk.glucodata.GlucoseCurve.metrics.density,(int)(GlucoseCurve.getheight()*.08),bottom);
+	        layout.setPadding((int)(GlucoseCurve.getheight()*.064),(int)tk.glucodata.GlucoseCurve.metrics.density,(int)(GlucoseCurve.getheight()*.086),bottom);
 
         	layout.setBackgroundColor(Applic.backgroundcolor);
 		final var scroll=new ScrollView(context);
