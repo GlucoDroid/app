@@ -33,7 +33,9 @@ char privatekey[]="privkey.pem";
 
 #include <string>
 #include <string_view>
+#ifndef HAVE_NOPRCTL
 #include <sys/prctl.h>
+#endif
 #include "strconcat.hpp"
 #include "openssl/ssl.h"
 #include "openssl/err.h"
@@ -218,7 +220,9 @@ void handlewatchsecure(int sock) {
 	if(!ctx)
 		return;
    const char threadname[17]="ssl watchconnect";
+#ifndef HAVE_NOPRCTL
    prctl(PR_SET_NAME, threadname, 0, 0, 0);
+#endif
    LOGGER("handlewatchsecure %d\n",sock);
    SSL *ssl=SSL_newptr(ctx);  
 	if(!ssl)

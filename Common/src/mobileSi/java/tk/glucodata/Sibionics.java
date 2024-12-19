@@ -22,12 +22,12 @@
 package tk.glucodata;
 
 
-import static com.google.zxing.integration.android.IntentIntegrator.DATA_MATRIX;
-import static com.google.zxing.integration.android.IntentIntegrator.QR_CODE;
 import static tk.glucodata.Applic.Toaster;
 import static tk.glucodata.Applic.isWearable;
+import static tk.glucodata.Applic.useZXing;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MainActivity.REQUEST_BARCODE;
+import static tk.glucodata.ZXing.scanZXing;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -37,15 +37,12 @@ import android.widget.Toast;
 //import com.google.mlkit.vision.barcode.common.Barcode;
 //import com.google.mlkit.vision.barcode.common.Barcode;
 //import com.google.mlkit.vision.barcode.common.Barcode;
-import com.google.zxing.integration.android.IntentIntegrator;
-import com.google.zxing.integration.android.IntentResult;
 
 import java.util.Locale;
 //import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
 //import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
 
 public class Sibionics {
-private	static final boolean bundled=true;
 private static final String LOG_ID="Sibionics";
 
 
@@ -101,40 +98,11 @@ static boolean connectSensor(final String scantag) {
     return false;
     }
 
-private static void scanZXing(Activity act) {
-     if(!isWearable) {
-         IntentIntegrator intentIntegrator = new IntentIntegrator(act);
-         intentIntegrator.setPrompt(Applic.app.getString(R.string.photomessage));
-         intentIntegrator.setOrientationLocked(true); 
-         intentIntegrator.setDesiredBarcodeFormats( DATA_MATRIX, QR_CODE);
-         intentIntegrator.setRequestCode(REQUEST_BARCODE);
-         intentIntegrator.initiateScan(); 
-         }
-      }
-static boolean zXingResult(int resultCode, Intent data) {
-       Log.i(LOG_ID,"zXingResult(" +resultCode+",data)");
-       IntentResult intentResult = IntentIntegrator.parseActivityResult(resultCode, data);
-       if (intentResult != null) {
-          final var scan=intentResult.getContents();
-          if ( scan== null) 
-            Toaster( "Cancelled");
-           else {
-                Log.i(LOG_ID,"Scan: "+scan);
-                Toaster(scan);
-                return connectSensor(scan);
-             }
-          }
-         else {
-            Log.i(LOG_ID,"intentResult == null"); 
-            }
-        return false;
-       }
-       
 
 
 public static void scan(MainActivity act) {
      if(!isWearable) {
-         if(BuildConfig.DEBUG)
+         if(BuildConfig.DEBUG&&useZXing)
             scanZXing(act);
           else
             scanGoogle(act);
@@ -167,9 +135,11 @@ private static void scanGoogle(MainActivity act) {
 	       e -> {
             var message=e.getMessage();
             Log.i(LOG_ID,message);
-            Toast.makeText(act, message, Toast.LENGTH_SHORT).show();
-            Toast.makeText(act, "Move to zXing", Toast.LENGTH_SHORT).show();
-            scanZXing(act);
+            Toast.makeText(act, message, Toast.LENGTH_SHORT).show();  
+            if(useZXing) {
+                Toast.makeText(act, "Move to zXing", Toast.LENGTH_SHORT).show();
+                scanZXing(act);
+                }
         
 		 // Task failed with an exception
 	       });

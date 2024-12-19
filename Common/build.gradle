@@ -74,12 +74,11 @@ android {
 //        targetSdk 24
         buildConfigField 'int', 'targetSDK', "$targetSdk"
         buildConfigField 'int', 'minSDK', "$minSdk"
+    //    buildConfigField 'int', 'noZXing', '1'
         compileSdk 35
         applicationId "tk.glucodata"
-         manifestPlaceholders["debuggable"] = "true"
-         manifestPlaceholders["requireWatch"] = "false"
 
-	     versionName '9.0.16'
+	     versionName '9.0.17'
 //	multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -99,15 +98,31 @@ android {
         }
 //	resourceConfigurations += ["en", "nl", "fr","it", "de", "pl", "pt","be","uk"]
     //ndk { abiFilters  'armeabi-v7a' }
-       ndk { abiFilters  'arm64-v8a' }
+     //  ndk { abiFilters  'arm64-v8a' }
         signingConfig signingConfigs.alg
     buildToolsVersion '33.0.0'
     }
 
-flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
+flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //    flavorDimensions 'wearos','libreVersion','SiBionics', 'DexCom'
 
     productFlavors {
+        google {
+            dimension 'Google'
+            versionNameSuffix '-g'
+            buildConfigField 'int', 'Google', '1'
+            buildConfigField 'int', 'noZXing', '1'
+             manifestPlaceholders["debuggable"] = "false"
+             manifestPlaceholders["requireWatch"] = "true"
+        }
+        nogoogle {
+            dimension 'Google'
+            versionNameSuffix '-nog'
+            buildConfigField 'int', 'Google', '0'
+            buildConfigField 'int', 'noZXing', '0'
+             manifestPlaceholders["debuggable"] = "true"
+             manifestPlaceholders["requireWatch"] = "false"
+        }
 
         dex {
             dimension 'DexCom'
@@ -130,8 +145,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
         libreOld {
 	//******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode                                                                                                                          553                                                                                                             //LIBRE2ONLY
-         //	versionName '9.0.16-no3'
+            versionCode                                                                                                                                   562                                                                                                                               //LIBRE2ONLY
+         //	versionName '9.0.17-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
 		    externalNativeBuild.cmake {
@@ -147,7 +162,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 //	   minSdk 23
             dimension 'libreVersion'
 		versionNameSuffix '-li3'
-		versionCode                                                                                                                         554                                                                                                                                                                                                                                                 //LIBRE3
+		versionCode                                                                                                                                  563                                                                                                                                                                                                                                                                   //LIBRE3
 	//******  Zet op rollout op 100% ******
 
            	buildConfigField 'int', 'libreVersion', '3'
@@ -164,7 +179,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 		minSdkVersion 21
       dimension 'SiBionics'
 		versionNameSuffix '-si'
-		versionCode                                                                                                                    554                                                                                                        
+		versionCode                                                                                                                             563                                                                                                                          
 	   buildConfigField 'int', 'SiBionics', '1'
 	   externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -173,7 +188,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 		}
         nosi {
         	dimension 'SiBionics'
-         versionCode                                                       553                                                                                                        
+         versionCode                                                                562                                                                                                                          
          versionNameSuffix '-nosi'
 	      buildConfigField 'int', 'SiBionics', '0'
 	      externalNativeBuild.cmake {
@@ -189,9 +204,9 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
             dimension 'wearos'
 		minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-		versionCode                                                                                                                         555                                                                                                                                                                                                                                                 //WATCH
+		versionCode                                                                                                                                  564                                                                                                                                                                                                                                                                   //WATCH
 	//******  Zet op rollout op 100% ******
-		//versionName '9.0.16-wear'
+		//versionName '9.0.17-wear'
 		versionNameSuffix '-wear'
 		signingConfig signingConfigs.alg
 
@@ -213,8 +228,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
 
 //        minSdk 19
             dimension 'wearos'
-		versionCode                                                                                                                         555                                                                                                                                                                                                                                                 //WATCH
-		//versionName '9.0.16-small'
+		versionCode                                                                                                                                  564                                                                                                                                                                                                                                                                   //WATCH
+		//versionName '9.0.17-small'
 		versionNameSuffix '-small'
 		signingConfig signingConfigs.alg
 
@@ -237,6 +252,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom']
            buildConfigField 'int', 'isWear', '0'
         }
     }
+
 buildTypes {
 
 
@@ -265,8 +281,6 @@ buildTypes {
             signingConfig signingConfigs.alg
             minifyEnabled true 
 	    shrinkResources true
-         manifestPlaceholders["requireWatch"] = "false"
-         manifestPlaceholders["debuggable"] = "true"
 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
 
@@ -294,8 +308,6 @@ buildTypes {
             jniDebuggable false
             debuggable false
 
-         manifestPlaceholders["requireWatch"] = "false"
-         manifestPlaceholders["debuggable"] = "true"
 
         buildConfigField 'int', 'doLog', '0'
             buildConfigField 'int', 'isRelease', '1'
@@ -453,6 +465,7 @@ buildTypes {
 
         }
     	}
+
     externalNativeBuild {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
@@ -497,70 +510,47 @@ buildTypes {
         aidl true
     }
        sourceSets {
-       mobileLibre3SiDex {
-            java.srcDirs = ['src/mobileSi/java']
+       mobileLibre3SiDexGoogle {
+            java.srcDirs = ['src/mobileSi/java', 'src/mobileSiGoogle/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
             res.srcDirs= ['src/mobileSi/res']
             }
-           mobileLibre3SiNodex {
-               java.srcDirs = ['src/mobileSi/java']
-               jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
-               manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
-               res.srcDirs= ['src/mobileSi/res']
-           }
-       mobileLibreOldSiDex {
-            java.srcDirs = ['src/mobileSi/java']
+       mobileLibre3SiDexNogoogle {
+            java.srcDirs = ['src/mobileSi/java', 'src/mobileSiNogoogle/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
+            res.srcDirs= ['src/mobileSi/res']
             }
-           mobileLibreOldSiNodex {
-               java.srcDirs = ['src/mobileSi/java']
-               jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
-               manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
-           }
-           mobileLibreOldNosiDex {
+           mobileLibreOldNosiNodexGoogle {
                java.srcDirs = ['src/mobileNosi/java']
                res.srcDirs= ['src/mobileNosi/res']
            }
-           mobileLibreOldNosiNodex {
+           mobileLibreOldNosiNodexNogoogle {
                java.srcDirs = ['src/mobileNosi/java']
                res.srcDirs= ['src/mobileNosi/res']
            }
 
-           wearLibre3SiDex{
+           wearLibre3SiDexNogoogle{
+               java.srcDirs = ['src/wearSi/java']
+               jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
+           }
+           wearLibre3SiDexGoogle{
                java.srcDirs = ['src/wearSi/java']
                jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
            }
 
-           wearLibre3SiNodex{
-            java.srcDirs = ['src/wearSi/java']
-            jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
-            }
-         wearLibreOldSiDex{
-            java.srcDirs = ['src/wearSi/java']
-            jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
-            }
-           wearLibreOldSiNodex{
-               java.srcDirs = ['src/wearSi/java']
-               jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
-           }
-         smallLibre3SiNodex{
-            java.srcDirs = ['src/smallSi/java']
-            jniLibs.srcDirs = [ 'src/smallSi/jniLibs']
-            }
-           smallLibre3SiDex{
-               java.srcDirs = ['src/smallSi/java']
-               jniLibs.srcDirs = [ 'src/smallSi/jniLibs']
-           }
 
 
-           smallLibreOldSiNodex{
-            java.srcDirs = ['src/smallSi/java']
-            jniLibs.srcDirs = [ 'src/smallSi/jniLibs']
-            }
          }
-
+   androidComponents {
+        // Callback before variants are built.
+        beforeVariants(selector().all(), { variant ->
+            if(!(variant.name.contains("Libre3SiDex")||variant.name.contains("LibreOldNosiNodex"))|| (variant.name.contains("small")&&!variant.name.contains("LibreOldNosiNodexNogoogle"))) {
+                variant.enabled = false
+            }
+        })
+    }
 }
 
 allprojects {
@@ -632,7 +622,8 @@ dependencies {
      wearImplementation 'androidx.core:core-splashscreen:1.2.0-alpha02'
      wearImplementation 'androidx.wear.protolayout:protolayout-external-protobuf:1.2.1'
 configurations {
-mobileLibre3SiDexImplementation {}
+mobileLibre3SiDexGoogleImplementation {}
+mobileLibre3SiDexNogoogleImplementation {}
 mobileLibreOldSiDexImplementation {}
     mobileLibre3SiNodexImplementation {}
     mobileLibreOldSiNodexImplementation {}
@@ -642,10 +633,10 @@ mobileLibreOldSiDexImplementation {}
     mobileLibreOldSiNodexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
     mobileLibreOldSiNodexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
 
-    mobileLibre3SiDexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
-    mobileLibre3SiDexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    mobileLibre3SiDexGoogleImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    mobileLibre3SiDexNogoogleImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    mobileLibre3SiDexNogoogleImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     mobileLibreOldSiDexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
-    mobileLibreOldSiDexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
 
 }
 

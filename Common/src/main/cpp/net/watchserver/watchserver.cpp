@@ -35,7 +35,9 @@
        #include <unistd.h>
        #include <netinet/in.h>
        #include <netinet/tcp.h>
+#ifndef HAVE_NOPRCTL
 #include <sys/prctl.h>
+#endif
  
 #include <string.h>
 #include <stdio.h>
@@ -87,7 +89,9 @@ static bool startwatchserver(bool secure,int port,int *sockptr) {
 	char watchserverport[maxport];
 	snprintf(watchserverport,maxport,"%d",port);
 
+#ifndef HAVE_NOPRCTL
         prctl(PR_SET_NAME, servername, 0, 0, 0);
+#endif
 	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
 	int sock;
 	{
@@ -313,7 +317,9 @@ extern void receivetimeout(int sock,int secs) ;
 void handlewatch(int sock) {
      const char threadname[]="watchconnect";
      LOGGERWEB("handlewatch %d\n",sock);
+#ifndef HAVE_NOPRCTL
      prctl(PR_SET_NAME, threadname, 0, 0, 0);
+#endif
      receivetimeout(sock,60);
      sendtimeout(sock,5*60);
      plainwatchcommands(sock);

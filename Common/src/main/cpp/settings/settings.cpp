@@ -77,13 +77,17 @@ void	generalsettings() {
 	}
 #ifdef ANDROID__APP
 #ifndef NONOJVM
+#ifndef HAVE_NOPRCTL
 #include <sys/prctl.h>
+#endif
 
 void namehandler(int sig) {
       LOGAR("namehandler");
 //	const char buf[]="JVM Debugger";
+#ifndef HAVE_NOPRCTL
 	const char buf[]="Verdwenen";
 	 prctl(PR_SET_NAME, buf, 0, 0, 0);
+#endif
 	asignal(SIGUSR2,SIG_IGN);
 extern	int getsockets();
 	getsockets();

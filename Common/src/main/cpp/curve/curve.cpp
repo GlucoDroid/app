@@ -2766,7 +2766,8 @@ extern				void wakewithcurrent();
 	     else {
              LOGGER("processglucosevalue no sensor %d\n",sendindex);
 #ifdef WEAROS
-	     	 static int wassensor=(settings->setranges(3*180,12*180,39*18,10*180),-1);
+//	     	 static int wassensor=(settings->setranges(3*180,12*180,39*18,10*180),-1);
+	     	 static int wassensor=-1;
              if(sendindex>wassensor) {
                  wassensor=sendindex;
                 extern void setInitText(const char *message);

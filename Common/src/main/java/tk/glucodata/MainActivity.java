@@ -38,6 +38,7 @@ import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.scanpermissions;
 import static tk.glucodata.Applic.talkbackoff;
 import static tk.glucodata.Applic.talkbackon;
+import static tk.glucodata.Applic.useZXing;
 import static tk.glucodata.BuildConfig.SiBionics;
 import static tk.glucodata.Floating.setfloatglucose;
 import static tk.glucodata.Floating.shoulduseadb;
@@ -1150,8 +1151,8 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
             }
          return;
       case REQUEST_BARCODE: 
-         if(SiBionics==1 &&!isWearable) {
-		   if(Sibionics.zXingResult(resultCode, data))
+         if(SiBionics==1 &&!isWearable&&useZXing) {
+		   if(ZXing.zXingResult(resultCode, data))
 			finepermission();
 		    else 
 			systemlocation();

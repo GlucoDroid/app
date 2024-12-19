@@ -91,6 +91,7 @@ static final float mgdLmult= doLog?18.0182f:18.0f;
 public static boolean hour24=true;
 static public final int TargetSDK=BuildConfig.targetSDK;
 static public final boolean isWearable= BuildConfig.isWear==1;
+static public final boolean useZXing= BuildConfig.noZXing==0;
 //static public final boolean includeLib= isWearable;
 static public final boolean includeLib= true;
 static public final boolean isRelease= BuildConfig.isRelease==1;

@@ -25,10 +25,12 @@
 #include <thread>
 //#include <pthread.h>
 #include <vector>
+#ifndef HAVE_NOPRCTL
 #include <sys/prctl.h>
+#endif
 #include <signal.h>
 #include <unistd.h>
-#include <sys/syscall.h>
+//#include <sys/syscall.h>
 #include <setjmp.h>
 #include <sys/socket.h>
 #include <stdlib.h>
@@ -1024,7 +1026,9 @@ void backupthread(int allindex,int sendindex) {
     char buf[maxbuf];
      snprintf(buf,maxbuf,"send %d",sendindex);
        LOGGER("%s\n",buf);
+#ifndef HAVE_NOPRCTL
        prctl(PR_SET_NAME, buf, 0, 0, 0);
+#endif
        }
     uintptr_t current=0;
        while(true) {

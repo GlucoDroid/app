@@ -532,6 +532,7 @@ static private final List<String> supportedlanguages= SPANISH?Arrays.asList("Lan
 //static private final List<String> supportedlanguages= IWRU?Arrays.asList("Language","be","de","en","es","fr","it","iw","nl","pl","pt","ru","sv","uk"):Arrays.asList("Language","be","de","en","es","fr","it","nl","pl","pt","sv","uk");
 static public Spinner getGenSpin(Activity context) {
    var spin=  new Spinner(context, MODE_DROPDOWN);
+//	var spin=  new Spinner(context,isWearable?MODE_DIALOG: MODE_DROPDOWN);
    if(isWearable) {
       spin.setPopupBackgroundResource(R.drawable.helpbackground);
    //   spin.setPopupBackgroundResource(BLACK);

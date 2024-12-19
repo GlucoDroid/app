@@ -9,8 +9,10 @@
        <item name="android:windowContentOverlay">@null</item>
        <item name="android:windowSwipeToDismiss">false</item>
 <!--       <item name="android:textAppearanceButton">@style/textAppearanceButton</item> -->
-       <item name="android:spinnerStyle">@android:style/Widget.Holo.Spinner</item>
+       <item name="android:spinnerStyle">@style/myspinnerstyle</item>
      <item name="android:buttonStyle">@style/mybuttonstyle</item>
+    <item name="colorBackgroundFloating">@android:color/black</item>
+     <item name="android:colorBackgroundFloating" tools:targetApi="23">@android:color/black</item>
     </style>
 
     <style name="Theme.appstart" parent="Theme.SplashScreen">
@@ -22,8 +24,10 @@
         <!-- Set the theme of the Activity that follows your splash screen. -->
         <item name="postSplashScreenTheme">@style/Theme.WatchFace</item>
     </style>
-    <style name="dialogstyle" parent="Theme.AppCompat.Dialog.Alert">
+    <style name="mydialogstyle" parent="Theme.AppCompat.Dialog.Alert">
      <item name="android:buttonStyle">@style/mybuttonstyle</item>
+      <item name="android:background">@android:color/black</item>
+     <item name="android:colorBackgroundFloating" tools:targetApi="23">@android:color/black</item>
     </style>
 <!--
  <style name="textAppearanceButton" parent="@android:style/TextAppearance.Material.Widget.Button">
@@ -45,8 +49,10 @@
         <item name="android:paddingRight">14dp</item>
         <item name="android:paddingBottom">10dp</item>
     </style>
-
-
+<style name="myspinnerstyle" parent="@android:style/Widget.Holo.Spinner">
+    <item name="android:background">@android:color/black</item>
+     <item name="android:buttonStyle">@style/mybuttonstyle</item>
+    </style>
 <!--    <style name="Widget.WatchFace.Button" parent="Widget.MaterialComponents.Button"> 
     </style>  -->
 

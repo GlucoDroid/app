@@ -23,7 +23,9 @@
 #include "EverSense.hpp"
 #include <jni.h>
 #include <span>
+#ifndef HAVE_NOPRCTL
 #include <sys/prctl.h>
+#endif
 #include "SensorGlucoseData.hpp"
 #include "fromjava.h"
 #include "sensoren.hpp"
@@ -67,7 +69,9 @@ extern JNIEnv *getenv();
 void sendEverSenseoldthread(const SensorGlucoseData *sens,int startpos,int endpos,int modulo) {
    extern JNIEnv *getenv();
    JNIEnv *env=getenv();
+#ifndef HAVE_NOPRCTL
    prctl(PR_SET_NAME, "sendtoEverSense", 0, 0, 0);
+#endif
    const auto data=sens->getPolldata();
    const auto start=&data[startpos];
    const auto end=&data[endpos];

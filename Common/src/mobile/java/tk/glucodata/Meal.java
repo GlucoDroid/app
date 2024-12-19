@@ -494,8 +494,8 @@ static public class IngredientViewAdapter extends RecyclerView.Adapter<Ingredien
 
     }
 static private void doSearchIngr(MainActivity act,View view,IngredientViewAdapter adapt) {
-    view.setVisibility(INVISIBLE);
     act.showSystemUI();
+    view.setVisibility(INVISIBLE);
     var ingredient=getlabel(act,R.string.ingredient);
     EditText searchstr= new EditText(act);
     searchstr.setInputType(InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
@@ -507,11 +507,12 @@ static private void doSearchIngr(MainActivity act,View view,IngredientViewAdapte
     var search=getbutton(act,R.string.search);
     ingredient.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*5.0),0,0,0);
     var lay=new Layout(act,(l,w,h)-> {
+        l.setY(MainActivity.systembarTop*.75f);
+        l.setX(MainActivity.systembarLeft);
+        w=width-MainActivity.systembarLeft-MainActivity.systembarRight;
         return new int[]{w,h};
         },new View[]{ingredient,searchstr,search,cancel});
     lay.setBackgroundResource(R.drawable.helpbackground);
-    lay.setY(MainActivity.systembarTop*.75f);
-    lay.setX(MainActivity.systembarLeft);
 
     setonback(() -> {
         view.setVisibility(VISIBLE);

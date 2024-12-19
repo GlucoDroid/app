@@ -36,8 +36,9 @@
 //#include <latch>
 #include <poll.h>
 #include <alloca.h>
+#ifndef HAVE_NOPRCTL
        #include <sys/prctl.h>
-
+#endif
 #include "destruct.hpp"
 
 #include "logs.hpp"

@@ -265,7 +265,9 @@ static void sendup(passhost_t *hostptr) {
 	crypt_t ctx;
 	crypt_t *ctxptr=haspas?&ctx:nullptr;
 
+#ifndef HAVE_NOPRCTL
         prctl(PR_SET_NAME, "wake sender", 0, 0, 0);
+#endif
 	if(int sock;makeconnection(hostptr,sock,ctxptr,saysender(hostptr))>=0) {
 		sendtimeout(sock,60*5);
 		receivetimeout(sock,0);
@@ -312,7 +314,9 @@ void activereceivethread(int allindex,passhost_t *pass) {
 #endif
 	snprintf(buf, maxbuf, "Ractive%d_%d", allindex,h);
 	LOGGERN(buf, slen);
+#ifndef HAVE_NOPRCTL
 	prctl(PR_SET_NAME, buf, 0, 0, 0);
+#endif
 }
 	while(true) {
 		  active_receive[h]->dobackup=active_receive[h]->dobackup&(~current);

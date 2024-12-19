@@ -20,29 +20,29 @@
 
 
 //#include <arpa/inet.h>
-       #include <sys/types.h>
-       #include <sys/socket.h>
-       #include <netdb.h>
+#include <sys/types.h>
+
+#include <netdb.h>
 #include <arpa/inet.h>
-       #include <sys/socket.h>
-       #include <sys/types.h>
-       #include <sys/wait.h>
-       #include <unistd.h>
-       #include <netinet/in.h>
-       #include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#ifndef HAVE_NOPRCTL
 #include <sys/prctl.h>
+#endif
 #include <alloca.h>
  
+#include <sys/wait.h>
+#include <unistd.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <errno.h>
 
-#include <netinet/in.h>
 #include <sys/wait.h>
-       #include <unistd.h>
-       #include <sys/syscall.h> 
+#include <unistd.h>
 #include "destruct.hpp"
 #include "logs.hpp"
 #include "myfdsan.h"
@@ -70,7 +70,9 @@ char servererrorbuf[maxservererror]="";
 #define servererror(...) savebuferror(servererrorbuf,maxservererror,__VA_ARGS__)
 static bool serverloop(int sock, passhost_t *hosts,int &hostlen,int *socks)  ;
 static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bool *shutdownreceiver) {
+#ifndef HAVE_NOPRCTL
 	prctl(PR_SET_NAME, "RECEIVER", 0, 0, 0);
+#endif
 	destruct receiv([shutdownreceiver]{
 			if(shutdownreceiver==::shutdownreceiver) {
 				::shutdownreceiver=nullptr;
@@ -381,7 +383,9 @@ extern void receivetimeout(int sock,int secs) ;
 static void receiverthread(int sock,passhost_t *host,const int allindex) {
       char buf[17];
       snprintf(buf,17,"receiver %d",allindex);
+#ifndef HAVE_NOPRCTL
       prctl(PR_SET_NAME, buf, 0, 0, 0);
+#endif
 
 
 	LOGGERTAG("receiverthread %d %s\n",sock,buf);

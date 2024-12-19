@@ -547,6 +547,7 @@ void deletedialog(View v,int[] mealptr) {
 	   int type=Natives.hittype(currentnum);
 	ArrayList<String> labels= ((Applic)context.getApplication()).getlabels();
 	String mess= DateFormat.getDateTimeInstance(DateFormat.DEFAULT,DateFormat.DEFAULT).format(time)+" "+ labels.get(type)+" "+value;
+       // AlertDialog.Builder builder = new AlertDialog.Builder(context,R.style.mydialogstyle);
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(R.string.deletequestion).
 	 setMessage(mess).

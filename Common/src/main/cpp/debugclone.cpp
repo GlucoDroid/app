@@ -75,7 +75,9 @@ x86_64	rax		rax	rdi	rsi	rdx	r10	r8	r9
 #include <span>
 #include <sys/types.h>
 #include <signal.h>
+#ifndef HAVE_NOPRCTL
 #include <sys/prctl.h>
+#endif
 
 #include <sys/time.h>
 #include <sys/resource.h>

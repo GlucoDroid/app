@@ -53,15 +53,15 @@ private val glview= GlucoseValue(100,100)
         val time: Long
         val index: Int
         val glucose = Natives.lastglucose()
-   	val now = System.currentTimeMillis()
-        if (glucose != null&&(now-glucose.time)<tk.glucodata.Notify.glucosetimeout) {
-            value = glucose.value
+        val now = System.currentTimeMillis()
+        if (glucose != null&&(now-glucose.time*1000L)<tk.glucodata.Notify.glucosetimeout) {
             time = glucose.time * 1000L
+            value = glucose.value
             index = glucose.index
         } else {
             value = if (Applic.unit == 1) "5.6" else "101"
             index = 0
-	    time=now
+	        time=now
         }
         return SmallImageComplicationData.Builder(
             smallImage =  SmallImage.Builder( Icon.createWithBitmap(glview.getNumberBitmap(value,time,index,now)), SmallImageType.PHOTO).build(),
