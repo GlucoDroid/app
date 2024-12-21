@@ -7,8 +7,6 @@
 <string name="connectionoverview" ></string>
 <string name="addconnection" ></string>
 <string name="downloadinfo" ></string>
-<string name="locationpermission" ></string>
-<string name="notificationpermission"></string>
 <string name="introhelp" ></string>
 <string name="searchhelp" ></string>
 <string name="shortcuthelp" ></string>
@@ -25,7 +23,6 @@
 <string name="stathelp" ></string>
 <string name="alarmhelp" ></string>
 <string name="flashpermission" ></string>
-<string name="nearbypermission" ></string>
     <string name="camerapermission" ></string>
 <string name="watchinfo" ></string>
 <string name="wearosinfo" ></string>
@@ -43,6 +40,56 @@ is set to prevent entering amounts in this app, because they will be
 overridden by amounts received from the mirror connection.</p>
 <p>If this app doesn\'t
 receive amounts from a mirror connection, unset this option.</p>
+]]>
+</string>
+<string name="locationpermission" >
+<![CDATA[
+<h1>Location permission 
+</h1>
+<p style="margin-bottom: 0in">Devices running Android 6 to 11 need
+location permission to find <b>Sibionic</b><b>s</b><b> sensors.</b></p>
+<p style="margin-bottom: 0in">Previously Juggluco needed location
+permission to find the Bluetooth device address of FreeStyle Libre 2
+sensors. Now Juggluco uses another way to get the device address on
+most devices and is location permission not necessary. 
+</p>
+<p style="margin-bottom: 0in">Juggluco still uses the old method on
+Android 6,7 and 7.1 and location permission is still needed for them.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+]]>
+</string>
+<string name="nearbypermission" >
+<![CDATA[
+<h1>NEARBY DEVICES permission</h1>
+<p style="line-height: 100%; margin-bottom: 0in">Juggluco needs
+NEARBY DEVICES permission to receive glucose values via Bluetooth
+from Freestyle Libre 2 and 3 sensors. If Juggluco receives these
+glucose values from Juggluco running on another phone or watch,
+Juggluco doesn’t need this permission.</p>
+<p style="line-height: 100%; margin-bottom: 0in">To watches, Juggluco
+connects via the companion app of that watch, so that Juggluco itself
+doesn’t need this permission to connect to watches.</p>
+]]>
+</string>
+<string name="notificationpermission" >
+<![CDATA[
+<h1>Notifications</h1>
+<p>Unless Juggluco is used with Freestyle Libre 0 sensors, Juggluco
+must remain active in the background to receive a glucose reading
+every minute either directly from the sensor via Bluetooth or via a
+network connection. To prevent apps from being killed by Android,
+Android requires apps to display a notification so users know the
+application is present in the background. The text “To connect with
+sensor” or “To exchange data” describes why Juggluco has to
+stay active in the background.</p>
+<p>Juggluco also uses the notification to display the current glucose
+value and a change direction arrow.</p>
+<p><br/>
+<br/>
+
+</p>
 ]]>
 </string>
 </resources>

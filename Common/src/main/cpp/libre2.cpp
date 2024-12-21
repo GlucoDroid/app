@@ -36,7 +36,7 @@
 #include "libre2.hpp"
 #include "jnisubin.hpp"
 #include "hexstr.hpp"
-#if !defined(__aarch64__) 
+#if !defined(__aarch64__)        //||!defined(NOLOG)
 #define GEN2ROOTSHECK 1
 #endif
 //constexpr const int librewearduration=14*24*60;
@@ -145,8 +145,11 @@ oldprocessStream_t  oldprocessStream=nullptr;
 #define setfuncneed(nam)   {if(strcmp(#nam,methods[it].name)) {LOGGER("%s!=%s\n",#nam,methods[it].name);} {if(!nam) {*(void **) (&nam)= methods[it].fnPtr;};++it;};}
 #endif
 jint         subRegisterNatives(JNIEnv*, jclass name, const JNINativeMethod*methods, jint nr) {
-	if(nr!=20) {
-		LOGGER("RegisterNatives %d\n",nr);
+	if(nr!=20&&nr!=22) {
+		LOGGER("ERROR: RegisterNatives %d\n",nr);
+        for(int i=0;i<nr;i++) {
+            LOGGER("%s %s\n",methods[i].name,methods[i].signature);
+            }
 		return 0;
 		}
 	int it=0;
@@ -158,6 +161,8 @@ jint         subRegisterNatives(JNIEnv*, jclass name, const JNINativeMethod*meth
 	setfunc(getActivationCommand);
 	setfunc(getActivationPayload);
 	setfunc(getEnableStreamingPayload);
+    if(nr==22)
+        it+=2;
 	setfunc(getStreamingUnlockPayload); 
 //	setfuncneed(getStreamingUnlockPayload); //Use version without rootcheck instead. This one is so slow that the sensor hangs up (status=19) on slow devices (e.g.  WearOS watch).
  //  LOGGER("%s %s\n",methods[it].name,methods[it].signature);

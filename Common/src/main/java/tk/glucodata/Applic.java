@@ -119,20 +119,8 @@ private final long uiThreadId;
 public Handler getHandler() {
     return mHandler;
     }
-/*
-static boolean canuseflash=false;
-static public void useflash(boolean val) {
-    canuseflash=val;
-    
-    if(val&&tk.glucodata.RingTones.one!=null&&tk.glucodata.RingTones.one.permission!=null)
-        tk.glucodata.RingTones.one.permission.setVisibility(INVISIBLE);
-    }
-    */
 MainActivity getActivity() {
    return MainActivity.thisone;
-/*    if(curve!=null)
-        return (MainActivity)curve.getContext();
-    return null;  */
     }
 static public void Toaster(String mess) {
     RunOnUiThread(()-> { Applic.argToaster(app,mess, Toast.LENGTH_SHORT);}) ;
@@ -159,10 +147,10 @@ private void RunOnUiThreader(Runnable action) {
         }
     }
 static public void postDelayed(Runnable action,long mmsecs) {
-          Applic.app.getHandler().postDelayed( action ,mmsecs);
-          }
+    Applic.app.getHandler().postDelayed( action ,mmsecs);
+    }
 static  public void RunOnUiThread(Runnable action) {
-     app.RunOnUiThreader(action);
+    app.RunOnUiThreader(action);
     }
 public static Applic app;
 private final IntentFilter mintimefilter ;
@@ -171,15 +159,14 @@ public Applic() {
     super();
     android.util.Log.e(LOG_ID,"start tk.glucodata");
     mintimefilter = new IntentFilter();
-        mintimefilter.addAction(Intent.ACTION_TIME_TICK);
-       app=this;
-        mHandler = new Handler(Looper.getMainLooper());
+    mintimefilter.addAction(Intent.ACTION_TIME_TICK);
+    app=this;
+    mHandler = new Handler(Looper.getMainLooper());
     uiThreadId=Thread.currentThread().getId();
     if(!isWearable) {
         numdata=new AllData(this);
         }
     android.util.Log.i("Applic","Applic.Applic");
-
     }
 void setnotify(boolean on) {
     Notify.alertwatch=on;
@@ -209,8 +196,8 @@ public static boolean systemtimeformat() {
 public static boolean was24=true;
 @Override
 public void onConfigurationChanged(Configuration newConfig) {
-    super.onConfigurationChanged(newConfig);
-       if(Nativesloaded)  {
+   super.onConfigurationChanged(newConfig);
+   if(Nativesloaded)  {
         needsnatives();
         var lang=getlocale().getLanguage();
 
@@ -233,7 +220,7 @@ public void onConfigurationChanged(Configuration newConfig) {
 
         Natives.setlocale(lang);
         }
-}     
+    }     
 
 static private void setjavahour24(boolean val) {
     Applic.hour24=val;
@@ -296,9 +283,15 @@ static String[] noPermissions(Context context) {
     return noperms;
     }
 static boolean mayscan() {
-        if (Build.VERSION.SDK_INT >= 23) {
-            return Applic.hasPermissions(app, scanpermissions).length==0 ;
-        }
+     if(Build.VERSION.SDK_INT >= 23) {
+       return Applic.hasPermissions(app, scanpermissions).length==0 ;
+       }
+    return true;
+    }
+static boolean canBluetooth() {
+    if(Build.VERSION.SDK_INT > 30) {
+       return Applic.hasPermissions(app, scanpermissions).length==0 ;
+       }
     return true;
     }
 public static void updateservice(Context context,boolean usebluetooth) {

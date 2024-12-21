@@ -871,6 +871,7 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(laststarttime)(JNIEnv *envin, jcla
 
 extern std::vector<int> usedsensors;
 extern void setusedsensors() ;
+/*
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(hasSibionics)(JNIEnv *env, jclass cl) {
 	setusedsensors();
 	const int len= usedsensors.size();
@@ -878,6 +879,16 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(hasSibionics)(JNIEnv *env, jcl
 	 	const int index=usedsensors[i];
       if(sensors->isSibionics(index))
             return true;
+		  }
+   return false;
+	}  */
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(hasNeedScan)(JNIEnv *env, jclass cl) {
+	setusedsensors();
+	const int len= usedsensors.size();
+	 for(int i=0;i<len;i++) {
+         const int index=usedsensors[i];
+         if(sensors->needsScan(index))
+                return true;
 		  }
    return false;
 	} 

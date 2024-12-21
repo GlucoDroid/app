@@ -154,7 +154,7 @@ detext.newamount,
 
 
 .libre3scanerror={"FreeStyle Libre 3, Scanfehler", "Versuchen Sie es erneut"},
-.libre3wrongID={"Falsche Konto-ID?",R"(Sollte dasselbe sein wie beim Aktivieren des Sensors. Verwenden Sie Linkes Menü->Einstellungen->Libreview->"Konto-ID erhalten", um sie von Libreview abzurufen.)"},
+.libre3wrongID={"Falsche Konto-ID?",R"(Sollte dasselbe sein wie beim Aktivieren des Sensors. Verwenden Sie Linkes Menü->Einstellungen->Daten austauschen->Libreview->"Konto-ID erhalten", um sie von Libreview abzurufen.)"},
 .libre3scansuccess= {"FreeStyle Libre 3-Sensor", "Glukosewerte werden jetzt von Juggluco empfangen"},
 .unknownNFC={"Unerkannter NFC-Scanfehler", "Versuchen Sie es erneut"},
 

@@ -316,6 +316,11 @@ bool isSibionics(const int ind) const {
 	return sens->halfdays>=(stdMaxDaysSI*2);
 	}
 
+bool needsScan(const int ind) const {
+	const sensor *sens=getsensor(ind);
+	return sens->halfdays>=(stdMaxDaysSI*2)||sens->halfdays==(maxdaysDex*2);
+        }
+
 static SensorGlucoseData::longsensorname_t  namelibre3(const std::string_view sensorid) {
 	SensorGlucoseData::longsensorname_t  sens;
 	constexpr const char start[]="E07A-XXXX";

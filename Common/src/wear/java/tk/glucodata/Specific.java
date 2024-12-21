@@ -151,7 +151,7 @@ static void   blockedNum(MainActivity  act) {
         act.addContentView(view2,new ViewGroup.LayoutParams((int)(GlucoseCurve.getwidth()*0.7),MATCH_PARENT));
 		} 
       */
-static void   blockedNum(MainActivity  act) {
+/*static void   blockedNum(MainActivity  act) {
     var width=GlucoseCurve.getwidth();
     help.basehelp(Applic.app.getString(R.string.staticnum),act,xzy->{ }, (l,w,h)-> {
          var height=GlucoseCurve.getheight();
@@ -160,6 +160,9 @@ static void   blockedNum(MainActivity  act) {
                  l.setX(((width-w)*.55f));
          return new int[] {w,h};
          }, new ViewGroup.MarginLayoutParams((int)(width*0.8), WRAP_CONTENT));
+    } */
+static void   blockedNum(MainActivity  act) {
+    help.basehelp(R.string.staticnum,act,xzy->{ });
     }
 
 static public boolean useclose=false;

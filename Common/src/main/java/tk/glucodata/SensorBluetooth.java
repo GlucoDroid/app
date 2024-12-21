@@ -155,7 +155,7 @@ private SuperGattCallback  getCallback(BluetoothDevice device) {
         return null;
     } catch(Throwable e) {
         Log.stack(LOG_ID,    "getCallback",e);
-        if(Build.VERSION.SDK_INT > 30&&!Applic.mayscan())
+        if(!Applic.canBluetooth())
             Applic.Toaster(R.string.turn_on_nearby_devices_permission);
         return null;
     }
@@ -956,6 +956,11 @@ private void removeBondStateReceiver() {
 
 private boolean initializeBluetooth() {
         Log.v(LOG_ID,"initializeBluetooth");
+        if(!Applic.canBluetooth()) {
+                Applic.Toaster(R.string.turn_on_nearby_devices_permission);
+                Log.e(LOG_ID,"No Blueotooth permission");
+                return false;
+                } 
 //        mBluetoothManager = (BluetoothManager) Applic.app.getSystemService("bluetooth");
         mBluetoothManager = (BluetoothManager) Applic.app.getSystemService(Context.BLUETOOTH_SERVICE);
         if (mBluetoothManager  == null) {

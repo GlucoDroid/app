@@ -55,39 +55,39 @@ import static tk.glucodata.settings.Settings.removeContentView;
 public class help {
 static private final String LOG_ID="help";
 //tatic   Layout helplayout=null;
-static WeakReference<Layout> whelplayout=null;
+static WeakReference<ViewGroup> whelplayout=null;
 static    WeakReference<TextView> whelpview=null;
-public static   void help(int res,Activity act,Consumer<Layout> okproc) {
-	help(act.getString(res),act,okproc);
-	}
+public static   void help(int res,Activity act,Consumer<ViewGroup> okproc) {
+    help(act.getString(res),act,okproc);
+    }
 public static   void help(int res,Activity act) {
-	help(res,act,l->{});
-	}
+    help(res,act,l->{});
+    }
 static    WeakReference<Button> okbutton=null;
 public static void hide() {
-	if(whelplayout==null) 
-		return;
-	Layout lay=whelplayout.get();
-	if(lay==null)
-		return;
-	lay.setVisibility(GONE);
-	}
+    if(whelplayout==null) 
+        return;
+    ViewGroup lay=whelplayout.get();
+    if(lay==null)
+        return;
+    lay.setVisibility(GONE);
+    }
 public static void show() {
-	if(whelplayout==null) 
-		return;
-	Layout lay=whelplayout.get();
-	if(lay==null)
-		return;
-	lay.setVisibility(VISIBLE);
-	}
+    if(whelplayout==null) 
+        return;
+    ViewGroup lay=whelplayout.get();
+    if(lay==null)
+        return;
+    lay.setVisibility(VISIBLE);
+    }
 public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
-	basehelp(act.getString(res),act,okproc);
-	}
+    basehelp(act.getString(res),act,okproc);
+    }
 
-	public static   void  basehelp(String text,Activity act,Consumer<ViewGroup>  okproc) {
-		  basehelp(text,act,okproc,(v,w,h)-> new int[] {w,h},new ViewGroup.MarginLayoutParams(MATCH_PARENT, MATCH_PARENT)) ;
-		}
-	@SuppressWarnings("deprecation")
+    public static   void  basehelp(String text,Activity act,Consumer<ViewGroup>  okproc) {
+          basehelp(text,act,okproc,(v,w,h)-> new int[] {w,h},new ViewGroup.MarginLayoutParams(MATCH_PARENT, MATCH_PARENT)) ;
+        }
+    @SuppressWarnings("deprecation")
   public static   void  basehelp(String text,Activity act,Consumer<ViewGroup>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
     hidekeyboard(act);
     ScrollView       helpscroll=new ScrollView(act);
@@ -97,35 +97,35 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
         helpview.setText(fromHtml(text,TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
     }
     else {
-	helpview.setText(fromHtml(text));
-	}
+    helpview.setText(fromHtml(text));
+    }
      helpview.setTextColor(Color.WHITE);
      helpview.setTextIsSelectable(true);
      helpview.setScroller(null);
      helpview.setMovementMethod(LinkMovementMethod.getInstance());
 //     helpview.setMovementMethod(null);
- 	    helpview.setLinksClickable(true);
+         helpview.setLinksClickable(true);
        helpscroll.setVerticalScrollBarEnabled(Applic.scrollbar);
       helpscroll.setScrollbarFadingEnabled(true);
-	   
-           Button ok=new Button(act);
+       
+       Button ok=new Button(act);
        ViewGroup helplayout;
        if(isWearable) {
-//        helpview.setPadding(0,0,0,(int)(GlucoseCurve.metrics.density*30.0)); 
-        helpview.setPadding(0,0,0,(int)(GlucoseCurve.getheight()*.20)); 
-           if(useclose)
-               ok.setText(R.string.ok);
-           else
-               ok.setVisibility(View.INVISIBLE);
-          ViewGroup  layout=new Layout(act, place::place,new View[]{ok}, new View[]{helpview});
+              var width=MainActivity.screenwidth;
+              int sidepad=(int)(width*.12);
+              helpview.setPadding(sidepad,0,sidepad,(int)(MainActivity.screenheight*.20));
+              if(useclose)
+                   ok.setText(R.string.ok);
+              else
+                   ok.setVisibility(View.INVISIBLE);
+              ViewGroup  layout=new Layout(act, place::place,new View[]{ok}, new View[]{helpview});
 
-//          params.setMargins( 0, (int)(GlucoseCurve.metrics.density*10.0), 0,(int)(GlucoseCurve.metrics.density*50.0) );
-          params.setMargins( 0, (int)(GlucoseCurve.metrics.density*3.0), 0,0);
-          layout.setBackgroundColor(backgroundcolor);
-           helpscroll.addView(layout,params);
-          helpscroll.setBackgroundColor(backgroundcolor);
-           helplayout=helpscroll; 
-            act.addContentView(helplayout,new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
+              params.setMargins( 0, (int)(GlucoseCurve.metrics.density*3.0), 0,0);
+              layout.setBackgroundColor(backgroundcolor);
+              helpscroll.addView(layout,params);
+              helpscroll.setBackgroundColor(backgroundcolor);
+              helplayout=helpscroll; 
+              act.addContentView(helplayout,new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
             }
        else {
            ok.setText(R.string.ok);
@@ -143,54 +143,77 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
             MainActivity.systembarRight,
 
            MainActivity.systembarBottom
-		);
-	   helplayout.setLayoutParams(params);
-	   helplayout.requestLayout();
-	    helplayout.setBackgroundResource(R.drawable.helpbackground);
+        );
+       helplayout.setLayoutParams(params);
+       helplayout.requestLayout();
+        helplayout.setBackgroundResource(R.drawable.helpbackground);
            act.addContentView(helplayout, params);
-	      }
+          }
 final var helplayout2=helplayout;
-	   
+       
            ok.setOnClickListener(v->{
-		poponback();
-		 okproc.accept(helplayout2);
-		removeContentView(helplayout2);
-	   	});
+        poponback();
+         okproc.accept(helplayout2);
+        removeContentView(helplayout2);
+           });
 
 
      Runnable closerun=() -> {
-	        okproc.accept(helplayout2);
-		removeContentView(helplayout2);
-		 };
+            okproc.accept(helplayout2);
+        removeContentView(helplayout2);
+         };
 
-	setonback(closerun);
+    setonback(closerun);
 };
 
-	@SuppressLint("deprecation")
-	public static   void help(String text,Activity act,Consumer<Layout>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
-		Log.i(LOG_ID,"help");
+    @SuppressLint("deprecation")
+public static   void help(String text,Activity act,Consumer<ViewGroup>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
+        Log.i(LOG_ID,"help");
       hidekeyboard(act);
       Button ok;
-      Layout helplayout;
-      if(whelplayout==null||((helplayout=whelplayout.get())==null)||act!=helplayout.getContext()||( (ok=	okbutton.get())==null) ) {
-	     ScrollView       helpscroll=new ScrollView(act);
+      ViewGroup helplayout;
+      if(whelplayout==null||((helplayout=whelplayout.get())==null)||act!=helplayout.getContext()||( (ok=    okbutton.get())==null) ) {
+         ScrollView       helpscroll=new ScrollView(act);
          TextView helpview=new TextView(act);
          int pad=(int)(GlucoseCurve.getDensity()*7.0);
          helpview.setPadding(pad,pad,pad,pad);
          helpview.setTextColor(Color.WHITE);
          helpview.setTextIsSelectable(true);
          whelpview=new WeakReference<TextView>(helpview);
-     //    helpview.setMovementMethod(LinkMovementMethod.getInstance());
+         helpview.setMovementMethod(LinkMovementMethod.getInstance());
 
-     helpview.setMovementMethod(null);
+     //helpview.setMovementMethod(null);
          helpview.setLinksClickable(true);
-         helpscroll.addView(helpview);
          helpscroll.setVerticalScrollBarEnabled(Applic.scrollbar);
          helpscroll.setScrollbarFadingEnabled(false);
          ok=new Button(act);
-         if(useclose) ok.setText(R.string.ok);
-         else ok.setVisibility(GONE);
-	      okbutton=new WeakReference<Button>(ok);
+          okbutton=new WeakReference<Button>(ok);
+
+
+ 
+       if(isWearable) {
+              helpview.setPadding(0,0,0,(int)(MainActivity.screenheight*.20)); 
+              if(useclose)
+                   ok.setText(R.string.ok);
+              else
+                   ok.setVisibility(View.INVISIBLE);
+              ViewGroup  layout=new Layout(act, place::place,new View[]{ok}, new View[]{helpview});
+
+              var width=MainActivity.screenwidth;
+              int sidepad=(int)(width*.12);
+              Log.i(LOG_ID,"width="+width+" sidepad="+sidepad);
+              params.setMargins( sidepad, (int)(GlucoseCurve.metrics.density*3.0), sidepad,0);
+              layout.setBackgroundColor(backgroundcolor);
+              helpscroll.addView(layout,params);
+              helpscroll.setBackgroundColor(backgroundcolor);
+              helplayout=helpscroll; 
+              act.addContentView(helplayout,new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
+             helplayout.setBackgroundColor(backgroundcolor);
+            }
+
+    else  {
+         ok.setText(R.string.ok);
+         helpscroll.addView(helpview);
          var width=GlucoseCurve.getwidth();
          helplayout=new Layout(act, (l,w,h)-> {
              var af=MainActivity.systembarTop*3/4;
@@ -198,37 +221,35 @@ final var helplayout2=helplayout;
              return place.place(l,w,h -af); 
             }
             ,new View[]{helpscroll},new View[]{ok});
-           whelplayout=new WeakReference<Layout>(helplayout);
-
-	if(isWearable)
-	      helplayout.setBackgroundColor(backgroundcolor);
-	 else
-	      helplayout.setBackgroundResource(R.drawable.helpbackground);
+          helplayout.setBackgroundResource(R.drawable.helpbackground);
         params.setMargins(
             MainActivity.systembarLeft,
             0,
             MainActivity.systembarRight,
            MainActivity.systembarBottom
-		);
-            
+        );
          helplayout.setLayoutParams(params);
         helplayout.requestLayout();
-           act.addContentView(helplayout, params);
+        act.addContentView(helplayout, params);
+          }
+        whelplayout=new WeakReference<ViewGroup>(helplayout);
        }
        else {
            helplayout.setVisibility(VISIBLE);
            helplayout.bringToFront();
-        ViewGroup.MarginLayoutParams marg = (ViewGroup.MarginLayoutParams) helplayout.getLayoutParams();
-         marg.width=params.width; 
-         marg.height=params.height; 
-        marg.setMargins(
-            MainActivity.systembarLeft,
-            0,
-            MainActivity.systembarRight,
-           MainActivity.systembarBottom
-		);
-         helplayout.setLayoutParams(marg);
-        helplayout.requestLayout();
+         if(!isWearable) {
+            ViewGroup.MarginLayoutParams marg = (ViewGroup.MarginLayoutParams) helplayout.getLayoutParams();
+             marg.width=params.width; 
+             marg.height=params.height; 
+            marg.setMargins(
+                MainActivity.systembarLeft,
+                0,
+                MainActivity.systembarRight,
+               MainActivity.systembarBottom
+            );
+             helplayout.setLayoutParams(marg);
+            helplayout.requestLayout();
+            }
        }
      //   ViewGroup.MarginLayoutParams marg = (ViewGroup.MarginLayoutParams) helplayout.getLayoutParams();
 //       whelpview.get().setText(Html.fromHtml(text));
@@ -236,58 +257,58 @@ final var helplayout2=helplayout;
         whelpview.get().setText(fromHtml(text,TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
     }
     else {
-		whelpview.get().setText(fromHtml(text));
-	}
+        whelpview.get().setText(fromHtml(text));
+    }
 
      Runnable closerun=() -> {
-		 if (whelplayout != null) {
-			 Layout helplayout2 = whelplayout.get();
-			 if (helplayout2 != null) {
-				 helplayout2.setVisibility(GONE);
-				 okproc.accept(helplayout2);
-			 	}
-		 }
+         if (whelplayout != null) {
+             ViewGroup helplayout2 = whelplayout.get();
+             if (helplayout2 != null) {
+                 helplayout2.setVisibility(GONE);
+                 okproc.accept(helplayout2);
+                 }
+         }
 
-	 };
-		setonback(closerun);
-		ok.setOnClickListener(v->{
-			Log.i(LOG_ID,"Ok pressed");
-			doonback() ;
-		});
+     };
+        setonback(closerun);
+        ok.setOnClickListener(v->{
+            Log.i(LOG_ID,"Ok pressed");
+            doonback() ;
+        });
 }
 
-	public static   void help(String text,Activity act,Consumer<Layout>  okproc) {
-	 help( text, act, okproc,(v,w,h)-> {
-	 	return new int[] {w,h};
-		}, new ViewGroup.MarginLayoutParams(MATCH_PARENT, WRAP_CONTENT));
-	}
+    public static   void help(String text,Activity act,Consumer<ViewGroup>  okproc) {
+     help( text, act, okproc,(v,w,h)-> {
+         return new int[] {w,h};
+        }, new ViewGroup.MarginLayoutParams(MATCH_PARENT, WRAP_CONTENT));
+    }
 public static   void help(String text,Activity act) {
-	help(text,act,l->{});
-	}
+    help(text,act,l->{});
+    }
 public static void hidekeyboard(Activity activity) {
       if(activity==null)
             return;
         InputMethodManager imm = (InputMethodManager) activity.getSystemService(INPUT_METHOD_SERVICE);
            View focus= activity.getCurrentFocus();
-	   if(focus==null)
-			focus=activity.findViewById(android.R.id.content);
+       if(focus==null)
+            focus=activity.findViewById(android.R.id.content);
            if(focus!=null)
-		    imm.hideSoftInputFromWindow(focus.getWindowToken(), 0);
+            imm.hideSoftInputFromWindow(focus.getWindowToken(), 0);
         }
 public static void showkeyboard(Activity activity,View focus) {
         InputMethodManager imm = (InputMethodManager) activity.getSystemService(INPUT_METHOD_SERVICE);
-			imm.showSoftInput(focus, 0);
+            imm.showSoftInput(focus, 0);
         }
 
 public static void sethelpbutton(int vis) {
 if(useclose)
-	if(okbutton!=null) {
-		Button ok = okbutton.get();
-		if (ok != null) {
+    if(okbutton!=null) {
+        Button ok = okbutton.get();
+        if (ok != null) {
             Applic.RunOnUiThread(()-> ok.setVisibility(vis));
-		}
-	}
-	}
+        }
+    }
+    }
    }
 
 

@@ -744,7 +744,7 @@ public static native long SIprocessData(long dataptr, byte[] bluetoothdata,long 
 public static native String getSiBluetoothNum(long dataptr);
 public static native byte[] siAsknewdata(long dataptr);
 public static native String addSIscangetName(String jgegs);
-public static native boolean hasSibionics();
+public static native boolean hasNeedScan( );
 //public static native String getShowSensorName(long dataptr);
 
 public static native String getUsedSensorName( );

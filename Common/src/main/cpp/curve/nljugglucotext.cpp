@@ -151,7 +151,7 @@ static jugglucotext nltext {
 
 .libre3scanerror={"FreeStyle Libre 3, Scanfout", "Probeer het opnieuw"},
 .libre3wrongID={"Fout, verkeerde account-ID?",
-R"(Moet hetzelfde zijn als bij het activeren van de sensor. Gebruik Linkermenu->Instellingen->Libreview->"Account-ID ophalen" om het te halen van Libreview.)"},
+R"(Moet hetzelfde zijn als bij het activeren van de sensor. Gebruik Linkermenu->Instellingen->Deel gegevens->Libreview->"Account-ID ophalen" om het te halen van Libreview.)"},
 .libre3scansuccess= {"FreeStyle Libre 3-sensor", "Glucosewaarden worden nu ontvangen door Juggluco"},
 .unknownNFC={"Onbekende NFC-scanfout", "Probeer het opnieuw"},
 .nolibre3={"FreeStyle Libre 3-sensor","Download de juiste versie van https://www.juggluco.nl/download.html"},
