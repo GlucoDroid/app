@@ -1350,13 +1350,13 @@ kunt invoeren (bijvoorbeeld insuline doses), maar ook de huidige
 stream glucose waarde weergeeft. Zie Watch→Kerfstok status → Help
 en <a class="western" href="https://www.juggluco.nl/Kerfstok">https://www.juggluco.nl/Kerfstok</a></span></font></p>
 <h2 class="western"><font size="3" style="font-size: 12pt">Broadcast</font></h2>
-<p><font size="3" style="font-size: 12pt"><span lang="nl-NL">Apps
+<p>Apps
 kunnen glucosewaarden ontvangen van een van de glucose Broadcasts die
 door Juggluco worden verzonden en deze glucosewaarden naar een
 horloge sturen. G-Watch (<a class="western" href="https://play.google.com/store/apps/details?id=sk.trupici.g_watch">TizenOS</a>
 of <a class="western" href="https://play.google.com/store/apps/details?id=sk.trupici.gwatch.wear">WearOS</a>)
 kan bijvoorbeeld glucosewaarden ontvangen van de Glucodata Broadcast
-(zie Linker menu-&gt;Instellingen).</span></font></p>
+(zie Linker menu-&gt;Instellingen-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/nl/exchangehelp.html">Deel gegevens</a>).</p>
 <h2 class="western"><font size="3" style="font-size: 12pt">xDrip
 horloge apps</font></h2>
 <p><font size="3" style="font-size: 12pt"><span lang="nl-NL">Juggluco
@@ -2262,7 +2262,7 @@ selectievakje aanraakt, kom je in een dialoogvenster waarin je voor
 elk label kunt opgeven wat het in Nightscout betekent. Deze
 specificaties worden gedeeld met de webserver in Juggluco (
 <a href="https://www.juggluco.nl/Jugglucohelp/nl/Nightscouthelp.html">linkermenu
-→ Instellingen → Webserver</a> ). Pas als alle labels zijn
+→ Instellingen →  Deel gegevens →  Webserver</a> ). Pas als alle labels zijn
 afgehandeld, kunt je “Geef hoeveelheden” aanvinken. Als je later
 een nieuw label toevoegt, moet je er zelf aan denken te specificeren
 wat er mee moet gebeuren. Vanwege een bug in <a href="https://github.com/nightscout/cgm-remote-monitor">Nightscout</a>
@@ -2414,7 +2414,7 @@ in Juggluco. Voordat</span><span style="font-style: normal"> je</span><span styl
 moet je voor elk label aangeven hoe de onder dat label ingevoerde
 hoeveelheden moeten worden weergegeven. De labels zelf kunnen worden
 gemaakt, gewijzigd en verwijderd in het
-linkermenu-&gt;Instellingen-&gt;&quot;Nummerlabels&quot;.</p>
+linkermenu-&gt;Instellingen-&gt;&quot;Nummer labels&quot;.</p>
 <p><br/>
 <br/>
 
@@ -2441,7 +2441,7 @@ worden alleen oude gegevens geëxporteerd (hetzelfde als in het menu
 links in het midden -&gt; Statistieken).</p>
 <p>Vanaf Juggluco 7.1.0 is het ook mogelijk om deze gegevens te
 ontvangen via de webserver in Juggluco
-(linkermenu-&gt;Instellingen-&gt;Webserver), zie
+(linkermenu-&gt;Instellingen-&gt;Deel gegevens-&gt;Webserver), zie
 <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a></p>
 ]]>
 </string>
@@ -2484,7 +2484,7 @@ hoeveelheid van één ingrediënt berekend.</p>
 <p>IOB is een maat voor hoeveel insuline van eerdere insulinedoses
 nog aanwezig is. Hiervoor moet je insulinedoses invoeren onder een
 label in de categorie “<i>Snelwerkende insuline</i>”. Onder
-linkermenu → Instellingen → Webserver → <a href="https://www.juggluco.nl/Jugglucohelp/nl/setlibrenumtype.html">Geef
+linkermenu → Instellingen →  Deel gegevens →  Webserver → <a href="https://www.juggluco.nl/Jugglucohelp/nl/setlibrenumtype.html">Geef
 hoeveelheden</a> kun je aangeven welke labels “<i>Snelwerkende
 insuline</i>” zijn.</p>
 <p><br/>
@@ -2634,7 +2634,7 @@ daarom uitgezet.</p>
 <p>IOB is een maat voor hoeveel insuline van eerdere insulinedoses
 nog aanwezig is. Hiervoor moet je insulinedoses invoeren onder een
 label in de categorie “<i>Snelwerkende insuline</i>”. Onder
-linkermenu → Instellingen → Webserver → <a href="https://www.juggluco.nl/Jugglucohelp/nl/setlibrenumtype.html">Geef
+linkermenu → Instellingen → Deel gegevens → Webserver → <a href="https://www.juggluco.nl/Jugglucohelp/nl/setlibrenumtype.html">Geef
 hoeveelheden</a> kun je aangeven welke labels “<i>Snelwerkende
 insuline</i>” zijn.</p>
 <h2 class="western">Vast nu</h2>

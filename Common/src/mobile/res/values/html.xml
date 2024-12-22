@@ -1100,7 +1100,12 @@ or 5, you have to <i>Allow background activity</i> in the Galaxy
 Wearable companion app, Watch settings-&gt;Apps-&gt;Juggluco. For
 watches that don\'t have this setting you can use the following
 command from your computer:</p>
-<p style="line-height: 100%; margin-bottom: 0in">adb shell cmd appops set tk.glucodata RUN_IN_BACKGROUND allow</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>adb shell cmd
+appops set tk.glucodata RUN_IN_BACKGROUND allow</b></p>
+<p style="line-height: 100%; margin-bottom: 0in"><span style="font-weight: normal">To
+disable doze mode:</span></p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>adb shell dumpsys
+deviceidle disable</b></p>
 <p style="line-height: 100%; margin-bottom: 0in"><a href="https://www.juggluco.nl/JugglucoWearOS/install/adb.html">Information
 about adb</a></p>
 ]]>
@@ -1366,7 +1371,7 @@ and send these glucose values to a watch. For example G-Watch
 (<a href="https://play.google.com/store/apps/details?id=sk.trupici.g_watch">TizenOS</a>
 or <a href="https://play.google.com/store/apps/details?id=sk.trupici.gwatch.wear">WearOS</a>)
 can receive glucose values from the Glucodata Broadcast (see Left
-menu-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/settinghelp.html">Settings</a>).</p>
+menu-&gt;Settings-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/exchangehelp.html">Exchange data</a>).</p>
 <h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/Nightscouthelp.html">xDrip watch apps</a></h2>
 <p style="line-height: 100%; margin-bottom: 0in"><span lang="en-US">Juggluco
 incorporates an xDrip/Nightscout</span> <span lang="en-US">webserver.
@@ -2156,7 +2161,7 @@ Nightscout web interface under Admin Tools.</p>
 Nightscout. Touching the checkbox brings you to a dialog in which you
 can specify for every label what it means in Nightscout. These
 specifications are shared with web server in Juggluco (<a href="https://www.juggluco.nl/Jugglucohelp/Nightscouthelp.html">Left
-menu→Settings→Web server</a>). Only when all labels are handled,
+menu→Settings→ Exchange data→ Web server</a>). Only when all labels are handled,
 can you check “<i>Give Amounts</i>”. If you later add a new
 label, you have to remember yourself to specify what to do with it.
 <span lang="en-US">Because of a bug in <a href="https://github.com/nightscout/cgm-remote-monitor">Nightscout</a>,
@@ -2332,8 +2337,7 @@ number of days to save. The end date is the right border of the
 screen. Thus if you view past data in Juggluco, only old data is
 exported (the same as in left middle menu-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/stathelp.html">Statistics</a>).</p>
 <p>Starting with Juggluco 7.1.0, it is also possible to receive these
-data via the web server in Juggluco (Left menu-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/settinghelp.html">Settings</a>-&gt;Web
-server), see <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a></p>
+data via the web server in Juggluco (Left menu-&gt;Settings-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/exchangehelp.html">Exchange data</a>-&gt;Web server), see <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a></p>
 <p><br/>
 <br/>
 
@@ -2391,7 +2395,7 @@ function without this permission.</p>
 doses. To do this, you must enter insulin doses under a label in the
 “<i>Rapid acting insulin</i>” category. You can specify what
 labels are “<i>Rapid acting insulin</i>” under Left
-menu→Settings→Web server→<a href="https://www.juggluco.nl/Jugglucohelp/setlibrenumtype.html">Give
+menu→Settings→ Exchange data→ Web server→<a href="https://www.juggluco.nl/Jugglucohelp/setlibrenumtype.html">Give
 Amounts</a>.</p>
 <p style="line-height: 100%; margin-bottom: 0in"><br/>
 
@@ -2574,7 +2578,7 @@ from previous insulin doses. To do this, you must enter insulin doses
 under a label in the “</span><span lang="en-US"><i>Rapid acting
 insulin</i></span><span lang="en-US">” category. You can specify
 what labels are “</span><span lang="en-US"><i>Rapid acting insulin</i></span><span lang="en-US">”
-under Left menu→Settings→Web server→<a href="https://www.juggluco.nl/Jugglucohelp/setlibrenumtype.html">Give
+under Left menu→Settings→Exchange data→Web server→<a href="https://www.juggluco.nl/Jugglucohelp/setlibrenumtype.html">Give
 Amounts</a>.</span></p>
 <h2 class="western">Now clamp</h2>
 <p>When “<i>Now clamp</i>” is set, the time period displayed on

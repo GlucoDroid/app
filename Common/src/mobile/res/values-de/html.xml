@@ -36,7 +36,7 @@ Auch Mengen als Behandlungen an Nightscout senden. Durch Berühren
 der Checkbox gelangen Sie zu einem Dialog, in dem Sie für jedes
 Label festlegen können, was es in Nightscout bedeutet. Diese
 Spezifikationen werden mit dem Webserver in Juggluco geteilt ( <a href="https://www.juggluco.nl/Jugglucohelp/de/Nightscouthelp.html">Linkes
-Menü→Einstellungen→Webserver</a> ). Erst wenn alle Labels
+Menü→Einstellungen→Daten austauschen→Webserver</a> ). Erst wenn alle Labels
 verarbeitet sind, können Sie „ </span><span lang="de-DE"><i>Mengen
 geben</i></span>“ <span lang="de-DE">ankreuzen. Wenn Sie später
 ein neues Etikett hinzufügen, müssen Sie selbst festlegen, was
@@ -157,7 +157,7 @@ können Sie besser die <a href="https://www.juggluco.nl/Juggluco/index.html#mirr
 <p style="line-height: 100%; margin-bottom: 0in">Android Aps und
 Nsclient funktionieren nicht als Follower von Juggluco, aber Sie
 können ihnen Glukosewerte mit der xDrip-Broadcast in Juggluco senden
-(linkes Menü-&gt; <a href="https://www.juggluco.nl/Jugglucohelp/de/settinghelp.html">Einstellungen</a>-&gt;
+(linkes Menü -&gt; Einstellungen -&gt; <a href="https://www.juggluco.nl/Jugglucohelp/de/exchangehelp.html">Daten austauschen</a>-&gt;
 xDrip Broadcast).</p>
 <p style="line-height: 100%; margin-bottom: 0in">SSL benötigen Sie
 für die Android-Apps AAPS, Diabetes:M, <a href="https://play.google.com/store/apps/details?id=se.cornixit.nightwatch">Nightwatch</a>
@@ -981,7 +981,7 @@ des Bildschirms. Wenn Sie frühere Daten in Juggluco anzeigen, werden
 nur alte Daten exportiert (dasselbe wie im linken mittleren Menü -&gt; <a href="https://www.juggluco.nl/Jugglucohelp/de/stathelp.html">Statistiken</a>).</p>
 <p>Ab Juggluco 7.1.0 ist es auch möglich, diese Daten über den
 Webserver in Juggluco zu empfangen (Linkes
-Menü-&gt;Einstellungen-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/de/Nightscouthelp.html">Webserver</a>), siehe
+Menü-&gt;Einstellungen-&gt;Daten austauschen-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/de/Nightscouthelp.html">Webserver</a>), siehe
 <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a></p>
 ]]>
 </string>
@@ -1005,7 +1005,7 @@ einen Glukosewert, ohne zu scannen.</font></font></p>
 <font face="Times New Roman"><font size="4" style="font-size: 14pt">Um
 einen aktivierten FreeStyle Libre&nbsp;<b>3</b>&nbsp;-Sensor zu
 übernehmen, müssen Sie die Libreview-Kontoinformationen angeben,
-die Sie zum Aktivieren des Sensors in Einstellungen-&gt;Libreview
+die Sie zum Aktivieren des Sensors in Einstellungen-&gt;Daten austauschen-&gt;Libreview
 verwendet haben, auf „Get Account ID“ klicken und warten, bis die
 Konto-ID eintrifft, bevor Sie scannen.</font></font></p>
 <p style="font-variant: normal; letter-spacing: normal; font-style: normal; font-weight: normal; line-height: 0.19in; orphans: 2; widows: 2; margin-bottom: 0in; background: transparent">
@@ -2324,8 +2324,7 @@ Status-&gt; Help und&nbsp;<a href="https://www.juggluco.nl/Kerfstok">https://www
 Broadcasts empfangen und diese Glukosewerte an eine Uhr senden.
 Beispielsweise kann G-Watch (<a href="https://play.google.com/store/apps/details?id=sk.trupici.g_watch">TizenOS</a>
 oder <a href="https://play.google.com/store/apps/details?id=sk.trupici.gwatch.wear">WearOS</a>)
-Glukosewerte von Glucodata Broadcast empfangen (siehe linkes Menü -&gt;
-Einstellungen).</p>
+Glukosewerte von Glucodata Broadcast empfangen (siehe linkes Menü -&gt; Einstellungen -&gt; <a href="https://www.juggluco.nl/Jugglucohelp/de/exchangehelp.html">Daten austauschen</a>).</p>
 <h2 class="western">xDrip Watch-Apps</h2>
 <p>Juggluco enthält einen xDrip-Webserver.&nbsp;Dadurch ist es
 möglich, xDrip-Watch-Apps direkt mit Juggluco zu verwenden.&nbsp;xDrip
@@ -2639,7 +2638,7 @@ von Juggluco im linken Menü -&gt; Einstellungen -&gt; <a href="https://www.jugg
 <p>IOB ist ein Maß dafür, wie viel Insulin von früheren
 Insulindosen noch vorhanden ist. Hierzu müssen Sie Insulindosen
 unter einem Etikett in der Kategorie „ <i>Schnell wirkendes Insulin</i>
-“ eintragen. Sie können im linken Menü→Einstellungen→Webserver→
+“ eintragen. Sie können im linken Menü→Einstellungen→Daten austauschen→Webserver→
 <a href="https://www.juggluco.nl/Jugglucohelp/de/setlibrenumtype.html">Mengen
 geben</a> angeben, welche Etiketten „<i>Schnell wirkendes Insulin</i>“
 sind.</p>
@@ -2824,7 +2823,7 @@ Anzeige der Glukosekurve völlig ungeeignet ist.</p>
 früheren Insulindosen noch vorhanden ist. Hierzu müssen Sie
 Insulindosen unter einem Etikett in der Kategorie „ </span><span lang="de-DE"><i>Schnell
 wirkendes Insulin</i></span><span lang="de-DE"> “ eintragen. Sie
-können im linken Menü→Einstellungen→Webserver→ <a href="https://www.juggluco.nl/Jugglucohelp/de/setlibrenumtype.html">Mengen
+können im linken Menü→Einstellungen→Daten austauschen→Webserver→ <a href="https://www.juggluco.nl/Jugglucohelp/de/setlibrenumtype.html">Mengen
 geben</a> angeben, welche Etiketten „</span><span lang="de-DE"><i>Schnell
 wirkendes Insulin</i></span><span lang="de-DE">“ sind.</span></p>
 <h2 class="western">Festgesteckt jetzt</h2>
