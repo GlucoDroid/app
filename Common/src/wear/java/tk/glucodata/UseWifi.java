@@ -38,8 +38,13 @@ private	final ConnectivityManager connectivityManager = (ConnectivityManager) Ap
 private ScheduledFuture<?> wifinotused=null;
 private void disusewifi() {
 	Log.i(LOG_ID,"disusewifi");
-	connectivityManager.bindProcessToNetwork(null);
-	connectivityManager.unregisterNetworkCallback(WiFiCallback);
+    try {
+        connectivityManager.bindProcessToNetwork(null);
+        connectivityManager.unregisterNetworkCallback(WiFiCallback);
+        }
+     catch(Throwable th) {
+        Log.stack(LOG_ID,"disusewifi",th);
+        }
 	}
 private	final ConnectivityManager.NetworkCallback WiFiCallback = new ConnectivityManager.NetworkCallback() {
 		public void onAvailable(Network network) {

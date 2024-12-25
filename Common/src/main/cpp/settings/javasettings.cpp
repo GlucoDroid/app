@@ -537,10 +537,13 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(writealarmduration)(JNIEnv *env, j
 	settings->data()->alarms[type].duration=dur;
 	}
 extern "C" JNIEXPORT jshort  JNICALL   fromjava(readalarmsuspension)(JNIEnv *env, jclass cl,jint type) {
-	return settings->data()->alarms[type].wait;
+    const auto susp=settings->data()->alarms[type].wait;
+    LOGGER("readalarmsuspension(%d)=%hd\n",type,susp);
+	return susp;
 	}
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(writealarmsuspension)(JNIEnv *env, jclass cl,jint type,jshort sus) {
+    LOGGER("writealarmsuspension(%d,%hd)\n",type,sus);
 	settings->data()->alarms[type].wait=sus;
 	}
 extern bool fixatex,fixatey;

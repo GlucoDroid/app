@@ -222,8 +222,7 @@ if(chinese()) {
 //TODO free font ???
 	chfontset=CHINESE;
 	}
-
-	else  {
+else  {
 
 #ifdef USE_HEBREW
 if(hebrew())  {
@@ -1359,10 +1358,10 @@ static void	showscanner(NVGcontext* genVG,const SensorGlucoseData *hist,int scan
 	nvgText(genVG, x,y, buf1, buf1+len1);
 	const bool showabove=y>(dheight/2);
 	const float yunder=y+(showabove?-1:1)*headsize/2.0;
-	nvgFontSize(genVG,smallsize );
+//	nvgFontSize(genVG,smallsize );
+	nvgFontSize(genVG,headsize*.134f );
 	nvgText(genVG, endtime,yunder, buf, buf+len);
 	const auto sensorname=hist->othershortsensorname();
-	nvgFontSize(genVG,headsize*.134f );
 	nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
     const auto sensorx=bounds[0] -sensleft;
 	nvgText(genVG,sensorx,yunder, sensorname.begin(), sensorname.end());

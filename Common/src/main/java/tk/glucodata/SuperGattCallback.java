@@ -218,7 +218,7 @@ static void endtalk() {
                         nextalarm[1] = tim + Natives.readalarmsuspension(1) * 60;
                         alarm |= 8;
                         if(!isWearable) {
-                            if((alarmspeak=Natives.speakalarms())) talker.nexttime = 0L;
+                            if((alarmspeak=Natives.speakalarms())) Talker.nexttime = 0L;
                         }
                     }
                 }
@@ -234,9 +234,10 @@ static void endtalk() {
                     Notify.onenot.lowglucose(sglucose,gl, rate,alarmtime);
                     if (alarmtime) {
                         nextalarm[0] = tim + Natives.readalarmsuspension(0) * 60;
+                        Log.i(LOG_ID,"next alarm at "+ nextalarm[0] +" "+bluediag.datestr( nextalarm[0]*1000L ));
                         alarm |= 8;
                         if(!isWearable) {
-                            if((alarmspeak=Natives.speakalarms())) talker.nexttime = 0L;
+                            if((alarmspeak=Natives.speakalarms())) Talker.nexttime = 0L;
                         }
                     }
                 }
