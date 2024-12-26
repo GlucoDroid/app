@@ -225,7 +225,6 @@
  <string name="touchable">可触摸</string>
 
  <string name="overlaypermission">授予权限：</string>
- <string name="overlaypermissionmessage">adb shell pm grant tk.glucodata android.permission.SYSTEM_ALERT_WINDOW</string>
  <string name="deletereminder">删除提醒？</string>
  <string name="deletelabel">删除标签？</string>
 

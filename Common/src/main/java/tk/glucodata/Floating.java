@@ -143,11 +143,19 @@ public static void rewritefloating(Activity context) {
 
  static void shoulduseadb(Context context) {
         final var builder = new AlertDialog.Builder(context);
-        builder.setTitle(R.string.overlaypermission);
-        var dialog=builder.setMessage(R.string.overlaypermissionmessage).setPositiveButton(R.string.ok, (dia, id) -> {
+        String title=context.getString(R.string.overlaypermission);
+        if(title.length()>20) {
+            builder.setTitle(" "); 
+            builder.setMessage(title+"\n"+context.getString(R.string.overlaypermissionmessage));
+            }
+        else {
+            builder.setTitle(title);
+            builder.setMessage(R.string.overlaypermissionmessage);
+            }
+        var dialog=builder.setPositiveButton(R.string.ok, (dia, id) -> {
             Log.i(LOG_ID,"now ask overlay permission");
         }) .show();
-                dialog.setCanceledOnTouchOutside(false);
+        dialog.setCanceledOnTouchOutside(false);
         TextView messageText = (TextView)dialog.findViewById(android.R.id.message);
         final var metrics = Applic.app.getResources().getDisplayMetrics();
         var screenwidth = metrics.widthPixels;
@@ -399,7 +407,7 @@ public static int floatfontsize;
     var gety = floatCanvas.getHeight() * 0.37f;
     floatPaint.setTextSize(fontsize*.3f);
     var xpos=0.2f;
-    String message= Applic.app.getString(R.string.nonewvalue);
+    String message= getContext().getString(R.string.nonewvalue);
     floatCanvas.drawText(message, xpos, gety, floatPaint);
     gety = floatCanvas.getHeight() * 0.88f;
     floatCanvas.drawText(tformat, xpos, gety, floatPaint);
@@ -461,7 +469,7 @@ protected void onDraw(Canvas floatCanvas) {
             floatCanvas.drawColor(floatingbackground);
             floatPaint.setColor(floatingforeground);
             floatPaint.setTextSize(fontsize*.68f);
-            floatCanvas.drawText(Applic.app.getString(R.string.novalue), xpos, gety, floatPaint);
+            floatCanvas.drawText(getContext().getString(R.string.novalue), xpos, gety, floatPaint);
             floatPaint.setTextSize(fontsize);
             return;
             }
@@ -545,7 +553,7 @@ public boolean onTouchEvent(MotionEvent event) {
                             SuperGattCallback.newtalker(null);
                             talker=SuperGattCallback.talker;
                             }
-                        talker.speak(time==0L?Applic.app.getString(R.string.novalue):Applic.app.getString(R.string.nonewvalue) + timef.format(time));
+                        talker.speak(time==0L?getContext().getString(R.string.novalue):getContext().getString(R.string.nonewvalue) + timef.format(time));
                         }
                     }
                 }

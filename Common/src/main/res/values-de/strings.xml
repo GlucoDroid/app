@@ -218,7 +218,6 @@
  <string name="backgroundshort">Hinter-</string>
  <string name="transparent">Transparent</string>
  <string name="touchable">Berührbar</string>
-
 <string name="overlaypermission">Um die Erlaubnis zu erteilen:</string>
   <string name="deletereminder">Erinnerung löschen?</string>
   <string name="deletelabel">Label löschen?</string>

@@ -402,7 +402,7 @@ public void searchforDeviceAddress() {
             } catch (SecurityException se) {
                 var mess = se.getMessage();
                 mess = mess == null ? "" : mess;
-                String uit = ((Build.VERSION.SDK_INT > 30) ? Applic.app.getString(R.string.turn_on_nearby_devices_permission)  : mess) ;
+                String uit = ((Build.VERSION.SDK_INT > 30) ? Applic.getContext().getString(R.string.turn_on_nearby_devices_permission)  : mess) ;
                 Applic.Toaster(uit);
                 Log.stack(LOG_ID, SerialNumber +" "+ "BluetoothGatt.close()", se);
             }
@@ -465,7 +465,7 @@ public void searchforDeviceAddress() {
                 } catch (SecurityException se) {
                     var mess = se.getMessage();
                     mess = mess == null ? "" : mess;
-                    String uit = ((Build.VERSION.SDK_INT > 30) ? Applic.app.getString(R.string.turn_on_nearby_devices_permission)  : mess) ;
+                    String uit = ((Build.VERSION.SDK_INT > 30) ? Applic.getContext().getString(R.string.turn_on_nearby_devices_permission)  : mess) ;
                     Applic.Toaster(uit);
 
                     Log.stack(LOG_ID, SerialNumber +" "+ "connectGatt", se);

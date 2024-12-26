@@ -46,30 +46,30 @@ private static void setWidth(int widthdip) {
       remote=  new RemoteGlucose(fontsize,widthpx,Applic.unit==1?0.30f:0.32f,2,true);
       width=widthdip;
       }
- @Override
-    public void onAppWidgetOptionsChanged (Context context, AppWidgetManager appWidgetManager, int appWidgetId, Bundle widgetInfo) {
+@Override
+public void onAppWidgetOptionsChanged(Context context, AppWidgetManager appWidgetManager, int appWidgetId, Bundle widgetInfo) {
    var widthdip=widgetInfo.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH);
-       Log.i(LOG_ID,"onAppWidgetOptionsChanged widthdip="+widthdip);
-       used=true;
+   Log.i(LOG_ID,"onAppWidgetOptionsChanged widthdip="+widthdip);
+   used=true;
    if(widthdip!=0&&widthdip!=width) {
-      setWidth(widthdip);
-               updateAppWidget(context, appWidgetManager, appWidgetId);
-      }
-       } 
+       setWidth(widthdip);
+       updateAppWidget(context, appWidgetManager, appWidgetId);
+       }
+   } 
 static private RemoteViews remoteMessage(String message) {
-     RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.text);
-                remoteViews.setTextColor(R.id.content, Notify.foregroundcolor);
-                remoteViews.setTextViewText(R.id.content, message);
-      return remoteViews;
-   }
+    RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.text);
+    remoteViews.setTextColor(R.id.content, Notify.foregroundcolor);
+    remoteViews.setTextViewText(R.id.content, message);
+    return remoteViews;
+    }
 static private long oldage=glucosetimeout;
 static private void showviews(RemoteViews views,int rId,AppWidgetManager appWidgetManager, int appWidgetId) {
     Intent intent = new Intent(Applic.app, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(Applic.app, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT|penmutable);
-        views.setOnClickPendingIntent(rId, pendingIntent);
-        appWidgetManager.updateAppWidget(appWidgetId, views);
+    PendingIntent pendingIntent = PendingIntent.getActivity(Applic.app, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT|penmutable);
+    views.setOnClickPendingIntent(rId, pendingIntent);
+    appWidgetManager.updateAppWidget(appWidgetId, views);
    }
-    static private void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
+static private void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
    var widgetInfo=appWidgetManager.getAppWidgetOptions(appWidgetId);
    for(var key : widgetInfo.keySet()) {
         Log.d(LOG_ID, key + " = " + widgetInfo.get(key));
@@ -86,15 +86,12 @@ static private void showviews(RemoteViews views,int rId,AppWidgetManager appWidg
    RemoteViews  views;
    strGlucose glu;
    int id= R.id.arrowandvalue;
-        if(SuperGattCallback.previousglucose != null|| (((glu=Natives.lastglucose())!=null) && ((SuperGattCallback.previousglucose = new notGlucose(glu.time * 1000L, glu.value, glu.rate))!=null))) {
-
+   if(SuperGattCallback.previousglucose != null|| (((glu=Natives.lastglucose())!=null) && ((SuperGattCallback.previousglucose = new notGlucose(glu.time * 1000L, glu.value, glu.rate))!=null))) {
       final var now=System.currentTimeMillis();
-//      SuperGattCallback.previousglucose.value="27.8";
-   //   SuperGattCallback.previousglucose.value="388";
       final var time=SuperGattCallback.previousglucose.time;
       if((now-time)>oldage) {
          final String tformat= timef.format(time);
-         String message = "\n  "+Applic.app.getString(R.string.nonewvalue) + tformat;
+         String message = "\n  "+context.getString(R.string.nonewvalue) + tformat;
          views=remoteMessage(message);
          id=R.id.content;
       }
@@ -103,7 +100,7 @@ static private void showviews(RemoteViews views,int rId,AppWidgetManager appWidg
          }
       }
    else {
-         views=remoteMessage("\n  "+Applic.app.getString(R.string.novalue));
+         views=remoteMessage("\n  "+context.getString(R.string.novalue));
          id=R.id.content;
          }
 
@@ -147,7 +144,7 @@ public static void oldvalue(long time) {
    if(ids.length>0) {
       Log.i(LOG_ID,"oldvalue widgets");
       final String tformat= timef.format(time);
-      String message = Applic.app.getString(R.string.nonewvalue) + tformat;
+      String message = Applic.getContext().getString(R.string.nonewvalue) + tformat;
       var views=remoteMessage(message);
       for(var id:ids) {
          showviews(views,R.id.content,manage,id);

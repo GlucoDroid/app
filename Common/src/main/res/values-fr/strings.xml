@@ -220,7 +220,6 @@
 <string name="touchable">Touchable</string>
 
 <string name="overlaypermission">Pour donner la permission:</string>
-<string name="overlaypermissionmessage">adb shell pm grant tk.glucodata android.permission.SYSTEM_ALERT_WINDOW</string>
 <string name="deletereminder">Supprimer le rappel ?</string>
 <string name="deletelabel">Supprimer l\'étiquette ?</string>
 

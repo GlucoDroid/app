@@ -962,14 +962,13 @@ void setmealbutton(int labelsel,long hitptr) {
 Spinner getspinner(Activity context) {
 if(spinner==null) {
      spinner=getGenSpin(context);
-     if(isWearable)
-	         spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.60));
+//     if(isWearable) spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.60));
 //	 spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.54));
-	final int minheight=GlucoseCurve.dpToPx(48);
-	spinner.setMinimumHeight(minheight);
+//	final int minheight=GlucoseCurve.dpToPx(48);
+//	spinner.setMinimumHeight(minheight);
 	avoidSpinnerDropdownFocus(spinner);
-       numspinadapt=new LabelAdapter<String>(context,Natives.getLabels(),1);
-        spinner.setAdapter(numspinadapt);
+    numspinadapt=new LabelAdapter<String>(context,Natives.getLabels(),1);
+    spinner.setAdapter(numspinadapt);
     spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
         @Override
         public  void onItemSelected (AdapterView<?> parent, View view, int position, long id) {
@@ -982,7 +981,7 @@ if(spinner==null) {
             labelsel=-1;
 
         } });
-	spinner.clearAnimation();
+//	spinner.clearAnimation();
     }
 return spinner;
 

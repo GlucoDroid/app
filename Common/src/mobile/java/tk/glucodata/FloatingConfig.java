@@ -90,7 +90,7 @@ static public void show(MainActivity act,View parent) {
     	}
 	);
 	View view=dialog.getview();
-   final String fontstring=Applic.app.getString(R.string.fontsize)+ " ";
+   final String fontstring=act.getString(R.string.fontsize)+ " ";
 	var  sizelabel=getlabel(act,fontstring);
 
 

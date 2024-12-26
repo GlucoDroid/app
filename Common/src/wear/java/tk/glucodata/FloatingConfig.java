@@ -81,7 +81,7 @@ static public void show(MainActivity act,View view) {
   view.setVisibility(INVISIBLE);
   int height=GlucoseCurve.getheight();
   int width=GlucoseCurve.getwidth();
-  final String fontstring=Applic.app.getString(R.string.fontsizeshort)+ " ";
+  final String fontstring=act.getString(R.string.fontsizeshort)+ " ";
   var  sizelabel=getlabel(act,fontstring);
   int maxfont=Math.min(height*7/10,width*4/10);
   int pad=height/14;

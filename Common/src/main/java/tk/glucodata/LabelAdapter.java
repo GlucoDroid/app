@@ -25,6 +25,7 @@ package tk.glucodata;
 
 import android.content.Context;
 import android.database.DataSetObserver;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,48 +34,50 @@ import android.widget.TextView;
 
 import java.util.List;
 
+import static android.graphics.Color.BLACK;
 import static android.graphics.Color.BLUE;
 import static android.graphics.Color.RED;
 import static tk.glucodata.Applic.isWearable;
 
 public class LabelAdapter<T> implements SpinnerAdapter {
     private final LayoutInflater mInflater;
-private static final String LOG_ID="LabelAdapter";
+//private static final String LOG_ID="LabelAdapter";
     private List<T> ar;
     private final int eraf;
 public void setarray(List<T> inar) {
-	ar=inar;
-	}
+    ar=inar;
+    }
 public List<T>  getarray() {
-	return ar;
-	}
+    return ar;
+    }
     public LabelAdapter(Context context, List<T> ar,final int eraf) {
         this.ar=ar;
-	this.eraf=eraf;
+    this.eraf=eraf;
         mInflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
     }
 
-    @Override
-    public View getDropDownView(int position, View convertView, ViewGroup parent) {
+@Override
+public View getDropDownView(int position, View convertView, ViewGroup parent) {
       //Log.i(LOG_ID,"getDropDownView "+position);
         if (convertView == null) {
             convertView = mInflater.inflate(android.R.layout.simple_spinner_dropdown_item, parent, false);
            //  convertView.setBackgroundColor(Applic.backgroundcolor);
+           if(isWearable)
+                convertView.setBackgroundColor(BLACK);
         }
-	
-	TextView text= ((TextView)(convertView.findViewById(android.R.id.text1)));
-	if(position<ar.size()) {
-		T str=ar.get(position);
-		text.setText(str.toString());
-		}
-	else
-		text.setText("Error!!");
-        if(isWearable) {
-            var width=GlucoseCurve.getwidth();
-            convertView.setX(width/4);
-            }
-        return convertView;
+    
+    TextView text= ((TextView)(convertView.findViewById(android.R.id.text1)));
+    if(position<ar.size()) {
+        T str=ar.get(position);
+        text.setText(str.toString());
+        }
+    else
+        text.setText("Error!!");
+    if(isWearable) {
+        text.setGravity(Gravity.CENTER);
+        }
+    return convertView;
 
     }
 
@@ -108,22 +111,22 @@ public List<T>  getarray() {
         return true;
     }
 
-    @Override
-    public View getView(int position, View convertView, ViewGroup parent) {
-       //Log.i(LOG_ID,"getView "+position);
-           if (convertView == null) {
-                convertView = mInflater.inflate(android.R.layout.simple_spinner_item, parent, false);
-      //  	convertView.setBackgroundColor(Applic.backgroundcolor);
-            }
-	var text=((TextView)(convertView.findViewById(android.R.id.text1)));
-	if(position<ar.size()) {
-		T str=ar.get(position);
-		text.setText(str.toString());
-		}
-	else {
-		text.setText("Error!!");
-		}
-//	text.setBackgroundColor(RED);
+@Override
+public View getView(int position, View convertView, ViewGroup parent) {
+    if (convertView == null) {
+         convertView = mInflater.inflate(android.R.layout.simple_spinner_item, parent, false);
+//    convertView.setBackgroundColor(0xFF1565C0);
+       }
+    var text=((TextView)(convertView.findViewById(android.R.id.text1)));
+//    if(isWearable) { text.setGravity(Gravity.CENTER); }
+    if(position<ar.size()) {
+        T str=ar.get(position);
+        text.setText(str.toString());
+        }
+    else {
+        text.setText("Error!!");
+        }
+//    text.setBackgroundColor(RED);
         return convertView;
         }
 

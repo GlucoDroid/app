@@ -119,9 +119,15 @@ private final long uiThreadId;
 public Handler getHandler() {
     return mHandler;
     }
-MainActivity getActivity() {
+static public MainActivity getActivity() {
    return MainActivity.thisone;
     }
+static public Context getContext() {
+      Context cont=getActivity();
+      if(cont!=null)
+        return cont;
+      return app;
+      }
 static public void Toaster(String mess) {
     RunOnUiThread(()-> { Applic.argToaster(app,mess, Toast.LENGTH_SHORT);}) ;
     }

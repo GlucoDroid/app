@@ -216,7 +216,6 @@
   <string name="transparent">Transparent</string>
   <string name="touchable">Pekbar</string>
   <string name="overlaypermission">För att ge tillstånd:</string>
-  <string name="overlaypermissionmessage">adb shell pm grant tk.glucodata android.permission.SYSTEM_ALERT_WINDOW</string>
   <string name="deletereminder">Ta bort påminnelse?</string>
   <string name="deletelabel">Ta bort etikett?</string>
   <string name="finish">Avsluta</string>

@@ -1,6 +1,6 @@
-#ifdef WEAROS
+/*#ifdef WEAROS
 #define NOCUTOFF 1
-#endif
+#endif */
 
 #ifndef NOLOG
 //#define TEST 1

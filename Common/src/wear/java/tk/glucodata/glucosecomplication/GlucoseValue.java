@@ -42,6 +42,7 @@ import static tk.glucodata.Notify.unitlabel;
 import static tk.glucodata.glucosecomplication.ColorConfig.defcol;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -157,7 +158,8 @@ float  drawcenter(String value) {
        return fsize;
    }
 void mknovalue() {
-   var novalue=Applic.app.getString(R.string.novalue);
+   Context cont=Applic.getContext();
+   var novalue=cont.getString(R.string.novalue);
    drawcenter(novalue);
    }
 Bitmap getnovalue() {

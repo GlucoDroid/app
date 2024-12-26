@@ -224,7 +224,6 @@
  <string name="touchable">Дакранальны</string>
 
  <string name="overlaypermission">Даць дазвол:</string>
- <string name="overlaypermissionmessage">adb shell pm grant tk.glucodata android.permission.SYSTEM_ALERT_WINDOW</string>
  <string name="deletereminder">Выдаліць напамін?</string>
  <string name="deletelabel">Выдаліць метку?</string>
 

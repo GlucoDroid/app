@@ -186,7 +186,6 @@
     <string name="ongoing_description">Текущая программа</string>
     <string name="open">Открыть</string>
     <string name="overlaypermission">Чтобы дать разрешение:</string>
-	<string name="overlaypermissionmessage">adb shell pm grant tk.glucodata android.permission.SYSTEM_ALERT_WINDOW</string>
     <string name="parseip">Ошибка при проверке IP-адреса</string>
     <string name="passiveonly">Только пассивный</string>
     <string name="password">Пароль</string>

@@ -110,8 +110,8 @@ private static  String getstart(HttpURLConnection con,int max)  throws IOExcepti
 		}
 	}
 
-final  static String nothing=Applic.app.getString(R.string.triednothing).intern();
-final static String success=Applic.app.getString(R.string.success).intern();
+final  static String nothing=Applic.getContext().getString(R.string.triednothing).intern();
+final static String success=Applic.getContext().getString(R.string.success).intern();
 static private String uploadstatus=nothing;
 @Keep
 static public boolean deleteUrl(String urlstring,String secret) {

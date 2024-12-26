@@ -65,106 +65,100 @@ final private int timeHeight;
 final private int timesize;
 RemoteGlucose(float gl,float notwidth,float xper,int whiteonblack,boolean givetime) {
 
-	glucosesize=gl;
-	glucosePaint=new Paint();
-	glucosePaint.setAntiAlias(true);
-	glucosePaint.setTextAlign(Paint.Align.LEFT);
-	float notheight=glucosesize*0.8f;
-	notglucosex= (int)(notwidth*xper);
-	density= notheight/54.0f;
+   glucosesize=gl;
+   glucosePaint=new Paint();
+   glucosePaint.setAntiAlias(true);
+   glucosePaint.setTextAlign(Paint.Align.LEFT);
+   float notheight=glucosesize*0.8f;
+   notglucosex= (int)(notwidth*xper);
+   density= notheight/54.0f;
 
-	if(givetime) {	
-		Rect bounds=new Rect();
-		timesize= (int)(glucosesize*.2f);
-		glucosePaint.setTextSize(timesize);
-		glucosePaint.getTextBounds("8.9",0,3, bounds);
-		timeHeight=(int)(bounds.height()*1.2f);
-		notheight+=timeHeight;
-		}
-	else {
-		timeHeight =  timesize = 0;
-	}
-	glucosePaint.setTextSize(glucosesize);
-	glucoseBitmap = Bitmap.createBitmap((int)notwidth, (int)notheight, Bitmap.Config.ARGB_8888);
-	canvas = new Canvas(glucoseBitmap);
+   if(givetime) {   
+      Rect bounds=new Rect();
+      timesize= (int)(glucosesize*.2f);
+      glucosePaint.setTextSize(timesize);
+      glucosePaint.getTextBounds("8.9",0,3, bounds);
+      timeHeight=(int)(bounds.height()*1.2f);
+      notheight+=timeHeight;
+      }
+   else {
+      timeHeight =  timesize = 0;
+   }
+   glucosePaint.setTextSize(glucosesize);
+   glucoseBitmap = Bitmap.createBitmap((int)notwidth, (int)notheight, Bitmap.Config.ARGB_8888);
+   canvas = new Canvas(glucoseBitmap);
 
-	Log.i(LOG_ID,"timesize="+timesize+" timeHeight="+timeHeight+" glucosesize="+glucosesize+" notwidth="+notwidth+" notheight="+notheight+"color="+ format("%x",glucosePaint.getColor()));
-	switch(whiteonblack) {
-		case 1: 
-		case 2: glucosePaint.setColor(WHITE);break;
-		default: {
-		var style = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) ? android.R.style.TextAppearance_Material_Notification_Title : android.R.style.TextAppearance_StatusBar_EventContent;
-		int[] attrs = {android.R.attr.textColor};
-		try {
-			@SuppressLint("ResourceType") TypedArray ta = Applic.app.obtainStyledAttributes(style, attrs);
-			if(ta != null) {
-				int col = ta.getColor(0, Color.TRANSPARENT);
-				glucosePaint.setColor(col);
-				Notify.foregroundcolor=col;
-				ta.recycle();
-			}
-		}
-		catch(Throwable e) {
-			Log.stack(LOG_ID,"obtainStyledAttributes",e);
-		}
-		}
-		};
+   Log.i(LOG_ID,"timesize="+timesize+" timeHeight="+timeHeight+" glucosesize="+glucosesize+" notwidth="+notwidth+" notheight="+notheight+"color="+ format("%x",glucosePaint.getColor()));
+   switch(whiteonblack) {
+      case 1: 
+      case 2: glucosePaint.setColor(WHITE);break;
+      default: {
+      var style = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) ? android.R.style.TextAppearance_Material_Notification_Title : android.R.style.TextAppearance_StatusBar_EventContent;
+      int[] attrs = {android.R.attr.textColor};
+      try {
+         @SuppressLint("ResourceType") TypedArray ta = Applic.app.obtainStyledAttributes(style, attrs);
+         if(ta != null) {
+            int col = ta.getColor(0, Color.TRANSPARENT);
+            glucosePaint.setColor(col);
+            Notify.foregroundcolor=col;
+            ta.recycle();
+         }
+      }
+      catch(Throwable e) {
+         Log.stack(LOG_ID,"obtainStyledAttributes",e);
+      }
+      }
+      };
 }
 
 final RemoteViews arrowremote(int kind, notGlucose glucose,final boolean alarm) {
-//	final boolean alarm=kind<2&&getisalarm();
-	RemoteViews remoteViews= new RemoteViews(Applic.app.getPackageName(),alarm?R.layout.alarm:R.layout.arrowandvalue);
-	if(alarm) {
-		Intent closeintent=new Intent(Applic.app,NumAlarm.class);
-		closeintent.setAction(Notify.stopalarm);
-		PendingIntent closepending=PendingIntent.getBroadcast(Applic.app, stopalarmrequest, closeintent,PendingIntent.FLAG_UPDATE_CURRENT|penmutable);
-		remoteViews.setOnClickPendingIntent(R.id.stopalarm, closepending); 
-		}
-	else {
-//	   remoteViews.setViewVisibility(R.id.stopalarm, View.INVISIBLE);
-	   }
+   RemoteViews remoteViews= new RemoteViews(Applic.app.getPackageName(),alarm?R.layout.alarm:R.layout.arrowandvalue);
+   if(alarm) {
+      Intent closeintent=new Intent(Applic.app,NumAlarm.class);
+      closeintent.setAction(Notify.stopalarm);
+      PendingIntent closepending=PendingIntent.getBroadcast(Applic.app, stopalarmrequest, closeintent,PendingIntent.FLAG_UPDATE_CURRENT|penmutable);
+      remoteViews.setOnClickPendingIntent(R.id.stopalarm, closepending); 
+      }
+   if(glucose==null||glucose.value==null) {
+      return remoteViews;
+      }
+   var gety = (canvas.getHeight()-timeHeight) * 0.98f;
+   var getx = notglucosex;
+   var rate = glucose.rate;
+   canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+   final var useglsize=glucosesize;
+   final var usedensity=density;
+   glucosePaint.setTextSize(useglsize);
+   if (isNaN(rate)) {
+      getx *= 0.82f;
+   } else {
+      float weightrate=0.0f,arrowy;
+       weightrate = (rate > 1.6 ? -1.0f : (rate < -1.6 ? 1.0f : (rate / -1.6f)));
+       arrowy = gety - useglsize * .4f + weightrate * useglsize * .4f;
+      Log.i(LOG_ID, "weightrate=" + weightrate+" arrowy="+arrowy);
+      drawarrow(canvas, glucosePaint, usedensity, rate, getx * .85f, arrowy);
+   }
 
-
-	if(glucose==null||glucose.value==null) {
-		return remoteViews;
-	}
-	var gety = (canvas.getHeight()-timeHeight) * 0.98f;
-	var getx = notglucosex;
-	var rate = glucose.rate;
-	canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-	final var useglsize=glucosesize;
-	final var usedensity=density;
-	glucosePaint.setTextSize(useglsize);
-	if (isNaN(rate)) {
-		getx *= 0.82f;
-	} else {
-		float weightrate=0.0f,arrowy;
-		 weightrate = (rate > 1.6 ? -1.0f : (rate < -1.6 ? 1.0f : (rate / -1.6f)));
-		 arrowy = gety - useglsize * .4f + weightrate * useglsize * .4f;
-		Log.i(LOG_ID, "weightrate=" + weightrate+" arrowy="+arrowy);
-		drawarrow(canvas, glucosePaint, usedensity, rate, getx * .85f, arrowy);
-	}
-
-	canvas.drawText(glucose.value, getx, gety, glucosePaint);
-	if(kind<50) {
-		float valwidth = glucosePaint.measureText(glucose.value, 0, glucose.value.length());
-		if (kind > 1) {
-			glucosePaint.setTextSize(useglsize * .4f);
-			canvas.drawText(unitlabel, getx + valwidth + useglsize * .2f, gety - useglsize * .25f, glucosePaint);
-		} else {
-			glucosePaint.setTextSize(useglsize * .65f);
-			canvas.drawText(" " + Applic.app.getString(kind == 0 ? R.string.lowglucoseshort : R.string.highglucoseshort), getx + valwidth + useglsize * .2f, gety - useglsize * .15f, glucosePaint);
-		}
-	    }
-	else {
-		//var timestr= DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(glucose.time));
-		var timestr= minhourstr(glucose.time);
-		glucosePaint.setTextSize(timesize);
-		canvas.drawText(timestr, usedensity*16, gety+timeHeight, glucosePaint);
-		Log.i(LOG_ID,"time: "+timestr);
-		}
-	canvas.setBitmap(glucoseBitmap);
-	remoteViews.setImageViewBitmap(arrowandvalue, glucoseBitmap);
-	return remoteViews;
-	}
+   canvas.drawText(glucose.value, getx, gety, glucosePaint);
+   if(kind<50) {
+      float valwidth = glucosePaint.measureText(glucose.value, 0, glucose.value.length());
+      if (kind > 1) {
+         glucosePaint.setTextSize(useglsize * .4f);
+         canvas.drawText(unitlabel, getx + valwidth + useglsize * .2f, gety - useglsize * .25f, glucosePaint);
+      } else {
+         glucosePaint.setTextSize(useglsize * .65f);
+         canvas.drawText(" " + Applic.getContext().getString(kind == 0 ? R.string.lowglucoseshort : R.string.highglucoseshort), getx + valwidth + useglsize * .2f, gety - useglsize * .15f, glucosePaint);
+      }
+       }
+   else {
+      //var timestr= DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(glucose.time));
+      var timestr= minhourstr(glucose.time);
+      glucosePaint.setTextSize(timesize);
+      canvas.drawText(timestr, usedensity*16, gety+timeHeight, glucosePaint);
+      Log.i(LOG_ID,"time: "+timestr);
+      }
+   canvas.setBitmap(glucoseBitmap);
+   remoteViews.setImageViewBitmap(arrowandvalue, glucoseBitmap);
+   return remoteViews;
+   }
 }

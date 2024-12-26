@@ -212,7 +212,7 @@ static RemoteGlucose arrowNotify;
 
     //        channel.setShowBadge(false);
     void lowglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(0,gl, format(usedlocale,glucoseformat, gl)+Applic.app.getString(isWearable?R.string.lowglucoseshort:R.string.lowglucose), strgl,GLUCOSEALARM,alarm);
+        arrowglucosealarm(0,gl, format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(isWearable?R.string.lowglucoseshort:R.string.lowglucose), strgl,GLUCOSEALARM,alarm);
         if(!isWearable) {
             if(alarm)  {
                 tk.glucodata.WearInt.alarm("LOW "+strgl.value);
@@ -220,7 +220,7 @@ static RemoteGlucose arrowNotify;
             }
     }
     void highglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(1,gl,format(usedlocale,glucoseformat, gl)+Applic.app.getString(isWearable?R.string.highglucoseshort:R.string.highglucose), strgl,GLUCOSEALARM,alarm);
+        arrowglucosealarm(1,gl,format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(isWearable?R.string.highglucoseshort:R.string.highglucose), strgl,GLUCOSEALARM,alarm);
         if(!isWearable) {
             if(alarm)  {
                 tk.glucodata.WearInt.alarm("HIGH "+strgl.value);
@@ -401,15 +401,20 @@ static    void stoplossalarm(){
             vibratealarm(kind);
         }
         runstopalarm= () -> {
-                 lastalarm=-1;
+            lastalarm=-1;
             if(getisalarm()) {
                 Log.d(LOG_ID,"runstopalarm  isalarm");
                 if(sound) {
                     if(doplaysound[0])  {
-                        if(doLog) {
-                            Log.d(LOG_ID,"stop sound "+ring.getTitle(app));
+                        try {
+                            if(doLog) {
+                                Log.d(LOG_ID,"stop sound "+ring.getTitle(app));
+                                }
+                            ring.stop();
                             }
-                        ring.stop();
+                         catch(Throwable th) {
+                            Log.stack(LOG_ID,"ring.stop()",th);
+                            }
                         }
                     }
 
@@ -789,7 +794,7 @@ void oldnotification(long time) {
 */
 void oldnotification(long time) {
     final String tformat= timef.format(time);
-    String message = Applic.app.getString(R.string.nonewvalue) + tformat;
+    String message = Applic.getContext().getString(R.string.nonewvalue) + tformat;
      placelargenotification(R.drawable.novalue, message,GLUCOSENOTIFICATION,true);
     }
     @SuppressWarnings("deprecation")
@@ -970,7 +975,7 @@ setDeleteIntent(DeleteReceiver.getDeleteIntent()) .setContentTitle(message);
  public void  lossalarm(long time) {
      Log.i(LOG_ID,"lossalarm");
     final String tformat= timef.format(time);
-    final String message= "***  "+Applic.app.getString(R.string.nonewvalue)+tformat+" ***";
+    final String message= "***  "+Applic.getContext().getString(R.string.nonewvalue)+tformat+" ***";
 
 //    oldfloatmessage(tformat, true) ;
     lossofsignalalarm(4,R.drawable.loss ,message, GLUCOSENOTIFICATION ,true);
