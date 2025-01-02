@@ -1211,6 +1211,11 @@ void    sendKAuth(SensorGlucoseData *hist) {
         hist->setsendKAuth( maxint) ;
         }
 
+void    sendsiScan(SensorGlucoseData *hist) {
+        int maxint=backup->getupdatedata()->sendnr;
+        hist->setsiScan( maxint) ;
+        }
+
 
 void    sendstreaming(SensorGlucoseData *hist) {
         setstreaming(hist);

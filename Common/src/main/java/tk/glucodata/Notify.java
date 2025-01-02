@@ -48,6 +48,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioAttributes;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -121,25 +122,21 @@ Ringtone setring(String uristr, int res) {
     }
 static final private int[] defaults ={ R.raw.siren, R.raw.classic, R.raw.ghost, R.raw.nudge,R.raw.elves};
 
+static private AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION) .build():null;
 public static Ringtone getring(int kind) {
     return    mkrings(Natives.readring(kind),kind);
     }
 Ringtone mkring(String uristr,int kind) {
     Log.i(LOG_ID,"ringtone "+kind+" "+uristr);
     var ring=setring(uristr,defaults[kind]);
-
-    if(kind!=2)  {
-        if(getUSEALARM()) {    
-            if(android.os.Build.VERSION.SDK_INT >= 21)  {
-                try {
-                    ring.setAudioAttributes(ScanNfcV.audioattributes);
-                } 
-                catch(Throwable e) {
-                    Log.stack(LOG_ID,"mkring",e);
-                    }
-
-                }
+    if(android.os.Build.VERSION.SDK_INT >= 21)  {
+          try {
+            ring.setAudioAttributes((kind!=2&&getUSEALARM())?ScanNfcV.audioattributes:notification_audio);
+        }
+        catch(Throwable e) {
+            Log.stack(LOG_ID,"mkring",e);
             }
+
         }
     return ring;
     }
@@ -868,7 +865,7 @@ private void novalue() {
     }
 public void foregroundno(Service service) {
     Notification not=getforgroundnotification();
-         service.startForeground(glucosenotificationid, not);
+    service.startForeground(glucosenotificationid, not);
     Log.i(LOG_ID,"startforeground");
     }
 static public void foregroundnot(Service service) {

@@ -169,13 +169,17 @@ private boolean checkdevice(BluetoothDevice device) {
         SuperGattCallback cb = getCallback(device);
         if (cb != null) {
             boolean newdev = true;
-            if (cb.foundtime == 0L) {
+            if(cb.foundtime == 0L) {
                 cb.foundtime = System.currentTimeMillis();
                 int state;
-                if (cb.mBluetoothGatt != null && cb.mActiveBluetoothDevice == device && ((state = mBluetoothManager.getConnectionState(device, GATT)) == BluetoothGatt.STATE_CONNECTED || state == BluetoothGatt.STATE_CONNECTING))
+                if(cb.mBluetoothGatt != null && cb.mActiveBluetoothDevice == device && ((state = mBluetoothManager.getConnectionState(device, GATT)) == BluetoothGatt.STATE_CONNECTED || state == BluetoothGatt.STATE_CONNECTING)) {
                     newdev = false;
-            } else
+                    Log.i(LOG_ID,"old device connected state="+state);
+                    }
+            } else  {
                 newdev = false;
+                Log.i(LOG_ID,"old device connected foundtime="+cb.foundtime);
+                }
 
             boolean ret = true;
             cb.setDevice(device);
@@ -187,10 +191,10 @@ private boolean checkdevice(BluetoothDevice device) {
                     break;
                 }
             }
-            if (ret) SensorBluetooth.this.stopScan(false);
-            if (newdev) {
+            if(ret) SensorBluetooth.this.stopScan(false);
+            if(newdev) {
                 SensorBluetooth.this.connectToActiveDevice(cb, 0);
-            }
+                }
             return ret;
         }
         Log.d(LOG_ID, "BLE unknown device");

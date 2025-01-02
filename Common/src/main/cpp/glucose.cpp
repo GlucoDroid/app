@@ -152,9 +152,10 @@ int SensorGlucoseData::updateKAuth(crypt_t *pass,int sock,int ind)  {
 int SensorGlucoseData::updatescan(crypt_t *pass,int sock,int ind,int sensorindex,bool dotoch,int sendstream)  {
 	if(isDexcom()) {
 		LOGGER("GLU: DEX updatescan ind=%d sensorindex=%d\n",ind,sensorindex);
-		if(!pollcount()||! getinfo()->update[ind].siScan) {
+		if(!getinfo()->update[ind].siScan) {
+                  LOGGER("pollcount=%d siScan=%d\n",pollcount(), getinfo()->update[ind].siScan);
 		  std::vector<subdata> vect;
-		  vect.reserve(3);
+		  vect.reserve(2);
 		  vect.push_back({meminfo.data(),0,offsetof(Info,lastLifeCountReceived)});
 		  vect.push_back({meminfo.data()+offsetof(Info,siIdlen),offsetof(Info,siIdlen),sizeof(Info::siIdlen)+ sizeof(Info::siId) });
 		   if(!senddata(pass,sock,vect, infopath)) {

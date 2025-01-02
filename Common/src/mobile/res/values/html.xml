@@ -1603,14 +1603,14 @@ when the screen wakes up. When the screen is in ambient (always on)
 mode, the glucose value is only updated when the minute indicator is
 raised, or when you press a button or raise your arm. So the
 displayed value can be delayed by up to one minute. The watch face
-cannot be used under WearOS 5 (Samsung Galaxy Watch 7 and Watch
-Ultra, Pixel watch 3), as WearOS 5 does not allow programmed watch
-faces in an effort to conserve battery life.</p>
+cannot be used under some newer watches (for example Samsung Galaxy
+Watch 7 and Watch Ultra) as they don’t allow programmed watch faces
+in an effort to conserve battery life.</p>
 <h2 class="western">Complication</h2>
 <p>Juggluco 8.2.0 and higher contains a glucose value, glucose arrow
 and arrow+value complication that can also be used under WearOS 5.
 This can be used with every watch face that accepts a small or large
-image complication.</p>
+image complication slot.</p>
 <h2 class="western">Floating glucose</h2>
 <p>A third option in to turn on <i>Floating Glucose</i> in Juggluco\'s
 settings on the watch. When Juggluco has the right permissions, a
@@ -1766,7 +1766,7 @@ Account ID&quot; button.</p>
 <p style="line-height: 100%; margin-bottom: 0in">Libreview uses the
 history values for its analysis and Juggluco uses the stream values
 for its statistics screen (<a class="western" href="https://www.juggluco.nl/Jugglucohelp/stathelp.html">left
-middle menu-&gt;Statistics</a>).  This difference causes small
+middle menu-&gt;Statistics</a>). This difference causes small
 differences between Libreview and the statistics of Juggluco. Because
 the stream values are more extreme, Juggluco is somewhat more
 negative: lower time in range, larger variability. Also <i>time
@@ -1792,8 +1792,12 @@ Account ID will be shown (this can take some time and the screen is
 not refreshed automatically). Retrieving the Account ID from the
 LibreView server makes it possible to use a FreeStyle Libre 3 sensor
 that was already used with Abbotts Libre 3 app with this LibreView
-account.</p>
-<p>Data from Sibionics sensors is not sent to Libreview.</p>
+account. 
+</p>
+<p>The Libreview account ID number can also be <a class="western" href="https://www.juggluco.nl/Juggluco/libre3/convertUUID.html">converted</a>
+from the UUID displayed in the address bar of Libreview reports and
+entered manually in Juggluco.</p>
+<p>Data from Sibionics and Dexcom sensors is not sent to Libreview.</p>
 ]]>
 </string>
 <string name="garminconfig" >
@@ -2462,10 +2466,13 @@ webservice</i>&quot; in xDrip itself if you want to make use of the
 one in Juggluco.</p>
 <h2 class="western"><a name="eversense"></a>EverSense</h2>
 <p>Yet another glucose broadcast. It can be used to send every minute
-a glucose value to xDrip. xDrip will ignore nearly all of them
-because of its insistence on one value in 5 minutes. You can remove
-this restriction by editing the source code of xDrip. Change <i>4 *
-60 * 1000</i> to <i>55 * 1000</i> in
+a glucose value to xDrip. In xDrip you need to set “<i>460G/EverSense</i>”
+as the <i>Hardware Data Source</i>. 
+</p>
+<p>xDrip will ignore nearly all of them because of its insistence on
+one value in 5 minutes. You can remove this restriction by editing
+the source code of xDrip. Change <i>4 * 60 * 1000</i> to <i>55 * 1000</i>
+in
 <a href="https://github.com/NightscoutFoundation/xDrip/blob/645e8b4cb8fa3ad7b280f598d6f2f6bdb84ce392/app/src/main/java/com/eveningoutpost/dexdrip/models/BgReading.java#L969">app/src/main/java/com/eveningoutpost/dexdrip/models/BgReading.java</a>,
 so that it becomes:</p>
 <p>public static BgReading readingNearTimeStamp(long startTime)

@@ -447,8 +447,10 @@ void extend(Ts... args) {
 
 virtual ~Mmap() {
 //	LOGGER("munmap %p %zu\n",buf,len);
-	if(buf&&buf!=MAP_FAILED)
+	if(buf&&buf!=MAP_FAILED) {
 		munmap(buf,len);
+                buf=nullptr;
+                }
 	}
         
 };

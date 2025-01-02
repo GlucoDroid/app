@@ -41,6 +41,7 @@ inline int mytag() {
    return 0;
    }
 
+extern void setBlueMessage(int ident,bool val);
 constexpr const char defaultport[]{
 #ifdef RELEASEID
 "8795"
@@ -913,6 +914,8 @@ void deactivateHost(int index,bool deactive) {
 
     if(host.deactivated==deactive)
         return;
+    if(host.wearos)
+        setBlueMessage(index,false);
     host.deactivated=deactive;
     if(deactive) {
         if(host.activereceive) {

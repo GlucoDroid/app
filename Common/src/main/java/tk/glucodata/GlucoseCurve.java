@@ -324,19 +324,18 @@ static public float getDensity() {
         }
     return metrics.density;
     }
-    public GlucoseCurve(MainActivity context) {
-        super(context);
+public GlucoseCurve(MainActivity context) {
+    super(context);
     Log.i(LOG_ID,"GlucoseCurve "+MainActivity.openglversion);
-        mScaleDetector = new ScaleGestureDetector(context, mScaleListener);
-        final  GestureListener gestureListener = new GestureListener();
-        mGestureDetector = new GestureDetector(context, gestureListener);
+    mScaleDetector = new ScaleGestureDetector(context, mScaleListener);
+    final  GestureListener gestureListener = new GestureListener();
+    mGestureDetector = new GestureDetector(context, gestureListener);
     setEGLContextClientVersion(MainActivity.openglversion);
     setEGLConfigChooser(8, 8, 8, 8, 16, 1);
     setRenderer(render);
     setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
-        metrics= getResources().getDisplayMetrics();
+    metrics= getResources().getDisplayMetrics();
     dialogs=new Dialogs(metrics.density);
-
     }
     public static int dpToPx(float dp) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, metrics);
@@ -1184,7 +1183,7 @@ public void onResume() {
     setPivotY(getHeight()/2); */
 //    setRotation(90);
 
-    Applic app = ((Applic) ((Activity) getContext()).getApplication());
+     Applic app = Applic.app;
 
      app.setcurve(this);
      app.setmintime();
@@ -1193,7 +1192,7 @@ public void onResume() {
 
     @Override
     public void onPause() {
-     Applic app = ((Applic) ((Activity) getContext()).getApplication());
+     Applic app = Applic.app;
      app.cancelmintime();
      app.setcurve(null);
 //    app.savestate();

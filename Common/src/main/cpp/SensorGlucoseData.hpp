@@ -747,7 +747,7 @@ uint16_t &glucose(int pos,int kind) {
 	return glus[kind];
 	}
 
-float tommolL(uint16_t raw) {
+static float tommolL(uint16_t raw) {
 	return (float)raw/convfactor;
 	}
 void dumpdata(std::ostream &os,uint32_t locfirstpos,uint32_t loclastpos) {
@@ -1267,8 +1267,8 @@ bool savestream(time_t tim,int id,int glu,int trend,float change) {
 	return true;
 	}
 
-void saveglucosedata(Mmap<ScanData> &scans,uint32_t &count,time_t tim,int id,int glu,int trend,float change) {
- 	scans[count++]={static_cast<uint32_t>(tim),id,glu,trend,change};
+void saveglucosedata(Mmap<ScanData> &streamscans,uint32_t &count,time_t tim,int id,int glu,int trend,float change) {
+ 	streamscans[count++]={static_cast<uint32_t>(tim),id,glu,trend,change};
 	}
 bool hasStreamID(const int id) const {
 	return polls[id].id==id&&polls[id].g;
@@ -1663,12 +1663,23 @@ void setupdatechange(int maxind,uint32_t updatestate::*member,uint32_t value ) {
 void setstarthistback(int maxint,uint32_t histchange) {
 	setupdatechange(maxint,&updatestate::histstart,histchange);
 	}
+/*
+DOESN"T work with bitfield members
+template <typename VALUE_T>
+void setupdatevalue(int maxind,uint32_t updatestate::*member,VALUE_T value ) {
+	updatestate  *up= getinfo()->update;
+	for(int i=0;i<maxind;i++) {
+                    up[i].*member=value;
+		}
+	} */
+
+
 void setsendstreaming(int maxind) {
 	updatestate  *up= getinfo()->update;
 	for(int i=0;i<maxind;i++) {
 		up[i].sendstreaming=true;
 		}
-	} 
+	}  
 void setsendKAuth(int maxind) {
 	updatestate  *up= getinfo()->update;
 	for(int i=0;i<maxind;i++) {
@@ -1676,13 +1687,22 @@ void setsendKAuth(int maxind) {
 		}
 	}
 
-int updateKAuth(crypt_t *pass,int sock,int ind);
 void sendbluetoothOn(int maxind) {
 	updatestate  *up= getinfo()->update;
 	for(int i=0;i<maxind;i++) {
 		up[i].sendbluetoothOn=true;
 		}
 	}
+
+
+void setsiScan(int maxind) {
+	updatestate  *up= getinfo()->update;
+	for(int i=0;i<maxind;i++) {
+		up[i].siScan=false;
+		}
+	}
+
+int updateKAuth(crypt_t *pass,int sock,int ind);
 void setsendhiststart() {
 	extern int getgetsendnr();
 	const int maxind=getgetsendnr();

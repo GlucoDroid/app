@@ -37,59 +37,58 @@ static keeprunning theservice=null;
 static final String LOG_ID="keeprunning";
 /*
 static void turnonwakelock() {
-	PowerManager powerManager = (PowerManager) Applic.app.getSystemService(POWER_SERVICE);
-	wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Juggluco::keeprunning");
-	wakeLock.acquire();
-	} 
-static void	turnoffwakelock() {
-	if(wakeLock!=null) {
-		wakeLock.release();
-		wakeLock=null;
-		}
-	}
+   PowerManager powerManager = (PowerManager) Applic.app.getSystemService(POWER_SERVICE);
+   wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Juggluco::keeprunning");
+   wakeLock.acquire();
+   } 
+static void   turnoffwakelock() {
+   if(wakeLock!=null) {
+      wakeLock.release();
+      wakeLock=null;
+      }
+   }
 
 
 public static void setWakelock(boolean isChecked) {
-	 final boolean wakened = Natives.getwakelock();
-	 if(isChecked != wakened) {
-		 Natives.setwakelock(isChecked);
-		 if(isChecked)
-			keeprunning.turnonwakelock();
-		else
-			keeprunning.turnoffwakelock();
-		}
-	} */
+    final boolean wakened = Natives.getwakelock();
+    if(isChecked != wakened) {
+       Natives.setwakelock(isChecked);
+       if(isChecked)
+         keeprunning.turnonwakelock();
+      else
+         keeprunning.turnoffwakelock();
+      }
+   } */
 
 static PowerManager.WakeLock wakeLock =null;
  @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
-	if(started) return Service.START_STICKY;//NODIG?
-        started=true;
-         Applic app=(Applic) getApplicationContext();
-        app.initproc();
-	if(Natives.getfloatglucose()&&!Natives.gethidefloatinJuggluco())
-		Floating.makefloat();
-  	try {
-		if(intent==null) {
-			if(!Applic.possiblybluetooth(this)) {
-				if(Natives.backuphostNr( )<=0) {
-					started=false;
-					stopSelf();
-					return Service.START_NOT_STICKY;
-					}
-				}
-			}
-		theservice=this;
-		Notify.foregroundnot(this);
-//		if(getwakelock()) turnonwakelock();
-
-	      return Service.START_STICKY;
-	     } catch(Throwable e) {
-			started=false;
-    			stack(LOG_ID,e) ;
-			stopSelf();
-			return Service.START_NOT_STICKY;
-	     	}
+       if(started) return Service.START_STICKY;//NODIG?
+       started=true;
+       Applic app=(Applic) getApplicationContext();
+       app.initproc();
+       if(Natives.getfloatglucose()&&!Natives.gethidefloatinJuggluco()) 
+                Floating.makefloat();
+        try {
+          if(intent==null) {
+             if(!Applic.possiblybluetooth(this)) {
+                if(Natives.backuphostNr( )<=0) {
+                   started=false;
+                   stopSelf();
+                   return Service.START_NOT_STICKY;
+                   }
+                }
+             }
+             theservice=this;
+             Notify.foregroundnot(this);
+             return Service.START_STICKY;
+            } 
+        catch(Throwable e) {
+                 started=false;
+                 stack(LOG_ID,e) ;
+                 stopSelf();
+                 return Service.START_NOT_STICKY;
+               }
   }
 
   @Override
@@ -97,32 +96,32 @@ static PowerManager.WakeLock wakeLock =null;
     return null;
   }
 static boolean start(Context context) {
-	if(!started) {
-		Log.i(LOG_ID,"start keeprunning");
-		try {
-			Intent i = new Intent(context, keeprunning.class);
-			context.startService(i);
-			return true;
-		} catch (Throwable e) {
-			stack(LOG_ID, e);
-		}
-		}
-	return false;
-	}
+   if(!started) {
+      Log.i(LOG_ID,"start keeprunning");
+      try {
+         Intent i = new Intent(context, keeprunning.class);
+         context.startService(i);
+         return true;
+      } catch (Throwable e) {
+         stack(LOG_ID, e);
+      }
+      }
+   return false;
+   }
 void stopper() {
-	stopForeground(true);
-	stopSelf();
-//	turnoffwakelock();
-	Log.i(LOG_ID,"Stopped");
-	}
+   stopForeground(true);
+   stopSelf();
+//   turnoffwakelock();
+   Log.i(LOG_ID,"Stopped");
+   }
 static void stop() {
-//	context.stopService(new Intent(context, keeprunning.class));
-	LossOfSensorAlarm.cancelalarm();
-	if(theservice!=null) {
-		theservice.stopper();
-		theservice=null;
-		started=false;
-		}
-	}
+//   context.stopService(new Intent(context, keeprunning.class));
+   LossOfSensorAlarm.cancelalarm();
+   if(theservice!=null) {
+      theservice.stopper();
+      theservice=null;
+      started=false;
+      }
+   }
 
 };

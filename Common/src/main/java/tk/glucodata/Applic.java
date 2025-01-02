@@ -199,7 +199,7 @@ public static boolean systemtimeformat() {
 //    return DateFormat.is24HourFormat(app)==hour24;
     return hasSystemtimeformat;
     }
-public static boolean was24=true;
+//private static boolean was24=true;
 @Override
 public void onConfigurationChanged(Configuration newConfig) {
    super.onConfigurationChanged(newConfig);
@@ -207,12 +207,10 @@ public void onConfigurationChanged(Configuration newConfig) {
         needsnatives();
         var lang=getlocale().getLanguage();
 
-        var new24 = DateFormat.is24HourFormat(this);
+//        var new24 = DateFormat.is24HourFormat(this);
         hasSystemtimeformat=DateFormat.is24HourFormat(app)==hour24;
-        if(new24!=was24) {
-            Notify.timef = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT);
-            was24=new24;
-            }
+        Notify.timef = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT);
+ //       was24=new24;
         Log.i(LOG_ID,"Applic.onConfigurationChanged new="+lang+" cur="+curlang+ (Applic.hour24?" 24uur":" 12uur"));
 
         if(!lang.equals(curlang)) {

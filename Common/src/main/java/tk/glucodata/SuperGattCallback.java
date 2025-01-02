@@ -343,6 +343,7 @@ protected void handleGlucoseResult(long res,long timmsec) {
 public void searchforDeviceAddress() {
     Log.i(LOG_ID,SerialNumber+" searchforDeviceAddress()");
     //setDeviceAddress(null);
+    foundtime=0L;
     mActiveDeviceAddress = null;
     close();
     }    
@@ -364,11 +365,11 @@ public void searchforDeviceAddress() {
         mActiveBluetoothDevice = device;
         if(device!=null) {
             String address=device.getAddress();
-            Log.i(LOG_ID,SerialNumber+"setDevice("+address+")");
+            Log.i(LOG_ID,SerialNumber+" setDevice("+address+")");
             setDeviceAddress(address);
             }
         else  {
-            Log.i(LOG_ID, SerialNumber +" "+"setDevice("+null+")");
+            Log.i(LOG_ID, SerialNumber +" setDevice(null)");
             setDeviceAddress(null);
             }
     }
@@ -444,9 +445,11 @@ public void searchforDeviceAddress() {
                 Log.d(LOG_ID, SerialNumber + " cb.mBluetoothGatt!=null");
                 return;
                 } 
-            mDeviceName=device.getName();
+            var devname=device.getName();
+            if(devname!=null)
+                mDeviceName=devname;
                 if (tk.glucodata.Log.doLog) {
-                    Log.d(LOG_ID, SerialNumber + " Try connection to " + device.getAddress()+ " "+mDeviceName+" autoconnect="+autoconnect);
+                    Log.d(LOG_ID, SerialNumber + " Try connection to " + device.getAddress()+ " "+devname+" autoconnect="+autoconnect);
                     }
                 try {
                     if(isWearable)  {

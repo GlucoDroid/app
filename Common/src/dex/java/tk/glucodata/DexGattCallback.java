@@ -405,7 +405,10 @@ private boolean askcertificate(int pha) {
          byte[] code = lencode(index, len);
          return write(1, code);
          }
-
+private void saveDeviceName() {
+         final var deviceName=mActiveBluetoothDevice.getName();
+         Natives.dexSaveDeviceName(dataptr,deviceName);
+         }
 
  private static final byte[][] bondBytes = {{(byte) 0x06, (byte) 0x19}, 
  {(byte) 0xFF, (byte) 0x06, (byte) 0x01},
@@ -509,8 +512,7 @@ private boolean askcertificate(int pha) {
             break;
             case SendKeyChallengeOut: {
                Log.i(LOG_ID,"authenticate SendKeyChallengeOut");
-               final var deviceName=mActiveBluetoothDevice.getName();
-               Natives.dexSaveDeviceName(dataptr,deviceName);
+                saveDeviceName();
                 phase = GetData2; //GetData?
                 write(1, new byte[]{0x06, 0x19});
                 break;
@@ -602,7 +604,7 @@ private    void getdata(byte[] value) {
             case 0x4E: {
                 justdata=true;
                 long[] timeres={timmsec,0L};
-                Natives.dexcomProcessData(dataptr, value, timeres);
+                final boolean savename=Natives.dexcomProcessData(dataptr, value, timeres);
                 final long res= timeres[1];
                 final long newtime= timeres[0];
                 final int glumgdl = (int) (res & 0xFFFFFFFFL);
@@ -611,6 +613,7 @@ private    void getdata(byte[] value) {
                 Applic.scheduler.schedule(()->{
                   if(connected) askbackfill();}, 10, TimeUnit.MILLISECONDS);
                 datatime=timmsec;
+                if(savename) saveDeviceName();
             };break;
            case 0x59:{
               Applic.app.redraw();

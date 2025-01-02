@@ -63,42 +63,42 @@ extern std::array<int,maxallhosts>             peers2us,us2peers;
 
 std::array<int,maxallhosts>   messagesendersockets;
 std::array<int,maxallhosts>   messagereceiversockets;
-void setall(auto &ar,const auto ini) {	
-	for(auto &el:ar)
-		el=ini;
-	}
+void setall(auto &ar,const auto ini) {    
+    for(auto &el:ar)
+        el=ini;
+    }
 static bool initconarray() {
-	setall(peers2us,-1);
-	setall(us2peers,-1);
-	setall(messagesendersockets,-1);
-	setall(messagereceiversockets,-1);
-	return true;
-	}
+    setall(peers2us,-1);
+    setall(us2peers,-1);
+    setall(messagesendersockets,-1);
+    setall(messagereceiversockets,-1);
+    return true;
+    }
 static bool _coninitted=initconarray();
 
 int toreceiversocket(const wearmessage *mess) { //TODO test socket==-1
 #ifdef WEAROS
 const    int host=peers2us[mess->type.phonehostnr];
 if(host<0) {
-	LOGGERTAG("toreceiversocket host=%d\n",host);
-	return -1;
-	}
+    LOGGERTAG("toreceiversocket host=%d\n",host);
+    return -1;
+    }
 int sock;
    if(mess->type.phonesender) {
-	sock= messagereceiversockets[host];
-	LOGGERTAG("toreceiversocket host=%d receiver sock=%d\n",host,sock);
-   	}
+    sock= messagereceiversockets[host];
+    LOGGERTAG("toreceiversocket host=%d receiver sock=%d\n",host,sock);
+       }
 else {
-	sock= messagesendersockets[host];
-	LOGGERTAG("toreceiversocket host=%d sender sock=%d\n",host,sock);
-	}
+    sock= messagesendersockets[host];
+    LOGGERTAG("toreceiversocket host=%d sender sock=%d\n",host,sock);
+    }
 #else
  const   int host=mess->type.phonehostnr;
  int sock;
    if(mess->type.phonesender) {
-   	sock= messagesendersockets[host];
-	LOGGERTAG("toreceiversocket host=%d sender sock=%d\n",host,sock);
-	}
+       sock= messagesendersockets[host];
+    LOGGERTAG("toreceiversocket host=%d sender sock=%d\n",host,sock);
+    }
 else {
    sock= messagereceiversockets[host];
    LOGGERTAG("toreceiversocket host=%d receiver sock=%d\n",host,sock);
@@ -117,16 +117,16 @@ JNIEXPORT jboolean JNICALL fromjava(message)(JNIEnv *env, jclass thiz, jbyteArra
                 return false;
         int arlen=env->GetArrayLength(data);
         int datlen=arlen- (int)sizeof(wearmessage::type);
-	if(datlen<=0) { //TODO:0?
-		LOGGERTAG("message: arlen=%d\n",arlen);
-		return false;
-		}
+    if(datlen<=0) { //TODO:0?
+        LOGGERTAG("message: arlen=%d\n",arlen);
+        return false;
+        }
         alignas(wearmessage) uint8_t weardata[datlen+sizeof(wearmessage)];
         wearmessage *mess=reinterpret_cast<wearmessage*>(&weardata);
         env->GetByteArrayRegion(data,0,arlen,reinterpret_cast<jbyte*>(&mess->type));
         mess->len=datlen;
         return receivemessage(mess);
-	}
+    }
 jclass jMessageSender =nullptr;
 //jmethodID jsendDatawithName=nullptr;
 //jmethodID jsendData=nullptr;
@@ -134,7 +134,7 @@ jclass jMessageSender =nullptr;
 //jmethodID jsendMessageOn=nullptr;
 extern JavaVM* vmptr;
 bool jinitmessages(JNIEnv* env) {
-	constexpr const char classname[]="tk/glucodata/MessageSender";
+    constexpr const char classname[]="tk/glucodata/MessageSender";
     jclass cl=env->FindClass(classname);
 if(!cl) {
         LOGGERTAG("Can't find %s\n",classname);
@@ -143,7 +143,7 @@ if(!cl) {
 else {
         jMessageSender = (jclass)env->NewGlobalRef(cl);
         env->DeleteLocalRef(cl);
-	/*
+    /*
 #ifdef WEAROS
        if(!(jsendData=env->GetStaticMethodID(jMessageSender,"sendData","([B)Z"))) {
                 LOGSTRINGTAG("GetStaticMethodID(jMessageSender,\"sendData\",\"([B)Z\" failed\n");
@@ -153,7 +153,7 @@ else {
                 LOGSTRINGTAG("GetStaticMethodID(jMessageSender,\"sendMessageOn\",\"(Z)V\" failed\n");
                 return false;
                 } 
-#else	
+#else    
         if(!(jsendDatawithName=env->GetStaticMethodID(jMessageSender,"sendDatawithName","(Ljava/lang/String;[B)Z"))) {
                 LOGSTRINGTAG("GetStaticMethodID(jMessageSender,\"sendDatawithName\",\"(Ljava/lang/String;[B)Z\" failed\n");
                 return false;
@@ -173,101 +173,101 @@ extern void sendMessagesON(passhost_t *pass,bool val);
 extern void setBlueMessage(int,bool val);
 std::array<jstring,maxallhosts>   connectionnames;
 jstring getconnectionname(JNIEnv *env, int phonehostnr) {
-	if(!connectionnames[phonehostnr]) {
-		const char *name=getBackupHosts()[phonehostnr].getname(); 
-		if(!name) {
-			LOGGERTAG("sendmessage %d noname\n",phonehostnr);
-			return nullptr;
-			}
-		jstring tmpstr=	env->NewStringUTF(name);
-		connectionnames[phonehostnr]=(jstring) env->NewGlobalRef(tmpstr);
-        	env->DeleteLocalRef(tmpstr);
-		}
-	return connectionnames[phonehostnr];
-	}
+    if(!connectionnames[phonehostnr]) {
+        const char *name=getBackupHosts()[phonehostnr].getname(); 
+        if(!name) {
+            LOGGERTAG("sendmessage %d noname\n",phonehostnr);
+            return nullptr;
+            }
+        jstring tmpstr=    env->NewStringUTF(name);
+        connectionnames[phonehostnr]=(jstring) env->NewGlobalRef(tmpstr);
+            env->DeleteLocalRef(tmpstr);
+        }
+    return connectionnames[phonehostnr];
+    }
 void sendMessagesON(passhost_t *pass, bool val) {
-	 const int index=pass-getBackupHosts().data();
-	auto env=getenv();
+    const int index=pass-getBackupHosts().data();
+    auto env=getenv();
 #ifdef WEAROS
 
-        static auto jsendMessageOn=env->GetStaticMethodID(jMessageSender,"sendMessageOn","(Z)V");
-        env->CallStaticVoidMethod(jMessageSender,jsendMessageOn,val);
+    static auto jsendMessageOn=env->GetStaticMethodID(jMessageSender,"sendMessageOn","(Z)V");
+    env->CallStaticVoidMethod(jMessageSender,jsendMessageOn,val);
 #else
-	jstring jname=getconnectionname(env, index);
-	if(!jname) 
-		return;
+    jstring jname=getconnectionname(env, index);
+    if(!jname) 
+        return;
 
-        static auto jsendNameMessageOn=env->GetStaticMethodID(jMessageSender,"sendNameMessageOn","(Ljava/lang/String;Z)V");
-	env->CallStaticVoidMethod(jMessageSender,jsendNameMessageOn,jname,val);
+    static auto jsendNameMessageOn=env->GetStaticMethodID(jMessageSender,"sendNameMessageOn","(Ljava/lang/String;Z)V");
+    env->CallStaticVoidMethod(jMessageSender,jsendNameMessageOn,jname,val);
 #endif
-	setBlueMessage(index,val);
-	}
+    setBlueMessage(index,val);
+    }
 
-bool	sendmessage(const int phonehostnr,bool phonesender,const uint8_t *buf,const int inlen) {
-	auto env=getenv();
-   	int totlen=inlen+sizeof(wearmessage)-sizeof(wearmessage::len);
-	LOGGERTAG("start sendmessage(%d,%d,%p#%d) totlen=%d\n",phonehostnr,phonesender,buf,inlen,totlen);
-	jbyteArray uit=env->NewByteArray(totlen);
-	LOGARTAG("after env->NewByteArray(totlen)");
-	int start=offsetof(wearmessage,type);
-	int offdata=offsetof(wearmessage,data);
+bool    sendmessage(const int phonehostnr,bool phonesender,const uint8_t *buf,const int inlen) {
+    auto env=getenv();
+       int totlen=inlen+sizeof(wearmessage)-sizeof(wearmessage::len);
+    LOGGERTAG("start sendmessage(%d,%d,%p#%d) totlen=%d\n",phonehostnr,phonesender,buf,inlen,totlen);
+    jbyteArray uit=env->NewByteArray(totlen);
+    LOGARTAG("after env->NewByteArray(totlen)");
+    int start=offsetof(wearmessage,type);
+    int offdata=offsetof(wearmessage,data);
 
-	wearmessagetype type{.phonehostnr=static_cast<int16_t>(phonehostnr),.phonesender=phonesender};
+    wearmessagetype type{.phonehostnr=static_cast<int16_t>(phonehostnr),.phonesender=phonesender};
         env->SetByteArrayRegion(uit, 0, sizeof(wearmessagetype),(const jbyte *)&type);
         env->SetByteArrayRegion(uit, offdata-start, inlen,(const jbyte *)buf);
 #ifdef WEAROS
-	static auto jsendData=env->GetStaticMethodID(jMessageSender,"sendData","([B)Z");
+    static auto jsendData=env->GetStaticMethodID(jMessageSender,"sendData","([B)Z");
         bool res=env->CallStaticBooleanMethod(jMessageSender,jsendData,uit);
 #else
-	jstring  jname= getconnectionname(env,phonehostnr);
+    jstring  jname= getconnectionname(env,phonehostnr);
 
         static auto jsendDatawithName=env->GetStaticMethodID(jMessageSender,"sendDatawithName","(Ljava/lang/String;[B)Z");
         bool res=jname?env->CallStaticBooleanMethod(jMessageSender,jsendDatawithName,jname,uit):false;
 #endif
         env->DeleteLocalRef(uit);
-	LOGGERTAG("end sendmessage res=%d\n",res);
-	return res;
-	}
+    LOGGERTAG("end sendmessage res=%d\n",res);
+    return res;
+    }
 void clearnetworkcache() {
-	connectionnames={};
-	}
+    connectionnames={};
+    }
 void tobluetooth(int hostnr,bool sender,int *sockin, int *sockother,std::binary_semaphore *waitstarted) {
-	const int sock=*sockin;
-   	LOGGERTAG("tobluetooth(%d,%d,%d)\n", hostnr, sender, sock);
+    const int sock=*sockin;
+       LOGGERTAG("tobluetooth(%d,%d,%d)\n", hostnr, sender, sock);
 
-	#ifdef WEAROS
-	int phonehost= us2peers[hostnr];
-	while(phonehost<0) {
-		LOGGERTAG("sleep(5) phonehost=%d\n",phonehost);
-		sleep(5);
-		phonehost=us2peers[hostnr];
-		LOGGERTAG(" after sleep(5) phonehost=%d\n",phonehost);
-		}
-	#else
-	const int phonehost= hostnr;
-	#endif
-	const bool phonesender=
-	#ifdef WEAROS
-		!sender
-	#else
-		sender	
-	#endif
-	;
+    #ifdef WEAROS
+    int phonehost= us2peers[hostnr];
+    while(phonehost<0) {
+        LOGGERTAG("sleep(5) phonehost=%d\n",phonehost);
+        sleep(5);
+        phonehost=us2peers[hostnr];
+        LOGGERTAG(" after sleep(5) phonehost=%d\n",phonehost);
+        }
+    #else
+    const int phonehost= hostnr;
+    #endif
+    const bool phonesender=
+    #ifdef WEAROS
+        !sender
+    #else
+        sender    
+    #endif
+    ;
      int maxbuf= sysconf(_SC_PAGESIZE)*20;
     uint8_t *buf =reinterpret_cast<uint8_t *>(mmap(NULL, maxbuf, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0));
     if(buf==MAP_FAILED) {
-    	lerror("tobluetooth: mmap failed");
-	    return;
-    	}
+        lerror("tobluetooth: mmap failed");
+        return;
+        }
    destruct _dest([maxbuf,buf]() { munmap(buf,maxbuf); });
-	{
-	char buf[30]; 
-	int len=sprintf(buf, "tobluetooth %d %s",hostnr,sender?"S":"R");
-	prctl(PR_SET_NAME, buf, 0, 0, 0);
-	LOGGERN(buf,len);
-	}
-//	LOGSTRINGTAG("tobluetooth before release\n");
-	waitstarted->release();
+    {
+    char buf[30]; 
+    int len=sprintf(buf, "tobluetooth %d %s",hostnr,sender?"S":"R");
+    prctl(PR_SET_NAME, buf, 0, 0, 0);
+    LOGGERN(buf,len);
+    }
+//    LOGSTRINGTAG("tobluetooth before release\n");
+    waitstarted->release();
   auto &status=mirrorstatus[hostnr].toblue[sender];
   status.running(true);
    while(true) { 
@@ -286,103 +286,104 @@ void tobluetooth(int hostnr,bool sender,int *sockin, int *sockother,std::binary_
          LOGGERTAG("%d %d Return from thread\n",hostnr,sender);
          return;
        }
-	/*
+    /*
         while(!(status.sendmessage=sendmessage(phonehost,phonesender,buf,inlen))) {
-		LOGGERTAG("sendmessage failed %d %d #%d\n",phonehost,phonesender,inlen);
-		sleep(20);
-		} */
+        LOGGERTAG("sendmessage failed %d %d #%d\n",phonehost,phonesender,inlen);
+        sleep(20);
+        } */
         }
     }
 void closesock(int &sock) {
-	int tmpsock=sock;
-	if(tmpsock!=-1) {
-		sock=-1;
-		shutdown(tmpsock,SHUT_RDWR);
-		sockclose(tmpsock);
-		}
+    int tmpsock=sock;
+    if(tmpsock!=-1) {
+        sock=-1;
+        shutdown(tmpsock,SHUT_RDWR);
+        sockclose(tmpsock);
+        }
 }
 static void messagereceivecommands(passhost_t *pass) {
-	const int index=pass-getBackupHosts().data();
-	LOGGERTAG("messagereceivecommands %d start\n",index);
-	if(messagereceiversockets[index]!=-1) {
-		shutdown(messagereceiversockets[index],SHUT_RDWR);
-		messagereceiversockets[index]=-1;
+    const int index=pass-getBackupHosts().data();
+    LOGGERTAG("messagereceivecommands %d start\n",index);
+    if(messagereceiversockets[index]!=-1) {
+        shutdown(messagereceiversockets[index],SHUT_RDWR);
+        messagereceiversockets[index]=-1;
         }
-	for(int i=0;wearmessages[index];i++) {
-		int sockpair[2];
-		if(socketpair(AF_LOCAL,SOCK_STREAM,0,sockpair)!=0) {
-			lerror("socketpair");
-			return ; 
-			}
-		{
-		char buf[24];
-		int len=sprintf(buf,"%d message %d",i,index);
-		prctl(PR_SET_NAME, buf, 0, 0, 0);
-		LOGGERN(buf,len);
-		}
-		messagereceiversockets[index]=sockpair[0];
-
-		std::binary_semaphore waitstarted(0);
-		std::thread th(tobluetooth,index,false,	&messagereceiversockets[index],hostsocks+index,&waitstarted); //TODO handshake?
-		waitstarted.acquire();
-extern	bool    getcommandsnopass(int sock,passhost_t *host); //TODO password?
-extern	void receiversockopt(int new_fd);
-
-  		int &recsock=hostsocks[index];
-		if(recsock!=-1)
-			closesock(recsock);
-
-		recsock= sockpair[1];
-		receiversockopt(recsock);
-
-		getcommandsnopass(recsock,pass);
-
-		 LOGGERTAG("%d message join\n",index);
-		 shutdown(messagereceiversockets[index],SHUT_RDWR);
-		th.join();
-		if(recsock!=-1) {
-			closesock(recsock);
+    for(int i=0;wearmessages[index];i++) {
+        int sockpair[2];
+        if(socketpair(AF_LOCAL,SOCK_STREAM,0,sockpair)!=0) {
+            lerror("socketpair");
+            return ; 
             }
-		LOGSTRINGTAG("try again\n");
-		 }
-	LOGGERTAG("messagereceivecommands wearmessages[%d]==false\n",index);
-	return;
-	}
+        {
+        char buf[24];
+        int len=sprintf(buf,"%d message %d",i,index);
+        prctl(PR_SET_NAME, buf, 0, 0, 0);
+        LOGGERN(buf,len);
+        }
+        messagereceiversockets[index]=sockpair[0];
+
+        std::binary_semaphore waitstarted(0);
+        std::thread th(tobluetooth,index,false,    &messagereceiversockets[index],hostsocks+index,&waitstarted); //TODO handshake?
+        waitstarted.acquire();
+extern    bool    getcommandsnopass(int sock,passhost_t *host); //TODO password?
+extern    void receiversockopt(int new_fd);
+
+          int &recsock=hostsocks[index];
+        if(recsock!=-1)
+            closesock(recsock);
+
+        recsock= sockpair[1];
+        receiversockopt(recsock);
+
+        getcommandsnopass(recsock,pass);
+
+         LOGGERTAG("%d message join\n",index);
+         shutdown(messagereceiversockets[index],SHUT_RDWR);
+        th.join();
+        if(recsock!=-1) {
+            closesock(recsock);
+            }
+        LOGSTRINGTAG("try again\n");
+         }
+    LOGGERTAG("messagereceivecommands wearmessages[%d]==false\n",index);
+    return;
+    }
 void startmessagereceiver(passhost_t &host) {
-	LOGGERTAG("startmessagereceiver %s\n",host.getname());
-	std::thread th(messagereceivecommands,&host);
-	th.detach();
-	}
+    LOGGERTAG("startmessagereceiver %s\n",host.getname());
+    std::thread th(messagereceivecommands,&host);
+    th.detach();
+    }
+        /*
 void startmessagereceivers(Backup *backup) {
-	LOGSTRINGTAG("startmessagereceivers\n");
-	auto hspan=backup->getHosts();
-	for(passhost_t &host:hspan) {
-		if(host.wearos) {
-			startmessagereceiver(host);
-			}
-		}
-	}
+    LOGSTRINGTAG("startmessagereceivers\n");
+    auto hspan=backup->getHosts();
+    for(passhost_t &host:hspan) {
+        if(host.wearos) {
+            startmessagereceiver(host);
+            }
+        }
+    } */
 
 int messagemakeconnection(passhost_t *pass,int &sock,crypt_t*ctx,char stype) {
-	const int index=pass-getBackupHosts().data();
-	if(messagesendersockets[index]!=-1) {
-		shutdown(messagesendersockets[index],SHUT_RDWR);
-		}
-	int sockpair[2];
-	if(socketpair(AF_LOCAL,SOCK_STREAM,0,sockpair)!=0) {
-		lerror("messagemakeconnection socketpair");
-		sock=-1;
-		return -1;
-		}
-	messagesendersockets[index]=sockpair[1];
-	sock=sockpair[0];
-	std::binary_semaphore waitstarted(0);
-	std::thread th(tobluetooth,index,true,&messagesendersockets[index] ,&sock,&waitstarted); //TODO handshake?
-	th.detach();
-	waitstarted.acquire();
-	LOGGERTAG("messagemakeconnection %s sock=%d (other end=%d)\n",pass->getname(),sock,sockpair[1]);
-	return sock;
-	}
+    const int index=pass-getBackupHosts().data();
+    if(messagesendersockets[index]!=-1) {
+        shutdown(messagesendersockets[index],SHUT_RDWR);
+        }
+    int sockpair[2];
+    if(socketpair(AF_LOCAL,SOCK_STREAM,0,sockpair)!=0) {
+        lerror("messagemakeconnection socketpair");
+        sock=-1;
+        return -1;
+        }
+    messagesendersockets[index]=sockpair[1];
+    sock=sockpair[0];
+    std::binary_semaphore waitstarted(0);
+    std::thread th(tobluetooth,index,true,&messagesendersockets[index] ,&sock,&waitstarted); //TODO handshake?
+    th.detach();
+    waitstarted.acquire();
+    LOGGERTAG("messagemakeconnection %s sock=%d (other end=%d)\n",pass->getname(),sock,sockpair[1]);
+    return sock;
+    }
 
 
 #endif
@@ -391,54 +392,56 @@ int messagemakeconnection(passhost_t *pass,int &sock,crypt_t*ctx,char stype) {
 
 extern int getwearindex(JNIEnv *env, jstring jident) ;
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getBlueMessage)(JNIEnv *env, jclass cl,int index) {
-	if(index<0)
-		return false;
-	LOGGERTAG("getBluemessage(%d)=%d\n", index,wearmessages[index]);
-	return wearmessages[index];
-	}
+    if(index<0)
+        return false;
+    LOGGERTAG("getBluemessage(%d)=%d\n", index,wearmessages[index]);
+    return wearmessages[index];
+    }
 /*
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getBlueMessage)(JNIEnv *env, jclass cl,jstring jident) {
-	int index=getwearindex(env,jident);
-	if(index<0)
-		return false;
-	LOGGERTAG("getBluemessage(%d)=%d\n", index,wearmessages[index]);
-	return wearmessages[index];
-	}
-	*
+    int index=getwearindex(env,jident);
+    if(index<0)
+        return false;
+    LOGGERTAG("getBluemessage(%d)=%d\n", index,wearmessages[index]);
+    return wearmessages[index];
+    }
+    *
 void closesocks(std::array<int,maxallhosts>   &socks) {
-	for(auto &el:socks) {
-		if(el!=-1) {
-			closesock(el);
-			}
-		}
-	}
-	*/
+    for(auto &el:socks) {
+        if(el!=-1) {
+            closesock(el);
+            }
+        }
+    }
+    */
 extern void startmessagereceivers(Backup*);
 
 extern void startmessagereceiver(passhost_t &host);
 extern void startactivereceivers();
 void setBlueMessage(int ident,bool val) {
-      passhost_t &host= getBackupHosts()[ident];
-	LOGGERTAG("setBlueMessage(%s(%d),%d)\n",host.getname(),ident,val);
-	if(wearmessages[ident]!=val ) {
-		wearmessages[ident]=val;
-		if(backup) {
-			backup->closeallsocks();
-			if(!val) {
-				shutdown(messagesendersockets[ident],SHUT_RDWR);
-				shutdown(messagereceiversockets[ident],SHUT_RDWR);
-				}
-			else {
-				startmessagereceiver(host);
-				}
-			 backup->getupdatedata()->wakesender();	
-			}
-		}
-	}
+    passhost_t &host= getBackupHosts()[ident];
+    LOGGERTAG("setBlueMessage(%s(%d),%d)\n",host.getname(),ident,val);
+    if(wearmessages[ident]!=val ) {
+        if(host.deactivated&&val==true)
+            return;
+        wearmessages[ident]=val;
+        if(backup) {
+            backup->closeallsocks();
+            if(!val) {
+                shutdown(messagesendersockets[ident],SHUT_RDWR);
+                shutdown(messagereceiversockets[ident],SHUT_RDWR);
+                }
+            else {
+                startmessagereceiver(host);
+                }
+             backup->getupdatedata()->wakesender();    
+            }
+        }
+    }
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(setBlueMessage)(JNIEnv *env, jclass cl,jstring jident, jboolean val) {
     int index=getwearindex(env,jident);
-	if(index<0) return;
-	setBlueMessage(index,val);
-//	LOGGERTAG("setBluemessage(%d)\n", wearmessages[index]);
-	}
+    if(index<0) return;
+    setBlueMessage(index,val);
+//    LOGGERTAG("setBluemessage(%d)\n", wearmessages[index]);
+    }

@@ -99,77 +99,77 @@ EditText valueedit;
 TextView source=null;
 Button timebutton,datebutton;
 void deleteviews() {
-	closenumview();
-	spinner=null;
-	if(newnumview!=null) {
-		removeContentView(newnumview);
-		newnumview=null;
-		}
-	if(datepicker!=null) {
-		removeContentView(datepicker);
-		datepicker=null;
-		}
-	if(timepicker!=null) {
-		removeContentView(timepicker);
-		timepicker=null;
-		}
-	if(keyboard!=null) {
-		removeContentView(keyboard);
-		keyboard=null;
-		}
-	}
+    closenumview();
+    spinner=null;
+    if(newnumview!=null) {
+        removeContentView(newnumview);
+        newnumview=null;
+        }
+    if(datepicker!=null) {
+        removeContentView(datepicker);
+        datepicker=null;
+        }
+    if(timepicker!=null) {
+        removeContentView(timepicker);
+        timepicker=null;
+        }
+    if(keyboard!=null) {
+        removeContentView(keyboard);
+        keyboard=null;
+        }
+    }
 /*
 /*
 void rotatekey(float deg) {
-	keyboard.setRotation(deg);
-//	keyboard.bringToFront();
-	newnumview.setRotation(deg);
+    keyboard.setRotation(deg);
+//    keyboard.bringToFront();
+    newnumview.setRotation(deg);
 
-//	newnumview.bringToFront();
+//    newnumview.bringToFront();
 
-	}*/
+    }*/
 int labelsel=-1;
 void closenumview() {
-	if (newnumview != null) { 
-		newnumview.setVisibility(GONE);
-		hidekeyboard();
-	     }
-	}
+    if (newnumview != null) { 
+        newnumview.setVisibility(GONE);
+        hidekeyboard();
+         }
+    }
 
 Button mealbutton;
 public void  addnumberview(MainActivity activity, long hitptr) {
-	if(currentnum!=0L&&currentnum!=numio.newhit) 
-			Natives.freehitptr(currentnum);
-	  long time= Natives.hittime(hitptr)*1000L;
-	  int bron= Natives.gethitindex(hitptr);
-	var type=Natives.hittype(hitptr);
-	 addnumberview(activity, bron,time,Natives.hitvalue(hitptr),type,-1);
-	if(hitptr!=numio.newhit) {
-		if(!Natives.staticnum())
-			deletebutton.setVisibility(VISIBLE);
-		else
-			deletebutton.setVisibility(GONE);
-		currentnum = hitptr;
-		setmealbutton(type,bron, Natives.hitmeal(hitptr)) ;
-		}
-	else {
-		deletebutton.setVisibility(GONE);
-		setmealbutton(type,bron, 0) ;
-		currentnum=0L;
-		}
+    if(currentnum!=0L&&currentnum!=numio.newhit) 
+            Natives.freehitptr(currentnum);
+      long time= Natives.hittime(hitptr)*1000L;
+      int bron= Natives.gethitindex(hitptr);
+    var type=Natives.hittype(hitptr);
+     addnumberview(activity, bron,time,Natives.hitvalue(hitptr),type,-1);
+    if(hitptr!=numio.newhit) {
+        if(!Natives.staticnum())
+            deletebutton.setVisibility(VISIBLE);
+        else
+            deletebutton.setVisibility(GONE);
+        currentnum = hitptr;
+        setmealbutton(type,bron, Natives.hitmeal(hitptr)) ;
+        }
+    else {
+        deletebutton.setVisibility(GONE);
+        setmealbutton(type,bron, 0) ;
+        currentnum=0L;
+        }
            if(dateview!=null)
-	   	thedate=time;
+           thedate=time;
 
             if(timeview!=null) {
                 cal.setTimeInMillis(time);
                 int hour = cal.get(Calendar.HOUR_OF_DAY);
                 int min = cal.get(Calendar.MINUTE);
-		thetime=hour * 60 + min;
-            	}
-	    }
+        thetime=hour * 60 + min;
+                }
+        }
 float roundto(float get,float ro) {
-	return Math.round(get/ro)*ro;
-	}
+    return Math.round(get/ro)*ro;
+    }
 final private int[] newmealptr={0};
 final private Layout[] mealview={null};
 private long lasttime=0L;
@@ -191,27 +191,27 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
       datebutton = new Button(context);
         datebutton.setOnClickListener(
                 v -> getdateview(context));
-	source=new TextView(context);
+    source=new TextView(context);
         dateview=datebutton;
         timebutton = new Button(context);
 
 //        var mat2 = new MaterialButton(context); timebutton=mat2; mat2.setCornerRadius(GlucoseCurve.dpToPx(30));
 
         timeview=timebutton;
-	mealbutton=getbutton(context,R.string.mealname);
-	source.setMinWidth(mealbutton.getMinWidth());
-	messagetext=getlabel(context,R.string.dontchangeamounts);
-	//int pads=(int)(GlucoseCurve.metrics.density*8);
+    mealbutton=getbutton(context,R.string.mealname);
+    source.setMinWidth(mealbutton.getMinWidth());
+    messagetext=getlabel(context,R.string.dontchangeamounts);
+    //int pads=(int)(GlucoseCurve.metrics.density*8);
         //messagetext.setPadding(pads,0,0,0);
-	//messagetext.setVisibility(GONE);
-	mealbutton.setVisibility(GONE);
-	if(smallScreen) {
-		valueedit=geteditwearos(context);
-		}
-	else  {
-		valueedit = geteditview(context,new editfocus());
-		}
-	valueedit.setMinEms(isWearable?1:4);
+    //messagetext.setVisibility(GONE);
+    mealbutton.setVisibility(GONE);
+    if(smallScreen) {
+        valueedit=geteditwearos(context);
+        }
+    else  {
+        valueedit = geteditview(context,new editfocus());
+        }
+    valueedit.setMinEms(isWearable?1:4);
 
 //        View[] row1 = {getspinner(context), valueedit};
         deletebutton = new Button(context);
@@ -223,35 +223,35 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
         Button cancel = new Button(context);
         cancel.setText(R.string.cancel);
         savebutton = new Button(context);
-/*	if(isWearable) {
-	   cancel.setMinWidth(0);
-	   cancel.setMinimumWidth(0);
-	   savebutton.setMinWidth(0);
-	   savebutton.setMinimumWidth(0);
-	   deletebutton.setMinWidth(0);
-	   deletebutton.setMinimumWidth(0);
-	   datebutton.setMinWidth(0);
-	   datebutton.setMinimumWidth(0);
-	   timebutton.setMinWidth(0);
-	   timebutton.setMinimumWidth(0);
-	   } */
+/*    if(isWearable) {
+       cancel.setMinWidth(0);
+       cancel.setMinimumWidth(0);
+       savebutton.setMinWidth(0);
+       savebutton.setMinimumWidth(0);
+       deletebutton.setMinWidth(0);
+       deletebutton.setMinimumWidth(0);
+       datebutton.setMinWidth(0);
+       datebutton.setMinimumWidth(0);
+       timebutton.setMinWidth(0);
+       timebutton.setMinimumWidth(0);
+       } */
 //        savebutton = new MaterialButton(context);
  //     ((MaterialButton) savebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         savebutton.setText(R.string.save);
 
-	Button helpbutton;
-	if(!isWearable) {
-		helpbutton=getbutton(context,R.string.helpname);
-		helpbutton.setOnClickListener(v-> help.help(R.string.newamount,context));
-		}
-	else {
-	   if(!useclose) cancel.setVisibility(GONE);
-		}
+    Button helpbutton;
+    if(!isWearable) {
+        helpbutton=getbutton(context,R.string.helpname);
+        helpbutton.setOnClickListener(v-> help.help(R.string.newamount,context));
+        }
+    else {
+       if(!useclose) cancel.setVisibility(GONE);
+        }
       Layout layout;
 
     if(isWearable) {
-		int height=GlucoseCurve.getheight();
-		int width=GlucoseCurve.getwidth();
+        int height=GlucoseCurve.getheight();
+        int width=GlucoseCurve.getwidth();
       var lab1=getlabel(context," ");
       var lab2=getlabel(context," ");
       if(useclose)  {
@@ -276,61 +276,61 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
    }, new View[]{space1,datebutton,timebutton,space2} ,new View[]{getspinner(context), valueedit}, new View[]{space3,messagetext,savebutton,deletebutton,space4});
    }
 
-//	   int sidepad=(int)(GlucoseCurve.metrics.density*20);
+//       int sidepad=(int)(GlucoseCurve.metrics.density*20);
  //       layout.setPadding(sidepad,0,sidepad,0);
       }
   else { 
    layout=new Layout(context, (lay, w, h) -> {
-		int wid=GlucoseCurve.getwidth()- systembarRight;
-		if(!smallScreen) {
-			Log.i(LOG_ID,"no smallScreen");
-			int hei=GlucoseCurve.getheight();
-			   if(wid>hei) {
-			      int minleft=systembarLeft*3/4;
-				if(hei>h)
-				    lay.setY((hei - h) / 2);
-				   else
-				    lay.setY(MainActivity.systembarTop*3/4);
-				 if(wid>w) {
-				    int half= wid / 2;
-				    int af=(half-w)/4;
-				    int posx=half - w-af;
-				    if(posx<minleft) {
-					posx=minleft;
-					noroom=true;
-					}
-				    else
-					noroom=false;
-				    lay.setX(posx);
-				  }
-					else
-					    lay.setX(minleft);
-			    }
-			else {
-				if(wid>w)
-				    lay.setX((wid - w)/2);
-				  else {
-				    lay.setX(0);
-				  	}
-				 if(hei>h) {
-				    int half=hei/2;
-				    int af=(half-h)/4;
-				    lay.setY(half - h-af);
-				    }
-				   else
+        int wid=GlucoseCurve.getwidth()- systembarRight;
+        if(!smallScreen) {
+            Log.i(LOG_ID,"no smallScreen");
+            int hei=GlucoseCurve.getheight();
+               if(wid>hei) {
+                  int minleft=systembarLeft*3/4;
+                if(hei>h)
+                    lay.setY((hei - h) / 2);
+                   else
+                    lay.setY(MainActivity.systembarTop*3/4);
+                 if(wid>w) {
+                    int half= wid / 2;
+                    int af=(half-w)/4;
+                    int posx=half - w-af;
+                    if(posx<minleft) {
+                    posx=minleft;
+                    noroom=true;
+                    }
+                    else
+                    noroom=false;
+                    lay.setX(posx);
+                  }
+                    else
+                        lay.setX(minleft);
+                }
+            else {
+                if(wid>w)
+                    lay.setX((wid - w)/2);
+                  else {
+                    lay.setX(0);
+                      }
+                 if(hei>h) {
+                    int half=hei/2;
+                    int af=(half-h)/4;
+                    lay.setY(half - h-af);
+                    }
+                   else
 
-				    lay.setY(MainActivity.systembarTop*3/4);
+                    lay.setY(MainActivity.systembarTop*3/4);
 
-				}
-			}
-		else {
-			Log.i(LOG_ID,"smallScreen");
-			if(wid>w)
-			    lay.setX((wid - w)/2);
-		      lay.setY(MainActivity.systembarTop*3/4);
-			}
+                }
+            }
+        else {
+            Log.i(LOG_ID,"smallScreen");
+            if(wid>w)
+                lay.setX((wid - w)/2);
+              lay.setY(MainActivity.systembarTop*3/4);
+            }
 
-			return new int[] {w,h}; },new View[]{helpbutton,getspinner(context), valueedit},new View[]{datebutton, mealbutton,source,timebutton},new View[]{cancel,messagetext,deletebutton, savebutton});
+            return new int[] {w,h}; },new View[]{helpbutton,getspinner(context), valueedit},new View[]{datebutton, mealbutton,source,timebutton},new View[]{cancel,messagetext,deletebutton, savebutton});
          }
 
         timebutton.setOnClickListener(
@@ -348,452 +348,452 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 
 
         cancel.setOnClickListener(v -> {
-			context.doonback();
-			});
+            context.doonback();
+            });
         deletebutton.setOnClickListener( v-> {
-			if(mealview[0]!=null) {
-				removeContentView(mealview[0]);
-				mealview[0]=null;
-				((MainActivity)v.getContext()).poponback();
-				}
-			deletedialog(v,newmealptr);
+            if(mealview[0]!=null) {
+                removeContentView(mealview[0]);
+                mealview[0]=null;
+                ((MainActivity)v.getContext()).poponback();
+                }
+            deletedialog(v,newmealptr);
 
-			});
-	if(isWearable) {
-		if(false) {
-		   ScrollView hori=new ScrollView(context);
-		   hori.setFillViewport(true);
-		  hori.setScrollbarFadingEnabled(false);
-		   hori.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-		   newnumview=hori;
-		   }
-		 else {
-		   var frame=new FrameLayout(context);
-		   frame.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+            });
+    if(isWearable) {
+        if(false) {
+           ScrollView hori=new ScrollView(context);
+           hori.setFillViewport(true);
+          hori.setScrollbarFadingEnabled(false);
+           hori.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+           newnumview=hori;
+           }
+         else {
+           var frame=new FrameLayout(context);
+           frame.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
 
-		   newnumview=frame;
-		 	}
+           newnumview=frame;
+             }
 
-		}
-	else  {
-		newnumview=layout;
-		} 
-	newnumview.setBackgroundColor( Applic.backgroundcolor);
-  savebutton.setOnClickListener(v -> {
-		MainActivity act=(MainActivity)v.getContext();
-		GlucoseCurve.reopener();
-		if(saveamount(act,timeview,  valueedit,newmealptr[0],lasttime)) {
-			if(mealview[0]!=null) {
-				removeContentView(mealview[0]);
-				mealview[0]=null;
-		    		act.poponback();
-				}
-		    	newmealptr[0]=0;
-		//    	Natives.closemeal(newmealptr[0]);
-			newnumview.setVisibility(GONE);
-			if(!isWearable)
-				hidekeyboard();
-			if(smallScreen)
-				help.hidekeyboard(act);
-				
-			((Applic) act.getApplication()). redraw();
-		      act.poponback();
-
-			 if(Menus.on) {
-				if(deletebutton.getVisibility()==GONE) {
-						Menus.show(context);
-						}
-				}
-		    } 
-		    //		    act.clearonback();
-        });
-
-	context.addContentView(newnumview,isWearable? new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT):new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         }
     else  {
-	numspinadapt.setarray(Natives.getLabels());
+        newnumview=layout;
+        } 
+    newnumview.setBackgroundColor( Applic.backgroundcolor);
+  savebutton.setOnClickListener(v -> {
+        MainActivity act=(MainActivity)v.getContext();
+        GlucoseCurve.reopener();
+        if(saveamount(act,timeview,  valueedit,newmealptr[0],lasttime)) {
+            if(mealview[0]!=null) {
+                removeContentView(mealview[0]);
+                mealview[0]=null;
+                    act.poponback();
+                }
+                newmealptr[0]=0;
+        //        Natives.closemeal(newmealptr[0]);
+            newnumview.setVisibility(GONE);
+            if(!isWearable)
+                hidekeyboard();
+            if(smallScreen)
+                help.hidekeyboard(act);
+                
+            ((Applic) act.getApplication()). redraw();
+              act.poponback();
+
+             if(Menus.on) {
+                if(deletebutton.getVisibility()==GONE) {
+                        Menus.show(context);
+                        }
+                }
+            } 
+            //            act.clearonback();
+        });
+
+    context.addContentView(newnumview,isWearable? new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT):new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        }
+    else  {
+    numspinadapt.setarray(Natives.getLabels());
         newnumview.setVisibility(VISIBLE);
-	}
-	valueedit.requestFocus();
-	editfocus.setedittext(valueedit);
+    }
+    valueedit.requestFocus();
+    editfocus.setedittext(valueedit);
 
-	View.OnClickListener menucall= v -> {
+    View.OnClickListener menucall= v -> {
 
-		if(!isWearable) {
-			hidekeyboard();
-		if(mealview[0]==null) {
-			EnableControls(newnumview,false);
-//			newnumview.setVisibility(GONE);
-			int mptr=newmealptr[0]==0?((currentnum!=0L)?Natives.hitmeal(currentnum):0):newmealptr[0];
-			if(mptr==0)
-				mptr=Natives.getnewmealptr();
-			mealview[0]=tk.glucodata.Meal.menuview(NumberView.this, context,mptr, (carb,mealptr)->{
-				float roundt=Natives.getroundto();
-				if(roundt>0.0f)
-					valueedit.setText(Float.toString(roundto(carb,roundt)));
-				else
-					valueedit.setText(Float.toString(carb));
-				newmealptr[0]=mealptr;
-			},()->{
-				if(!smallScreen) {
-					showkeyboard(context);
-					editfocus.setedittext(valueedit);
-					}
+        if(!isWearable) {
+            hidekeyboard();
+        if(mealview[0]==null) {
+            EnableControls(newnumview,false);
+//            newnumview.setVisibility(GONE);
+            int mptr=newmealptr[0]==0?((currentnum!=0L)?Natives.hitmeal(currentnum):0):newmealptr[0];
+            if(mptr==0)
+                mptr=Natives.getnewmealptr();
+            mealview[0]=tk.glucodata.Meal.menuview(NumberView.this, context,mptr, (carb,mealptr)->{
+                float roundt=Natives.getroundto();
+                if(roundt>0.0f)
+                    valueedit.setText(Float.toString(roundto(carb,roundt)));
+                else
+                    valueedit.setText(Float.toString(carb));
+                newmealptr[0]=mealptr;
+            },()->{
+                if(!smallScreen) {
+                    showkeyboard(context);
+                    editfocus.setedittext(valueedit);
+                    }
 
-			//	newnumview.setVisibility(VISIBLE);
-			EnableControls(newnumview,true);
-				mealview[0]=null;
+            //    newnumview.setVisibility(VISIBLE);
+            EnableControls(newnumview,true);
+                mealview[0]=null;
 
-				}	);
-			}
-	}
+                }    );
+            }
+    }
 
-	};
-	mealbutton.setOnClickListener(menucall);
-	lasttime=time;
-	Date dat = new Date(time);
+    };
+    mealbutton.setOnClickListener(menucall);
+    lasttime=time;
+    Date dat = new Date(time);
    if(isWearable)
       datebutton.setText(DateFormat.getDateInstance(DateFormat.SHORT).format(dat));
    else
-	   datebutton.setText(DateFormat.getDateInstance(DateFormat.DEFAULT).format(dat));
+       datebutton.setText(DateFormat.getDateInstance(DateFormat.DEFAULT).format(dat));
 //     timebutton.setText(DateFormat.getTimeInstance(DateFormat.SHORT).format(dat));
      timebutton.setText(minhourstr(time));
-	if(value< Float.MAX_VALUE)
-		valueedit.setText(String.valueOf(value));
-	else
-		valueedit.setText("");
-	spinner.setSelection(type);
-    	editfocus.setedittext(valueedit);
-    	source.setText( bron==1?"      ":"           \u231A         ");
-	source.setTextAlignment( TEXT_ALIGNMENT_CENTER);
-	int pads=(int)(GlucoseCurve.metrics.density*10);
+    if(value< Float.MAX_VALUE)
+        valueedit.setText(String.valueOf(value));
+    else
+        valueedit.setText("");
+    spinner.setSelection(type);
+        editfocus.setedittext(valueedit);
+        source.setText( bron==1?"      ":"           \u231A         ");
+    source.setTextAlignment( TEXT_ALIGNMENT_CENTER);
+    int pads=(int)(GlucoseCurve.metrics.density*10);
         source.setPadding(0,pads,0,pads);
-//	source.setPadding(0,0,0,0);
-	if(!Natives.staticnum()) {
-		messagetext.setVisibility(GONE);
-		savebutton.setVisibility(VISIBLE);
-		}
-	else  {
-		savebutton.setVisibility(GONE);
-		messagetext.setVisibility(VISIBLE);
-		}
-	 context.setonback(() -> {
-		    	if(newmealptr[0]!=0) {
-				if(currentnum!=0&&(currentnum!=numio.newhit)) {
-					Natives.hitsetmealptr(currentnum,newmealptr[0]);
-					}
-				else
-					Natives.deletemeal(newmealptr[0]);
-				newmealptr[0]=0;
-				}
-			if(mealview[0]!=null) {
-				removeContentView(mealview[0]);
-				mealview[0]=null;
-				}
+//    source.setPadding(0,0,0,0);
+    if(!Natives.staticnum()) {
+        messagetext.setVisibility(GONE);
+        savebutton.setVisibility(VISIBLE);
+        }
+    else  {
+        savebutton.setVisibility(GONE);
+        messagetext.setVisibility(VISIBLE);
+        }
+     context.setonback(() -> {
+                if(newmealptr[0]!=0) {
+                if(currentnum!=0&&(currentnum!=numio.newhit)) {
+                    Natives.hitsetmealptr(currentnum,newmealptr[0]);
+                    }
+                else
+                    Natives.deletemeal(newmealptr[0]);
+                newmealptr[0]=0;
+                }
+            if(mealview[0]!=null) {
+                removeContentView(mealview[0]);
+                mealview[0]=null;
+                }
 
-		if(currentnum!=0) {
-			if(currentnum!=numio.newhit) 
-					Natives.freehitptr(currentnum);
+        if(currentnum!=0) {
+            if(currentnum!=numio.newhit) 
+                    Natives.freehitptr(currentnum);
 
-			currentnum=0L;
-			}
-		else {
-			 if(Menus.on) {
-				Menus.show(context);
-				}
-			}
+            currentnum=0L;
+            }
+        else {
+             if(Menus.on) {
+                Menus.show(context);
+                }
+            }
 
-		    GlucoseCurve.reopener();
-		   newnumview.setVisibility(GONE);
-		   if(!isWearable)  {
-			   hidekeyboard();
-			if(smallScreen)
-				help.hidekeyboard(context);
-			  }
-		    });
+            GlucoseCurve.reopener();
+           newnumview.setVisibility(GONE);
+           if(!isWearable)  {
+               hidekeyboard();
+            if(smallScreen)
+                help.hidekeyboard(context);
+              }
+            });
 
-	if(tmpmealptr>=0) {
-		timebutton.setTextColor( Color.YELLOW);
-		datebutton.setTextColor( Color.YELLOW);
-	 	newmealptr[0]=tmpmealptr;
-		mealview[0]=null;
-		Log.i(LOG_ID,"onClick");
-		menucall.onClick(mealbutton);
-	//	setmealbutton(type,bron, tmpmealptr) ;
+    if(tmpmealptr>=0) {
+        timebutton.setTextColor( Color.YELLOW);
+        datebutton.setTextColor( Color.YELLOW);
+         newmealptr[0]=tmpmealptr;
+        mealview[0]=null;
+        Log.i(LOG_ID,"onClick");
+        menucall.onClick(mealbutton);
+    //    setmealbutton(type,bron, tmpmealptr) ;
 
 // mealbutton.setOnClickListener(menucall);
-		}
-	else {
-		timebutton.setTextColor(savebutton.getCurrentTextColor());
-		datebutton.setTextColor(savebutton.getCurrentTextColor());
-	//	int mptr=((currentnum!=0L)?Natives.hitmeal(currentnum):0);
-	//	setmealbutton(type,bron, mptr) ;
-	}
+        }
+    else {
+        timebutton.setTextColor(savebutton.getCurrentTextColor());
+        datebutton.setTextColor(savebutton.getCurrentTextColor());
+    //    int mptr=((currentnum!=0L)?Natives.hitmeal(currentnum):0);
+    //    setmealbutton(type,bron, mptr) ;
+    }
 
-	return newnumview;
-	}
+    return newnumview;
+    }
 void deletedialog(View v,int[] mealptr) {
-	if(currentnum==0L) {
-		newnumview.setVisibility(GONE);
-		   hidekeyboard();
-		 // ((Applic) ((Activity) v.getContext()).getApplication()). redraw();
-		 return;
-		 }
-//	Applic  context= ((Applic) ((Activity) v.getContext()).getApplication());
-	MainActivity  context=  ((MainActivity) v.getContext());
+    if(currentnum==0L) {
+        newnumview.setVisibility(GONE);
+           hidekeyboard();
+         // ((Applic) ((Activity) v.getContext()).getApplication()). redraw();
+         return;
+         }
+//    Applic  context= ((Applic) ((Activity) v.getContext()).getApplication());
+    MainActivity  context=  ((MainActivity) v.getContext());
 
-	  long time= Natives.hittime(currentnum)*1000L;
-	   float value=Natives.hitvalue(currentnum);
-	   int type=Natives.hittype(currentnum);
-	ArrayList<String> labels= ((Applic)context.getApplication()).getlabels();
-	String mess= DateFormat.getDateTimeInstance(DateFormat.DEFAULT,DateFormat.DEFAULT).format(time)+" "+ labels.get(type)+" "+value;
+      long time= Natives.hittime(currentnum)*1000L;
+       float value=Natives.hitvalue(currentnum);
+       int type=Natives.hittype(currentnum);
+    ArrayList<String> labels= ((Applic)context.getApplication()).getlabels();
+    String mess= DateFormat.getDateTimeInstance(DateFormat.DEFAULT,DateFormat.DEFAULT).format(time)+" "+ labels.get(type)+" "+value;
        // AlertDialog.Builder builder = new AlertDialog.Builder(context,R.style.mydialogstyle);
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(R.string.deletequestion).
-	 setMessage(mess).
+     setMessage(mess).
            setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
-			if(mealptr[0]!=0)
-			     Natives.deletemeal(mealptr[0]);
-			     mealptr[0]=0;
-			if(currentnum!=0) {
-				if(currentnum!=numio.newhit) {
-					int index=Natives.gethitindex(currentnum);
-					int waslast= numio.getlastnum(index);
-					int pos=Natives.hitremove(currentnum);
-					int last=numio.getlastnum(index);
-					if(!isWearable) {
-						AllData alldata=((Applic) ((Activity) v.getContext()).getApplication()).numdata;
-						alldata.deletelast(index,last,waslast);
-						if(pos<last)
-						     alldata.changedback(index);
-						     }
-					Natives.freehitptr(currentnum);
-		  			((Applic) ((Activity) v.getContext()).getApplication()). redraw();
-					  }
-				currentnum=0L;
-				}
-				/*
-			else  {
-			 if(Menus.on) {
-				Menus.show(context);
-				}
-				} */
-		 newnumview.setVisibility(GONE);
+            if(mealptr[0]!=0)
+                 Natives.deletemeal(mealptr[0]);
+                 mealptr[0]=0;
+            if(currentnum!=0) {
+                if(currentnum!=numio.newhit) {
+                    int index=Natives.gethitindex(currentnum);
+                    int waslast= numio.getlastnum(index);
+                    int pos=Natives.hitremove(currentnum);
+                    int last=numio.getlastnum(index);
+                    if(!isWearable) {
+                        AllData alldata=((Applic) ((Activity) v.getContext()).getApplication()).numdata;
+                        alldata.deletelast(index,last,waslast);
+                        if(pos<last)
+                             alldata.changedback(index);
+                             }
+                    Natives.freehitptr(currentnum);
+                      ((Applic) ((Activity) v.getContext()).getApplication()). redraw();
+                      }
+                currentnum=0L;
+                }
+                /*
+            else  {
+             if(Menus.on) {
+                Menus.show(context);
+                }
+                } */
+         newnumview.setVisibility(GONE);
 
-		   hidekeyboard();
-		GlucoseCurve.reopener();
-		context.poponback();
+           hidekeyboard();
+        GlucoseCurve.reopener();
+        context.poponback();
 
-	//	    context.clearonback();
+    //        context.clearonback();
                     }
                 }) .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int id) {
-/*			if(currentnum!=0) {
-				if(currentnum!=numio.newhit) 
-					Natives.freehitptr(currentnum);
-				currentnum=0;
-				}
-		 newnumview.setVisibility(View.GONE);
-		 keyboard.setVisibility(View.GONE);*/
+/*            if(currentnum!=0) {
+                if(currentnum!=numio.newhit) 
+                    Natives.freehitptr(currentnum);
+                currentnum=0;
+                }
+         newnumview.setVisibility(View.GONE);
+         keyboard.setVisibility(View.GONE);*/
             }
         }).show().setCanceledOnTouchOutside(false);
     }
 public void addnumberwithmenu(MainActivity context,int mealptr) {
-	if(currentnum!=0L)  {
-		if(currentnum!=numio.newhit) 
-			Natives.freehitptr(currentnum);
-		currentnum=0L;
-		}
-	var type=Natives.getmealvar();
-	 addnumberview(context,1,currentTimeMillis(),Float.MAX_VALUE,type,mealptr);
-	setmealbutton(type,1, 0) ;
+    if(currentnum!=0L)  {
+        if(currentnum!=numio.newhit) 
+            Natives.freehitptr(currentnum);
+        currentnum=0L;
+        }
+    var type=Natives.getmealvar();
+     addnumberview(context,1,currentTimeMillis(),Float.MAX_VALUE,type,mealptr);
+    setmealbutton(type,1, 0) ;
         deletebutton.setVisibility(GONE);
-	thetime=-1;
-	thedate=0L;
-	}
+    thetime=-1;
+    thedate=0L;
+    }
 public View addnumberview(MainActivity context) {
-	if(currentnum!=0L)  {
-		if(currentnum!=numio.newhit) 
-			Natives.freehitptr(currentnum);
-		currentnum=0L;
-		}
-	View lay=  addnumberview(context,1,currentTimeMillis(),Float.MAX_VALUE,0,-1);
-	setmealbutton(0,1, 0) ;
-	spinner.performClick();
+    if(currentnum!=0L)  {
+        if(currentnum!=numio.newhit) 
+            Natives.freehitptr(currentnum);
+        currentnum=0L;
+        }
+    View lay=  addnumberview(context,1,currentTimeMillis(),Float.MAX_VALUE,0,-1);
+    setmealbutton(0,1, 0) ;
+    spinner.performClick();
         deletebutton.setVisibility(GONE);
-	thetime=-1;
-	thedate=0L;
+    thetime=-1;
+    thedate=0L;
     return lay;
-	}
+    }
 
 
 public void  addnumberview(MainActivity activity, int bron, int pos) {
-	 addnumberview(activity, Natives.mkhitptr(numio.numptrs[bron],pos)); 
-	}
+     addnumberview(activity, Natives.mkhitptr(numio.numptrs[bron],pos)); 
+    }
 
 
 long thedate=0;
 int thetime=-1;
 private boolean saveamount(Activity activity,TextView timeview,TextView value,int mealptr,long lasttime) {
-	final String strval= value.getText().toString();
-	float val=0.0f;
-	try {
-		val=(strval.length()==0)?0:Float.parseFloat(strval);
-		}
-	     catch(Exception e) {};
+    final String strval= value.getText().toString();
+    float val=0.0f;
+    try {
+        val=(strval.length()==0)?0:Float.parseFloat(strval);
+        }
+         catch(Exception e) {};
 
-	if(currentnum!=0&&currentnum!=numio.newhit) {
-		long dat=thedate==0L?Natives.hittime(currentnum)*1000L:thedate;
-		    if(timeview!=null) {
-			cal.setTimeInMillis(dat);
-			int minutes = thetime;
-			if(minutes>=0) {
-				cal.set(Calendar.HOUR_OF_DAY, minutes / 60);
-				cal.set(Calendar.MINUTE, minutes % 60);
-				cal.set(Calendar.SECOND,0);
-				}
-			dat= cal.getTimeInMillis();
-			}
+    if(currentnum!=0&&currentnum!=numio.newhit) {
+        long dat=thedate==0L?Natives.hittime(currentnum)*1000L:thedate;
+            if(timeview!=null) {
+            cal.setTimeInMillis(dat);
+            int minutes = thetime;
+            if(minutes>=0) {
+                cal.set(Calendar.HOUR_OF_DAY, minutes / 60);
+                cal.set(Calendar.MINUTE, minutes % 60);
+                cal.set(Calendar.SECOND,0);
+                }
+            dat= cal.getTimeInMillis();
+            }
 
-		Natives.hitchange(currentnum,dat/1000L,val,labelsel,mealptr);
-		int index=Natives.gethitindex(currentnum);
-		if(!isWearable) {
-			tk.glucodata.nums.AllData  alldata=((Applic) activity.getApplication()).numdata;
-			alldata.changedback(index);
-			}
-		Natives.freehitptr(currentnum);
-		}
+        Natives.hitchange(currentnum,dat/1000L,val,labelsel,mealptr);
+        int index=Natives.gethitindex(currentnum);
+        if(!isWearable) {
+            tk.glucodata.nums.AllData  alldata=((Applic) activity.getApplication()).numdata;
+            alldata.changedback(index);
+            }
+        Natives.freehitptr(currentnum);
+        }
 
-	else {
-//		long dat=thedate==0L?currentTimeMillis():thedate;
-		long dat=thedate==0L?lasttime:thedate;
-//		DateFormat.getDateTimeInstance(DateFormat.DEFAULT,DateFormat.DEFAULT);
-		cal.setTimeInMillis(dat);
-	    if(timeview!=null) {
-		int minutes = thetime;
-		if(minutes>=0) {
-			cal.set(Calendar.HOUR_OF_DAY, minutes / 60);
-			cal.set(Calendar.MINUTE, minutes % 60);
-			cal.set(Calendar.SECOND,0);
-			}
-		}
-		 dat= cal.getTimeInMillis();
-		final int index=1;
+    else {
+//        long dat=thedate==0L?currentTimeMillis():thedate;
+        long dat=thedate==0L?lasttime:thedate;
+//        DateFormat.getDateTimeInstance(DateFormat.DEFAULT,DateFormat.DEFAULT);
+        cal.setTimeInMillis(dat);
+        if(timeview!=null) {
+        int minutes = thetime;
+        if(minutes>=0) {
+            cal.set(Calendar.HOUR_OF_DAY, minutes / 60);
+            cal.set(Calendar.MINUTE, minutes % 60);
+            cal.set(Calendar.SECOND,0);
+            }
+        }
+         dat= cal.getTimeInMillis();
+        final int index=1;
             Natives.saveNum(numio.numptrs[index],dat/1000,val,labelsel,mealptr);
-		if(!isWearable) {
-		   tk.glucodata.nums.AllData  alldata=((Applic) activity.getApplication()).numdata;
-		    alldata.changedback(index);
-		    }
-		}
+        if(!isWearable) {
+           tk.glucodata.nums.AllData  alldata=((Applic) activity.getApplication()).numdata;
+            alldata.changedback(index);
+            }
+        }
 
-	currentnum=0L;
-	return true;
-	}
+    currentnum=0L;
+    return true;
+    }
 Dater dater=null;
 Dater numdater=(year,month,day)-> {
-	     cal.set(Calendar.YEAR,year);
-	     cal.set(Calendar.MONTH,month);
-	     cal.set(Calendar.DAY_OF_MONTH,day);
-	     long dat= cal.getTimeInMillis();
-		thedate=dat;
-		dateview.setText( DateFormat.getDateInstance( DateFormat.DEFAULT) .format(dat)); } ;
+         cal.set(Calendar.YEAR,year);
+         cal.set(Calendar.MONTH,month);
+         cal.set(Calendar.DAY_OF_MONTH,day);
+         long dat= cal.getTimeInMillis();
+        thedate=dat;
+        dateview.setText( DateFormat.getDateInstance( DateFormat.DEFAULT) .format(dat)); } ;
 
 Layout getdateview(MainActivity activity) {
-	long tim=(thedate==0L)?currentTimeMillis():thedate;
-	return getdateviewal(activity,tim,numdater);
-	}
+    long tim=(thedate==0L)?currentTimeMillis():thedate;
+    return getdateviewal(activity,tim,numdater);
+    }
 
 
 public Layout getdateviewal(MainActivity activity, long date, Dater erdate) {
 Log.i(LOG_ID, "getdateviewal");
     dater=erdate;
     if(datepicker==null) {
-	Log.i(LOG_ID, " new");
-	datepick =new DatePicker(activity);
-	datepick.setCalendarViewShown(false);
+    Log.i(LOG_ID, " new");
+    datepick =new DatePicker(activity);
+    datepick.setCalendarViewShown(false);
         Button cancel=new Button(activity);
 //        cancel.setBackgroundResource(R.drawable.button_selector);
 //        cancel.setBackgroundResource(R.drawable.button_selector2);
 
         cancel.setText(R.string.cancel);
         cancel.setOnClickListener(vi -> { 
-		activity.doonback();
-		});
+        activity.doonback();
+        });
         Button ok=new Button(activity);
         ok.setText(R.string.ok);
  //      ok.setBackgroundResource(R.drawable.button_selector2);
         ok.setOnClickListener(vi -> {
-		activity.doonback();
-		if(keyboard!=null)
-			EnableControls(keyboard,true);
-		datepicker.setVisibility(GONE);
-		if(newnumview!=null) EnableControls(newnumview,true);
-		int day=datepick.getDayOfMonth();
-		int month=datepick.getMonth();
-		int year=datepick.getYear();
-		dater.date(year,month,day);
+        activity.doonback();
+        if(keyboard!=null)
+            EnableControls(keyboard,true);
+        datepicker.setVisibility(GONE);
+        if(newnumview!=null) EnableControls(newnumview,true);
+        int day=datepick.getDayOfMonth();
+        int month=datepick.getMonth();
+        int year=datepick.getYear();
+        dater.date(year,month,day);
 
         });
-	int laypar;
-	if(isWearable) {
+    int laypar;
+    if(isWearable) {
          if(!useclose)
             cancel.setVisibility(GONE);
         datepicker=new Layout(activity,
                 (lay, w, h)->{
-			return new int[] {w,h};
+            return new int[] {w,h};
                 },new View[]{cancel},new View[] {datepick},new View[] {ok});
-		laypar= MATCH_PARENT;
+        laypar= MATCH_PARENT;
        datepicker.setPadding(0,(int)(GlucoseCurve.metrics.density*5.0),0,(int)(GlucoseCurve.metrics.density*2.0));
-		}
-	else {
+        }
+    else {
         datepicker=new Layout(activity,
                 (lay, w, h)->{
-			int height=GlucoseCurve.getheight();
-			int width=GlucoseCurve.getwidth();
-		if(w>width||h>height) {
-			lay.setX(0);
-			lay.setY(0);
-			}
-		else {
+            int height=GlucoseCurve.getheight();
+            int width=GlucoseCurve.getwidth();
+        if(w>width||h>height) {
+            lay.setX(0);
+            lay.setY(0);
+            }
+        else {
                     lay.setX((width-w)/2);
                     lay.setY((height-h)/2);
-		    }
+            }
 
-			return new int[] {w,h};
+            return new int[] {w,h};
                 },new View[] {datepick},new View[] {cancel,ok});
-		laypar= WRAP_CONTENT;
-		}
+        laypar= WRAP_CONTENT;
+        }
 
-	datepicker.setBackgroundColor( Applic.app.backgroundcolor);
+    datepicker.setBackgroundColor( Applic.app.backgroundcolor);
        activity.addContentView(datepicker, new ViewGroup.LayoutParams(laypar,laypar));
     }
     else {
-	Log.i(LOG_ID, " old");
+    Log.i(LOG_ID, " old");
         datepicker.setVisibility(VISIBLE);
-	datepicker.bringToFront();
-	}
+    datepicker.bringToFront();
+    }
 
 cal.setTimeInMillis(date);
 
 datepick.updateDate( cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH));
 activity.setonback(()->{ 
-	if(keyboard!=null)
-		EnableControls(keyboard,true);
-	datepicker.setVisibility(GONE);
+    if(keyboard!=null)
+        EnableControls(keyboard,true);
+    datepicker.setVisibility(GONE);
 
-	if(newnumview!=null)
-		EnableControls(newnumview,true);
-	else {
-		if(Menus.on)
-					Menus.show(activity);
-		}
-		});
+    if(newnumview!=null)
+        EnableControls(newnumview,true);
+    else {
+        if(Menus.on)
+                    Menus.show(activity);
+        }
+        });
 
 if(newnumview!=null)
-	EnableControls(newnumview,false);
+    EnableControls(newnumview,false);
 if(keyboard!=null)
-	EnableControls(keyboard,false);
+    EnableControls(keyboard,false);
 return datepicker;
 }
 
@@ -803,27 +803,27 @@ TimePicker pick=null;
 
 ObjIntConsumer<Integer> settime=null;
 ObjIntConsumer<Integer>  numsettime=(hour,min)-> {
-	thetime= hour*60+min;
+    thetime= hour*60+min;
         timeview.setText(String.format(Locale.US,"%02d:%02d",hour,min ));
-	};
+    };
 void gettimeview(MainActivity activity,Runnable parent) {
-	int id=thetime; 
-	int h,m;
-	if(id>=0)  {
-		h=id/60;
-		m=id%60;
-		}
-	else {
-		cal.setTimeInMillis(currentTimeMillis());
-		 h=cal.get(Calendar.HOUR_OF_DAY);
-		 m=cal.get(Calendar.MINUTE);
-		}
-	if(keyboard!=null) {
-	    keyboard.setVisibility(GONE);
-	    }
-	gettimepicker(activity,h,m,numsettime,parent);
-	}
-	@SuppressWarnings("deprecation")
+    int id=thetime; 
+    int h,m;
+    if(id>=0)  {
+        h=id/60;
+        m=id%60;
+        }
+    else {
+        cal.setTimeInMillis(currentTimeMillis());
+         h=cal.get(Calendar.HOUR_OF_DAY);
+         m=cal.get(Calendar.MINUTE);
+        }
+    if(keyboard!=null) {
+        keyboard.setVisibility(GONE);
+        }
+    gettimepicker(activity,h,m,numsettime,parent);
+    }
+    @SuppressWarnings("deprecation")
 Layout buttonlay;
 public void gettimepicker(MainActivity activity,int hourin, int minin, ObjIntConsumer<Integer> timeset,Runnable onclose) {
 final  boolean buttonsunder=true;
@@ -834,13 +834,13 @@ final  boolean buttonsunder=true;
         Button cancel=new Button(activity);
         cancel.setText(R.string.cancel);
         cancel.setOnClickListener(vi -> { 
-		activity.doonback();
+        activity.doonback();
 
-		});
+        });
         Button ok=new Button(activity);
         ok.setText(R.string.ok);
         ok.setOnClickListener(vi -> {
-		activity.doonback();
+        activity.doonback();
             int hour,min;
             if(Build.VERSION.SDK_INT < 23) {
                  hour=pick.getCurrentHour();
@@ -849,58 +849,58 @@ final  boolean buttonsunder=true;
                  hour=pick.getHour();
                  min=pick.getMinute();
                 }
-		settime.accept(hour,min);
+        settime.accept(hour,min);
 
         });
-	View[][] views;
-	 int layparwidth,layparheight;
+    View[][] views;
+     int layparwidth,layparheight;
 if(isWearable) {
       if(!useclose) cancel.setVisibility(GONE);
-		   views=new View[][]{new View[]{cancel},new View[]{pick},new View[]{ok}};
+           views=new View[][]{new View[]{cancel},new View[]{pick},new View[]{ok}};
          layparheight=layparwidth=MATCH_PARENT;
 
          }
 else {
    layparheight=ViewGroup.LayoutParams.WRAP_CONTENT;
-	   if(buttonsunder) {
-		   views=new View[][]{new View[]{pick},new View[]{cancel,ok}};
-	      layparwidth=WRAP_CONTENT;
-		   }
-	   else {
+       if(buttonsunder) {
+           views=new View[][]{new View[]{pick},new View[]{cancel,ok}};
+          layparwidth=WRAP_CONTENT;
+           }
+       else {
          layparwidth=MATCH_PARENT;
-	      buttonlay=new Layout(activity,new View[] {cancel},new View[]{ok});
-	      buttonlay.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT , ViewGroup.LayoutParams.MATCH_PARENT));
-	     views=new View[][] {new View[] {pick,buttonlay}};
-	    };
+          buttonlay=new Layout(activity,new View[] {cancel},new View[]{ok});
+          buttonlay.setLayoutParams(new ViewGroup.LayoutParams(  WRAP_CONTENT , ViewGroup.LayoutParams.MATCH_PARENT));
+         views=new View[][] {new View[] {pick,buttonlay}};
+        };
        };
-//		buttonlay.setBackgroundColor( RED);
-//	 var laypar=smallScreen?WRAP_CONTENT:MATCH_PARENT;
-	pick.setLayoutParams(new ViewGroup.LayoutParams(layparwidth ,ViewGroup.LayoutParams.WRAP_CONTENT ));
-//	pick.setLayoutParams(new ViewGroup.LayoutParams(WRAP_CONTENT , ViewGroup.LayoutParams.WRAP_CONTENT));
+//        buttonlay.setBackgroundColor( RED);
+//     var laypar=smallScreen?WRAP_CONTENT:MATCH_PARENT;
+    pick.setLayoutParams(new ViewGroup.LayoutParams(layparwidth ,ViewGroup.LayoutParams.WRAP_CONTENT ));
+//    pick.setLayoutParams(new ViewGroup.LayoutParams(WRAP_CONTENT , ViewGroup.LayoutParams.WRAP_CONTENT));
         Layout layout=new Layout(activity,
-				(lay, w, h)-> {
-					activity.hideSystemUI();
-					int wid = GlucoseCurve.getwidth();
-					if(w>=wid) {
-						lay.setX(0);
-						}
-					else {
-						int x=(wid-w)/2;
-						lay.setX(x);
-						Log.i(LOG_ID,"screen width="+wid+" w="+w+" x="+x);
-						}
-					if(isWearable) {
-						int height = GlucoseCurve.getheight();
-						if(height>h) {
-								lay.setY((height-h)/2);
-						}
+                (lay, w, h)-> {
+                    activity.hideSystemUI();
+                    int wid = GlucoseCurve.getwidth();
+                    if(w>=wid) {
+                        lay.setX(0);
+                        }
+                    else {
+                        int x=(wid-w)/2;
+                        lay.setX(x);
+                        Log.i(LOG_ID,"screen width="+wid+" w="+w+" x="+x);
+                        }
+                    if(isWearable) {
+                        int height = GlucoseCurve.getheight();
+                        if(height>h) {
+                                lay.setY((height-h)/2);
+                        }
 
-					}
-					return new int[]{w, h};
-				}, views);
+                    }
+                    return new int[]{w, h};
+                }, views);
 
 
-		layout.setBackgroundColor( Applic.backgroundcolor);
+        layout.setBackgroundColor( Applic.backgroundcolor);
         activity.addContentView(layout,  new ViewGroup.LayoutParams(layparwidth,layparwidth));
     //    activity.addContentView(layout,  new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         timepicker=layout;
@@ -908,14 +908,14 @@ else {
           layout.setPadding(0,(int)(GlucoseCurve.metrics.density*5.0),0,(int)(GlucoseCurve.metrics.density*2.0));
     }
     else {
-	timepicker.requestLayout();
+    timepicker.requestLayout();
     timepicker.setVisibility(VISIBLE);
-	timepicker.bringToFront();
-	}
+    timepicker.bringToFront();
+    }
 
   //    timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
 if(!isWearable) {
-	if(buttonsunder) timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
+    if(buttonsunder) timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
 // timepicker.setPadding(systembarLeft,MainActivity.systembarTop, systembarRight,MainActivity.systembarBottom);
    else  {
          pick.setPadding(systembarLeft,MainActivity.systembarTop,0,MainActivity.systembarBottom);
@@ -925,63 +925,63 @@ if(!isWearable) {
 
      pick.setIs24HourView(Applic.hour24);
 activity.setonback(
-		() -> {
-			onclose.run();
-			activity.hideSystemUI();
-			timepicker.setVisibility(GONE);
-			if(newnumview!=null)
-				EnableControls(newnumview,true);
+        () -> {
+            onclose.run();
+            activity.hideSystemUI();
+            timepicker.setVisibility(GONE);
+            if(newnumview!=null)
+                EnableControls(newnumview,true);
 
-		}
-	);
+        }
+    );
 
 if(newnumview!=null)
-	EnableControls(newnumview,false);
+    EnableControls(newnumview,false);
 pick.setCurrentHour(hourin);
 pick.setCurrentMinute(minin);
 }
 LabelAdapter<String> numspinadapt;
 
 void setmealbutton(int labelsel,int bron,int mealptr) {
-	   Log.i(LOG_ID,"bron="+bron+" mealptr="+mealptr);
-	    if(labelsel==Natives.getmealvar() &&(bron==1|| mealptr>0)) {
-		mealbutton.setVisibility(VISIBLE);
-		source.setVisibility(GONE);
-		}
+       Log.i(LOG_ID,"bron="+bron+" mealptr="+mealptr);
+        if(labelsel==Natives.getmealvar() &&(bron==1|| mealptr>0)) {
+        mealbutton.setVisibility(VISIBLE);
+        source.setVisibility(GONE);
+        }
 
-	else {
-		mealbutton.setVisibility(GONE);
-		source.setVisibility(VISIBLE);
-		}
+    else {
+        mealbutton.setVisibility(GONE);
+        source.setVisibility(VISIBLE);
+        }
   
-  	}
+      }
 void setmealbutton(int labelsel,long hitptr) {
-	boolean here=(hitptr==0L||hitptr==numio.newhit);
-	setmealbutton(labelsel, here?1:Natives.gethitindex(hitptr),here?1:Natives.hitmeal(hitptr));
-	}
+    boolean here=(hitptr==0L||hitptr==numio.newhit);
+    setmealbutton(labelsel, here?1:Natives.gethitindex(hitptr),here?1:Natives.hitmeal(hitptr));
+    }
 Spinner getspinner(Activity context) {
 if(spinner==null) {
      spinner=getGenSpin(context);
 //     if(isWearable) spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.60));
-//	 spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.54));
-//	final int minheight=GlucoseCurve.dpToPx(48);
-//	spinner.setMinimumHeight(minheight);
-	avoidSpinnerDropdownFocus(spinner);
+//     spinner.setDropDownVerticalOffset((int)(GlucoseCurve.getheight()*.54));
+//    final int minheight=GlucoseCurve.dpToPx(48);
+//    spinner.setMinimumHeight(minheight);
+    avoidSpinnerDropdownFocus(spinner);
     numspinadapt=new LabelAdapter<String>(context,Natives.getLabels(),1);
     spinner.setAdapter(numspinadapt);
     spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
         @Override
         public  void onItemSelected (AdapterView<?> parent, View view, int position, long id) {
-		labelsel=position;
-		if(!isWearable)
-			setmealbutton(position,currentnum);
-        	}
+        labelsel=position;
+        if(!isWearable)
+            setmealbutton(position,currentnum);
+            }
         @Override
         public  void onNothingSelected (AdapterView<?> parent) {
             labelsel=-1;
 
         } });
-//	spinner.clearAnimation();
+//    spinner.clearAnimation();
     }
 return spinner;
 
@@ -989,47 +989,47 @@ return spinner;
 
 static EditText geteditview(Context context,View.OnFocusChangeListener focus) {
 //static EditText geteditview(Context context) {
-	EditText  under=new EditText(context);// under.setText(str);
-	under.setInputType( InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-	under.setMinEms(2);
-	under.setOnFocusChangeListener(focus);
-	under.setSelectAllOnFocus(true);
-	under.setMinHeight(GlucoseCurve.dpToPx(50));
-/*	under.setSelectAllOnFocus(true);
-	under.setOnTouchListener(ontouchedit);
-	*/
+    EditText  under=new EditText(context);// under.setText(str);
+    under.setInputType( InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+    under.setMinEms(2);
+    under.setOnFocusChangeListener(focus);
+    under.setSelectAllOnFocus(true);
+    under.setMinHeight(GlucoseCurve.dpToPx(50));
+/*    under.setSelectAllOnFocus(true);
+    under.setOnTouchListener(ontouchedit);
+    */
 
-	closekeyboard(under) ;
-//	under.setFocusableInTouchMode(true);
-//	under.setFocusable(true); under.requestFocus();
-//	under.setTextIsSelectable(true);
-    	return under;
+    closekeyboard(under) ;
+//    under.setFocusableInTouchMode(true);
+//    under.setFocusable(true); under.requestFocus();
+//    under.setTextIsSelectable(true);
+        return under;
 }
 
 static EditText geteditwearos(Context context) {
-	var valedit=new EditText(context);
-//	valedit.setMinEms(3);
-	valedit.setInputType(InputType.TYPE_CLASS_NUMBER |InputType.TYPE_NUMBER_FLAG_DECIMAL);//| InputType.IME_FLAG_NO_FULLSCREEN);
+    var valedit=new EditText(context);
+//    valedit.setMinEms(3);
+    valedit.setInputType(InputType.TYPE_CLASS_NUMBER |InputType.TYPE_NUMBER_FLAG_DECIMAL);//| InputType.IME_FLAG_NO_FULLSCREEN);
         valedit.setImeOptions(editoptions);
-	return valedit;
-	}
+    return valedit;
+    }
 /*
 static View.OnTouchListener ontouchedit= new View.OnTouchListener() {
 
         @Override
         public boolean onTouch(View v, MotionEvent event) {
-	Log.v(LOG_ID,"ontouchedit");
+    Log.v(LOG_ID,"ontouchedit");
             v.onTouchEvent(event);
 //      EditText ed= (EditText)v; editfocus.setedit(ed.getText());
 
-	MainActivity act=(MainActivity)v.getContext();
+    MainActivity act=(MainActivity)v.getContext();
             InputMethodManager imm = (InputMethodManager)act.getSystemService(Context.INPUT_METHOD_SERVICE);
 
             if (imm != null) {
                 imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
             }
-	    
-	    act.hideSystemUI();
+        
+        act.hideSystemUI();
 
             return true;
         }
@@ -1042,17 +1042,17 @@ static class numlisten implements View.OnClickListener {
 
     @Override
     public void onClick(View v) {
-	final Editable edit= editfocus.getedit();
-	if(edit!=null) {
-		try {
-			int start= Selection.getSelectionStart(edit);
-			int end=Selection.getSelectionEnd(edit);
-			Button but=(Button)v;
-			edit.replace(start, end, but.getText());
-			Selection.setSelection(edit, start + 1);
-			} catch(Throwable e) {
-				Log.stack(LOG_ID,e);
-				}
+    final Editable edit= editfocus.getedit();
+    if(edit!=null) {
+        try {
+            int start= Selection.getSelectionStart(edit);
+            int end=Selection.getSelectionEnd(edit);
+            Button but=(Button)v;
+            edit.replace(start, end, but.getText());
+            Selection.setSelection(edit, start + 1);
+            } catch(Throwable e) {
+                Log.stack(LOG_ID,e);
+                }
     }
 
     }
@@ -1061,29 +1061,29 @@ boolean noroom=false;
 Layout getkeyboard(Context context) {
 
    numlisten click=new numlisten();
-//	Layout layout=new Layout(context,row0,row1,row2,row3);
-	View [][] views=new View[4][];
-	for(int i=2,num=1;i>=0;i--) {
-		views[i]=new View[3];
-		for(int j=0;j<3;j++) {
-			Button but=new Button(context);
-			views[i][j]=but;
-			but.setText(String.valueOf(num++));
-			but.setOnClickListener(click);
-			}
-		}
-	View[] tmp=views[3]=new View[3];
-	Button but= new Button(context);
+//    Layout layout=new Layout(context,row0,row1,row2,row3);
+    View [][] views=new View[4][];
+    for(int i=2,num=1;i>=0;i--) {
+        views[i]=new View[3];
+        for(int j=0;j<3;j++) {
+            Button but=new Button(context);
+            views[i][j]=but;
+            but.setText(String.valueOf(num++));
+            but.setOnClickListener(click);
+            }
+        }
+    View[] tmp=views[3]=new View[3];
+    Button but= new Button(context);
     but.setOnClickListener(click);
-	tmp[0]=but;
-	but.setText("0");
-	tmp[1]=but=new Button(context);
-//	but.setText(Build.VERSION.SDK_INT>=22?"⌫":"Del");
-	but.setText(Build.VERSION.SDK_INT>=22?"\u232B":"\u2190");
-//	but.setText(Build.VERSION.SDK_INT>=22?"\u232B":"\u21e6");
-//	but.setText(Build.VERSION.SDK_INT>=22?"\u232B":"\u27f5");
+    tmp[0]=but;
+    but.setText("0");
+    tmp[1]=but=new Button(context);
+//    but.setText(Build.VERSION.SDK_INT>=22?"⌫":"Del");
+    but.setText(Build.VERSION.SDK_INT>=22?"\u232B":"\u2190");
+//    but.setText(Build.VERSION.SDK_INT>=22?"\u232B":"\u21e6");
+//    but.setText(Build.VERSION.SDK_INT>=22?"\u232B":"\u27f5");
 
-	but.setContentDescription("Backspace");
+    but.setContentDescription("Backspace");
     but.setOnClickListener(v->{
         int start= Selection.getSelectionStart(editfocus.getedit());
         int end=Selection.getSelectionEnd(editfocus.getedit());
@@ -1096,88 +1096,88 @@ Layout getkeyboard(Context context) {
             }
         Selection.setSelection(editfocus.getedit(), start);
     } );
-	tmp[2]=but=new Button(context);
-	but.setText(".");
-	but.setContentDescription("Decimal point");
+    tmp[2]=but=new Button(context);
+    but.setText(".");
+    but.setContentDescription("Decimal point");
     but.setOnClickListener(click);
-	Layout layout=new Layout(context, (lay, w, h)->{
-	int hei=GlucoseCurve.getheight();
-	int wid=GlucoseCurve.getwidth();
-	/*
-	if(curve!=null)  {
-		hei=curve.getHeight();
-		wid=curve.getWidth();
-		Log.i(LOG_ID,"height="+height+" hei="+hei);
-		}
-	else {
-		Log.i(LOG_ID,"only height="+height);
-		hei=height;
-		wid=width;
-		}*/
-	if(wid>hei) {
-		lay.setY((hei-h)/2);
+    Layout layout=new Layout(context, (lay, w, h)->{
+    int hei=GlucoseCurve.getheight();
+    int wid=GlucoseCurve.getwidth();
+    /*
+    if(curve!=null)  {
+        hei=curve.getHeight();
+        wid=curve.getWidth();
+        Log.i(LOG_ID,"height="+height+" hei="+hei);
+        }
+    else {
+        Log.i(LOG_ID,"only height="+height);
+        hei=height;
+        wid=width;
+        }*/
+    if(wid>hei) {
+        lay.setY((hei-h)/2);
       int mostright=wid-w-systembarRight;
-		if(noroom)
-			lay.setX(mostright);
-		else {
-			int half= (wid-systembarRight)/2;
-			int bij=(half-w)/4;
+        if(noroom)
+            lay.setX(mostright);
+        else {
+            int half= (wid-systembarRight)/2;
+            int bij=(half-w)/4;
          int xpos=half+bij;
          if(xpos>mostright)
             xpos=mostright;
          lay.setX(xpos);
 
-		}
+        }
 
-//		lay.setX(wid-w);
-		}
-	else {
-		int half=hei/2;
-		int bij=(half-h)/4;
-		lay.setY(half+bij);
-		lay.setX((wid-w)/2); 
+//        lay.setX(wid-w);
+        }
+    else {
+        int half=hei/2;
+        int bij=(half-h)/4;
+        lay.setY(half+bij);
+        lay.setX((wid-w)/2); 
 
-	}
+    }
 
-			return new int[] {w,h};
-		}, views) ;
-		
-	layout.setBackgroundColor( Applic.backgroundcolor);
-	return layout;
-	}
+            return new int[] {w,h};
+        }, views) ;
+        
+    layout.setBackgroundColor( Applic.backgroundcolor);
+    return layout;
+    }
 
 public    void showkeyboard(Activity context) {
 if(!isWearable) {
     if(keyboard==null) {
-	keyboard=getkeyboard(context);
-	context.addContentView(keyboard, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-	}
+    keyboard=getkeyboard(context);
+    context.addContentView(keyboard, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+    }
     else {
         keyboard.setVisibility(VISIBLE);
-	keyboard.bringToFront();
-	}
-	}
+    keyboard.bringToFront();
+    }
+    }
     }
 public    void hidekeyboard() {
 if(!isWearable) {
-	if(keyboard!=null)
-	    keyboard.setVisibility(GONE);
-	    }
+    if(keyboard!=null)
+        keyboard.setVisibility(GONE);
+        }
     }
     /*
 private static void setMode(TimePicker timepicker,int mode) {
-	    try {
-		Field mModeField = timepicker.getClass().getDeclaredField("mMode");
-//		Field mModeField = timepicker.getClass().getField("mMode");
-		mModeField.setAccessible(true);
-	      Field modifiersField = Field.class.getDeclaredField("modifiers");
-	      modifiersField.setAccessible(true);
-	      modifiersField.setInt(mModeField, mModeField.getModifiers() & ~Modifier.FINAL);
-		mModeField.setInt(timepicker, mode);
-	    } catch (Throwable e) {
-		Log.stack(LOG_ID,e);
-	    }
-	 } */
+        try {
+        Field mModeField = timepicker.getClass().getDeclaredField("mMode");
+//        Field mModeField = timepicker.getClass().getField("mMode");
+        mModeField.setAccessible(true);
+          Field modifiersField = Field.class.getDeclaredField("modifiers");
+          modifiersField.setAccessible(true);
+          modifiersField.setInt(mModeField, mModeField.getModifiers() & ~Modifier.FINAL);
+        mModeField.setInt(timepicker, mode);
+        } catch (Throwable e) {
+        Log.stack(LOG_ID,e);
+        }
+     } */
 
 public static void avoidSpinnerDropdownFocus(Spinner spinner) {
     try {
@@ -1185,34 +1185,34 @@ public static void avoidSpinnerDropdownFocus(Spinner spinner) {
         listPopupField.setAccessible(true);
         Object listPopup = listPopupField.get(spinner);
         if (listPopup instanceof ListPopupWindow) {
-	/*		Log.i("SPINNER","listpopupwin="+ ((ListPopupWindow) listPopup).getAnimationStyle());
-			((ListPopupWindow) listPopup).setAnimationStyle(0);*/
-			Field popupField = ListPopupWindow.class.getDeclaredField("mPopup");
+    /*        Log.i("SPINNER","listpopupwin="+ ((ListPopupWindow) listPopup).getAnimationStyle());
+            ((ListPopupWindow) listPopup).setAnimationStyle(0);*/
+            Field popupField = ListPopupWindow.class.getDeclaredField("mPopup");
             popupField.setAccessible(true);
             Object popup = popupField.get((ListPopupWindow) listPopup);
             if (popup instanceof PopupWindow) { {
-		  PopupWindow popupwin=(PopupWindow) popup;
+          PopupWindow popupwin=(PopupWindow) popup;
                   popupwin.setFocusable(false);
-//		  Log.i("SPINNER","popanim="+popupwin.getAnimationStyle());
-		}
+//          Log.i("SPINNER","popanim="+popupwin.getAnimationStyle());
+        }
             }
         }
     } catch (Throwable e) {
-		Log.stack(LOG_ID,e);
+        Log.stack(LOG_ID,e);
     }
 }
 
 //https://www.programmersought.com/article/75522638732/
 static public void closekeyboard(EditText view) {
-	    ((Activity)view.getContext()).getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
-	    try {
-		Class<EditText> cls = EditText.class;
-		Method setSoftInputShownOnFocus;
-		setSoftInputShownOnFocus = cls.getMethod("setShowSoftInputOnFocus", boolean.class);
-		setSoftInputShownOnFocus.setAccessible(true);
-		setSoftInputShownOnFocus.invoke(view, false);
-	    } catch (Exception e) {
-		Log.stack(LOG_ID,e);
-	    }
+        ((Activity)view.getContext()).getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        try {
+            Class<EditText> cls = EditText.class;
+            Method setSoftInputShownOnFocus;
+            setSoftInputShownOnFocus = cls.getMethod("setShowSoftInputOnFocus", boolean.class);
+            setSoftInputShownOnFocus.setAccessible(true);
+            setSoftInputShownOnFocus.invoke(view, false);
+        } catch(Throwable e) {
+            Log.stack(LOG_ID,e);
+        }
     }
 }

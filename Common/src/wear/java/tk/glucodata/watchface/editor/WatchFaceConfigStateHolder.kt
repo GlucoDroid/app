@@ -110,7 +110,7 @@ class WatchFaceConfigStateHolder(
         userStyle: UserStyle,
         complicationsPreviewData: Map<Int, ComplicationData>
     ): UserStylesAndPreview {
-        Log.d(TAG, "updatesWatchFacePreview()")
+        Log.d(LOG_ID, "updatesWatchFacePreview()")
 
         val bitmap = editorSession.renderWatchFaceToBitmap(
             RenderParameters(
@@ -128,7 +128,7 @@ class WatchFaceConfigStateHolder(
 
         val colorStyle = userStyle[colorStyleKey] as UserStyleSetting.ListUserStyleSetting.ListOption
 
-        Log.d(TAG, "/new values: $colorStyle")
+        Log.d(LOG_ID, "/new values: $colorStyle")
 
         return UserStylesAndPreview(
             colorStyleId = colorStyle.id.toString(),
@@ -137,12 +137,18 @@ class WatchFaceConfigStateHolder(
     }
 
     fun setComplication(complicationLocation: Int) {
-      if(complicationids.contains(complicationLocation)) {
-		scope.launch(Dispatchers.Main.immediate) {
-		    editorSession.openComplicationDataSourceChooser(complicationLocation)
-		}
-      		}	
-    	}
+         Log.i(LOG_ID,"setComplication($complicationLocation)")
+         if(complicationids.contains(complicationLocation)) {
+                scope.launch(Dispatchers.Main.immediate) {
+                    try {
+                        editorSession.openComplicationDataSourceChooser(complicationLocation)
+                        } 
+                    catch(th:Throwable) {
+                        Log.stack(LOG_ID,"openComplicationDataSourceChooser",th)
+                        }
+                }
+            }	
+       }
 
     fun setColorStyle(newColorStyleId: String) {
         val userStyleSettingList = editorSession.userStyleSchema.userStyleSettings
@@ -175,9 +181,9 @@ class WatchFaceConfigStateHolder(
         userStyleSetting: UserStyleSetting,
         userStyleOption: UserStyleSetting.Option
     ) {
-        Log.d(TAG, "setUserStyleOption()")
-        Log.d(TAG, "\tuserStyleSetting: $userStyleSetting")
-        Log.d(TAG, "\tuserStyleOption: $userStyleOption")
+        Log.d(LOG_ID, "setUserStyleOption()")
+        Log.d(LOG_ID, "\tuserStyleSetting: $userStyleSetting")
+        Log.d(LOG_ID, "\tuserStyleOption: $userStyleOption")
 
         // TODO: As of watchface 1.0.0-beta01 We can't use MutableStateFlow.compareAndSet, or
         //       anything that calls through to that (like MutableStateFlow.update) because
@@ -200,7 +206,7 @@ class WatchFaceConfigStateHolder(
 
     companion object {
        val complicationids = intArrayOf( TOP_COMPLICATION_ID , BOTTOM_COMPLICATION_ID ,  EXTREMERIGHT_COMPLICATION_ID  ,           RIGHT_COMPLICATION_ID ); 
-       private const val TAG = "WatchFaceConfigStateHolder"
+       private const val LOG_ID = "WatchFaceConfigStateHolder"
 
         // To convert the double representing the arm length to valid float value in the range the
         // slider can support, we need to multiply the original value times 1,000.

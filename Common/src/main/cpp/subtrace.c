@@ -18,52 +18,52 @@
 /*                                                                                   */
 /*      Fri Jan 27 12:35:33 CET 2023                                                 */
 
-
+#define SUBLOGAR LOGAR
 #pragma GCC diagnostic ignored "-Wreturn-type"
     jint         subGetVersion(JNIEnv*env) {
-   LOGSTRING("GetVersion\n");
+   SUBLOGAR("GetVersion");
 
    }
 
 
     jclass       subDefineClass(JNIEnv*env,const char * const1,jobject  jobject2,const jbyte * const3,jsize  jsize4) {
-   LOGSTRING("DefineClass\n");
+   SUBLOGAR("DefineClass");
 
    }
 
 
     jmethodID    subFromReflectedMethod(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("FromReflectedMethod\n");
+   SUBLOGAR("FromReflectedMethod");
 
    }
 
 
     jfieldID     subFromReflectedField(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("FromReflectedField\n");
+   SUBLOGAR("FromReflectedField");
 
    }
 
 
     jobject      subToReflectedMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,jboolean  jboolean3) {
-   LOGSTRING("ToReflectedMethod\n");
+   SUBLOGAR("ToReflectedMethod");
 
    }
 
 
     jclass       subGetSuperclass(JNIEnv*env,jclass  jclass1) {
-   LOGSTRING("GetSuperclass\n");
+   SUBLOGAR("GetSuperclass");
 
    }
 
 
     jboolean     subIsAssignableFrom(JNIEnv*env,jclass  jclass1,jclass  jclass2) {
-   LOGSTRING("IsAssignableFrom\n");
+   SUBLOGAR("IsAssignableFrom");
 
    }
 
 
     jobject      subToReflectedField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jboolean  jboolean3) {
-   LOGSTRING("ToReflectedField\n");
+   SUBLOGAR("ToReflectedField");
 
    }
 
@@ -71,7 +71,7 @@
 
 
     jint         subThrowNew(JNIEnv*env,jclass  jclass1,const char * const2) {
-   LOGSTRING("ThrowNew\n");
+   SUBLOGAR("ThrowNew");
 
    }
 
@@ -79,7 +79,7 @@
 
 
     void         subExceptionDescribe(JNIEnv*env) {
-   LOGSTRING("ExceptionDescribe\n");
+   SUBLOGAR("ExceptionDescribe");
 
    }
 
@@ -87,19 +87,19 @@
 
 
     void         subFatalError(JNIEnv*env,const char * const1) {
-   LOGSTRING("FatalError\n");
+   SUBLOGAR("FatalError");
 
    }
 
 
     jint         subPushLocalFrame(JNIEnv*env,jint  jint1) {
-   LOGSTRING("PushLocalFrame\n");
+   SUBLOGAR("PushLocalFrame");
 
    }
 
 
     jobject      subPopLocalFrame(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("PopLocalFrame\n");
+   SUBLOGAR("PopLocalFrame");
 
    }
 
@@ -111,7 +111,7 @@
 
 
     void         subDeleteGlobalRef(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("DeleteGlobalRef\n");
+   SUBLOGAR("DeleteGlobalRef");
 
    }
 
@@ -124,38 +124,38 @@
 
 
     jobject      subNewLocalRef(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("NewLocalRef\n");
+   SUBLOGAR("NewLocalRef");
 	return jobject1;
    }
 
 
     jint         subEnsureLocalCapacity(JNIEnv*env,jint  jint1) {
-   LOGSTRING("EnsureLocalCapacity\n");
+   SUBLOGAR("EnsureLocalCapacity");
 
    }
 
 
     jobject      subAllocObject(JNIEnv*env,jclass  jclass1) {
-   LOGSTRING("AllocObject\n");
+   SUBLOGAR("AllocObject");
 
    }
 
 
     jobject      subNewObject(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("NewObject\n");
+   SUBLOGAR("NewObject");
 
    }
 
 
 
     jobject      subNewObjectA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("NewObjectA\n");
+   SUBLOGAR("NewObjectA");
 
    }
 
 
     jboolean     subIsInstanceOf(JNIEnv*env,jobject  jobject1,jclass  jclass2) {
-   LOGSTRING("IsInstanceOf\n");
+   SUBLOGAR("IsInstanceOf");
 
    }
 
@@ -163,85 +163,85 @@
 
 
     jobject      subCallObjectMethod(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallObjectMethod\n");
+   SUBLOGAR("CallObjectMethod");
 
    }
 
 
     jobject      subCallObjectMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallObjectMethodV\n");
+   SUBLOGAR("CallObjectMethodV");
 
    }
 
 
     jobject      subCallObjectMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallObjectMethodA\n");
+   SUBLOGAR("CallObjectMethodA");
 
    }
 
 
     jboolean     subCallBooleanMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallBooleanMethodV\n");
+   SUBLOGAR("CallBooleanMethodV");
 
    }
 
 
     jboolean     subCallBooleanMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallBooleanMethodA\n");
+   SUBLOGAR("CallBooleanMethodA");
 
    }
 
 
     jbyte        subCallByteMethod(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallByteMethod\n");
+   SUBLOGAR("CallByteMethod");
 
    }
 
 
     jbyte        subCallByteMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallByteMethodV\n");
+   SUBLOGAR("CallByteMethodV");
 
    }
 
 
     jbyte        subCallByteMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallByteMethodA\n");
+   SUBLOGAR("CallByteMethodA");
 
    }
 
 
     jchar        subCallCharMethod(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallCharMethod\n");
+   SUBLOGAR("CallCharMethod");
 
    }
 
 
     jchar        subCallCharMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallCharMethodV\n");
+   SUBLOGAR("CallCharMethodV");
 
    }
 
 
     jchar        subCallCharMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallCharMethodA\n");
+   SUBLOGAR("CallCharMethodA");
 
    }
 
 
     jshort       subCallShortMethod(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallShortMethod\n");
+   SUBLOGAR("CallShortMethod");
 
    }
 
 
     jshort       subCallShortMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallShortMethodV\n");
+   SUBLOGAR("CallShortMethodV");
 
    }
 
 
     jshort       subCallShortMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallShortMethodA\n");
+   SUBLOGAR("CallShortMethodA");
 
    }
 
@@ -249,49 +249,49 @@
 
 
     jint         subCallIntMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallIntMethodV\n");
+   SUBLOGAR("CallIntMethodV");
 
    }
 
 
     jint         subCallIntMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallIntMethodA\n");
+   SUBLOGAR("CallIntMethodA");
 
    }
 
 
     jlong        subCallLongMethod(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallLongMethod\n");
+   SUBLOGAR("CallLongMethod");
 
    }
 
 
     jlong        subCallLongMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallLongMethodV\n");
+   SUBLOGAR("CallLongMethodV");
 
    }
 
 
     jlong        subCallLongMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallLongMethodA\n");
+   SUBLOGAR("CallLongMethodA");
 
    }
 
 
     jfloat       subCallFloatMethod(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallFloatMethod\n");
+   SUBLOGAR("CallFloatMethod");
 
    }
 
 
     jfloat       subCallFloatMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallFloatMethodV\n");
+   SUBLOGAR("CallFloatMethodV");
 
    }
 
 
     jfloat       subCallFloatMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallFloatMethodA\n");
+   SUBLOGAR("CallFloatMethodA");
 
    }
 
@@ -299,13 +299,13 @@
 
 
     jdouble      subCallDoubleMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallDoubleMethodV\n");
+   SUBLOGAR("CallDoubleMethodV");
 
    }
 
 
     jdouble      subCallDoubleMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallDoubleMethodA\n");
+   SUBLOGAR("CallDoubleMethodA");
 
    }
 
@@ -313,193 +313,193 @@
 
 
     void         subCallVoidMethodV(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallVoidMethodV\n");
+   SUBLOGAR("CallVoidMethodV");
 
    }
 
 
     void         subCallVoidMethodA(JNIEnv*env,jobject  jobject1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallVoidMethodA\n");
+   SUBLOGAR("CallVoidMethodA");
 
    }
 
 
     jobject      subCallNonvirtualObjectMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualObjectMethod\n");
+   SUBLOGAR("CallNonvirtualObjectMethod");
 
    }
 
 
     jobject      subCallNonvirtualObjectMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualObjectMethodV\n");
+   SUBLOGAR("CallNonvirtualObjectMethodV");
 
    }
 
 
     jobject      subCallNonvirtualObjectMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualObjectMethodA\n");
+   SUBLOGAR("CallNonvirtualObjectMethodA");
 
    }
 
 
     jboolean     subCallNonvirtualBooleanMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualBooleanMethod\n");
+   SUBLOGAR("CallNonvirtualBooleanMethod");
 
    }
 
 
     jboolean     subCallNonvirtualBooleanMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualBooleanMethodV\n");
+   SUBLOGAR("CallNonvirtualBooleanMethodV");
 
    }
 
 
     jboolean     subCallNonvirtualBooleanMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualBooleanMethodA\n");
+   SUBLOGAR("CallNonvirtualBooleanMethodA");
 
    }
 
 
     jbyte        subCallNonvirtualByteMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualByteMethod\n");
+   SUBLOGAR("CallNonvirtualByteMethod");
 
    }
 
 
     jbyte        subCallNonvirtualByteMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualByteMethodV\n");
+   SUBLOGAR("CallNonvirtualByteMethodV");
 
    }
 
 
     jbyte        subCallNonvirtualByteMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualByteMethodA\n");
+   SUBLOGAR("CallNonvirtualByteMethodA");
 
    }
 
 
     jchar        subCallNonvirtualCharMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualCharMethod\n");
+   SUBLOGAR("CallNonvirtualCharMethod");
 
    }
 
 
     jchar        subCallNonvirtualCharMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualCharMethodV\n");
+   SUBLOGAR("CallNonvirtualCharMethodV");
 
    }
 
 
     jchar        subCallNonvirtualCharMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualCharMethodA\n");
+   SUBLOGAR("CallNonvirtualCharMethodA");
 
    }
 
 
     jshort       subCallNonvirtualShortMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualShortMethod\n");
+   SUBLOGAR("CallNonvirtualShortMethod");
 
    }
 
 
     jshort       subCallNonvirtualShortMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualShortMethodV\n");
+   SUBLOGAR("CallNonvirtualShortMethodV");
 
    }
 
 
     jshort       subCallNonvirtualShortMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualShortMethodA\n");
+   SUBLOGAR("CallNonvirtualShortMethodA");
 
    }
 
 
     jint         subCallNonvirtualIntMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualIntMethod\n");
+   SUBLOGAR("CallNonvirtualIntMethod");
 
    }
 
 
     jint         subCallNonvirtualIntMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualIntMethodV\n");
+   SUBLOGAR("CallNonvirtualIntMethodV");
 
    }
 
 
     jint         subCallNonvirtualIntMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualIntMethodA\n");
+   SUBLOGAR("CallNonvirtualIntMethodA");
 
    }
 
 
     jlong        subCallNonvirtualLongMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualLongMethod\n");
+   SUBLOGAR("CallNonvirtualLongMethod");
 
    }
 
 
     jlong        subCallNonvirtualLongMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualLongMethodV\n");
+   SUBLOGAR("CallNonvirtualLongMethodV");
 
    }
 
 
     jlong        subCallNonvirtualLongMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualLongMethodA\n");
+   SUBLOGAR("CallNonvirtualLongMethodA");
 
    }
 
 
     jfloat       subCallNonvirtualFloatMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualFloatMethod\n");
+   SUBLOGAR("CallNonvirtualFloatMethod");
 
    }
 
 
     jfloat       subCallNonvirtualFloatMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualFloatMethodV\n");
+   SUBLOGAR("CallNonvirtualFloatMethodV");
 
    }
 
 
     jfloat       subCallNonvirtualFloatMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualFloatMethodA\n");
+   SUBLOGAR("CallNonvirtualFloatMethodA");
 
    }
 
 
     jdouble      subCallNonvirtualDoubleMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualDoubleMethod\n");
+   SUBLOGAR("CallNonvirtualDoubleMethod");
 
    }
 
 
     jdouble      subCallNonvirtualDoubleMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualDoubleMethodV\n");
+   SUBLOGAR("CallNonvirtualDoubleMethodV");
 
    }
 
 
     jdouble      subCallNonvirtualDoubleMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualDoubleMethodA\n");
+   SUBLOGAR("CallNonvirtualDoubleMethodA");
 
    }
 
 
     void         subCallNonvirtualVoidMethod(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3, ...) {
-   LOGSTRING("CallNonvirtualVoidMethod\n");
+   SUBLOGAR("CallNonvirtualVoidMethod");
 
    }
 
 
     void         subCallNonvirtualVoidMethodV(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,va_list  va_list4) {
-   LOGSTRING("CallNonvirtualVoidMethodV\n");
+   SUBLOGAR("CallNonvirtualVoidMethodV");
 
    }
 
 
     void         subCallNonvirtualVoidMethodA(JNIEnv*env,jobject  jobject1,jclass  jclass2,jmethodID  jmethodID3,const jvalue * const4) {
-   LOGSTRING("CallNonvirtualVoidMethodA\n");
+   SUBLOGAR("CallNonvirtualVoidMethodA");
 
    }
 
@@ -507,37 +507,37 @@
 
 
     jobject      subGetObjectField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetObjectField\n");
+   SUBLOGAR("GetObjectField");
 
    }
 
 
     jboolean     subGetBooleanField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetBooleanField\n");
+   SUBLOGAR("GetBooleanField");
 
    }
 
 
     jbyte        subGetByteField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetByteField\n");
+   SUBLOGAR("GetByteField");
 
    }
 
 
     jchar        subGetCharField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetCharField\n");
+   SUBLOGAR("GetCharField");
 
    }
 
 
     jshort       subGetShortField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetShortField\n");
+   SUBLOGAR("GetShortField");
 
    }
 
 
     jint         subGetIntField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetIntField\n");
+   SUBLOGAR("GetIntField");
 
    }
 
@@ -545,43 +545,43 @@
 
 
     jfloat       subGetFloatField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetFloatField\n");
+   SUBLOGAR("GetFloatField");
 
    }
 
 
     jdouble      subGetDoubleField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2) {
-   LOGSTRING("GetDoubleField\n");
+   SUBLOGAR("GetDoubleField");
 
    }
 
 
     void         subSetObjectField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2,jobject  jobject3) {
-   LOGSTRING("SetObjectField\n");
+   SUBLOGAR("SetObjectField");
 
    }
 
 
     void         subSetBooleanField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2,jboolean  jboolean3) {
-   LOGSTRING("SetBooleanField\n");
+   SUBLOGAR("SetBooleanField");
 
    }
 
 
     void         subSetByteField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2,jbyte  jbyte3) {
-   LOGSTRING("SetByteField\n");
+   SUBLOGAR("SetByteField");
 
    }
 
 
     void         subSetCharField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2,jchar  jchar3) {
-   LOGSTRING("SetCharField\n");
+   SUBLOGAR("SetCharField");
 
    }
 
 
     void         subSetShortField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2,jshort  jshort3) {
-   LOGSTRING("SetShortField\n");
+   SUBLOGAR("SetShortField");
 
    }
 
@@ -589,7 +589,7 @@
 
 
     void         subSetFloatField(JNIEnv*env,jobject  jobject1,jfieldID  jfieldID2,jfloat  jfloat3) {
-   LOGSTRING("SetFloatField\n");
+   SUBLOGAR("SetFloatField");
 
    }
 
@@ -599,306 +599,306 @@
 
 
     jobject      subCallStaticObjectMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticObjectMethodV\n");
+   SUBLOGAR("CallStaticObjectMethodV");
 
    }
 
 
     jobject      subCallStaticObjectMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticObjectMethodA\n");
+   SUBLOGAR("CallStaticObjectMethodA");
 
    }
 
 
 /*    jboolean     subCallStaticBooleanMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticBooleanMethod\n");
+   SUBLOGAR("CallStaticBooleanMethod");
 
    }*/
 
 
     jboolean     subCallStaticBooleanMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticBooleanMethodV\n");
+   SUBLOGAR("CallStaticBooleanMethodV");
 
    }
 
 
     jboolean     subCallStaticBooleanMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticBooleanMethodA\n");
+   SUBLOGAR("CallStaticBooleanMethodA");
 
    }
 
 
     jbyte        subCallStaticByteMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticByteMethod\n");
+   SUBLOGAR("CallStaticByteMethod");
 
    }
 
 
     jbyte        subCallStaticByteMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticByteMethodV\n");
+   SUBLOGAR("CallStaticByteMethodV");
 
    }
 
 
     jbyte        subCallStaticByteMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticByteMethodA\n");
+   SUBLOGAR("CallStaticByteMethodA");
 
    }
 
 
     jchar        subCallStaticCharMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticCharMethod\n");
+   SUBLOGAR("CallStaticCharMethod");
 
    }
 
 
     jchar        subCallStaticCharMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticCharMethodV\n");
+   SUBLOGAR("CallStaticCharMethodV");
 
    }
 
 
     jchar        subCallStaticCharMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticCharMethodA\n");
+   SUBLOGAR("CallStaticCharMethodA");
 
    }
 
 
     jshort       subCallStaticShortMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticShortMethod\n");
+   SUBLOGAR("CallStaticShortMethod");
 
    }
 
 
     jshort       subCallStaticShortMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticShortMethodV\n");
+   SUBLOGAR("CallStaticShortMethodV");
 
    }
 
 
     jshort       subCallStaticShortMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticShortMethodA\n");
+   SUBLOGAR("CallStaticShortMethodA");
 
    }
 
 
     jint         subCallStaticIntMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticIntMethodV\n");
+   SUBLOGAR("CallStaticIntMethodV");
 
    }
 
 
     jint         subCallStaticIntMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticIntMethodA\n");
+   SUBLOGAR("CallStaticIntMethodA");
 
    }
 
 
     jlong        subCallStaticLongMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticLongMethod\n");
+   SUBLOGAR("CallStaticLongMethod");
 
    }
 
 
     jlong        subCallStaticLongMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticLongMethodV\n");
+   SUBLOGAR("CallStaticLongMethodV");
 
    }
 
 
     jlong        subCallStaticLongMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticLongMethodA\n");
+   SUBLOGAR("CallStaticLongMethodA");
 
    }
 
 
     jfloat       subCallStaticFloatMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticFloatMethod\n");
+   SUBLOGAR("CallStaticFloatMethod");
 
    }
 
 
     jfloat       subCallStaticFloatMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticFloatMethodV\n");
+   SUBLOGAR("CallStaticFloatMethodV");
 
    }
 
 
     jfloat       subCallStaticFloatMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticFloatMethodA\n");
+   SUBLOGAR("CallStaticFloatMethodA");
 
    }
 
 
     jdouble      subCallStaticDoubleMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticDoubleMethod\n");
+   SUBLOGAR("CallStaticDoubleMethod");
 
    }
 
 
     jdouble      subCallStaticDoubleMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticDoubleMethodV\n");
+   SUBLOGAR("CallStaticDoubleMethodV");
 
    }
 
 
     jdouble      subCallStaticDoubleMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticDoubleMethodA\n");
+   SUBLOGAR("CallStaticDoubleMethodA");
 
    }
 
 
     void         subCallStaticVoidMethod(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2, ...) {
-   LOGSTRING("CallStaticVoidMethod\n");
+   SUBLOGAR("CallStaticVoidMethod");
 
    }
 
 
     void         subCallStaticVoidMethodV(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,va_list  va_list3) {
-   LOGSTRING("CallStaticVoidMethodV\n");
+   SUBLOGAR("CallStaticVoidMethodV");
 
    }
 
 
     void         subCallStaticVoidMethodA(JNIEnv*env,jclass  jclass1,jmethodID  jmethodID2,const jvalue * const3) {
-   LOGSTRING("CallStaticVoidMethodA\n");
+   SUBLOGAR("CallStaticVoidMethodA");
 
    }
 
 
     jfieldID     subGetStaticFieldID(JNIEnv*env,jclass  jclass1,const char * const2,const char * const3) {
-   LOGSTRING("GetStaticFieldID\n");
+   SUBLOGAR("GetStaticFieldID");
 
    }
 
 
     jobject      subGetStaticObjectField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticObjectField\n");
+   SUBLOGAR("GetStaticObjectField");
 
    }
 
 
     jboolean     subGetStaticBooleanField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticBooleanField\n");
+   SUBLOGAR("GetStaticBooleanField");
 
    }
 
 
     jbyte        subGetStaticByteField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticByteField\n");
+   SUBLOGAR("GetStaticByteField");
 
    }
 
 
     jchar        subGetStaticCharField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticCharField\n");
+   SUBLOGAR("GetStaticCharField");
 
    }
 
 
     jshort       subGetStaticShortField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticShortField\n");
+   SUBLOGAR("GetStaticShortField");
 
    }
 
 
     jint         subGetStaticIntField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticIntField\n");
+   SUBLOGAR("GetStaticIntField");
 
    }
 
 
     jlong        subGetStaticLongField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticLongField\n");
+   SUBLOGAR("GetStaticLongField");
 
    }
 
 
     jfloat       subGetStaticFloatField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticFloatField\n");
+   SUBLOGAR("GetStaticFloatField");
 
    }
 
 
     jdouble      subGetStaticDoubleField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2) {
-   LOGSTRING("GetStaticDoubleField\n");
+   SUBLOGAR("GetStaticDoubleField");
 
    }
 
 
     void         subSetStaticObjectField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jobject  jobject3) {
-   LOGSTRING("SetStaticObjectField\n");
+   SUBLOGAR("SetStaticObjectField");
 
    }
 
 
     void         subSetStaticBooleanField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jboolean  jboolean3) {
-   LOGSTRING("SetStaticBooleanField\n");
+   SUBLOGAR("SetStaticBooleanField");
 
    }
 
 
     void         subSetStaticByteField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jbyte  jbyte3) {
-   LOGSTRING("SetStaticByteField\n");
+   SUBLOGAR("SetStaticByteField");
 
    }
 
 
     void         subSetStaticCharField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jchar  jchar3) {
-   LOGSTRING("SetStaticCharField\n");
+   SUBLOGAR("SetStaticCharField");
 
    }
 
 
     void         subSetStaticShortField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jshort  jshort3) {
-   LOGSTRING("SetStaticShortField\n");
+   SUBLOGAR("SetStaticShortField");
 
    }
 
 
     void         subSetStaticIntField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jint  jint3) {
-   LOGSTRING("SetStaticIntField\n");
+   SUBLOGAR("SetStaticIntField");
 
    }
 
 
     void         subSetStaticLongField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jlong  jlong3) {
-   LOGSTRING("SetStaticLongField\n");
+   SUBLOGAR("SetStaticLongField");
 
    }
 
 
     void         subSetStaticFloatField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jfloat  jfloat3) {
-   LOGSTRING("SetStaticFloatField\n");
+   SUBLOGAR("SetStaticFloatField");
 
    }
 
 
     void         subSetStaticDoubleField(JNIEnv*env,jclass  jclass1,jfieldID  jfieldID2,jdouble  jdouble3) {
-   LOGSTRING("SetStaticDoubleField\n");
+   SUBLOGAR("SetStaticDoubleField");
 
    }
 
 
     jstring      subNewString(JNIEnv*env,const jchar * const1,jsize  jsize2) {
-   LOGSTRING("NewString\n");
+   SUBLOGAR("NewString");
    }
 
 
     jsize        subGetStringLength(JNIEnv*env,jstring  jstring1) {
-   LOGSTRING("GetStringLength\n");
+   SUBLOGAR("GetStringLength");
 
    }
 
 
     const jchar*  subGetStringChars(JNIEnv*env,jstring  jstring1,jboolean * jboolean2) {
-   LOGSTRING("GetStringChars\n");
+   SUBLOGAR("GetStringChars");
 
    }
 
 
     void         subReleaseStringChars(JNIEnv*env,jstring  jstring1,const jchar * const2) {
-   LOGSTRING("ReleaseStringChars\n");
+   SUBLOGAR("ReleaseStringChars");
 
    }
 
@@ -910,7 +910,7 @@
 
 
     jsize        subGetStringUTFLength(JNIEnv*env,jstring  jstring1) {
-   LOGSTRING("GetStringUTFLength\n");
+   SUBLOGAR("GetStringUTFLength");
    const char *str=(const char *)jstring1;
    return strlen(str);
 
@@ -921,151 +921,151 @@
 
 
     jobjectArray  subNewObjectArray(JNIEnv*env,jsize  jsize1,jclass  jclass2,jobject  jobject3) {
-   LOGSTRING("NewObjectArray\n");
+   SUBLOGAR("NewObjectArray");
 
    }
 
 
     jobject      subGetObjectArrayElement(JNIEnv*env,jobjectArray  jobjectArray1,jsize  jsize2) {
-   LOGSTRING("GetObjectArrayElement\n");
+   SUBLOGAR("GetObjectArrayElement");
 
    }
 
 
     void         subSetObjectArrayElement(JNIEnv*env,jobjectArray  jobjectArray1,jsize  jsize2,jobject  jobject3) {
-   LOGSTRING("SetObjectArrayElement\n");
+   SUBLOGAR("SetObjectArrayElement");
 
    }
 
 
     jbooleanArray  subNewBooleanArray(JNIEnv*env,jsize  jsize1) {
-   LOGSTRING("NewBooleanArray\n");
+   SUBLOGAR("NewBooleanArray");
 
    }
 
 
     jcharArray     subNewCharArray(JNIEnv*env,jsize  jsize1) {
-   LOGSTRING("NewCharArray\n");
+   SUBLOGAR("NewCharArray");
 
    }
 
 
     jshortArray    subNewShortArray(JNIEnv*env,jsize  jsize1) {
-   LOGSTRING("NewShortArray\n");
+   SUBLOGAR("NewShortArray");
 
    }
 
 
     jintArray      subNewIntArray(JNIEnv*env,jsize  jsize1) {
-   LOGSTRING("NewIntArray\n");
+   SUBLOGAR("NewIntArray");
 
    }
 
 
     jlongArray     subNewLongArray(JNIEnv*env,jsize  jsize1) {
-   LOGSTRING("NewLongArray\n");
+   SUBLOGAR("NewLongArray");
 
    }
 
 
     jfloatArray    subNewFloatArray(JNIEnv*env,jsize  jsize1) {
-   LOGSTRING("NewFloatArray\n");
+   SUBLOGAR("NewFloatArray");
 
    }
 
 
     jdoubleArray   subNewDoubleArray(JNIEnv*env,jsize  jsize1) {
-   LOGSTRING("NewDoubleArray\n");
+   SUBLOGAR("NewDoubleArray");
 
    }
 
 
     jboolean*    subGetBooleanArrayElements(JNIEnv*env,jbooleanArray  jbooleanArray1,jboolean * jboolean2) {
-   LOGSTRING("GetBooleanArrayElements\n");
+   SUBLOGAR("GetBooleanArrayElements");
 
    }
 
 
     jchar*       subGetCharArrayElements(JNIEnv*env,jcharArray  jcharArray1,jboolean * jboolean2) {
-   LOGSTRING("GetCharArrayElements\n");
+   SUBLOGAR("GetCharArrayElements");
 
    }
 
 
     jshort*      subGetShortArrayElements(JNIEnv*env,jshortArray  jshortArray1,jboolean * jboolean2) {
-   LOGSTRING("GetShortArrayElements\n");
+   SUBLOGAR("GetShortArrayElements");
 
    }
 
 /*
     jint*        subGetIntArrayElements(JNIEnv*env,jintArray  jintArray1,jboolean * jboolean2) {
-   LOGSTRING("GetIntArrayElements\n");
+   SUBLOGAR("GetIntArrayElements");
 
    } */
 
 
     jlong*       subGetLongArrayElements(JNIEnv*env,jlongArray  jlongArray1,jboolean * jboolean2) {
-   LOGSTRING("GetLongArrayElements\n");
+   SUBLOGAR("GetLongArrayElements");
 
    }
 
 
     jfloat*      subGetFloatArrayElements(JNIEnv*env,jfloatArray  jfloatArray1,jboolean * jboolean2) {
-   LOGSTRING("GetFloatArrayElements\n");
+   SUBLOGAR("GetFloatArrayElements");
 
    }
 
 
     jdouble*     subGetDoubleArrayElements(JNIEnv*env,jdoubleArray  jdoubleArray1,jboolean * jboolean2) {
-   LOGSTRING("GetDoubleArrayElements\n");
+   SUBLOGAR("GetDoubleArrayElements");
 
    }
 
 
     void         subReleaseBooleanArrayElements(JNIEnv*env,jbooleanArray  jbooleanArray1,jboolean * jboolean2,jint  jint3) {
-   LOGSTRING("ReleaseBooleanArrayElements\n");
+   SUBLOGAR("ReleaseBooleanArrayElements");
 
    }
 
 
     void         subReleaseCharArrayElements(JNIEnv*env,jcharArray  jcharArray1,jchar * jchar2,jint  jint3) {
-   LOGSTRING("ReleaseCharArrayElements\n");
+   SUBLOGAR("ReleaseCharArrayElements");
 
    }
 
 
     void         subReleaseShortArrayElements(JNIEnv*env,jshortArray  jshortArray1,jshort * jshort2,jint  jint3) {
-   LOGSTRING("ReleaseShortArrayElements\n");
+   SUBLOGAR("ReleaseShortArrayElements");
 
    }
 
 
 /*    void         subReleaseIntArrayElements(JNIEnv*env,jintArray  jintArray1,jint * jint2,jint  jint3) {
-   LOGSTRING("ReleaseIntArrayElements\n");
+   SUBLOGAR("ReleaseIntArrayElements");
 
    } */
 
 
     void         subReleaseLongArrayElements(JNIEnv*env,jlongArray  jlongArray1,jlong * jlong2,jint  jint3) {
-   LOGSTRING("ReleaseLongArrayElements\n");
+   SUBLOGAR("ReleaseLongArrayElements");
 
    }
 
 
     void         subReleaseFloatArrayElements(JNIEnv*env,jfloatArray  jfloatArray1,jfloat * jfloat2,jint  jint3) {
-   LOGSTRING("ReleaseFloatArrayElements\n");
+   SUBLOGAR("ReleaseFloatArrayElements");
 
    }
 
 
     void         subReleaseDoubleArrayElements(JNIEnv*env,jdoubleArray  jdoubleArray1,jdouble * jdouble2,jint  jint3) {
-   LOGSTRING("ReleaseDoubleArrayElements\n");
+   SUBLOGAR("ReleaseDoubleArrayElements");
 
    }
 
 
     void         subGetBooleanArrayRegion(JNIEnv*env,jbooleanArray  jbooleanArray1,jsize  jsize2,jsize  jsize3,jboolean * jboolean4) {
-   LOGSTRING("GetBooleanArrayRegion\n");
+   SUBLOGAR("GetBooleanArrayRegion");
 
    }
 
@@ -1073,43 +1073,43 @@
 
 
     void         subGetCharArrayRegion(JNIEnv*env,jcharArray  jcharArray1,jsize  jsize2,jsize  jsize3,jchar * jchar4) {
-   LOGSTRING("GetCharArrayRegion\n");
+   SUBLOGAR("GetCharArrayRegion");
 
    }
 
 
     void         subGetShortArrayRegion(JNIEnv*env,jshortArray  jshortArray1,jsize  jsize2,jsize  jsize3,jshort * jshort4) {
-   LOGSTRING("GetShortArrayRegion\n");
+   SUBLOGAR("GetShortArrayRegion");
 
    }
 
 
     void         subGetIntArrayRegion(JNIEnv*env,jintArray  jintArray1,jsize  jsize2,jsize  jsize3,jint * jint4) {
-   LOGSTRING("GetIntArrayRegion\n");
+   SUBLOGAR("GetIntArrayRegion");
 
    }
 
 
     void         subGetLongArrayRegion(JNIEnv*env,jlongArray  jlongArray1,jsize  jsize2,jsize  jsize3,jlong * jlong4) {
-   LOGSTRING("GetLongArrayRegion\n");
+   SUBLOGAR("GetLongArrayRegion");
 
    }
 
 
     void         subGetFloatArrayRegion(JNIEnv*env,jfloatArray  jfloatArray1,jsize  jsize2,jsize  jsize3,jfloat * jfloat4) {
-   LOGSTRING("GetFloatArrayRegion\n");
+   SUBLOGAR("GetFloatArrayRegion");
 
    }
 
 
     void         subGetDoubleArrayRegion(JNIEnv*env,jdoubleArray  jdoubleArray1,jsize  jsize2,jsize  jsize3,jdouble * jdouble4) {
-   LOGSTRING("GetDoubleArrayRegion\n");
+   SUBLOGAR("GetDoubleArrayRegion");
 
    }
 
 
     void         subSetBooleanArrayRegion(JNIEnv*env,jbooleanArray  jbooleanArray1,jsize  jsize2,jsize  jsize3,const jboolean * const4) {
-   LOGSTRING("SetBooleanArrayRegion\n");
+   SUBLOGAR("SetBooleanArrayRegion");
 
    }
 
@@ -1117,110 +1117,110 @@
 
 
     void         subSetCharArrayRegion(JNIEnv*env,jcharArray  jcharArray1,jsize  jsize2,jsize  jsize3,const jchar * const4) {
-   LOGSTRING("SetCharArrayRegion\n");
+   SUBLOGAR("SetCharArrayRegion");
 
    }
 
 
     void         subSetShortArrayRegion(JNIEnv*env,jshortArray  jshortArray1,jsize  jsize2,jsize  jsize3,const jshort * const4) {
-   LOGSTRING("SetShortArrayRegion\n");
+   SUBLOGAR("SetShortArrayRegion");
 
    }
 
 
     void         subSetIntArrayRegion(JNIEnv*env,jintArray  jintArray1,jsize  jsize2,jsize  jsize3,const jint * const4) {
-   LOGSTRING("SetIntArrayRegion\n");
+   SUBLOGAR("SetIntArrayRegion");
 
    }
 
 
     void         subSetLongArrayRegion(JNIEnv*env,jlongArray  jlongArray1,jsize  jsize2,jsize  jsize3,const jlong * const4) {
-   LOGSTRING("SetLongArrayRegion\n");
+   SUBLOGAR("SetLongArrayRegion");
 
    }
 
 
     void         subSetFloatArrayRegion(JNIEnv*env,jfloatArray  jfloatArray1,jsize  jsize2,jsize  jsize3,const jfloat * const4) {
-   LOGSTRING("SetFloatArrayRegion\n");
+   SUBLOGAR("SetFloatArrayRegion");
 
    }
 
 
     void         subSetDoubleArrayRegion(JNIEnv*env,jdoubleArray  jdoubleArray1,jsize  jsize2,jsize  jsize3,const jdouble * const4) {
-   LOGSTRING("SetDoubleArrayRegion\n");
+   SUBLOGAR("SetDoubleArrayRegion");
 
    }
 
 
 
     jint         subUnregisterNatives(JNIEnv*env,jclass  jclass1) {
-   LOGSTRING("UnregisterNatives\n");
+   SUBLOGAR("UnregisterNatives");
 
    }
 
 
     jint         subMonitorEnter(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("MonitorEnter\n");
+   SUBLOGAR("MonitorEnter");
 
    }
 
 
     jint         subMonitorExit(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("MonitorExit\n");
+   SUBLOGAR("MonitorExit");
 
    }
 
 
     jint         subGetJavaVM(JNIEnv*env,JavaVM ** JavaVM1) {
-   LOGSTRING("GetJavaVM\n");
+   SUBLOGAR("GetJavaVM");
 
    }
 
 
     void         subGetStringRegion(JNIEnv*env,jstring  jstring1,jsize  jsize2,jsize  jsize3,jchar * jchar4) {
-   LOGSTRING("GetStringRegion\n");
+   SUBLOGAR("GetStringRegion");
 
    }
 
 
     void         subGetStringUTFRegion(JNIEnv*env,jstring  jstring1,jsize  jsize2,jsize  jsize3,char * char4) {
-   LOGSTRING("GetStringUTFRegion\n");
+   SUBLOGAR("GetStringUTFRegion");
 
    }
 
 
     void*        subGetPrimitiveArrayCritical(JNIEnv*env,jarray  jarray1,jboolean * jboolean2) {
-   LOGSTRING("GetPrimitiveArrayCritical\n");
+   SUBLOGAR("GetPrimitiveArrayCritical");
 
    }
 
 
     void         subReleasePrimitiveArrayCritical(JNIEnv*env,jarray  jarray1,void * void2,jint  jint3) {
-   LOGSTRING("ReleasePrimitiveArrayCritical\n");
+   SUBLOGAR("ReleasePrimitiveArrayCritical");
 
    }
 
 
     const jchar*  subGetStringCritical(JNIEnv*env,jstring  jstring1,jboolean * jboolean2) {
-   LOGSTRING("GetStringCritical\n");
+   SUBLOGAR("GetStringCritical");
 
    }
 
 
     void         subReleaseStringCritical(JNIEnv*env,jstring  jstring1,const jchar * const2) {
-   LOGSTRING("ReleaseStringCritical\n");
+   SUBLOGAR("ReleaseStringCritical");
 
    }
 
 
     jweak        subNewWeakGlobalRef(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("NewWeakGlobalRef\n");
+   SUBLOGAR("NewWeakGlobalRef");
 
    }
 
 
     void         subDeleteWeakGlobalRef(JNIEnv*env,jweak  jweak1) {
-   LOGSTRING("DeleteWeakGlobalRef\n");
+   SUBLOGAR("DeleteWeakGlobalRef");
 
    }
 
@@ -1228,25 +1228,25 @@
 
 
     jobject      subNewDirectByteBuffer(JNIEnv*env,void * void1,jlong  jlong2) {
-   LOGSTRING("NewDirectByteBuffer\n");
+   SUBLOGAR("NewDirectByteBuffer");
 
    }
 
 
     void*        subGetDirectBufferAddress(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("GetDirectBufferAddress\n");
+   SUBLOGAR("GetDirectBufferAddress");
 
    }
 
 
     jlong        subGetDirectBufferCapacity(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("GetDirectBufferCapacity\n");
+   SUBLOGAR("GetDirectBufferCapacity");
 
    }
 
 
     jobjectRefType  subGetObjectRefType(JNIEnv*env,jobject  jobject1) {
-   LOGSTRING("GetObjectRefType\n");
+   SUBLOGAR("GetObjectRefType");
 
    }
 

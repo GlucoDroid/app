@@ -11,7 +11,7 @@
 extern double getdelta(float change);
 extern std::string_view getdeltaname(float rate);
 int mkv3streamid(char *outiter,const sensorname_t *name,int num) { 
-LOGGER("sensorname=%s\n",name->data());
+//LOGGER("sensorname=%s\n",name->data());
 const uint16_t *gets=reinterpret_cast<const uint16_t*>(name->data());
 int ch2=name->back();
 int len=sprintf(outiter,"%04x%04x-%04x-%04x-%02xee-eeeeeeeeeeee",(int)(gets[4]),(int)(gets[3]),(int)(gets[2]),(int)(gets[1]),ch2);
@@ -26,7 +26,7 @@ return len;
 //c149bacfb000007f
 }
 int mkv1streamid(char *outiter,const sensorname_t *name,int num) { 
-LOGGER("sensorname=%s\n",name->data());
+//LOGGER("sensorname=%s\n",name->data());
 const uint16_t *gets=reinterpret_cast<const uint16_t*>(name->data());
 int ch2=name->back();
 int len=sprintf(outiter,"%04x%04x%04x%04x%02xeeeeee",(int)(gets[4]),(int)(gets[3]),(int)(gets[2]),(int)(gets[1]),ch2);

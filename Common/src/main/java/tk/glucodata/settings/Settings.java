@@ -336,20 +336,20 @@ void setvalues() {
 static public void alarmsettings(MainActivity context,View parview,boolean[] issaved) {
     parview.setVisibility(GONE);
     TextView alarmlow,alarmhigh;
-        View[] lowalarm= mkalarm(context,context.getString(R.string.lowglucosealarm),Natives.hasalarmlow(),Natives.alarmlow(),0);
-        View[] highalarm=mkalarm(context,context.getString(R.string.highglucosealarm),Natives.hasalarmhigh(),Natives.alarmhigh(),1);
+    View[] lowalarm= mkalarm(context,context.getString(R.string.lowglucosealarm),Natives.hasalarmlow(),Natives.alarmlow(),0);
+    View[] highalarm=mkalarm(context,context.getString(R.string.highglucosealarm),Natives.hasalarmhigh(),Natives.alarmhigh(),1);
     alarmlow=(TextView)lowalarm[1];
     alarmhigh=(TextView)highalarm[1];
     alarmlow.setText( float2string(Natives.alarmlow()));
     alarmhigh.setText( float2string(Natives.alarmhigh()));
-        CheckBox isvalue = new CheckBox(context);
+    CheckBox isvalue = new CheckBox(context);
     final boolean hasvalue=Natives.hasvaluealarm();
-       isvalue.setChecked(hasvalue); //Value
-        isvalue.setText(R.string.valueavailablenotification);
+    isvalue.setChecked(hasvalue); //Value
+    isvalue.setText(R.string.valueavailablenotification);
     Button ringisvalue=getbutton(context,R.string.ringtonename);
     Button help=getbutton(context,R.string.helpname);
-        help.setOnClickListener(v->{help(R.string.alarmhelp,(MainActivity)(v.getContext())); });
-       if(!hasvalue) ringisvalue.setVisibility(INVISIBLE);
+    help.setOnClickListener(v->{help(R.string.alarmhelp,(MainActivity)(v.getContext())); });
+    if(!hasvalue) ringisvalue.setVisibility(INVISIBLE);
     isvalue.setOnCheckedChangeListener(
              (buttonView,  isChecked) -> {
              if(isChecked) {
@@ -362,12 +362,6 @@ static public void alarmsettings(MainActivity context,View parview,boolean[] iss
 
 
     var usealarm=getcheckbox(context, R.string.USE_ALARM, Natives.getUSEALARM());
-    /*
-    usealarm.setOnCheckedChangeListener(
-             (buttonView,  isChecked) -> {
-                Natives.setUSEALARM(isChecked);
-                }
-            ); */
     final boolean alarmloss= Natives.hasalarmloss();
         CheckBox lossalarm = new CheckBox(context);
         lossalarm.setChecked(alarmloss); //Value

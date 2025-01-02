@@ -266,11 +266,11 @@
   <string name="talker">Spreker</string>
   <string name="secondsbetween">Seconden er tussen</string>
   <string name="test">Test</string>
- <string name="novalue">No value</string>
+ <string name="novalue">Geen waarde</string>
 
- <string name="menus">Menus</string>
+ <string name="menus">Menu\'s</string>
 
-<string name="system_ui">System UI        </string>
+<string name="system_ui">System UI</string>
 <string name="watch">Horloges</string>
 <string name="sensor">Sensor</string>
 <string name="settings">Instellingen</string>

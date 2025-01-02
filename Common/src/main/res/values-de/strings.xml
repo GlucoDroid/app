@@ -275,6 +275,8 @@
   <string name="secondsbetween">Sekunden dazwischen</string>
   <string name="test">Test</string>
 
+ <string name="novalue">Kein Wert</string>
+ <string name="menus">Menü</string>
 <string name="system_ui">System UI</string>
 <string name="watch">Uhren</string>
 <string name="sensor">Sensor</string>

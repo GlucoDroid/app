@@ -73,6 +73,7 @@ uint32_t largemaxtime() const {
 
 extern void	sendstartsensors(int startpos);
 extern void	sendKAuth(SensorGlucoseData *hist);
+extern void sendsiScan(SensorGlucoseData *hist) ;
 extern void  setstreaming(SensorGlucoseData *hist);
 class Sensoren {
 	string inbasedir;
@@ -414,6 +415,7 @@ std::pair<int,SensorGlucoseData *> makeDexComSensorindex(const char *pin,std::st
 	    const int	sensindex= sensgegs - sensorlist();
 	    SensorGlucoseData *sens=getSensorData(sensindex) ;
 	    sendKAuth(sens);
+        sendsiScan(sens);
 	    setstreaming(sens);
 	    sensgegs->finished=0;
 	    auto *info= sens->getinfo();
@@ -1119,9 +1121,14 @@ bool knownDex(const char *name,const char *address) const {
       if(!memcmp(sen->name,"E0",2))
 	     continue;
       const SensorGlucoseData *sens = getSensorData(i);
-      if(!strcmp(sens->getinfo()->DexDeviceName,name)&&!strcmp(sens->deviceaddress(),address))
+      if(!sens->isDexcom())
+        continue;
+      if(!strcmp(sens->getinfo()->DexDeviceName,name)&&!strcmp(sens->deviceaddress(),address)) {
+             LOGGER("KnownDex %d %s %s\n",i,name,address);
 	     return true;
+             }
      }
+   LOGGER("no KnownDex %s %s\n",name,address);
    return false;
    }
 

@@ -773,7 +773,7 @@ public static native byte[] makeRound12bytes(long dataptr,int which);
 public static native boolean dex8AES(long dataptr,byte[] data,int datstart,byte[] out,int outoutstart);
 public static native void dexResetKeys(long dataptr);
 
-public static native void dexcomProcessData(long dataptr, byte[] bluetoothdata,long[] timeres);
+public static native boolean dexcomProcessData(long dataptr, byte[] bluetoothdata,long[] timeres);
 public static native byte[] getDexbackfillcmd(long dataptr);
 public static native boolean dexbackfill(long dataptr, byte[]  bluetoothdata);
 public static native byte[] makeRound3bytes(long dataptr);

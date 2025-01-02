@@ -144,6 +144,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
          sens->sensorerror=false; 
          auto res=glucoseback(mgdL,rate,sens);
          timeres[1]=res;
+         timeres[0]-=age*1000L;
          }
       else {
          sens->sensorerror=true; 
@@ -158,7 +159,6 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
          sens->sensorerror=true; 
          timeres[1]=0LL;
       }
-   timeres[0]-=age*1000L;
    }
 
 } __attribute__ ((packed));
@@ -167,22 +167,25 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
 
 
 
-extern "C" JNIEXPORT void JNICALL   fromjava(dexcomProcessData)(JNIEnv *envin, jclass _,jlong dataptr, jbyteArray bluetoothdata,jlongArray jtimeres) {
+extern "C" JNIEXPORT jboolean JNICALL   fromjava(dexcomProcessData)(JNIEnv *envin, jclass _,jlong dataptr, jbyteArray bluetoothdata,jlongArray jtimeres) {
   CritArSave<jlong> timeres(envin,jtimeres);
 if(!dataptr) {
    LOGAR("dexcomProcessData dataptr==null");
    timeres.data()[1]=0LL;
+   return false;
     }
  dexcomstream *sdata=reinterpret_cast<dexcomstream *>(dataptr);
   SensorGlucoseData *sens=sdata->hist;
   if(!sens) {
       LOGAR("dexcomProcessData SensorGlucoseData==null");
       timeres.data()[1]=0LL;
+      return false;
      }
    const auto arlen=envin->GetArrayLength(bluetoothdata);
   if(arlen< 19) {
       LOGGER("dexcomProcessData: too small %d<19\n", arlen) ;
       timeres.data()[1]=0LL;
+      return false;
       }
   sens->setbroadcastfrom(INT_MAX);
 
@@ -190,6 +193,10 @@ if(!dataptr) {
   const glucoseinput *glucose=reinterpret_cast<decltype(glucose)>(bluedata.data());
 
    glucose->actual(sens,timeres.data(),sdata->sensorindex);
+  
+   jboolean writename=!sens->getinfo()->DexDeviceName[0];
+   LOGGER("dexcomProcessData unknown=%d\n",writename);
+   return writename;
   }
 struct askfilldata {
    uint8_t cmd=0x59;
@@ -520,9 +527,10 @@ extern "C" JNIEXPORT void JNICALL   fromjava(dexSaveDeviceName)(JNIEnv *env, jcl
       }	
    int len=std::min(maxlen-1,getlen);
    char *name=(char *)info->DexDeviceName;
-   LOGGER("dexSaveDeviceName(%s)\n",name);
+   LOGGER("dexSaveDeviceName(prev %s)\n",name);
    env->GetStringUTFRegion( jdeviceName, 0,len, name);
    name[len]='\0';
+   LOGGER("dexSaveDeviceName(new %s)\n",name);
    // sendstreaming(sens);  //TODO??
    }
 extern "C" JNIEXPORT jstring JNICALL   fromjava(dexGetDeviceName)(JNIEnv *env, jclass cl,jlong dataptr) {
@@ -547,19 +555,36 @@ static bool isG7(const char *deviceName) {
     }
 
 extern "C" JNIEXPORT jboolean JNICALL   fromjava(dexCandidate)(JNIEnv *env, jclass cl,jlong dataptr,jstring jdeviceName,jstring jaddress) {
-   if(!jaddress) return false;
-   if(!jdeviceName) return false;
+   if(!jaddress) {
+    LOGAR("dexCandidate==false jaddress==null");
+    return false;
+    }
+   if(!jdeviceName) {
+    LOGAR("dexCandidate==false jdeviceName==null");
+    return false;
+    }
    const char *deviceName = env->GetStringUTFChars( jdeviceName, NULL);
-   if(!deviceName) return false;
+   if(!deviceName) {
+        LOGAR("dexCandidate==false deviceName==null");
+        return false;
+        }
    destruct   _([jdeviceName,deviceName,env]() {env->ReleaseStringUTFChars(jdeviceName, deviceName);});
    const SensorGlucoseData *sens=reinterpret_cast<const streamdata *>(dataptr)->hist;
    const char *name=sens->getinfo()->DexDeviceName;
-   if(*name) 
-      return !strcmp(name,deviceName);
-   if(!isG7(deviceName))
+   if(*name) {
+      jboolean res= !strcmp(name,deviceName);
+      LOGGER("dexCandidate==%d thisname=%s, candidatename=%s\n",res,name,deviceName);
+      return res;
+      }
+   if(!isG7(deviceName)) {
+      LOGGER("dexCandidate==false !isG7(%s)\n",deviceName);
       return false;
+      }
    const char *address = env->GetStringUTFChars( jaddress, NULL);
-   if(!address) return false;
+   if(!address) {
+      LOGAR("dexCandidate==false address==null");
+      return false;
+      }
    destruct   _([jaddress,address,env]() {env->ReleaseStringUTFChars(jaddress, address);});
    return !sensors->knownDex(deviceName,address) ;
    }

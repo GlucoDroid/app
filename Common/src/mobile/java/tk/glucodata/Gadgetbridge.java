@@ -21,6 +21,8 @@
 
 package tk.glucodata;
 
+import static tk.glucodata.NumberView.minhourstr;
+
 import android.content.Intent;
 
 import java.util.Calendar;
@@ -34,42 +36,43 @@ public class Gadgetbridge {
     public final static String WEATHER_ACTION="de.kaffeemitkoffein.broadcast.WEATHERDATA";
 /*
 private static float kelvin(float input) {
-	return ((input-32f)*5f)/9f+273.15f;
-	} */
+    return ((input-32f)*5f)/9f+273.15f;
+    } */
 private static float kelvin(float input) {
-	return input+273.15f;
-	}
+    return input+273.15f;
+    }
 static final private float[] speeds= {2, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118,150};
-   static void sendglucose(String glstr,int mgdl,float gl,float rate,long timmsec)  {
-    	 WeatherSpec weatherSpec = new WeatherSpec();
-	 final int code=librecode(rate);
-            weatherSpec.location             = librearrows[code]+glstr;
-	    weatherSpec.timestamp            = (int) (timmsec/1000L);
-	   weatherSpec.currentCondition=weatherSpec.location;
-	weatherSpec.currentConditionCode=libreweather[code];
-	   var cal = Calendar.getInstance();
-          cal.setTimeInMillis(timmsec);
-	weatherSpec.currentHumidity= cal.get(Calendar.MINUTE);
-	   weatherSpec.windSpeed=speeds[cal.get(Calendar.HOUR_OF_DAY)%12];
-//	weatherSpec.windDirection=cal.get(Calendar.MINUTE);
-	    
-		
-   	weatherSpec.currentTemp=(int)kelvin(Math.round(rate*10));
-	if(Applic.unit==1) {
-		float trunc=(float)Math.floor(gl);
-		if((gl-trunc)>=.95f) {
-			weatherSpec.todayMaxTemp= (int)kelvin((float)Math.ceil(gl));
-			weatherSpec.todayMinTemp=273;
-			}
-		else   {
-		    weatherSpec.todayMaxTemp= (int)kelvin(trunc);
-		       weatherSpec.todayMinTemp=(int)kelvin(Math.round((gl*10)%10));
-		       }
-		 }
-	   else  {
-		weatherSpec.todayMaxTemp= (int)kelvin((float)Math.floor(gl/10.0f));
-		weatherSpec.todayMinTemp=(int)kelvin(gl%10);
-	   	}
+
+static void sendglucose(String glstr,int mgdl,float gl,float rate,long timmsec)  {
+   WeatherSpec weatherSpec = new WeatherSpec();
+   final int code=librecode(rate);
+   weatherSpec.location             = minhourstr(timmsec)+librearrows[code]+glstr;
+   weatherSpec.timestamp            = (int) (timmsec/1000L);
+   weatherSpec.currentCondition=weatherSpec.location;
+   weatherSpec.currentConditionCode=libreweather[code];
+   var cal = Calendar.getInstance();
+   cal.setTimeInMillis(timmsec);
+   weatherSpec.currentHumidity= cal.get(Calendar.MINUTE);
+   weatherSpec.windSpeed=speeds[cal.get(Calendar.HOUR_OF_DAY)%12];
+//    weatherSpec.windDirection=cal.get(Calendar.MINUTE);
+        
+        
+   weatherSpec.currentTemp=(int)kelvin(Math.round(rate*10));
+    if(Applic.unit==1) {
+        float trunc=(float)Math.floor(gl);
+        if((gl-trunc)>=.95f) {
+            weatherSpec.todayMaxTemp= (int)kelvin((float)Math.ceil(gl));
+            weatherSpec.todayMinTemp=273;
+            }
+        else   {
+            weatherSpec.todayMaxTemp= (int)kelvin(trunc);
+               weatherSpec.todayMinTemp=(int)kelvin(Math.round((gl*10)%10));
+               }
+         }
+       else  {
+        weatherSpec.todayMaxTemp= (int)kelvin((float)Math.floor(gl/10.0f));
+        weatherSpec.todayMinTemp=(int)kelvin(gl%10);
+           }
 
             Intent intent = new Intent();
             intent.putExtra(WEATHER_EXTRA,weatherSpec);
@@ -106,28 +109,28 @@ private static     int librecode(float rate) {
     }
 //private static final String[] librenames={"Undetermined","Falling_Quickly","Falling","Steady","Rising","Rising_Quickly"};
 private static final String[] librearrows={" ","\u2193", "\u2198","\u2192", "\u2197", "\u2191"};
-private static final int[] libreweather=  {701,			602,		600,	800,	    500,	502};
-//private static final int[] libreweather=  {603,			603,		603,	603,	    603,	603};
-//					   mist		heavy snow	snow	clear	rain heavy rain
+private static final int[] libreweather=  {701,            602,        600,    800,        500,    502};
+//private static final int[] libreweather=  {603,            603,        603,    603,        603,    603};
+//                       mist        heavy snow    snow    clear    rain heavy rain
 
 /*
 static     String librelabel(float rate) {
         if (rate <= -2.0f) {
-            return  "\u2193";
+            return  "↓";
         }
         if (rate <= -1.0f) {
-            return "\u2198";
+            return "↘";
         }
         if (rate <= 1.0f) {
-            return "\u2192";
+            return "→";
         }
         if (rate <= 2.0f) {
-            return "\u2197";
+            return "↗";
         }
         if (Float.isNaN(rate)) {
             return " ";
         }
-        return "\u2191";
+        return "↑";
     }
 */
 
