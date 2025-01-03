@@ -186,8 +186,8 @@ const static jclass cl=env->FindClass("tk/glucodata/Applic");
 if(cl) {
    JNIApplic = (jclass)env->NewGlobalRef(cl);
    env->DeleteLocalRef(cl);
-   if(!(jdoglucose=env->GetStaticMethodID(JNIApplic,"doglucose","(Ljava/lang/String;IFFIJZJJ)V"))) {
-      LOGAR(R"(GetStaticMethodID(JNIApplic,"doglucose","(Ljava/lang/String;IFFIJZJJ)V"))) failed)" "");
+   if(!(jdoglucose=env->GetStaticMethodID(JNIApplic,"doglucose","(Ljava/lang/String;IFFIJZJJI)V"))) {
+      LOGAR(R"(GetStaticMethodID(JNIApplic,"doglucose","(Ljava/lang/String;IFFIJZJJI)V"))) failed)" "");
       }
    if(!(jupdateDevices=env->GetStaticMethodID(JNIApplic,"updateDevices","()Z"))) {
       LOGAR(R"(jupdateDevices=env->GetStaticMethodID(JNIApplic,"updateDevices","()Z") failed)" "");
@@ -292,9 +292,9 @@ JNIEnv *getenv() {
 bool bluetoothEnabled() {
     return   getenv()->CallStaticBooleanMethod(JNIApplic,jbluetoothEnabled);
     }
-void telldoglucose(const char *name,int32_t mgdl,float glu,float rate,int alarm,int64_t mmsec,bool wasnoblue,int64_t startmsec,intptr_t sensorptr) {
+void telldoglucose(const char *name,int32_t mgdl,float glu,float rate,int alarm,int64_t mmsec,bool wasnoblue,int64_t startmsec,intptr_t sensorptr,int sensorgen) {
    jstring sname= getenv()->NewStringUTF(name);
-   getenv()->CallStaticVoidMethod(JNIApplic,jdoglucose,sname,mgdl,glu,rate,alarm,mmsec,wasnoblue,startmsec,sensorptr);
+   getenv()->CallStaticVoidMethod(JNIApplic,jdoglucose,sname,mgdl,glu,rate,alarm,mmsec,wasnoblue,startmsec,sensorptr,sensorgen);
    getenv()->DeleteLocalRef(sname);
    }
 

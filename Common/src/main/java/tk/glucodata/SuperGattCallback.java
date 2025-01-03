@@ -188,7 +188,7 @@ static void endtalk() {
         }
     }
 
-    static void dowithglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,long sensorstartmsec,long showtime) {
+    static void dowithglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,long sensorstartmsec,long showtime,int sensorgen) {
         if(gl==0.0)
             return;
         if (glucosealarms == null)
@@ -279,7 +279,7 @@ static void endtalk() {
                 //SendNSClient.broadcastglucose(mgdl, rate, timmsec);
                 }
             if(Natives.getxbroadcast())
-                SendLikexDrip.broadcastglucose(mgdl,rate,timmsec,sensorstartmsec);
+                SendLikexDrip.broadcastglucose(mgdl,rate,timmsec,sensorstartmsec,sensorgen);
             if(!isWearable) {
                 if(doWearInt)
                     tk.glucodata.WearInt.sendglucose(mgdl, rate, alarm, timmsec);
@@ -321,7 +321,7 @@ protected void handleGlucoseResult(long res,long timmsec) {
             float gl = Applic.unit == 1 ? glumgdl / mgdLmult : glumgdl;
             short ratein = (short) ((res >> 32) & 0xFFFFL);
             float rate = ratein / 1000.0f;
-            dowithglucose(SerialNumber, glumgdl, gl, rate, alarm, timmsec,sensorstartmsec,showtime);
+            dowithglucose(SerialNumber, glumgdl, gl, rate, alarm, timmsec,sensorstartmsec,showtime,sensorgen);
             charcha[0] = timmsec;
             if(!isWearable) {
                 if(Natives.gethealthConnect( )) {
@@ -339,13 +339,11 @@ protected void handleGlucoseResult(long res,long timmsec) {
             charcha[1] = timmsec;
         }
     }
-
 public void searchforDeviceAddress() {
     Log.i(LOG_ID,SerialNumber+" searchforDeviceAddress()");
     //setDeviceAddress(null);
     foundtime=0L;
     mActiveDeviceAddress = null;
-    close();
     }    
      String getinfo() {
          if(dataptr!=0L)

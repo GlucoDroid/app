@@ -2747,9 +2747,9 @@ void     processglucosevalue(int sendindex,int newstart) {
 					     }
 				     settings->data()->nobluetooth=true;
 				     float rate=poll->ch;
-extern void telldoglucose(const char *name,int32_t mgdl,float glu,float rate,int alarm,int64_t mmsec,bool wasnoblue,int64_t startsensor,intptr_t) ;
+extern void telldoglucose(const char *name,int32_t mgdl,float glu,float rate,int alarm,int64_t mmsec,bool wasnoblue,int64_t startsensor,intptr_t,int) ;
 
-				     telldoglucose(hist->shortsensorname()->data(),poll->g,glu,rate,alarm,tim*1000LL,wasnoblue,startsensor,dohealth(sendindex)?reinterpret_cast<intptr_t>(hist):0LL);
+				     telldoglucose(hist->shortsensorname()->data(),poll->g,glu,rate,alarm,tim*1000LL,wasnoblue,startsensor,dohealth(sendindex)?reinterpret_cast<intptr_t>(hist):0LL,hist->getSensorgen2());
 
 			     //	wakeuploader();
 extern				void wakewithcurrent();

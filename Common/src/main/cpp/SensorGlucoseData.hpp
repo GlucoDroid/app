@@ -406,6 +406,15 @@ void setsensorgen() {
 	getinfo()->blueinfo.sensorgen=getgeneration((const char *)info->data()); */
 
 	}
+int getSensorgen2() const {
+        if(isDexcom())
+                return 0x40;
+        if(isSibionics())
+                return 0x10;
+        if(getinfo()->interval==interval5)
+                return 3;
+         return 2;
+        }
 char *deviceaddress() {
 	return getinfo()->deviceaddress;
 	}

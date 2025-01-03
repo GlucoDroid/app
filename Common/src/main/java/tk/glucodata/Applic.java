@@ -647,14 +647,14 @@ static boolean bluetoothEnabled() {
     }
 static final boolean usewakelock=true;
 @Keep
-static void doglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,boolean wasblueoff,long sensorstartmsec,long sensorptr) {
+static void doglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,boolean wasblueoff,long sensorstartmsec,long sensorptr,int sensorgen) {
     var wakelock=    usewakelock?(((PowerManager) app.getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Juggluco::Applic")):null;
     if(wakelock!=null)
         wakelock.acquire();
     if(!wasblueoff) {
         Applic.dontusebluetooth();
         }
-    SuperGattCallback.dowithglucose( SerialNumber,  mgdl,  gl, rate,  alarm,  timmsec,sensorstartmsec,Notify.glucosetimeout);
+    SuperGattCallback.dowithglucose( SerialNumber,  mgdl,  gl, rate,  alarm,  timmsec,sensorstartmsec,Notify.glucosetimeout,sensorgen);
     if(!isWearable) {
             if(sensorptr!=0L) {
              if(Build.VERSION.SDK_INT >= 28) {

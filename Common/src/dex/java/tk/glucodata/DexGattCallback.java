@@ -149,6 +149,7 @@ private void docmd0(BluetoothGatt bluetoothGatt) {
   private boolean bonded=false;
 
 //private long connectedtime=0L;
+//private ArrayList<String> triedsensors=new ArrayList<>();
 private boolean connected=false;
     @SuppressLint("MissingPermission")
     @Override
@@ -196,7 +197,8 @@ private boolean connected=false;
                      if((foundtime+15*60*1000L)<tim)  {
                         Log.i(LOG_ID,"misconnect="+misconnect+" try new address");
                         misconnect=0;
-                        mActiveDeviceAddress=null;
+                        //triedsensors.add(mActiveDeviceAddress); 
+                        searchforDeviceAddress();
                         }
                      else
                         ++misconnect;
@@ -206,6 +208,7 @@ private boolean connected=false;
                       var sensorbluetooth = SensorBluetooth.blueone;
                       if (sensorbluetooth != null) {
                         if(justdata) {
+                            Applic.wakemirrors();
                             long alreadywaited = tim - constatchange[0];
                             if(getalarmclock()) {
                                 //long stillwait=justdata?(6700-alreadywaited):0;
@@ -438,10 +441,12 @@ private void saveDeviceName() {
                 Log.showbytes("dex8AES ", aes);
                 Log.showbytes("value ", value);
                 boolean verified = equalpart(aes, value, 1);
-                Log.i(LOG_ID, "dex8AES(dataptr,random8,aes)=" + aesSu + (verified ? " verified" : " not verified"));
+                Log.i(LOG_ID,  SerialNumber +" "+ mActiveDeviceAddress + " dex8AES =" + aesSu + (verified ? " verified" : " not verified"));
                if(!verified) {
                   handshake = "dex8AES different";
                   wrotepass[1] = System.currentTimeMillis();
+
+                  searchforDeviceAddress();
                   resetCerts();
                   return;
                   }  
@@ -672,6 +677,7 @@ private    void getdata(byte[] value) {
 
     @Override
     public boolean matchDeviceName(String deviceName, String address) {
+//      if(triedsensors.contains(address)) return false;
       return Natives.dexCandidate(dataptr,deviceName,address);
     }
 

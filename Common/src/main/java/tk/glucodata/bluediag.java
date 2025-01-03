@@ -173,6 +173,7 @@ void showinfo(final SuperGattCallback gatt,MainActivity act) {
       {
             forget.setOnClickListener(v-> {
                 gatt.searchforDeviceAddress();
+                gatt.close();
                 SensorBluetooth.startscan();
                  act.doonback();
                  new bluediag(act);
