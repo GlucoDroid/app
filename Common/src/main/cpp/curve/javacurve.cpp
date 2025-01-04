@@ -298,14 +298,22 @@ void telldoglucose(const char *name,int32_t mgdl,float glu,float rate,int alarm,
    getenv()->DeleteLocalRef(sname);
    }
 
-bool updateDevices() {
+extern bool javaUpdateDevices();
+bool javaUpdateDevices() {
     if(!jupdateDevices)  {
        LOGAR("jupdateDevices==null");
        return false;
        }
-    sensors->deletelast();
     return   getenv()->CallStaticBooleanMethod(JNIApplic,jupdateDevices);
     }
+/*
+extern bool javaUpdateDevices();
+bool updateDevices() {
+    LOGAR("before deletelast()");
+    sensors->deletelast();
+    LOGAR("after deletelast()");
+    return  javaUpdateDevices();
+    } */
 void resetWearOS() {
     if(!jresetWearOS)  {
        LOGAR("jresetWearOS==null");

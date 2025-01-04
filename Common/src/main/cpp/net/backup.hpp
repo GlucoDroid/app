@@ -83,10 +83,5 @@ unique_al<4> receivedata(int sock, crypt_t *ctx,const int len) ;
 
 dataonlyptr receivedataonly(int sock, crypt_t *ctx,const int len) ;
 bool receiveractive();
-inline bool askresetdevices(crypt_t *pass,const int sock) {
-	const bool ret= noacksendone(pass, sock, sresetdevices) ;
-	LOGGER("askresetdevices(pass,%d)=%d\n",sock,ret);
-	return ret;
-	}
 constexpr const int streamupdatebit=1<<15;
 constexpr const int starthistoryupdate=1<<14;

@@ -540,25 +540,31 @@ private boolean used_priority=false;
         }
 @SuppressLint("MissingPermission")
  protected  final boolean enableGattDescriptor(BluetoothGatt bluetoothGatt1, BluetoothGattCharacteristic bluetoothGattCharacteristic,byte[] type) {
-     BluetoothGattDescriptor descriptor = bluetoothGattCharacteristic.getDescriptor(mCharacteristicConfigDescriptor);
-     if(!descriptor.setValue(type)) {
-         Log.e(LOG_ID, SerialNumber +" "+"descriptor.setValue())  failed");
-         return false;
-         }
-     final int originalWriteType = bluetoothGattCharacteristic.getWriteType();
-     bluetoothGattCharacteristic.setWriteType( BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-     var success=bluetoothGatt1.writeDescriptor(descriptor);
-     bluetoothGattCharacteristic.setWriteType(originalWriteType);
-     if(!success) {
-         Log.e(LOG_ID, SerialNumber +" "+"bluetoothGatt1.writeDescriptor(descriptor))  failed");
+    try {
+         BluetoothGattDescriptor descriptor = bluetoothGattCharacteristic.getDescriptor(mCharacteristicConfigDescriptor);
+         if(!descriptor.setValue(type)) {
+             Log.e(LOG_ID, SerialNumber +" "+"descriptor.setValue())  failed");
+             return false;
+             }
+         final int originalWriteType = bluetoothGattCharacteristic.getWriteType();
+         bluetoothGattCharacteristic.setWriteType( BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+         var success=bluetoothGatt1.writeDescriptor(descriptor);
+         bluetoothGattCharacteristic.setWriteType(originalWriteType);
+         if(!success) {
+             Log.e(LOG_ID, SerialNumber +" "+"bluetoothGatt1.writeDescriptor(descriptor))  failed");
+             return success;
+             }
+          showbytes(LOG_ID+" "+SerialNumber +" "+    "enableNotification ",type);
+          if(!bluetoothGatt1.setCharacteristicNotification(bluetoothGattCharacteristic, type[0]!=0)) {
+             Log.e(LOG_ID, SerialNumber +" "+"setCharacteristicNotification("+bluetoothGattCharacteristic.getUuid().toString()+",true) failed");
+             return false;
+             }
          return success;
          }
-      showbytes(LOG_ID+" "+SerialNumber +" "+    "enableNotification ",type);
-      if(!bluetoothGatt1.setCharacteristicNotification(bluetoothGattCharacteristic, type[0]!=0)) {
-         Log.e(LOG_ID, SerialNumber +" "+"setCharacteristicNotification("+bluetoothGattCharacteristic.getUuid().toString()+",true) failed");
-         return false;
-         }
-     return success;
+      catch(Throwable th) {
+        Log.stack(LOG_ID,"enableGattDescriptor",th);
+        return false;
+        }
      }
 
 protected final boolean asknotification(BluetoothGattCharacteristic charac) {

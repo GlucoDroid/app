@@ -420,6 +420,7 @@ Settings(const char *settingsname,const char *base,const char *country): Mmap(se
 
 //	if(data()->initVersion<30) 
    { 
+    LOGGER("initVersion=%d\n",data()->initVersion);
 	if(data()->initVersion<26) { 
       if(data()->initVersion<22) { 
       if(data()->initVersion<20) {

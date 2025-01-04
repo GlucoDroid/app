@@ -187,9 +187,9 @@ extern "C" JNIEXPORT jintArray JNICALL   fromjava(searchIngredient)(JNIEnv *env,
     destruct   dest([jlabel,label,env]() {env->ReleaseStringUTFChars(jlabel, label);});
     LOGGER("searchIngredient(%s)\n",label);
     std::vector<int> vect;
-    const int nr=meals->datameal()->ingredientnr;
+//    const int nr=meals->datameal()->ingredientnr;
     if(reg_ingredient(label,vect,meals->getingredients().data(),meals->datameal()->ingredientnr)) {
-        const auto len=vect.size();
+     const auto len=vect.size();
 	jintArray  uit=env->NewIntArray(len) ;
 	env->SetIntArrayRegion(uit, 0,len, vect.data());
         return uit;

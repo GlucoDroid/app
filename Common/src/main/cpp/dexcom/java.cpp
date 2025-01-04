@@ -20,6 +20,7 @@
 
 
 #ifdef DEXCOM
+#include <algorithm>
 #include "streamdata.hpp"
 #include "fromjava.h"
 #include "jniclass.hpp"
@@ -141,13 +142,13 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
       backup->wakebackup(Backup::wakestream);
       wakewithcurrent();
       if((nowsec-wastime)<maxbluetoothage) {
-         sens->sensorerror=false; 
+         sens->sensorerror=false;
          auto res=glucoseback(mgdL,rate,sens);
          timeres[1]=res;
          timeres[0]-=age*1000L;
          }
       else {
-         sens->sensorerror=true; 
+         sens->sensorerror=true;
          timeres[1]=0LL;
          }
       }
@@ -156,7 +157,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
          sensor *sens=sensors->getsensor(sensorindex);
          sens->endtime=nowsec;
          }
-         sens->sensorerror=true; 
+         sens->sensorerror=true;
          timeres[1]=0LL;
       }
    }
@@ -193,7 +194,7 @@ if(!dataptr) {
   const glucoseinput *glucose=reinterpret_cast<decltype(glucose)>(bluedata.data());
 
    glucose->actual(sens,timeres.data(),sdata->sensorindex);
-  
+
    jboolean writename=!sens->getinfo()->DexDeviceName[0];
    LOGGER("dexcomProcessData unknown=%d\n",writename);
    return writename;
@@ -228,7 +229,7 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *
         char buf1[27],buf2[27];
         LOGGER("getDexbackfillcmd %d-%d %.23s-%23s\n",end,start,ctime_r(&starts,buf1), ctime_r(&ends,buf2));
         #endif
-        } 
+        }
       else  {
             start=end=DEXSECONDS;
             }
@@ -237,7 +238,7 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *
          struct askfilldata data {.starttime=start,.endtime=end};
          envin->SetByteArrayRegion(uit,0,len,reinterpret_cast<const jbyte*>(&data));
 
-         return uit; 
+         return uit;
    }
 */
 
@@ -246,7 +247,7 @@ static jbyteArray  mkbackfillcmd(JNIEnv *envin, int start,int end) {
         jbyteArray uit=envin->NewByteArray(len);
          struct askfilldata data {.starttime=start,.endtime=end};
          envin->SetByteArrayRegion(uit,0,len,reinterpret_cast<const jbyte*>(&data));
-         return uit; 
+         return uit;
          }
 extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *envin, jclass _cl,jlong dataptr) {
     dexcomstream *sdata=reinterpret_cast<dexcomstream *>(dataptr);
@@ -265,8 +266,8 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *
         if(end<=start) {
             LOGGER("getDexbackfillcmd %d<=%d\n",end,start);
             return nullptr;
-            } 
-        
+            }
+
         #ifndef NOLOG
         char buf1[27],buf2[27];
         LOGGER("getDexbackfillcmd %d-%d %.23s-%23s\n",end,start,ctime_r(&starts,buf1), ctime_r(&ends,buf2));
@@ -292,13 +293,13 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getDexbackfillcmd)(JNIEnv *
                }
          }
       }
-   LOGAR("getDexbackfillcmd not needed"); 
+   LOGAR("getDexbackfillcmd not needed");
    return nullptr;
    }
 
 
 
-   
+
 
 
 struct dexbackfill {
@@ -308,7 +309,7 @@ struct dexbackfill {
    uint8_t extra;
    int8_t trend;
 
-[[nodiscard]]  int getpredictedmgdL() const { 
+[[nodiscard]]  int getpredictedmgdL() const {
    return 0;
    }
 [[nodiscard]]  int getindex() const {
@@ -389,7 +390,7 @@ extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(dexPutPubKey)(JNIEnv *envin, 
       return false;
       }
 
-  const CritAr  bytes(envin,input); 
+  const CritAr  bytes(envin,input);
   dexcomstream *sdata=reinterpret_cast<dexcomstream *>(dataptr);
   PCert *certs=sdata->dexcontext.certs;
   certs[which].frombytes(bytes.data());
@@ -433,7 +434,7 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(makeRound3bytes)(JNIEnv *en
    LOGAR("makeRound3bytes success");
   return getjbyteArray(envin,bytes);
    }
-	
+
 extern std::array<uint8_t,160>  mkround12(const KeyPair &keys);
 extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(makeRound12bytes)(JNIEnv *envin, jclass cl,jlong dataptr,int which) {
    if(!dataptr) {
@@ -451,10 +452,10 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(dexChallenger)(JNIEnv *envi
   LOGAR("dexChallenger");
   const auto arlen=envin->GetArrayLength(jdata);
 //  const CritAr  bytes(envin,jdata);
-  const uint8_t *bytes=(const uint8_t*)envin->GetPrimitiveArrayCritical(jdata, nullptr); 
+  const uint8_t *bytes=(const uint8_t*)envin->GetPrimitiveArrayCritical(jdata, nullptr);
   auto chall=getchallenge(std::span<const uint8_t>(bytes,arlen));
    envin->ReleasePrimitiveArrayCritical(jdata,(jbyte*)bytes,JNI_ABORT);
-  return getjbyteArray(envin,chall); 
+  return getjbyteArray(envin,chall);
    }
 
 extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(isAuthenticated)(JNIEnv *envin, jclass cl,jlong dataptr) {
@@ -466,18 +467,18 @@ extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(isAuthenticated)(JNIEnv *envi
    }
 
 extern bool encrypt8AES(const uint8_t *keybytes,const uint8_t *data,unsigned char *uit);
-extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(dex8AES)(JNIEnv *envin, jclass cl,jlong dataptr,jbyteArray jdata,jint startdat,jbyteArray jout,jint startout) { 
+extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(dex8AES)(JNIEnv *envin, jclass cl,jlong dataptr,jbyteArray jdata,jint startdat,jbyteArray jout,jint startout) {
   const SensorGlucoseData *sens=reinterpret_cast<dexcomstream *>(dataptr)->hist;
-  const CritAr  bytes(envin,jdata); 
-  CritArSave  out(envin,jout); 
+  const CritAr  bytes(envin,jdata);
+  CritArSave  out(envin,jout);
   return encrypt8AES(sens->getinfo()->sharedKey.data(),reinterpret_cast<const unsigned char*>(bytes.data())+startdat,reinterpret_cast<unsigned char*>(out.data())+startout);
    }
-extern "C" JNIEXPORT  void  JNICALL   fromjava(dexResetKeys)(JNIEnv *envin, jclass cl,jlong dataptr) { 
+extern "C" JNIEXPORT  void  JNICALL   fromjava(dexResetKeys)(JNIEnv *envin, jclass cl,jlong dataptr) {
   dexcomstream *sdata=reinterpret_cast<dexcomstream *>(dataptr);
   SensorGlucoseData *sens=sdata->hist;
   PCert *certs=sdata->dexcontext.certs;
   LOGAR("dexResetKeys");
-  for(int i=0;i<3;++i) { 
+  for(int i=0;i<3;++i) {
       certs[i].free();
       }
  *reinterpret_cast<unsigned long long *>(sens->getinfo()->sharedKey.data())=0LL;
@@ -486,7 +487,7 @@ extern "C" JNIEXPORT  void  JNICALL   fromjava(dexResetKeys)(JNIEnv *envin, jcla
 
 
 //Large pin possible?
-extern "C" JNIEXPORT  jint  JNICALL   fromjava(getDexCertSize)(JNIEnv *envin, jclass cl,jbyteArray jar) { 
+extern "C" JNIEXPORT  jint  JNICALL   fromjava(getDexCertSize)(JNIEnv *envin, jclass cl,jbyteArray jar) {
     const auto len=envin->GetArrayLength(jar);
     if(len!=7) {
       LOGGER("getDexCertSize len(%d)!=7\n",len);
@@ -524,7 +525,7 @@ extern "C" JNIEXPORT void JNICALL   fromjava(dexSaveDeviceName)(JNIEnv *env, jcl
    const int maxlen=sizeof(info->DexDeviceName);
    if((getlen+1)>maxlen) {
       LOGGER("deviceNamelen=%d toolarge\n",getlen);
-      }	
+      }
    int len=std::min(maxlen-1,getlen);
    char *name=(char *)info->DexDeviceName;
    LOGGER("dexSaveDeviceName(prev %s)\n",name);
@@ -569,7 +570,7 @@ extern "C" JNIEXPORT jboolean JNICALL   fromjava(dexCandidate)(JNIEnv *env, jcla
         return false;
         }
    destruct   _([jdeviceName,deviceName,env]() {env->ReleaseStringUTFChars(jdeviceName, deviceName);});
-   const SensorGlucoseData *sens=reinterpret_cast<const streamdata *>(dataptr)->hist;
+   SensorGlucoseData *sens=reinterpret_cast<const streamdata *>(dataptr)->hist;
    const char *name=sens->getinfo()->DexDeviceName;
    if(*name) {
       jboolean res= !strcmp(name,deviceName);
@@ -585,8 +586,46 @@ extern "C" JNIEXPORT jboolean JNICALL   fromjava(dexCandidate)(JNIEnv *env, jcla
       LOGAR("dexCandidate==false address==null");
       return false;
       }
-   destruct   _([jaddress,address,env]() {env->ReleaseStringUTFChars(jaddress, address);});
-   return !sensors->knownDex(deviceName,address) ;
+    destruct   _([jaddress,address,env]() {env->ReleaseStringUTFChars(jaddress, address);});
+   if(!sensors->knownDex(deviceName,address)) {
+        int32_t now=time(nullptr);
+        auto &usedAddresses=sens->usedAddresses;
+        auto timeback=(now-sens->lastNewMatch);
+        LOGGER("previous match %d ago\n",timeback);
+        if(timeback>30*60) {
+            LOGAR("usedAddresses.clear()");
+            usedAddresses.clear();
+            }
+        else {
+            const address_t &candAddress= *reinterpret_cast<const address_t*>(address);
+            auto startAddress=std::begin(usedAddresses);
+            if(startAddress< std::end(usedAddresses)) {
+                auto endAddress=std::end(usedAddresses)-1;
+                if(endAddress>=startAddress) {
+                    if(now>sens->usedAddressesTime) {
+                        if(*endAddress==candAddress)  {
+                                LOGGER("Skip previous sensor %s, tried too long\n",address);
+                                return false;
+                                }
+                        }
+                   if(endAddress>startAddress) {
+                       auto hit=std::find(startAddress,endAddress, *reinterpret_cast<const address_t*>(address));
+                       if(hit<endAddress) {
+                         LOGGER("Skip old sensor %s\n",address);
+                         return false;
+                         }
+                       }
+                   }
+                }
+             }
+       LOGGER("dexCandidate %s %s\n",deviceName,address);
+       sens->lastNewMatch=now;
+       return true;
+       }
+    else {
+       LOGGER("no dexCandidate %s %s\n",deviceName,address);
+       return false;
+       }
    }
 #include "EverSense.hpp"
 extern "C" JNIEXPORT void JNICALL   fromjava(dexEndBackfill)(JNIEnv *env, jclass cl,jlong dataptr) {

@@ -1013,22 +1013,23 @@ public void onRequestPermissionsResult(int requestCode, String[] permissions, in
 
                 if(!gaverational) {
                     bluediag.returntoblue=false;
-                    if(Build.VERSION.SDK_INT <26 ||hasNeedScan() )  {
-                        help.basehelp(R.string.locationpermission,
-                                this, l -> {
-                                    useBluetooth(false);
-                                });
-                        }
-                    else {
-                        if(Build.VERSION.SDK_INT>30)
-                            help.basehelp(R.string.nearbypermission,
-                                this, l -> {
-                                    useBluetooth(false);
-                                });
-
-                        else
-                            help.help(R.string.locationpermission, this);
-                        }
+                    if(Build.VERSION.SDK_INT>30) {
+                        help.basehelp(R.string.nearbypermission,
+                            this, l -> {
+                                useBluetooth(false);
+                            });
+                          }
+                     else {
+                        if(Build.VERSION.SDK_INT <26 ||hasNeedScan() )  {
+                            help.basehelp(R.string.locationpermission,
+                                    this, l -> {
+                                        useBluetooth(false);
+                                    });
+                            }
+                        else {
+                                help.help(R.string.locationpermission, this);
+                           }
+                    }
                     }
                 }
             if(bluediag.returntoblue) {

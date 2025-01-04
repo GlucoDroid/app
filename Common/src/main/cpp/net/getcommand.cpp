@@ -107,6 +107,22 @@ extern bool receivelastpos(const lastpos_t *data) ;
 
 static			bool savefileonce(const struct fileonce_t *gegs);
 
+
+
+extern bool javaUpdateDevices();
+static bool updateDevices() {
+    LOGAR("before deletelast()");
+    sensors->deletelast();
+    LOGAR("after deletelast()");
+    backup->resendResetDevices();
+    return  javaUpdateDevices();
+    }
+
+
+
+
+
+
 static std::pair<int,int> interpret(int sock,passhost_t *host,crypt_t *ctx,senddata_t *datain,int len) {
 
 LOGGERTAG("interpret len=%d \n",len);

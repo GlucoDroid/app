@@ -23,6 +23,7 @@
 #include "nums/numdata.hpp"
 void receivetimeout(int sock,int secs) ;
 void sendtimeout(int sock,int secs) ;
+extern bool sendResetDevices(crypt_t *pass,const int sock) ;
 
 extern void stopreceiver() ;
 //constexpr const char orsettings[]="orsettings.dat";
@@ -114,8 +115,8 @@ int updateone::update() {
 	if(!noacksendone(pass,getsock(), suptodate))
 		return 0;
 	if(resetdevices) {
-		if(!askresetdevices(pass,getsock()) ) {
-			LOGGER("askresetdevices(%p,%d) failed\n",pass,getsock() );
+		if(!sendResetDevices(pass,getsock()) ) {
+			LOGGER("sendResetDevices(%p,%d) failed\n",pass,getsock() );
 			return 0;
 			}
 		ret=1;

@@ -45,15 +45,15 @@ android {
 //thekeyfile = everyone.keystore
 
         if(project.hasProperty('thekeypassword')&& "$thekeypassword" != "") {
-	    signingConfigs {
-		alg {
-		    storeFile file("$thekeyfile")
-		    storePassword "$thepassword"
-		    keyAlias "$thekeyalias"
-		    keyPassword "$thekeypassword"
-		}
-	    }
-	}
+        signingConfigs {
+        alg {
+            storeFile file("$thekeyfile")
+            storePassword "$thepassword"
+            keyAlias "$thekeyalias"
+            keyPassword "$thekeypassword"
+        }
+        }
+    }
     else {
 
         signingConfigs {
@@ -79,8 +79,8 @@ android {
         compileSdk 35
         applicationId "tk.glucodata"
 
-	     versionName '9.0.22'
-//	multiDexEnabled true
+         versionName '9.0.22'
+//    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
         buildConfigField 'int', 'isRelease', '0'
@@ -88,16 +88,15 @@ android {
 
         externalNativeBuild {
             cmake {
-            version "$CMAKEVERSION"
-//		cppFlags  " -DAPPID=\\\"$applicationId\\\"   -DAPPVERSION=\\\"$versionName\\\" "
-		cppFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
-		cFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
-        arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                version "$CMAKEVERSION"
+                cppFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
+                cFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
+                arguments "-DJUGGLUCO_APP=TRUE -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=TRUE"
 
 
             }
         }
-//	resourceConfigurations += ["en", "nl", "fr","it", "de", "pl", "pt","be","uk"]
+//    resourceConfigurations += ["en", "nl", "fr","it", "de", "pl", "pt","be","uk"]
     //ndk { abiFilters  'armeabi-v7a' }
      //  ndk { abiFilters  'arm64-v8a' }
         signingConfig signingConfigs.alg
@@ -130,7 +129,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
             versionNameSuffix '-x'
             buildConfigField 'int', 'DexCom', '1'
             externalNativeBuild.cmake {
-			     arguments "-DDEXCOM=TRUE"
+                arguments "-DDEXCOM=TRUE"
                 cppFlags "   -DDEXCOM=1 "
                 cFlags "   -DDEXCOM=1 "
             }
@@ -144,57 +143,57 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
 
         libreOld {
-	//******  Zet op rollout op 100% ******
+    //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
             versionCode                                                                                                                                                               590                                                                                                                                                                                       //LIBRE2ONLY
-         //	versionName '9.0.22-no3'
+         //    versionName '9.0.22-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
-		    externalNativeBuild.cmake {
+            externalNativeBuild.cmake {
 
-            	}
-		   }
+                }
+           }
         libre3 {
             // targetSdk 26
-	   minSdk 26
+       minSdk 26
 
         buildConfigField 'int', 'minSDK', "$minSdk"
        //ndkver = '27.0.11718014 rc1'
-//	   minSdk 23
+//       minSdk 23
             dimension 'libreVersion'
-		versionNameSuffix '-li3'
-		versionCode                                                                                                                                                              591                                                                                                                                                                                                                                                                                                                           //LIBRE3
-	//******  Zet op rollout op 100% ******
+        versionNameSuffix '-li3'
+        versionCode                                                                                                                                                              591                                                                                                                                                                                                                                                                                                                           //LIBRE3
+    //******  Zet op rollout op 100% ******
 
-           	buildConfigField 'int', 'libreVersion', '3'
-		    externalNativeBuild.cmake {
-			arguments "-Dlibre3=TRUE"
-			cppFlags "   -DLIBRE3=1 "
-			cFlags "   -DLIBRE3=1 "
+               buildConfigField 'int', 'libreVersion', '3'
+            externalNativeBuild.cmake {
+            arguments "-Dlibre3=TRUE"
+            cppFlags "   -DLIBRE3=1 "
+            cFlags "   -DLIBRE3=1 "
 
             }
 
-		}
+        }
         si {
-	  	minSdk 21
-		minSdkVersion 21
+          minSdk 21
+        minSdkVersion 21
       dimension 'SiBionics'
-		versionNameSuffix '-si'
-		versionCode                                                                                                                                                         591                                                                                                                                                                                  
-	   buildConfigField 'int', 'SiBionics', '1'
-	   externalNativeBuild.cmake {
+        versionNameSuffix '-si'
+        versionCode                                                                                                                                                         591                                                                                                                                                                                  
+       buildConfigField 'int', 'SiBionics', '1'
+       externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
          cFlags "   -DSIBIONICS=1 "
-        	}
-		}
+            }
+        }
         nosi {
-        	dimension 'SiBionics'
+            dimension 'SiBionics'
          versionCode                                                                                            590                                                                                                                                                                                  
          versionNameSuffix '-nosi'
-	      buildConfigField 'int', 'SiBionics', '0'
-	      externalNativeBuild.cmake {
-         		}
-		}
+          buildConfigField 'int', 'SiBionics', '0'
+          externalNativeBuild.cmake {
+                 }
+        }
 
         wear {
           // targetSdk 26
@@ -203,53 +202,53 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
             // targetSdk 30
 
             dimension 'wearos'
-		minSdk 26
+        minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-		versionCode                                                                                                                                                              592                                                                                                                                                                                                                                                                                                                           //WATCH
-	//******  Zet op rollout op 100% ******
-		//versionName '9.0.22-wear'
-		versionNameSuffix '-wear'
-		signingConfig signingConfigs.alg
+        versionCode                                                                                                                                                              592                                                                                                                                                                                                                                                                                                                           //WATCH
+    //******  Zet op rollout op 100% ******
+        //versionName '9.0.22-wear'
+        versionNameSuffix '-wear'
+        signingConfig signingConfigs.alg
 
 //            buildConfigField 'int', 'targetSDK', "$targetSdk"
            buildConfigField 'int', 'isWear', '1'
             externalNativeBuild.cmake {
-	        arguments "-DWEAROS=TRUE"
+            arguments "-DWEAROS=TRUE"
                 cppFlags " -DWEAROS=1  -DUSEDIN=1   "
                 cFlags " -DWEAROS=1  -DUSEDIN=1   "
 
                 }
 
-	  buildFeatures {
-		viewBinding true
-	    }
+      buildFeatures {
+        viewBinding true
+        }
         }
 
         small {
 
 //        minSdk 19
             dimension 'wearos'
-		versionCode                                                                                                                                                              592                                                                                                                                                                                                                                                                                                                           //WATCH
-		//versionName '9.0.22-small'
-		versionNameSuffix '-small'
-		signingConfig signingConfigs.alg
+        versionCode                                                                                                                                                              592                                                                                                                                                                                                                                                                                                                           //WATCH
+        //versionName '9.0.22-small'
+        versionNameSuffix '-small'
+        signingConfig signingConfigs.alg
 
            buildConfigField 'int', 'isWear', '1'
             externalNativeBuild.cmake {
-	        arguments "-DWEAROS=TRUE"
+            arguments "-DWEAROS=TRUE"
                 cppFlags " -DWEAROS=1  -DUSEDIN=1   "
                 cFlags " -DWEAROS=1  -DUSEDIN=1   "
 
                 }
 
-	  buildFeatures {
-		viewBinding true
-	    }
+      buildFeatures {
+        viewBinding true
+        }
         }
        mobile {
 //        minSdk 19
             dimension 'wearos'
-		   versionNameSuffix '-phone'
+           versionNameSuffix '-phone'
            buildConfigField 'int', 'isWear', '0'
         }
     }
@@ -260,7 +259,7 @@ buildTypes {
         release {
             signingConfig signingConfigs.alg
             minifyEnabled true 
-	    shrinkResources true
+        shrinkResources true
 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
 
@@ -281,7 +280,7 @@ buildTypes {
             versionNameSuffix '-log'
             signingConfig signingConfigs.alg
             minifyEnabled true 
-	    shrinkResources true
+        shrinkResources true
 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
 
@@ -301,10 +300,10 @@ buildTypes {
         }
         releasedub {
             versionNameSuffix 'DUB'
-	    applicationIdSuffix ".dub"
+        applicationIdSuffix ".dub"
             signingConfig signingConfigs.alg
             minifyEnabled true 
-	    shrinkResources true
+        shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
             jniDebuggable false
             debuggable false
@@ -329,20 +328,20 @@ buildTypes {
             jniDebuggable true
             buildConfigField 'int', 'isReleaseID', '0'
             versionNameSuffix 'DUBDEBUG'
-	    applicationIdSuffix ".dub"
+        applicationIdSuffix ".dub"
         buildConfigField 'int', 'doLog', '1'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
                 cFlags  "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
 
-	    	}
+            }
             debuggable true
         }
         release2 {
          manifestPlaceholders["requireWatch"] = "false"
          manifestPlaceholders["debuggable"] = "true"
             versionNameSuffix 'release2'
-	    applicationIdSuffix ".debug"
+        applicationIdSuffix ".debug"
 
             buildConfigField 'int', 'isReleaseID', '1'
             buildConfigField 'int', 'doLog', '0'
@@ -352,7 +351,7 @@ buildTypes {
 
             signingConfig signingConfigs.alg
             minifyEnabled true 
-	    shrinkResources true
+        shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my'
             externalNativeBuild.cmake {
@@ -365,7 +364,7 @@ buildTypes {
          manifestPlaceholders["requireWatch"] = "false"
          manifestPlaceholders["debuggable"] = "true"
             versionNameSuffix 'release2log'
-	    applicationIdSuffix ".debug"
+        applicationIdSuffix ".debug"
 
             buildConfigField 'int', 'isReleaseID', '1'
              buildConfigField 'int', 'doLog', '1'
@@ -376,19 +375,19 @@ buildTypes {
             signingConfig signingConfigs.alg
 
             minifyEnabled  false
-	    shrinkResources false 
+        shrinkResources false 
 
             externalNativeBuild.cmake {
 //                 arguments "-DANDROID_SANITIZE=hwaddress"
                 cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
                 cFlags "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
 
-            	}
+                }
             }
         debug {
          manifestPlaceholders["requireWatch"] = "false"
          manifestPlaceholders["debuggable"] = "true"
-	    applicationIdSuffix ".debug"
+        applicationIdSuffix ".debug"
             versionNameSuffix 'DEBUG'
 
             buildConfigField 'int', 'isReleaseID', '0'
@@ -422,7 +421,7 @@ buildTypes {
                 cFlags "-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
 
 //         cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1" //, "-DNOLOG=1"
-//	         cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1", "-DNOLOG=1"
+//             cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1", "-DNOLOG=1"
 //                arguments " -DCMAKE_VERBOSE_MAKEFILE=1  -DCMAKE_CXX_FLAGS=' -DRELEASE=1 -DNORAWSTREAM=1 -DNOLOG=1'" 
 
                 }
@@ -431,19 +430,19 @@ buildTypes {
          manifestPlaceholders["requireWatch"] = "false"
          manifestPlaceholders["debuggable"] = "true"
             versionNameSuffix 'debug2'
-	  //  debuggable true		
+      //  debuggable true        
            // jniDebuggable true
             signingConfig signingConfigs.alg
             minifyEnabled true 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my'
-	    zipAlignEnabled true
+        zipAlignEnabled true
             buildConfigField 'int', 'isReleaseID', '1'
         buildConfigField 'int', 'doLog', '1'
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DRELEASEID=1", "-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1"
                 cFlags "-DRELEASEID=1", "-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1"
                // cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1"
-	    	}
+            }
         }
         debug3 {
          manifestPlaceholders["requireWatch"] = "false"
@@ -455,7 +454,7 @@ buildTypes {
             externalNativeBuild.cmake {
                 cppFlags "$CPPSTD","-DRELEASEID=1","-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1","-DNDK_DEBUG=1","-UNDEBUG"
                 cFlags "-DRELEASEID=1","-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1","-DNDK_DEBUG=1","-UNDEBUG"
-		}
+        }
 
             versionNameSuffix 'DEBUGRELEASE'
             jniDebuggable true
@@ -465,7 +464,7 @@ buildTypes {
 
 
         }
-    	}
+        }
 
     externalNativeBuild {
         cmake {
@@ -496,7 +495,7 @@ buildTypes {
          //  doNotStrip '**/lib??*.so'
            doNotStrip '**/lib[A-Za-mo-z]?*.so'
 //           doNotStrip '**/*.so'
-	    }
+        }
        }
     lint {
         abortOnError false
@@ -562,7 +561,7 @@ allprojects {
 
 dependencies {
 //    mobileImplementation 'com.google.code.gson:gson:2.10.1'
-//	implementation fileTree(dir: 'libs', include: ['*.jar'])
+//    implementation fileTree(dir: 'libs', include: ['*.jar'])
 
 //    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.1.5"
   // implementation "androidx.multidex:multidex:2.0.1"
@@ -571,10 +570,10 @@ dependencies {
 //      implementation 'androidx.multidex:multidex:2.0.1'
 //    libre3Implementation 'javax.naming:jndi:1.2.1'
 //    libre3Implementation  'jndi:jndi:1.2.1'
-//	mobileImplementation 'org.projectlombok:lombok:1.18.26'
-//	mobileAnnotationProcessor 'org.projectlombok:lombok:1.18.26'
-//	mobileImplementation 'com.github.lecho:hellocharts-android:v1.5.8'
-//	mobileImplementation 'com.github.lecho:hellocharts-library:1.5.8@aar'
+//    mobileImplementation 'org.projectlombok:lombok:1.18.26'
+//    mobileAnnotationProcessor 'org.projectlombok:lombok:1.18.26'
+//    mobileImplementation 'com.github.lecho:hellocharts-android:v1.5.8'
+//    mobileImplementation 'com.github.lecho:hellocharts-library:1.5.8@aar'
 
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.startup:startup-runtime:1.2.0'
@@ -584,7 +583,7 @@ dependencies {
 
     implementation "androidx.appcompat:appcompat:$APPCOMPAT"
     implementation 'androidx.activity:activity:1.9.3'
-	implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.core:core:1.15.0'
    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'

@@ -324,21 +324,29 @@ Backup(std::string_view base): mapdata(base,backupdat,sizeof(struct updatedata))
 void resensordata(int sensor)  {
      if(sensor<0) {
          LOGGER("resensordata(%d)\n",sensor);
-    return;
+         return;
          }
-     for(int i=0;i<getupdatedata()->sendnr;i++) {
-    auto &host=getupdatedata()->tosend[i];
-    if(host.firstsensor>sensor)
-        host.firstsensor=sensor;
-    }
+    for(int i=0;i<getupdatedata()->sendnr;i++) {
+        auto &host=getupdatedata()->tosend[i];
+        if(host.firstsensor>sensor)
+            host.firstsensor=sensor;
+        }
   };
+void resendResetDevices()  {
+    for(int i=0;i<getupdatedata()->sendnr;i++) {
+        auto &host=getupdatedata()->tosend[i];
+        if(host.sendscans) {
+            host.resetdevices=true;
+            }
+        }
+  }
 
 bool sendScans() const {
-     for(int i=0;i<getupdatedata()->sendnr;i++) {
-    auto &host=getupdatedata()->tosend[i];
-    if(host.sendscans)
-        return true;
-    }
+    for(int i=0;i<getupdatedata()->sendnr;i++) {
+        auto &host=getupdatedata()->tosend[i];
+        if(host.sendscans)
+            return true;
+        }
      return false;
   }
 const char *getmyport() const{

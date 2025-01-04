@@ -513,6 +513,11 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(askstreamingEnabled)(JNIEnv *e
    if(!dataptr) return false;
     return reinterpret_cast<streamdata *>(dataptr)->hist ->streamingIsEnabled()==1; 
     }
+#ifdef NOLOG
+static constexpr const int DEXTRYADDRESSSECS=60*15;
+#else
+static constexpr const int DEXTRYADDRESSSECS=60*5;
+#endif
 extern "C" JNIEXPORT void JNICALL  fromjava(setDeviceAddress)(JNIEnv *env, jclass cl,jlong dataptr,jstring jdeviceAddress ) {
     if(!dataptr)
         return;
@@ -528,6 +533,19 @@ extern "C" JNIEXPORT void JNICALL  fromjava(setDeviceAddress)(JNIEnv *env, jclas
         env->GetStringUTFRegion(jdeviceAddress, 0,getlen,deviceaddress);
         deviceaddress[getlen]='\0';
        usedhist->scannedAddress=true;
+       if(usedhist->isDexcom()) {
+           auto &usedAddresses=usedhist->usedAddresses;
+           if(usedAddresses.empty()||memcmp(usedAddresses.back().data(),deviceaddress,getlen+1)) {
+                uint32_t now=time(nullptr);
+                const auto &newel=*reinterpret_cast<const address_t*>(address);
+                if(!usedAddresses.empty()&&now<usedhist->usedAddressesTime) {
+                        usedAddresses.back()=newel;
+                        }
+                else
+                        usedAddresses.emplace_back(newel); 
+                usedhist->usedAddressesTime=now+DEXTRYADDRESSSECS;
+                }
+             }
         }
    LOGGER("setDeviceAddress(%s)\n", deviceaddress);
    }

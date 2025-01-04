@@ -23,6 +23,7 @@ package tk.glucodata;
 
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getVoicePitch;
 import static tk.glucodata.Natives.getVoiceSeparation;
@@ -143,6 +144,7 @@ void destruct() {
                         }
                     var spin=spinner;
                     if(spin!=null) {
+                        Log.i(LOG_ID,"Talker spinner!=null");
                           Applic.RunOnUiThread(() -> {
                             spin.setAdapter(new RangeAdapter<Voice>(voiceChoice, Applic.app, voice -> {
                                     return voice.getName();
@@ -270,7 +272,7 @@ public static void config(MainActivity context) {
          SuperGattCallback.newtalker(context);
         }
     var separation=new EditText(context);
-        separation.setImeOptions(editoptions);
+    separation.setImeOptions(editoptions);
     separation.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
     separation.setMinEms(2);
     int sep=(int)(cursep/1000L);
@@ -289,15 +291,27 @@ public static void config(MainActivity context) {
     var save=getbutton(context,R.string.save);
     var width= GlucoseCurve.getwidth();
     var speedlabel=getlabel(context,context.getString(R.string.speed));
-    speedlabel.setPadding(0,0,0,0);
+    speedlabel.setPadding(pad,0,pad*2,0);
     var pitchlabel=getlabel(context,context.getString(R.string.pitch));
-    pitchlabel.setPadding(0,pad*5,0,0);
+    pitchlabel.setPadding(pad,0,pad*2,0);
     var voicelabel=getlabel(context,context.getString(R.string.talker));
-       var active=getcheckbox(context,R.string.speakglucose, SuperGattCallback.dotalk);
+    var active=getcheckbox(context,R.string.speakglucose, SuperGattCallback.dotalk);
     active.setPadding(0,0,pad*3,0);
 
     var test=getbutton(context,context.getString(R.string.test));
-            
+    if(spinner!=null) {
+            Log.i(LOG_ID, "Talker.config spinner=!null");
+            try {
+            ViewGroup par = (ViewGroup) spinner.getParent();
+            if (par != null)
+                par.removeView(spinner);
+            }
+        catch (Throwable th) {
+            Log.stack(LOG_ID,"spinner",th);
+            }
+        }
+    else
+            Log.i(LOG_ID,"Talker.config spinner==null");  
     var spin= spinner!=null?spinner:((android.os.Build.VERSION.SDK_INT >= minandroid)? (spinner=new Spinner(context)):null);
 
     int[] spinpos={-1};
@@ -334,9 +348,8 @@ public static void config(MainActivity context) {
     var speakalarms= getcheckbox(context,context.getString(R.string.speakalarms), Natives.speakalarms());
     var secondrow=new View[]{touchtalk, speakmessages, speakalarms };
     var layout=new Layout(context,(l,w,h)-> {
-//        if(width>w) l.setX((width-w)/2);
         return new int[] {w,h};
-        },firstrow,secondrow,new View[]{speedlabel},new View[]{speeds[1]}, new View[]{speeds[0]},new View[]{pitchlabel},new View[]{pitchs[1]}, new View[]{pitchs[0]}, new View[]{cancel,helpview,test,save});
+        },firstrow,secondrow,new View[]{speedlabel,speeds[1],speeds[0]},new View[]{pitchlabel,pitchs[1],pitchs[0]}, new View[]{cancel,helpview,test,save});
 
       //layout.setBackgroundResource(R.drawable.dialogbackground);
     layout.setBackgroundColor( Applic.backgroundcolor);
@@ -421,8 +434,16 @@ public static void config(MainActivity context) {
         });
 
 
-      layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop/2,MainActivity.systembarRight,0);
-    context.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+//      layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop/2,MainActivity.systembarRight,0);
+//    context.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+    var top=MainActivity.systembarTop;
+     
+    var left=MainActivity.systembarLeft;
+      layout.setPadding(left+(int)(density*5.0),top,MainActivity.systembarRight+(int)(density*8.0),MainActivity.systembarBottom);
+/*    var layheight=GlucoseCurve.getheight()-MainActivity.systembarBottom;
+    var laywidth=GlucoseCurve.getwidth()-left-MainActivity.systembarRight;
+    layout.setX(left); */
+    context.addContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
 
     }
 }

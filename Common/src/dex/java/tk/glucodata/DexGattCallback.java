@@ -194,7 +194,7 @@ private boolean connected=false;
                 constatchange[1] = tim;
                 if(newState == BluetoothProfile.STATE_DISCONNECTED) {
                   if(datatime==0L)  {
-                     if((foundtime+15*60*1000L)<tim)  {
+                     if((foundtime+(doLog?10:15)*60*1000L)<tim)  {
                         Log.i(LOG_ID,"misconnect="+misconnect+" try new address");
                         misconnect=0;
                         //triedsensors.add(mActiveDeviceAddress); 
@@ -540,10 +540,14 @@ private    void getdatacmd() {
      wrotepass[0] = System.currentTimeMillis();
      phase = GetData2;
      //   enableIndication(mBluetoothGatt, charact[0]);
-     if(!enableNotification(mBluetoothGatt, charact[0])) {
+     var gatt=mBluetoothGatt;
+     if(gatt==null) {
+         return;
+         }
+     if(!enableNotification(gatt, charact[0])) {
             Applic.scheduler.schedule(() -> { 
                if(connected)
-                  enableNotification(mBluetoothGatt, charact[0]);
+                  enableNotification(gatt, charact[0]);
                   }, 10, TimeUnit.MILLISECONDS);
             }
     }

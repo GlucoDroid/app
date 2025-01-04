@@ -522,6 +522,7 @@ static constexpr const	char defaultname[]="jugglucodata";
 	if(xdripserver>=0) {
 		settings->data()->usexdripwebserver=xdripserver;
 		settings->data()->remotelyxdripserver=xremote;
+        LOGGER("turned webserver=%d remote=%d\n", settings->data()->usexdripwebserver, settings->data()->remotelyxdripserver);
 		did=true;
 		}
 	if(unit)  {
@@ -539,6 +540,7 @@ static constexpr const	char defaultname[]="jugglucodata";
 		}
 	extern void makenightswitch();
 	makenightswitch();
+    settings->data()->initVersion=30;
 	if(!backup)  {
 		fprintf(stderr,"My error: No Backup\n");
 		return 2;
@@ -738,8 +740,12 @@ extern bool getpathworks();
 bool getpathworks() {
 	return false;
 	}
-bool updateDevices() {
-	LOGSTRING("updateDevices() called\n");
+
+    
+    
+extern bool javaUpdateDevices();
+bool javaUpdateDevices() {
+	LOGAR("javaUpdateDevices() called");
 	return true;
 	}
 extern bool hour24clock;

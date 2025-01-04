@@ -45,34 +45,37 @@ extern std::string_view globalbasedir;
 	const char *systembase[]={"/usr/lib"};
 	#endif
 #endif
-#ifdef __ANDROID_API__
+
+#ifdef JUGGLUCO_APP
 static constexpr const char cryptolib[]="libcrypto.so"            ;
 static constexpr const char libssl[]="libssl.so"      ;
-#ifndef WEAROS
-static void rmlib(std::string_view filename) {
-   pathconcat localname(globalbasedir,filename);
-   const char *name=localname.data();
-   if(unlink(name)) {
-   	flerror("unlink %s",name);
-   	}
-   else
-      LOGGER("unlink %s success",name);
-   }
-void removelibs() {
-  rmlib(cryptolib);
-  rmlib(libssl);
-   }
-#else
-void removelibs() {
-   }
 #endif
+#ifdef JUGGLUCO_APP
+    #ifndef WEAROS
+        static void rmlib(std::string_view filename) {
+           pathconcat localname(globalbasedir,filename);
+           const char *name=localname.data();
+           if(unlink(name)) {
+            flerror("unlink %s",name);
+            }
+           else
+              LOGGER("unlink %s success",name);
+           }
+        void removelibs() {
+          rmlib(cryptolib);
+          rmlib(libssl);
+           }
+    #else
+        void removelibs() {
+           }
+    #endif
 extern "C" void *bypass_loader_dlopen(const char *filename, int flag);
 #define DLOPEN bypass_loader_dlopen
 #else
 #define DLOPEN dlopen
 #endif
 void * dlopener(std::string_view filename,int flags) {
-#ifdef __ANDROID_API__
+#ifdef JUGGLUCO_APP
 static int isset=setenv("LD_LIBRARY_PATH",globalbasedir.data(), 1);
 pathconcat localname(globalbasedir,filename);
 if(void *handle=dlopen(localname.data(),flags))
@@ -87,7 +90,7 @@ for(const char *base:systembase) {
 		}
 	LOGGER("%s: %s\n",sysname.data(),dlerror());
 	}
-#if __ANDROID_API__ >= 21
+#if defined(JUGGLUCO_APP) && __ANDROID_API__ >= 21
 android_create_namespace_t android_create_namespace= (android_create_namespace_t)dlsym(RTLD_DEFAULT, "android_create_namespace");
 if(android_create_namespace) {
 	static const android_dlextinfo dlextinfo = {
@@ -116,7 +119,7 @@ else {
 	}
 #endif	
 
-#ifdef __ANDROID_API__
+#ifdef JUGGLUCO_APP
 pathconcat sysname(systembase[0],filename);
 Readall file(sysname.data());
 if(!file) {
@@ -135,7 +138,7 @@ return nullptr;
 }
 
 
-#ifdef __ANDROID_API__
+#ifdef JUGGLUCO_APP
 extern void *opencrypto();
 void *opencrypto() {
      static void *cryptohandle=dlopener(cryptolib, RTLD_NOW);

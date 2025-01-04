@@ -274,9 +274,13 @@ void   deletelast() {
    const int l=last();
    if(l>=0) {
       auto *old=hist[l];
+      LOGGER("deletelast %p\n",old);
       if(old&&old->unused()) {
            LOGGER("deletelast before delete old (%p)\n",old);
-           delete   old;
+//           delete   old;
+           std::destroy_at(old);
+           LOGAR("after destroy_at(old)");
+           operator delete(old);
            LOGAR("deletelast after delete old");
            hist[l]=nullptr;
            }

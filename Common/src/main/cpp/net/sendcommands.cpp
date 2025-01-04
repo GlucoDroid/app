@@ -292,7 +292,9 @@ bool sendbackupstop(crypt_t *pass,const int sock) {
 	return  noacksendone(pass,sock, sbackupstop) ;
 	}
 bool sendResetDevices(crypt_t *pass,const int sock) {
-	return  noacksendone(pass,sock, sresetdevices) ;
+	const bool ret= noacksendone(pass, sock, sresetdevices) ;
+	LOGGER("sendResetDevices(pass,%d)=%d\n",sock,ret);
+	return ret;
 	}
 bool sendbackup(crypt_t *pass,const int sock) {
 	return noacksendone(pass,sock,sbackup);

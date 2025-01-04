@@ -407,7 +407,7 @@ std::span<char> getexportdata(int startpos,int len,uint32_t starttime,uint32_t e
 		char *mem;
 		int max;
 		int iter;
-#ifdef JUGGLUCO_APP
+#ifdef __ANDROID_API__
 	static int  writer(void *ptr,const char *gegs,int len) {
 #else
 	static ssize_t  writer(void *ptr,const char *gegs,size_t len) {
@@ -437,7 +437,7 @@ std::span<char> getexportdata(int startpos,int len,uint32_t starttime,uint32_t e
 	Fmemopen mem{.mem= new(std::nothrow) char[len],.max=len,.iter=startpos};
 	if(!mem.mem)
 		return {(char *)nullptr,(size_t)0};
-#ifdef JUGGLUCO_APP
+#ifdef __ANDROID_API__
 extern FILE* funopen(const void* __cookie,
               int (*__read_fn)(void*, char*, int),
               int (*__write_fn)(void*, const char*, int),
