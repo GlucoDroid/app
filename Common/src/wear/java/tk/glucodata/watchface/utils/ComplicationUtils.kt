@@ -156,7 +156,7 @@ fun createComplicationSlotManager(
         canvasComplicationFactory = defaultCanvasComplicationFactory,
         supportedTypes = ComplicationConfig.Top.supportedTypes,
         defaultDataSourcePolicy = DefaultComplicationDataSourcePolicy( SystemDataSources.NO_DATA_SOURCE, ComplicationType.EMPTY ),
-        bounds = ComplicationSlotBounds( RectF( 0.20f, toptopcomps, 0.65f, topbottomcomps))
+        bounds = ComplicationSlotBounds( RectF( 0.17f, toptopcomps, 0.90f, topbottomcomps))
     ).build()
     val extremeRightComplication = ComplicationSlot.createRoundRectComplicationSlotBuilder(
         id = ComplicationConfig.ExtremeRight.id,

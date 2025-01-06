@@ -21,6 +21,7 @@
 
 #ifdef DEXCOM
 #include <algorithm>
+#include <time.h>
 #include "streamdata.hpp"
 #include "fromjava.h"
 #include "jniclass.hpp"
@@ -151,7 +152,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
          sens->sensorerror=true;
          timeres[1]=0LL;
          }
-      }
+       }
     else {
     	if(secsSinceStart>dexmaxtime&&sens->getinfo()->lastLifeCountReceived<maxdexcount ) {
          sensor *sens=sensors->getsensor(sensorindex);
@@ -571,59 +572,77 @@ extern "C" JNIEXPORT jboolean JNICALL   fromjava(dexCandidate)(JNIEnv *env, jcla
         }
    destruct   _([jdeviceName,deviceName,env]() {env->ReleaseStringUTFChars(jdeviceName, deviceName);});
    SensorGlucoseData *sens=reinterpret_cast<const streamdata *>(dataptr)->hist;
+   const auto pinar=  sens->getDexPin();
+   const auto *pin=pinar.data();
    const char *name=sens->getinfo()->DexDeviceName;
    if(*name) {
       jboolean res= !strcmp(name,deviceName);
-      LOGGER("dexCandidate==%d thisname=%s, candidatename=%s\n",res,name,deviceName);
+      LOGGER("%.4s: dexCandidate==%d thisname=%s, candidatename=%s\n",pin,res,name,deviceName);
       return res;
       }
    if(!isG7(deviceName)) {
-      LOGGER("dexCandidate==false !isG7(%s)\n",deviceName);
+      LOGGER("%.4s dexCandidate==false !isG7(%s)\n",pin,deviceName);
       return false;
       }
    const char *address = env->GetStringUTFChars( jaddress, NULL);
    if(!address) {
-      LOGAR("dexCandidate==false address==null");
+      LOGGER("%.4s dexCandidate==false address==null\n",pin);
       return false;
       }
     destruct   _([jaddress,address,env]() {env->ReleaseStringUTFChars(jaddress, address);});
    if(!sensors->knownDex(deviceName,address)) {
+#ifdef SKIPTRIEDOFTEN
+Doesn't seem to be usefull. When there are muliple sensor it is not the case that always on is first returned.
+
         int32_t now=time(nullptr);
         auto &usedAddresses=sens->usedAddresses;
         auto timeback=(now-sens->lastNewMatch);
-        LOGGER("previous match %d ago\n",timeback);
+        LOGGER("%.4s previous match %d ago\n",pin,timeback);
         if(timeback>30*60) {
-            LOGAR("usedAddresses.clear()");
+            LOGGER("%.4s dexCandidate usedAddresses.clear()\n",pin);
             usedAddresses.clear();
             }
         else {
             const address_t &candAddress= *reinterpret_cast<const address_t*>(address);
-            auto startAddress=std::begin(usedAddresses);
-            if(startAddress< std::end(usedAddresses)) {
-                auto endAddress=std::end(usedAddresses)-1;
+            auto startAddress=&std::begin(usedAddresses)[0];
+            if(startAddress< &std::end(usedAddresses)[0]) {
+                auto endAddress=&std::end(usedAddresses)[-1];
                 if(endAddress>=startAddress) {
                     if(now>sens->usedAddressesTime) {
                         if(*endAddress==candAddress)  {
-                                LOGGER("Skip previous sensor %s, tried too long\n",address);
+                                LOGGER("%.4s dexCandidate Skip previous sensor %s, tried too long\n",pin,address);
                                 return false;
                                 }
+                        else
+                            LOGGER("%.4s dexCandidate tried %s a long time now %s\n",pin,endAddress->data(),address);
+                        }
+                    else {
+                        time_t tim=sens->usedAddressesTime;
+                        LOGGER("%.4s dexCandidate tried %s not so long now (%u) waitfor %u %s",pin,endAddress->data(),now,tim,ctime(&tim));
                         }
                    if(endAddress>startAddress) {
                        auto hit=std::find(startAddress,endAddress, *reinterpret_cast<const address_t*>(address));
                        if(hit<endAddress) {
-                         LOGGER("Skip old sensor %s\n",address);
+                         LOGGER("%.4s dexCandidate Skip old sensor %s\n",pin,address);
                          return false;
                          }
+                       else {
+                           LOGGER("%.4s dexCandidate not in previous addresses\n",pin);
+                            }
                        }
+                   else {
+                        LOGGER("%.4s dexCandidate endAddress (%p) <=startAddress (%p)\n",pin,endAddress,startAddress);
+                      }
                    }
                 }
              }
-       LOGGER("dexCandidate %s %s\n",deviceName,address);
        sens->lastNewMatch=now;
+#endif
+       LOGGER("%.4s dexCandidate %s %s\n",pin,deviceName,address);
        return true;
        }
     else {
-       LOGGER("no dexCandidate %s %s\n",deviceName,address);
+       LOGGER("%.4s no dexCandidate %s %s\n",pin,deviceName,address);
        return false;
        }
    }

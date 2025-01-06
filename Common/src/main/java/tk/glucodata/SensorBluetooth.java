@@ -87,10 +87,17 @@ static    private BluetoothManager mBluetoothManager=null;
 static public void reconnectall() {
    final var wasblue=blueone;
    if(wasblue !=null) {
+       boolean shouldscan=false;
        final var now=System.currentTimeMillis();
         for(var cb: wasblue.gattcallbacks)     {
-        cb.reconnect(now);
-        }
+            shouldscan=shouldscan||cb.reconnect(now);
+          }
+       if(shouldscan)  {
+            if(wasblue.mBluetoothManager!=null) {
+                 wasblue.stopScan(false);
+                 wasblue.startScan(0L);
+                 }
+             }
         }
    }
 
@@ -137,21 +144,14 @@ private SuperGattCallback  getCallback(BluetoothDevice device) {
             Log.d(LOG_ID, "Scan returns device without name");
             return null;
             }
-            /*
-        if(!deviceName.startsWith("ABBOTT")) {
-            return null;
-            } */
         String address = device.getAddress();
-//        String SerialNumber = deviceName.substring(6);
         for (var cb : gattcallbacks) {
             if (cb.mActiveDeviceAddress != null && address.equals(cb.mActiveDeviceAddress))
                 return cb;
             if(cb.matchDeviceName(deviceName,address))
                 return cb;
             Log.d(LOG_ID, "not: " + cb.SerialNumber);
-               }
-        //unknownfound = System.currentTimeMillis();
-        //unknownname = deviceName;
+            }
         return null;
     } catch(Throwable e) {
         Log.stack(LOG_ID,    "getCallback",e);
@@ -218,6 +218,10 @@ class Scanner21 implements Scanner  {
      private final ScanCallback mScanCallback = new ScanCallback() {
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
        private synchronized boolean processScanResult(ScanResult scanResult) {
+       if(!mScanning) {
+            Log.i(LOG_ID,"!mScanning"); 
+            return true;
+            }
        if(gattcallbacks.size()<1) {
             Log.w(LOG_ID,"No Sensors to search for");
             SensorBluetooth.this.stopScan(false);
@@ -385,7 +389,7 @@ Scanner scanner=Build.VERSION.SDK_INT >= 21?new Scanner21():new ArchScanner();
 
 final private Runnable mScanTimeoutRunnable = () -> {
     Log.i(LOG_ID,"Timeout scanning");
-scantimeouttime=System.currentTimeMillis();
+    scantimeouttime=System.currentTimeMillis();
     SensorBluetooth.this.stopScan(true);
 };
 
@@ -452,29 +456,28 @@ long stopscantime=0L;
 int startincreasedwait=300000;
 int increasedwait=startincreasedwait;
 public void stopScan(boolean retry) {
-        Log.d(LOG_ID,"Stop scanning");
+        Log.d(LOG_ID,"Stop scanning "+(retry?"retry":"don't retry"));
         Applic.app.getHandler().removeCallbacks(this.scanRunnable);
         Applic.app.getHandler().removeCallbacks(this.mScanTimeoutRunnable);
         if (this.mScanning) {
             stopscantime=System.currentTimeMillis();
             this.mScanning = false;
-             scanner.stop();
-            if(bluetoothIsEnabled()) {
-        if(retry) {
-            int waitscan=scaninterval;
-            if(scantime>0L) {
-               for(SuperGattCallback cb:gattcallbacks) {
-                if(cb.foundtime>scantime&&SuperGattCallback.lastfound()>cb.foundtime) {
-                    increasedwait*=2;
-                    waitscan=increasedwait;
+            scanner.stop();
+            if(retry) {
+               if(bluetoothIsEnabled()) {
+                    int waitscan=scaninterval;
+                    if(scantime>0L) {
+                       for(SuperGattCallback cb:gattcallbacks) {
+                           if(cb.foundtime>scantime&&SuperGattCallback.lastfound()>cb.foundtime) {
+                               increasedwait*=2;
+                               waitscan=increasedwait;
+                               }
+                            }
+                        }
+                    startScan( waitscan);
                     }
-
                 }
-                }
-                startScan( waitscan);
-                }
-            }
-                }
+        }
     scanstart=false;
     }
 

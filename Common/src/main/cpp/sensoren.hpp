@@ -122,8 +122,9 @@ public:
       }
 
    Sensoren(string_view basedirin) : inbasedir(basedirin), mapfile{inbasedir, "sensors.dat"},
-                             map(mapfile,1024), maxhist(map.data()?(last() + 2):100),
+                             map(mapfile,1024), maxhist(map.data()?(last() + 3):100),
                              hist(new SensorGlucoseData *[maxhist]()) {
+             LOGGER("maxhist=%d\n",maxhist);
    }
    void setlibre3nums() {
 #ifdef LIBRENUMBERS
@@ -246,6 +247,7 @@ public:
    }
 
    void setmaxhistory(int max) {
+     LOGGER("setmaxhistory(%d)\n",max);
       SensorGlucoseData **tmphist = new SensorGlucoseData *[max]();
       memcpy(tmphist, hist, sizeof(SensorGlucoseData *) * maxhist);
       SensorGlucoseData **oldhist = hist;
@@ -255,14 +257,13 @@ public:
    }
 
    int getmaxhistory() const {
-//   return infoblockptr()->maxhist;
       return maxhist;
    }
 
 void   removeunused() {
-      if(int l=last();l>=0) {
+  if(const int l=last();l>=0&&l<maxhist) {
          SensorGlucoseData *hist = getSensorData(l);
-         if(hist->unused()) {
+         if(hist&&hist->unused()) {
             --infoblockptr()->last;
             sendstartsensors(l); 
             delete hist;
@@ -271,10 +272,9 @@ void   removeunused() {
          }
       }
 void   deletelast() {
-   const int l=last();
-   if(l>=0) {
+  if(const int l=last();l>=0&&l<maxhist) {
       auto *old=hist[l];
-      LOGGER("deletelast %p\n",old);
+      LOGGER("maxhist=%d deletelast %d %p\n",maxhist,l,old);
       if(old&&old->unused()) {
            LOGGER("deletelast before delete old (%p)\n",old);
 //           delete   old;
@@ -299,6 +299,7 @@ void   deletelast() {
       }
       SensorGlucoseData *histel = new SensorGlucoseData(pathconcat(inbasedir, name));
       hist[infoblockptr()->last] = histel;
+      LOGGER("hist[%d]=%p\n", infoblockptr()->last,histel);
       sensorlist()[infoblockptr()->last].starttime = histel->getstarttime();
       memcpy(sensorlist()[infoblockptr()->last].name, name.data(), name.length());
       sensorlist()[infoblockptr()->last].name[sensornamelen] = '\0';
@@ -616,12 +617,13 @@ int firstafter(uint32_t starttime)  {
    for(int i=last();i>=0;i--) {
       if(sensorlist()[i].starttime>started) 
          continue;
-      SensorGlucoseData *sens=getSensorData(i);
-      auto firsttime=sens->getfirsttime() ;
-      if(firsttime==UINT32_MAX)
-         continue;
-      if(firsttime<=starttime)
-         return i;
+      if(SensorGlucoseData *sens=getSensorData(i)) {
+          auto firsttime=sens->getfirsttime() ;
+          if(firsttime==UINT32_MAX)
+             continue;
+          if(firsttime<=starttime)
+             return i;
+          }
       }
    return 0;
    }
@@ -685,6 +687,7 @@ vector<SensorGlucoseData *> inperiod(uint32_t starttime,uint32_t endtime) {
               }
           LOGGER("getSensorData(%d) %s\n",ind,name);
           hist[ind] = new SensorGlucoseData( pathconcat(inbasedir, std::string_view(name, sensornamelen)));
+          LOGGER("hist[%d]=%p\n",ind,hist[ind]);
            }
       if(hist[ind]) {
         const bool error = hist[ind]->error();
@@ -749,8 +752,9 @@ void finishsensor(int ind) {
 
 
    void deletehist() {
-      if (hist) {
-         for (int i = 0; i <= last(); i++) {
+      if(hist) {
+         int usedmax=std::min(last()+1,maxhist);
+         for (int i = 0; i <usedmax; i++) {
             delete hist[i];
          }
          delete[] hist;
@@ -960,7 +964,7 @@ int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
           }
 
    int update(crypt_t *pass, const int sock, const int ind, int &startupdate, int &firstsensor,
-            const bool upstream, const bool upscan, const bool restoreinfo) {
+            const bool upstream, const bool upscan, const bool restoreinfo,const bool resetdevices) {
       LOGGER("Sensoren::update firstsensor=%d sock=%d ind=%d\n", firstsensor, sock, ind);
       int changed = INT_MAX;
       int did = 2;
@@ -1021,19 +1025,12 @@ int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
                };
                did |= resscan;
             }
-            /*
-            if(sensorlist()[i].finished) {
-               if ((firstsensor + 1) == i)
-                  firstsensor = i;
-            } */
          } else
             return did&0x4;
 
       }
-      if((lastsens >= startupdate && (changed = 0, true)) || changed < INT_MAX) {
-
+      if(((lastsens >= startupdate||resetdevices) && (changed = 0, true)) || changed < INT_MAX) {
          const int endsens = lastsens + 1;
-//         string_view sensorfile("sensors/sensors.dat");
          const auto *begin = map.data(); //Start with info block, sensor at position 1
          const int afterend=endsens+1; //sensors start from 1
 
@@ -1096,10 +1093,11 @@ int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
          if(sensor.maxtime() < now)
             break;
          if(!sensor.finished) {
-            SensorGlucoseData *hist = getSensorData(i);
-            int subdid = (hist->*proc)(pass, sock, ind, i,otheralso);
-            if (!subdid) return 0;
-            did |= subdid;
+            if(SensorGlucoseData *hist = getSensorData(i)) {
+                int subdid = (hist->*proc)(pass, sock, ind, i,otheralso);
+                if (!subdid) return 0;
+                did |= subdid;
+                }
             }
          }
       return did;
@@ -1117,22 +1115,23 @@ int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
    }
    template<class FUN> void onallsensors(const FUN &fun)  {
       for(int i = last(); i >= 0; i--) {
-    SensorGlucoseData *hist = getSensorData(i);
-    fun(hist);
-    }
+        if(SensorGlucoseData *hist = getSensorData(i))
+            fun(hist);
+        }
       };
 bool knownDex(const char *name,const char *address) const {
    for(int i = last(); i >= 0; i--) {
       const sensor *sen=getsensor(i);
       if(!memcmp(sen->name,"E0",2))
         continue;
-      const SensorGlucoseData *sens = getSensorData(i);
-      if(!sens->isDexcom())
-        continue;
-      if(!strcmp(sens->getinfo()->DexDeviceName,name)&&!strcmp(sens->deviceaddress(),address)) {
-             LOGGER("KnownDex %d %s %s\n",i,name,address);
-        return true;
-             }
+      if(const SensorGlucoseData *sens = getSensorData(i)) {
+          if(!sens->isDexcom())
+            continue;
+          if(!strcmp(sens->getinfo()->DexDeviceName,name)&&!strcmp(sens->deviceaddress(),address)) {
+                 LOGGER("KnownDex %d %s %s\n",i,name,address);
+            return true;
+                 }
+           }
      }
    LOGGER("no KnownDex %s %s\n",name,address);
    return false;

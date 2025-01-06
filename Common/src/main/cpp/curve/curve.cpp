@@ -2098,14 +2098,16 @@ LOGGER("showbluevalue %zd\n",used.size());
 
 
 		if(const auto *sens=sensors->getSensorData()) {
-			if(time_t enddate=sens->expectedEndTime()) {
-				const int tstart=usedtext->sensorexpectedend.size();
-				char *endstr=head+tstart;
-				int end= datestr(enddate,endstr); 
-				nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_BOTTOM);
-				nvgText(genVG, -dheight/2+down-smallfontlineheight,dwidth-timex, std::begin(head), head+end+tstart);
-				}
-			}
+            if(!(sens->isDexcom()||sens->isSibionics())||!sens->unused()) {
+                if(time_t enddate=sens->expectedEndTime()) {
+                    const int tstart=usedtext->sensorexpectedend.size();
+                    char *endstr=head+tstart;
+                    int end= datestr(enddate,endstr); 
+                    nvgTextAlign(genVG,NVG_ALIGN_CENTER|NVG_ALIGN_BOTTOM);
+                    nvgText(genVG, -dheight/2+down-smallfontlineheight,dwidth-timex, std::begin(head), head+end+tstart);
+                    }
+                }
+            }
 		nvgResetTransform(genVG);
 		}
 		#endif
@@ -2503,6 +2505,10 @@ int badscanMessage(int kind) {
 				showerror(genVG,error->first,{buf,len});
 				LOGGER("%s\n",buf);
 				};break;
+/*                        case 7: {
+				auto [first,second]=usedtext->scanerrors[scerror];
+                                showerror(genVG,first,error,second);
+                                };break; */
 			case 0:
 			case 15:
 			case 9: defaulterror(genVG,scerror);
@@ -3480,8 +3486,13 @@ virtual int display() override {
 };
 //histgegs gegs(
 strconcat getsensortext(const int sensorindex,const SensorGlucoseData *hist) {
-		histgegs gegs(sensorindex,hist);
-		return gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>","<br><br>");
+        if((hist->isDexcom()||hist->isSibionics())&&hist->unused()) {
+            return {"",R"(<h1>)",hist->showsensorname(),R"(</h1><p>)",usedtext->waitingforconnection,"</p>"};
+            }
+        else {
+            histgegs gegs(sensorindex,hist);
+            return gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>","<br><br>");
+            }
 		}
 
 static void showhistory(const int sensorindex,const SensorGlucoseData *hist,const float tapx, const float tapy) {

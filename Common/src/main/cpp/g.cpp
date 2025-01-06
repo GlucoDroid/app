@@ -533,11 +533,13 @@ extern "C" JNIEXPORT void JNICALL  fromjava(setDeviceAddress)(JNIEnv *env, jclas
         env->GetStringUTFRegion(jdeviceAddress, 0,getlen,deviceaddress);
         deviceaddress[getlen]='\0';
        usedhist->scannedAddress=true;
+
+#ifdef SKIPTRIEDOFTEN
        if(usedhist->isDexcom()) {
            auto &usedAddresses=usedhist->usedAddresses;
            if(usedAddresses.empty()||memcmp(usedAddresses.back().data(),deviceaddress,getlen+1)) {
                 uint32_t now=time(nullptr);
-                const auto &newel=*reinterpret_cast<const address_t*>(address);
+                const auto &newel=*reinterpret_cast<const address_t*>(deviceaddress);
                 if(!usedAddresses.empty()&&now<usedhist->usedAddressesTime) {
                         usedAddresses.back()=newel;
                         }
@@ -546,6 +548,7 @@ extern "C" JNIEXPORT void JNICALL  fromjava(setDeviceAddress)(JNIEnv *env, jclas
                 usedhist->usedAddressesTime=now+DEXTRYADDRESSSECS;
                 }
              }
+#endif
         }
    LOGGER("setDeviceAddress(%s)\n", deviceaddress);
    }

@@ -703,8 +703,8 @@ void setactivereceive(int allindex,passhost_t *ph,bool startthread=true) {
        }
 
 int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,string_view port,const bool sendnums,const bool sendstream,const bool sendscans,const bool restore,const bool receive,const bool activeonly,string_view pass,uint32_t starttime,bool passiveonly,const char *label=nullptr,const bool testip=true,bool startthreads=true,bool hashostname=false) {
-    LOGGER("changehost(%d,sendnums=%d,sendstream=%d,sendscans=%d,receive=%d,activeonly=%d,passiveonly=%d,label=%s port=%s nr=%d hashostname=%d\n",index,sendnums,sendstream,sendscans,receive,activeonly,passiveonly,label,port.data(),nr,hashostname);
     const int hostnr=getupdatedata()->hostnr;
+    LOGGER("hostnr=%d changehost(%d,sendnums=%d,sendstream=%d,sendscans=%d,receive=%d,activeonly=%d,passiveonly=%d,label=%s port=%s nr=%d hashostname=%d\n",hostnr,index,sendnums,sendstream,sendscans,receive,activeonly,passiveonly,label,port.data(),nr,hashostname);
     if(index<0) 
         index=hostnr;
     if(index>=maxallhosts)  {
@@ -739,10 +739,8 @@ int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,stri
         };
     struct oldnet desnet;
     const bool newhost=(index==hostnr);
-
     const bool sendto= sendnums|| sendstream|| sendscans;
     const bool reconnect=(receive&&!passiveonly)||(sendto&&!activeonly);
-    LOGGER("hostnr=%d\n",hostnr);
     int tohost;
     bool newthread=false;
     const bool dontopen=sendto&&passiveonly;
@@ -863,7 +861,7 @@ false        true          1
 false          false          0
 */
     thehost.receivefrom=receive?(reconnect?3:2):((sendto&reconnect)?1:0);
-    LOGGER("receivefrom=%d\n", thehost.receivefrom);
+    LOGGER("changehost receivefrom=%d\n", thehost.receivefrom);
     setpass( thehost.pass,pass);
     thehost.deactivated=false;
 

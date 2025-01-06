@@ -112,15 +112,16 @@ public void disconnect() {
         Log.i(LOG_ID,"Disconnect mBluetoothGatt==null");
       }
     }
-public void reconnect(long now) {
-      final var old=now-showtime+20;
+public boolean reconnect(long now) {
+    final var old=now-showtime+20;
     if(charcha[1]<old&&connectTime<(now-60*1000))  {
         Log.i(LOG_ID,"reconnect "+SerialNumber);
         final var thegatt= mBluetoothGatt;
         if(thegatt!=null) 
             thegatt.disconnect();
-        connectDevice(0);
+        return connectDevice(0);
         }
+     return true;
     }
 
 void shouldreconnect(long now) {
@@ -477,8 +478,8 @@ public void searchforDeviceAddress() {
         };
     }
 
-   public boolean connectDevice(long delayMillis) {
-      Log.i(LOG_ID,"connectDevice("+delayMillis+") "+ SerialNumber);
+ public boolean connectDevice(long delayMillis) {
+    Log.i(LOG_ID,"connectDevice("+delayMillis+") "+ SerialNumber);
     Runnable connect=getConnectDevice(delayMillis);
     if(connect==null) 
         return false;

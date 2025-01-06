@@ -83,7 +83,7 @@ int updateone::update() {
 		return 0;
 	ret|=subdid;
 	if(sendsensors) {
-		subdid=sensors->update(pass,getsock(),ind,startsensors,firstsensor,sendstream,sendscans,restore);
+		subdid=sensors->update(pass,getsock(),ind,startsensors,firstsensor,sendstream,sendscans,restore,resetdevices);
 		if(subdid&4) {
 			resetdevices=true;
 			subdid&=3;

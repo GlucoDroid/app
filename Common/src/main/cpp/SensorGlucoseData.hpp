@@ -100,7 +100,9 @@ maxdaysSI*24
 #endif
 ; */
 
+#ifdef SKIPTRIEDOFTEN
 typedef  std::array<char,18> address_t;
+#endif
 struct ScanData {uint32_t t;int32_t id;int32_t g;int32_t tr;float ch;
  uint16_t getmgdL() const { return g;};
  float getmmolL() const { return g/convfactordL;};
@@ -423,9 +425,11 @@ char *deviceaddress() {
     return getinfo()->deviceaddress;
     }
 #ifdef JUGGLUCO_APP
+#ifdef SKIPTRIEDOFTEN
 std::vector<address_t> usedAddresses;
 uint32_t usedAddressesTime;
 uint32_t lastNewMatch=0;
+#endif
 #endif
 const char *deviceaddress() const {
     return getinfo()->deviceaddress;
@@ -446,6 +450,8 @@ const int32_t maxpos() const {
     else return 60;
      }
 int32_t maxstreampos() const {
+  if(haserror)
+        return 24*24*60;
   if(isSibionics())
      return maxSIhours*streamperhour();
    auto days=getinfo()->days;
@@ -809,7 +815,7 @@ const std::string_view othershortsensorname() const {
        }
     return {sensordir.data()+sensordir.length()-11,11};
     }
-[[nodiscard]]  std::array<uint8_t,4> getDexPin() const {
+[[nodiscard]]  const std::array<uint8_t,4> getDexPin() const {
     return *reinterpret_cast<const std::array<uint8_t,4>*>(sensordir.data()+sensordir.length()-4);
    }
 //typedef array<char,11>  sensorname_t;
@@ -1049,7 +1055,7 @@ bool unused() const {
     const auto *info=getinfo();
     if(info)
         return (info->pollcount==0&&info->scancount==0&&info->endhistory==0);
-    LOGGER("unused %p->getinfo()==null",this);
+    LOGGER("unused %p->getinfo()==null\n",this);
     return false;
     }
 bool canscan() const {
@@ -1057,12 +1063,12 @@ bool canscan() const {
     }
 private:
 size_t maxscansize()  {
-    if(!canscan()) return 4;
     if(!getinfo())      {
         LOGGER("%s: maxscansize()  getinfo()==null",shortsensorname()->data());
         haserror=true;
         return 0;
         }
+    if(!canscan()) return 4;
     const int days=    std::max((int)getinfo()->days,15);
     const int scanblocks=ceil((40*days*sizeof(ScanData))/blocksize);
     int used=getinfo()->scancount*sizeof(ScanData);

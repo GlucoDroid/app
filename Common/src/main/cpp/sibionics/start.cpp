@@ -57,9 +57,9 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(addSIscangetName)(JNIEnv *env, j
    const size_t gegslen= env->GetStringUTFLength( jgegs);
    auto [sensindex,sens]= sensors->makeSIsensorindex({gegs,gegslen},time(nullptr));
    if(sens) {
-      backup->wakebackup(Backup::wakeall);
       const char *name=sens->shortsensorname()->data();
       LOGGER("addSIscangetName(%s)=%s\n",gegs,name);
+      backup->wakebackup(Backup::wakeall);
       return env->NewStringUTF(name);
       }
    return nullptr;

@@ -35,64 +35,64 @@ import static android.content.Context.ALARM_SERVICE;
 
 public class LossOfSensorAlarm extends BroadcastReceiver {
 static final private String LOG_ID="LossOfSensorAlarm";
-        @Override
-        public void onReceive(Context context, Intent intent) {
-	   Log.i(LOG_ID,"onReceive ");
-           Applic app=(Applic) context.getApplicationContext();
-           app.initproc();
-	   SuperGattCallback.init(app);
-	   SuperGattCallback.glucosealarms.handlealarm();
-           if(!keeprunning.started) {
-                Applic.possiblybluetooth(context) ;
-                }
+@Override
+public void onReceive(Context context, Intent intent) {
+       Log.i(LOG_ID,"onReceive ");
+       Applic app=(Applic) context.getApplicationContext();
+       app.initproc();
+       SuperGattCallback.init(app);
+       SuperGattCallback.glucosealarms.handlealarm();
+       if(!keeprunning.started) {
+            Applic.possiblybluetooth(context) ;
+            }
         }
 
 static private PendingIntent onalarm=null ;
 static void mkintents(Context context) {
-	if(onalarm==null) {
-		final int alarmrequest = 4;
-		final int alarmflags;
-		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-			alarmflags = PendingIntent.FLAG_IMMUTABLE;
-			}
-		else
-			 alarmflags = 0;
-		Intent alarmintent = new Intent(context, LossOfSensorAlarm.class);
-		onalarm = getBroadcast(context, alarmrequest, alarmintent, alarmflags);
-		}
-	}
+    if(onalarm==null) {
+        final int alarmrequest = 4;
+        final int alarmflags;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            alarmflags = PendingIntent.FLAG_IMMUTABLE;
+            }
+        else
+             alarmflags = 0;
+        Intent alarmintent = new Intent(context, LossOfSensorAlarm.class);
+        onalarm = getBroadcast(context, alarmrequest, alarmintent, alarmflags);
+        }
+    }
 static    void setalarm(Context context, long alarmtime) {
-	try {
-		alarmtime+=20*1000;
-		mkintents(context);
-		Log.i(LOG_ID,"setalarm "+alarmtime);
-		final int type=RTC_WAKEUP;
-//		AlarmManager.ELAPSED_REALTIME_WAKEUP or AlarmManager.RTC_WAKEUP as the alarm type.
+    try {
+        alarmtime+=20*1000;
+        mkintents(context);
+        Log.i(LOG_ID,"setalarm "+alarmtime);
+        final int type=RTC_WAKEUP;
+//        AlarmManager.ELAPSED_REALTIME_WAKEUP or AlarmManager.RTC_WAKEUP as the alarm type.
 
-		AlarmManager manager= (AlarmManager) context.getSystemService(ALARM_SERVICE);
+        AlarmManager manager= (AlarmManager) context.getSystemService(ALARM_SERVICE);
 
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-		    manager.setExactAndAllowWhileIdle(type,alarmtime,onalarm);
-		}
-		else
-		    manager.setExact(type,alarmtime,onalarm);
-	   }
-	   catch(Throwable e) {
-	   	Log.stack(LOG_ID,"setalarm", e);
-		   }
-	finally {
-		Log.i(LOG_ID,"after setalarm");
-		}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            manager.setExactAndAllowWhileIdle(type,alarmtime,onalarm);
+        }
+        else
+            manager.setExact(type,alarmtime,onalarm);
+       }
+       catch(Throwable e) {
+           Log.stack(LOG_ID,"setalarm", e);
+           }
+    finally {
+        Log.i(LOG_ID,"after setalarm");
+        }
     }
 
 static void cancelalarm() {
-	if(onalarm!=null) {
-		Log.i(LOG_ID,"cancelalarm");
-		Notify.shownovalue();
-		AlarmManager manager= (AlarmManager) Applic.app.getSystemService(ALARM_SERVICE);
-		manager.cancel(onalarm);
-		onalarm=null;//TODO: ?????
-		}
-	}
+    if(onalarm!=null) {
+        Log.i(LOG_ID,"cancelalarm");
+        Notify.shownovalue();
+        AlarmManager manager= (AlarmManager) Applic.app.getSystemService(ALARM_SERVICE);
+        manager.cancel(onalarm);
+        onalarm=null;//TODO: ?????
+        }
+    }
     }

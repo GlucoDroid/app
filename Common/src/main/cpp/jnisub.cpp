@@ -48,7 +48,7 @@ extern "C" jsize       subGetArrayLength(JNIEnv* env, jarray jar) {
     subLOGGER("subGetArrayLength(%p)\n",jar);
     if(!jar)
         return 0;
-         data_t *ar=    reinterpret_cast<data_t *>(jar);
+     data_t *ar=    reinterpret_cast<data_t *>(jar);
      jint len= ar->length();
     subLOGGER("subGetArrayLength=%d\n",len);
     return len;

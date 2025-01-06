@@ -40,7 +40,7 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
-import 	android.bluetooth.BluetoothDevice;
+import     android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.media.Ringtone;
@@ -161,8 +161,8 @@ private boolean connected=false;
         long tim = System.currentTimeMillis();
         final var bondstate = bluetoothGatt.getDevice().getBondState();
         if (doLog) {
-				final String[] state = {"DISCONNECTED", "CONNECTING", "CONNECTED", "DISCONNECTING"};
-				Log.i(LOG_ID, SerialNumber + " onConnectionStateChange, status:" + status + ", state: " + (newState < state.length ? state[newState] : newState) + " bondstate=" + bondstate);
+                final String[] state = {"DISCONNECTED", "CONNECTING", "CONNECTED", "DISCONNECTING"};
+                Log.i(LOG_ID, SerialNumber + " onConnectionStateChange, status:" + status + ", state: " + (newState < state.length ? state[newState] : newState) + " bondstate=" + bondstate);
 
         }
         if (bondstate == BluetoothDevice.BOND_BONDING) {
@@ -827,18 +827,18 @@ private    void getdata(byte[] value) {
 
 private void resetconnect() {
    Log.i(LOG_ID,"resetconnect");
-     certsize = 0x10000;
-     bonded=false;
-     phase=-1;
-     has_service=false;
-     backfilled = false;
-    newcertificates=false;
-      var gatt=mBluetoothGatt;
-      if(nonNull(gatt)) {
-          for(final BluetoothGattCharacteristic ch : charact) {
-              disablenotification(gatt, ch);
+   certsize = 0x10000;
+   bonded=false;
+   phase=-1;
+   has_service=false;
+   backfilled = false;
+   newcertificates=false;
+   var gatt=mBluetoothGatt;
+   if(nonNull(gatt)) {
+      for(final BluetoothGattCharacteristic ch : charact) {
+          disablenotification(gatt, ch);
           }
-          }
+      }
    }
 @Override
 public void close() {
@@ -862,7 +862,7 @@ static private PendingIntent mkintents(Context context,String id,int alarmreques
 private PendingIntent onalarm=null;
 static private int alarmrequest=14;
 private void setalarm(long alarmtime) {
-	try {
+    try {
             Context context=Applic.app;
             if(onalarm==null)
                onalarm= mkintents(context,SerialNumber,alarmrequest++);
@@ -870,21 +870,21 @@ private void setalarm(long alarmtime) {
             AlarmManager manager= (AlarmManager) context.getSystemService(ALARM_SERVICE);
             manager.setAlarmClock(new AlarmManager.AlarmClockInfo(alarmtime, onalarm), onalarm);
             }
-	   catch(Throwable e) {
-	   	Log.stack(LOG_ID,"setalarm", e);
-		   }
-	finally {
-		Log.i(LOG_ID,"after setalarm");
-		}
+       catch(Throwable e) {
+           Log.stack(LOG_ID,"setalarm", e);
+           }
+    finally {
+        Log.i(LOG_ID,"after setalarm");
+        }
     }
 private void cancelalarm() {
-	if(onalarm!=null) {
-		Log.i(LOG_ID,"cancelalarm");
-		AlarmManager manager= (AlarmManager) Applic.app.getSystemService(ALARM_SERVICE);
-		manager.cancel(onalarm);
-		onalarm=null;//TODO: ?????
-		}
-	}
+    if(onalarm!=null) {
+        Log.i(LOG_ID,"cancelalarm");
+        AlarmManager manager= (AlarmManager) Applic.app.getSystemService(ALARM_SERVICE);
+        manager.cancel(onalarm);
+        onalarm=null;//TODO: ?????
+        }
+    }
 }
 
 

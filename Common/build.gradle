@@ -79,7 +79,7 @@ android {
         compileSdk 35
         applicationId "tk.glucodata"
 
-         versionName '9.0.22'
+         versionName '9.0.23'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -145,8 +145,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         libreOld {
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode                                                                                                                                                               590                                                                                                                                                                                       //LIBRE2ONLY
-         //    versionName '9.0.22-no3'
+            versionCode                                                                                                                                                                  593                                                                                                                                                                                             //LIBRE2ONLY
+         //    versionName '9.0.23-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
             externalNativeBuild.cmake {
@@ -162,7 +162,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //       minSdk 23
             dimension 'libreVersion'
         versionNameSuffix '-li3'
-        versionCode                                                                                                                                                              591                                                                                                                                                                                                                                                                                                                           //LIBRE3
+        versionCode                                                                                                                                                                 594                                                                                                                                                                                                                                                                                                                                 //LIBRE3
     //******  Zet op rollout op 100% ******
 
                buildConfigField 'int', 'libreVersion', '3'
@@ -179,7 +179,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         minSdkVersion 21
       dimension 'SiBionics'
         versionNameSuffix '-si'
-        versionCode                                                                                                                                                         591                                                                                                                                                                                  
+        versionCode                                                                                                                                                            594                                                                                                                                                                                        
        buildConfigField 'int', 'SiBionics', '1'
        externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -188,7 +188,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
         nosi {
             dimension 'SiBionics'
-         versionCode                                                                                            590                                                                                                                                                                                  
+         versionCode                                                                                               593                                                                                                                                                                                        
          versionNameSuffix '-nosi'
           buildConfigField 'int', 'SiBionics', '0'
           externalNativeBuild.cmake {
@@ -204,9 +204,9 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
             dimension 'wearos'
         minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-        versionCode                                                                                                                                                              592                                                                                                                                                                                                                                                                                                                           //WATCH
+        versionCode                                                                                                                                                                 595                                                                                                                                                                                                                                                                                                                                 //WATCH
     //******  Zet op rollout op 100% ******
-        //versionName '9.0.22-wear'
+        //versionName '9.0.23-wear'
         versionNameSuffix '-wear'
         signingConfig signingConfigs.alg
 
@@ -228,8 +228,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 
 //        minSdk 19
             dimension 'wearos'
-        versionCode                                                                                                                                                              592                                                                                                                                                                                                                                                                                                                           //WATCH
-        //versionName '9.0.22-small'
+        versionCode                                                                                                                                                                 595                                                                                                                                                                                                                                                                                                                                 //WATCH
+        //versionName '9.0.23-small'
         versionNameSuffix '-small'
         signingConfig signingConfigs.alg
 
