@@ -156,7 +156,7 @@ public:
       int lastsens=last();
       for(int i= settings->data()->startlibreview;i<=lastsens; i++) {
          const SensorGlucoseData *sens=getSensorData(i);
-         if(sens&&!sens->isLibre3()&&!sens->isSibionics()) {
+         if(sens&&sens->isLibre2()) {
             settings->data()->startlibreview=i;
             if(!sens->getinfo()->libreviewsendall&&sens->getmaxtime()>sendfrom) {
                libre2=true;

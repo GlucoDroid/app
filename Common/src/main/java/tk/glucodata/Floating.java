@@ -144,7 +144,7 @@ public static void rewritefloating(Activity context) {
  static void shoulduseadb(Context context) {
         final var builder = new AlertDialog.Builder(context);
         String title=context.getString(R.string.overlaypermission);
-        if(title.length()>20) {
+        if(title.length()>16) {
             builder.setTitle(" "); 
             builder.setMessage(title+"\n"+context.getString(R.string.overlaypermissionmessage));
             }
@@ -152,17 +152,39 @@ public static void rewritefloating(Activity context) {
             builder.setTitle(title);
             builder.setMessage(R.string.overlaypermissionmessage);
             }
-        var dialog=builder.setPositiveButton(R.string.ok, (dia, id) -> {
+       var dialog=builder.setPositiveButton(R.string.ok, (dia, id) -> {
             Log.i(LOG_ID,"now ask overlay permission");
-        }) .show();
+        }).create();
         dialog.setCanceledOnTouchOutside(false);
-        TextView messageText = (TextView)dialog.findViewById(android.R.id.message);
         final var metrics = Applic.app.getResources().getDisplayMetrics();
+        /*
+        dialog.setOnShowListener(a ->  {
+            final var colres= android.R.color.holo_orange_light;
+            final var col=
+           (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)?context.getResources().getColor(colres, context.getTheme()):
+                context.getResources().getColor(colres);
+         var posbut=dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+         posbut.setTextColor(col);
+        posbut.setPadding(0,0,0,0);
+         ViewGroup parent=(ViewGroup)posbut.getParent();
+         if(parent!=null)  {
+            parent.setPadding(0,0,0,0);
+            parent.setMinimumHeight(0);
+            parent.set
+            Log.i(LOG_ID,"dialog.setOnShowListener");
+//        var dens=GlucoseCurve.getDensity();
+//        negbut.setPadding((int)(dens*10),0,0,0);
+            }    
+            }
+            );  */
+        dialog.show();
+        TextView messageText = (TextView)dialog.findViewById(android.R.id.message);
         var screenwidth = metrics.widthPixels;
         density=metrics.density;
         int pad=(int)(screenwidth*.05);
         messageText.setGravity(Gravity.LEFT);
-        messageText.setPadding(pad,0,pad,0);
+        messageText.setPadding(pad,0,pad,0);  
+
     }
 
     public static void setfloatglucose(Activity context, boolean val) {

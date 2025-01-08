@@ -1059,7 +1059,7 @@ bool unused() const {
     return false;
     }
 bool canscan() const {
-    return !(isDexcom()||isSibionics()||isLibre3());
+    return isLibre2();
     }
 private:
 size_t maxscansize()  {
@@ -1148,7 +1148,7 @@ if(const ScanData *last=lastpoll()) {
             }
         }
     }
-   if(!isSibionics()) {
+   if(!(isSibionics()||isDexcom())) {
       LOGGER("getinfo()->lastHistoricLifeCountReceivedPos=%d\n", getinfo()->lastHistoricLifeCountReceivedPos);
       if(!getinfo()->lastHistoricLifeCountReceivedPos) getinfo()->lastHistoricLifeCountReceivedPos=12;
       LOGGER("SensorGlucoseData %s %s scansize=%zu\n",sensordir.data(),scanpath.data(),scansize);

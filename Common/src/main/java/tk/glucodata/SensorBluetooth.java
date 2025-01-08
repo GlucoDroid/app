@@ -87,12 +87,12 @@ static    private BluetoothManager mBluetoothManager=null;
 static public void reconnectall() {
    final var wasblue=blueone;
    if(wasblue !=null) {
-       boolean shouldscan=false;
+       boolean shouldnotscan=true;
        final var now=System.currentTimeMillis();
         for(var cb: wasblue.gattcallbacks)     {
-            shouldscan=shouldscan||cb.reconnect(now);
+            shouldnotscan=shouldnotscan&&cb.reconnect(now);
           }
-       if(shouldscan)  {
+       if(!shouldnotscan)  {
             if(wasblue.mBluetoothManager!=null) {
                  wasblue.stopScan(false);
                  wasblue.startScan(0L);
