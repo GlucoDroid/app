@@ -34,7 +34,6 @@
             android:exported="true"
             android:label="@string/watch_face_name"
             android:permission="android.permission.BIND_WALLPAPER"
-            android:maxSdkVersion="33"
 	    >
             <intent-filter>
                 <action android:name="android.service.wallpaper.WallpaperService" />
@@ -63,7 +62,6 @@
             android:name="tk.glucodata.watchface.editor.WatchFaceConfigActivity"
             android:exported="true"
             android:label="@string/title_activity_watch_face_config"
-            android:maxSdkVersion="33"
 	    >
 
             <intent-filter>

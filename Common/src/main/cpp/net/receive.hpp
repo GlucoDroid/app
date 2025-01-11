@@ -94,7 +94,7 @@ constexpr const int maxbytes=16;
 bool savedata(int fp,uint32_t offset, uint32_t len,const unsigned char *data) {
     if(lseek( fp, offset, SEEK_SET )!=offset) {
        lerror("lseek");
-    return false;
+       return false;
        }
     LOGGER("savedata fp=%d off=%u len=%u data=%s\n",fp,offset,len,(char *)loghex(data,len).data());    
     if(write(fp,data,len)!=len) {

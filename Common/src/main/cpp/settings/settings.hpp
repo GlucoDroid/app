@@ -435,7 +435,6 @@ Settings(const char *settingsname,const char *base,const char *country): Mmap(se
                if(data()->initVersion<9) {
                   data()->sendtolibreview=data()->uselibre;
                   if(data()->initVersion<8) {
-                     LOGGER("initVersion=%d\n",data()->initVersion);
                      if(data()->initVersion<7) { 
                         if(data()->initVersion<6) {
                            if(data()->initVersion<4) {

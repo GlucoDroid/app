@@ -921,21 +921,21 @@ private void addBondStateReceiver() {
                   final int bondState = intent.getIntExtra(EXTRA_BOND_STATE, BluetoothDevice.ERROR);
                   final int previousBondState = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1);
                   switch (bondState) {
-                case BOND_BONDING:
-                    Log.i(LOG_ID,"Broadcast: BOND_BONDING "+address);
-                        break;
-                    case BOND_BONDED:
-                      Log.i(LOG_ID,"Broadcast: BOND_BONDED "+address);
-                        break;
-                    case BOND_NONE:
-                      Log.i(LOG_ID,"Broadcast: BOND_NONE "+address);
-                        break;
-                    case BluetoothDevice.ERROR:
-                      Log.i(LOG_ID,"Broadcast: ERROR "+address);
-                        break;
-                      default:
-                        Log.i(LOG_ID,"Broadcast: "+bondState+ " "+address);
-                    }
+                        case BOND_BONDING:
+                            Log.i(LOG_ID,"Broadcast: BOND_BONDING "+address);
+                            break;
+                        case BOND_BONDED:
+                            Log.i(LOG_ID,"Broadcast: BOND_BONDED "+address);
+                            break;
+                        case BOND_NONE:
+                            Log.i(LOG_ID,"Broadcast: BOND_NONE "+address);
+                            break;
+                        case BluetoothDevice.ERROR:
+                            Log.i(LOG_ID,"Broadcast: ERROR "+address);
+                            break;
+                          default:
+                            Log.i(LOG_ID,"Broadcast: "+bondState+ " "+address);
+                        }
                 }
                 cb.bonded();
                 return;

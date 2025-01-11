@@ -59,6 +59,8 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(addSIscangetName)(JNIEnv *env, j
    if(sens) {
       const char *name=sens->shortsensorname()->data();
       LOGGER("addSIscangetName(%s)=%s\n",gegs,name);
+      sendstreaming(sens);  //TODO??
+      backup->resendResetDevices();
       backup->wakebackup(Backup::wakeall);
       return env->NewStringUTF(name);
       }

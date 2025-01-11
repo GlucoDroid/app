@@ -122,7 +122,9 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
   time_t wasstart=sens->getstarttime();
   LOGGER("was starttime=%d %s",wasstart,ctime(&wasstart));
   if(wasstart<1605654000||wasstart>=nowsec||!sens->pollcount()) {
-      sens->getinfo()->starttime=nowsec-secsSinceStart;
+    sensors->getsensor(sensorindex)->starttime=sens->getinfo()->starttime=nowsec-secsSinceStart;
+    sensors->setindices();
+    backup->resendResetDevices(&updateone::sendstream);
    #ifndef NOLOG
      wasstart=sens->getstarttime();
      LOGGER("new starttime=%d %s",wasstart,ctime(&wasstart));
@@ -130,8 +132,10 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
       }
 
    const int index= getindex();
+   #ifndef NOLOG
   LOGGER("secsSinceStart=%d age=%d index=%d\n",secsSinceStart,age,index);
    showglucose(wasstart);
+   #endif
    const auto wastime=nowsec-age;
 
    
@@ -155,9 +159,9 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
        }
     else {
     	if(secsSinceStart>dexmaxtime&&sens->getinfo()->lastLifeCountReceived<maxdexcount ) {
-         sensor *sens=sensors->getsensor(sensorindex);
-         sens->endtime=nowsec;
-         }
+             sensor *sensor=sensors->getsensor(sensorindex);
+             sensor->endtime=nowsec;
+             }
          sens->sensorerror=true;
          timeres[1]=0LL;
       }

@@ -114,6 +114,7 @@ static bool updateDevices() {
     LOGAR("before deletelast()");
     sensors->deletelast();
     LOGAR("after deletelast()");
+    sensors->setindices();
     backup->resendResetDevices();
     return  javaUpdateDevices();
     }

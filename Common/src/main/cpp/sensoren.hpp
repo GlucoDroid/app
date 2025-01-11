@@ -38,6 +38,7 @@ inline constexpr const int youngsensorsecs=2*60*60;
 inline constexpr const int sensornamelen=16;
 #include "gltype.hpp"
 class SensorGlucoseData;
+inline constexpr const uint16_t LISTEND=0xFFFF;
 struct sensor {
    uint32_t starttime;
    uint32_t endtime;
@@ -46,7 +47,9 @@ struct sensor {
    uint8_t finished:7;
    bool initialized:1;
    uint8_t halfdays;
-   uint8_t reserved[4];
+//   uint8_t reserved[4];
+    uint16_t next;
+    uint16_t prev;
 const sensorname_t *shortsensorname() const { 
    return reinterpret_cast<const sensorname_t *>( name+5);
    }
@@ -70,6 +73,7 @@ uint32_t largemaxtime() const {
    return maxtime()+60*60*24;
    }
    } __attribute__ ((packed)) __attribute__ ((aligned (4))) ; /*always 32 bytes */
+
 
 extern void   sendstartsensors(int startpos);
 extern void   sendKAuth(SensorGlucoseData *hist);
@@ -124,8 +128,9 @@ public:
    Sensoren(string_view basedirin) : inbasedir(basedirin), mapfile{inbasedir, "sensors.dat"},
                              map(mapfile,1024), maxhist(map.data()?(last() + 3):100),
                              hist(new SensorGlucoseData *[maxhist]()) {
-             LOGGER("maxhist=%d\n",maxhist);
-   }
+        LOGGER("maxhist=%d\n",maxhist);
+        setindices();
+       }
    void setlibre3nums() {
 #ifdef LIBRENUMBERS
       const SensorGlucoseData *sens=getSensorData();
@@ -212,27 +217,35 @@ public:
       return true;
    }
 
-   uint32_t timefirstdata() {
+   uint32_t timefirstdata()  {
       static uint32_t first = UINT32_MAX;
-      int end = std::min(last(), 3);
-      for (int i = 0; i <= end; i++) {
-         if (sensorlist()[i].present) {
-            if (const SensorGlucoseData *hist = getSensorData(i)) {
-               auto tim = hist->getfirsttime();
-               if (tim < first) {
-                  first = tim;
-               }
-            }
-
+     if(last()>=0) {
+         int i=getstartindex();
+          for(int it = 0; it <= 3; it++) {
+             const sensor *sens=getsensor(i);
+              if(sens->next==0&&sens->prev==0)
+                  setindices();
+             if(sens->present) {
+                if (const SensorGlucoseData *hist = getSensorData(i)) {
+                   auto tim = hist->getfirsttime();
+                   if (tim < first) {
+                      first = tim;
+                   }
+                  }
+                }
+            i=sens->next;
+            if(i==LISTEND) 
+                break;
+          }
          }
-      }
       if (first == UINT32_MAX)
          return time(nullptr) - 24 * 60 * 60;
       return first;
    }
 
    uint32_t timelastdata() {
-      auto nr = last();
+//      auto nr = last();
+      int nr=getendindex();
       if(nr >= 0) {
          if(const SensorGlucoseData *his = getSensorData(nr))
             return his->lastused();
@@ -264,7 +277,8 @@ void   removeunused() {
   if(const int l=last();l>=0&&l<maxhist) {
          SensorGlucoseData *hist = getSensorData(l);
          if(hist&&hist->unused()) {
-            --infoblockptr()->last;
+            if(removelinks(infoblockptr()->last--))
+                setindices();
             sendstartsensors(l); 
             delete hist;
             }
@@ -292,26 +306,31 @@ void   deletelast() {
    int addsensor(const string_view name) {
       LOGGER("addsensor(%.16s)\n", name.data());
       removeunused();
+      int endindex=getendindex();
       infoblockptr()->last++;
       sensorlistmap();
       if (last() >= getmaxhistory()) {
          setmaxhistory(last() * 2);
       }
       SensorGlucoseData *histel = new SensorGlucoseData(pathconcat(inbasedir, name));
-      hist[infoblockptr()->last] = histel;
-      LOGGER("hist[%d]=%p\n", infoblockptr()->last,histel);
-      sensorlist()[infoblockptr()->last].starttime = histel->getstarttime();
-      memcpy(sensorlist()[infoblockptr()->last].name, name.data(), name.length());
-      sensorlist()[infoblockptr()->last].name[sensornamelen] = '\0';
-      sensorlist()[infoblockptr()->last].present = 1;
-      sensorlist()[infoblockptr()->last].endtime = 0;
-      sensorlist()[infoblockptr()->last].finished = 0;
-      sensorlist()[infoblockptr()->last].initialized=false;
-      infoblockptr()->current = infoblockptr()->last;
-      LOGGER("add sensor %.16s\n", name.data());
-      return infoblockptr()->last;
+      const int32_t lastpos=infoblockptr()->last;
+      hist[lastpos] = histel;
+      LOGGER("hist[%d]=%p\n", lastpos,histel);
+      sensorlist()[lastpos].starttime = histel->getstarttime();
+      memcpy(sensorlist()[lastpos].name, name.data(), name.length());
+      sensorlist()[lastpos].name[sensornamelen] = '\0';
+      sensorlist()[lastpos].present = 1;
+      sensorlist()[lastpos].endtime = 0;
+      sensorlist()[lastpos].finished = 0;
+      sensorlist()[lastpos].initialized=false;
+      infoblockptr()->current = lastpos;
+      makelinks(lastpos,endindex);
+      #ifndef NOLOG
+      time_t tim=sensorlist()[lastpos].starttime;
+      LOGGER("add sensor %.16s starttime=%d %s", name.data(),tim,ctime(&tim));
+      #endif
+      return lastpos;
    }
-
    const sensor *getsensor(const int ind) const {
       return sensorlist() + ind;
    }
@@ -561,37 +580,42 @@ SensorGlucoseData *makelibre3sensor(std::string_view shortname,uint32_t starttim
    vector<int> inperiod(uint32_t starttime, uint32_t endtime) {
       vector<int> out;
       const uint32_t nu = time(nullptr);
-      
-     constexpr const int maxage=maxSIhours*60*60;
+      constexpr const int maxage=maxSIhours*60*60;
       const uint32_t oldsecs=maxage>=starttime?0:starttime-maxage;
-      for(int i = last(); i >= 0; i--) {
-         auto &sensor=sensorlist()[i];
-         const uint32_t startsensor = sensor.starttime;
-         if(startsensor >= endtime) {
-            LOGGER("%d: inperiod startsensor (%u) >= endtime (%u) \n",i,startsensor,endtime);
-            continue;
-            }
+      int endindex=getendindex();
+      if(endindex>=0) {
+          for(int prev,i = endindex;i!=LISTEND;i=prev) {
+            auto &sensor=sensorlist()[i];
+            if(sensor.next==0&&sensor.prev==0)
+                  setindices();
+            prev=sensor.prev;
+            const uint32_t startsensor = sensor.starttime;
+            if(startsensor >= endtime) {
+                LOGGER("%d: inperiod startsensor (%u) >= endtime (%u) \n",i,startsensor,endtime);
+                continue;
+                }
+             
+             if(sensor.maxtime() <= oldsecs) {
+                LOGGER("%s old\n", showsensorname(i));
+                break;
+                } 
 
-         
-         if(sensor.maxtime() <= oldsecs) {
-            LOGGER("%s old\n", showsensorname(i));
-            break;
-            } 
-
-         auto oneend = sensor.endtime;
-         if(sensor.finished && oneend && oneend < starttime) {
-            LOGGER("%d: inperiod finished &&endtime (%u) <starttime (%u)\n",i,oneend,starttime);
-            continue;
+             auto oneend = sensor.endtime;
+             if(sensor.finished && oneend && oneend < starttime) {
+                LOGGER("%d: inperiod finished &&endtime (%u) <starttime (%u)\n",i,oneend,starttime);
+                continue;
+             }
+             checkinfo(i, nu);
+             oneend = sensor.endtime;
+             if(oneend && oneend < starttime) {
+                LOGGER("%d: inperiod endtime (%u) <starttime (%u)\n",i,oneend,starttime);
+                continue;
+                }
+             out.push_back(i);
+              }
          }
-         checkinfo(i, nu);
-         oneend = sensor.endtime;
-         if(oneend && oneend < starttime) {
-            LOGGER("%d: inperiod endtime (%u) <starttime (%u)\n",i,oneend,starttime);
-            continue;
-            }
-         out.push_back(i);
-      }
       return out;
+
    }
    bool inperiod(int i, uint32_t starttime, uint32_t endtime) {
       auto &sensor=sensorlist()[i];
@@ -614,8 +638,15 @@ SensorGlucoseData *makelibre3sensor(std::string_view shortname,uint32_t starttim
 
 int firstafter(uint32_t starttime)  {
    int started=starttime-60*60;
-   for(int i=last();i>=0;i--) {
-      if(sensorlist()[i].starttime>started) 
+   int i=getendindex();
+   if(i<0)
+        return 0;
+   for(int prev;i!=LISTEND;i=prev) {
+      sensor *s=getsensor(i);
+      if(s->next==0&&s->prev==0)
+          setindices();
+      prev=s->prev;
+      if(s->starttime>started) 
          continue;
       if(SensorGlucoseData *sens=getSensorData(i)) {
           auto firsttime=sens->getfirsttime() ;
@@ -784,7 +815,7 @@ void finishsensor(int ind) {
    }
 
    const uint32_t laststarttime() const {
-      if (int l = last();l >= 0) {
+      if(int l = last();l >= 0) {
          return sensorlist()[l].starttime;
       }
       return 0;
@@ -804,52 +835,58 @@ void finishsensor(int ind) {
       vector<int> out;
       const uint32_t oldsecs=nu-maxSIhours*60*60;
       const uint32_t newsecs=nu-youngsensorsecs;
-      for (int i = last(); i >= 0; i--) {
-         const auto &sensor=sensorlist()[i];
-         if (sensor.finished) {
-            LOGGER("%s finished\n", showsensorname(i));
-            continue;
-            }
-         if(sensor.endtime<newsecs) {
-            if(!sensor.starttime) {
-               LOGGER("%d no starttime\n",i);
-               continue;
-               }
+      int i=getendindex();
+      if(i>=0) {
+          for(int prev; i != LISTEND; i=prev) {
+             const auto &sensor=sensorlist()[i];
+            if(sensor.next==0&&sensor.prev==0)
+                  setindices();
+             prev=sensor.prev;
+             if (sensor.finished) {
+                LOGGER("%s finished\n", showsensorname(i));
+                continue;
+                }
+             if(sensor.endtime<newsecs) {
+                if(!sensor.starttime) {
+                   LOGGER("%d no starttime\n",i);
+                   continue;
+                   }
 
-            if(sensor.maxtime() <= oldsecs) {
-               LOGGER("%s old\n", showsensorname(i));
-               break;
-               } 
-            const SensorGlucoseData *hist = getSensorData(i);
-            if (!hist) {
-               LOGSTRING("hist==null\n");
-               continue;
-               }
-           const auto sensmax=hist->getmaxtime() ;
-            if(sensmax<=nu) {
-                  LOGGER("%s old\n", showsensorname(i));
-                  if(sensmax<oldsecs)
-                     break;
-                  continue;
-                  }
-            const auto lasttime=hist->lastused() ;
-            bool canuse=hist-> canusestreaming() ;
-            LOGGER("%s: can %suse streaming, lasttime=%d\n",showsensorname(i),canuse?"":"not ",lasttime);
-            if(!canuse|| (lasttime &&  lasttime < tim)) {
-               continue;
-               }
-            }
-          else {
-            const SensorGlucoseData *hist = getSensorData(i);
-            if (!hist) {
-               LOGSTRING("hist==null\n");
-               continue;
-               }
-            if(!hist-> canusestreaming() )
-               continue;
-            }
-         out.push_back(i);
-      }
+                if(sensor.maxtime() <= oldsecs) {
+                   LOGGER("%s old\n", showsensorname(i));
+                   break;
+                   } 
+                const SensorGlucoseData *hist = getSensorData(i);
+                if (!hist) {
+                   LOGSTRING("hist==null\n");
+                   continue;
+                   }
+               const auto sensmax=hist->getmaxtime() ;
+                if(sensmax<=nu) {
+                      LOGGER("%s old\n", showsensorname(i));
+                      if(sensmax<oldsecs)
+                         break;
+                      continue;
+                      }
+                const auto lasttime=hist->lastused() ;
+                bool canuse=hist-> canusestreaming() ;
+                LOGGER("%s: can %suse streaming, lasttime=%d\n",showsensorname(i),canuse?"":"not ",lasttime);
+                if(!canuse|| (lasttime &&  lasttime < tim)) {
+                   continue;
+                   }
+                }
+              else {
+                const SensorGlucoseData *hist = getSensorData(i);
+                if (!hist) {
+                   LOGSTRING("hist==null\n");
+                   continue;
+                   }
+                if(!hist-> canusestreaming() )
+                   continue;
+                }
+             out.push_back(i);
+             }
+          }
       LOGGER("end bluetoothactive %zu\n",out.size());
       setlibre3nums();
       return out;
@@ -857,16 +894,25 @@ void finishsensor(int ind) {
 std::pair<int, uint32_t> lastused(uint32_t (SensorGlucoseData::*proc)(void) const) {
    uint32_t lasttime=0;
    int newst =-1;
-   for(int i = last() ; i >= 0; i--) {
-      if(sensorlist()[i].maxtime() < lasttime)
-         break;
-      if(const SensorGlucoseData *hist = getSensorData(i)) {
-         if(const uint32_t tim = (hist->*proc)();tim > lasttime) {
-            lasttime = tim;
-            newst = i;
-            }
-         }
-      }
+   int i = getendindex();
+   if(i>=0){
+       while(true) {
+          sensor *sens=getsensor(i);
+          if(sens->next==0&&sens->prev==0)
+                  setindices();
+          if(sens->maxtime() < lasttime)
+             break;
+          if(const SensorGlucoseData *hist = getSensorData(i)) {
+             if(const uint32_t tim = (hist->*proc)();tim > lasttime) {
+                lasttime = tim;
+                newst = i;
+                }
+             }
+          i=sens->prev;
+          if(i==LISTEND)
+                break;
+          }
+        }
    return {newst, lasttime};
    }
 
@@ -883,25 +929,39 @@ std::pair<int, uint32_t> lastused(uint32_t (SensorGlucoseData::*proc)(void) cons
 
 
    auto firstpolltime() {
-      for (int i = 0; i <= last(); i++) { //MODIFIED!!
-         if (sensorlist()[i].present) {
-            if(const SensorGlucoseData *hist = getSensorData(i)) {
-               auto tim = hist->firstpolltime();
-               if (tim < UINT32_MAX)
-                  return tim;
-               }
-         }
-      }
+      int i=getstartindex(); 
+      if(i>=0) {
+          do {
+             sensor *sens=getsensor(i);
+              if(sens->next==0&&sens->prev==0)
+                  setindices();
+             if(sens->present) {
+                if(const SensorGlucoseData *hist = getSensorData(i)) {
+                   auto tim = hist->firstpolltime();
+                   if (tim < UINT32_MAX)
+                      return tim;
+                   }
+                 }
+             i=sens->next;
+             } while(i!=LISTEND);
+          }
       return (decltype(std::declval<SensorGlucoseData>().firstpolltime())) 0;
    }
 
    const SensorGlucoseData *laststreamsensor() {
-      for (int i = last(); i >= 0; i++) {
-         if (const SensorGlucoseData *hist = getSensorData(i)) {
-            if (hist->pollcount() > 0)
-               return hist;
-         }
-      }
+    int i=getendindex();
+    if(i>=0) {
+          do {
+             if(const SensorGlucoseData *hist = getSensorData(i)) {
+                if (hist->pollcount() > 0)
+                   return hist;
+                 }
+             sensor *sens=getsensor(i);
+              if(sens->next==0&&sens->prev==0)
+                  setindices();
+             i=sens->prev;
+                } while(i!=LISTEND);
+          }
       return nullptr;
    }
 
@@ -965,7 +1025,7 @@ int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
 
    int update(crypt_t *pass, const int sock, const int ind, int &startupdate, int &firstsensor,
             const bool upstream, const bool upscan, const bool restoreinfo,const bool resetdevices) {
-      LOGGER("Sensoren::update firstsensor=%d sock=%d ind=%d\n", firstsensor, sock, ind);
+      LOGGER("Sensoren::update firstsensor=%d sock=%d ind=%d resetdevices=%d\n", firstsensor, sock, ind,resetdevices);
       int changed = INT_MAX;
       int did = 2;
 
@@ -1136,7 +1196,160 @@ bool knownDex(const char *name,const char *address) const {
    LOGGER("no KnownDex %s %s\n",name,address);
    return false;
    }
+public:
+void makelinks(const int index,int previndex) {
+    LOGGER("makelinks(%d,%d)\n",index,previndex);
+    sensor *sens=getsensor(index);
+    if(previndex<0) {
+        sens->next=sens->prev=LISTEND;
+        }
+     else
+        placesensorinlist(sens,index,previndex);
+    }
+void setindices() {
+    const int lastpos=last();
+    LOGGER("setindices %d\n",lastpos);
+    if(lastpos<0)
+        return;
+    sensor *first=getsensor(0);
+    first->prev=LISTEND;
+    first->next=LISTEND;
+    int lastsensor=0;
+    for(int i=1;i<=lastpos;i++) {   
+        sensor *sens=getsensor(i); 
+        lastsensor=placesensorinlist(sens,i,lastsensor);
+        }
+    }
+private:
+bool removelinks(int index) {
+    sensor *sens=getsensor(index);
+    int wasprev=sens->prev;
+    int wasnext=sens->next;
+    if(wasnext==0&&0==wasprev) {
+        return true;
+        }
+    if(wasprev!=LISTEND) {
+        sensor *psensor=getsensor(wasprev);
+        if(psensor->next!=index)
+            return true;
+        LOGGER("sensor %d next=%d\n",wasprev,wasnext);
+        psensor->next=wasnext;
+        }
+     if(wasnext!=LISTEND) {
+        sensor *psensor=getsensor(wasnext);
+        if(psensor->prev!=index)
+            return true;
+        LOGGER("sensor %d prev=%d\n",wasnext,wasprev);
+        psensor->prev=wasprev;
+        }
+     return false;
+    }
+int placesensorinlist(sensor *sens,int index,int prev) {
+    sensor * const prevsens=getsensor(prev);
+    if(prevsens->starttime<=sens->starttime) {
+        int wasnext=prevsens->next;
+        prevsens->next=index;
+        sens->prev=prev;
+        sens->next=wasnext;
+        return index;
+        }
+    const int newprev=prevsens->prev;
+    if(newprev==LISTEND) {
+        sens->prev=LISTEND;
+        sens->next=prev;
+        prevsens->prev=index;
+        return prev;
+        }
+    placesensorinlist(sens,index,newprev);
+    int nownext=sens->next;
+    sensor *nextsens=getsensor(nownext);
+    nextsens->prev=index;
+    return prev;
+    }
+sensor * getend() {
+    int i=last();
+    sensor *sens=getsensor(i);
+    if(sens->next==0&&sens->prev==0) {
+        setindices();
+        }
+    while(sens->next!=LISTEND) {
+        sens=getsensor(sens->next);
+        }
+    return sens;         
+    }
+int getendindex()  {
+    int index=last();
+    if(index<0)
+        return -1;
+    sensor *sens=getsensor(index);
+    if(sens->next==0&&sens->prev==0) {
+        setindices();
+        }
+    while(sens->next!=LISTEND) {
+        index=sens->next;
+        sens=getsensor(index);
+        }
+    return index;         
+    }
 
+
+sensor * getstart()  {
+        int i=0;
+        sensor *sens=getsensor(i);
+        if(sens->next==0&&sens->prev==0) {
+            setindices();
+            }
+        while(sens->prev!=LISTEND) {
+                sens=getsensor(sens->prev);
+                }
+        return sens;         
+        }
+int getstartindex()  {
+        const int lastindex=last();
+        if(lastindex<0)
+            return -1;
+        int first=0;
+        sensor *sens=getsensor(first);
+        if(sens->next==0&&sens->prev==0) {
+            setindices();
+            }
+        for(;sens->prev!=LISTEND;sens=getsensor(first))  {
+                first=sens->prev;
+                }
+        return first;         
+        }
+        /*
+sensor *getprev(const sensor *sens)  {
+    if(sens->prev==LISTEND)
+        return nullptr;
+     return getsensor(sens->prev);
+    }
+int getprevindex(int index)  {
+    const sensor *sens=getsensor(index);
+     return sens->prev;
+    } */
+template <typename F>
+void intersens(F func) {
+    if(last()<0) 
+            return;
+     for(sensor *sens=getend();;sens=getsensor(sens->prev)) {
+         func(sens);
+         if(sens->prev==LISTEND) {
+            return;
+            }
+        }
+    }
+template <typename F>
+void fromstart(F func) {
+        if(last()<0) 
+                return;
+         for(sensor *sens=getstart();;sens=getsensor(sens->next)) {
+             func(sens);
+             if(sens->next==LISTEND) {
+                return;
+                }
+            }
+        }
 };
 inline std::ostream& operator<<(std::ostream& os,const sensor &sens) {
    os<<sens.name<<endl;

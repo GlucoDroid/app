@@ -165,72 +165,78 @@ private boolean connected=false;
                 Log.i(LOG_ID, SerialNumber + " onConnectionStateChange, status:" + status + ", state: " + (newState < state.length ? state[newState] : newState) + " bondstate=" + bondstate);
 
         }
-        if (bondstate == BluetoothDevice.BOND_BONDING) {
-            Log.i(LOG_ID, "wait BOND_BONDING");
-        } else {
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-               connected=true;
-                if(bondstate == BOND_NONE || bondstate == BOND_BONDED) {
-                  constatchange[0] = tim;
-                  if((tim-datatime)<60000) {
-                     return;
-                     }
-                  bonded=bondstate== BOND_BONDED;
-                 if(!bluetoothGatt.discoverServices()) {
-                     final String mess="bluetoothGatt.discoverServices()  failed";
-                     Log.e(LOG_ID, mess);
-                     handshake = mess;
-                     wrotepass[1] = tim;
-                     disconnect();
-                    }    
+        if(newState == BluetoothProfile.STATE_CONNECTED) {
+           connected=true;
+          if(bondstate == BluetoothDevice.BOND_BONDING) {
+              Log.i(LOG_ID, "wait BOND_BONDING");
+              }
+          else {
+            if(bondstate == BOND_NONE || bondstate == BOND_BONDED) {
+              constatchange[0] = tim;
+              if((tim-datatime)<60000) {
+                 return;
+                 }
+              bonded=bondstate== BOND_BONDED;
+             if(!bluetoothGatt.discoverServices()) {
+                 final String mess="bluetoothGatt.discoverServices()  failed";
+                 Log.e(LOG_ID, mess);
+                 handshake = mess;
+                 wrotepass[1] = tim;
+                 disconnect();
+                }    
 
-                } else {
-                    Log.e(LOG_ID, "getBondState() returns unknown state " + bondstate);
-                    disconnect();
-                }
             } else {
-                connected=false;
-                constatstatus = status;
-                constatchange[1] = tim;
-                if(newState == BluetoothProfile.STATE_DISCONNECTED) {
-                  if(datatime==0L)  {
-                     if((foundtime+(doLog?10:15)*60*1000L)<tim)  {
-                        Log.i(LOG_ID,"misconnect="+misconnect+" try new address");
-                        misconnect=0;
-                        //triedsensors.add(mActiveDeviceAddress); 
-                        searchforDeviceAddress();
-                        }
-                     else
-                        ++misconnect;
-                     }
-                  close();
-                  if(!stop) {
-                      var sensorbluetooth = SensorBluetooth.blueone;
-                      if (sensorbluetooth != null) {
-                        if(justdata) {
-                            Applic.wakemirrors();
-                            long alreadywaited = tim - constatchange[0];
-                            if(getalarmclock()) {
-                                //long stillwait=justdata?(6700-alreadywaited):0;
-                                final long mmsectimebetween = 5 * 60 * 1000;
-                                long stillwait = mmsectimebetween - alreadywaited - 4000;
-                                Log.i(LOG_ID, "justdata=" + justdata + " alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
-                                setalarm(tim+stillwait);
-                            } else {
-                                long stillwait = 7000 - alreadywaited;
-                                Log.i(LOG_ID, "alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
-                                sensorbluetooth.connectToActiveDevice(this, stillwait);
-                            }
-                        }
-                        else {
-                                Log.i(LOG_ID,"connect direct");
-                                sensorbluetooth.connectToActiveDevice(this,0);
-                                }
-                         }
-                     }
-                 }          
+                Log.e(LOG_ID, "getBondState() returns unknown state " + bondstate);
+                disconnect();
             }
-        }
+            }
+        } else {
+            connected=false;
+            constatstatus = status;
+            constatchange[1] = tim;
+            if(bondstate == BluetoothDevice.BOND_BONDING) {
+                   Log.i(LOG_ID, "BOND_BONDING");
+                   }
+            if(newState == BluetoothProfile.STATE_DISCONNECTED) {
+              if(datatime==0L)  {
+                 if((foundtime+(doLog?10:15)*60*1000L)<tim)  {
+                    Log.i(LOG_ID,"misconnect="+misconnect+" try new address");
+                    misconnect=0;
+                    //triedsensors.add(mActiveDeviceAddress); 
+                    searchforDeviceAddress();
+                    }
+                 else
+                    ++misconnect;
+                 }
+              close();
+              if(!stop) {
+                  var sensorbluetooth = SensorBluetooth.blueone;
+                  if (sensorbluetooth != null) {
+                    if(justdata) {
+                        Applic.wakemirrors();
+                        long alreadywaited = tim - constatchange[0];
+                        if(getalarmclock()) {
+                            //long stillwait=justdata?(6700-alreadywaited):0;
+                            final long mmsectimebetween = 5 * 60 * 1000;
+                            long stillwait = mmsectimebetween - alreadywaited - 4000;
+                            Log.i(LOG_ID, "justdata=" + justdata + " alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
+                            setalarm(tim+stillwait);
+                        } else {
+                            long stillwait = 7000 - alreadywaited;
+                            Log.i(LOG_ID, "alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
+                            if(alreadywaited<0) 
+                                alreadywaited=0;
+                            sensorbluetooth.connectToActiveDevice(this, stillwait);
+                        }
+                    }
+                    else {
+                            Log.i(LOG_ID,"connect direct");
+                            sensorbluetooth.connectToActiveDevice(this,0);
+                            }
+                     }
+                 }
+             }          
+         }
       justdata=false;
     }
 
@@ -397,7 +403,7 @@ private    int certsize = 0x10000;
         }
     }
 
-private boolean askcertificate(int pha) {
+private void askcertificate(int pha) {
       Log.i(LOG_ID,"askcertificate("+pha+")");
          phase = pha;
          final int index= pha-SendCertificate1;
@@ -406,7 +412,13 @@ private boolean askcertificate(int pha) {
          certsize = len;
          certinbuf = new byte[len];
          byte[] code = lencode(index, len);
-         return write(1, code);
+         if(!write(1, code)) {
+            Applic.scheduler.schedule(()->{
+               if(connected)
+                  write(1,code);
+               }
+            , 20, TimeUnit.MILLISECONDS);
+              }
          }
 private void saveDeviceName() {
          final var deviceName=mActiveBluetoothDevice.getName();
@@ -725,34 +737,34 @@ private    void getdata(byte[] value) {
     @Override
     public void bonded() {
         final var bondstate = mActiveBluetoothDevice.getBondState();
-        if (bondstate == BluetoothDevice.BOND_BONDING) {
-         Log.i(LOG_ID,"bonding");
-            try {
-                var uristr = "android.resource://" + app.getPackageName() + "/" + R.raw.bonded;
-                Uri uri = Uri.parse(uristr);
-                Ringtone ring = RingtoneManager.getRingtone(app, uri);
-                ring.setLooping(false);
-                ring.play();
-               // Applic.scheduler.schedule(ring::stop, 5, TimeUnit.SECONDS);
-               disablenotification(mBluetoothGatt,charact[1]); charact[1]=null;
-               disablenotification(mBluetoothGatt,charact[3]); charact[3]=null;
-            } catch (Throwable th) {
-                Log.stack(LOG_ID, "bonded sound", th);
-            }
-
-        } else {
-            if (bondstate == BOND_BONDED) {
-               Log.i(LOG_ID,"bonded");
+        switch(bondstate) {
+            case BluetoothDevice.BOND_BONDING: {
+                Log.i(LOG_ID,"bonding");
+                try {
+                    var uristr = "android.resource://" + app.getPackageName() + "/" + R.raw.bonded;
+                    Uri uri = Uri.parse(uristr);
+                    Ringtone ring = RingtoneManager.getRingtone(app, uri);
+                    ring.setLooping(false);
+                    ring.play();
+                   // Applic.scheduler.schedule(ring::stop, 5, TimeUnit.SECONDS);
+                   disablenotification(mBluetoothGatt,charact[1]); charact[1]=null;
+                   disablenotification(mBluetoothGatt,charact[3]); charact[3]=null;
+                } catch (Throwable th) {
+                    Log.stack(LOG_ID, "bonded sound", th);
+                }
+                };break;
+            case  BOND_BONDED:  {
+                Log.i(LOG_ID,"bonded");
                 getdatacmd();
-                if (!has_service) {
+                if(!has_service) {
                     Applic.RunOnUiThread(() -> {
                         if (!mBluetoothGatt.discoverServices()) {
                             Log.e(LOG_ID, "bonded(): bluetoothGatt.discoverServices()  failed");
                             disconnect();
                         }
-                    });
-                }
-            }
+                        });
+                    }
+                };break;
         }
     }
 

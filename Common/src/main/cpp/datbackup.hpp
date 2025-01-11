@@ -332,10 +332,15 @@ void resensordata(int sensor)  {
             host.firstsensor=sensor;
         }
   };
-void resendResetDevices()  {
-    for(int i=0;i<getupdatedata()->sendnr;i++) {
+
+
+void resendResetDevices(bool updateone::*datatype=&updateone::sendscans)  {
+    const int nr=getupdatedata()->sendnr;
+    LOGGER("resendResetDevices sendnr=%d\n",nr);
+    for(int i=0;i<nr;i++) {
         auto &host=getupdatedata()->tosend[i];
-        if(host.sendscans) {
+        if(host.*datatype) {
+            LOGGER("%d resetdevices=true\n",i);
             host.resetdevices=true;
             }
         }

@@ -228,6 +228,7 @@ static public synchronized void scan(GlucoseCurve curve,Tag tag) {
                             askpermission = true;
                         ret = 0xFC;
                         value=1;
+                        askcalendar=true;
                         curve.render.badscan =calendar(main, ret, name);
                         }
                     }

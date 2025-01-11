@@ -200,7 +200,9 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
               if(maxid<10) {
                    auto starttime=makestarttime(index,eventTime);
                    sens->getinfo()->starttime=starttime;
-                    sensor->starttime=starttime;
+                   sensor->starttime=starttime;
+                   sensors->setindices();
+                   backup->resendResetDevices(&updateone::sendstream);
                    }
            }
             double temp=basear[1]/10.0;

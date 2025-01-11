@@ -146,6 +146,8 @@ jlong SiContext::processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data
                   auto starttime=makestarttime(index,eventTime);
                   sens->getinfo()->starttime=starttime;
                    sensor->starttime=starttime;
+                    sensors->setindices();
+                     backup->resendResetDevices(&updateone::sendstream);
                   }
 		   }
 	   double newvalue=0.0;

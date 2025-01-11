@@ -655,9 +655,10 @@ std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t star
 	vector<pair<const ScanData*,const ScanData*>> polldata;
 	polldata.reserve(hists.size());
 	uint32_t timeiter=start;
-	LOGSTRING("getsensorranges: \n");
+	LOGAR("getsensorranges: ");
 	for(int i=hists.size()-1;i>=0&&timeiter<endt;i--)  {
 		auto his=sensors->getSensorData(hists[i]);
+        LOGGER("sensor %s\n",his->showsensorname().data());
 		std::span<const ScanData> 	poll=his->getPolldata();
 #ifndef NDEBUG
 		auto wastimeiter=timeiter;
@@ -2294,9 +2295,9 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
 
 
 	mealpos.clear();
-	LOGSTRING("display\n");
 	hists= sensors->inperiod(starttime,endtime) ;
 	histlen=hists.size();
+	LOGGER("displaycurve %d\n",histlen);
 	delete[] scanranges;
 	scanranges=new pair<const ScanData *,const ScanData*> [histlen];
 	delete[] pollranges;
@@ -2306,7 +2307,7 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
 #ifdef SI5MIN
    bool sibionics[histlen];
 #endif
-	LOGSTRING("before getranges\n");
+	LOGAR("before getranges");
 #ifdef NOCUTOFF
    if(histlen)
       nocutoff=false;
@@ -2318,6 +2319,7 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
 			sleep(1);
 			return 0;
 			}
+        LOGGER("sensor %s\n",his->showsensorname().data());
         	//LOGGER("%s\n",his->othershortsensorname()->data());
 		std::span<const ScanData> 	scan;
 		//if(showscans) 
@@ -2337,7 +2339,8 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
 			}
 //		if(showhistories)
 
-      const auto senso=sensors->getSensorData(hists[i]);
+//      const auto senso=sensors->getSensorData(hists[i]);
+      const auto senso=his;
       if(!senso->isDexcom()||(showhistories&&settings->data()->dexcomPredict))
             histpositions[i]= histPositions(his, starttime,  endtime); 
        else
