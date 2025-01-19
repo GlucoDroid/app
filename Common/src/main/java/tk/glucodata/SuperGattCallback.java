@@ -197,7 +197,7 @@ static void endtalk() {
         glucosealarms.setagealarm(timmsec,showtime);
         final long tim = timmsec / 1000L;
         boolean waiting = false;
-        var sglucose=new notGlucose(timmsec, String.format(Applic.usedlocale,Notify.pureglucoseformat, gl),  rate);
+        var sglucose=new notGlucose(timmsec, String.format(Applic.usedlocale,Notify.pureglucoseformat, gl),  rate,sensorgen);
         previousglucose=sglucose;
         final var fview=Floating.floatview;
 //        MainActivity.showmessage=null;

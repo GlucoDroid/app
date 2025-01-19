@@ -579,49 +579,6 @@ static void mkrangelabel(TextView view,int res,float low, float high) {
      view.setText(view.getContext().getString(res)+" "+float2string(low)+"-"+float2string(high));
    }
 static private void displaysettings(MainActivity context,Settings settings) {
-/*
-     var graphrange=new RangeSlider(context);
-     var unit=Natives.getunit();
-     var maxvalue=unit==1?27.8f:500.0f;
-     final float roundon=unit==1?10.0f:1.0f;
-     float glow= round(Natives.graphlow(),roundon);
-     float ghigh= round(Natives.graphhigh(),roundon);
-     graphrange.setValueFrom(0);
-     final var maxgraph=unit==1?21.0f:378.0f;
-     graphrange.setValueTo(maxgraph);
-     if(unit==1) {
-        graphrange.setStepSize(0.1f);
-        }
-     else {
-        graphrange.setStepSize(1.0f);
-        }
-     if(ghigh>maxgraph)
-      ghigh=maxgraph;
-      if(glow>ghigh)
-         glow=ghigh;
-     graphrange.setValues(glow,ghigh);
-     graphrange.setTickVisible(false);
-     TextView graphlabel = new TextView(context);
-     mkrangelabel(graphlabel,R.string.graphrange,glow,ghigh);
-
-
-       targetrange.setStepSize(0.1f);
-        targetrange.setStepSize(1.0f);
-     final var maxtarget=unit==1?10.0f:180.0f;
-     var targetrange=new RangeSlider(context);
-     targetrange.setTickVisible(false);
-     targetrange.setValueFrom(0);
-     targetrange.setValueTo(maxtarget);
-      float tlow=round(Natives.targetlow(),roundon);
-      float thigh=round(Natives.targethigh(),roundon);
-     if(thigh>maxtarget)
-      thigh=maxtarget;
-      if(tlow>thigh)
-         tlow=thigh;
-     targetrange.setValues(tlow,thigh);
-    TextView targetlabel = new TextView(context);
-     mkrangelabel(targetlabel,R.string.targetrange,tlow,thigh);
-*/
 
         TextView graphlabel = new TextView(context);
         graphlabel.setText(R.string.graphrange);
@@ -682,45 +639,6 @@ static private void displaysettings(MainActivity context,Settings settings) {
      fixed.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setcurrentRelative(isChecked));
 
 
-      /*
-      graphrange.addOnSliderTouchListener(
-         new RangeSlider.OnSliderTouchListener() {
-             @Override
-             public void onStartTrackingTouch(@NonNull RangeSlider slider) {
-                 Log.i(LOG_ID,"graph onStartTrackingTouch");
-
-             }
-
-             @Override
-             public void onStopTrackingTouch(@NonNull RangeSlider slider) {
-                 final var values=slider.getValues();
-                 final var low=values.get(0);
-                 final var high=values.get(1);
-            mkrangelabel(graphlabel,R.string.graphrange,low,high);
-                 Log.i(LOG_ID,"stop graphrange "+low+" - "+high);
-                 Natives.setGraphRange(low,high);
-
-             }
-
-         });
-      targetrange.addOnSliderTouchListener(
-         new RangeSlider.OnSliderTouchListener() {
-           @Override
-           public void onStartTrackingTouch(RangeSlider slider) {
-                Log.i(LOG_ID,"target onStartTrackingTouch");
-           }
-
-           @Override
-           public void onStopTrackingTouch(RangeSlider slider) {
-               final var values=slider.getValues();
-               final var low=values.get(0);
-               final var high=values.get(1);
-               mkrangelabel(targetlabel,R.string.targetrange,low,high);
-               Log.i(LOG_ID,"stop targetrange "+low+" - "+high);
-               Natives.setTargetRange(low,high);
-           }
-         });
-*/
     TextView scalelabel=getlabel(context,R.string.manuallyscale);
     CheckBox fixatex =new CheckBox(context);
 

@@ -1290,16 +1290,16 @@ static void		scanwait(NVGcontext* genVG) {
 int mkshowlow(char *buf, const int maxbuf) {
 		return snprintf(buf,maxbuf,"%.*f>",gludecimal,gconvert(glucoselowest*10));
 	}
-int mkshowhigh(char *buf, const int maxbuf) {
+int mkshowhigh(char *buf, const int maxbuf,int glucosehighest) {
 	return snprintf(buf,maxbuf,"%.*f<",gludecimal,gconvert(glucosehighest*10));
 	}
-int getglucosestr(uint32_t nonconvert,char *glucosestr,int maxglucosestr) {
+int getglucosestr(uint32_t nonconvert,char *glucosestr,int maxglucosestr,int glucosehighest) {
 	if(nonconvert<glucoselowest) {
 		return mkshowlow(glucosestr, maxglucosestr) ;
 		}
 	else {
-		if(nonconvert>glucosehighest) {
-			return mkshowhigh(glucosestr, maxglucosestr) ;
+		if(nonconvert> glucosehighest) {
+			return mkshowhigh(glucosestr, maxglucosestr,glucosehighest) ;
 			}
 		else {
 			const float convglucose= gconvert(nonconvert*10);
@@ -1334,8 +1334,9 @@ static void	showscanner(NVGcontext* genVG,const SensorGlucoseData *hist,int scan
 		sensleft=smallerlen;
 		}
 	else {
+        int glucosehighest=hist->getmaxmgdL();
 		if(gluval>glucosehighest) {
-			len1=mkshowhigh(buf1,maxbuf);
+			len1=mkshowhigh(buf1,maxbuf,glucosehighest);
 			endtime-=smallerlen;
 			}
 		else {
@@ -1754,7 +1755,8 @@ std::vector<shownglucose_t> shownglucose;
 #ifndef NOLOG
 //#define TESTVALUE
 #endif
-static void showvalue(const ScanData *poll,const std::string_view sensorname, float getx,float gety,int index,uint32_t nu) {
+static void showvalue(const ScanData *poll,const SensorGlucoseData *hist, float getx,float gety,int index,uint32_t nu) {
+    const auto sensorname=hist->othershortsensorname();
 	LOGGER("showvalue %s\n",sensorname.data());
 	float sensory= gety+headsize/3.1;
 	nvgFillColor(genVG, *getblack());
@@ -1782,9 +1784,10 @@ const				float valuex=getx;
 		nvgText(genVG,valuex,gety, head, head+gllen);
 		}
 	else {
+        int glucosehighest=hist->getmaxmgdL();
 		if(nonconvert>glucosehighest) {
 		float valuex=getx-density*14.0f;
-		 int gllen=mkshowhigh(head, maxhead) ;
+		 int gllen=mkshowhigh(head, maxhead,glucosehighest) ;
 			nvgText(genVG,valuex ,gety, head, head+gllen);
 			}
 		else {
@@ -1934,7 +1937,7 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
 				float sensory= gety+headsize/3.1f;
 				nvgRect(genVG, getx+sensorbounds.left, sensorbounds.top+sensory, relage*sensorbounds.width, sensorbounds.height);
 				nvgFill(genVG);
-				showvalue(poll,hist->othershortsensorname(),getx,gety,i,nu);
+				showvalue(poll,hist,getx,gety,i,nu);
 				success=true;
 				if(hist->isLibre2()) {
 					 if(settings->data()->libreIsViewed&&!hist->getinfo()->libreviewsendall) {

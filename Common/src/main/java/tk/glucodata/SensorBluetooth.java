@@ -148,8 +148,10 @@ private SuperGattCallback  getCallback(BluetoothDevice device) {
         for (var cb : gattcallbacks) {
             if (cb.mActiveDeviceAddress != null && address.equals(cb.mActiveDeviceAddress))
                 return cb;
-            if(cb.matchDeviceName(deviceName,address))
+            if(cb.matchDeviceName(deviceName,address)) {
+                cb.mDeviceName=deviceName;
                 return cb;
+                }
             Log.d(LOG_ID, "not: " + cb.SerialNumber);
             }
         return null;
@@ -416,7 +418,9 @@ long scantime=0L;
 final private Runnable scanRunnable = new Runnable() {
    @Override 
    public void run() {
+    Log.i(LOG_ID,"scanRunnable");
        scantime=System.currentTimeMillis();
+      
        SensorBluetooth sensorBluetooth = SensorBluetooth.this;
        if (bluetoothIsEnabled() && gattcallbacks.size() != 0) {
            if (!scanner.init()) {
@@ -435,7 +439,7 @@ final private Runnable scanRunnable = new Runnable() {
 
  };
      boolean startScan(long delayMillis) {
-
+      Log.i(LOG_ID,"startScan("+delayMillis+")");
         if(!Applic.mayscan()) {
             Applic.Toaster((Build.VERSION.SDK_INT > 30)?R.string.turn_on_nearby_devices_permission: R.string.turn_on_location_permission );
          return true;

@@ -25,9 +25,11 @@ public final class notGlucose {
 	public	long time; //mmsec
 	public	String value;
 	public	float rate;
-	public notGlucose(long time,String value,float rate) {
+        public int sensorgen2;
+	public notGlucose(long time,String value,float rate,int gen) {
 		this.time=time;
 		this.value=value;
 		this.rate=rate;
+		this.sensorgen2=gen;
 		};
 };

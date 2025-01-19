@@ -576,37 +576,42 @@ void overwriteglucose(int kind) {
 
 private final boolean makeicon=!isWearable&&tk.glucodata.BuildConfig.minSDK>=23;
 private final StatusIcon icons=makeicon?new StatusIcon():null;
+static int getMaxGlucose(int sensorgen) {
+    if(sensorgen==0x40)
+        return 400;
+     return 500;
+    }
+static private String getglstring(float glvalue,int sensorgen2) {
+   var maxglucose=getMaxGlucose(sensorgen2);
+   if(Applic.unit==1) {
+      if(glvalue<2.2f) {
+          return "2.2>";
+         }
+      if(glvalue>(((double)maxglucose)/Applic.mgdLmult)) {
+         return "27.8<" ;
+         }
+       var glstr=format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
+       if(glstr.charAt(glstr.length()-1)=='0') 
+               glstr=glstr.substring(0, glstr.length()-2);
+        return glstr;
+       }
+   else {
+      int intval=(int)glvalue;
+      if(intval<40)
+         return "40>"; 
+       if(intval>maxglucose)
+         return "500<";
+       return format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
+        }
+   }
 
-static private String getglstring(float glvalue) {
-               if(Applic.unit==1) {
-                  if(glvalue<2.2f) {
-                      return "2.2>";
-                     }
-                  if(glvalue>(500.0/Applic.mgdLmult)) {
-                     return "27.8<" ;
-                     }
-                   var glstr=format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
-                   if(glstr.charAt(glstr.length()-1)=='0') 
-                           glstr=glstr.substring(0, glstr.length()-2);
-                    return glstr;
-                   }
-               else {
-                  int intval=(int)glvalue;
-                  if(intval<40)
-                     return "40>"; 
-                   if(intval>500)
-                     return "500<";
-                   return format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
-                    }
-                  }
-
-private void setIcon( Notification.Builder GluNotBuilder,float glvalue) {
+private void setIcon( Notification.Builder GluNotBuilder,float glvalue,int sensorgen2) {
         if(makeicon) {
-               final var icon=icons.getIcon(getglstring(glvalue));  
-                  GluNotBuilder.setSmallIcon(icon);
+               final var icon=icons.getIcon(getglstring(glvalue,sensorgen2));  
+               GluNotBuilder.setSmallIcon(icon);
             }
           else  {
-                 var draw= GlucoseDraw.getgludraw(glvalue);
+                 var draw= GlucoseDraw.getgludraw(glvalue,sensorgen2);
                   GluNotBuilder.setSmallIcon(draw);
                }
               }
@@ -619,7 +624,7 @@ private void  makeseparatenotification(float glvalue,String message,notGlucose g
             GluNotBuilder.setDeleteIntent(DeleteReceiver.getDeleteIntent());
             Log.i(LOG_ID,"makeseparatenotification "+glucose.value);
 
-           setIcon(GluNotBuilder,glvalue);
+           setIcon(GluNotBuilder,glvalue,glucose.sensorgen2);
             GluNotBuilder.setShowWhen(true).setContentTitle(message);
             if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 //                final int timeout= Build.VERSION.SDK_INT >= 30? 60*1500:60*3000;  
@@ -652,7 +657,7 @@ static public boolean alertseparate=false;
 
         //var draw= GlucoseDraw.getgludraw(glvalue);
 
-          setIcon(GluNotBuilder,glvalue);
+          setIcon(GluNotBuilder,glvalue,glucose.sensorgen2);
 //        GluNotBuilder.setSmallIcon(draw). 
         GluNotBuilder.setContentTitle(message).setOnlyAlertOnce(once);
 

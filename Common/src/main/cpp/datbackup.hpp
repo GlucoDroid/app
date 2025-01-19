@@ -687,8 +687,10 @@ void endactivereceive(int allindex) {
     extern std::vector<condvar_t*> active_receive;
     passhost_t *ph=getupdatedata()->allhosts+allindex;
     if(ph->activereceive) {
-        if(!ph->deactivated&&active_receive[ph->activereceive-1])
-            active_receive[ph->activereceive-1]->wakebackup(Backup::wakeend);
+        if(!ph->deactivated) {
+            if(auto actrec=active_receive[ph->activereceive-1])
+                actrec->wakebackup(Backup::wakeend);
+            }
         ph->activereceive=0;
         LOGGER("endactivereceive(%d) shutdown(%d)\n",allindex,hostsocks[allindex]);
         ::shutdown(hostsocks[allindex],SHUT_RDWR);

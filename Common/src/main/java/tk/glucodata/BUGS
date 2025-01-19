@@ -1,9 +1,6 @@
-Waarom sync nodig na scannen nieuwe sensor?
-Crash bij nieuwe sensor:
-On middelijk gezonden naar mirror?
+Zeg waiting for connection, inplaats van ready in .. seconds
+In the google Play version when a new language is selected that isn't used before, so has to be downloaded, the menu stays in the previous language until the users leaves Juggluco and returns.
 
-Lijkt te scannen voor sensors bij LossOffSignal alarm
-Resend data doorzenden?
 
 android_fdsan_close_with_tag
 AlertDialog allCaps on phone

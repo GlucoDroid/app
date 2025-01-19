@@ -570,7 +570,7 @@ Log.i(LOG_ID,"showall");
 //    test();
     SensorBluetooth  blue=SensorBluetooth.blueone;
     if(blue!=null&&blue.scantime!=0L) {
-            long lasttime=0;
+         long lasttime=0;
          final List<Pair> messages = new ArrayList<>();
          put(messages,blue.scantime,": Start search for sensors\n");
          final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();

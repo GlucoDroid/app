@@ -104,7 +104,7 @@ extern "C" JNIEXPORT jlong  JNICALL   fromjava(lastglucosetime)(JNIEnv *env, jcl
 
 
 
-int getglucosestr(uint32_t nonconvert,char *glucosestr,int maxglucosestr);
+int getglucosestr(uint32_t nonconvert,char *glucosestr,int maxglucosestr,int maxmgdL);
 
 
 extern float threshold(float drate);
@@ -127,14 +127,14 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclas
 		}
 	const int maxbuf=20;
 	char buf[maxbuf];
-	int len=getglucosestr(nonconvert,buf,maxbuf);
+	int len=getglucosestr(nonconvert,buf,maxbuf, hist->getmaxmgdL());
 	const char glucoseclass[]= javapackage "strGlucose";
 	static  jclass  item=  (jclass) env->NewGlobalRef(env->FindClass(glucoseclass));
 	if(!item) {
 		LOGGERTAG("FindClass(%s) failed\n",glucoseclass);
 		return nullptr;
 		}
-	const char glsig[]= "(JLjava/lang/String;Ljava/lang/String;FI)V";
+	const char glsig[]= "(JLjava/lang/String;Ljava/lang/String;FII)V";
 	static jmethodID iconstruct = env->GetMethodID(item,"<init>",glsig);
 	if(!iconstruct) {
 		LOGGERTAG("GetMethodID(item,<init>,%s) failed\n", glsig);
@@ -142,9 +142,11 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclas
 		}
 	const jlong tim=poll->gettime();
 	const char *sensorid=hist->othershortsensorname().data();
-	LOGGERTAG("strGlucose(%lld,%s,%s,%.1f)\n",(long long)tim,buf,sensorid,poll->ch);
-	const float rateofchange=( nonconvert<glucoselowest||nonconvert>glucosehighest)?NAN:threshold(poll->ch);
-	return env->NewObject(item,iconstruct,tim,env->NewStringUTF(buf),env->NewStringUTF(sensorid),rateofchange,index);
+    const int sensorgen2=hist->getSensorgen2();
+ 
+	LOGGERTAG("strGlucose(%lld,%s,%s,%.1f,%d,%d)\n",(long long)tim,buf,sensorid,poll->ch,index,sensorgen2);
+	const float rateofchange=( nonconvert<glucoselowest||nonconvert>hist->getmaxmgdL())?NAN:threshold(poll->ch);
+	return env->NewObject(item,iconstruct,tim,env->NewStringUTF(buf),env->NewStringUTF(sensorid),rateofchange,index,sensorgen2);
        }
 
 

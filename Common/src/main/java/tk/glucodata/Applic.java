@@ -200,19 +200,10 @@ public static boolean systemtimeformat() {
     return hasSystemtimeformat;
     }
 //private static boolean was24=true;
-@Override
-public void onConfigurationChanged(Configuration newConfig) {
-   super.onConfigurationChanged(newConfig);
-   if(Nativesloaded)  {
-        needsnatives();
+
+private static void setlanguage() {
         var lang=getlocale().getLanguage();
-
-//        var new24 = DateFormat.is24HourFormat(this);
-        hasSystemtimeformat=DateFormat.is24HourFormat(app)==hour24;
-        Notify.timef = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT);
- //       was24=new24;
-        Log.i(LOG_ID,"Applic.onConfigurationChanged new="+lang+" cur="+curlang+ (Applic.hour24?" 24uur":" 12uur"));
-
+        Log.i(LOG_ID,"Applic.setlangauge="+lang+" cur="+curlang);
         if(!lang.equals(curlang)) {
             curlang=lang;
             if(Talker.istalking())    
@@ -221,8 +212,21 @@ public void onConfigurationChanged(Configuration newConfig) {
         else  {
             return;
             }
-
         Natives.setlocale(lang);
+     }
+
+@Override
+public void onConfigurationChanged(Configuration newConfig) {
+   super.onConfigurationChanged(newConfig);
+   if(Nativesloaded)  {
+        needsnatives();
+
+//        var new24 = DateFormat.is24HourFormat(this);
+        hasSystemtimeformat=DateFormat.is24HourFormat(app)==hour24;
+        Notify.timef = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT);
+        Log.i(LOG_ID,"Applic.onConfigurationChanged "+(Applic.hour24?" 24uur":" 12uur"));
+ //       was24=new24;
+        setlanguage();
         }
     }     
 

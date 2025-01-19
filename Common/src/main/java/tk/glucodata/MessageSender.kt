@@ -63,10 +63,10 @@ class MessageSender(val activity: Context):CapabilityClient.OnCapabilityChangedL
     }
 var nodesbusy=false
 suspend fun findWearDevicesWithApp() {
+    Log.i(LOG_ID,"end findWearDevicesWithApp nodesbusy=$nodesbusy")
     if(nodesbusy)        
         return;
     nodesbusy=true;
-    Log.d(LOG_ID, "findWearDevicesWithApp()")
     try {
         val capabilityInfo = capabilityClient.getCapability( JUGGLUCOIDENT, CapabilityClient.FILTER_REACHABLE).await()
         setnodes(capabilityInfo.nodes)
@@ -78,6 +78,7 @@ suspend fun findWearDevicesWithApp() {
         Log.stack(LOG_ID, "findDev",th)
     }
     finally {
+        Log.i(LOG_ID,"end findWearDevicesWithApp nodesbusy=false")
         nodesbusy=false
     }
     }

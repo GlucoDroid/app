@@ -432,11 +432,6 @@ static final String setbluetoothon="setbluetoothon";
         super.onNewIntent(intent);
     handleIntent(intent);
     }
-    @Override
-    public void onStart() {
-        super.onStart();
-
-    }
 
 public static boolean hasnfc=false;
 
@@ -514,7 +509,21 @@ private static int resumenr=isRelease?10:2;
 static boolean tocalendarapp=false;
     @Override
     protected void onResume() {
+      Log.i(LOG_ID,"onResume");
         super.onResume();
+        if(curve!=null) {
+            if(!curve.waitnfc) {
+                Log.d(LOG_ID,"onResume setnfc");
+                setnfc();
+                } 
+            else
+                Log.d(LOG_ID,"onResume no setnfc");
+            }
+        }
+    @Override
+    protected void onStart() {
+      super.onStart();
+      Log.i(LOG_ID,"onStart");
     if(Applic.stopprogram>0)
         return;
     if(!DiskSpace.check(this)) {
@@ -528,37 +537,13 @@ static boolean tocalendarapp=false;
      selectionSystemUI();
     hidekeyboard(this);
     active=true;
-    Natives.setpaused(curve);
-        if(curve!=null) {
-            if (!curve.waitnfc) {
-                Log.d(LOG_ID,"onResume setnfc");
-                setnfc();
-                } 
-        else
-                Log.d(LOG_ID,"onResume no setnfc");
-          curve.onResume();
+    if(curve!=null) {
+        Natives.setpaused(curve);
+        curve.onResume();
         }
     if(openfile!=null) {
         openfile.showchoice(this,true);
-//        if(Applic.messagesender!=null) Applic.messagesender.finddevices();
         }
-        /*
-    else   {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-             if(!Natives.getaskedNotify( )) {
-                if(hasstreamed()) {
-                    Log.i(LOG_ID,"resumenr="+resumenr);
-                    if(--resumenr<=0) {
-                        asknotificationAccess();
-                    }
-                    }
-                else
-                    Log.i(LOG_ID,"!hasstreamed");
-                }
-             else
-                 Log.i(LOG_ID,"Natives.getaskedNotify( )");
-             }
-        } */
     if(Natives.gethidefloatinJuggluco())
         Floating.removeFloating();
     boolean showsdialog=false;
@@ -713,53 +698,58 @@ void activateresult(boolean res) {
     }
     @Override
     protected void onPause() {
+        Log.i(LOG_ID,"onPause");
         super.onPause();
-     active=false;
-    Log.i(LOG_ID,"onPause");
-    if(!Applic.Nativesloaded)
-        return;
-
-    if(Natives.getfloatglucose( )&&Natives.gethidefloatinJuggluco())
-        Floating.makefloat();
-    Natives.setpaused(null);
         if (mNfcAdapter != null) {
-       try {
-                mNfcAdapter.disableReaderMode(this);
-        }
-    catch(Throwable error) {
-        String mess=error!=null?error.getMessage():null;
-        if(mess==null) {
-            mess="error";
+           try {
+                    mNfcAdapter.disableReaderMode(this);
             }
-        Log.e(LOG_ID,"mNfcAdapter.disableReaderMode "+mess);
-        }
-            }
-
-        if(curve != null)
-            curve.onPause();
-
-    if(!isWearable) {
-        Natives.wakeuploader();
-        wakelibreview(20);
-        if(Natives.getlibrelinkused()) {
-            final var     starttime= Natives.laststarttime();
-            if(starttime!=0L) {
-                XInfuus.sendSensorActivateBroadcast(app, Natives.lastsensorname(), starttime);
+           catch(Throwable error) {
+                String mess=error!=null?error.getMessage():null;
+                if(mess==null) {
+                    mess="error";
+                    }
+                Log.e(LOG_ID,"mNfcAdapter.disableReaderMode "+mess);
                 }
             }
-        }
-    else {
-        if(Natives.stopWifi()) {
-            Log.i(LOG_ID,"stopWifi");
-            UseWifi.stopusewifi();
+        if(!Applic.Nativesloaded)
+            return;
+        if(!isWearable) {
+            Natives.wakeuploader();
+            wakelibreview(20);
+            if(Natives.getlibrelinkused()) {
+                final var     starttime= Natives.laststarttime();
+                if(starttime!=0L) {
+                    XInfuus.sendSensorActivateBroadcast(app, Natives.lastsensorname(), starttime);
+                    }
+                }
             }
+        else {
+            if(Natives.stopWifi()) {
+                Log.i(LOG_ID,"stopWifi");
+                UseWifi.stopusewifi();
+                }
+            }
+
         }
-    }
+    @Override
+    protected void onStop() {
+        Log.i(LOG_ID,"onStop");
+        super.onStop();
+        active=false;
+        if(!Applic.Nativesloaded)
+            return;
+        if(Natives.getfloatglucose( )&&Natives.gethidefloatinJuggluco())
+            Floating.makefloat();
+        Natives.setpaused(null);
+        if(curve != null)
+            curve.onPause();
+        }
     @Override
     protected void onDestroy() {
        Log.i(LOG_ID,"onDestroy()");
-    thisone=null;
-        super.onDestroy();
+       thisone=null;
+       super.onDestroy();
     }
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
@@ -852,18 +842,18 @@ public void onConfigurationChanged(Configuration newConfig) {
     if(Applic.Nativesloaded)
         if(app.needsnatives() ) {
             if(curve!=null) {
-            while(doonback() )
-                ;
-            curve.numberview.deleteviews();    
-            curve.searchspinner=null;
-            if(curve.search!=null) {
-                removeContentView(curve.search);
-                curve.search=null;
-                }
-            if(curve.searchcontrol!=null) {
-                removeContentView(curve.searchcontrol);
-                curve.searchcontrol=null;
-                }
+                while(doonback() )
+                    ;
+                curve.numberview.deleteviews();    
+                curve.searchspinner=null;
+                if(curve.search!=null) {
+                    removeContentView(curve.search);
+                    curve.search=null;
+                    }
+                if(curve.searchcontrol!=null) {
+                    removeContentView(curve.searchcontrol);
+                    curve.searchcontrol=null;
+                    }
             }
             }
 

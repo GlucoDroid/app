@@ -1968,6 +1968,13 @@ bool notchinese() const {
    return isSibionics()&&getinfo()->notchinese;
    }
 int previousstream=-1;
+
+public:
+int getmaxmgdL() const {
+        if(isDexcom())
+                return 400;
+         return 500;
+        }
 };
 
 struct lastscan_t {

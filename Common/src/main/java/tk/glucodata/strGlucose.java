@@ -29,11 +29,13 @@ public final class strGlucose {
 	public	String sensorid;
 	public	float rate;
    public int index;
-	public strGlucose(long time,String value,String sensorid,float rate,int index) {
+   public int sensorgen2;
+	public strGlucose(long time,String value,String sensorid,float rate,int index,int gen) {
 		this.time=time;
 		this.value=value;
 		this.sensorid=sensorid;
 		this.rate=rate;
 		this.index=index;
+        this.sensorgen2=gen;
 		};
 };

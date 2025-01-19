@@ -24,7 +24,7 @@ package tk.glucodata;
 import static tk.glucodata.Applic.unit;
 
 class GlucoseDraw  {
-static int getgludraw(float val) {
+static int getgludraw(float val,int gen) {
 	return R.drawable.novalue;
 	}
 

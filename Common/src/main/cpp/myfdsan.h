@@ -45,9 +45,11 @@ inline void  exchange_owner_tag(int fd, uint64_t expected_tag, uint64_t new_tag)
    }
 
 inline void sockclose(int sock) {
-    if(get_owner_tag(sock))
-        return;
-    close(sock);
+    if(sock!=-1) {
+        if(get_owner_tag(sock))
+            return;
+        close(sock);
+        }
     }
 
 #else

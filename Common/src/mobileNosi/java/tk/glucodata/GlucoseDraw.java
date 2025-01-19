@@ -751,7 +751,6 @@ R.drawable.glucose_40
 ,R.drawable.glucose_501
 };
 
-static private final int lowvalue=R.drawable.logmmol;
 /*
 private Bitmap createBitmapFromString(String inputNumber) {
 
@@ -806,25 +805,34 @@ WindowManager windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 windowManager.addView(ll, parameters);
 */
 
-static private final int lowmgvalue=R.drawable.alarm39;
 
-static private final int highmmolvalue=R.drawable.highmmol;
-
-static int getgludraw(float val) {
+static int getgludraw(float val,int sensorgen) {
 	if(unit==1) {
 		if(val<2.2f)
-			return lowvalue;
-		if(val>(500.0/mgdLmult))
-			return highmmolvalue;
-	        int ind=Math.round(val*10)-22;
+			return R.drawable.alarm2_2;
+        if(sensorgen==0x40) {
+            if(val>(400.0/mgdLmult))
+                return R.drawable.alarm22_2;
+             }
+        else {
+            if(val>(500.0/mgdLmult))
+                return R.drawable.alarm27_8;
+            }
+        int ind=Math.round(val*10)-22;
 		return mmolicon[ind];
 		}
 	else {
 		int intval=(int)val;
 		if(intval<40)
-			return lowmgvalue;
-		if(intval>500)
-			return R.drawable.alarm501;
+			return R.drawable.alarm39;
+        if(sensorgen==0x40) {
+            if(intval>400)
+                return R.drawable.alarm401;
+           }
+        else {
+            if(intval>500)
+                return R.drawable.alarm501;
+            }
 		int ind=intval-40;
 		return mgicon[ind];
 		}

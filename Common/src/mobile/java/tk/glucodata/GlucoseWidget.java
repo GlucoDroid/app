@@ -86,7 +86,7 @@ static private void updateAppWidget(Context context, AppWidgetManager appWidgetM
    RemoteViews  views;
    strGlucose glu;
    int id= R.id.arrowandvalue;
-   if(SuperGattCallback.previousglucose != null|| (((glu=Natives.lastglucose())!=null) && ((SuperGattCallback.previousglucose = new notGlucose(glu.time * 1000L, glu.value, glu.rate))!=null))) {
+   if(SuperGattCallback.previousglucose != null|| (((glu=Natives.lastglucose())!=null) && ((SuperGattCallback.previousglucose = new notGlucose(glu.time * 1000L, glu.value, glu.rate,glu.sensorgen2))!=null))) {
       final var now=System.currentTimeMillis();
       final var time=SuperGattCallback.previousglucose.time;
       if((now-time)>oldage) {

@@ -140,6 +140,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
 
    
    if(secsSinceStart<=dexmaxtime&&mgdL>=39&&mgdL<=501&&secsSinceStart>=sens->getWarmupSEC()&&index<sens->maxstreampos() ) {
+     LOGAR("use value");
       save(sens,wastime,index);
       sens->saveDexFuture(index, wastime,getpredictedmgdL());
       const auto rate=getRateofChange();
@@ -153,15 +154,20 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
          timeres[0]-=age*1000L;
          }
       else {
+        LOGGER("don't use too old %d>=%d\n", (nowsec-wastime),maxbluetoothage);
          sens->sensorerror=true;
          timeres[1]=0LL;
          }
        }
     else {
     	if(secsSinceStart>dexmaxtime&&sens->getinfo()->lastLifeCountReceived<maxdexcount ) {
+            LOGGER("over endtime and only %d received\n", sens->getinfo()->lastLifeCountReceived);
              sensor *sensor=sensors->getsensor(sensorindex);
              sensor->endtime=nowsec;
              }
+          else {
+            LOGAR("Don't use value");
+            }
          sens->sensorerror=true;
          timeres[1]=0LL;
       }
@@ -546,6 +552,12 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(dexGetDeviceName)(JNIEnv *env, j
    if(*name)
       return env->NewStringUTF(name);
    return nullptr;
+   }
+
+extern "C" JNIEXPORT jboolean JNICALL   fromjava(dexKnownSensor)(JNIEnv *env, jclass cl,jlong dataptr) {
+   if(!dataptr)
+      return false;
+   return *reinterpret_cast<const streamdata *>(dataptr)->hist->getinfo()->DexDeviceName;
    }
 
 static bool isG7(const char *deviceName) {

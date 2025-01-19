@@ -203,8 +203,8 @@ override fun shouldAnimate(): Boolean {
      * function is called by a flow.
      */
     private fun updateWatchFaceData(userStyle: UserStyle) {
-        Log.d(LOG_ID, "updateWatchFace(): $userStyle")
-   registersensor(Applic.getHeartRate())
+       Log.d(LOG_ID, "updateWatchFace(): $userStyle")
+       registersensor(Applic.getHeartRate())
 
         var newWatchFaceData: WatchFaceData=watchFaceData 
         // Loops through user style and applies new values to watchFaceData.
@@ -284,7 +284,7 @@ private fun watchtime(canvas:Canvas,localtime: LocalTime) {
             drawText( String.format("%d:%02d", hour12, localtime.getMinute()), timex, timey, timePaint)
             timePaint.textSize *= 0.4f
             timePaint.setTextAlign(Align.LEFT)
-            drawText(daypart, timex, timey, timePaint)
+            drawText(daypart, timex, timey-height*0.05f, timePaint)
             }
         }
     }
@@ -327,8 +327,10 @@ override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime,s
          with(canvas) {
              timePaint.textSize= height * .08f
              timePaint.setTextAlign(Align.RIGHT)
-             val hearty = height * 0.38f
-             val heartx=0.95f*width
+        //     val hearty = height * 0.38f
+        //     val heartx=0.95f*width
+             val hearty = height * 0.32f
+             val heartx=0.936f*width
              drawText(
                  String.format("%.0f", heartrate),
                  heartx,

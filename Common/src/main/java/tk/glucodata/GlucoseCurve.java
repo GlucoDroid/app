@@ -1178,25 +1178,18 @@ if(!smallScreen) {
 @Override
 public void onResume() {
     super.onResume();
+    Applic app = Applic.app;
 
-/*    setPivotX(getWidth()/2);
-    setPivotY(getHeight()/2); */
-//    setRotation(90);
-
-     Applic app = Applic.app;
-
-     app.setcurve(this);
-     app.setmintime();
-
+    app.setcurve(this);
+    app.setmintime();
 }
 
-    @Override
-    public void onPause() {
+@Override
+public void onPause() {
      Applic app = Applic.app;
      app.cancelmintime();
      app.setcurve(null);
-//    app.savestate();
-      super.onPause();
+     super.onPause();
     }
 
 static public void    doabout(MainActivity activity) {

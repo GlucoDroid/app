@@ -23,5 +23,5 @@ package tk.glucodata;
 
 
 class GlucoseDraw  { 
-   static int getgludraw(float val) { return 0; } 
+   static int getgludraw(float val,int gen) { return 0; }
    };

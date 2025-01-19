@@ -28,8 +28,10 @@ import static android.bluetooth.BluetoothGatt.GATT_SUCCESS;
 import static android.content.Context.ALARM_SERVICE;
 import static java.util.Objects.nonNull;
 import static tk.glucodata.Applic.app;
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MyGattCallback.showCharacter;
+import static tk.glucodata.Natives.dexKnownSensor;
 import static tk.glucodata.Natives.getalarmclock;
 
 import android.annotation.SuppressLint;
@@ -55,13 +57,15 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 
 public class DexGattCallback extends SuperGattCallback {
-
+private boolean known=false;
     public DexGattCallback(String SerialNumber, long dataptr) {
         super(SerialNumber, dataptr, 0x40);
-        //deviceName=Natives.dexGetDeviceName(dataptr);
+        known=dexKnownSensor(dataptr);
+//        ownDeviceName=Natives.dexGetDeviceName(dataptr);
         Log.d(LOG_ID, SerialNumber + " DexGattCallback(..)");
         showtime=6*60*1000L;
     }
@@ -88,7 +92,6 @@ public class DexGattCallback extends SuperGattCallback {
     private static final int SendKeyChallenge = SendCertificate2 + 1;
     private static final int SendKeyChallengeOut = SendKeyChallenge + 1;
     private static final int GetData = SendKeyChallengeOut + 1;
-    private static final int GetData2 = GetData + 1;
 
 private void docmd0(BluetoothGatt bluetoothGatt) {
      certinbufiter = 0;
@@ -114,8 +117,7 @@ private void docmd0(BluetoothGatt bluetoothGatt) {
         if(status == BluetoothGatt.GATT_SUCCESS) {
             if (characteristic.equals(charact[3])) {
                 has_service = true;
-               //  enableNotification(bluetoothGatt, charact[3]); 
-                enableIndication(bluetoothGatt, charact[1]);
+                tryer(()->enableIndication(bluetoothGatt, charact[1]));
                 return;
             } 
          if(characteristic.equals(charact[0])) {
@@ -150,6 +152,8 @@ private void docmd0(BluetoothGatt bluetoothGatt) {
 
 //private long connectedtime=0L;
 //private ArrayList<String> triedsensors=new ArrayList<>();
+
+private int triedinvain=0;
 private boolean connected=false;
     @SuppressLint("MissingPermission")
     @Override
@@ -191,41 +195,60 @@ private boolean connected=false;
             }
             }
         } else {
-            connected=false;
             constatstatus = status;
             constatchange[1] = tim;
             if(bondstate == BluetoothDevice.BOND_BONDING) {
                    Log.i(LOG_ID, "BOND_BONDING");
                    }
             if(newState == BluetoothProfile.STATE_DISCONNECTED) {
-              if(datatime==0L)  {
-                 if((foundtime+(doLog?10:15)*60*1000L)<tim)  {
-                    Log.i(LOG_ID,"misconnect="+misconnect+" try new address");
-                    misconnect=0;
-                    //triedsensors.add(mActiveDeviceAddress); 
-                    searchforDeviceAddress();
-                    }
-                 else
-                    ++misconnect;
-                 }
-              close();
               if(!stop) {
+                  if(!known){
+                    if(isWearable) {
+                        if(connected) {
+                               if(foundtime>0L&&(foundtime+8*60*1000L)<tim) {
+                                  Log.i(LOG_ID,"takes too long "+(tim-foundtime));
+                                  unbond();
+                                  }
+                            }
+                        }
+                     if(foundtime!=0L&&(foundtime+15*60*1000L)<tim)  {
+                        Log.i(LOG_ID,"try new address");
+                        searchforDeviceAddress();
+                        }
+                     }
+                  else {
+                    if(datatime==0&&connected) {
+                        if(triedinvain>(isWearable?1:4)) {
+                            Log.i(LOG_ID,"tried too often "+triedinvain);
+                            unbond();
+                            triedinvain=-10;
+                           } 
+                        else {
+                            ++triedinvain;
+                            }
+                        }
+                    }
+                  close();
                   var sensorbluetooth = SensorBluetooth.blueone;
                   if (sensorbluetooth != null) {
                     if(justdata) {
                         Applic.wakemirrors();
-                        long alreadywaited = tim - constatchange[0];
+//                        long alreadywaited = tim - constatchange[0];
+                        final long alreadywaited = tim - datatime;
                         if(getalarmclock()) {
                             //long stillwait=justdata?(6700-alreadywaited):0;
                             final long mmsectimebetween = 5 * 60 * 1000;
-                            long stillwait = mmsectimebetween - alreadywaited - 4000;
+                            long stillwait = mmsectimebetween - alreadywaited - 27500;
                             Log.i(LOG_ID, "justdata=" + justdata + " alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
-                            setalarm(tim+stillwait);
+                            if(stillwait>0)
+                                setalarm(tim+stillwait);
+                             else
+                                sensorbluetooth.connectToActiveDevice(this, 0);
                         } else {
                             long stillwait = 7000 - alreadywaited;
                             Log.i(LOG_ID, "alreadywaited=" + alreadywaited + " stillwait=" + stillwait);
-                            if(alreadywaited<0) 
-                                alreadywaited=0;
+                            if(stillwait<0) 
+                                stillwait=0;
                             sensorbluetooth.connectToActiveDevice(this, stillwait);
                         }
                     }
@@ -235,7 +258,11 @@ private boolean connected=false;
                             }
                      }
                  }
+               else {
+                  close();
+                  }
              }          
+            connected=false;
          }
       justdata=false;
     }
@@ -308,8 +335,7 @@ private static void sleep(long mmsec) {
        Thread.currentThread().interrupt();
    }
 }
-//private String deviceName;
-private int misconnect=0;
+//private String ownDeviceName;
 private boolean newcertificates=false;
 private void sendcertthread() {
    for(startpacket=0; startpacket <packet.length;) {
@@ -319,6 +345,8 @@ private void sendcertthread() {
         if(startpacket > packet.length) startpacket = packet.length;
         Log.i(LOG_ID,"writenext until "+startpacket);
         if(!write(3, Arrays.copyOfRange(packet, oldstart, startpacket))) {
+            if(!connected)
+                return;
             startpacket = oldstart;
           }
       }
@@ -369,14 +397,14 @@ private void sendcertthread() {
     }
 
 
-    private boolean requestAuth() {
+    private void requestAuth() {
         Log.i(LOG_ID,"requestAuth()");
         Random.fillbytes(random8);
         var uit = new byte[10];
         System.arraycopy(random8, 0, uit, 1, random8.length);
         uit[0] = uit[9] = (byte) 0x02;
         charact[1].setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-        return write(1, uit);
+        tryer(()->write(1, uit));
       }
 
 private final byte[] random8 = new byte[8];
@@ -412,23 +440,21 @@ private void askcertificate(int pha) {
          certsize = len;
          certinbuf = new byte[len];
          byte[] code = lencode(index, len);
-         if(!write(1, code)) {
-            Applic.scheduler.schedule(()->{
-               if(connected)
-                  write(1,code);
-               }
-            , 20, TimeUnit.MILLISECONDS);
-              }
+         tryer(()->write(1, code)); 
          }
 private void saveDeviceName() {
-         final var deviceName=mActiveBluetoothDevice.getName();
-         Natives.dexSaveDeviceName(dataptr,deviceName);
+         final var aname=mDeviceName;
+         Log.i(LOG_ID,"deviceName ="+aname);
+         if(aname!=null) {
+             Natives.dexSaveDeviceName(dataptr,aname);
+             this.known=true;
+             }
          }
 
  private static final byte[][] bondBytes = {{(byte) 0x06, (byte) 0x19}, 
  {(byte) 0xFF, (byte) 0x06, (byte) 0x01},
             {(byte) 0x06, (byte) 0x00}};
-
+private boolean removedBond=false;
  private void authenticate(byte[] value) {
     final var bondstate = mActiveBluetoothDevice.getBondState();
      if(bondstate!=BOND_BONDED) {
@@ -457,8 +483,17 @@ private void saveDeviceName() {
                if(!verified) {
                   handshake = "dex8AES different";
                   wrotepass[1] = System.currentTimeMillis();
-
-                  searchforDeviceAddress();
+                  if(!known&&(!isWearable||removedBond)){
+                    searchforDeviceAddress();
+                    }
+                  else {
+                      if(isWearable) {
+                        if(!removedBond) {
+                            if(datatime==0L)
+                                   unbond();
+                               }
+                         }
+                       }
                   resetCerts();
                   return;
                   }  
@@ -467,14 +502,8 @@ private void saveDeviceName() {
                 Natives.dex8AES(dataptr, value, 9, dataaes, 1);
                 dataaes[0] = 0x04;
                 Log.showbytes("dex8AES data ", dataaes);
-                if(!write(1, dataaes)) {
-                        Applic.scheduler.schedule(()->{
-                           if(connected)
-                              write(1,dataaes);
-                           }
-                        , 20, TimeUnit.MILLISECONDS);
-                  }
-            }
+                tryer(()-> write(1, dataaes));
+                }
             ;
             break;
             case ChallengeReply: {
@@ -530,13 +559,13 @@ private void saveDeviceName() {
             case SendKeyChallengeOut: {
                Log.i(LOG_ID,"authenticate SendKeyChallengeOut");
                 saveDeviceName();
-                phase = GetData2; //GetData?
+                phase = GetData; 
                 write(1, new byte[]{0x06, 0x19});
                 break;
             }
             default:  {
                final byte[] connect={(byte) 0x06, (byte) 0x01};
-               if(Arrays.equals( value,connect) || (phase==GetData2&&mActiveBluetoothDevice.getBondState()==BOND_BONDED)) {
+               if(Arrays.equals( value,connect) || (phase==GetData&&mActiveBluetoothDevice.getBondState()==BOND_BONDED)) {
                   getdatacmd();
                   return;
                   }
@@ -548,20 +577,37 @@ private void saveDeviceName() {
         }
     }
 
+void tryer(Supplier<Boolean> worked) {
+            if(worked.get())
+                return;
+            Applic.scheduler.schedule(() -> { 
+                 for(int i=0;i<8;i++) {
+                      if(!connected) {
+                           Log.i(LOG_ID,"tryer stops not connected");
+                          return;
+                          }
+                      if(worked.get()) return; 
+                      sleep(20) ;
+                     } }, 20, TimeUnit.MILLISECONDS);
+            }
 private    void getdatacmd() {
      wrotepass[0] = System.currentTimeMillis();
-     phase = GetData2;
+     phase = GetData;
      //   enableIndication(mBluetoothGatt, charact[0]);
      var gatt=mBluetoothGatt;
      if(gatt==null) {
          return;
          }
+      tryer(()-> {return enableNotification(gatt, charact[0]);});
+      /*
      if(!enableNotification(gatt, charact[0])) {
             Applic.scheduler.schedule(() -> { 
-               if(connected)
-                  enableNotification(gatt, charact[0]);
-                  }, 10, TimeUnit.MILLISECONDS);
-            }
+                 for(int i=0;i<5;i++) {
+                      if(!connected) return;
+                      if(enableNotification(gatt, charact[0])) return; 
+                      sleep(20) ;
+                     } }, 20, TimeUnit.MILLISECONDS);
+            } */
     }
 
     void getcert(byte[] value) {
@@ -633,7 +679,8 @@ private    void getdata(byte[] value) {
                 handleGlucoseResult(res, newtime);
                 Applic.scheduler.schedule(()->{
                   if(connected) askbackfill();}, 10, TimeUnit.MILLISECONDS);
-                datatime=timmsec;
+//                datatime=timmsec;
+                datatime=newtime;
                 if(savename) saveDeviceName();
             };break;
            case 0x59:{
@@ -692,10 +739,10 @@ private    void getdata(byte[] value) {
 
 
     @Override
-    public boolean matchDeviceName(String deviceName, String address) {
+    public boolean matchDeviceName(String aname, String address) {
 //      if(triedsensors.contains(address)) return false;
-      return Natives.dexCandidate(dataptr,deviceName,address);
-    }
+        return Natives.dexCandidate(dataptr,aname,address);
+        }
 
     private void unbond() {
         var device = mActiveBluetoothDevice;
@@ -712,6 +759,7 @@ private    void getdata(byte[] value) {
             Method method = device.getClass().getMethod("removeBond", (Class[]) null);
             var result = (boolean) method.invoke(device, (Object[]) null);
             if (result) {
+                removedBond=true;
                 Log.i(LOG_ID, "Removed bond");
             }
             return;
@@ -744,7 +792,9 @@ private    void getdata(byte[] value) {
                     var uristr = "android.resource://" + app.getPackageName() + "/" + R.raw.bonded;
                     Uri uri = Uri.parse(uristr);
                     Ringtone ring = RingtoneManager.getRingtone(app, uri);
-                    ring.setLooping(false);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        ring.setLooping(false);
+                    }
                     ring.play();
                    // Applic.scheduler.schedule(ring::stop, 5, TimeUnit.SECONDS);
                    disablenotification(mBluetoothGatt,charact[1]); charact[1]=null;
@@ -811,16 +861,12 @@ private    void getdata(byte[] value) {
 
     private  void askbackfill() {
        if(!backfilled) { //but backfilled always false
-            enableNotification(mBluetoothGatt, charact[2]);
+            tryer(()->enableNotification(mBluetoothGatt, charact[2]));
             }
        else  {
          final var cmd = Natives.getDexbackfillcmd(dataptr);
          if(cmd != null) {
-           if(!write(0, cmd)) {
-               Applic.scheduler.schedule(() -> { 
-               if(connected)
-                  write(0,cmd);}, 10, TimeUnit.MILLISECONDS);
-               }
+            tryer(()-> write(0, cmd));
           }
        }
     }
@@ -896,6 +942,12 @@ private void cancelalarm() {
         manager.cancel(onalarm);
         onalarm=null;//TODO: ?????
         }
+    }
+
+public void searchforDeviceAddress() {
+    triedinvain=0;
+    removedBond=false;
+    super.searchforDeviceAddress();
     }
 }
 

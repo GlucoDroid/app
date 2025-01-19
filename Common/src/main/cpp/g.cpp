@@ -749,7 +749,7 @@ static void savestate(libre2stream *sdata) {
 
 static jlong getalarmonly(const uint32_t glval,const SensorGlucoseData *hist) {
     const uint32_t val=glval*10;
-    auto res=(glval<glucoselowest?isLowest:(glval>glucosehighest?isHighest:(settings->highAlarm(val)?isHigh:(settings->lowAlarm(val)?isLow:(settings->availableAlarm()&&hist->waiting?isAgain:0)))));
+    auto res=(glval<glucoselowest?isLowest:(glval>hist->getmaxmgdL()?isHighest:(settings->highAlarm(val)?isHigh:(settings->lowAlarm(val)?isLow:(settings->availableAlarm()&&hist->waiting?isAgain:0)))));
     LOGGER("val=%u, high=%d, low=%d res=%" PRId64 "\n",val,settings->highAlarm(val),settings->lowAlarm(val),res);
     return res;
     }
