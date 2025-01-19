@@ -203,29 +203,39 @@ private boolean connected=false;
             if(newState == BluetoothProfile.STATE_DISCONNECTED) {
               if(!stop) {
                   if(!known){
-                    if(isWearable) {
-                        if(connected) {
-                               if(foundtime>0L&&(foundtime+8*60*1000L)<tim) {
-                                  Log.i(LOG_ID,"takes too long "+(tim-foundtime));
-                                  unbond();
-                                  }
+                      if(phase==GetData&&!removedBond) {
+                          unbond();
+                          }
+                     else {
+                        if(isWearable) {
+                            if(connected) {
+                                   if(foundtime>0L&&(foundtime+8*60*1000L)<tim) {
+                                      Log.i(LOG_ID,"takes too long "+(tim-foundtime));
+                                      unbond();
+                                      }
+                                }
                             }
-                        }
-                     if(foundtime!=0L&&(foundtime+15*60*1000L)<tim)  {
-                        Log.i(LOG_ID,"try new address");
-                        searchforDeviceAddress();
-                        }
+                         if(foundtime!=0L&&(foundtime+15*60*1000L)<tim)  {
+                            Log.i(LOG_ID,"try new address");
+                            searchforDeviceAddress();
+                            }
+                          }
                      }
                   else {
                     if(datatime==0&&connected) {
-                        if(triedinvain>(isWearable?1:4)) {
-                            Log.i(LOG_ID,"tried too often "+triedinvain);
-                            unbond();
-                            triedinvain=-10;
-                           } 
-                        else {
-                            ++triedinvain;
-                            }
+                          if(phase==GetData&&!removedBond&&(tim-Natives.lastglucosetime())>60*60*1000L) {
+                                    unbond();
+                             }
+                          else {
+                            if(triedinvain>(isWearable?1:4)) {
+                                Log.i(LOG_ID,"tried too often "+triedinvain);
+                                unbond();
+                                triedinvain=-10;
+                               } 
+                            else {
+                                ++triedinvain;
+                                }
+                              }
                         }
                     }
                   close();
@@ -591,6 +601,7 @@ void tryer(Supplier<Boolean> worked) {
                      } }, 20, TimeUnit.MILLISECONDS);
             }
 private    void getdatacmd() {
+    Log.i(LOG_ID,"getdatacmd");
      wrotepass[0] = System.currentTimeMillis();
      phase = GetData;
      //   enableIndication(mBluetoothGatt, charact[0]);
@@ -943,7 +954,7 @@ private void cancelalarm() {
         onalarm=null;//TODO: ?????
         }
     }
-
+@Override
 public void searchforDeviceAddress() {
     triedinvain=0;
     removedBond=false;
