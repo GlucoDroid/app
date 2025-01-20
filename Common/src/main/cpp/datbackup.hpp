@@ -1048,7 +1048,7 @@ void backupthread(int allindex,int sendindex) {
        }
     uintptr_t current=0;
        while(true) {
-           if(doend(sendindex)) 
+          if(doend(sendindex)) 
             return;
          if(!con_vars[sendindex]->dobackup) {
             status.locked=true;
@@ -1085,8 +1085,9 @@ void        notpassive(uintptr_t current,int sendindex) {
             }
     }
 bool doend(int sendindex) {
-    LOGGER("doend: con_vars=%p\n",con_vars[sendindex]);
-      if(con_vars[sendindex]->dobackup&wakeend)  {
+    const condvar_t* var=con_vars[sendindex];
+    LOGGER("doend: con_vars=%p\n",var);
+      if(!var||(var->dobackup&wakeend))  {
         endbackupthread(sendindex);
         return true;
         }

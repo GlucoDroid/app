@@ -176,7 +176,7 @@ int rowgeo(final int start,final int row,int widthMeasureSpec, int heightMeasure
    matchparent[row]=null;
    for(int c=start;c<end;c++) {
        View child = getChildAt(c);
-        if(child.getVisibility()!=GONE) {
+        if(child!=null&&child.getVisibility()!=GONE) {
           ViewGroup.LayoutParams  params=child.getLayoutParams();
           int leftmargin,rightmargin,topmargin,bottommargin;
           if(params instanceof ViewGroup.MarginLayoutParams) {
@@ -296,8 +296,10 @@ final int layrow(final int top,final int start,final int row,final int maxheight
    int maxwidth=hierwidth-getPaddingLeft()-getPaddingRight();
    if(nr==1) {
       View child=null;
-      for(int i=start;i<end&&(child=getChildAt(i)).getVisibility()==GONE;i++) {
+      for(int i=start;i<end&&((child=getChildAt(i))==null||child.getVisibility()==GONE);i++) {
               };
+      if(child==null)
+        return top;
       ViewGroup.LayoutParams  params=child.getLayoutParams();
       int leftmargin,rightmargin,topmargin,bottommargin;
       if(params instanceof ViewGroup.MarginLayoutParams) {
@@ -339,7 +341,7 @@ final int layrow(final int top,final int start,final int row,final int maxheight
   int bottom=0;
   for(int i = start; i < end; i++) {
       View child = getChildAt(i);
-      if(child.getVisibility()!=GONE) {
+      if(child!=null&&child.getVisibility()!=GONE) {
           ViewGroup.LayoutParams  params=child.getLayoutParams();
           int leftmargin,rightmargin,topmargin,bottommargin;
           if(params instanceof ViewGroup.MarginLayoutParams) {
