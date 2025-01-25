@@ -203,8 +203,10 @@ void usr2handler(int get) {
 
 constexpr const int usesig=SIGUSR2;
 void alarmhandler(int sig) {
+#ifndef NOLOG
         pid_t tid=syscall(SYS_gettid);
         LOGGER("Alarm %d\n",tid);
+#endif
         if(nfcdatatid!=0) {
                 asignal(SIGALRM,SIG_IGN);
                 pid_t grid=syscall(SYS_getpid);
@@ -513,10 +515,13 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(askstreamingEnabled)(JNIEnv *e
    if(!dataptr) return false;
     return reinterpret_cast<streamdata *>(dataptr)->hist ->streamingIsEnabled()==1; 
     }
+
+#ifdef SKIPTRIEDOFTEN
 #ifdef NOLOG
 static constexpr const int DEXTRYADDRESSSECS=60*15;
 #else
 static constexpr const int DEXTRYADDRESSSECS=60*5;
+#endif
 #endif
 extern "C" JNIEXPORT void JNICALL  fromjava(setDeviceAddress)(JNIEnv *env, jclass cl,jlong dataptr,jstring jdeviceAddress ) {
     if(!dataptr)
@@ -616,11 +621,11 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(getDeviceAddress)(JNIEnv *envin,
     return envin->NewStringUTF(address);
     }
 #include "strconcat.hpp"
-extern    strconcat getsensortext(const int sensorindex,const SensorGlucoseData *hist);
+extern    strconcat getsensortext(const SensorGlucoseData *hist);
 extern "C" JNIEXPORT jstring JNICALL   fromjava(getsensortext)(JNIEnv *envin, jclass cl,jlong dataptr) {
    const streamdata *str=reinterpret_cast<const streamdata *>(dataptr);
     const SensorGlucoseData *usedhist= str->hist;
-    return envin->NewStringUTF(getsensortext(str->sensorindex,usedhist).data());
+    return envin->NewStringUTF(getsensortext(usedhist).data());
     }
 
 

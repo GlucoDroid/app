@@ -33,6 +33,7 @@ import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
+import android.view.SurfaceHolder;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -1177,6 +1178,7 @@ if(!smallScreen) {
 
 @Override
 public void onResume() {
+    Log.i(LOG_ID,"onResume()");
     super.onResume();
     Applic app = Applic.app;
 
@@ -1186,12 +1188,27 @@ public void onResume() {
 
 @Override
 public void onPause() {
+    Log.i(LOG_ID,"onPause()");
      Applic app = Applic.app;
      app.cancelmintime();
      app.setcurve(null);
      super.onPause();
     }
-
+@Override
+public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
+    Log.i(LOG_ID,"surfaceChanged format="+format+", width="+w+", height="+h);
+    super.surfaceChanged(holder,format,w,h);
+    }
+@Override
+public void surfaceCreated(SurfaceHolder holder) {
+    Log.i(LOG_ID,"surfaceCreated(SurfaceHolder holder)");
+    super.surfaceCreated(holder);
+    }
+@Override
+public void surfaceDestroyed(SurfaceHolder holder) {
+   Log.i(LOG_ID,"surfaceDestroyed(SurfaceHolder holder)");
+   super.surfaceDestroyed(holder);
+    }
 static public void    doabout(MainActivity activity) {
 if(!isWearable) {
     String about=activity.getString(R.string.about)+"<p>Version Code: "+ BuildConfig.VERSION_CODE+"<br>Version Name: "+ 

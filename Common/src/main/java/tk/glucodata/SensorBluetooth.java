@@ -346,15 +346,14 @@ private static final  boolean filter=true;
             Log.i(LOG_ID,"Scanner21.stop");
             try {
                 mBluetoothLeScanner.stopScan(mScanCallback);
-                } catch (Throwable e) {
+                } 
+            catch (Throwable e) {
                     Log.stack(LOG_ID,  e);
-                    if (Build.VERSION.SDK_INT > 30 && !Applic.mayscan())
-                        Applic.Toaster(R.string.turn_on_nearby_devices_permission);
                 }
             }
         };
 
-};
+        };
     @SuppressWarnings("deprecation")
 class ArchScanner  implements Scanner {
    BluetoothAdapter.LeScanCallback mLeScanCallback= new BluetoothAdapter.LeScanCallback () {
@@ -440,8 +439,9 @@ final private Runnable scanRunnable = new Runnable() {
  };
      boolean startScan(long delayMillis) {
       Log.i(LOG_ID,"startScan("+delayMillis+")");
-        if(!Applic.mayscan()) {
-            Applic.Toaster((Build.VERSION.SDK_INT > 30)?R.string.turn_on_nearby_devices_permission: R.string.turn_on_location_permission );
+      var main=MainActivity.thisone;
+        if(!((main==null&&Applic.mayscan())||main.finepermission()))  {
+          Applic.Toaster((Build.VERSION.SDK_INT > 30)?R.string.turn_on_nearby_devices_permission: R.string.turn_on_location_permission );
          return true;
          }
 
@@ -713,7 +713,9 @@ boolean checkandconnect(SuperGattCallback  cb,long delay) {
         Log.i(LOG_ID, cb.SerialNumber+" checkBluetoothAddress(" +cb.mActiveDeviceAddress +") failed");
          cb.setDeviceAddress(null);
         }
-    if(Applic.mayscan()) {
+
+    var main=MainActivity.thisone;
+    if((main==null&&Applic.mayscan())||main.finepermission()) {
         connectToActiveDevice(cb, delay);
         return false;
         }

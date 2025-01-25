@@ -166,9 +166,12 @@ public Applic() {
     android.util.Log.e(LOG_ID,"start tk.glucodata");
     mintimefilter = new IntentFilter();
     mintimefilter.addAction(Intent.ACTION_TIME_TICK);
+    android.util.Log.e(LOG_ID,"addAction");
     app=this;
     mHandler = new Handler(Looper.getMainLooper());
+    android.util.Log.e(LOG_ID,"getMainLooper");
     uiThreadId=Thread.currentThread().getId();
+    android.util.Log.e(LOG_ID,"currentThread().getId");
     if(!isWearable) {
         numdata=new AllData(this);
         }
@@ -487,7 +490,12 @@ void setmintime() {
   registerReceiver(minTimeReceiver, mintimefilter);   
   }
 void cancelmintime() {
-      unregisterReceiver(minTimeReceiver);
+    try {
+          unregisterReceiver(minTimeReceiver);
+          }
+     catch(Throwable th) {
+        Log.stack(LOG_ID,"cancelmintime",th);
+        }
     }
 /*
 void startstrictmode() {

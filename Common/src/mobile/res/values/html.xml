@@ -312,17 +312,11 @@ over a portable hotspot.</p>
 </string>
 <string name="locationpermission" >
 <![CDATA[
-<h1>Location permission 
-</h1>
+<h1>Location permission</h1>
 <p style="margin-bottom: 0in">Devices running Android 6 to 11 need
-location permission to find <b>Sibionic</b><b>s</b><b> sensors.</b></p>
-<p style="margin-bottom: 0in">Previously Juggluco needed location
-permission to find the Bluetooth device address of FreeStyle Libre 2
-sensors. Now Juggluco uses another way to get the device address on
-most devices and is location permission not necessary. 
-</p>
-<p style="margin-bottom: 0in">Juggluco still uses the old method on
-Android 6,7 and 7.1 and location permission is still needed for them.</p>
+location permission to find Bluetooth devices. This scannen for
+Bluetooth devices is needed for <b>Sibionics</b> and <b>Dexcom </b>and
+is also used by Juggluco on Android 6, 7 and 7.1</p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>
@@ -842,24 +836,25 @@ mode</b></i></font></a> <font face="Liberation Serif, serif">leads
 you to a screen with information on how to disable battery
 optimizations for Juggluco, that can prevent Juggluco from
 functioning.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><i><b>Bluetooth
-history</b></i>: On Libre 2, history are values of the past in 15
-minute intervals. Previously they were only received by scanning.
-When you turn this option on, the History values are also received
-via Bluetooth. Also, other things will work differently. To Libreview
-will be sent the history values, instead of averages of the stream
-values. The disadvantage is that it is slower. This can be an issue
-on WearOS watches. This option has no effect on Libre 3 and US Libre
-2 sensors; they always receive history values via Bluetooth.</p>
-<p >⏰: Let Juggluco use an alarm
-clock function to ensure the correct timing of connecting to Dexcom
-G7 sensors. Without it, when the device is in deep sleep when not
-used, it will sometimes not awake to reconnect to the sensor and it
-will not immediately receive a glucose value. My WearOS watch had
-this problem in the middle of the night, probably because I moved
-very little. Because of backfill afterwards and slow awakening, I
-didn’t see it on the watch and phone, only in the log files.</p>
-<p style="border: none; padding: 0in"><i><b>Permission</b></i>:
+<p style="border: none; padding: 0in"><i><b>Bluetooth history</b></i>:
+On Libre 2, history are values of the past in 15 minute intervals.
+Previously they were only received by scanning. When you turn this
+option on, the History values are also received via Bluetooth. Also,
+other things will work differently. To Libreview will be sent the
+history values, instead of averages of the stream values. The
+disadvantage is that it is slower. This can be an issue on WearOS
+watches. This option has no effect on Libre 3 and US Libre 2 sensors;
+they always receive history values via Bluetooth.</p>
+<p>⏰: Let Juggluco use an alarm clock function to ensure the
+correct timing of connecting to Dexcom G7 and ONE+ sensors. Without
+it, when the device is in deep sleep when not used, it will sometimes
+not awake to reconnect to the sensor and it will not immediately
+receive a glucose value. My WearOS watch had this problem in the
+middle of the night, probably because I moved very little. Because of
+backfill afterwards and slow awakening, I didn’t see it on the
+watch and phone, only in the log files. My phone doesn’t need this
+setting and seems to perform worse when it turned on.</p>
+<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><i><b>Permission</b></i>:
 Previous versions of Juggluco required location permission to find
 the device address of the sensor. This is no longer necessary for the
 sensors I use. Maybe there are still sensors out there for which it
@@ -2602,6 +2597,51 @@ clamp</i>” is turned on, this distraction is no longer required.</p>
 language. When no language code is selected, the system language is
 used.</p>
 <h2 class="western"></h2>
+]]>
+</string>
+<string name="loghelp" >
+<![CDATA[
+<h1>Log</h1>
+<p style="line-height: 100%; margin-bottom: 0in">This is a logging
+version of Juggluco. logfiles can be created in
+/data/data/tk.glucodata/files/logs</p>
+<p style="line-height: 100%; margin-bottom: 0in">trace.log contains
+log messages that Juggluco itself creates. logcat.txt contains log
+messages that Android creates in relation to Juggluco. You can delete
+and save them separately.</p>
+<p style="line-height: 100%; margin-bottom: 0in">If you experience
+problems you can send trace.log and logcat.txt to
+<a href="mailto:jaapkorthalsaltes@gmail.com?subject=Log%20files">jaapkorthalsaltes@gmail.com</a>
+in addition to a description of the problems you experienced during
+the period these log files were created.</p>
+<p style="line-height: 100%; margin-bottom: 0in">
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>File </b><b>size</b>:
+size of the log file</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Logging</b>: Turn
+on logging in trace.log or logcat</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Delete</b>:
+delete the log file</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Save</b>: save
+the log file to a file in /sdcard</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Close</b>: close
+this view</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
 ]]>
 </string>
 </resources>

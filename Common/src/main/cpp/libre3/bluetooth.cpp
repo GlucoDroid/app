@@ -483,7 +483,8 @@ extern "C" JNIEXPORT  int JNICALL  fromjava(libre3EventLog)(JNIEnv *env, jclass 
 				return index;
 		}
 	return -1;
-
+#else
+	return -1;
 #endif
 	}
 

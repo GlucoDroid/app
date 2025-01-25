@@ -623,10 +623,21 @@ posiłek, wybierając opcję Posiłek o zapisanej wartości.</p>
 <string name="locationpermission" >
 <![CDATA[
 <h1>Uprawnienie do danych lokalizacji</h1>
-<p style="margin-bottom: 0in">Urządzenia z systemem Android od 6 do 11 potrzebują uprawnień do danych lokalizacji, aby odnaleźć<b> sensory </b><b>Sibionics</b>.</p>
-<p style="margin-bottom: 0in">Wcześniej aplikacja Juggluco potrzebowała uprawnienia do dostępu do danych lokalizacji, aby znaleźć adres urządzenia Bluetooth w sensorach FreeStyle Libre 2. Teraz Juggluco używa innego sposobu, aby uzyskać adres urządzenia na większości urządzeń i jest uprawnienie do dostępu do danych lokalizacji nie jest konieczne.</p>
-<p style="margin-bottom: 0in">Juggluco nadal używa starej metody na Androidzie 6, 7 i 7.1 i dla nich uprawnienie do dostępu do danych lokalizacji jest nadal potrzebne.</p>
-<p style="margin-bottom: 0in"><br/></p>
+<p style="margin-bottom: 0in">Urządzenia z systemem Android od 6 do
+11 potrzebują uprawnień do danych lokalizacji, aby odnaleźć
+<b>sensory Sibionics </b><span lang="pl-PL"><b>i Dexcom</b></span>.</p>
+<p style="margin-bottom: 0in">Wcześniej aplikacja Juggluco
+potrzebowała uprawnienia do dostępu do danych lokalizacji, aby
+znaleźć adres urządzenia Bluetooth w sensorach FreeStyle Libre 2.
+Teraz Juggluco używa innego sposobu, aby uzyskać adres urządzenia
+na większości urządzeń i jest uprawnienie do dostępu do danych
+lokalizacji nie jest konieczne.</p>
+<p style="margin-bottom: 0in">Juggluco nadal używa starej metody na
+Androidzie 6, 7 i 7.1 i dla nich uprawnienie do dostępu do danych
+lokalizacji jest nadal potrzebne.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
 ]]>
 </string>
 <string name="mealhelp" >

@@ -262,7 +262,10 @@ void tobluetooth(int hostnr,bool sender,int *sockin, int *sockother,std::binary_
    destruct _dest([maxbuf,buf]() { munmap(buf,maxbuf); });
     {
     char buf[30]; 
-    int len=sprintf(buf, "tobluetooth %d %s",hostnr,sender?"S":"R");
+#ifndef NOLOG
+    int len=
+#endif
+             sprintf(buf, "tobluetooth %d %s",hostnr,sender?"S":"R");
     prctl(PR_SET_NAME, buf, 0, 0, 0);
     LOGGERN(buf,len);
     }
@@ -316,7 +319,10 @@ static void messagereceivecommands(passhost_t *pass) {
             }
         {
         char buf[24];
-        int len=sprintf(buf,"%d message %d",i,index);
+#ifndef NOLOG
+        int len=
+#endif
+                 sprintf(buf,"%d message %d",i,index);
         prctl(PR_SET_NAME, buf, 0, 0, 0);
         LOGGERN(buf,len);
         }

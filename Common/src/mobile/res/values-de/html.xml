@@ -1445,7 +1445,9 @@ LibreView-Konto.</p>
 <h1>Standortberechtigung</h1>
 <p style="margin-bottom: 0in"><font face="Times New Roman">Geräte
 mit Android 6 bis 11 benötigen eine Standortberechtigung, um
-<b>Sibionics-Sensoren</b> zu finden.</font></p>
+<b>Sibionics </b><span style="font-weight: normal">und</span><b>
+Dexcom </b><span style="font-weight: normal">Sensoren</span> zu
+finden.</font></p>
 <p style="margin-bottom: 0in"><font face="Times New Roman">Zuvor
 benötigte Juggluco eine Standortberechtigung, um die
 Bluetooth-Geräteadresse von FreeStyle Libre 2-Sensoren zu
@@ -1835,26 +1837,26 @@ einen US-ähnlichen Sensor.</font></p>
 der Standortberechtigung für die Suche nach einer
 Bluetooth-Geräteadresse verwendet werden kann, aber auch für die
 spätere Kontaktaufnahme mit Bluetooth-Geräten benötigt wird.</font></p>
-<p style="border: none; padding: 0in"><font face="times new roman"><i><b>Bluetooth
-history: </b></i>Bei Libre 0 und 2 handelt es sich beim History um
-Werte der Vergangenheit im 15-Minuten-Intervall. Bisher wurden sie
-nur durch Scannen empfangen. Wenn Sie diese Option aktivieren, werden
-die History-Werte auch über Bluetooth empfangen. Auch andere Dinge
-werden anders funktionieren. An Libreview werden die History-Werte
-anstelle der Durchschnittswerte der Streamwerte gesendet. Der
-Nachteil ist, dass es langsamer ist. Dies kann bei WearOS-Uhren ein
-Problem sein. Diese Option ist für Libre 3-Sensoren und US Libre
-2-Sensoren immer aktiviert.</p>
-<p >⏰: Lassen Sie Juggluco eine Weckerfunktion verwenden, um den richtigen
-Zeitpunkt für die Verbindung mit Dexcom G7-Sensoren sicherzustellen.
-Wenn sich das Gerät sonst im Tiefschlaf befindet und nicht verwendet
-wird, wacht es manchmal nicht auf, um sich wieder mit dem Sensor zu
-verbinden, und es empfängt nicht sofort einen Glukosewert. Meine
-WearOS-Uhr hatte dieses Problem mitten in der Nacht, wahrscheinlich
-weil ich mich sehr wenig bewegte. Aufgrund des anschließenden
-Auffüllens und des langsamen Erwachens habe ich es nicht auf der Uhr
-und auf dem Telefon gesehen, sondern nur in den Protokolldateien.</p>
-</font>
+<p style="border: none; padding: 0in"><i><b>Bluetooth history: </b></i>Bei
+Libre 0 und 2 handelt es sich beim History um Werte der Vergangenheit
+im 15-Minuten-Intervall. Bisher wurden sie nur durch Scannen
+empfangen. Wenn Sie diese Option aktivieren, werden die History-Werte
+auch über Bluetooth empfangen. Auch andere Dinge werden anders
+funktionieren. An Libreview werden die History-Werte anstelle der
+Durchschnittswerte der Streamwerte gesendet. Der Nachteil ist, dass
+es langsamer ist. Dies kann bei WearOS-Uhren ein Problem sein. Diese
+Option ist für Libre 3-Sensoren und US Libre 2-Sensoren immer
+aktiviert.</p>
+<p>⏰: Lassen Sie Juggluco eine Weckerfunktion verwenden, um den
+richtigen Zeitpunkt für die Verbindung mit Dexcom G7/ONE+-Sensoren
+sicherzustellen. Wenn sich das Gerät sonst im Tiefschlaf befindet
+und nicht verwendet wird, wacht es manchmal nicht auf, um sich wieder
+mit dem Sensor zu verbinden, und es empfängt nicht sofort einen
+Glukosewert. Meine WearOS-Uhr hatte dieses Problem mitten in der
+Nacht, wahrscheinlich weil ich mich sehr wenig bewegte. Aufgrund des
+anschließenden Auffüllens und des langsamen Erwachens habe ich es
+nicht auf der Uhr und auf dem Telefon gesehen, sondern nur in den
+Protokolldateien.</p>
 <p style="border: none; padding: 0in"><font face="times new roman"><b>Vergessen</b>:
 Lassen Sie Juggluco die Geräteadresse vergessen und nach der
 Geräteadresse suchen. Bei einigen Sensoren ist dies erforderlich, um
@@ -2843,6 +2845,41 @@ aktiviert ist, ist diese Ablenkung nicht mehr erforderlich.</p>
 <p>Juggluco wird in der gewählten Sprache angezeigt. Wenn kein
 Sprachcode ausgewählt ist, wird die Systemsprache verwendet.</p>
 <h2 class="western" align="left"></h2>
+]]>
+</string>
+<string name="loghelp" >
+<![CDATA[
+<h1>Protokoll</h1>
+<p style="line-height: 100%; margin-bottom: 0in">Dies ist eine
+Protokollierungsversion von Juggluco. Protokolldateien können in
+/data/data/tk.glucodata/files/logs erstellt werden.</p>
+<p style="line-height: 100%; margin-bottom: 0in">trace.log enthält
+Protokollnachrichten, die Juggluco selbst erstellt. logcat.txt
+enthält Protokollnachrichten, die Android in Bezug auf Juggluco
+erstellt. Sie können sie separat löschen und speichern.</p>
+<p style="line-height: 100%; margin-bottom: 0in"><span lang="de-DE">Wenn
+Probleme auftreten, können Sie trace.log und logcat.txt zusammen mit
+einer Beschreibung der Probleme, die während des Zeitraums
+aufgetreten sind, in dem diese Protokolldateien erstellt wurden, an
+<a href="mailto:jaapkorthalsaltes@gmail.com?subject=Log%20files">jaapkorthalsaltes@gmail.com</a> senden.</span></p>
+<p style="line-height: 100%; margin-bottom: 0in">
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Dateigröße:</b> Größe der Protokolldatei</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Protokollieren</b>: Aktivieren Sie die Protokollierung in trace.log oder logcat</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Löschen</b>: Löschen Sie die Protokolldatei</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Speichern</b>: Speichert die Protokolldatei in einer Datei unter /sdcard</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
 ]]>
 </string>
 </resources>

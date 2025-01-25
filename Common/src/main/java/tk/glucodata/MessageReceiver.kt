@@ -45,7 +45,7 @@ class MessageReceiver: WearableListenerService() {
                     Log.d(LOG_ID, "messagesender==null")
                     return
                     }
-                var source=  sender.localnode
+                val source=  sender.localnode
                   Log.i(LOG_ID,"path==MessageSender.DEFAULTS_PATH "+source );
                   setWearosdefaults(source,true);
                    val context=if(MainActivity.thisone==null)Applic.app;else MainActivity.thisone;
@@ -75,8 +75,8 @@ class MessageReceiver: WearableListenerService() {
                     return
                 }
                 val sourceId = messageEvent.getSourceNodeId()
-                var name: String
-                var galaxy: Boolean
+                val name: String
+                val galaxy: Boolean
                 if (isWearable) {
                     name = sender.localnode
                     galaxy = true;

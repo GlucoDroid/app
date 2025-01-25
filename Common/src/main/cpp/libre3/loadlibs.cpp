@@ -288,8 +288,10 @@ static	const bool debug=!changelib&&!globalsetpathworks;
 
 	settings->setnodebug(false);
 	usedebug use(debug&&!libre3initialized,3);
-
-	int load=loadECDHCrypto(changelib);
+#ifndef NOLOG
+	int load=
+#endif
+              loadECDHCrypto(changelib);
 	LOGGER("%d processint(%d,%p,%p) process1==%p\n",load,i2,bArr,bArr2,process1);
 	jint res=process1(env,cl,i2,bArr,bArr2);
 	LOGGER("processint=%d\n",res);

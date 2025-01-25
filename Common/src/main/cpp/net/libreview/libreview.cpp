@@ -1059,7 +1059,10 @@ void libreviewthread() {
 		        std::unique_lock<std::mutex> lck(librecondition.backupmutex);
 			LOGGER("VIEW before lock waitmin=%d\n",waitmin);
  			auto now = std::chrono::system_clock::now();
-			auto status=librecondition.backupcond.wait_until(lck, now + std::chrono::minutes(waitmin));
+            #ifndef NOLOG
+			auto status=
+            #endif
+                        librecondition.backupcond.wait_until(lck, now + std::chrono::minutes(waitmin));
 			LOGGER("VIEW after lock %stimeout\n",(status==std::cv_status::no_timeout)?"no-":"");
 			}
 		if(!librecondition.dobackup)

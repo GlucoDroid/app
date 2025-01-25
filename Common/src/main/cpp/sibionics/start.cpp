@@ -324,7 +324,10 @@ bool loadjson(SensorGlucoseData *sens, const char *statename,const AlgorithmCont
          LOGGER("read %s failed\n",statename);
          return false;
          }
-     int res=setjson(nati,json.data());
+#ifndef NOLOG
+     int res=
+#endif
+              setjson(nati,json.data());
      LOGGER("setjson()=%d\n",res);
      return true;
 	}

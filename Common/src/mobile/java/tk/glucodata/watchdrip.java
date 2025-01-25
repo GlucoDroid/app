@@ -88,8 +88,14 @@ static void register() {
 	Applic.app.registerReceiver(receiver, new IntentFilter("com.eveningoutpost.dexdrip.watch.wearintegration.BROADCAST_SERVICE_RECEIVER"),RECEIVER_EXPORTED);
 	}
 static void unregister() {
-	if(receiver!=null)
-		Applic.app.unregisterReceiver(receiver);
+	if(receiver!=null) {
+        try {
+            Applic.app.unregisterReceiver(receiver);
+            } 
+       catch(Throwable th) {
+          Log.stack(LOG_ID,"unregister",th);
+            }
+        }
 	}
 
 public static void set(boolean val) {

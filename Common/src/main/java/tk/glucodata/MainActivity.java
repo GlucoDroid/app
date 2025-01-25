@@ -30,6 +30,7 @@ import static android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTIN
 import static android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM;
 import static android.view.View.GONE;
 import static androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener;
+import static tk.glucodata.Applic.RunOnUiThread;
 import static tk.glucodata.Applic.TargetSDK;
 import static tk.glucodata.Applic.app;
 import static tk.glucodata.Applic.explicit;
@@ -893,6 +894,7 @@ boolean finepermission() {
         if(noperm.length==0) {
            return systemlocation() ;
            }
+RunOnUiThread(() -> {
         for(var scanpermission:noperm) {
             if(shouldShowRequestPermissionRationale(scanpermission)) {
                 gaverational=true;
@@ -910,6 +912,7 @@ boolean finepermission() {
                 break;
                 }
             }
+            });
 
         return false;
         }
@@ -1045,6 +1048,8 @@ public static final int REQUEST_LIB=0x200;
 public static final int REQUEST_MASK=0xFFFFFF00;
 public static final int IGNORE_BATTERY_OPTIMIZATION_SETTINGS=0x100;
 static final int OVERLAY_PERMISSION_REQUEST_CODE=0x40;
+public static final int REQUEST_SAVE_LOG=0x300;
+public static final int REQUEST_SAVE_LOGCAT=0x301;
 //static final private int REQUEST_CHECK_SETTINGS=0x20;
 //public static final int REQUEST_IGNORE_BATTERY_OPTIMIZATIONS=0x300;
 Openfile openfile=null;
@@ -1148,7 +1153,29 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
             else 
             systemlocation();
            return;
-           }
+           };break;
+    case REQUEST_SAVE_LOGCAT: 
+    case REQUEST_SAVE_LOG: {
+            if(resultCode == Activity.RESULT_OK) {
+               Uri uri; 
+               if(data==null||(uri= data.getData()) == null) { 
+                  //TODO error
+                  return;
+                  }
+               int fd=-1;
+               try(ParcelFileDescriptor  filedescr= getContentResolver().openFileDescriptor(uri, "w")){
+                    if (filedescr != null)
+                         fd = filedescr.detachFd();
+                    } catch(Throwable e) {
+                        Log.stack(LOG_ID, e);
+                        return;
+                    }
+               if(requestCode==REQUEST_SAVE_LOG)
+                   Natives.saveLog(fd);
+                else
+                   Natives.saveLogcat(fd);
+               }
+        };break;
 
     };
     if(!isWearable) {
@@ -1421,7 +1448,7 @@ boolean systemlocation() {
    try {
        if(!isLocationEnabled(this)) {
             Log.i(LOG_ID,"Location not Enabled");
-            needsLocation();
+            RunOnUiThread(()-> needsLocation());
          }
       else
          Log.i(LOG_ID,"Location Enabled");
@@ -1574,13 +1601,14 @@ public void useBluetooth(boolean val) {
     }
 
 public  void setbluetoothmain(boolean on) {
+    Log.i(LOG_ID,"setbluetoothmain "+on);
     if(on) {
-     Natives.setusebluetooth(on);
-     if(Build.VERSION.SDK_INT < 26||Build.VERSION.SDK_INT>30||hasNeedScan()) {
-        if(!finepermission()) {
-            return;
+         Natives.setusebluetooth(on);
+         if(Build.VERSION.SDK_INT < 26||Build.VERSION.SDK_INT>30||hasNeedScan()) {
+            if(!finepermission()) {
+                return;
+                }
             }
-        }
         }
     Applic.setbluetooth(this, on) ;
     if(fineres!=null)

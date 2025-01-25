@@ -321,8 +321,8 @@ persoonlijke hotspot.</p>
 <![CDATA[
 <h1>Locatie toestemming</h1>
 <p style="margin-bottom: 0in">Apparaten met Android 6 tot en met 11
-hebben locatietoestemming nodig om <b>Sibionics-sensoren</b> te
-vinden.</p>
+hebben locatietoestemming nodig om <b>Sibionics </b><b>en
+Dexcom</b><b>-sensoren</b> te vinden.</p>
 <p style="margin-bottom: 0in">Vroeger had Juggluco locatie
 toestemming nodig om het Bluetooth device adres van Freestyle Libre 2
 sensoren te vinden. Nu verkrijgt Juggluco het device adres op een
@@ -636,7 +636,7 @@ morgens, druk je op de eerste tijd (in het begin weergegeven als
 00:00) en verander het in 22:00, daarna druk je op de tweede tijd en
 verander het in 07:00 (je moet natuurlijk ook Stream en/of History
 aangevinkt hebben en waarden tussen 0 en 3.9 mmol/L aangeven).</p>
-<p style="line-height: 100%; margin-bottom: 0in">Druk of een <b>pijl</b>
+<p style="line-height: 100%; margin-bottom: 0in">Druk op een <b>pijl</b>
 om in de richting van de pijl te zoeken.</p>
 <p style="line-height: 100%; margin-bottom: 0in"><b>Reset</b> brengt
 de zoek instellingen weer terug tot hun begin toestand.</p>
@@ -853,15 +853,16 @@ Libreview worden de history waarden verzonden, in plaats van de
 gemiddelden van de streamwaarden. Het nadeel is dat het langzamer is.
 Dit kan een probleem zijn bij WearOS-horloges. Deze optie heeft geen
 invloed op Libre 3- en US Libre 2-sensoren.</font></p>
-<p style="border: none; padding: 0in"><font face="Times New Roman">⏰: Laat
-Juggluco een wekkerfunctie gebruiken om de verbinding met Dexcom
-G7-sensoren te timen. Zonder dit zal het apparaat, wanneer het in
-diepe slaap is wanneer het niet wordt gebruikt, soms niet wakker
-worden om opnieuw verbinding te maken met de sensor en zal het niet
-onmiddellijk een glucosewaarde ontvangen. Mijn WearOS-horloge had dit
-probleem midden in de nacht, waarschijnlijk omdat ik heel weinig
-bewoog. Vanwege de aanvulling achteraf en het langzaam ontwaken, zag
-ik het niet op het horloge en de telefoon, alleen in de logbestanden.</font></p>
+<p style="border: none; padding: 0in">⏰<font face="Times New Roman">:
+Laat Juggluco een wekkerfunctie gebruiken om de verbinding met Dexcom
+G7/</font><font face="Times New Roman">ONE+</font><font face="Times New Roman">-sensoren
+te timen. Zonder dit zal het apparaat, wanneer het in diepe slaap is
+wanneer het niet wordt gebruikt, soms niet wakker worden om opnieuw
+verbinding te maken met de sensor en zal het niet onmiddellijk een
+glucosewaarde ontvangen. Mijn WearOS-horloge had dit probleem midden
+in de nacht, waarschijnlijk omdat ik heel weinig bewoog. Vanwege de
+aanvulling achteraf en het langzaam ontwaken, zag ik het niet op het
+horloge en de telefoon, alleen in de logbestanden.</font></p>
 <p style="border: none; padding: 0in"><font face="Times New Roman"><b>Toestemming</b></font><font face="Times New Roman">:
 Eerdere versies van Juggluco hadden een locatie machtiging nodig om
 te zoeken naar het Bluetooth device adres van sensoren. Dit is niet
@@ -893,9 +894,9 @@ voorrang. Dit moet leiden tot minder verbindingsfouten, maar zou meer
 stroom kunnen gebruiken. Lijkt nodig te zijn op Watch4 met Freestyle
 Libre 2 sensoren, maar niet met Freestyle Libre 3 sensoren en ook
 niet op de smartphones die ik uitgeprobeerd heb.</font></p>
-<p style="border: none; padding: 0in"><span style="font-variant: normal"><font face="basic roman"><span style="letter-spacing: normal"><b>Android</b></span></font></span><span style="font-variant: normal"><font face="basic roman"><span style="letter-spacing: normal">:</span></font></span><span style="font-variant: normal"><span style="letter-spacing: normal">
-</span></span><span style="font-variant: normal"><font face="basic roman"><span style="letter-spacing: normal">Laat
-Android in plaats van Juggluco de verbinding maken met de sensor.</span></font></span></p>
+<p style="border: none; padding: 0in"><font face="Times New Roman"><b>Android</b>:
+Laat Android in plaats van Juggluco de verbinding maken met de
+sensor.</font></p>
 <p style="border: none; padding: 0in"><br/>
 <br/>
 
@@ -2652,6 +2653,41 @@ nu</i>” is ingeschakeld, is deze afleiding niet langer nodig.</p>
 wordt weergegeven in de gekozen taal. Als er geen taalcode is
 geselecteerd, wordt de systeemtaal gebruikt.</font></p>
 <h2 class="western"></h2>
+]]>
+</string>
+<string name="loghelp" >
+<![CDATA[
+<h1>Log</h1>
+<p style="line-height: 100%; margin-bottom: 0in">Dit is een logversie
+van Juggluco. Logbestanden kunnen worden gemaakt in
+/data/data/tk.glucodata/files/logs</p>
+<p style="line-height: 100%; margin-bottom: 0in">trace.log bevat
+logberichten die Juggluco zelf maakt. logcat.txt bevat logberichten
+die Android maakt met betrekking tot Juggluco. Je kunt ze verwijderen
+en apart opslaan.</p>
+<p style="line-height: 100%; margin-bottom: 0in"><span lang="nl-NL">Als u problemen ondervindt, kunt u trace.log en logcat.txt naar <a href="mailto:jaapkorthalsaltes@gmail.com?subject=Log%20files">jaapkorthalsaltes@gmail.com</a> sturen, samen met een beschrijving van de problemen die je hebt ondervonden in de periode waarin deze logbestanden zijn gemaakt.</span></p>
+<p style="line-height: 100%; margin-bottom: 0in">
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Bestandsgrootte:</b> grootte van het logbestand</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Loggen</b>: Schakel trace.log of logcat loggen in</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Verwijderen</b>: verwijder het logbestand</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Opslaan</b>: sla het logbestand op in een bestand in /sdcard</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
 ]]>
 </string>
 </resources>

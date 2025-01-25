@@ -63,7 +63,7 @@ class MessageSender(val activity: Context):CapabilityClient.OnCapabilityChangedL
     }
 var nodesbusy=false
 suspend fun findWearDevicesWithApp() {
-    Log.i(LOG_ID,"end findWearDevicesWithApp nodesbusy=$nodesbusy")
+    Log.i(LOG_ID,"start findWearDevicesWithApp nodesbusy=$nodesbusy")
     if(nodesbusy)        
         return;
     nodesbusy=true;
@@ -75,6 +75,8 @@ suspend fun findWearDevicesWithApp() {
     } catch (cancellationException: CancellationException) {
         throw cancellationException
     } catch (th: Throwable) {
+        Thread.currentThread().setName("Devices$findIter")
+        ++findIter
         Log.stack(LOG_ID, "findDev",th)
     }
     finally {
@@ -245,6 +247,7 @@ private fun nodeSendmessage(node:Node,path:String,data:ByteArray) {
 
 
 companion object {
+    private var findIter=0;
     private const val LOG_ID = "MessageSender"
     const val WAKE_PATH = "/wake"
     const val WAKESTREAM_PATH = "/wakestream"

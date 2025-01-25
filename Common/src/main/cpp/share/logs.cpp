@@ -39,25 +39,25 @@ LOGGER("bufaddress: %p: %s",buf,buf);
  } */
 //extern pathconcat logbasedir; pathconcat logfile(logbasedir, LASTDIR ".log");
 
-#ifndef NOTAPP
-#ifndef LASTDIR
-#define LASTDIR "trace"
-#endif
 
+#ifndef NOTAPP
 #include <android/log.h>
 #define anlog(...)  __android_log_print(ANDROID_LOG_INFO,"logs",__VA_ARGS__)
 
-static int getlogfile() {
+extern int getlogfile();
+int getlogfile() {
 #pragma  message "basedir" BASEDIR
-	int handle;
-
+	static int handle=-1;
+        if(handle!=-1) 
+                return handle;
 	if(sys_mkdir(BASEDIR,0700)!=0&&errno!=EEXIST) {
 extern		pathconcat logbasedir;
+extern          pathconcat logfile;
 		if(logbasedir.data()) {
 			
-			pathconcat file(logbasedir,LASTDIR ".log");
-			if(file.data())
-				handle=sys_opener( file.data(),O_APPEND|O_CREAT|O_WRONLY, S_IRUSR |S_IWUSR);
+	//		pathconcat file(logbasedir,LASTDIR ".log");
+			if(logfile.data())
+				handle=sys_opener( logfile.data(),O_APPEND|O_CREAT|O_WRONLY, S_IRUSR |S_IWUSR);
 			else
 				return STDERR_FILENO;
 			}

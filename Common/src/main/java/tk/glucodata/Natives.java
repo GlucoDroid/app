@@ -212,6 +212,16 @@ public static native float getprec(int pos);
 public static native void log(String mess);
 public static native void dolog(boolean val);
 public static native boolean islogging( );
+public static native long getLogfilesize();
+public static native void zeroLog();
+public static native boolean saveLog(int out);
+
+public static native boolean saveLogcat(int out);
+public static native void zeroLogcat( );
+public static native long getLogcatfilesize( );
+public static native void dologcat(boolean val);
+public static native boolean islogcat( );
+
 
 public static native String advanced();
 public static native boolean exportdata(int type,int fd,float showdays);
@@ -794,6 +804,7 @@ public static native void setalarmclock(boolean val);
 public static native boolean getalarmclock( );
 public static native int[] searchIngredient(String label);
 public static native boolean dexKnownSensor(long dataptr);
+
 //public static native void sendxdripold();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }

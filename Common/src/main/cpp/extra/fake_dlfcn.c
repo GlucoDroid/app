@@ -235,7 +235,8 @@ EXPORTFUNC void *get_base_address(const char *filepath) {
         fclose(maps);
         return NULL;
     }
-    if (sscanf(buff, "%lx", &load_addr) != 1) {
+//    if (sscanf(buff, "%lx", &load_addr) != 1) {
+    if(sscanf(buff, "%p", &load_addr) != 1) {
         LOGE("failed to read load address for %s", filepath);
     }
 

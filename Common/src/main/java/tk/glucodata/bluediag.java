@@ -296,12 +296,17 @@ bluediag(MainActivity act) {
         if(mBluetoothManager  != null) {
             mBluetoothAdapter = mBluetoothManager.getAdapter();
           if(mBluetoothAdapter ==null) {
-            Log.e(LOG_ID,"mBluetoothManager.getAdapter()==null");
+            var mess="mBluetoothManager.getAdapter()==null";
+            Log.e(LOG_ID,mess);
+
+             showsensorinfo(mess,act);
             return;
             }
         }
    else {
-          Log.e(LOG_ID,"act.getSystemService(Context.BLUETOOTH_SERVICE)==null");
+           var mess="act.getSystemService(Context.BLUETOOTH_SERVICE)==null";
+          Log.e(LOG_ID,mess);
+           showsensorinfo(mess,act);
          return;
 
            }

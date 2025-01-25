@@ -349,7 +349,10 @@ static void uploaderthread() {
 		        std::unique_lock<std::mutex> lck(uploadercondition.backupmutex);
 			LOGGER("UPLOADER before lock waitmin=%d\n",waitmin);
  			auto now = std::chrono::system_clock::now();
-			auto status=uploadercondition.backupcond.wait_until(lck, now + std::chrono::minutes(waitmin));
+            #ifndef NOLOG
+			auto status=
+            #endif
+                        uploadercondition.backupcond.wait_until(lck, now + std::chrono::minutes(waitmin));
 			LOGGER("UPLOADER after lock %stimeout\n",(status==std::cv_status::no_timeout)?"no-":"");
 			}
 		if(uploadercondition.dobackup&Backup::wakeend) {

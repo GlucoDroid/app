@@ -21,6 +21,11 @@
 #pragma once
 
 #include "config.h"
+#ifndef NOTAPP
+#ifndef LASTDIR
+#define LASTDIR "trace"
+#endif
+#endif
 //#define LOGGER(...)  { fprintf(errorlogfile,__VA_ARGS__); fflush(errorlogfile); }
 #include <stdbool.h>
 #include <stdio.h>

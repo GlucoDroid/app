@@ -26,6 +26,7 @@ import static tk.glucodata.Applic.usedlocale;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanSettings;
 
+import android.bluetooth.BluetoothDevice;
 import androidx.annotation.Keep;
 
 import java.lang.reflect.Field;
@@ -137,6 +138,10 @@ public static void  showbytes(String mess,byte[] ar) {
 	if(doLog)
 		Natives.showbytes(mess,ar);
 	}
+
+
+
+//invoke-virtual {v0}, Landroid/bluetooth/BluetoothDevice;->getName()Ljava/lang/String;
 /*
 public static void showLoader(ClassLoader loader) {
    try {

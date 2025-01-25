@@ -241,6 +241,7 @@ static EC_POINT *frombytes(const uchar *data) {
 static int  tobytes4(const EC_POINT * P,uchar *data) {
    return EC_POINT_point2oct(getgroup(), P, POINT_CONVERSION_UNCOMPRESSED,data,65, getBN_CTX());
 	}
+    /*
 static EC_POINT  *frombytes4(uchar *data) {
    auto group=getgroup();
   EC_POINT *P=EC_POINT_new(group);
@@ -248,6 +249,7 @@ static EC_POINT  *frombytes4(uchar *data) {
       return P;
   return nullptr;
 	}
+    */
 #include <assert.h>
 
 static void setnum(uchar *buf,int len) {
@@ -413,7 +415,10 @@ std::array<uchar,160> PCert::byteify() const {
    int len2=tobytes(pubkey2,data+len);
    LOGGER("pubkey2 len=%d\n",len2);
    len+=len2;
-   size_t lenuit=BN_bn2bin(hash,data+len);
+#ifndef NOLOG
+   size_t lenuit=
+#endif
+   BN_bn2bin(hash,data+len);
 
    LOGGER("byteify len=%d lenuit=%zd\n",len,lenuit);
 

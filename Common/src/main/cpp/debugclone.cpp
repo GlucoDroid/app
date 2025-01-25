@@ -1048,7 +1048,7 @@ LOGAR("getdebugclone");
 	pid_t debugpid;
 	pid_t mytid=syscall(SYS_gettid);
 	commu com{.tid=mytid,.pid=static_cast<pid_t>(syscall(SYS_getpid)),.version=version};
-	static bool isbeforedebug=beforedebug();
+	[[maybe_unused]] static bool isbeforedebug=beforedebug();
 	LOGAR("before clone");
 	if((debugpid=clone(debugger, vstack+STACK_SIZE, CLONE_VM|  CLONE_FILES | CLONE_FS | CLONE_IO|CLONE_UNTRACED , reinterpret_cast<void*>(&com))) == -1) { 
 		int older=errno;
@@ -1343,7 +1343,8 @@ extern bool wrongfiles() ;
 bool *wrongptr=nullptr;
 bool wrongfiles() {
 
-	static bool wrong=(wrong=needsdebug(),wrongptr=&wrong,wrong);
+//	static bool wrong=((wrong=needsdebug()),wrongptr=&wrong,wrong);
+    static bool wrong=(wrong=needsdebug(),wrongptr=&wrong,wrong);
 #ifdef TESTDEBUG
 	return true;
 #else
@@ -1377,7 +1378,10 @@ LOGGER("debugclone(%d,%d)\n",doalways,version);
 #ifdef LIBRE3
          else {
 		if(version==3&&wasversion!=3) {
-			int res=syscall( __NR_ioprio_get,3,has_debugger);
+        #ifndef NOLOG
+			int res=
+        #endif
+                      syscall( __NR_ioprio_get,3,has_debugger);
 			LOGGER("ioprio_get=%d\n",res);
 			}
 		}

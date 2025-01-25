@@ -72,7 +72,8 @@ final  private float density;
     final private float numoffy;
     final private float timesize;
     float fontsize;
-    static   float upperboundfontsize=1000.0f;
+//    static   float upperboundfontsize=1000.0f;
+    static   float fontFraction=1.0f;
 
     final private Bitmap glucoseBitmap;
     final private Canvas canvas;
@@ -88,7 +89,7 @@ GlucoseValue(int w,int h) {
     half=0.5f*mapwidth;
     density= mapheight/70.0f;
      fontsize=mapwidth*0.63f;
-     final float usefontsize=fontsize>upperboundfontsize?upperboundfontsize:fontsize;
+     final float usefontsize=fontFraction*fontsize;
    glucosePaint.setTextAlign(Paint.Align.CENTER);
   glucosePaint.setTextSize(usefontsize);
   //agePaint.setARGB(0xFF,0xFF,0,0xFF);
@@ -148,7 +149,8 @@ float  drawcenter(String value) {
        glucosePaint.setTextSize(fontsize);
        glucosePaint.getTextBounds(value, 0, value.length(),  bounds);
        float fsize=fontsize*mapwidth/bounds.right*.87f;
-       final float usefontsize=fsize>upperboundfontsize?upperboundfontsize:fsize;
+//       final float usefontsize=fsize>upperboundfontsize?upperboundfontsize:fsize;
+       final float usefontsize=fsize*fontFraction;
        glucosePaint.setTextSize(usefontsize);
        var des=glucosePaint.descent();
        var as=glucosePaint.ascent();

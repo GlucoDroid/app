@@ -119,24 +119,16 @@ extern "C" pid_t VISIBLE Waitpid(pid_t pid, int *wstatus, int options) {
 extern "C" pid_t VISIBLE waitpid(pid_t pid, int *wstatus, int options) {
 	return Waitpid(pid,wstatus,options);
 	}
-/*(
-VISIBLE extern "C" pid_t  fork(void) {
-	typedef pid_t (*fork_t)(void);
-  	static fork_t fo=(fork_t)useddlvsym(RTLD_NEXT,"fork",nullptr);
-	pid_t pid=fo();
-	LOGGER("fork()=%d\n",pid);
-	return pid;
-	}
-*/
 
 //static int *checkpipe=nullptr;
 #ifdef NOFORK
+/*
 extern "C" pid_t  VISIBLE fork(void) {
 	LOGSTRING("nepfork()\n");
 	return childpid;
-	}
+	} */
 extern "C" pid_t  VISIBLE Fork(void) {
-	LOGSTRING("nepfork()\n");
+	LOGAR("nepfork()");
 	return childpid;
 	}
 

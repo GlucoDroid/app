@@ -1095,7 +1095,7 @@ uint32_t maxstarttime() ;
 uint32_t maxtime() {
 	const uint32_t numt=getnumlasttime();
 	const uint32_t sent= sensors->timelastdata(); 
-	#ifdef NOLOG
+	#ifndef NOLOG
 	time_t tim=sent;
 	LOGGER("sensors->timelastdata()=%u %s",sent,ctime(&tim));
 	#endif
@@ -3442,14 +3442,14 @@ void textbox(const TI &title,const TE &text) {
 	}
 
 class histgegs:public Displayer {
-   const int sensorindex;
+   //const int sensorindex;
 	const SensorGlucoseData *hist;
 	time_t nu;
 #ifndef WEAROS
 strconcat text;
 #endif
 public:
-	histgegs(const int sensorindex,const SensorGlucoseData *hist): sensorindex(sensorindex),hist(hist)/*,glu(glu),tim(tim)*/,nu(time(nullptr))
+	histgegs(const SensorGlucoseData *hist): hist(hist)/*,glu(glu),tim(tim)*/,nu(time(nullptr))
 #ifndef WEAROS
     ,text(getsensorhelp(usedtext->menustr0[3],": ","\n","\n"," "))
 #endif
@@ -3491,19 +3491,19 @@ virtual int display() override {
 
 };
 //histgegs gegs(
-strconcat getsensortext(const int sensorindex,const SensorGlucoseData *hist) {
+strconcat getsensortext(const SensorGlucoseData *hist) {
         if((hist->isDexcom()||hist->isSibionics())&&hist->unused()) {
             return {"",R"(<h1>)",hist->showsensorname(),R"(</h1><p>)",usedtext->waitingforconnection,"</p>"};
             }
         else {
-            histgegs gegs(sensorindex,hist);
+            histgegs gegs(hist);
             return gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>","<br><br>");
             }
 		}
 
-static void showhistory(const int sensorindex,const SensorGlucoseData *hist,const float tapx, const float tapy) {
+static void showhistory(const SensorGlucoseData *hist,const float tapx, const float tapy) {
 #ifdef WEAROS
-						histgegs gegs(sensorindex,hist);
+						histgegs gegs(hist);
 
 extern void callshowsensorinfo(const char *text);
 						callshowsensorinfo(gegs.getsensorhelp("","<h1>","</h1>","<br><br>","<br>","<br><br>").data());
@@ -3511,7 +3511,7 @@ extern void callshowsensorinfo(const char *text);
 						::prevtouch.x=tapx;
 						::prevtouch.y=tapy;
 						LOGGER("x=%.1f, y=%.1f\n",tapx,tapy);
-						histgegs *gegs=new histgegs(sensorindex,hist);
+						histgegs *gegs=new histgegs(hist);
 						if(speakout) gegs->speak();
 						displayer.reset(gegs);
 #endif
@@ -3528,7 +3528,7 @@ bool nearbyhistory( const float tapx,const float tapy,  const TX &transx,  const
 				if((tim=hist->timeatpos(pos))&&( glu=hist->sputnikglucose(pos))) {
 					auto posx=transx(tim),posy=transy( glu);
 					if(nearby(posx-tapx,posy-tapy)) {
-                  showhistory(sensorindex,hist,tapx,tapy);
+                        showhistory(hist,tapx,tapy);
 						return true;
 						}
 					}
@@ -3563,7 +3563,10 @@ void speaknum(const Num *num) {
 	ptr+=sprintf(ptr,"%g",num->value);
 	*ptr++='\n';
 	*ptr++='\n';
-	int len=largepausedaystr(num->gettime(),ptr);
+#ifndef NOLOG
+	int len=
+#endif
+             largepausedaystr(num->gettime(),ptr);
 	LOGGERN(buf,ptr-buf+len);
 	speak(buf);
 	}
@@ -3619,8 +3622,8 @@ int64_t longpress(float x,float y) {
 			if(const ScanData *poll=nearbyscan(x,y,pollranges[i].first,pollranges[i].second,transx,transy)) {
 				LOGGER("longpress poll %.1f\n",poll->g/convfactordL);
                 const int sensorindex= hists[i];
-		      const SensorGlucoseData *hist=sensors->getSensorData(sensorindex);
-            showhistory(sensorindex,hist,x,y);
+                const SensorGlucoseData *hist=sensors->getSensorData(sensorindex);
+                showhistory(hist,x,y);
 				return 0LL;
 				}
 			 }

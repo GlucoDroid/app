@@ -213,8 +213,10 @@ template <class TX,class TY> void NumDisplay::showNums(NVGcontext* vg, const TX 
 					nvgText(vg, xpos,ypos+((settings->getlabelweightmgperL(it->type)&&((ypos-dtop)<(dheight/2)))?1:-1)*(hit?smallsize*1.4:smallsize),name,name+label.size());
 					}
 				else {
+                #ifndef NOLOG
 					time_t tim=it->time;
 					LOGGER("NULL label: %.1f %d %s",it->value,it->type,ctime(&tim));
+                #endif
 					}
 				}
 

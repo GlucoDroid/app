@@ -219,10 +219,11 @@ static public void showcolors(MainActivity act,CheckBox def) {
    SeekBar fontsizeview;
    if(radiosel==1) {
       fontsizeview=new SeekBar(act);
-      float maxfont=glview.fontsize;
-      float currentfont= Math.min(maxfont, GlucoseValue.upperboundfontsize);
-      fontsizeview.setMax((int)(maxfont*100.0));
-      fontsizeview.setProgress((int)(currentfont*100.0));
+//      float maxfont=glview.fontsize;
+//      float currentfont= Math.min(maxfont, GlucoseValue.upperboundfontsize);
+      int currentfont= (int)(GlucoseValue.fontFraction*1000);
+      fontsizeview.setMax(1000);
+      fontsizeview.setProgress(currentfont);
       final int fwidth=(int)(0.9f*width);
       fontsizeview.setPadding((int)(density*10),(int)(density*18.0),(int)(density*10),0);
      // fontsizeview.setMinimumWidth(width);
@@ -230,9 +231,10 @@ static public void showcolors(MainActivity act,CheckBox def) {
       fontsizeview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 		@Override
 		public  void onProgressChanged (SeekBar seekBar, int progress, boolean fromUser) {
-			var newup=(float)(progress/100.0);
-			GlucoseValue.upperboundfontsize =newup>0.99f*glview.fontsize?1000.0f:newup;
-			Log.i(LOG_ID,"onProgressChanged "+progress+" "+glview.upperboundfontsize);
+			var newup=(float)(progress/1000.0);
+		//	GlucoseValue.upperboundfontsize =(newup>0.99f)?1000.0f:(newup*glview.fontsize);
+            GlucoseValue.fontFraction=newup;
+			Log.i(LOG_ID,"onProgressChanged "+progress+" "+glview.fontFraction);
 			}
 		@Override
 		public void onStartTrackingTouch(SeekBar seekBar) {

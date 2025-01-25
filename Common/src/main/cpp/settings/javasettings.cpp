@@ -1479,8 +1479,8 @@ extern "C" JNIEXPORT jlong  JNICALL   fromjava(novopentype)(JNIEnv *env, jclass 
 		auto *prehit=hit-1;	
 		if(!strcmp(prehit->serial,serial)) {
 			time_t lasttime= prehit->lasttime;
-			jlong uit= (((uint64_t)prehit->type<<32)|(uint64_t)(prehit->lasttime&0xFFFFFFFF));
-			LOGGER("uit=%llX   %d novopentype(%s) lasttime=%llu %s",uit,prehit-start,serial,prehit->lasttime,ctime(&lasttime));
+			jlong uit= (((uint64_t)prehit->type<<32)|(uint64_t)(lasttime&0xFFFFFFFF));
+			LOGGER("uit=%llX   %d novopentype(%s) lasttime=%llu %s",uit,prehit-start,serial,lasttime,ctime(&lasttime));
 			return uit;
 			}
 		}

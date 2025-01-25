@@ -495,7 +495,7 @@ char *nightexport(char *buffer,uint32_t starttime,uint32_t endtime,int maxcount,
 	char *iter=buffer,**ptr=&iter;
 	myfilep  handle=0;
 	uint32_t lasttime=0;
-	bool res=sensorexports<ScanData>(handle,&SensorGlucoseData::streamInperiod, [ptr,&lasttime](myfilep fp,const int index,const ScanData *scan,const int sens,const ScanData *beg) {
+	sensorexports<ScanData>(handle,&SensorGlucoseData::streamInperiod, [ptr,&lasttime](myfilep fp,const int index,const ScanData *scan,const int sens,const ScanData *beg) {
 		if(scan==beg||scan->id!=scan[-1].id) {
 			lasttime=scan->gettime();
 			char *res=writev3entry(*ptr,scan,sensors->shortsensorname(sens),true);

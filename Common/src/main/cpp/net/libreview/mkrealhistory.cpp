@@ -81,8 +81,9 @@ LibreHist  libreRealHistory(SensorGlucoseData *sens,uint32_t starttime,uint32_t 
 		}
 	int datalen=(int)endpos-iter;
 	LibreHistEl *list=new LibreHistEl[datalen];
-
+#ifndef NOLOG
 	int startit=iter;	
+#endif
 	int uitit=0;
 	for(;iter<endpos;iter++) {
 		const Glucose *gl=sens->getglucose(iter);

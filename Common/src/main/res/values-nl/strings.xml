@@ -343,5 +343,7 @@
 <string name="startjuggluco">Juggluco draait op telefoon?\n\nWIFI en Bluetooth ingeschakeld?</string>
 <string name="connected">Verbonden!</string>
    <string name="useclose">Sluitknop</string> 
+   <string name="filesize">Bestandsgrootte</string> 
+   <string name="logging">Loggen</string> 
 </resources>
 

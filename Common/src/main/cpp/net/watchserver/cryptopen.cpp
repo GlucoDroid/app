@@ -76,7 +76,7 @@ extern "C" void *bypass_loader_dlopen(const char *filename, int flag);
 #endif
 void * dlopener(std::string_view filename,int flags) {
 #ifdef JUGGLUCO_APP
-static int isset=setenv("LD_LIBRARY_PATH",globalbasedir.data(), 1);
+[[maybe_unused]]  static int isset=setenv("LD_LIBRARY_PATH",globalbasedir.data(), 1);
 pathconcat localname(globalbasedir,filename);
 if(void *handle=dlopen(localname.data(),flags))
 	return handle;

@@ -587,11 +587,11 @@ private boolean removedBond=false;
         }
     }
 
-void tryer(Supplier<Boolean> worked) {
+private void tryer(Supplier<Boolean> worked) {
             if(worked.get())
                 return;
             Applic.scheduler.schedule(() -> { 
-                 for(int i=0;i<8;i++) {
+                 for(int i=0;i<16;i++) {
                       if(!connected) {
                            Log.i(LOG_ID,"tryer stops not connected");
                           return;

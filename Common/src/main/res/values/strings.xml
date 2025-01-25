@@ -369,4 +369,6 @@
    <string name="connected">Connected!</string> 
    <string name="useclose">Close button</string> 
    <string name="alarmclock">\u23F0</string> 
+   <string name="filesize">File size</string> 
+   <string name="logging">Logging</string> 
 </resources>

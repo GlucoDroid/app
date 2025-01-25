@@ -95,6 +95,7 @@ int getpredictedmgdL() const {
 [[nodiscard]]  int getindex() const {
    return (secsSinceStart-age)/DEXSECONDS;
    }
+#ifndef NOLOG
 void showglucose(const time_t starttime) const {
 
    const struct glucoseinput *glucose=this;
@@ -106,7 +107,7 @@ void showglucose(const time_t starttime) const {
 	LOGGER("type=%02x status=%d sincestart=%d %.24s %2d ago glucose=%3d %4.1f trend=% 3.2f predicted=%3d %4.1f state=%d info=%d unknown=%d\n",glucose->type,glucose->status,secsSinceStart,ctime(&then),age,glu,glu/18.0f,((float)glucose->trend)/10.0f,pre,pre/18.0f,state,info,unknown);
 
 	};
-
+#endif
 
 float getRateofChange() const {
 	return (float)trend/10.0f;
@@ -335,10 +336,11 @@ struct dexbackfill {
 [[nodiscard]] float gettrend() const  {
       return ((float)trend)/10.0f;
       }
+      /*
    void showdata(const uint32_t sensorstart) const {
       time_t was=gettime(sensorstart);
       LOGGER("%06d %03d %4.1f % 2.1f %s",secsSinceStart,mgdL,(float)mgdL/18.0,gettrend(),ctime(&was));
-      };
+      }; */
 
 float getRateofChange() const {
 	return (float)trend/10.0f;
@@ -588,8 +590,10 @@ extern "C" JNIEXPORT jboolean JNICALL   fromjava(dexCandidate)(JNIEnv *env, jcla
         }
    destruct   _([jdeviceName,deviceName,env]() {env->ReleaseStringUTFChars(jdeviceName, deviceName);});
    SensorGlucoseData *sens=reinterpret_cast<const streamdata *>(dataptr)->hist;
+#ifndef NOLOG
    const auto pinar=  sens->getDexPin();
    const auto *pin=pinar.data();
+#endif
    const char *name=sens->getinfo()->DexDeviceName;
    if(*name) {
       jboolean res= !strcmp(name,deviceName);

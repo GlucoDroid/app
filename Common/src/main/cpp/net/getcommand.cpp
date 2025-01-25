@@ -456,7 +456,7 @@ static bool getcom(int sock, passhost_t *host,ascon_aead_ctx_t *ctx) {
 
 
 	while(true) {
-		LOGSTRINGTAG("getcom\n");
+		LOGAR("getcom");
 		constexpr const int taglen=16;
 		uint8_t tag[taglen];
 		if(int getlen=recvni(sock,tag,taglen);getlen!=taglen) {

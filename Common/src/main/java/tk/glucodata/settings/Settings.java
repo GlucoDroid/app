@@ -38,6 +38,7 @@ import static androidx.core.os.LocaleListCompat.getEmptyLocaleList;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Backup.getnumedit;
 import static tk.glucodata.Layout.getMargins;
+import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getRTL;
 import static tk.glucodata.Natives.getshowhistories;
@@ -938,11 +939,19 @@ private    void mksettings(MainActivity context,boolean[] issaved) {
         glucosenotify.setChecked(Natives.getshowalways()) ;
         glucosenotify.setOnCheckedChangeListener( (buttonView,  isChecked) -> Notify.glucosestatus(isChecked) );
       var floatconfig=getbutton(context,R.string.floatglucose);
-
-
+      View[] numdis;
+        if(doLog) {
+                Button logview;
+                logview=getbutton(context,R.string.logging);
+                logview.setOnClickListener(v->LogConfig.make(context,thelayout[0]));
+                numdis= new View[]{changelabels,logview,displayview};
+                }
+          else {
+                numdis= new View[]{changelabels,displayview};
+                }
         floatconfig.setOnClickListener(v-> tk.glucodata.FloatingConfig.show(context,thelayout[0]));
         View[] rowglu=new View[]{floatconfig,glucosenotify};
-        views=new View[][]{row0, hasnfc?new View[]{nfcsound, globalscan,camera}:null,rowglu,new View[]{exchanges,numalarm,alarmbut},new View[]{changelabels,displayview}, row9};
+        views=new View[][]{row0, hasnfc?new View[]{nfcsound, globalscan,camera}:null,rowglu,new View[]{exchanges,numalarm,alarmbut},numdis, row9};
         }
 
     help.setFocusableInTouchMode(true);

@@ -277,7 +277,10 @@ if((dynlibhandle=dlopen(filename,RTLD_LAZY))) {
                 const static pathconcat libre2dir=mkbindir("xbin","libus.so");
                 setenv("PATH", libre2dir.data(), 1);
                 }
-             jint res=OnLoad(getnewvm(),nullptr);
+#ifndef NOLOG
+             jint res=
+#endif
+             OnLoad(getnewvm(),nullptr);
              LOGGER("OnLoad returns %d\n",res);
             if(P1)
                  return true;
@@ -943,7 +946,10 @@ unlink(libpath);
         if(P1) {
             rootcheck=true;
             LOGSTRING("Try P1(0,0,nullptr,nullptr)\n");
-            int res=abbottcall(P1)(env,thiz,0,0,nullptr,nullptr,casttoken);
+            #ifndef NOLOG
+            int res=
+            #endif
+                    abbottcall(P1)(env,thiz,0,0,nullptr,nullptr,casttoken);
             LOGGER("P1(0,0,nullptr,nullptr)=%d\n",res);
             }
         else {
@@ -1035,7 +1041,10 @@ settings= new(std::nothrow) Settings(globalbasedir,settingsdat,"NL");
         LOGSTRING("getActivationPayload failed");
         return 12;
         }
-    int fam= abbottcall(getProductFamily)(hiersubenv2, nullptr, parsertype,  (jbyteArray)  infoptr,casttoken);
+#ifndef NOLOG
+    int fam= 
+#endif
+                abbottcall(getProductFamily)(hiersubenv2, nullptr, parsertype,  (jbyteArray)  infoptr,casttoken);
     LOGGER("Family=%d\n",fam);
     auto [warm,wear]= patchtimevalues(infoptr);
     if(wear==0) {
@@ -1080,9 +1089,7 @@ jnidata_t  hierjnidata3={&envbuf,&state};
 jnidata_t  hierjnidata={&envbuf,&state};
 JNIEnv *hiersubenv=(JNIEnv *) &hierjnidata;
     if(data_t *res= reinterpret_cast<data_t *>(abbottcall(getStreamingUnlockPayload)(hiersubenv,nullptr,parsertype,(jbyteArray)uidptr,(jbyteArray)infoptr,person,startsincebase,lockcount,casttoken))) {
-        const int uitlen= res->size();
-//        pathconcat unluit(dir,"getStreamingUnlockPayload"); writeall(unluit.data(),res->data(),res->length());
-        LOGGER(" getStreamingUnlockPayload len=%d\n",uitlen);
+        LOGGER(" getStreamingUnlockPayload len=%d\n",res->size());
         #include "getStreamingUnlockPayload.h"
         if(memcmp(res->data(),getStreamingUnlockPayload,res->size()))
             return 12;
@@ -1153,6 +1160,7 @@ if(settings&&!settings->data()->havelibrary) {//settings==null for abbotttest
     return -4;
     }
 #endif
+//static int init=((init=doabbottinit(doch)),initptr=&init,init);
 static int init=(init=doabbottinit(doch),initptr=&init,init);
 return init;
 }
@@ -1264,7 +1272,7 @@ JNIEnv *hiersubenv=(JNIEnv *) &hierjnidata;
 abbottinit();
 LOGAR("start processStream");
 constexpr const bool isstreaming=true;
-auto _deb=debugclone();
+[[maybe_unused]] auto _deb=debugclone();
 LOGGER("before proc oldprocessStream=%p\n",oldprocessStream);
 intptr_t  res=
 (oldprocessStream?

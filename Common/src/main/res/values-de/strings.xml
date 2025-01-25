@@ -350,4 +350,6 @@
    <string name="startjuggluco">Juggluco läuft auf dem Telefon?\n\nWLAN und Bluetooth aktiviert?</string>
    <string name="connected">Verbunden!</string> 
    <string name="useclose">Schließknopf</string> 
+   <string name="filesize">Dateigröße</string> 
+   <string name="logging">Protokollieren</string> 
 </resources>
