@@ -41,7 +41,9 @@ std::string_view globalbasedir;
 pathconcat numbasedir;
 pathconcat sensorbasedir;
 pathconcat logbasedir;
+#ifdef JUGGLUCO_APP
 pathconcat logfile;
+#endif
 Sensoren *sensors=nullptr;
 unique_ptr<Sensoren> destructsensors;
 extern int carbotype;
@@ -184,7 +186,9 @@ extern    void inithour24();
 // linkopenssl();
 extern void removelibs();
 
+#ifdef JUGGLUCO_APP
 void startlogcat();
+#endif
 int setfilesdir(const string_view filesdir,const char *country) {
 // linkopenssl();
     LOGGER("setfilesdir %s %s convfactor=%f\n",filesdir.data(),country?country:"null",convfactor);
@@ -195,7 +199,9 @@ int setfilesdir(const string_view filesdir,const char *country) {
      mkdir(logbasedir.data(),0700);
      mkdir(numbasedir.data(),0700);
      mkdir(sensorbasedir.data(),0700);
+#ifdef JUGGLUCO_APP
     logfile.set(logbasedir,LASTDIR ".log");
+#endif
     settings= new(std::nothrow) Settings(globalbasedir,settingsdat,country);
     if(!settings) {
         return 1;
@@ -203,9 +209,11 @@ int setfilesdir(const string_view filesdir,const char *country) {
     if(!settings->data()) {
         return settings->error;
         }
+#ifdef JUGGLUCO_APP
 #ifndef NOLOG
     if(settings->data()->logcat)
         startlogcat();
+#endif
 #endif
 extern    void setfloatptr();
     setfloatptr();
