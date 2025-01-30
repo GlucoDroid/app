@@ -76,4 +76,4 @@
 #ifndef WEAROS
 #define OLDEVERSENSE 1
 #endif
-
+//#define ENCRYPTMESSAGES 1

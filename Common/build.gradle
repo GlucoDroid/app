@@ -79,7 +79,7 @@ android {
         compileSdk 35
         applicationId "tk.glucodata"
 
-         versionName '9.0.29'
+         versionName '9.0.30'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -111,7 +111,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
             dimension 'Google'
             versionNameSuffix '-g'
             buildConfigField 'int', 'Google', '1'
-            buildConfigField 'int', 'noZXing', '1'
+            buildConfigField 'int', 'noZXing', '0'
              manifestPlaceholders["debuggable"] = "false"
              manifestPlaceholders["requireWatch"] = "true"
         }
@@ -145,8 +145,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         libreOld {
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode 620 //LIBRE2ONLY
-         //    versionName '9.0.29-no3'
+            versionCode 636 //LIBRE2ONLY
+         //    versionName '9.0.30-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
             externalNativeBuild.cmake {
@@ -162,7 +162,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //       minSdk 23
             dimension 'libreVersion'
         versionNameSuffix '-li3'
-        versionCode 621 //LIBRE3
+        versionCode 637 //LIBRE3
     //******  Zet op rollout op 100% ******
 
                buildConfigField 'int', 'libreVersion', '3'
@@ -179,7 +179,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         minSdkVersion 21
       dimension 'SiBionics'
         versionNameSuffix '-si'
-        versionCode 621 
+        versionCode 637 
        buildConfigField 'int', 'SiBionics', '1'
        externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -188,7 +188,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
         nosi {
             dimension 'SiBionics'
-         versionCode 620 
+         versionCode 636 
          versionNameSuffix '-nosi'
           buildConfigField 'int', 'SiBionics', '0'
           externalNativeBuild.cmake {
@@ -204,9 +204,9 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
             dimension 'wearos'
         minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-        versionCode 622 //WATCH
+        versionCode 638 //WATCH
     //******  Zet op rollout op 100% ******
-        //versionName '9.0.29-wear'
+        //versionName '9.0.30-wear'
         versionNameSuffix '-wear'
         signingConfig signingConfigs.alg
 
@@ -228,8 +228,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 
 //        minSdk 19
             dimension 'wearos'
-        versionCode 622 //WATCH
-        //versionName '9.0.29-small'
+        versionCode 638 //WATCH
+        //versionName '9.0.30-small'
         versionNameSuffix '-small'
         signingConfig signingConfigs.alg
 
@@ -635,7 +635,10 @@ mobileLibreOldSiDexImplementation {}
 
     mobileLibre3SiDexGoogleImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
     mobileLibre3SiDexNogoogleImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+
+    mobileLibre3SiDexGoogleImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     mobileLibre3SiDexNogoogleImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+
     mobileLibreOldSiDexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
 
 }

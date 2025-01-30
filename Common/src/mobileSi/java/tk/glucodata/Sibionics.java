@@ -46,9 +46,9 @@ public class Sibionics {
 private static final String LOG_ID="Sibionics";
 
 
-private static void 	wrongtag() {
-	Toaster("Wrong QR code") ;
-	}
+private static void     wrongtag() {
+    Toaster("Wrong QR code") ;
+    }
 
 
 
@@ -112,42 +112,42 @@ public static void scan(MainActivity act) {
       }
 private static void scanGoogle(MainActivity act) {
      if(!isWearable) {
-	final var options =  new com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder().setBarcodeFormats( com.google.mlkit.vision.barcode.common.Barcode.FORMAT_DATA_MATRIX, com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build();
-	final var scanner =  com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(act, options);
-	scanner.startScan().addOnSuccessListener(
-	       barcode -> {
-	       var rawValue = barcode.getRawValue();
-		var message="Scanned: "+rawValue;
-		   Log.i(LOG_ID,message);
-		   if(connectSensor(rawValue)) {
-            act.finepermission(); 
-            }
-          else
-            act.systemlocation();
-	       })
-	   .addOnCanceledListener(
-	       () -> {
-		var message="Scan cancelled";
-
-		Log.i(LOG_ID,message);
-		Toast.makeText(act, message, Toast.LENGTH_LONG).show();
-		 // Task canceled
-	       })
-	   .addOnFailureListener(
-	       e -> {
-            var message=e.getMessage();
-            Log.i(LOG_ID,message);
-            Toast.makeText(act, message, Toast.LENGTH_SHORT).show();  
-            if(useZXing) {
-                Toast.makeText(act, "Move to zXing", Toast.LENGTH_SHORT).show();
-                scanZXing(act);
+     Log.i(LOG_ID, "before scan");
+    final var options =  new com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder().setBarcodeFormats( com.google.mlkit.vision.barcode.common.Barcode.FORMAT_DATA_MATRIX, com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build();
+    final var scanner =  com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(act, options);
+    scanner.startScan().addOnSuccessListener(
+       barcode -> {
+           var rawValue = barcode.getRawValue();
+           var message="Scanned: "+rawValue;
+           Log.i(LOG_ID,message);
+           if(connectSensor(rawValue)) {
+                act.finepermission(); 
                 }
-        
-		 // Task failed with an exception
-	       });
+              else
+                act.systemlocation();
+               })
+       .addOnCanceledListener(
+           () -> {
+                var message="Scan cancelled";
+                Log.i(LOG_ID,message);
+                Toast.makeText(act, message, Toast.LENGTH_LONG).show();
+                 // Task canceled
+               })
+   .addOnFailureListener(
+       e -> {
+        var message=e.getMessage();
+        Log.i(LOG_ID,message);
+        Toast.makeText(act, message, Toast.LENGTH_SHORT).show();  
+        if(useZXing) {
+            Toast.makeText(act, "Move to zXing", Toast.LENGTH_SHORT).show();
+            scanZXing(act);
+            }
+    
+     // Task failed with an exception
+       });
 
    }
-	}
+    }
 
 /*
 static void testsibionics() {

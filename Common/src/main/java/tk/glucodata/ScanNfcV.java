@@ -54,6 +54,10 @@ import static tk.glucodata.Gen2.getversion;
 import static tk.glucodata.Libre3.libre3NFC;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Log.showbytes;
+import static tk.glucodata.MainActivity.systembarBottom;
+import static tk.glucodata.MainActivity.systembarLeft;
+import static tk.glucodata.MainActivity.systembarRight;
+import static tk.glucodata.MainActivity.systembarTop;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getlabel;
@@ -393,6 +397,7 @@ static private void newsensor(Activity act,String text,String name) {
     var metrics= act.getResources().getDisplayMetrics();
     int width= metrics.widthPixels;
     int pad=width/30;
+    Log.i(LOG_ID,"newsensor "+name);
     act.runOnUiThread(() -> {
        TextView tv=getlabel(act,text);
        if(!isWearable)
@@ -410,11 +415,13 @@ static private void newsensor(Activity act,String text,String name) {
         Button ok=getbutton(act,R.string.ok);
 
         Layout lay=new Layout(act, (l, w, h) -> {
-            if(width>2)
-                l.setX((width-w)/2);
-            var height=metrics.heightPixels;
-            if(height>h)
-                l.setY((height-h)/2);
+           int wid=GlucoseCurve.getwidth()- systembarRight-systembarLeft;
+            if(wid>w)
+                l.setX((wid-w)*.5f+systembarLeft);
+            var hei=metrics.heightPixels-systembarBottom;
+            if(hei>h) {
+                l.setY((hei-h)*.5f);
+                }
 
                 return new int[] {w,h};
             },new View[]{tv},new View[]{calBox},new View[]{ok});
@@ -423,6 +430,8 @@ static private void newsensor(Activity act,String text,String name) {
                if(stillused&&calBox.isChecked()) {
                     insertcalendar(act,name,endtime) ;
                     }
+               else
+                   askcalendar=false;
                 });
         lay.setPadding(pad,pad,pad,pad);
         lay.setBackgroundColor(Applic.backgroundcolor);
@@ -446,6 +455,7 @@ private static void insertcalendar(Activity act,String name,long endtime) {
     long endtime=Natives.sensorends()*1000L;
     if(endtime<= System.currentTimeMillis())
         return; */
+
     try {
         Intent intent = new Intent(Intent.ACTION_INSERT)
         .putExtra(CalendarContract.Events.TITLE, act.getString(R.string.enddatesensor)+name)
@@ -453,6 +463,7 @@ private static void insertcalendar(Activity act,String name,long endtime) {
         .setData(CalendarContract.Events.CONTENT_URI)
         .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, endtime)
         .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endtime+1000L);
+        Log.i(LOG_ID,"start calendar app");
         act.startActivity(intent);
         askcalendar=false;
         } 

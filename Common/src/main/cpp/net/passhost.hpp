@@ -103,9 +103,24 @@ false	  	false	  	0
 	bool isSender() const {
 		return index>=0;
 		}
+        bool getActive() const {
+            if(index>=0) {
+                if(sendpassive) 
+                    return false;
+                if(activereceive)
+                    return true;
+                return !receivefrom;
+                }
+           return activereceive;
+           }
 bool passive() const {//Accept connections from this host
 	return (receivefrom&&!activereceive)||sendpassive;
 	}
+bool getPassive() const {
+        if(index>=0)
+            return sendpassive;
+        return receivefrom==2;
+        }
 bool receivedatafrom() const {
 	return receivefrom&2;
 	}

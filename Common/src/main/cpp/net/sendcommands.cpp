@@ -169,17 +169,20 @@ bool sendcommand(int sock ,const unsigned char *buf,int buflen) {
 		const int over=alin-buflen;
 	    uint8_t ackbuf[over+sizeof(sendack)];
 	    *reinterpret_cast<sendack*>(ackbuf+over)=ack;
+         LOGGER("sendack buflen=%d acklen=%d\n",buflen,sizeof(ackbuf));
 		if(sendni(sock,&ackbuf,sizeof(ackbuf))!=sizeof(ackbuf)) {
 			lerrortag("sendcommand send(ackbuf...) failed");
 			return false;
 			}
 
 	}
-	else
+	else {
+        LOGGER("sendack buflen=%d acklen=%d\n",buflen,sizeof(ack));
 		if(sendni(sock,&ack,sizeof(ack))!=sizeof(ack)) {
 			lerrortag("sendcommand send(ack..) failed");
 			return false;
 			}
+        }
 	return getack(sock);
 	}
 struct com_t {
@@ -384,7 +387,7 @@ bool newsenddata(crypt_t *pass,const int sock,const std::vector<subdata>&data,co
 	int buflen=sizeof(datel)*elnr+namelen+sizeof(fileonce_t);
 	LOGGERTAG("start enddata vect %s elnr=%d\n",naar.data(),elnr);
 	for(auto &el:data) {
-		LOGGERTAG("ellen=%d\n",el.datalen);
+		LOGGERTAG("offset=%d, ellen=%d\n",el.offset,el.datalen);
 		buflen+=el.datalen;	
 		}
 	buflen=aligner<4>(buflen)+extralen;

@@ -163,19 +163,18 @@ private final IntentFilter mintimefilter ;
 @MainThread
 public Applic() {
     super();
-    android.util.Log.e(LOG_ID,"start tk.glucodata");
+    android.util.Log.i(LOG_ID,"start tk.glucodata");
     mintimefilter = new IntentFilter();
     mintimefilter.addAction(Intent.ACTION_TIME_TICK);
-    android.util.Log.e(LOG_ID,"addAction");
+    //android.util.Log.e(LOG_ID,"addAction");
     app=this;
     mHandler = new Handler(Looper.getMainLooper());
-    android.util.Log.e(LOG_ID,"getMainLooper");
+    //android.util.Log.e(LOG_ID,"getMainLooper");
     uiThreadId=Thread.currentThread().getId();
-    android.util.Log.e(LOG_ID,"currentThread().getId");
+    //android.util.Log.e(LOG_ID,"currentThread().getId");
     if(!isWearable) {
         numdata=new AllData(this);
         }
-    android.util.Log.i("Applic","Applic.Applic");
     }
 void setnotify(boolean on) {
     Notify.alertwatch=on;

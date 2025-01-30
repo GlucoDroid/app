@@ -264,7 +264,7 @@ static void doversionupdate() {
          if(settings->data()->initVersion<27) {
             if( settings->data()->initVersion<21) {
                sensors->onallsensors([](SensorGlucoseData *hist ) {
-                if(hist) {
+                if(hist&&!hist->isSibionics()&&!hist->isDexcom()) {
                   auto start=hist->getstarthistory();
                   if(start>4) {
                      for(int i=4;i<start;i++)  {

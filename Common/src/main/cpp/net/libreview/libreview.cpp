@@ -1254,7 +1254,7 @@ void clearfromDate(const uint32_t starttime, bool initall=true) {
 				info->scanoff=0;
 				}
 			else {
-				LOGGER("ERROR: getSensorData(%d)==NULL\n",i);
+				LOGGER("No Libre or null: getSensorData(%d)\n",i);
 				}
 			};
 

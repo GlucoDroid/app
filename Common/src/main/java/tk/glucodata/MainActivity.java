@@ -126,12 +126,12 @@ public MainActivity() {
 //    Button okbutton=null;
     private static final String LOG_ID = "MainActivity";
     private NfcAdapter mNfcAdapter=null;
-boolean started=false;
-void startall() {
+private boolean started=false;
+private void startall() {
      Log.d(LOG_ID, "startall");
      if(!started) {
-      startdisplay();
-      netinitstep();
+        startdisplay();
+        netinitstep();
         if(!isWearable||Natives.hasData())  {
            final int unit=Natives.getunit();
            if(!(unit==1||unit==2)) {
@@ -147,6 +147,7 @@ boolean askNotify() {
       if(Build.VERSION.SDK_INT >=33)  {
         var perm= Manifest.permission.POST_NOTIFICATIONS;
         if(ContextCompat.checkSelfPermission(this, perm)!= PackageManager.PERMISSION_GRANTED)  {
+            Log.i(LOG_ID,"askNotify");
             var permar=new String[]{perm};
             if(shouldShowRequestPermissionRationale(perm) ) {
                  help.help(R.string.notificationpermission,this,l-> {
@@ -167,7 +168,7 @@ public static int systembarBottom=0;
 public static int systembarLeft=0;
 public static int systembarRight=0;
 //public static int navigationbarLeft=0;
-void startdisplay() {
+private void startdisplay() {
    Log.i(LOG_ID,"startdisplay");
    Applic app=    (Applic)getApplication();
     app.setbackgroundcolor(this) ;
@@ -977,6 +978,7 @@ public void onRequestPermissionsResult(int requestCode, String[] permissions, in
          case NOTIFICATION_PERMISSION_REQUEST_CODE: {
             if (granted) {
                 Log.i(LOG_ID,"Required Notification permission");
+                keeprunning.start(this);
                 }
             else {
                 Log.i(LOG_ID,"Required NO Notification permission");
@@ -997,8 +999,8 @@ public void onRequestPermissionsResult(int requestCode, String[] permissions, in
         case LOCATION_PERMISSION_REQUEST_CODE:
             Log.i(LOG_ID,"LOCATION_PERMISSION_REQUEST_CODE");
             if(granted) {
-            if(systemlocation())
-               hasLocationContinue();
+                if(systemlocation())
+                   hasLocationContinue();
             } else {
                 Log.i(LOG_ID,"denied");
                  setbluetoothmain(false);
@@ -1449,11 +1451,13 @@ boolean systemlocation() {
        if(!isLocationEnabled(this)) {
             Log.i(LOG_ID,"Location not Enabled");
             RunOnUiThread(()-> needsLocation());
+            return false;
          }
       else
          Log.i(LOG_ID,"Location Enabled");
       }catch (Throwable th) {
          Log.stack(LOG_ID,"Settings.Secure.LOCATION_MODE",th);
+         return false;
          }
     return true;
     }

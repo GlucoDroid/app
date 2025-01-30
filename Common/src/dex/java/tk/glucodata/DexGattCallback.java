@@ -26,6 +26,7 @@ import static android.bluetooth.BluetoothDevice.BOND_BONDED;
 import static android.bluetooth.BluetoothDevice.BOND_NONE;
 import static android.bluetooth.BluetoothGatt.GATT_SUCCESS;
 import static android.content.Context.ALARM_SERVICE;
+import static android.content.Context.POWER_SERVICE;
 import static java.util.Objects.nonNull;
 import static tk.glucodata.Applic.app;
 import static tk.glucodata.Applic.isWearable;
@@ -49,6 +50,7 @@ import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
 
 
 import androidx.annotation.NonNull;
@@ -153,12 +155,32 @@ private void docmd0(BluetoothGatt bluetoothGatt) {
 //private long connectedtime=0L;
 //private ArrayList<String> triedsensors=new ArrayList<>();
 
+private static PowerManager.WakeLock getwakelock() {
+		return ((PowerManager) Applic.app.getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Juggluco::Dexcom");
+		}
+private PowerManager.WakeLock wakelock=null;
+
+private void getlock() {
+    wakelock=getwakelock();
+    wakelock.acquire();
+    Log.i(LOG_ID,"getlock");
+    }
+private void releaselock() {
+    var lock=wakelock;
+    if(lock!=null) {
+        wakelock=null;
+        lock.release();
+        Log.i(LOG_ID,"releaselock");
+        }
+   } 
 private int triedinvain=0;
+
 private boolean connected=false;
     @SuppressLint("MissingPermission")
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
         if (stop) {
+            releaselock();
             Log.i(LOG_ID, "onConnectionStateChange stop==true");
             return;
         }
@@ -170,29 +192,30 @@ private boolean connected=false;
 
         }
         if(newState == BluetoothProfile.STATE_CONNECTED) {
-           connected=true;
           if(bondstate == BluetoothDevice.BOND_BONDING) {
               Log.i(LOG_ID, "wait BOND_BONDING");
               }
           else {
             if(bondstate == BOND_NONE || bondstate == BOND_BONDED) {
-              constatchange[0] = tim;
-              if((tim-datatime)<60000) {
-                 return;
-                 }
-              bonded=bondstate== BOND_BONDED;
-             if(!bluetoothGatt.discoverServices()) {
-                 final String mess="bluetoothGatt.discoverServices()  failed";
-                 Log.e(LOG_ID, mess);
-                 handshake = mess;
-                 wrotepass[1] = tim;
-                 disconnect();
-                }    
+                 constatchange[0] = tim;
+                 if((tim-datatime)<60000) {
+                     return;
+                     }
+                  connected=true;
+                  getlock();
+                  bonded=bondstate== BOND_BONDED;
+                  if(!bluetoothGatt.discoverServices()) {
+                         final String mess="bluetoothGatt.discoverServices()  failed";
+                         Log.e(LOG_ID, mess);
+                         handshake = mess;
+                         wrotepass[1] = tim;
+                         disconnect();
+                        }    
 
             } else {
                 Log.e(LOG_ID, "getBondState() returns unknown state " + bondstate);
                 disconnect();
-            }
+                }
             }
         } else {
             constatstatus = status;
@@ -272,7 +295,8 @@ private boolean connected=false;
                   close();
                   }
              }          
-            connected=false;
+          releaselock();
+          connected=false;
          }
       justdata=false;
     }
@@ -781,6 +805,7 @@ private    void getdata(byte[] value) {
 
     @Override
     public void free() {
+        releaselock();
         cancelalarm();
         unbond();
         super.free();

@@ -20,7 +20,12 @@
 
 
 #pragma once
+#if defined(__ANDROID_API__) && __ANDROID_API__ < 28
+#include <stdlib.h>
+#else
 #include <sys/random.h>
+#endif
+
 inline bool makerandom(void *buf,size_t len) {
 	#if defined(__ANDROID_API__) && __ANDROID_API__ < 28
 	arc4random_buf(buf,len);

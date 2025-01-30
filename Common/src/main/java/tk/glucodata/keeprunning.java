@@ -63,7 +63,10 @@ public static void setWakelock(boolean isChecked) {
 static PowerManager.WakeLock wakeLock =null;
  @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
-       if(started) return Service.START_STICKY;//NODIG?
+       Log.i(LOG_ID,"onStartCommand flags="+flags+" startId="+startId+" started="+started);
+       if(started) {
+                return Service.START_STICKY;//NODIG?
+                }
        started=true;
        Applic app=(Applic) getApplicationContext();
        app.initproc();
@@ -96,15 +99,17 @@ static PowerManager.WakeLock wakeLock =null;
     return null;
   }
 static boolean start(Context context) {
-   if(!started) {
-      Log.i(LOG_ID,"start keeprunning");
       try {
-         Intent i = new Intent(context, keeprunning.class);
-         context.startService(i);
-         return true;
+       if(!started||theservice==null) {
+          Log.i(LOG_ID,"start keeprunning");
+          Intent i = new Intent(context, keeprunning.class);
+           context.startService(i);
+           return true;
+          }
+         
+         Notify.foregroundnot(theservice);
       } catch (Throwable e) {
          stack(LOG_ID, e);
-      }
       }
    return false;
    }

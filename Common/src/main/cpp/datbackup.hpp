@@ -589,6 +589,17 @@ void changereceiver(int allindex,int index,const bool sendnums,const bool sendst
 
         }
     }
+
+
+void setcrypt(passhost_t *host) {
+    const int ind=host->index;
+    if(crypts.size()>ind&&ind>=0) {
+         if(!crypts[ind])
+                crypts[ind]=new crypt_t;
+         }
+    }
+
+
 static constexpr const std::array<uint8_t,16> remix= {0x19,0xED,0xA0,0x4A,0x94,0x9D,0x0C,0xD7,0x82,0x4A,0x74,0xA9,0x0E,0x71,0x84,0x8B};
 //,0x87,0x7F,0x0F,0xD7,0xA8,0xEE,0x8C,0xD7,0x80
 static void    setpass( std::array<uint8_t,16> &passuit,const string_view passin) {
@@ -883,6 +894,8 @@ false          false          0
         }
 
     deupdated(); 
+
+    closesocksone(index,getupdatedata()->allhosts+index);
     if(startthreads) {
         if(newthread)
             startthread(index,tohost);
@@ -996,16 +1009,35 @@ static constexpr const uintptr_t wakestreamsend=512;
 void closeallsocks() {
     LOGSTRING("closeallsocks\n");
     for(int i=0;i<getupdatedata()->hostnr;i++) {
-         LOGGER("host %d shutdown(%d)\n",i,hostsocks[i]);
+         LOGGER("hostsock %d shutdown(%d)\n",i,hostsocks[i]);
         ::shutdown(hostsocks[i],SHUT_RDWR);
         }
     for(int i=0;i<getupdatedata()->sendnr;i++) {
-        if(sendsocks[i]>0) {
-              LOGGER("send %d shutdown(%d)\n",i,sendsocks[i]);
+        if(sendsocks[i]>=0) {
+            LOGGER("send %d shutdown(%d)\n",i,sendsocks[i]);
             ::shutdown(sendsocks[i],SHUT_RDWR);
             }
         else
            LOGGER("sendsock[%d]==-1\n",i);
+        }
+    }
+void closesocksone(int allindex,passhost_t *host) {
+    LOGGER("closesocksone %d\n",allindex);
+    int sock=hostsocks[allindex];
+    if(sock>=0) {
+        hostsocks[allindex]=-1;
+        ::shutdown(sock,SHUT_RDWR);
+        }
+     int ind=host->index;
+     if(ind>=0) {
+        int ssock=sendsocks[ind];
+        if(ssock>=0) {
+            sendsocks[ind]=-1;
+            LOGGER("send %d shutdown(%d)\n",ind,ssock);
+            ::shutdown(ssock,SHUT_RDWR);
+            }
+        else
+           LOGGER("sendsock[%d]==-1\n",ind);
         }
     }
 bool sendwakesender(int h) {

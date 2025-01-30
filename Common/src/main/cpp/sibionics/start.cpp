@@ -51,8 +51,15 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(getSiBluetoothNum)(JNIEnv *envin
 	} 
 
 extern "C" JNIEXPORT jstring JNICALL   fromjava(addSIscangetName)(JNIEnv *env, jclass cl,jstring jgegs) {
+  if(!jgegs) {
+        LOGAR("addSIscangetName(null)");
+        return nullptr;
+        }
    const char *gegs = env->GetStringUTFChars( jgegs, NULL);
-   if(!gegs) return 0LL;
+   if(!gegs) {
+    LOGAR("addSIscangetName GetStringUTFChars()=null");
+    return nullptr;
+    }
    destruct   dest([jgegs,gegs,env]() {env->ReleaseStringUTFChars(jgegs, gegs);});
    const size_t gegslen= env->GetStringUTFLength( jgegs);
    auto [sensindex,sens]= sensors->makeSIsensorindex({gegs,gegslen},time(nullptr));

@@ -62,10 +62,19 @@ pid_t  process(T com,Ts... args)  {
         }
 
 pid_t logcatpid=0;
-
+#include <sys/wait.h>
+static void  sig_chld(int signo) {
+    LOGAR("sig_child");
+    pid_t pid;
+    int stat;
+    while((pid=sys_wait4(-1, &stat, WNOHANG,nullptr)) > 0)
+            LOGGER("child %d terminated\n", pid);
+    return;
+  }
 void killlogcat() {
     LOGGER("kill %d\n",logcatpid);
      if(logcatpid) {
+        signal(SIGCHLD, sig_chld);
         kill(logcatpid,SIGTERM);
         logcatpid=0;
         }
@@ -77,7 +86,11 @@ void startlogcat() {
     LOGGER("startlogcat %p",logbasedir.data());
     if(logbasedir.data()) {
         pathconcat logcatfile(logbasedir,"logcat.txt");
-        logcatpid=process("/system/bin/logcat","-f",logcatfile.data());
+        constexpr const int maxcom=400;
+        char command[maxcom];
+        snprintf(command,maxcom,"exec /system/bin/logcat  >> %s",logcatfile.data());
+        logcatpid=process("/system/bin/sh","-c",command);
+//        logcatpid=process("/system/bin/logcat","-f",logcatfile.data());
         LOGGER("logcatpid=%d\n",logcatpid);
         }
     }
@@ -122,7 +135,7 @@ static bool copyfile(const char *infile,int out) {
    auto outlen= sendfile(out, in, nullptr,len);
     bool suc=outlen==len;
    if(!suc)  {
-       flerror("sendfile(%d,%d (%s) ,null,%zd)=%zd",out,in,infile,len,outlen);
+       flerror("sendfile(%d,%d (%s) ,null,%lld)=%zd",out,in,infile,len,outlen);
        }
     return suc; 
 #else

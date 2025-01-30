@@ -329,7 +329,7 @@ void overwriteglucose() {
 
 
     Vibrator vibrator = null;
-    void vibratealarm(int kind) {
+private    void vibratealarm(int kind) {
         var context= Applic.app;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             vibrator =  ((VibratorManager)(context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE))).getDefaultVibrator();
@@ -338,23 +338,24 @@ void overwriteglucose() {
             vibrator=(Vibrator) context.getSystemService(VIBRATOR_SERVICE);
         if(android.os.Build.VERSION.SDK_INT < 26) {
             if(kind!=0)
-                vibrator.vibrate( new long[]  {0, 100, 10,50,50} , 1);
+                vibrator.vibrate( new long[]  {0, 100, 10,  50, 50 } , 1);
             else
-                vibrator.vibrate(new long[] {0, 1000, 500,100,500,500,500,100,100},1);
+                vibrator.vibrate(new long[]   {0, 1000, 500,100,500,500,500,100,100},1);
         }
         else {
             if(kind!=0) {
-                final long[] vibrationPatternstart = {0, 70, 50,50,50,50,50};
-                final int[] amplitude={0,  255,150,0,255,50,0};
+                final long[] vibrationPatternstart = {0, 70, 50,50,50,50,50,200,30};
+                final int[] amplitude=               {0, 255,150,0,255,50,0,255,50};
                 vibrates(vibrator,vibrationPatternstart,amplitude);
             }
             else {
                 final long[] vibrationPatternstart = {0, 1000, 500,100,500,500,500,100,100};
-                final int[] amplitude={0,  0xff,128,255,0,255,0,255,50};
+                final int[]                amplitude={0, 0xff, 128,255,0  ,255,0, 255,  50};
                 vibrates(vibrator,vibrationPatternstart,amplitude);
             }
 
         }
+        Log.i(LOG_ID,"vibratealarm "+kind);
         }
     void stopvibratealarm() {
         vibrator.cancel();

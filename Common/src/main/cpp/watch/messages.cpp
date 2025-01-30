@@ -20,6 +20,7 @@
 
 
 #include <jni.h>
+#include "config.h"
 #include "fromjava.h"
 #ifdef WEAROS_MESSAGES
 #include <android/log.h>
@@ -181,7 +182,7 @@ jstring getconnectionname(JNIEnv *env, int phonehostnr) {
             }
         jstring tmpstr=    env->NewStringUTF(name);
         connectionnames[phonehostnr]=(jstring) env->NewGlobalRef(tmpstr);
-            env->DeleteLocalRef(tmpstr);
+        env->DeleteLocalRef(tmpstr);
         }
     return connectionnames[phonehostnr];
     }
@@ -304,6 +305,10 @@ void closesock(int &sock) {
         sockclose(tmpsock);
         }
 }
+extern    bool    getcommandsnopass(int sock,passhost_t *host); //TODO password?
+extern bool	getcommands(int,passhost_t *);
+extern    void receiversockopt(int new_fd);
+
 static void messagereceivecommands(passhost_t *pass) {
     const int index=pass-getBackupHosts().data();
     LOGGERTAG("messagereceivecommands %d start\n",index);
@@ -331,8 +336,6 @@ static void messagereceivecommands(passhost_t *pass) {
         std::binary_semaphore waitstarted(0);
         std::thread th(tobluetooth,index,false,    &messagereceiversockets[index],hostsocks+index,&waitstarted); //TODO handshake?
         waitstarted.acquire();
-extern    bool    getcommandsnopass(int sock,passhost_t *host); //TODO password?
-extern    void receiversockopt(int new_fd);
 
           int &recsock=hostsocks[index];
         if(recsock!=-1)
@@ -341,7 +344,14 @@ extern    void receiversockopt(int new_fd);
         recsock= sockpair[1];
         receiversockopt(recsock);
 
-        getcommandsnopass(recsock,pass);
+#ifdef ENCRYPTMESSAGES 
+        LOGARTAG("Encrypt getcommands");
+    
+	    getcommands
+#else
+        getcommandsnopass
+#endif
+        (recsock,pass);
 
          LOGGERTAG("%d message join\n",index);
          shutdown(messagereceiversockets[index],SHUT_RDWR);
@@ -370,6 +380,8 @@ void startmessagereceivers(Backup *backup) {
         }
     } */
 
+
+extern void   sendpassinit(int sock,passhost_t *host,crypt_t *ctx);
 int messagemakeconnection(passhost_t *pass,int &sock,crypt_t*ctx,char stype) {
     const int index=pass-getBackupHosts().data();
     if(messagesendersockets[index]!=-1) {
@@ -388,6 +400,12 @@ int messagemakeconnection(passhost_t *pass,int &sock,crypt_t*ctx,char stype) {
     th.detach();
     waitstarted.acquire();
     LOGGERTAG("messagemakeconnection %s sock=%d (other end=%d)\n",pass->getname(),sock,sockpair[1]);
+/*
+    if(!pass->sendpassive)  {
+         if(ctx) {
+             sendpassinit(sock,pass,ctx);
+             }
+           } */
     return sock;
     }
 
