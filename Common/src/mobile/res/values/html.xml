@@ -3,7 +3,7 @@ To modify, change the html files in https://github.com/j-kaltes/Jugglucohelp -->
 <resources>
 <string name="ringtone" >
 <![CDATA[
-<h1 class="western">Ringtone</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/ringtone.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/ringtone.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/ringtone.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/ringtone.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/ringtone.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/ringtone.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/ringtone.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/ringtone.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/ringtone.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/ringtone.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ringtone.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Ringtone</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Select which
 ringtone to play for an alarm or notification and for how many
 seconds.</p>
@@ -62,7 +62,7 @@ there is no clear policy concerning flash light.</p>
 </string>
 <string name="reminders" >
 <![CDATA[
-<h1 class="western">Reminders</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/reminders.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/reminders.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/reminders.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/reminders.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/reminders.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/reminders.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/reminders.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/reminders.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/reminders.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/reminders.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/reminders.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Reminders</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Reminders remind you
 if you haven\'t entered a certain amount within a certain time
 interval.</p>
@@ -102,7 +102,7 @@ user starting Juggluco.</p>
 </string>
 <string name="connectionoverview" >
 <![CDATA[
-<h1>Mirror</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/connectionoverview.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/connectionoverview.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/connectionoverview.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/connectionoverview.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/connectionoverview.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/connectionoverview.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/connectionoverview.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/connectionoverview.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/connectionoverview.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/connectionoverview.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/connectionoverview.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/connectionoverview.html?lang=en">en</a>&emsp;&emsp;</p><h1>Mirror</h1>
 <p style="line-height: 100%; margin-bottom: 0in"><span lang="en-US">Send
 data to or receive data from another device. You can connect to an
 android device running Juggluco</span> <span lang="en-US">to display
@@ -182,7 +182,7 @@ pointer.</p>
 </string>
 <string name="addconnection" >
 <![CDATA[
-<h1>Add connection</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/addconnection.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/addconnection.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/addconnection.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/addconnection.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/addconnection.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/addconnection.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/addconnection.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/addconnection.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/addconnection.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/addconnection.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/addconnection.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/addconnection.html?lang=en">en</a>&emsp;&emsp;</p><h1>Add connection</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Specify a connection
 with another instance of Juggluco. Juggluco on one device sends via
 IP/TCP data to a Juggluco on another device. To establish a
@@ -312,7 +312,7 @@ over a portable hotspot.</p>
 </string>
 <string name="locationpermission" >
 <![CDATA[
-<h1>Location permission</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/locationpermission.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/locationpermission.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/locationpermission.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/locationpermission.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/locationpermission.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/locationpermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/locationpermission.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/locationpermission.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/locationpermission.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/locationpermission.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/locationpermission.html?lang=en">en</a>&emsp;&emsp;</p><h1>Location permission</h1>
 <p style="margin-bottom: 0in">Devices running Android 6 to 11 need
 location permission to find Bluetooth devices. This scannen for
 Bluetooth devices is needed for <b>Sibionics</b> and <b>Dexcom </b>and
@@ -324,7 +324,7 @@ is also used by Juggluco on Android 6, 7 and 7.1</p>
 </string>
 <string name="introhelp" >
 <![CDATA[
-<p style="line-height: 115%; margin-bottom: 0in">
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/introhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/introhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/introhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/introhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/introhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/introhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/introhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/introhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/introhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/introhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/introhelp.html?lang=en">en</a>&emsp;&emsp;</p><p style="line-height: 115%; margin-bottom: 0in">
 <a href="https://www.juggluco.nl/"><font color="#ffffff"><font face="Cambria, serif"><font size="4" style="font-size: 14pt"><b>Juggluco</b></font></font></font></a><font color="#ffffff">
 is an applet for the control of blood glucose by people with
 diabetes. It can scan Freestyle Libre (0 and 2) sensors (via NFC) and
@@ -604,7 +604,7 @@ talkback. Close can be used to exit</span></font><font color="#ffffff">
 </string>
 <string name="searchhelp" >
 <![CDATA[
-<h1>Search</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/searchhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/searchhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/searchhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/searchhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/searchhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/searchhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/searchhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/searchhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/searchhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/searchhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/searchhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Search</h1>
 <p style="line-height: 115%; margin-bottom: 0in">Search can be used
 to find glucose values and entered numbers.</p>
 <p style="line-height: 115%; margin-bottom: 0in"><span lang="en-US">You
@@ -657,7 +657,7 @@ to search for and optionally the minimal amount of that ingredient.</p>
 </string>
 <string name="shortcuthelp" >
 <![CDATA[
-<p style="margin-bottom: 0.14in"><font color="#365f91"><font face="Cambria, serif"><font size="4" style="font-size: 14pt"><b>Shortcuts</b></font></font></font>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/shortcuthelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/shortcuthelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/shortcuthelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/shortcuthelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/shortcuthelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/shortcuthelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/shortcuthelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/shortcuthelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/shortcuthelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/shortcuthelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/shortcuthelp.html?lang=en">en</a>&emsp;&emsp;</p><p style="margin-bottom: 0.14in"><font color="#365f91"><font face="Cambria, serif"><font size="4" style="font-size: 14pt"><b>Shortcuts</b></font></font></font>
 can be used in Kerfstok.</p>
 <p style="margin-bottom: 0.14in">In the number input screen on the
 watch you can get to the shortcuts screen (on my Vivoactive 3 watch
@@ -683,7 +683,7 @@ button.</p>
 </string>
 <string name="labelhelp" >
 <![CDATA[
-<h1>Labels for amounts</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/labelhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/labelhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/labelhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/labelhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/labelhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/labelhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/labelhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/labelhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/labelhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/labelhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/labelhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Labels for amounts</h1>
 <p style="margin-bottom: 0in; line-height: 115%">Here you can <a href="https://www.juggluco.nl/Jugglucohelp/newlabelhelp.html">create</a>,
 delete and modify labels for quantities added to the graph to specify
 insulin, carbohydrate or physical activity. If you have already saved
@@ -708,7 +708,7 @@ saved value.</p>
 </string>
 <string name="settinghelp" >
 <![CDATA[
-<h1 class="western">Settings</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/settinghelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/settinghelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/settinghelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/settinghelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/settinghelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/settinghelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/settinghelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/settinghelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/settinghelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/settinghelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/settinghelp.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Settings</h1>
 <h2 class="western">Unit</h2>
 <p style="margin-bottom: 0in">Select whether glucose values should be
 given in mmol/L or dm/dL.</p>
@@ -800,16 +800,17 @@ target range to language.</p>
 </string>
 <string name="sensorhelp" >
 <![CDATA[
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/sensorhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/sensorhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/sensorhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/sensorhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/sensorhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/sensorhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/sensorhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/sensorhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/sensorhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/sensorhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sensorhelp.html?lang=en">en</a>&emsp;&emsp;</p>
 <h1>Sensor</h1>
-<p style="border: none; padding: 0in"><font face="basic roman">T<font face="Liberation Serif, serif">he
+<p style="border: none; padding: 0in">The
 spinner contains the name of the sensor. If Juggluco is using more
-than one sensor at the same time, you can select the</font> <font face="Liberation Serif, serif">sensor
-for which to show information.</font></font></p>
-<p style="border: none; padding: 0in"><a href="https://www.juggluco.nl/Jugglucohelp/battery.html"><font face="Liberation Serif, serif"><i><b>Doze
-mode</b></i></font></a> <font face="Liberation Serif, serif">leads
+than one sensor at the same time, you can select the sensor
+for which to show information.</p>
+<p style="border: none; padding: 0in"><a href="https://www.juggluco.nl/Jugglucohelp/battery.html"><i><b>Doze
+mode</b></i></a> leads
 you to a screen with information on how to disable battery
 optimizations for Juggluco, that can prevent Juggluco from
-functioning.</font></p>
+functioning.</p>
 <p style="border: none; padding: 0in"><i><b>Bluetooth history</b></i>:
 On Libre 2, history are values of the past in 15 minute intervals.
 Previously they were only received by scanning. When you turn this
@@ -828,7 +829,7 @@ middle of the night, probably because I moved very little. Because of
 backfill afterwards and slow awakening, I didn’t see it on the
 watch and phone, only in the log files. My phone doesn’t need this
 setting and seems to perform worse when it turned on.</p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><i><b>Permission</b></i>:
+<p style="border: none; padding: 0in"><i><b>Permission</b></i>:
 Previous versions of Juggluco required location permission to find
 the device address of the sensor. This is no longer necessary for the
 sensors I use. Maybe there are still sensors out there for which it
@@ -838,26 +839,26 @@ always useless. The device address, if known, is displayed after the
 sensor identifier. Red means a US-like sensor. Android 12 has a new
 <i>Nearby devices</i> permission, which can be used instead of
 location permission for searching for a Bluetooth device address, but
-it is also needed for later contact with Bluetooth devices.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><i><b>Forget</b></i><i>:</i>
+it is also needed for later contact with Bluetooth devices.</p>
+<p style="border: none; padding: 0in"><i><b>Forget</b></i><i>:</i>
 Let Juggluco forget the device address and scan for the device
 address. For some sensors this is needed to get a connection and is
 then done automatically by Juggluco. With this button you can
 manually say that Juggluco should do that, because there are maybe
-other occasions in which it is also needed.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><i><b>Terminate</b></i>:
+other occasions in which it is also needed.</p>
+<p style="border: none; padding: 0in"><i><b>Terminate</b></i>:
 stop connecting to this sensor via Bluetooth. If later you want to
 again receive stream glucose values from this sensor, you only have
 to scan it again. If the sensor is directly connected with the watch,
 you need first to turn that off and then press on <i>Terminate</i> on
-the phone and then on <i>Sync</i> on the watch.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><i><b>Turbo</b></i>:
+the phone and then on <i>Sync</i> on the watch.</p>
+<p style="border: none; padding: 0in"><i><b>Turbo</b></i>:
 Increases effort to contact with sensor in the hope that it results
 in less connection errors, but can uses more battery power. Seems to
 be needed on Watch4 with Freestyle Libre 2 sensors, but not with
 Freestyle Libre 3 sensors and on none of the smartphones I tried it
-on.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><b>Android</b>:
+on.</p>
+<p style="border: none; padding: 0in"><b>Android</b>:
 Let Android instead of Juggluco make the connection with the sensor.
 Don’t use it! In most cases it will take longer before a connection
 is established. This option was introduced because of a broken
@@ -867,36 +868,35 @@ That means that no connection errors or sensor errors are shown, but
 also no values are received and you can get it working again by
 turning off and on Bluetooth. When you try to connect European Libre
 2 sensor with two apps on the same phone at the same time (that is
-only then possible), you can also get in that state.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><i><b>Info</b></i>:
-Gives start and end times and last scan and stream times of sensor.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif">To
+only then possible), you can also get in that state.</p>
+<p style="border: none; padding: 0in"><i><b>Info</b></i>:
+Gives start and end times and last scan and stream times of sensor.</p>
+<p style="border: none; padding: 0in">To
 connect to a Freestyle Libre 2 sensor via Low Energy Bluetooth,
 Bluetooth should be turned on. Before the sensor is scanned
 successfully by this app, nothing will happen. The sensor shouldn\'t
 be connected with FreeStyle reader or other applets on smartphones.
 Abbotts Librelink app\'s alarms should be turned off or the app
 stopped. Some Librelink apps seem to contact the sensor while alarms
-are turned off and can cause connection problems, so use \'</font><font face="Liberation Serif, serif"><i>force
-stop</i></font><font face="Liberation Serif, serif">\' to be certain.
+are turned off and can cause connection problems, so use \'<i>force
+stop</i>\' to be certain.
 If you have started the sensor with Freestyle Reader and you can’t
 turn it off, you can prevent it from getting into contact with the
-sensor by putting the reader in a </font><a href="https://www.offgridweb.com/preparation/faraday-bags-testing-commercial-and-diy-wireless-signal-blockers/amp"><font face="Liberation Serif, serif"><u>Faraday
-cage</u></font></a><font face="Liberation Serif, serif">.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif"><b>Sensor
-via Bluetooth/Use Bluetooth</b></font> <font face="Liberation Serif, serif">should
-be turned on.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif">If
+sensor by putting the reader in a <a href="https://www.offgridweb.com/preparation/faraday-bags-testing-commercial-and-diy-wireless-signal-blockers/amp"><u>Faraday
+cage</u></a>.</p>
+<p style="border: none; padding: 0in"><b>Sensor
+via Bluetooth/Use Bluetooth</b> should
+be turned on.</p>
+<p style="border: none; padding: 0in">If
 the above conditions are satisfied, it can still take a long time
 before the app receives glucose values from the sensor. Often it
 takes a minute, but at other times it takes much longer. The
-</font><font face="Liberation Serif, serif"><i>Connection stage</i></font>
-<font face="Liberation Serif, serif">gives the most difficulties. The
+<i>Connection stage</i> gives the most difficulties. The
 most frequent are failures with status=133, which is the status
-argument of </font><a href="https://developer.android.com/reference/android/bluetooth/BluetoothGattCallback#onConnectionStateChange(android.bluetooth.BluetoothGatt,%20int,%20int)"><font face="Liberation Serif, serif"><u>onConnectionStateChange(BluetoothGatt
-bluetoothGatt, int status, int newState)</u></font></a><font face="Liberation Serif, serif">.
-It means </font><font face="Liberation Serif, serif"><i>Bluetooth
-device not found</i></font><font face="Liberation Serif, serif">.
+argument of <a href="https://developer.android.com/reference/android/bluetooth/BluetoothGattCallback#onConnectionStateChange(android.bluetooth.BluetoothGatt,%20int,%20int)"><u>onConnectionStateChange(BluetoothGatt
+bluetoothGatt, int status, int newState)</u></a>.
+It means <i>Bluetooth
+device not found</i>.
 Nearly always it just takes some time before the device is found. It
 is also possible that the sensor is connected to another device,
 temporary not functioning well, other devices are interfering or the
@@ -907,18 +907,18 @@ resolved by scanning the sensor. Intervening water (including body
 water) can be a problem, so that wearing a WearOS watch on a
 different arm than the sensor can give connection problems when the
 arms are held in a way that the body is positioned between watch and
-sensor.</font></p>
-<p style="border: none; padding: 0in"><font face="Liberation Serif, serif">Scanning
-the sensor with Juggluco (with </font><font face="Liberation Serif, serif"><i>Sensor
-via Bluetooth</i></font> <font face="Liberation Serif, serif">enabled)
+sensor.</p>
+<p style="border: none; padding: 0in">Scanning
+the sensor with Juggluco (with <i>Sensor
+via Bluetooth</i> enabled)
 on another phone, will steal the connection away from this phone and
 it can take some time, with scanning in between, to get it back
-again.</font></p>
+again.</p>
 ]]>
 </string>
 <string name="kerfstok" >
 <![CDATA[
-
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/kerfstok.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/kerfstok.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/kerfstok.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/kerfstok.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/kerfstok.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/kerfstok.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/kerfstok.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/kerfstok.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/kerfstok.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/kerfstok.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/kerfstok.html?lang=en">en</a>&emsp;&emsp;</p>
 <h1 class="western">Kerfstok</h1>
 <p style="line-height: 100%; margin-bottom: 0in">This view is used to
 solve connection problems with Kerfstok
@@ -997,7 +997,7 @@ set Dark mode, Shortcuts and ID.</p>
 </string>
 <string name="getlib" >
 <![CDATA[
-<h1>Libre Library</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/getlib.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/getlib.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/getlib.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/getlib.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/getlib.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/getlib.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/getlib.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/getlib.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/getlib.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/getlib.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/getlib.html?lang=en">en</a>&emsp;&emsp;</p><h1>Libre Library</h1>
 <p><font size="4" style="font-size: 14pt"><span lang="en-US"><b>Juggluco</b></span></font>
 <span lang="en-US">needs a library included in </span><span lang="en-US">Abbott\'s
 </span><span lang="en-US">Libre</span><span lang="en-US"> app</span><span lang="en-US">.
@@ -1034,7 +1034,7 @@ app Kerfstok. Touch </span><span lang="en-US"><b>Without sensor</b></span>
 </string>
 <string name="newlabelhelp" >
 <![CDATA[
-<h2 class="western">Label:</h2>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/newlabelhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/newlabelhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/newlabelhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/newlabelhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/newlabelhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/newlabelhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/newlabelhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/newlabelhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/newlabelhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/newlabelhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/newlabelhelp.html?lang=en">en</a>&emsp;&emsp;</p><h2 class="western">Label:</h2>
 <p>Name of label to use to enter numbers. You can add a number linked
 to a certain date and time by using &quot;New Amount&quot; in the
 left middle menu. These numbers can be displayed in the glucose graph
@@ -1054,7 +1054,7 @@ measurements the same way as glucose sensor measurements.</p>
 </string>
 <string name="battery" >
 <![CDATA[
-<h1 class="western">Keep functioning</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/battery.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/battery.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/battery.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/battery.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/battery.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/battery.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/battery.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/battery.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/battery.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/battery.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/battery.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/battery.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Keep functioning</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Normally when an
 android device is not used, it enters doze mode to use less energy.
 If you need to reliably receive glucose values via Bluetooth or
@@ -1081,7 +1081,7 @@ about adb</a></p>
 </string>
 <string name="nutrients" >
 <![CDATA[
-<p align="center" style="line-height: 100%; margin-top: 0.17in; margin-bottom: 0.08in; page-break-after: avoid">
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/nutrients.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/nutrients.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/nutrients.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/nutrients.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/nutrients.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/nutrients.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/nutrients.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/nutrients.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/nutrients.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/nutrients.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nutrients.html?lang=en">en</a>&emsp;&emsp;</p><p align="center" style="line-height: 100%; margin-top: 0.17in; margin-bottom: 0.08in; page-break-after: avoid">
 <font face="Liberation Sans, sans-serif"><font size="6" style="font-size: 28pt"><b>Food
 composition database</b></font></font></p>
 <p style="line-height: 100%; margin-bottom: 0in"><br/>
@@ -1112,7 +1112,7 @@ gives all items containing <i>apple.</i></p>
 </string>
 <string name="mealhelp" >
 <![CDATA[
-<h1>Meals</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/mealhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/mealhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/mealhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/mealhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/mealhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/mealhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/mealhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/mealhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/mealhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/mealhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/mealhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Meals</h1>
 <p>Specify the quantity of ingredients of a meal. The total
 carbohydrate content is than calculated. It is also possible to
 specify the amount of carbohydrate for the whole meal or the
@@ -1132,7 +1132,7 @@ foods name and carbohydrate content in an ingredient definition.</p>
 </string>
 <string name="colorhelp" >
 <![CDATA[
-<h1>Colors</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/colorhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/colorhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/colorhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/colorhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/colorhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/colorhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/colorhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/colorhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/colorhelp.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/colorhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/colorhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/colorhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Colors</h1>
 <p>Here you can change the colors of numbers, curves and scan points.
 Touch a point of a curve, scan or an amount (so that information
 about that point or amount is shown). Hereafter touch a color in the
@@ -1144,7 +1144,7 @@ back will not work.</p>
 </string>
 <string name="stathelp" >
 <![CDATA[
-<h1 class="western">Statistics</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/stathelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/stathelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/stathelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/stathelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/stathelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/stathelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/stathelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/stathelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/stathelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/stathelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/stathelp.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Statistics</h1>
 <p>Some statistics taken from <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8991298">AGP</a>
 with some minor modifications.</p>
 <p>The number of days analyzed can be modified by pressing the <b>Days</b>
@@ -1206,7 +1206,7 @@ from each other.</p>
 </string>
 <string name="alarmhelp" >
 <![CDATA[
-<h1>Alarms</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/alarmhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/alarmhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/alarmhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/alarmhelp.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/alarmhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/alarmhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/alarmhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/alarmhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/alarmhelp.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/alarmhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/alarmhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/alarmhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Alarms</h1>
 <h2 class="western">Glucose alarms:</h2>
 <p style="line-height: 100%; margin-bottom: 0in">The stream values
 received via Bluetooth can be used to set low and high glucose
@@ -1258,7 +1258,7 @@ This is always the case for the value available notification.</p>
 </string>
 <string name="flashpermission" >
 <![CDATA[
-<p style="line-height: 100%; margin-bottom: 0in">
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/flashpermission.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/flashpermission.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/flashpermission.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/flashpermission.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/flashpermission.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/flashpermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/flashpermission.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/flashpermission.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/flashpermission.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/flashpermission.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/flashpermission.html?lang=en">en</a>&emsp;&emsp;</p><p style="line-height: 100%; margin-bottom: 0in">
 It is sometimes claimed that the use of the Flash light requires
 Camera permission on some smartphones. Because of that Juggluco asked
 for that permission in previous versions. On the phones tested this
@@ -1274,7 +1274,7 @@ again in the Android settings for Juggluco.</p>
 </string>
 <string name="nearbypermission" >
 <![CDATA[
-<h1>NEARBY DEVICES permission</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/nearbypermission.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/nearbypermission.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/nearbypermission.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/nearbypermission.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/nearbypermission.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/nearbypermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/nearbypermission.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/nearbypermission.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/nearbypermission.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/nearbypermission.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nearbypermission.html?lang=en">en</a>&emsp;&emsp;</p><h1>NEARBY DEVICES permission</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Juggluco needs
 NEARBY DEVICES permission to receive glucose values via Bluetooth
 from Freestyle Libre 2 and 3 sensors. If Juggluco receives these
@@ -1287,7 +1287,7 @@ doesn’t need this permission to connect to watches.</p>
 </string>
 <string name="watchinfo" >
 <![CDATA[
-<h1>Watch</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/watchinfo.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/watchinfo.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/watchinfo.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/watchinfo.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/watchinfo.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/watchinfo.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/watchinfo.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/watchinfo.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/watchinfo.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/watchinfo.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/watchinfo.html?lang=en">en</a>&emsp;&emsp;</p><h1>Watch</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Currently, Juggluco
 has six ways to get glucose values on your watch.</p>
 <h2 class="western">Notify</h2>
@@ -1385,7 +1385,7 @@ Bluetooth.</p>
 </string>
 <string name="wearosinfo" >
 <![CDATA[
-<h1>Wear OS</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/wearosinfo.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/wearosinfo.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/wearosinfo.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/wearosinfo.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/wearosinfo.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/wearosinfo.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/wearosinfo.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/wearosinfo.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/wearosinfo.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/wearosinfo.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/wearosinfo.html?lang=en">en</a>&emsp;&emsp;</p><h1>Wear OS</h1>
 <p><strong>Direct sensor-watch connection</strong>: This determines
 whether the watch should be directly connected with the sensor. This
 can only be changed when watch and phone are in sync. Use
@@ -1605,7 +1605,7 @@ internet and from that to a follower phone as described at:
 </string>
 <string name="about" >
 <![CDATA[
-<h1>About</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/about.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/about.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/about.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/about.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/about.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/about.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/about.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/about.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/about.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/about.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/about.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/about.html?lang=en">en</a>&emsp;&emsp;</p><h1>About</h1>
 <p style="margin-bottom: 0in">Juggluco is written by <a href="https://www.juggluco.nl/Juggluco">Jaap
 Korthals Altes</a></p>
 <p style="margin-bottom: 0in">Besides the standard Android libraries,
@@ -1654,7 +1654,7 @@ Deliś</a>.</p>
 </string>
 <string name="disturbhelp" >
 <![CDATA[
-<h1>&quot;<i>Do not disturb</i>&quot;
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/disturbhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/disturbhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/disturbhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/disturbhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/disturbhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/disturbhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/disturbhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/disturbhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/disturbhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/disturbhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>&quot;<i>Do not disturb</i>&quot;
 access</h1>
 <p><meta name="created" content="00:00:00">On some devices, alarms
 don\'t work during &quot;<i>Do not disturb</i>&quot; mode. With
@@ -1672,7 +1672,7 @@ set time schedule.</p>
 </string>
 <string name="libreview" >
 <![CDATA[
-<h1>Libreview</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/libreview.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/libreview.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/libreview.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/libreview.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/libreview.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/libreview.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/libreview.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/libreview.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/libreview.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/libreview.html?lang=en">en</a>&emsp;&emsp;</p><h1>Libreview</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Juggluco can send
 glucose data and amounts to Libreview. 
 </p>
@@ -1771,7 +1771,7 @@ entered manually in Juggluco.</p>
 </string>
 <string name="garminconfig" >
 <![CDATA[
-<h1>Kerfstok configuration</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/garminconfig.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/garminconfig.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/garminconfig.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/garminconfig.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/garminconfig.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/garminconfig.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/garminconfig.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/garminconfig.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/garminconfig.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/garminconfig.html?lang=en">en</a>&emsp;&emsp;</p><h1>Kerfstok configuration</h1>
 <p style="line-height: 100%; margin-bottom: 0in">The <b>source</b> of
 Kerfstok can be downloaded from
 <a href="https://www.juggluco.nl/Kerfstok/Kerfstok-source.html">https://www.juggluco.nl/Kerfstok/Kerfstok-source.html</a>).
@@ -1794,7 +1794,7 @@ should be white on black instead of black on white.</p>
 </string>
 <string name="librenumhelp" >
 <![CDATA[
-<p>Set &quot;<i>Send amounts</i>&quot;,
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/librenumhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/librenumhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/librenumhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/librenumhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/librenumhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/librenumhelp.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/librenumhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/librenumhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/librenumhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/librenumhelp.html?lang=en">en</a>&emsp;&emsp;</p><p>Set &quot;<i>Send amounts</i>&quot;,
 to send Amounts to Libreview. Before you can switch on &quot;<i>Send
 amounts</i>&quot;, you need to specify for <a href="https://www.juggluco.nl/Jugglucohelp/setlibrenumtype.html">every label</a> how the
 amounts entered under that label should be sent to Libreview. The
@@ -1817,7 +1817,7 @@ Data</i> in Juggluco.</p>
 </string>
 <string name="setlibrenumtype" >
 <![CDATA[
-<p>The same way as for Libreview, you
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/setlibrenumtype.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/setlibrenumtype.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/setlibrenumtype.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/setlibrenumtype.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/setlibrenumtype.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/setlibrenumtype.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/setlibrenumtype.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/setlibrenumtype.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/setlibrenumtype.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/setlibrenumtype.html?lang=en">en</a>&emsp;&emsp;</p><p>The same way as for Libreview, you
 can also specify how to represent amounts via the Nightscout server
 in Juggluco.</p>
 <p>Select how the Amounts in Juggluco entered under a particular
@@ -1845,7 +1845,7 @@ in Libreview at the specified time.</p>
 </string>
 <string name="floatingconfig" >
 <![CDATA[
-<h1 class="western">Floating glucose</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/floatingconfig.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/floatingconfig.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/floatingconfig.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/floatingconfig.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/floatingconfig.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/floatingconfig.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/floatingconfig.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/floatingconfig.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/floatingconfig.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Floating glucose</h1>
 <p>Here you can set the font size and foreground and background color
 of the floating glucose. 
 </p>
@@ -1884,7 +1884,7 @@ info-&gt;Juggluco-&gt;Advanced-&gt;Display over other apps.</p>
 </string>
 <string name="getaccountidhelp" >
 <![CDATA[
-<h1 class="western">Get Account ID</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/getaccountidhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/getaccountidhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/getaccountidhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/getaccountidhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/getaccountidhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/getaccountidhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/getaccountidhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/getaccountidhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/getaccountidhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Get Account ID</h1>
 <p style="line-height: 100%; margin-bottom: 0in">How to get the
 Libreview Account ID needed to for scanning a Freestyle Libre 3
 sensor via NFC? If you specify &quot;<strong>Manual</strong><strong>ly</strong><strong>&quot;</strong>,
@@ -1904,7 +1904,7 @@ Libreview account than Abbotts Libre 3 app uses.</p>
 </string>
 <string name="Nightscouthelp" >
 <![CDATA[
-<h1 class="western">Web server</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/Nightscouthelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/Nightscouthelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/Nightscouthelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/Nightscouthelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/Nightscouthelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/Nightscouthelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/Nightscouthelp.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/Nightscouthelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/Nightscouthelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/Nightscouthelp.html?lang=en">en</a>&emsp;&emsp;</p><h1 class="western">Web server</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Juggluco
 incorporates a webserver by which other apps can receive glucose
 values from Juggluco. It can be used by xDrip watches and some
@@ -2105,7 +2105,7 @@ Juggluco, see <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://
 </string>
 <string name="NightPost" >
 <![CDATA[
-<h1>Upload to Nightscout server</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/NightPost.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/NightPost.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/NightPost.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/NightPost.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/NightPost.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/NightPost.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/NightPost.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/NightPost.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/NightPost.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/NightPost.html?lang=en">en</a>&emsp;&emsp;</p><h1>Upload to Nightscout server</h1>
 <p>In most cases you can also use the <a href="https://www.juggluco.nl/Jugglucohelp/Nightscouthelp.html">web
 server in Juggluco</a> or <a href="https://www.juggluco.nl/Juggluco/cmdline">juggluco-server</a>.
 Only a few apps, that do nothing more than displaying the Nightscout
@@ -2192,7 +2192,7 @@ one of the following:</p>
 </string>
 <string name="notificationpermission" >
 <![CDATA[
-<h1>Notifications</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/notificationpermission.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/notificationpermission.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/notificationpermission.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/notificationpermission.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/notificationpermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/notificationpermission.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/notificationpermission.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/notificationpermission.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/notificationpermission.html?lang=en">en</a>&emsp;&emsp;</p><h1>Notifications</h1>
 <p>Unless Juggluco is used with Freestyle Libre 0 sensors, Juggluco
 must remain active in the background to receive a glucose reading
 every minute either directly from the sensor via Bluetooth or via a
@@ -2211,7 +2211,7 @@ value and a change direction arrow.</p>
 </string>
 <string name="staticnum" >
 <![CDATA[
-<h1 align="center">Blocked</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/staticnum.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/staticnum.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/staticnum.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/staticnum.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/staticnum.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/staticnum.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/staticnum.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/staticnum.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/staticnum.html?lang=en">en</a>&emsp;&emsp;</p><h1 align="center">Blocked</h1>
 <p style="margin-bottom: 0in"><b>Left middle menu→Mirror→&quot;</b><em><b>Mirror
 sends </b></em><em><b>mounts</b></em><b>&quot;</b> is set to prevent
 entering amounts in this app, because they will be overridden by
@@ -2222,7 +2222,7 @@ from a mirror connection, unset this option.</p>
 </string>
 <string name="talkhelp" >
 <![CDATA[
-<h1>Talk</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/talkhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/talkhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/talkhelp.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/talkhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/talkhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/talkhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/talkhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/talkhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/talkhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Talk</h1>
 <h2 class="western">Speak glucose</h2>
 <p>Speaks glucose values when they arrive.</p>
 <p><b>Seconds between</b>: Specifies how many seconds Juggluco should
@@ -2282,7 +2282,7 @@ is stopped.</p>
 </string>
 <string name="nightnumhelp" >
 <![CDATA[
-<p>Set &quot;Give <i>amounts</i>&quot;
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/nightnumhelp.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/nightnumhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/nightnumhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/nightnumhelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/nightnumhelp.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/nightnumhelp.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/nightnumhelp.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nightnumhelp.html?lang=en">en</a>&emsp;&emsp;</p><p>Set &quot;Give <i>amounts</i>&quot;
 to make amounts accessible via the Nightscout webserver in Juggluco.
 Before you can switch on &quot;Give <i>amounts</i>&quot;, you need to
 specify for every label how the amounts entered under that label
@@ -2296,7 +2296,7 @@ deleted in Left menu-&gt;Settings-&gt;&quot;<a href="https://www.juggluco.nl/Jug
 </string>
 <string name="helpexport" >
 <![CDATA[
-<h1>Export</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/be/helpexport.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/helpexport.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/helpexport.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/helpexport.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/helpexport.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/helpexport.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/helpexport.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/helpexport.html?lang=en">en</a>&emsp;&emsp;</p><h1>Export</h1>
 <p>Export data from Juggluco to a file.</p>
 <p>Meals are saved in html. All other data is saved in .tsv
 (<a href="https://en.wikipedia.org/wiki/Tab-separated_values">Tab-separated
@@ -2319,7 +2319,7 @@ data via the web server in Juggluco (Left menu-&gt;Settings-&gt;<a href="https:/
 </string>
 <string name="newamount" >
 <![CDATA[
-<h1>New Amount</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/newamount.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/newamount.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/newamount.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/newamount.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/newamount.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/newamount.html?lang=en">en</a>&emsp;&emsp;</p><h1>New Amount</h1>
 <p>With <b>New amount</b> you can enter numbers associated with an
 arbitrary Label. You can set labels under left menu→Settings→<a href="https://www.juggluco.nl/Jugglucohelp/labelhelp.html">Number
 Labels</a>. The <i>Amounts</i> entered with a particular label will
@@ -2351,7 +2351,7 @@ one ingredient is then calculated.</p>
 </string>
 <string name="healthpermission" >
 <![CDATA[
-<h1>Permission to write <i>blood glucose</i></h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/healthpermission.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/healthpermission.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/healthpermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/healthpermission.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/healthpermission.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/healthpermission.html?lang=en">en</a>&emsp;&emsp;</p><h1>Permission to write <i>blood glucose</i></h1>
 <p>To be able to write Glucose values to <b>Health Connect,</b> the
 user needs to give Juggluco permission to write <b>Blood Glucose</b>
 to Health Connect. 
@@ -2363,7 +2363,7 @@ function without this permission.</p>
 </string>
 <string name="IOB" >
 <![CDATA[
-<h1>Insulin onboard (IOB)</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/IOB.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/IOB.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/IOB.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/IOB.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/IOB.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/IOB.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/IOB.html?lang=en">en</a>&emsp;&emsp;</p><h1>Insulin onboard (IOB)</h1>
 <p>IOB is a measure of how much insulin remains from previous insulin
 doses. To do this, you must enter insulin doses under a label in the
 “<i>Rapid acting insulin</i>” category. You can specify what
@@ -2377,7 +2377,7 @@ Amounts</a>.</p>
 </string>
 <string name="changestart" >
 <![CDATA[
-<h1>Change start</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/changestart.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/changestart.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/changestart.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/changestart.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/changestart.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/changestart.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/changestart.html?lang=en">en</a>&emsp;&emsp;</p><h1>Change start</h1>
 <p>Change the date and time from, which data will be sent to
 Libreview. This can be useful when some of the data is already
 present on Libreview. For example after using a mirror connection to
@@ -2387,7 +2387,7 @@ data to Libreview.</p>
 </string>
 <string name="camerapermission" >
 <![CDATA[
-<h1>CAMERA permission</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/pl/camerapermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sv/camerapermission.html">sv</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/camerapermission.html?lang=en">en</a>&emsp;&emsp;</p><h1>CAMERA permission</h1>
 <p>To use a Sibionics sensor, you need to scan a data matrix on the
 package making use of the camera of the phone. For this Juggluco can
 make use of either Google Play services in which case Juggluco
@@ -2397,7 +2397,7 @@ which case Juggluco needs camera permission.</p>
 </string>
 <string name="exchangehelp" >
 <![CDATA[
-<h1>Exchange data</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/exchangehelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/exchangehelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/exchangehelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/exchangehelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Exchange data</h1>
 <h2 class="western">Health Connect</h2>
 <p>Send minutely glucose values to <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata">Health
 Connect</a>. You can give other app access to these glucose values,
@@ -2488,7 +2488,7 @@ will be overwritten.</p>
 </string>
 <string name="displayhelp" >
 <![CDATA[
-<h1>Display settings</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/displayhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/displayhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/displayhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Display settings</h1>
 <h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/colorhelp.html"><span lang="en-US">Colors</span></a></h2>
 <p style="margin-bottom: 0in">Change colors of curves, scans and
 numbers. To switch <i>Dark mode</i>, use right middle menu-&gt;Dark
@@ -2575,7 +2575,7 @@ used.</p>
 </string>
 <string name="loghelp" >
 <![CDATA[
-<h1>Log</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/loghelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/loghelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/loghelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Log</h1>
 <p style="line-height: 100%; margin-bottom: 0in">This is a logging
 version of Juggluco. logfiles can be created in
 /data/data/tk.glucodata/files/logs</p>
@@ -2611,6 +2611,52 @@ this view</p>
 
 </p>
 <p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+]]>
+</string>
+<string name="sensormirror" >
+<![CDATA[
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/sensormirror.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/sensormirror.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sensormirror.html?lang=en">en</a>&emsp;&emsp;</p><h1>Sensor information</h1>
+<p>Gives information about the sensors when <a href="https://www.juggluco.nl/">Juggluco</a>
+functions as the mirror of the stream values:</p>
+<p><b>Started:</b> time the sensor was started. On Libre sensors this
+is one hour before the first glucose values.</p>
+<p><b>Last scanned:</b> Last time the sensor was scanned. Also when
+the sensor is scanned without receiving, data because of a sensor
+error or replace sensor error, this is counted as scanned.</p>
+<p><b>Last stream:</b> Time stamp of latest glucose measurement received via Bluetooth;</p>
+<p><b>Ends officially:</b> End time as said by the sensor producer.</p>
+<p><b>Expected end:</b> Some sensors last in reality longer than the
+official end time. Libre 1 and 2 and Dexcom G7/ONE+ last 12 hours
+longer, Sibionics sensors last nearly 10 days longer. Only Libre 3
+sensors don’t last longer then their official end time.</p>
+<p><b>Terminate</b>: Stop receiving glucose values via Bluetooth from
+this sensor. When you want to use it again, you need to scan the
+sensor again.</p>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/sensorhelp.html"><b>Use
+Bluetooth</b></a>: Connect this device directly via Bluetooth with
+the sensors. You can use this to change which device directly
+connects with the sensors. It should be turned off in the other
+device that previously directly connected with the sensor. You also
+need to change the Mirror settings on both devices so that <i>Stream</i>
+values are send in the opposite direction. When the other side is a
+WearOS watch, you can do this with a single button: <a href="https://www.juggluco.nl/Jugglucohelp/wearosinfo.html">Left
+menu→Watch→WearOS config</a>→”Direct sensor-watch
+connection”.  
+</p>
+<p>When using different sensors, you can select for which sensor to
+view information.</p>
+<p><br/>
+<br/>
+
+</p>
+<p><br/>
+<br/>
+
+</p>
+<p><br/>
+<br/>
 
 </p>
 ]]>

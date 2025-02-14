@@ -102,6 +102,7 @@ import static tk.glucodata.util.sethtml;
 //import org.w3c.dom.Text;
 
 public class Backup {
+    static final int hide=isWearable?GONE:INVISIBLE;
    static final private String LOG_ID="Backup";
    static class changer implements TextWatcher {
       View view;
@@ -315,11 +316,11 @@ public class Backup {
       detect = new CheckBox(act);
       detect.setText(R.string.detect);
       detect.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
-            final int vis=isChecked?INVISIBLE:VISIBLE;
+            final int vis=isChecked?hide:VISIBLE;
             final int lastip=editIPs.length-(haslabel.isChecked()?1:0)-1;
             editIPs[lastip].setVisibility(vis);
             });
-      detect.setVisibility(INVISIBLE);
+      detect.setVisibility(hide);
 
       testip= new CheckBox(act); testip.setText(R.string.testip);
 
@@ -332,19 +333,17 @@ public class Backup {
 
       checkhostname=getcheckbox(act,act.getString(R.string.hostname),false);
       final Runnable doHasName= ()->{
-            IPslabel.setVisibility(INVISIBLE);
-   //            final int lastip= editIPs.length-1;
+            IPslabel.setVisibility(hide);
             final int lastip= editIPs.length;
             for(var i=1;i<lastip;++i)
-               editIPs[i].setVisibility(INVISIBLE);
-   //                editIPs[i].setVisibility(GONE);
-   //            editIPs[lastip].setVisibility(INVISIBLE);
+               editIPs[i].setVisibility(hide);
             editIPs[0].setMinEms(20);
-            detect.setVisibility(INVISIBLE);
+            detect.setVisibility(hide);
             };
 
        checkhostname.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
          if(isChecked) {
+            Applic.argToaster(act,"hostname is slow",Toast.LENGTH_LONG);
             doHasName.run();
             }
          else {
@@ -360,12 +359,12 @@ public class Backup {
 
       setColorFilter(label.getBackground().mutate(),agetColor(act,android.R.color.holo_red_light));
       haslabel.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
-            final int vis=isChecked?VISIBLE:INVISIBLE;
+            final int vis=isChecked?VISIBLE:hide;
             label.setVisibility(vis);
             label.requestFocus();
             if(checkhostname.isChecked())
                return;
-            final int vis2=isChecked?INVISIBLE:VISIBLE;
+            final int vis2=isChecked?hide:VISIBLE;
             final int lastip=editIPs.length-(detect.isChecked()?1:0)-1;
             editIPs[lastip].setVisibility(vis2);
             });
@@ -383,23 +382,29 @@ public class Backup {
       buttonView-> {
          if(buttonView==activeonly)
             detect.setChecked(false);
-         final var vis=buttonView==passiveonly?INVISIBLE:VISIBLE;
+         final var vis=buttonView==passiveonly?hide:VISIBLE;
          Portlabel.setVisibility(vis);
          portedit.setVisibility(vis);
-         final var vis2=(buttonView==activeonly||(buttonView==passiveonly&&!testip.isChecked()))?INVISIBLE:VISIBLE;
+         final var vis2=(buttonView==activeonly||(buttonView==passiveonly&&!testip.isChecked()))?hide:VISIBLE;
          detect.setVisibility(vis2);
-         final var vis4=(buttonView==passiveonly&&!testip.isChecked())?INVISIBLE:VISIBLE;
-         final int ipnr=editIPs.length-(haslabel.isChecked()?1:0)-(detect.isChecked()?1:0);
-         for(int i=0;i<ipnr;i++)
-            editIPs[i].setVisibility(vis4);
-         final var vis3=buttonView==activeonly?INVISIBLE:VISIBLE;
-         testip.setVisibility(vis3);
+          final var vis3=buttonView==activeonly?hide:VISIBLE;
+          testip.setVisibility(vis3);
+          if(checkhostname.isChecked()&&buttonView != passiveonly) {
+            editIPs[0].setVisibility(VISIBLE);
+            doHasName.run();
+          }
+          else {
+              final var vis4 = (buttonView == passiveonly && !testip.isChecked()) ? hide : VISIBLE;
+              final int ipnr = editIPs.length - (haslabel.isChecked() ? 1 : 0) - (detect.isChecked() ? 1 : 0);
+              for (int i = 0; i < ipnr; i++)
+                  editIPs[i].setVisibility(vis4);
+             }
       };
       Object[] tests={test1};
         setradiotest(actives,tests);
       testip.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
-         final var vis2=(passiveonly.isChecked()&&!isChecked)?INVISIBLE:VISIBLE;
-         final var vis=(activeonly.isChecked()||(passiveonly.isChecked()&&!testip.isChecked()))?INVISIBLE:VISIBLE;
+         final var vis2=(passiveonly.isChecked()&&!isChecked)?hide:VISIBLE;
+         final var vis=(activeonly.isChecked()||(passiveonly.isChecked()&&!testip.isChecked()))?hide:VISIBLE;
          detect.setVisibility(vis);
          final int ipnr=editIPs.length-(haslabel.isChecked()?1:0)-(detect.isChecked()?1:0);
          for(int i=0;i<ipnr;i++)
@@ -452,7 +457,7 @@ public class Backup {
             });
 
       Password.setOnCheckedChangeListener( (buttonView,  isChecked)-> {
-            final int vis=isChecked?VISIBLE:INVISIBLE;
+            final int vis=isChecked?VISIBLE:hide;
             editpass.setVisibility(vis);
             visible.setVisibility(vis);
             });
@@ -513,9 +518,6 @@ public class Backup {
          if(!receiver&& !(Amounts.isChecked()&& Stream.isChecked()&& Scans.isChecked())) {
             Applic.argToaster(act,R.string.notalldata ,Toast.LENGTH_LONG);
             }        
-         if(checkhostname.isChecked()) {
-              Applic.argToaster(act,"hostname is slow",Toast.LENGTH_LONG);
-               }
          configchanged=true;
          if(pos==hostnr)  {
             delete.setVisibility(VISIBLE);
@@ -531,9 +533,6 @@ public class Backup {
          deleteconfirmation(act) ;
          //alarms.setEnabled( Natives.isreceiving( ));
          });
-   //    Portlabel.setVisibility(INVISIBLE);
-   //    portedit.setVisibility(INVISIBLE);
-      //online.setVisibility(INVISIBLE);
       reset=getbutton(act,R.string.resenddata);
       reset.setOnClickListener(v->{ 
          if(hostindex>=0) {
@@ -572,7 +571,7 @@ public class Backup {
             final int[] ret={w,h};
             return ret;
 
-         }, new View[]{ Portlabel},new View[] {portedit},new View[]{new Space(act),IPslabel,detect,new Space(act)}, new View[]{editIPs[0]},new View[]{editIPs[1]},editIPs.length>=3?new View[]{editIPs[2]}:null,editIPs.length>=4?new View[]{editIPs[3]}:null ,new View[] {testip},new View[] {haslabel},new View[]{label},
+         }, new View[]{ Portlabel},new View[] {portedit},new View[]{checkhostname},new View[]{new Space(act),IPslabel,detect,new Space(act)}, new View[]{editIPs[0]},new View[]{editIPs[1]},editIPs.length>=3?new View[]{editIPs[2]}:null,editIPs.length>=4?new View[]{editIPs[3]}:null ,new View[] {testip},new View[] {haslabel},new View[]{label},
                new View[]{passiveonly},new View[]{activeonly},new View[]{both},new View[] {receive},new View[] {Sendlabel,Stream},new View[]{Scans,Amounts},new View[]{startlabel},new View[]{alldata,fromnow},new View[]{screenpos} ,new View[]{Password },new View[]{editpass,visible},new View[]{delete,Close},new View[] {reset},new View[]{save});
 
       layout.setPadding((int)(GlucoseCurve.metrics.density*4.0),0,(int)(GlucoseCurve.metrics.density*10.0),(int)(GlucoseCurve.metrics.density*4));
@@ -628,7 +627,7 @@ public class Backup {
          final boolean dotestip=Natives.getbackuptestip(index);
          final boolean ispassive=Natives.getbackuphostpassive(index);
          testip.setChecked(dotestip);
-         final var vis=(ispassive&&!dotestip)?INVISIBLE:VISIBLE;
+         final var vis=(ispassive&&!dotestip)?hide:VISIBLE;
             detect.setChecked(dodetect);
 
 
@@ -642,7 +641,7 @@ public class Backup {
           else {
             label.setText("");
             haslabel.setChecked(false); 
-            label.setVisibility(INVISIBLE);
+            label.setVisibility(hide);
             }
          final boolean hasHostname=getbackupHasHostname(index);
          int maxhosts=hasHostname?1:(editIPs.length-(dodetect?1:0)-(labelstr==null?0:1));
@@ -652,7 +651,7 @@ public class Backup {
             for(int i=0;i<maxhosts;i++)
                    editIPs[i].setVisibility(vis);
             boolean isactiveonly =Natives.getbackuphostactive(index);
-            detect.setVisibility((ispassive&&!dotestip||isactiveonly)?INVISIBLE:VISIBLE);
+            detect.setVisibility((ispassive&&!dotestip||isactiveonly)?hide:VISIBLE);
          if(isactiveonly)
             activeonly.setChecked(true);
          else {
@@ -671,12 +670,12 @@ public class Backup {
           stream=false;scans=false;amounts=false;
 
          checkhostname.setChecked(false);
-             receive.setChecked(false);
-             detect.setChecked(false);
+         receive.setChecked(false);
+         detect.setChecked(false);
          both.setChecked(true);
          testip.setChecked(true);
          haslabel.setChecked(false);
-         label.setVisibility(INVISIBLE);
+         label.setVisibility(hide);
          label.setText("");
           } 
 
@@ -694,21 +693,19 @@ public class Backup {
 
       sendfrom[0].setChecked(true);
       for(View v:fromrow) v.setVisibility(GONE);
-       for(int i=names==null?0:names.length;i<editIPs.length;i++) editIPs[i].setText("");
-
-
-          portedit.setText(port);
-          if(pass!=null&&pass.length()>0) {
-               editpass.setText(pass);
-            Password.setChecked(true);
-               editpass.setVisibility(VISIBLE);
-               }
+      for(int i=names==null?0:names.length;i<editIPs.length;i++) editIPs[i].setText("");
+      portedit.setText(port);
+      if(pass!=null&&pass.length()>0) {
+          editpass.setText(pass);
+          Password.setChecked(true);
+          editpass.setVisibility(VISIBLE);
+          }
       else {
-               editpass.setText("");
+         editpass.setText("");
          Password.setChecked(false);
-               editpass.setVisibility(INVISIBLE);
+         editpass.setVisibility(hide);
          }
-          hostindex=index;
+        hostindex=index;
       }
    void changehostview(MainActivity act,int index,View parent) {
       String[] names=Natives.getbackupIPs(index);

@@ -40,7 +40,11 @@ public class GlucoseWidget extends AppWidgetProvider {
     static int width=0;
 
 private static void setWidth(int widthdip) {
-      var    widthpx = widthdip*GlucoseCurve.getDensity();
+    var density=GlucoseCurve.getDensity();
+    if(density<=0.0f) {
+        density=1.0f;
+        }
+      var    widthpx = widthdip*density;
 //      var fontsize=widthpx*0.22f;
       var fontsize=widthpx*(Applic.unit==1?0.35f:0.4f);
       remote=  new RemoteGlucose(fontsize,widthpx,Applic.unit==1?0.30f:0.32f,2,true);

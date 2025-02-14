@@ -202,9 +202,11 @@ int rowgeo(final int start,final int row,int widthMeasureSpec, int heightMeasure
           not++;
           final int h = childHeight(child)+topmargin+bottommargin;
           if (totHeight < h) totHeight = h;
-          int baseline=child.getBaseline();
-          if(baseline<0) baseline=(int)(h/2-basefromiddle);
-          if(baseline>maxbaseline) maxbaseline=baseline;
+          if(usebaseline) {
+              int baseline=child.getBaseline();
+              if(baseline<0) baseline=(int)(h/2-basefromiddle);
+              if(baseline>maxbaseline) maxbaseline=baseline;
+              }
          }
    }
     notgone[row]=not;
@@ -212,6 +214,7 @@ int rowgeo(final int start,final int row,int widthMeasureSpec, int heightMeasure
     baselines[row]=maxbaseline;
     return totHeight;
     }
+boolean usebaseline=true;
 int rowmax;
 int totHeight;
 int maxHeight; 
@@ -354,11 +357,17 @@ final int layrow(final int top,final int start,final int row,final int maxheight
           else {
             leftmargin=rightmargin=bottommargin=topmargin=0;
             }
-         int childbaseline=child.getBaseline();
          final int childheight= childHeight(child);
          int cheight= Math.min(childheight,maxheight-bottommargin-topmargin);
-         if(childbaseline<0) childbaseline=(int)(cheight/2-basefromiddle);
-         int tophier=(top+baseline-childbaseline)+topmargin;
+        int tophier;
+         if(usebaseline) {
+             int childbaseline=child.getBaseline();
+             if(childbaseline<0) childbaseline=(int)(cheight/2-basefromiddle);
+              tophier=(top+baseline-childbaseline)+topmargin;
+              }
+         else {
+            tophier=top+topmargin;
+            }
          int childwidth = childWidth(child);
          int width = child==matchparent[row]?(maxwidth-maxwidths[row]):childwidth;
          int childleft=left+leftmargin;
@@ -441,4 +450,10 @@ public static ViewGroup.MarginLayoutParams getMargins(View view) {
    view.setLayoutParams(margins);
    return margins;
    }
+/*  @Override
+    public int getBaseline() {
+        return getMeasuredHeight()/2;
+    } */
+
+
 }

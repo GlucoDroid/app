@@ -313,7 +313,7 @@ static     const int waitsig=60;
                     }
                 sensor* senso=sensors->getsensor(ab.sensorindex);
                 if(senso->finished) {
-                    LOGSTRING("was finished\n");
+                    LOGAR("was finished");
                     setstreaming(ab.hist); //NEEDED/
                     setusedsensors(); //NEEDED
                     senso->finished=0;
@@ -339,20 +339,27 @@ static     const int waitsig=60;
                 return ret;
                 }
             else {
+                sensor* senso=sensors->getsensor(ab.sensorindex);
                 if(alg->removed) {     
-                    sensor* senso=sensors->getsensor(ab.sensorindex);
-
-                       LOGGER("%s was %d,set senso->finished=1;\n",senso->shortsensorname()->data(),senso->finished);
+                    LOGGER("%s was %d,set senso->finished=1;\n",senso->shortsensorname()->data(),senso->finished);
                     ab.removestate();
                     senso->finished=1;
                     setstreaming(ab.hist); 
                     setusedsensors();
+                    backup->resensordata(ab.sensorindex);
                     if(alg->getlsaDetected()) {
                         return SAS_SENSOR_TERMINATED<<16;
                         }
                     else
                         return SAS_SENSOR_REMOVED<<16;
                 
+                    }
+                if(senso->finished) {
+                    LOGSTRING("was finished\n");
+                    setstreaming(ab.hist); //NEEDED/
+                    setusedsensors(); //NEEDED
+                    senso->finished=0;
+                    backup->resensordata(ab.sensorindex);
                     }
                 return 6<<16;
                 }
@@ -427,17 +434,23 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(getSensorStartmsec)(JNIEnv *env, j
     const streamdata *sdata=reinterpret_cast<const streamdata *>(dataptr);
     return sdata->hist->getstarttime()*1000LL; 
     }
+
+static void finishsensor(SensorGlucoseData*sensorptr,int sensorindex) {
+    LOGGER("finishSensor %s\n",sensorptr->showsensorname().data());
+    sensors->finishsensor(sensorindex);
+    setstreaming(sensorptr); 
+    setusedsensors();
+    backup->wakebackup(Backup::wakeall);
+    }
 extern "C" JNIEXPORT void JNICALL   fromjava(finishSensor)(JNIEnv *env, jclass cl,jlong dataptr) {
     streamdata *sdata=reinterpret_cast<streamdata *>(dataptr);
     if(!sdata) {
        LOGAR("finishSensor dataptr=null");
         return;
       }
-    LOGGER("finishSensor %s\n",sdata->hist->showsensorname().data());
-    sensors->finishsensor(sdata->sensorindex);
-    setstreaming(sdata->hist); 
-    setusedsensors();
-    backup->wakebackup(Backup::wakeall);
+    SensorGlucoseData* sensorptr=sdata->hist;
+    int sensorindex=sdata->sensorindex;
+    finishsensor(sensorptr,sensorindex);
     }
 extern bool streamHistory() ;
 #ifdef SIBIONICS
@@ -918,8 +931,39 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(hasNeedScan)(JNIEnv *env, jcla
           }
    return false;
     } 
-extern jclass JNIString;
+#ifndef WEAROS
+extern "C" JNIEXPORT jlongArray JNICALL   fromjava(activeSensorPtrs)(JNIEnv *env, jclass cl) {
+    setusedsensors();
+    const int len= usedsensors.size();
+     jlong longar[len]; 
+    LOGGER("activeSensorPtrs  len=%d\n",len);
+    for(int i=0;i<len;i++) {
+         int index=usedsensors[i];
+         const SensorGlucoseData *sens=sensors->getSensorData(index );
+         longar[i]=reinterpret_cast<jlong>(sens);
+          }
+    jlongArray    ptrAr = env->NewLongArray(len);
+    env->SetLongArrayRegion(ptrAr, 0, len, longar);
+    return ptrAr;
+    } 
 
+extern "C" JNIEXPORT jstring JNICALL   fromjava(namefromSensorptr)(JNIEnv *env, jclass cl,jlong sensorptr) {
+    const auto *sens=reinterpret_cast<const SensorGlucoseData*>(sensorptr); 
+    return env->NewStringUTF(sens->shortsensorname()->data());
+    }
+
+extern "C" JNIEXPORT jstring JNICALL   fromjava(sensortextfromSensorptr)(JNIEnv *envin, jclass cl,jlong sensorptr) {
+    const auto *sens=reinterpret_cast<const SensorGlucoseData*>(sensorptr); 
+    return envin->NewStringUTF(getsensortext(sens).data());
+    }
+
+extern "C" JNIEXPORT void JNICALL   fromjava(finishfromSensorptr)(JNIEnv *env, jclass cl,jlong sensorptr) {
+    auto *sens=reinterpret_cast<SensorGlucoseData*>(sensorptr);
+    const int sensorindex=sensors->sensorindex(sens->sensorname()->data());
+    finishsensor(sens,sensorindex);
+    }
+#endif
+extern jclass JNIString;
 #ifdef LIBRE3
 extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(activeSensors)(JNIEnv *env, jclass cl) {
     setusedsensors();
@@ -928,12 +972,12 @@ extern "C" JNIEXPORT jobjectArray  JNICALL   fromjava(activeSensors)(JNIEnv *env
     
     LOGGER("activeSensors libre3 len=%d\n",len);
      for(int i=0;i<len;i++) {
-          int index=usedsensors[i];
+         int index=usedsensors[i];
          const char *name=sensors->shortsensorname(index)->data();
-//         const char *name=sensors->showsensorname(index); //gives problems in getdataptr
+//       const char *name=sensors->showsensorname(index); //gives problems in getdataptr
          LOGGER("active: %s\n",name);
          env->SetObjectArrayElement(sensjar,i,env->NewStringUTF(name));
-          }
+         }
 
     return sensjar;
     } 

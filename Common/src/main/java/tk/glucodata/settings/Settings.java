@@ -442,7 +442,7 @@ new View[]{isvalue},new View[]{ringisvalue,Cancel},new View[]{usealarm},new View
        layout.setPadding((int)(GlucoseCurve.metrics.density*8), sidepad,(int)(GlucoseCurve.metrics.density*12),sidepad);
        }
      else
-        layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight,MainActivity.systembarBottom);
+        layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop*2/3,MainActivity.systembarRight,MainActivity.systembarBottom*9/10);
     var scroll=new ScrollView(context);    
     scroll.addView(layout);
     scroll.setFillViewport(true);
@@ -722,7 +722,7 @@ Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshows
         }
      else {
       final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*8.0);
-       lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom);
+       lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop*3/4,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom*3/4);
       }
 
     var scroll=new ScrollView(context);
@@ -1003,7 +1003,7 @@ private    void mksettings(MainActivity context,boolean[] issaved) {
        lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*14.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*14.0),pad);
         }
      else {
-       lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom);
+       lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop*3/4,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom*3/4);
       }
 
     final    int laywidth=MATCH_PARENT;
@@ -1168,7 +1168,7 @@ static private void exchanges(MainActivity context,View parent) {
                 new View[]{help, ok});
 
     final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0);
-        lay.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop,MainActivity.systembarRight+pad,MainActivity.systembarBottom);
+        lay.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop*3/4,MainActivity.systembarRight+pad,MainActivity.systembarBottom*7/8);
         exportview.setOnClickListener(v ->{
             var c=Applic.app.curve;
             if(c!=null) {

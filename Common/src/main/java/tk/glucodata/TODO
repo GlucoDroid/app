@@ -1,4 +1,4 @@
-Doesn't work anymore with pump.
+Warn "doesn't work anymore with pump."
 
 Bij data fout dit melden
 
@@ -32,22 +32,19 @@ In plaats van uitzetten "Send amounts" maken dat erop klikken uitleg geeft.
    $m/settings/LibreNumbers.java
 Toevoegen toelichting?
 
-Test op aanwezigheid calendar app.
 
 Makkelijkere reset en restore
 
 Seconden toevoegen aan tijd punten? Minuten afronden naar seconden.
 
-Use Bluetooth lijkt aan, maar is het niet in bluediag
-
-Terminate sensor has to be easier when sensor is connected to watch.
 
 Betere barcode scanner, keuze optie?
 
 Remove start and stop search for sensors.
-Add scanning sound
+
 Simple WearOS manual.
 Simple Libre3 manual.
+
 Verwijderen files die niet gebruikt worden.
 Parallel sibionics in manual
 Meerdere alarmen?
@@ -102,7 +99,7 @@ Ask leave without saving in:
 	-add connection
 	-settings
 TALK also in WearOS versie?
-Support Dexcom?
+
 Blind:
 	- Long press History read text too long
 	- spreek statistiek
@@ -118,29 +115,15 @@ Problem: xDrip watch apps don't work with a different port
 
 Analyse History values for statistics:
     - how interpolate to so values are aligned?
-add RUSSIAN HEBREW
-	-define USE_RUSSIAN USE_HEBREW in config
-	-set IWRU in Settings.java
-	-add values-ru values-iw 
-	- make install html
-Also Spy views when not connected to the internet for Libre3?
-meerdere fallback fonts proberen
+
 Toon glucose waarde op webpagina als nightscout url opgevraagd wordt.
 - pijljes
 - glucose waarde
 - tijd/age
 
-Make installing the wearos version easier:
-	- install it from the phone version.
-	Update automatically on both phone and WearOS watch (via adb interface).
-
 Use end thread ook in Libre3
 
-Add pictures to github
 Write frequently asked questions.
-Use fdsan.h 
-Log all failures in Libre3
-Calibrate? Problem: it can make it much worse. 
 
 
 Do something with webpages:
@@ -151,47 +134,27 @@ Make accessible for the blind:
 	Search control buttons unlabeled.
 	raakt underliggende vensers
 
-Add date/time next data instead of resend data.
 
-Add help to NovoPen.
 
-WearOS checkbox?
-resourceConfigurations terug?
-write about stream and history
-Add help files to website. Select on Language.
-Add views to libreview Libre3?
 Separate android from rest in cpp
 Maak het makkelijker mirror connectie tussen smartphones te vormen:
 	- script om cloud server in te richten?
 Analyse Libre 3 PatchEvents and scans to generate error messages:  replace sensor, sensor ended etc.
 
-watchdrip:
-	direct in parcel
-
-Oudheids indicator toevoegen aan zwevende glucose. Mogelijkheden:
-- Zelfde als op andere plaatsen
-- Enkel kleuring. 
-	Nadeel: meestal enkel klein puntje. 
-	Voordeel: Idem
-- Kleuring en uiteinden
-- Kleuring en omheining ruimte de gevuld wordt
 
 Do iets met libre3 events:
 - Remove?
 - LOG?
 
 Test apps?
-make hostname option in mirror.
 send to tidepool
 Categories set somewhere else in app:
 	add BG category?
 
-Maak uitleg meer relevant voor Libre 3.
 
 show serialnumbers bij scan errors
 
 Statistics ook van history 5 en 15
-
 
 Wacht op meer informatie
 
@@ -211,7 +174,6 @@ Refresh screen libreview
 
 Multidata app mogelijk maken.
 
-dub oploaden
 Add to add watch, de mogelijkheid broadcast op te vangen en via android app of phone of direct in wearos app op te vangen.
 Write watch face on broadcast. 
 Watchface more configuratie mogelijkheden
@@ -234,14 +196,6 @@ Note: the file with the mappings is produced by the proguard configuration optio
 
  -printmapping outputfile.txt
 
-Bluetooth scan naar Libre3 sensors kan enkel op device address.
-NFC text weg
-Iets met events
-
-log libre3 libreview
-Meer log messsages in Libre3 interface.
-DEBUGCLONE
-
 
 The Urgent Low Soon alert is designed to notify you when your Dexcom G6 reading is predicted to reach 55 mg/dL within 20 minutes. The Fall Rate is designed to notify you when your glucose level is falling 2 or 3 mg/dL each minute. For more information, please visit page 144 in our Dexcom G6 CGM User Guide.
 
@@ -251,128 +205,36 @@ Onnodige libraries eruit gooien:
 - Kotlin weg?
 
 
-
-Maak dat de "direct sensor-watch connection" CheckBox bij Watch4 niet meer getoond wordt.
- -Wel getoond na uitvoeren bepaalde handeling die beschreven staat in text waarin ook staat 
- dat het het niet doet in 50% van de gevallen.
-Probleem: wat doen bij mensen die die knop al aan hebben staan?
-Mogelijkheden:	
-- Verbinding omdraaien en knop verbergen. Kan alleen na sync gedaan worden;
-- Enkel bij nieuwe installaties verbergen.
-- Verbergen wanneer het uitstaat.
-Wat doen om optie wel te tonen?
-- zeven keer tikken op iets
-- lang op iets drukken
-- bepaalde code intikken.
-
-UseWifi.stopusewifi in onPause nadat waarden ontvangen zijn.
-
-Bezig /n/ojka/tmp/libre3.3.0/sensor/historymuch/processChanengeData.java
-
-Test reinstall
-	Don't disturbe access goed?
-
-Add some failure information:
-	- Libreview
-	- net
-
-Notifications:
-	- pas ook andere notificaties aan op android12: available,alarm, reminder
-	- notifications not shown on watch4
-
-
-Aanpassen Labels op commando, in plaats van tijd.
-maak plaatjes website kleiner
-save meals labels
-STRIP libg
-Maakt amount direction (watch-phone) makkelijker in te stellen.
-
-search and new amount keyboard under
-Add com.supersapiens to look for library.
-
-Services allready discovered?
-rewrite google play description:
-Meld dat bluetooth uitstaat.
-refresh screen after Forget
-Add disable mogelijk netwerk connectie
-Disable receiver als geen er gebruik van maakts
-
 Waarschuwingen aflopen
 Test Android 12
-Disable/enable librelink
-Test librelink running
-Wearos uitleg duidelijker.
-	- hotspot
 
-Waarom ging het mis met backup
-log message weg: nfc etc
-Andere opmaakt rond en vierkant:
-	- tijden hoger in vierkant
-	- ronde text?
+Disable/enable librelink
+
+Test librelink running
 
 Exchange netinfo knop.
-What doet disabling service? Doe ik het fout?
 
-Device Address niet teruggezonden als gevonden. Niet streaming reenabled.
+
 
 aparte notification in Notify
 Wordt scaninfomatie verwijderd?
+
 turn off in watch Natives.getusegarmin()
-bij toevoegen US lib, root informatie toevoegen
 
 Extra notificatie met setTimeoutAfter?
 
 
-**Sync voor omdraaien richting
 
-Watch Face  settings schermpje:
+add running librelink to sensor status:
+    - requires queries for every libre app in every country
+    - killing is not possible
 
-	- kleur letters
-	- kleur in ambient
-	- achtergrond plaatje?
-
-
-Selecteer op application ID
-Deactivate direct voor overzending.
-
-
-Geen glucose notifications op horloge
-
-Make preview image
-Make omkeer richting
-Image as background?
-Tijd loss of signal alarm better.
-add running librelink to sensor status
 test also on hostname for localhost only
 
 
 watch ip is verschilllend afhankelijk via bluetooth or wifi.
+
 Netwerk Informatie schermpje?
 
 
 zet network weer af als er geen is.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

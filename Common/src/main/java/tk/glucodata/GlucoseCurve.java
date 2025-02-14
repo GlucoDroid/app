@@ -320,7 +320,7 @@ void getnumcontrol(MainActivity activity) {
     };*/
 static public DisplayMetrics metrics;
 static public float getDensity() {
-    if(metrics==null) {
+    if(metrics==null||metrics.density<=0.0f) {
         metrics= Applic.app.getResources().getDisplayMetrics();
         }
     return metrics.density;
@@ -469,7 +469,9 @@ void startlibrelink(String lang) {
                     }
                     }
                     break;
-                  case 3: new bluediag((MainActivity)getContext()); break;
+                  case 3: 
+
+			       bluediag.start((MainActivity)getContext()); break;
                     case 4: {
                     MainActivity activity = (MainActivity) getContext(); 
                     Settings.set(activity);

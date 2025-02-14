@@ -1029,7 +1029,7 @@ public void onRequestPermissionsResult(int requestCode, String[] permissions, in
                 }
             if(bluediag.returntoblue) {
                 bluediag.returntoblue=false;
-                new bluediag(this);
+                bluediag.start(this);
                 }
             return;
     }

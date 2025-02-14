@@ -1,10 +1,3 @@
-for inname in $*
-do
-tmpname=`mktemp  "$inname-tmpXXXXXX"`
-
-mv "$inname" "$tmpname"
-
-(cat<<"!"
 /*      This file is part of Juggluco, an Android app to receive and display         */
 /*      glucose values from Freestyle Libre 2, Libre 3, Dexcom G7/ONE+ and           */
 /*      Sibionics GS1Sb sensors.                                                     */
@@ -24,10 +17,14 @@ mv "$inname" "$tmpname"
 /*      You should have received a copy of the GNU General Public License            */
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
-!
-env LC_NAME=us_EN.UTF-8 date +"/*      %a %b %d %T %Z %Y                                                 */
+/*      Fri Feb 07 12:28:12 CET 2025                                                 */
 
-"; cat "$tmpname") > "$inname"
-rm "$tmpname"
-done
 
+
+package tk.glucodata;
+
+class Sensors {
+
+static void show(Object act) { }
+
+};

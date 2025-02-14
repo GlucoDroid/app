@@ -123,7 +123,7 @@ static public void show(MainActivity act) {
 
    		   act.lightBars(!getInvertColors( ));
 				removeContentView(view);
-			       new bluediag(act);
+			       bluediag.start(act);
 		}); 
         var settingsview=view.findViewById(R.id.settings);settingsview.setOnClickListener(v ->{
 					removeContentView(view);

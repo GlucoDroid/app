@@ -1470,7 +1470,7 @@ template <class LT> void glucoselines(const float last,const float smallfontline
     const double yscale=transy(1)-transy(0);
     const float mindisunit=smallsize*1.5;
     const float minst=abs(mindisunit/yscale);
-    bool ismmolL=settings->usemmolL();
+    const bool ismmolL=settings->usemmolL();
     const double unit=ismmolL?0.5*convfactor:100;
     const double unit2=unit*2;
 
@@ -1485,8 +1485,10 @@ template <class LT> void glucoselines(const float last,const float smallfontline
         startld =  dwidth/2+dleft;
         }
 
-    uint32_t keer=floorf(ceil(gmin)/step);
-    uint32_t startl=keer*step;
+//    uint32_t keer=floorf(ceil(gmin)/step);
+//    uint32_t startl=keer*step;
+const    uint32_t startl=0;
+  
 //    const float endline=(dleft+dwidth)>nupos?nupos:(dwidth+dleft);
     const float endline=last;
     LOGGER("glucoselines: unit=%f unit2=%f step=%d (%g) startl=%d (%g)\n",unit,unit2,step,gconvert(step),startl,gconvert(startl));
@@ -1494,8 +1496,11 @@ template <class LT> void glucoselines(const float last,const float smallfontline
    const auto endlevel=dheight-smallfontlineheight;
    const auto startlevel=2.5*smallfontlineheight;
 #endif
+    
     for(auto y=startl+step;y<gmax;y+=step) {
         float dy=transy(y);
+        if(dy<=0)
+            continue;
         nvgBeginPath(genVG);
          nvgMoveTo(genVG,dleft ,dy) ;
         nvgLineTo( genVG, endline,dy);
@@ -1536,7 +1541,10 @@ const displaytime getdisplaytime(const uint32_t nu,const uint32_t starttime,cons
     const uint32_t tstep=(minst<=60*15)?60*15:((minst<=60*30)?60*30:ceilf((minst/(60.0*60)))*(60*60));
     const uint32_t first=uint32_t(ceilf(starttime/(double)tstep))*tstep;    
     const uint32_t endhier=(nu<endtime)?(nu+tstep-59):(endtime-1);
-    const uint32_t last=uint32_t(floorf(endhier/double(tstep)))*tstep;    
+    uint32_t last=uint32_t(floorf(endhier/double(tstep)))*tstep;    
+    if((2*(last-nu))>tstep)
+        last=nu;
+
     LOGGER("getdisplaytime xscale=%f %u %u %u\n",xscale,tstep,first,last);
     return {tstep,first,last};
 }
@@ -1592,6 +1600,7 @@ if(nocutoff) {
       }
 #endif
       }
+    const float lowY=dheight+dtop+dbottom;
     for(auto tim=first;tim<=last;tim+=tstep) {
         float dtim=transx(tim);
         char buf[8];
@@ -1626,7 +1635,7 @@ if(nocutoff) {
             }
         nvgBeginPath(genVG);
         nvgMoveTo(genVG,dtim ,0) ;
-        nvgLineTo( genVG, dtim,dheight);
+        nvgLineTo( genVG, dtim,lowY);
         nvgStroke(genVG);
         }
     nvgFontSize(genVG, smallsize);
@@ -2084,7 +2093,7 @@ LOGGER("showbluevalue %zd\n",used.size());
         nvgStrokeColor(genVG, dooryellow);
         nvgStrokeWidth(genVG, nowLineStrokeWidth);
         nvgMoveTo(genVG,xpos ,dtop) ;
-        nvgLineTo( genVG, xpos,dheight+dtop);
+        nvgLineTo( genVG, xpos,dheight+dtop+dbottom);
         nvgStroke(genVG);
         #ifndef WEAROS
         {
@@ -2298,8 +2307,6 @@ int displaycurve(NVGcontext* genVG,time_t nu) {
     ::starttime=(doclamp)?(nu-diffcurrent):(::starttime);
     const uint32_t starttime=::starttime;
     const uint32_t endtime=starttime+duration;
-
-
     mealpos.clear();
     hists= sensors->inperiod(starttime,endtime) ;
     histlen=hists.size();

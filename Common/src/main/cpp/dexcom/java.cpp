@@ -357,7 +357,7 @@ void backfill(SensorGlucoseData *sens) const {
     const auto wastime = gettime(starttime);
     if(id < sens->maxstreampos()) {
         save(sens, wastime, id);
-        if (id < sens->getbroadcastfrom()) sens->setbroadcastfrom(id);
+        if(id < sens->getbroadcastfrom()) sens->setbroadcastfrom(id);
         sens->backstream(id);
         /*   if(id>=(sens->pollcount()-2)) {
               backup->wakebackup(Backup::wakestream);

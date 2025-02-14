@@ -1,9 +1,14 @@
+Help texts in WearOS versie moeten geen vertaal links bevatten.
+Oplossing:
+        - Originele versie zonder links behouden en elke keer gelinkte genereren;
+        - ongelinkte in wearos versie stoppen.
+
+
 Als iemand een oude sensor met zelfde pin heeft liggen leidt dit tot problemen.
 Die sensor kan geaccepteerd worden. Daarna neemt Juggluco nog alleen maar die sensor. Als het niet zo was zouden data door elkaar raken.
 Oplossingen:
 - Mogelijkheid toevoegen alle data van sensor te wissen;
 
-Behoud oude logcat
 
 Creates second connection?
 Complications:
@@ -17,8 +22,6 @@ In the google Play version when a new language is selected that isn't used befor
 android_fdsan_close_with_tag
 AlertDialog allCaps on phone
 
-
-Search info getoond onder Bluediag
 
 
 
@@ -98,9 +101,6 @@ Resend data wordt niet doorgezonden.
 
 Terug naar Juggluco, geen menus
 
-WearOS Defaults werkt niet goed:
-	- Blijft ontvangen uit horloge
-
 Reinit sync maakt dat WearOS weer glucose waarden ontvangt. Kan dat niet automatisch gebeuren?
 - In onDraw of floating glucose?
 - Timers in app.
@@ -114,31 +114,7 @@ Starthistory? Moet niet al verkregen data terugzenden.
 - wordt history doorgezonden?
 See setbackuptime
 
-Moet mirror Bluetoothhistory setting overnemen?
-
-History wordt niet naar horloge gezonden?
-
-
 US sensors only work from Android 8. only add library to Libre3 version.
-EReader: Some floating glucose niet updated doordat alarm niet afgaat.
-	- alarm wordt niet uitgevoerd;
-	- onDraw wordt niet uitgevoerd
-Test of oude libcalibrate versie het nog doet.
-
-
-SetAlarmClock ?
-Mirror:
-	-active ontvanger only naar passive onderbreekt regelmatig
-
-loghttps:
-	Log alle elementen header
-
-Beperkingen op zoom bereik?
-Kazam:
- -Android 4.4 (niet Android 6.0.1): Mirror knoppen buiten beeld
-
-Soft keyboard start te laat
-
 
 "Streaming not enabled" confusing
 Soms wordt steeds sendstream op telefoon uitgezet in verbinding met horloge.?
@@ -148,42 +124,9 @@ Possible solution:
 	- add seperate data for every watch;
 	- In each watch only difference between own and others data;
 
-turn off TESTGEN2
-Kleurverschil te klein in niet reverse screen.
-
-Do something with missing data error: Data for sensor are missing because of reuse of mirror connection?
-- Message?
-
-
-CONV18
-No logcat in release
-Bluetooth op telefoon maakt connectie ook na switch naar horloge
-
-Value available notification after no value notification.
-Bluetooth connectie wordt misschien niet altijd disconnected bij een fout.
-
-Library schermpje niet goed
-
-
-Creeer settings.dat met abbotttest?
-Employing PR_SET_PTRACER with arg2 set to 0 clears the caller's "ptracer process ID". If arg2 is PR_SET_PTRACER_ANY, t
-Iets met key uit ~/.gradle
-
-Glucose Dialog staat er nog bij wisseling taal.
-
-Set getgeneration back to normal
-
-
-Some how sometime two overlapping connections to sensor  tried, resulting in none succeeding.
-do now and then a full sync
 Ereader doesn't respect Landscape mode, but Juggluco does assume it does. Dialogs don't wrong.
 Small (time and glucose) lines not good visible on ereader
 	
-
-Does not always stop after press in watch.
-
-
-
 Libreview saved in Local time. Goes wrong after a time zone change. Librelink has the same problem.
 
 
@@ -237,44 +180,6 @@ What doet libreview als netwerk uitstaat?
 More often problems with deleted items?
 
 
-****Notifications from Juggluco are not send to watch. But now and then a value is send to the watch and that stays there forever. ***
-
-
-In the Wearos Samsung health app, an ambient mode screen is displayed over the Floating glucose view. Should be the other way around.
-Battery consumption.
-
-i.p.v. lastglucose waarden uit dowithglucose nemen?
-
-Horloge constant over Bluetooth i.p.v WIFI
-
-
-Something wrong with gridlayout mobile phone version.
-
-Libreview uit zonder netwerk.
-
-Disable menu bij colorpicker.
-
-de introhelp kan beter:
-- space voor []
-- benachricht-> Notify?
-
-**Sometimes no data is shown, but the sync date is OK. Later the data is present.**
-libreSolid aanpassen
-Bij halen uit verleden wordt er doorgegaan met sensor ook is er een sensor die betere resultaten heeft.
-Alternatief:
-	- doorgaan totdat de volgende sensor een waarde heeft.
-
-Kijken of er iets in connectie met Libre3 veranderd kan zijn
-Bij seperate notificatie worden beide notificaties worden in begin getoond.
-Notificatie soms niet getoond.
-
-Starten van Wearos versie is traag.
-Mirror Connectie gewist bij modificatie
-Nummers worden niet getoond
-Lijst inconsistente positie:
-	- Bij openen een positie;
-	- bij page back rare begin positie
-	- Daarna,vanzelf en bij pageback, goede positie met eerste nummer beginnend aan begin scherm.
 
 ZEgt sensor error, wanneer er daarna een connectie error bestaat.
 Touches in Color dialog komen in view eronder terecht.
@@ -285,15 +190,9 @@ Omdraaien mode, pas invloed op notificatie na restart.
 Network problem remark and countdown at the same time.
 
 Bij uitschakeling van WIFI worden messages some niet automatisch aangezet.
+
 setMaintenancealarm niet op main thread
-Zet op 100% voor upload of nieuwe release
-in Watch peer2us geeft -1
-Reinit en sync herstellen connectie niet
 
-Sneller open connectie naar naar BLuetooth
-
-sslserver:
-	blijft hangen bij http i.p.v. https of verkeerde certificaat
 
 
 Message Bluetooth soms niet doorgezonden naar horloge.
@@ -308,103 +207,4 @@ Update sensor screen
 Remove GenVersion modification
 Tijd wordt afgerond op minuten
 - Advanced?
-
-
-Als laatste invalid is, moet vorige getoond worden.
-
-
-
-Get ip from other side:
-	- More than one ip?
-	- Add ip to existing ips?
-slow:
-	-Mirror
-	-startup
-In debug release versies zijn port n ummber and garmin ids verkeerd. Moeten nooit release zijn.
-
-What with exceptions in GaTTCallBack contructor
-Niet altijd: "network problem?"
-	- kijk of er een network probleem is?
-
-Nieuwe sensor activeren met Juggluco
-
-Als er nog niets gedaan wordt, wordt ook niets over bluetooth gevraagd.
-Network errors diagnosticeren?
-
-disconnect?
-
-- rare tijden:
-	- moet na vorige
-	- moet voor die er na komt
-
-Mogelijk komt bluetooth op dood punt:
-- fouten afhandelen
-- timer zetten en afsluiten na enige tijd.
-
-
-
-Na opstarten eerst terug keren tot conditional variable and timeout voordat hij in receive blijft hangen
-
-enabling streaming?
-Na (re)enabling streaming etc resetsensors.
-
-timeout wrong in active receiver?
-
-
-veel later verschijnen er nog notifications op het scherm met een glucose waarde.
-see vaak iets op het scherm bij notificatie
-
-
-infowrong test goed?
-Mogelijkheid netwerk aan te laten staat zonder battery saver uit te zetten.
-
-
-
-Met data saver uit: Wifi valt constant weg 
-
-
-
-2022-04-22-08:53:12 31182  79: POLLERR Host is unreachable. (113)
-
-
-DeviceAddress
-
-Bij wisselen lijken nummers soms niet goed uit te komen.
-
-
-
-Notification always shows glucose value
-
-
-net gaan senden bij sock=-1
- updatestream sock=-1 ind=1 sensindex=48
-
-
-What doen als RECEIVER faalt? All binds falen?
-- Erop testen en close optie tonen?
-- Afsluiten?
-- sleep and try again
-
-Sync data fout
-
-reset time also in watch face
-
-Bij uitzetten niet naar watch verzonden.
-Activity openen?
-
-
-Right complication goes half away in ambient mode
-Port 0 on tmplabel connection
-
-Ip6 doet het niet. Ip6 wordt gebruikt op horloge?
-wakesender in watchface gebruikt te veel stroom.
-
-
-Show to exchange instead of the contact sensor
-
-Density bepalen
-Positie beter bepalen
-
-
-
 

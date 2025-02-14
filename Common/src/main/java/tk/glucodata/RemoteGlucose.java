@@ -85,6 +85,10 @@ RemoteGlucose(float gl,float notwidth,float xper,int whiteonblack,boolean giveti
       timeHeight =  timesize = 0;
    }
    glucosePaint.setTextSize(glucosesize);
+   if(notwidth<=0.0f)
+        notwidth=1.0f;
+   if(notheight<=0.0f)
+        notheight=1.0f;
    glucoseBitmap = Bitmap.createBitmap((int)notwidth, (int)notheight, Bitmap.Config.ARGB_8888);
    canvas = new Canvas(glucoseBitmap);
 

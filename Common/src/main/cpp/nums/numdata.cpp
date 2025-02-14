@@ -110,7 +110,7 @@ bool numsbackupsendinit(crypt_t*pass,int sock,struct changednums *nuall,uint32_t
 	return true;
 	}
 int sendlastnum(const int dbase) {
-	if(numdatas.size()<2)
+	if(dbase>=numdatas.size())
 		return -1;
 	return numdatas[dbase]->getlastpos();
 	}

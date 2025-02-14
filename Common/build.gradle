@@ -20,7 +20,7 @@ if(task.contains("LibreOldNosi")&&!task.contains("Wear")) {
 
    }
 else {
-      ndkver = '28.0.12916984'
+      ndkver = '28.0.13004108'
       APPCOMPAT = '1.7.0'
       GMSWEAR = '19.0.0'
      GMSBASE = '18.5.0'
@@ -79,7 +79,7 @@ android {
         compileSdk 35
         applicationId "tk.glucodata"
 
-         versionName '9.0.30'
+         versionName '9.1.0'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -145,8 +145,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         libreOld {
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode 636 //LIBRE2ONLY
-         //    versionName '9.0.30-no3'
+            versionCode 640 //LIBRE2ONLY
+         //    versionName '9.1.0-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
             externalNativeBuild.cmake {
@@ -162,7 +162,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //       minSdk 23
             dimension 'libreVersion'
         versionNameSuffix '-li3'
-        versionCode 637 //LIBRE3
+        versionCode 641 //LIBRE3
     //******  Zet op rollout op 100% ******
 
                buildConfigField 'int', 'libreVersion', '3'
@@ -179,7 +179,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         minSdkVersion 21
       dimension 'SiBionics'
         versionNameSuffix '-si'
-        versionCode 637 
+        versionCode 641 
        buildConfigField 'int', 'SiBionics', '1'
        externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -188,7 +188,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
         nosi {
             dimension 'SiBionics'
-         versionCode 636 
+         versionCode 640 
          versionNameSuffix '-nosi'
           buildConfigField 'int', 'SiBionics', '0'
           externalNativeBuild.cmake {
@@ -204,9 +204,9 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
             dimension 'wearos'
         minSdk 26
         buildConfigField 'int', 'minSDK', "$minSdk"
-        versionCode 638 //WATCH
+        versionCode 642 //WATCH
     //******  Zet op rollout op 100% ******
-        //versionName '9.0.30-wear'
+        //versionName '9.1.0-wear'
         versionNameSuffix '-wear'
         signingConfig signingConfigs.alg
 
@@ -228,8 +228,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 
 //        minSdk 19
             dimension 'wearos'
-        versionCode 638 //WATCH
-        //versionName '9.0.30-small'
+        versionCode 642 //WATCH
+        //versionName '9.1.0-small'
         versionNameSuffix '-small'
         signingConfig signingConfigs.alg
 
@@ -480,7 +480,7 @@ buildTypes {
     }
 
 
-   ndkVersion "$ndkver"
+   ndkVersion "${ndkver}"
 
     kotlinOptions {
         jvmTarget =  JavaVersion.VERSION_17
@@ -505,7 +505,7 @@ buildTypes {
         includeInBundle true
     }
     compileSdk 35
-    buildToolsVersion '35.0.0 rc4'
+    buildToolsVersion '36.0.0 rc5'
     buildFeatures {
         aidl true
     }
@@ -586,13 +586,13 @@ dependencies {
     implementation 'androidx.core:core:1.15.0'
    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.10'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.10'
     implementation "com.google.android.gms:play-services-base:$GMSBASE"
  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.1'
   mobileImplementation 'androidx.health.connect:connect-client:1.1.0-alpha11'
 //  mobileImplementation files('/n/ojka/Downloads/ciq-companion-app-sdk-2.0.3.aar');
-  mobileImplementation "com.garmin.connectiq:ciq-companion-app-sdk:2.0.3@aar"
+  mobileImplementation 'com.garmin.connectiq:ciq-companion-app-sdk:2.2.0@aar'
 
     compileOnly 'com.google.android.wearable:wearable:2.9.0'
     implementation "com.google.android.gms:play-services-wearable:$GMSWEAR"
@@ -602,7 +602,7 @@ dependencies {
     wearImplementation 'androidx.activity:activity-ktx:1.10.0'
     wearImplementation 'androidx.constraintlayout:constraintlayout:2.2.0'
     wearImplementation 'com.google.android.material:material:1.12.0'
-    wearImplementation 'androidx.databinding:viewbinding:8.8.0'
+    wearImplementation 'androidx.databinding:viewbinding:8.8.1'
     wearImplementation 'androidx.core:core-ktx:1.15.0'
 
 

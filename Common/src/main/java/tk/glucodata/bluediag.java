@@ -176,7 +176,7 @@ void showinfo(final SuperGattCallback gatt,MainActivity act) {
                 gatt.close();
                 SensorBluetooth.startscan();
                  act.doonback();
-                 new bluediag(act);
+                 start(act);
 
                 });
             }
@@ -216,22 +216,20 @@ MainActivity activity;
 static private int gattselected=0;
 
 void confirmFinish(SuperGattCallback gat) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+    AlertDialog.Builder builder = new AlertDialog.Builder(activity);
     String serial= gat.SerialNumber;
-        builder.setTitle(serial).
-     setMessage(R.string.finishsensormessage).
-           setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
+    builder.setTitle(serial).setMessage(R.string.finishsensormessage).
+      setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+         public void onClick(DialogInterface dialog, int id) {
                 gat.finishSensor();
-                 SensorBluetooth.sensorEnded(serial);
-                 activity.requestRender();
-                 activity.doonback();
-                new bluediag(activity);
-
-                            }
-                }) .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
+                SensorBluetooth.sensorEnded(serial);
+                activity.requestRender();
+                activity.doonback();
+                start(activity);
+                }
+                }).
+        setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int id) {
-
             }
         }).show().setCanceledOnTouchOutside(false);
     }
@@ -245,6 +243,61 @@ void    setadapter(Activity act,    final ArrayList<SuperGattCallback> gatts) {
     spin.setAdapter(adap);
 }
 
+static void nosensors(MainActivity act) {
+    BluetoothManager mBluetoothManager = (BluetoothManager) act.getSystemService(Context.BLUETOOTH_SERVICE);
+    BluetoothAdapter mBluetoothAdapter=null;
+    if(mBluetoothManager  != null) {
+        mBluetoothAdapter = mBluetoothManager.getAdapter();
+        if(mBluetoothAdapter ==null) {
+            var mess="mBluetoothManager.getAdapter()==null";
+            Log.e(LOG_ID,mess);
+
+            showsensorinfo(mess,act);
+            return;
+        }
+    }
+ var bluestate= getlabel(act, mBluetoothAdapter==null?act.getString(R.string.nobluetooth):(mBluetoothAdapter.isEnabled()?act.getString(R.string.bluetoothenabled): act.getString(R.string.bluetoothdisabled)));
+ final boolean wasused= Natives.getusebluetooth();
+ var usebluetooth=getcheckbox(act, R.string.use_bluetooth,wasused);
+    usebluetooth.setOnCheckedChangeListener(
+         (buttonView,  isChecked) -> {
+             Log.i(LOG_ID,"usebluetooth "+isChecked);
+             if(isChecked!=wasused) {
+                 act.setbluetoothmain( isChecked);
+                 act.requestRender();
+                 act.doonback();
+                 start(act);
+             }
+         });
+    var close=getbutton(act,R.string.closename);
+   var height=GlucoseCurve.getheight();
+   var width=GlucoseCurve.getwidth();
+   if(!useclose)
+      close.setVisibility(GONE);
+  Layout layout = new Layout(act, (l, w, h) -> {
+      l.setX((width-w)/2);
+      l.setY((height-h)/2);
+        int[] ret={w,h};
+        return ret;
+        },new View[]{bluestate},new View[]{usebluetooth},new View[]{close});
+    act.setonback(() -> {
+            removeContentView(layout);
+            });
+
+        close.setOnClickListener(v -> {
+         act.doonback();
+         });
+   layout.setBackgroundResource(R.drawable.dialogbackground);
+   int pads=(int)(GlucoseCurve.metrics.density*(isWearable?2:10));
+   Log.i(LOG_ID,"density="+GlucoseCurve.metrics.density);
+
+      if(!isWearable)
+          bluestate.setPadding(pads,0,0,0);
+   layout.setPadding(pads,pads,pads*3,pads);
+   act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+
+   }
+   /*
 void nogatts(MainActivity act) {
  var bluestate= getlabel(act, mBluetoothAdapter==null?activity.getString(R.string.nobluetooth):(mBluetoothAdapter.isEnabled()?activity.getString(R.string.bluetoothenabled): activity.getString(R.string.bluetoothdisabled)));
  final boolean wasused= Natives.getusebluetooth();
@@ -256,7 +309,7 @@ void nogatts(MainActivity act) {
                  act.setbluetoothmain( isChecked);
                  act.requestRender();
                  act.doonback();
-                 new bluediag(act);
+                 start(act);
              }
          });
     var close=getbutton(act,R.string.closename);
@@ -287,11 +340,10 @@ void nogatts(MainActivity act) {
    act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
 
    }
+   */
 
-bluediag(MainActivity act) {
+bluediag(MainActivity act,final ArrayList<SuperGattCallback> gatts) {
     activity=act;
-   final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();
-
     BluetoothManager mBluetoothManager = (BluetoothManager) act.getSystemService(Context.BLUETOOTH_SERVICE);
         if(mBluetoothManager  != null) {
             mBluetoothAdapter = mBluetoothManager.getAdapter();
@@ -311,10 +363,6 @@ bluediag(MainActivity act) {
 
            }
 
-   if( gatts == null || gatts.size() == 0) {
-      nogatts(act);
-      return;
-      } 
     LayoutInflater flater= LayoutInflater.from(act);
     View view = flater.inflate(R.layout.bluesensor, null, false);
 
@@ -415,11 +463,11 @@ if(!isWearable) {
                  act.setbluetoothmain( !blueused);
                  act.requestRender();
                  act.doonback();
-                 new bluediag(act);
+                 start(act);
              }
              else {
                  if (isChecked != wasuse)
-                     new bluediag(act);
+                     start(act);
              }
          }
          );
@@ -677,6 +725,17 @@ private void show(MainActivity act,View view) {
       }
 
   }
+static void start(MainActivity act) {
+       final ArrayList<SuperGattCallback> gatts=SensorBluetooth.mygatts();
+       if(gatts == null || gatts.size() == 0) {
+          if(isWearable)
+              nosensors(act);
+          else
+              Sensors.show(act);
+          return;
+          } 
+        new bluediag(act,gatts);
+        }
 };
 
 

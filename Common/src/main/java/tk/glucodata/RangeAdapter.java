@@ -39,43 +39,39 @@ final private Function<T,String> dist;
     private List<T> ar;
     public RangeAdapter(List<T> ar,Context context, Function<T,String> dist) {
         this.ar=ar;
-       	mInflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+           mInflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
     this.dist=dist;
 
     }
-public void	setarray(List<T> arin)  {
-	ar=arin;
-	}
+public void    setarray(List<T> arin)  {
+    ar=arin;
+    }
     @Override
     public View getDropDownView(int position, View convertView, ViewGroup parent) {
         if (convertView == null) {
             convertView = mInflater.inflate(android.R.layout.simple_spinner_dropdown_item, parent, false);
         }
 
-	if(ar!=null) {
-		T str=ar.get(position);
-		((TextView)(convertView.findViewById(android.R.id.text1))).setText(dist.apply(str));
-		}
+    if(ar!=null) {
+        T str=ar.get(position);
+        ((TextView)(convertView.findViewById(android.R.id.text1))).setText(dist.apply(str));
+        }
         return convertView;
 
     }
 
     @Override
-    public void registerDataSetObserver(DataSetObserver observer) {
-
-    }
+    public void registerDataSetObserver(DataSetObserver observer) { }
 
     @Override
-    public void unregisterDataSetObserver(DataSetObserver observer) {
-
-    }
+    public void unregisterDataSetObserver(DataSetObserver observer) { }
 
     @Override
     public int getCount() {
-    	if(ar==null)
-		return 0;
-	return ar.size();
-    }
+        if(ar==null)
+            return 0;
+        return ar.size();
+        }
 
     @Override
     public Object getItem(int position) {
@@ -94,17 +90,15 @@ public void	setarray(List<T> arin)  {
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
-           if (convertView == null) {
-                convertView = mInflater.inflate(android.R.layout.simple_spinner_item, parent, false);
+        if(convertView == null) {
+            convertView = mInflater.inflate(android.R.layout.simple_spinner_item, parent, false);
             }
-	if(ar!=null) {
-		  T str=ar.get(position);
-		TextView thetext=convertView.findViewById(android.R.id.text1);
-		thetext.setText(dist.apply(str));
-		}
-
-
-            return convertView;
+        if(ar!=null) {
+            T str=ar.get(position);
+            TextView thetext=convertView.findViewById(android.R.id.text1);
+            thetext.setText(dist.apply(str));
+            }
+        return convertView;
         }
 
 

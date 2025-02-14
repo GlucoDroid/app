@@ -805,6 +805,12 @@ public static native boolean getalarmclock( );
 public static native int[] searchIngredient(String label);
 public static native boolean dexKnownSensor(long dataptr);
 
+public static native long[] activeSensorPtrs( );
+public static native String namefromSensorptr(long sensorptr);
+public static native String sensortextfromSensorptr(long sensorptr);
+public static native void finishfromSensorptr(long sensorptr);
+
+
 //public static native void sendxdripold();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }
