@@ -120,7 +120,7 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
                    ok.setVisibility(View.INVISIBLE);
               ViewGroup  layout=new Layout(act, place::place,new View[]{ok}, new View[]{helpview});
 
-              params.setMargins( 0, (int)(GlucoseCurve.metrics.density*3.0), 0,0);
+              params.setMargins( 0, (int)( GlucoseCurve.getDensity() *3.0), 0,0);
               layout.setBackgroundColor(backgroundcolor);
               helpscroll.addView(layout,params);
               helpscroll.setBackgroundColor(backgroundcolor);
@@ -174,7 +174,7 @@ final var helplayout2=helplayout;
 
     @SuppressLint("deprecation")
 public static   void help(String text,Activity act,Consumer<ViewGroup>  okproc,Placer place, ViewGroup.MarginLayoutParams params) {
-      Log.i(LOG_ID,"help");
+      Log.i(LOG_ID,"help "+text.substring(0,20));
       hidekeyboard(act);
       Button ok;
       ViewGroup helplayout;
@@ -208,7 +208,7 @@ public static   void help(String text,Activity act,Consumer<ViewGroup>  okproc,P
               var width=MainActivity.screenwidth;
               int sidepad=(int)(width*.12);
               Log.i(LOG_ID,"width="+width+" sidepad="+sidepad);
-              params.setMargins( sidepad, (int)(GlucoseCurve.metrics.density*3.0), sidepad,0);
+              params.setMargins( sidepad, (int)( GlucoseCurve.getDensity()*3.0), sidepad,0);
               layout.setBackgroundColor(backgroundcolor);
               helpscroll.addView(layout,params);
               helpscroll.setBackgroundColor(backgroundcolor);
@@ -262,8 +262,13 @@ public static   void help(String text,Activity act,Consumer<ViewGroup>  okproc,P
             }
        }
      ok.setY(MainActivity.systembarTop*.71f);
-     var width=GlucoseCurve.getwidth();
-    ok.setX(width-ok.getMeasuredWidth()-MainActivity.systembarRight -GlucoseCurve.metrics.density);
+      var width=GlucoseCurve.getwidth();
+      if(width<=10)
+          width=MainActivity.screenwidth;
+     int okwidth=ok.getMeasuredWidth();
+    float okx=width-okwidth-MainActivity.systembarRight - GlucoseCurve.getDensity();
+    ok.setX(okx);
+     Log.i(LOG_ID,"width="+width+" okx="+okx+" okwidth="+okwidth+" systembarRight="+ MainActivity.systembarRight );
      //   ViewGroup.MarginLayoutParams marg = (ViewGroup.MarginLayoutParams) helplayout.getLayoutParams();
 //       whelpview.get().setText(Html.fromHtml(text));
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

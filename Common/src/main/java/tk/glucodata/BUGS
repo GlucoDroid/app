@@ -1,9 +1,8 @@
-Help texts in WearOS versie moeten geen vertaal links bevatten.
-Oplossing:
-        - Originele versie zonder links behouden en elke keer gelinkte genereren;
-        - ongelinkte in wearos versie stoppen.
-
-
+Traag wanneer naar begin verschoven wordt.
+Show nums scherm sluit niet bij drukken sluiten, helemaal aan het begin.
+SOms sync needed.
+Na invoeren dat op horloge, oude gegevens weg.
+Labels niet in kerfstok
 Als iemand een oude sensor met zelfde pin heeft liggen leidt dit tot problemen.
 Die sensor kan geaccepteerd worden. Daarna neemt Juggluco nog alleen maar die sensor. Als het niet zo was zouden data door elkaar raken.
 Oplossingen:

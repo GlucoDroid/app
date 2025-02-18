@@ -1305,9 +1305,10 @@ on, Juggluco sends glucose values to <a href="https://bigdigital.home.blog/2022/
 Watchdrip+ sends watch faces, showing glucose values, to
 MiBand/Amazfit watches.</p>
 <h2 class="western">GadgetBridge</h2>
-<p><a href="https://gadgetbridge.org">GadgetBridge</a> makes it possible to display weather information on MiBand/Amazfit
-watches. With the Gadgetbridge option turned on, will Juggluco send
-glucose values to GadgetBridge under the pretext that it is weather
+<p><a href="https://gadgetbridge.org/">GadgetBridge</a> makes it
+possible to display weather information on MiBand/Amazfit watches.
+With the Gadgetbridge option turned on, will Juggluco send glucose
+values to GadgetBridge under the pretext that it is weather
 information. This had the advantage above Watchdrip that it is much
 faster, but has the disadvantage that less information is displayed.
 Juggluco puts the glucose value and a direction arrow in the location
@@ -1340,8 +1341,10 @@ and send these glucose values to a watch. For example G-Watch
 (<a href="https://play.google.com/store/apps/details?id=sk.trupici.g_watch">TizenOS</a>
 or <a href="https://play.google.com/store/apps/details?id=sk.trupici.gwatch.wear">WearOS</a>)
 can receive glucose values from the Glucodata Broadcast (see Left
-menu-&gt;Settings-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/exchangehelp.html">Exchange data</a>).</p>
-<h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/Nightscouthelp.html">xDrip watch apps</a></h2>
+menu-&gt;Settings-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/exchangehelp.html">Exchange
+data</a>).</p>
+<h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/Nightscouthelp.html">xDrip
+watch apps</a></h2>
 <p style="line-height: 100%; margin-bottom: 0in"><span lang="en-US">Juggluco
 incorporates an xDrip/Nightscout</span> <span lang="en-US">webserver.
 This makes it possible to directly use xDrip watch apps with
@@ -1368,14 +1371,24 @@ values just after it is available. Data fields and watch faces would
 be the ideal solution, but restrictions imposed by Garmin make them
 of little value. </span>
 </p>
-<p style="line-height: 100%; margin-bottom: 0in"><span lang="en-US">According
-to a user there exist also a watch face for </span><span lang="en-US"><b>Fitbit</b></span>
-<span lang="en-US">watches that works with the web server in Juggluco:
-<a href="https://glancewatchface.com/">https://glancewatchface.com</a></span></p>
+<p style="line-height: 100%; margin-bottom: 0in"><span lang="en-US">Previously
+you could use the web server in Juggluco with a watch face</span> <span lang="en-US">for
+</span><span lang="en-US"><b>Fitbit</b></span><span lang="en-US">:
+<a href="https://glancewatchface.com/">https://glancewatchface.com</a>
+. Since half 2024 third party apps are no longer allowed on Fitbit
+watches:
+<a href="https://www.techradar.com/health-fitness/fitbit-watches-in-the-eu-will-lose-third-party-apps-and-watch-faces-heres-why">https://www.techradar.com/health-fitness/fitbit-watches-in-the-eu-will-lose-third-party-apps-and-watch-faces-heres-why</a>
+. </span><span lang="en-US">EU regulation should have provoked this
+decision. Maybe the possible requirement to allow alternative app
+stores on Wear OS: Simple fitness trackers, without third party apps,
+are also allowed and we can become that. </span><span lang="en-US">Some
+people claim that after changing location to USA, with the use of
+VPN, they can again install third party apps.</span></p>
 <p style="line-height: 100%; margin-bottom: 0in"><span lang="en-US">For
 more information on the web server interface see
 <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a></span></p>
-<h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/wearosinfo.html">WearOS Juggluco</a></h2>
+<h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/wearosinfo.html">WearOS
+Juggluco</a></h2>
 <p>There is a version of Juggluco ported to Wear OS. The display is
 adapted to the smaller screen and a watch face is added. The watch
 face can be installed as a usual Wear OS watch face and displays

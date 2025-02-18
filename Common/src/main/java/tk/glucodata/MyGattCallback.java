@@ -753,5 +753,16 @@ public boolean matchDeviceName(String deviceName,String address) {
 public UUID getService() {
    return mADCCustomServiceUUID;
    }
+
+@Override
+public void setGattOptions(BluetoothGatt gatt) {
+	/*
+        Log.i(LOG_ID,"setGattOptions(BluetoothGatt gatt) setPreferredPhy PHY_LE_1M_MASK");
+        gatt.setPreferredPhy(
+         BluetoothDevice.PHY_LE_1M_MASK,
+         BluetoothDevice.PHY_LE_1M_MASK,
+         BluetoothDevice.PHY_OPTION_NO_PREFERRED); */
+        }
+
 }
 

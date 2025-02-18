@@ -677,15 +677,20 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(bytesettings)(JNIEnv *env, 
     }
 
 extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(ontbytesettings)(JNIEnv *env, jclass cl,jbyteArray  jar) {
-    Tings *set=settings->data();
+//    Tings *set=settings->data();
     sendsettings ssbuf;
     const int minlen=offsetof(sendsettings,numalarm);
-        const jsize lens=env->GetArrayLength(jar);
+    const jsize lens=env->GetArrayLength(jar);
     if(lens<minlen) {
         LOGGERTAG("ontbytesettings %d<%d\n",lens,minlen);
         return false;
         }
-        env->GetByteArrayRegion(jar, 0, lens,reinterpret_cast<jbyte *>(&ssbuf));
+    env->GetByteArrayRegion(jar, 0, lens,reinterpret_cast<jbyte *>(&ssbuf));
+    settings->setunit(ssbuf.unit);
+
+    LOGGERTAG("ontbytesettings unit=%d\n",ssbuf.unit);
+    return true;
+/*
     const sendsettings &ss=ssbuf;
     LOGGERTAG("ontbytesettings unit=%d highalarm=%d\n",ss.unit,ss.highalarm);
     if(ss.alarmnr<0) {
@@ -703,13 +708,13 @@ extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(ontbytesettings)(JNIEnv *env,
     for(int i=0;i<maxalarms;i++) {
         *reinterpret_cast<ringnouri*>(&set->alarms[i].duration)=ss.alarms[i];
         }
-    settings->setunit(ss.unit);
     const int allen=offsetof(sendsettings,alarmnr)-offsetof(sendsettings,lowalarm);
     memcpy(&set->lowalarm,&ss.lowalarm,allen);
     set->alarmnr=ss.alarmnr;
     memcpy(set->numalarm,ss.numalarm,sizeof(amountalarm)*ss.alarmnr);
     LOGGERTAG("ontbytesettings success unit=%d highalarm=%d\n",set->unit,set->highalarm);
     return true;
+    */
     }
 
 int hostindex(const passhost_t *host) {

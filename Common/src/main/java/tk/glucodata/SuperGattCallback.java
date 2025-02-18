@@ -453,6 +453,7 @@ public void searchforDeviceAddress() {
                 try {
                     if(isWearable)  {
                         cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb, BluetoothDevice.TRANSPORT_LE);
+                       cb.setGattOptions(cb.mBluetoothGatt);
                         }
                     else {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -461,6 +462,7 @@ public void searchforDeviceAddress() {
                             cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb);
                             }
                         }
+
                     setpriority(cb.mBluetoothGatt);
                 Log.i(LOG_ID,SerialNumber+" after connectGatt");
             connectTime= System.currentTimeMillis();
@@ -494,14 +496,16 @@ private boolean used_priority=false;
     @SuppressLint("MissingPermission")
     void setpriority(BluetoothGatt bluegatt) {
         if(bluegatt!=null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 if(Natives.getpriority()) {
-                    bluegatt.requestConnectionPriority(use_priority);
-               used_priority=true;
+                   bluegatt.requestConnectionPriority(use_priority);
+                   Log.i(LOG_ID,"requestConnectionPriority HIGH");
+                   used_priority=true;
                }
                 else {
                if(used_priority) {
                   bluegatt.requestConnectionPriority(CONNECTION_PRIORITY_BALANCED);
+                  Log.i(LOG_ID,"requestConnectionPriority LOW");
                   used_priority=false;
                   }
                }
@@ -593,4 +597,11 @@ public String mygetDeviceName() {
     return "?";
     }
 
+public void setGattOptions(BluetoothGatt gatt) {
+        Log.i(LOG_ID,"setGattOptions(BluetoothGatt gatt) empty");
+    }
+@Override 
+public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+    Log.i(LOG_ID,"onPhyUpdate txPhy="+txPhy+" rxPhy="+rxPhy+" status="+status);
+    }
 }

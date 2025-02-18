@@ -613,22 +613,21 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(getShowSensorName)(JNIEnv *envin
 extern "C" JNIEXPORT jstring JNICALL   fromjava(getDeviceAddress)(JNIEnv *envin, jclass cl,jlong dataptr,jboolean getnew) {
     if(!dataptr) {
       LOGAR("getDeviceAddress(null)");
-        return nullptr;
+      return nullptr;
       }
     const SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
     if(!usedhist) {
       LOGAR("getDeviceAddress() usedhist==null");
-        return nullptr;
+      return nullptr;
       }
     const char *address=usedhist->deviceaddress();
     if(!*address) {
       LOGAR("deviceaddress()==null");
-        return nullptr;
+      return nullptr;
       }
     if((getnew&&!usedhist->scannedAddress&&!usedhist->isLibre())) {
-//    if((getnew&&!usedhist->scannedAddress&&usedhist->isSibionics())) {
       LOGAR("getDeviceAddress() !libre getnew");
-        return nullptr;
+      return nullptr;
       }
     LOGGER("getDeviceAddress()=%s\n",address);
     return envin->NewStringUTF(address);

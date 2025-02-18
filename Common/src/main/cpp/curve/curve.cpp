@@ -1485,9 +1485,9 @@ template <class LT> void glucoselines(const float last,const float smallfontline
         startld =  dwidth/2+dleft;
         }
 
-//    uint32_t keer=floorf(ceil(gmin)/step);
-//    uint32_t startl=keer*step;
-const    uint32_t startl=0;
+ //   uint32_t keer=floorf(ceil(gmin)/step);
+  //  uint32_t startl=keer*step;
+  const    uint32_t startl=0;
   
 //    const float endline=(dleft+dwidth)>nupos?nupos:(dwidth+dleft);
     const float endline=last;
@@ -1542,7 +1542,7 @@ const displaytime getdisplaytime(const uint32_t nu,const uint32_t starttime,cons
     const uint32_t first=uint32_t(ceilf(starttime/(double)tstep))*tstep;    
     const uint32_t endhier=(nu<endtime)?(nu+tstep-59):(endtime-1);
     uint32_t last=uint32_t(floorf(endhier/double(tstep)))*tstep;    
-    if((2*(last-nu))>tstep)
+    if((last>nu)&&(2*(last-nu))>tstep)
         last=nu;
 
     LOGGER("getdisplaytime xscale=%f %u %u %u\n",xscale,tstep,first,last);

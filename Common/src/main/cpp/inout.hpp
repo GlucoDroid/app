@@ -498,6 +498,13 @@ static gegs * newex( const std::vector<Typ> &ar) {
 	memcpy(ptr->buf,ar.data(),ar.size()*sizeof(T));
 	return ptr;
 	}
+template <typename Con> requires requires(Con t) {t.size();}
+static gegs * newex( Con &ar) {
+       static_assert(sizeof(T)==sizeof(ar[0]), "Elements should be the same size");
+	gegs<T> *ptr=gegs<T>::newex(ar.size());
+	memcpy(ptr->buf,ar.data(),ar.size()*sizeof(T));
+	return ptr;
+	}
 static gegs * newex( const gegs *in) {
 	gegs *ptr=newex(in->length());
 	memcpy(ptr->buf,in->buf,in->length()*sizeof(T));
