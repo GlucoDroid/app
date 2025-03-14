@@ -1,5 +1,6 @@
 /*      This file is part of Juggluco, an Android app to receive and display         */
-/*      glucose values from Freestyle Libre 2 and 3 sensors.                         */
+/*      glucose values from Freestyle Libre 2, Libre 3, Dexcom G7/ONE+ and           */
+/*      Sibionics GS1Sb sensors.                                                     */
 /*                                                                                   */
 /*      Copyright (C) 2021 Jaap Korthals Altes <jaapkorthalsaltes@gmail.com>         */
 /*                                                                                   */
@@ -16,35 +17,13 @@
 /*      You should have received a copy of the GNU General Public License            */
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
-/*      Fri Jan 27 15:31:05 CET 2023                                                 */
+/*      Wed Mar 12 21:03:25 CET 2025                                                 */
 
 
 package tk.glucodata;
 
-import android.text.Editable;
-
-import android.view.View;
-import android.widget.EditText;
 
 
-class editfocus implements View.OnFocusChangeListener {
-//public static Editable edit;
-public static EditText editview;
-@Override
-public void onFocusChange(View v, boolean hasFocus) {
-    EditText ed= (EditText)v;
-    Log.v("editfocus","onfocuschange "+hasFocus);
-    if(hasFocus) {
-        editview=ed;
-      }
-    }
-static   public void setedittext(EditText view) {
-    editview = view;
-    }
-static public EditText getedittext() {
-   return editview;
-   }
-static public Editable getedit() {
-   return editview.getText();
-   }
+public class IOB {
+    public static void mkview(Object act) { }
 }
