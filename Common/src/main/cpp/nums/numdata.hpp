@@ -583,7 +583,7 @@ void receivelastpos(int base,int lastpos)  {
     setlastpos(lastpos);
     if(lastpos<oldlastpos) {
         setchangetimes(lastpos,oldlastpos);
-#ifndef WEAROS
+#if defined(JUGGLUCO_APP)&& !defined(WEAROS)
         Garmindeletelast(base,lastpos,oldlastpos);
 #endif
         }
@@ -1369,7 +1369,7 @@ bool backupnums(const struct numsend* innums) {
     //wakeuploader();
     //wakeaftermin(1);
     extern void toGarmin(int );
-#ifndef WEAROS
+#if defined(JUGGLUCO_APP)&& !defined(WEAROS)
     const int base=innums->dbase;
     if(newlastpos<oldlastpos) 
         Garmindeletelast(base,newlastpos,oldlastpos);
