@@ -146,7 +146,7 @@ extern bool getownip(struct sockaddr_in6 *outip);
 #define _SIZEOF_ADDR_IFREQ sizeof
 #endif
 bool oldgetownip(struct sockaddr_in6 *outip) { 
-  int  socketfd = socket(AF_INET, SOCK_DGRAM, 0);
+  int  socketfd = socket(AF_INET6, SOCK_DGRAM, 0);
   if(socketfd<0) {
   	LOGSTRINGTAG(" socket(AF_INET, SOCK_DGRAM, 0) failed\n");
  	return false; 	
@@ -245,7 +245,7 @@ struct ifconf  {
 int oldgetownips(struct sockaddr_in6 *outips,int max,bool &haswlan) { 
 LOGSTRINGTAG("oldgetownips\n");
 haswlan=false;
-  int  socketfd = socket(AF_INET, SOCK_DGRAM, 0);
+  int  socketfd = socket(AF_INET6, SOCK_DGRAM, 0);
   if(socketfd<0) {
   	LOGSTRINGTAG(" socket(AF_INET, SOCK_DGRAM, 0) failed\n");
  	return 0; 	

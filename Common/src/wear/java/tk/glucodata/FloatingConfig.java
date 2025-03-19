@@ -276,15 +276,18 @@ static public void showcolors(MainActivity act) {
     act.addContentView(layout,  new ViewGroup.LayoutParams(MATCH_PARENT,MATCH_PARENT));
     layout.setBackgroundColor(Applic.backgroundcolor);
     layout.setOnTouchListener(new BackGesture(act));
-    var ok=getbutton(act,"Ok");
-    ok.setOnClickListener(v->MainActivity.doonback());
-    act.addContentView(ok, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
-    ok.setX((int)(width*.45));
-    int padx=(int)(width*.04f);
-    int pady=(int)(width*.015f);
-    ok.setPadding(padx,pady,padx,pady);
+    var ok=useclose?getbutton(act,"Ok"):null;
+    if(ok!=null) {
+        ok.setOnClickListener(v->MainActivity.doonback());
+        act.addContentView(ok, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
+        ok.setX((int)(width*.45));
+        int padx=(int)(width*.04f);
+        int pady=(int)(width*.015f);
+        ok.setPadding(padx,pady,padx,pady);
+        }
     act.setonback(()-> { 
-        removeContentView(ok); 
+        if(ok!=null)
+            removeContentView(ok); 
         removeContentView(layout); });
 
 /*    Button noclose= act.findViewById(R.id.closeambi);

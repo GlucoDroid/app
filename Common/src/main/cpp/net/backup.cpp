@@ -80,7 +80,8 @@ static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bo
 				}
 
 			;});
-	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
+//	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
+	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_INET6,.ai_socktype=SOCK_STREAM};
 
 	struct addrinfo *servinfo=nullptr;
 	destruct serv([&servinfo]{ if(servinfo)freeaddrinfo(servinfo);});
@@ -103,7 +104,8 @@ static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bo
 			goto RESTART;
 //			return false;
 			}
-		sock=socket(ips->ai_family,ips->ai_socktype,ips->ai_protocol);
+//		sock=socket(ips->ai_family,ips->ai_socktype,ips->ai_protocol);
+		sock=socket(AF_INET6,ips->ai_socktype,ips->ai_protocol);
 		if(sock==-1) {
 			servererror("socket");
 			LOGGERTAG("%s\n",servererrorbuf);

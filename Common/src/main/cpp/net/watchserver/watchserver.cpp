@@ -92,7 +92,7 @@ static bool startwatchserver(bool secure,int port,int *sockptr) {
 #ifndef HAVE_NOPRCTL
         prctl(PR_SET_NAME, servername, 0, 0, 0);
 #endif
-	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
+	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_INET6,.ai_socktype=SOCK_STREAM};
 	int sock;
 	{
 	struct addrinfo *servinfo=nullptr;
@@ -106,7 +106,7 @@ static bool startwatchserver(bool secure,int port,int *sockptr) {
 		if(!ips) {
 			return false;
 			}
-		sock=socket(ips->ai_family,ips->ai_socktype,ips->ai_protocol);
+		sock=socket(AF_INET6,ips->ai_socktype,ips->ai_protocol);
 		if(sock==-1) {
 			nighterror("socket");
 			LOGGERWEB("%s\n",nighterrorbuf);

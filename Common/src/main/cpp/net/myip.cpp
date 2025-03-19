@@ -33,7 +33,7 @@
 #include "logs.hpp"
 
 namehost myip (){
-  if(int socketfd = socket(AF_INET, SOCK_STREAM, 0);socketfd >= 0) {
+  if(int socketfd = socket(AF_INET6, SOCK_STREAM, 0);socketfd >= 0) {
     destruct dest([socketfd]{close(socketfd);});
     struct    ifreq data[50];
     struct ifconf conf{.ifc_len = sizeof(data),.ifc_ifcu{.ifcu_req = data}};
