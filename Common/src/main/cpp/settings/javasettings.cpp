@@ -971,10 +971,12 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setlibrenum)(JNIEnv *env, jclass c
 		return ;
 		}
 	(night?settings->data()->Nightnums:settings->data()->librenums)[index]={kind,weight};
-    if(night)
+    if(night) {
         backup->sendNightNumbers();
-    else
+        }
+    else {
         backup->sendLibreNumbers();
+        }
 	return ;
 	}
 

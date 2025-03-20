@@ -442,6 +442,7 @@ Settings(const char *settingsname,const char *base,const char *country): Mmap(se
 //    if(data()->initVersion<30) 
    { 
     LOGGER("initVersion=%d\n",data()->initVersion);
+   if(data()->initVersion<32) { 
     if(data()->initVersion<31) { 
         if(data()->initVersion<26) { 
           if(data()->initVersion<22) { 
@@ -556,13 +557,27 @@ Settings(const char *settingsname,const char *base,const char *country): Mmap(se
 #if defined(JUGGLUCO_APP)&& !defined(WEAROS)
          setIOBtype();
 #endif
-    if constexpr(sizeof(char *)!=8) {
+#if !defined(__x86_64__) && defined(__i386__)
         uint32_t  *startptr=&data()->startlibretime;
         int32_t  *endptr=&data()->ComplicationBackgroundColor;
         auto start=reinterpret_cast<uint8_t*>(startptr);
         memmove(start,start-4,reinterpret_cast<uint8_t*>(endptr)-start+4);
+#endif
         }
+      else {
+#if defined(__arm__) && !defined(WEAROS)
+const time_t now=time(nullptr);
+if(data()->startlibretime>now) {
+        uint32_t  *startptr=&data()->startlibretime;
+        auto start=reinterpret_cast<uint8_t*>(startptr);
+        memmove(start,start+4,4);
+        if(data()->startlibretime>now||data()->startlibretime<1741958880)
+            data()->startlibretime=1742218080;
         }
+
+#endif
+    }
+    }
 //      data()->ComplicationArrowColor=0xff00ffff;
 //      data()->ComplicationTextColor=0xffffffff;
  //     data()->ComplicationTextBorderColor=0xff000000;

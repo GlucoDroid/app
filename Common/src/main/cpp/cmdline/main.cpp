@@ -540,7 +540,7 @@ static constexpr const	char defaultname[]="jugglucodata";
 		}
 	extern void makenightswitch();
 	makenightswitch();
-    settings->data()->initVersion=31;
+    settings->data()->initVersion=32;
 	if(!backup)  {
 		fprintf(stderr,"My error: No Backup\n");
 		return 2;
