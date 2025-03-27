@@ -65,6 +65,9 @@ import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_BALANCED;
 import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH;
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.BLUE;
+import static android.graphics.Color.GREEN;
+import static android.graphics.Color.MAGENTA;
+import static android.graphics.Color.CYAN;
 import static android.graphics.Color.RED;
 import static android.graphics.Color.WHITE;
 import static android.graphics.Color.YELLOW;
@@ -128,6 +131,41 @@ void setrow(long[] times, TextView[]  timeviews, TextView info) {
         }
     }
 
+private static void showsensormessage(String text,MainActivity act) {
+    var width=GlucoseCurve.getwidth();
+    int height = GlucoseCurve.getheight();
+    var close=getbutton(act, R.string.closename);
+    final boolean wasused= Natives.getusebluetooth();
+    final var messview=getlabel(act,text);
+    final var usebluetooth=getcheckbox(act, R.string.use_bluetooth,wasused);
+    var layout=new Layout(act,(l,w,h)->{
+         l.setX((width-w)*.5f);
+         l.setY((height-h)*.3f);
+         return new int[] {w,h};
+           },new View[]{messview},new View[]{usebluetooth,close});
+    final int rand=(int)tk.glucodata.GlucoseCurve.metrics.density*15;
+     Layout.getMargins(messview).bottomMargin=rand;
+    layout.setPadding(rand,rand,rand,rand);
+    layout.setBackgroundColor(Applic.backgroundcolor);
+    MainActivity.setonback(() -> {
+       removeContentView(layout);
+       });
+    close.setOnClickListener(v-> {
+        MainActivity.doonback();
+        });
+    usebluetooth.setOnCheckedChangeListener(
+         (buttonView,  isChecked) -> {
+             Log.i(LOG_ID,"usebluetooth "+isChecked);
+             if(isChecked!=wasused) {
+                 act.setbluetoothmain( isChecked);
+                 act.requestRender();
+                 MainActivity.doonback();
+                 start(act);
+             }
+         });
+
+    act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
+    }
 
 public static void showsensorinfo(String text,MainActivity act) {
        var width=GlucoseCurve.getwidth();
@@ -189,7 +227,25 @@ void showinfo(final SuperGattCallback gatt,MainActivity act) {
         }
     else {
 //        address.setBackgroundColor(BLUE); address.setTextColor(WHITE);
-        address.setTextColor(YELLOW);
+        if(gatt.sensorgen == 0x10)  {
+            long dataptr=gatt.dataptr;
+            if(Natives.siNotchinese(dataptr)) {
+                 switch(Natives.getSiSubtype(dataptr)) {
+                    case 0:address.setTextColor(RED);break;
+                    case 1: address.setTextColor(CYAN);break;
+                    case 2: address.setTextColor(MAGENTA);break;
+                    };
+                  }
+             else {
+                   address.setTextColor(YELLOW);;
+                }
+             
+            }
+        else
+            address.setTextColor(YELLOW);
+           //address.setTextColor(GREEN);
+           //address.setTextColor(CYAN);
+           // address.setTextColor(YELLOW);
         }
     constatus.setText(gatt.constatstatus>=0?("Status="+gatt.constatstatus):"");
     setrow(gatt.constatchange,contimes,constatus);
@@ -252,7 +308,7 @@ static void nosensors(MainActivity act) {
             var mess="mBluetoothManager.getAdapter()==null";
             Log.e(LOG_ID,mess);
 
-            showsensorinfo(mess,act);
+            showsensormessage(mess,act);
             return;
         }
     }
@@ -351,14 +407,14 @@ bluediag(MainActivity act,final ArrayList<SuperGattCallback> gatts) {
             var mess="mBluetoothManager.getAdapter()==null";
             Log.e(LOG_ID,mess);
 
-             showsensorinfo(mess,act);
+             showsensormessage(mess,act);
             return;
             }
         }
    else {
            var mess="act.getSystemService(Context.BLUETOOTH_SERVICE)==null";
           Log.e(LOG_ID,mess);
-           showsensorinfo(mess,act);
+           showsensormessage(mess,act);
          return;
 
            }

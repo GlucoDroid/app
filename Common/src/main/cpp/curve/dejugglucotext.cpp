@@ -166,6 +166,8 @@ detext.newamount,
 	.add_s=false,
 .shortinit=deshortinit,
 .labels=delabels,
+#endif
+#ifndef DONTTALK
 .checked="markiert",
 .unchecked="nicht markiert",
 .Undetermined="",

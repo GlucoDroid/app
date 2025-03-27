@@ -86,7 +86,7 @@ public static boolean doGadgetbridge=false;
    long connectTime=0L;
     String SerialNumber;
     public String mActiveDeviceAddress;
-    protected long dataptr = 0L;
+    long dataptr = 0L;
     public BluetoothDevice mActiveBluetoothDevice;
     long foundtime = 0L;
     protected BluetoothGatt mBluetoothGatt;
@@ -262,7 +262,7 @@ static void endtalk() {
                 talker.selspeak(sglucose.value);
                 }
             }
-        else {
+        if(isWearable) {
          tk.glucodata.glucosecomplication.GlucoseValue.updateall();
          }
 
@@ -352,11 +352,12 @@ public void searchforDeviceAddress() {
              return Natives.getsensortext(dataptr);
          return "";
          }
-     public void resetdataptr() {
+     public long resetdataptr() {
          Natives.freedataptr(dataptr);
          close();
          dataptr = Natives.getdataptr(SerialNumber);
          mActiveDeviceAddress = Natives.getDeviceAddress(dataptr,true);
+         return dataptr;
      }
 
 

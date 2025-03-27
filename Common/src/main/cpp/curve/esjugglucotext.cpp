@@ -209,6 +209,8 @@ son necesarios. En tu caso tiene problemas con el siguiente archivo)",
 .add_s=true,
 .shortinit=esshortinit,
 .labels=eslabels,
+#endif
+#ifndef DONTTALK
 .checked="checked",
 .unchecked="not checked",
 .Undetermined=""sv,

@@ -170,6 +170,8 @@ eller Denylist) och ändra sitt eget namn, båda behövs. I ditt fall
 	.add_s=true,
   .shortinit=svshortinit,
   .labels=svlabels,
+#endif
+#ifndef DONTTALK
   .checked="Aktiv",
   .unchecked="Inaktiv",
   .Undetermined="",

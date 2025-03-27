@@ -154,6 +154,8 @@ jugglucotext chiText {
     .add_s = true,
     .shortinit = shortinit,
     .labels = labels,
+#endif
+#ifndef DONTTALK
     .checked = "已选中",
     .unchecked = "未选中",
     .Undetermined = "",

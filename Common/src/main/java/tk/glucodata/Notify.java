@@ -27,6 +27,10 @@ import static android.content.Context.NOTIFICATION_SERVICE;
 import static android.content.Context.VIBRATOR_SERVICE;
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.WHITE;
+import static android.media.AudioAttributes.USAGE_NOTIFICATION;
+import static android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE;
+import static android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT;
+import static android.media.AudioAttributes.USAGE_UNKNOWN;
 import static java.lang.String.format;
 import static tk.glucodata.Applic.DontTalk;
 import static tk.glucodata.Applic.TargetSDK;
@@ -122,7 +126,7 @@ Ringtone setring(String uristr, int res) {
     }
 static final private int[] defaults ={ R.raw.siren, R.raw.classic, R.raw.ghost, R.raw.nudge,R.raw.elves};
 
-static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION) .build():null;
+static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage(isWearable?USAGE_UNKNOWN:USAGE_NOTIFICATION) .build():null;
 public static Ringtone getring(int kind) {
     return    mkrings(Natives.readring(kind),kind);
     }

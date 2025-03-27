@@ -96,9 +96,9 @@ const std::span<const std::string_view> labels;
 charptr_t  checked,unchecked;
 std::string_view Undetermined, FallingQuickly,Falling, Stable, Rising, RisingQuickly;
 #endif
-#ifndef WEAROS
-std::string_view sibionics;
-#endif
+//#ifndef WEAROS
+//std::string_view sibionics;
+//#endif
 std::string_view receivingpastvalues;
 std::string_view receivingdata;
 std::string_view unsupportedSibionics;
@@ -106,8 +106,13 @@ std::string_view waitingforconnection;
 std::string_view deleted;
 #ifndef DONTTALK
 std::string_view getTrendName(int type) const {
-    const std::string_view *trends=&Undetermined; 
-    return trends[type];
+   if(type>=0&&type<6) {
+        const std::string_view *trends=&Undetermined; 
+        return trends[type];
+        }
+    else {
+        return "ERROR";
+        }
    }
 #endif
 };

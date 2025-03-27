@@ -23,7 +23,6 @@
 package tk.glucodata
 
 import androidx.activity.result.ActivityResultCaller
-import androidx.annotation.Keep
 import androidx.health.connect.client.PermissionController
 
 class LaunchShit(val activity: ActivityResultCaller) {

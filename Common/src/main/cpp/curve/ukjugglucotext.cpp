@@ -156,6 +156,8 @@ jugglucotext uktext {
 	.add_s=true,
 .shortinit=ukshortinit,
 .labels=uklabels,
+#endif
+#ifndef DONTTALK
 .checked="перевірено",
 .unchecked="не перевірено",
 .Undetermined="",

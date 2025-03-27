@@ -787,33 +787,40 @@ static public boolean resetDeviceOrFree(long ptr,String name) {
         Natives.freedataptr(ptr);
     return false;
     }
-private boolean resetDevicer(String str) {
-    if(str==null)
+private boolean resetDevicer(String str,long[] ptrptr) {
+    if(str==null) {
+        ptrptr[0]=0L;
         return false;
-        
+        }
     if(mBluetoothManager!=null)   
         stopScan(false);
     for(int i=0;i<gattcallbacks.size();i++) {
         if(str.equals(gattcallbacks.get(i).SerialNumber)) {
             Log.d(LOG_ID,"reset free "+str);
             SuperGattCallback  cb= gattcallbacks.get(i);
-            cb.resetdataptr();
+            ptrptr[0]=cb.resetdataptr();
             return checkandconnect(cb,0);
             }
         }
 
     Log.d(LOG_ID,"reset add "+str);
-    long dataptr=Natives.getdataptr(str);
+    final long dataptr=Natives.getdataptr(str);
+    ptrptr[0]=dataptr;
     return addDevice(str,dataptr);
     }
 
 static public boolean resetDevice(String str) {
+    long[] ptrptr={0L};
+    return resetDevicePtr(str,ptrptr);
+    }
+static public boolean resetDevicePtr(String str,long[] ptrptr) {
     Log.v(LOG_ID,"resetDevice("+str+")");
     if(blueone!=null) {
-        return blueone.resetDevicer(str);
+        return blueone.resetDevicer(str,ptrptr);
         }
     return false;
     }
+
 
 static public   void goscan() { 
     if(blueone!=null) {

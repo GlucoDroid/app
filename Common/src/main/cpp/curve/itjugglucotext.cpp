@@ -178,6 +178,8 @@ seguenti file)",
 	.add_s=false,
 .shortinit=itshortinit,
 .labels=itlabels,
+#endif
+#ifndef DONTTALK
 .checked="checked",
 .unchecked="not checked",
 .Undetermined="",

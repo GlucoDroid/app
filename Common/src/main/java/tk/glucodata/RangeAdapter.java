@@ -21,8 +21,15 @@
 
 package tk.glucodata;
 
+import static android.graphics.Color.BLACK;
+import static android.graphics.Color.WHITE;
+import static android.graphics.Color.BLUE;
+import static android.graphics.Color.RED;
+import static tk.glucodata.Applic.isWearable;
+
 import android.content.Context;
 import android.database.DataSetObserver;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -50,11 +57,18 @@ public void    setarray(List<T> arin)  {
     public View getDropDownView(int position, View convertView, ViewGroup parent) {
         if (convertView == null) {
             convertView = mInflater.inflate(android.R.layout.simple_spinner_dropdown_item, parent, false);
+           if(isWearable) convertView.setBackgroundColor(BLACK);
+//                convertView.setBackgroundColor(BLUE);
         }
 
     if(ar!=null) {
         T str=ar.get(position);
-        ((TextView)(convertView.findViewById(android.R.id.text1))).setText(dist.apply(str));
+        var text=(TextView)(convertView.findViewById(android.R.id.text1));
+        text.setText(dist.apply(str));
+        text.setTextColor(WHITE);
+        if(isWearable) {
+            text.setGravity(Gravity.CENTER);
+            }
         }
         return convertView;
 
@@ -92,10 +106,12 @@ public void    setarray(List<T> arin)  {
     public View getView(int position, View convertView, ViewGroup parent) {
         if(convertView == null) {
             convertView = mInflater.inflate(android.R.layout.simple_spinner_item, parent, false);
+//            parent.setBackgroundColor(RED);
             }
         if(ar!=null) {
             T str=ar.get(position);
             TextView thetext=convertView.findViewById(android.R.id.text1);
+             thetext.setTextColor(WHITE);
             thetext.setText(dist.apply(str));
             }
         return convertView;

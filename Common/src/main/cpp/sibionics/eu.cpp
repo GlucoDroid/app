@@ -1,7 +1,7 @@
 
 #ifdef SIBIONICS
-#ifdef NOTCHINESE
 #include "config.h"
+#ifdef NOTCHINESE
 #include <string_view>
 #include <jni.h>
 #include <memory>
@@ -81,9 +81,31 @@ extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(getSItimecmd)(JNIEnv *env, jc
    return uit;
    }
 
+ static void  keysRegistered(int hema) {
+    static constexpr const  struct {
+          std::string_view appid;
+          std::string_view key;
+          } appgegs[] 
+   {{"com.sisensing.sijoy"sv, "56CE249349040C94F8B4B2375A8752D5CBE7A17814B502D9132489C0BFDFC99F0CAC670E8CBB085AF1C780B3D282E3"sv},  //EU
+   {"com.sisensing.rusibionics"sv,"60B05FEB7C0A148DEED2B3375A8754D9D0E6A5751BCE02D9132489C0BFDFC99F0CAC670E8DA7115CEACF87B7DE8FD4612E1B7638C2"sv}, // Hematonix
+   {"com.sisensing.sisensingcgm"sv,"4E8E1CAF43051F97EEC9C1475A8752D5C387D17A65B002D9132489C0BFDFC99F0CAC670E8CBB1150E6D581B7D08FC03404052C57AD58"sv}}; //Chinese
+   const auto &gegs=appgegs[hema]; 
+
+   data_t *sijkey=data_t::newex(gegs.key);
+   data_t *name=data_t::newex(gegs.appid);
+   hexstr key((uint8_t*)sijkey->data(),sijkey->size());
+   LOGGER("v120RegisterKey %s %d %s size=%d \n",key.str(),sijkey->size(),name->data(),name->size());
+   v120RegisterKey(subenv,nullptr,(jbyteArray)sijkey, sijkey->size(), (jbyteArray)name);
+   LOGAR(" na v120RegisterKey");
+   data_t::deleteex(name);
+   data_t::deleteex(sijkey);
+   }
+
+
 std::array<jbyte,6>  deviceArray(const char address[]);
 
-auto makeauthbytes(const char * address) {
+auto makeauthbytes(const char * address,int hema) {
+   keysRegistered(hema);
    auto rev=deviceArray(address);
    Data_t jrev(rev);
    Data_t uitar(50); 
@@ -91,14 +113,45 @@ auto makeauthbytes(const char * address) {
    uitar.used=uitlen;
    return uitar;
    }
-extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(siAuthBytes)(JNIEnv *env, jclass cl,jlong dataptr) {
-   if(!dataptr)
-       return nullptr;
+extern "C" JNIEXPORT jint JNICALL   fromjava(getSiSubtype)(JNIEnv *env, jclass cl,jlong dataptr) {
+   if(!dataptr) {
+       LOGAR("getSiSubtype dataptr==0");
+       return -1;
+       }
    const SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
-   if(!usedhist)
+   if(!usedhist) {
+       LOGAR("getSiSubtype usedhist==null");
+       return -1;
+       }
+   return  usedhist->siSubtype();
+   }
+extern "C" JNIEXPORT void JNICALL   fromjava(setSiSubtype)(JNIEnv *env, jclass cl,jlong dataptr,jint type) {
+   if(!dataptr) {
+       LOGAR("setSiSubtype dataptr==0");
+       return;
+       }
+   SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
+   if(!usedhist) {
+       LOGAR("setSiSubtype usedhist==null");
+       return;
+       }
+   usedhist->getinfo()->siType=type;
+   sendsiScan(usedhist);
+   backup->wakebackup(Backup::wakeall);
+   }
+
+extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(siAuthBytes)(JNIEnv *env, jclass cl,jlong dataptr) {
+   if(!dataptr) {
+       LOGAR("siAuthBytes dataptr==null");
        return nullptr;
+       }
+   const SensorGlucoseData *usedhist=reinterpret_cast<streamdata *>(dataptr)->hist ; 
+   if(!usedhist) {
+       LOGAR("siAuthBytes usedhist==null");
+       return nullptr;
+       }
    const auto address=usedhist->deviceaddress();
-   const auto data=makeauthbytes(address);
+   const auto data=makeauthbytes(address,usedhist->siSubtype());
    const auto *dat=data.data->data();
    const int len=data.used;
    logbytes("siAuthBytes",(const uint8_t *)dat,len);
@@ -152,19 +205,22 @@ extern getjson_t getjson2;
 extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist) ;
 
 jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *data,int sensorindex)  {
-   logbytes("processData2 input: ",(const uint8_t *)data->data(),data->size());
+   const int datasize=data->size();
+   logbytes("processData2 input: ",(const uint8_t *)data->data(),datasize);
    Gegs<jint> jiar(2);
    Data_t jsonuit(7168);
    Data_t bar2(2);
 
-   int i6=data->size();
    memset(jiar.data->data(),'\0',sizeof(jint)*jiar.data->size());
    memset(bar2.data->data(),'\0',bar2.data->size());
    recordsprint=0;
-  int res=V120SpiltData(subenv,nullptr,0,(jbyteArray)data,(jintArray)jiar,(jbyteArray)jsonuit,true,(jbyteArray)bar2,i6);
+  int nritems=V120SpiltData(subenv,nullptr,0,(jbyteArray)data,(jintArray)jiar,(jbyteArray)jsonuit,true,(jbyteArray)bar2,datasize);
+  if(nritems<=0) {
+     nritems=V120SpiltData(subenv,nullptr,0,(jbyteArray)data,(jintArray)jiar,(jbyteArray)jsonuit,false,(jbyteArray)bar2,datasize);
+     }
    int recorded=recordsprint;
   recordsprint=-1;
-   LOGGER("res=%d\n",res);
+   LOGGER("nritems=%d\n",nritems);
    LOGGER("%s\n",jsonuit.data->data());
    logbytes("bar2",(const uint8_t *)bar2.data->data(),bar2.data->size());
    int *idat=jiar.data->data();
@@ -181,7 +237,7 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
   switch(idat[0]) {
     case 49159: {
       sensor *sensor=sensors->getsensor(sensorindex);
-      for(int i=0;i<res;i++) {
+      for(int i=0;i<nritems;i++) {
         const int maxid=sens->getSiIndex();
         int index=(int) basear[0];
         time_t eventTime=basear[10];
@@ -213,20 +269,21 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
             auto trend=(int)basear[6];
 
     #ifdef USE_PROCESS
-            auto newvalue= si.process2(index,value,temp);
-            if(newvalue>1.8)
+            auto newvalue= process2(index,value,temp);
+            if((index%5==0)&&newvalue>1.8)
                 sens->getinfo()->pollinterval=newvalue-value;
            else {
-             if(sens->getinfo()->pollinterval<40) newvalue=value+sens->getinfo()->pollinterval;
+             if(sens->getinfo()->pollinterval<40) 
+                    newvalue=value+sens->getinfo()->pollinterval;
              }
     #else
-        #define 	newvalue value
+        #define     newvalue value
     #endif
              const int mgdL=std::round(newvalue*convfactordL);
              const int trend2=algcontext->ig_trend;
-            const float change=sitrend2RateOfChange(trend);
-            const int abbottrend=sitrend2abbott(trend);
-            LOGGER("index=%d temp=%f value=%f newvalue=%f trend=%d (%d) %d %1.f itime=%" PRIu64 " %s" ,index,temp,value,newvalue,trend,trend2,abbottrend,change,eventTime,ctime(&eventTime));
+            const float change=sitrend2RateOfChange(trend2);
+            const int abbottrend=sitrend2abbott(trend2);
+            LOGGER("index=%d temp=%f value=%f newvalue=%f trend=(%d?) %d %d %1.f itime=%" PRIu64 " %s" ,index,temp,value,newvalue,trend,trend2,abbottrend,change,eventTime,ctime(&eventTime));
 
           if(newvalue>1.8&&newvalue<30) {
                sens->savestream(eventTime,index,mgdL,abbottrend,change);
@@ -269,30 +326,30 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
                     }
                  basear+=11;
                 }//for loop
-     	    return 1LL;
-	    };break;
-	case 49165: {
-		int type=(int) basear[0];
-		switch(type) {
-         case 49161: return 9LL;
-         case 49156: return 7LL;
-		   case 49153: return 4LL;
-		   case 49154:  {
-		   	if(basear[1]!=1) {
-			  int error=(int)basear[2];
-			  if(error!=9&&error!=10) return 4LL; 
-			  }
-			return 6LL;
-			};
-		    case 49160: return 5LL;
-		   };
-		
-		};break;
-//	  case 49161:
-	  case 49227: return 6LL;
-	   }
+             return 1LL;
+        };break;
+    case 49165: {
+        int type=(int) basear[0];
+        switch(type) {
+           case 49161: return 9LL;
+           case 49156: return 7LL;
+           case 49153: return 4LL;
+           case 49154:  {
+               if(basear[1]!=1) {
+                  int error=(int)basear[2];
+                  if(error!=9&&error!=10) return 4LL; 
+              }
+            return 6LL;
+            };
+            case 49160: return 5LL;
+           };
+        
+        };break;
+//      case 49161:
+      case 49227: return 6LL;
+       }
       return 8LL; ///?
-	}
+    }
 
 
 #else

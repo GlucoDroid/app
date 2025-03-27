@@ -173,6 +173,8 @@ requis. Dans votre cas le fichier suivant pose problème )",
 	.add_s=true,
 .shortinit=shortinit,
 .labels=labels,
+#endif
+#ifndef DONTTALK
 .checked="checked",
 .unchecked="not checked",
 .Undetermined="",

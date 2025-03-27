@@ -2520,6 +2520,42 @@ insuline</i>” zijn.</p>
 </p>
 ]]>
 </string>
+<string name="IOBhelp" >
+<![CDATA[
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/IOBhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/IOBhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/IOBhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Insulin on board (IOB)</h1>
+<p>IOB is een maat voor hoeveel insuline er nog over is van eerdere
+insulinedoses. Vóór Juggluco 9.2.0 werd de
+bloedinsulineconcentratiecurve van insuline aspart gebruikt om IOB te
+schatten. Nu kun je het type insuline specificeren en Juggluco
+gebruikt een bloedinsulineconcentratiecurve die specifiek is voor dat
+insulinetype. Specificeer <i>Niet</i> als het label niet staat voor
+een snelwerkende insuline, specificeer anders het type insuline. De
+keuzes zijn:</p>
+<ul>
+	<li><p style="margin-bottom: 0in">Menselijke insuline/Humulin
+	R/Novolin R 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Insuline Aspart/NovoRapid/NovoLog 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Insuline Lispro/Humalog 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Insuline Glulisine/Apidra 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Fiasp 
+	</p></li>
+	<li><p style="margin-bottom: 0in">URL\'s 
+	</p></li>
+	<li><p>Afrezza 
+	</p></li>
+</ul>
+<p>Hoe de IOB-formules worden bepaald, wordt beschreven op de volgende webpagina: <a href="https://www.juggluco.nl/Juggluco/IOB/overview.html">https://www.juggluco.nl/Juggluco/IOB/overview.html</a></p>
+<p>Als u een snelwerkend insulinetype kent dat hier niet bij staat,
+kunt u mij een e-mail sturen.</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+]]>
+</string>
 <string name="healthpermission" >
 <![CDATA[
 <p><a href="https://www.juggluco.nl/Jugglucohelp/de/healthpermission.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/healthpermission.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/healthpermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/healthpermission.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/healthpermission.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/healthpermission.html?lang=en">en</a>&emsp;&emsp;</p><h1>Toestemming om <i>bloed suikergehalte</i> te schrijven</h1>
@@ -2657,7 +2693,7 @@ ongeluk OK aanraakte bij het scannen.
 <p>Nogal eens wordt er om portret mode gevraagd, maar portret mode is
 voor het weergeven van de grafiek volkomen ongeschikt, en heb ik
 daarom uitgezet.</p>
-<h2 class="western">Insulin onboard (IOB)</h2>
+<h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/nl/IOBhelp.html">Insulin onboard (IOB)</a></h2>
 <p>IOB is een maat voor hoeveel insuline van eerdere insulinedoses
 nog aanwezig is. Hiervoor moet je insulinedoses invoeren onder een
 label in de categorie “<i>Snelwerkende insuline</i>”. Onder

@@ -18,11 +18,6 @@
 </queries>
     <queries>
         <intent>
-            <action android:name="android.intent.action.TTS_SERVICE" />
-        </intent>
-    </queries>
-    <queries>
-        <intent>
             <action android:name="com.librelink.app.ThirdPartyIntegration.GLUCOSE_READING" />
         </intent>
     </queries>

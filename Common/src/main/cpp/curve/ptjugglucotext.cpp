@@ -179,6 +179,8 @@ são necessárias. No seu caso, tem problemas com o seguinte ficheiro)",
 .shortinit=ptshortinit,
 .labels=ptlabels,
 
+#endif
+#ifndef DONTTALK
 .checked="checked",
 .unchecked="not checked",
 .Undetermined="",

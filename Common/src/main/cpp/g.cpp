@@ -793,10 +793,11 @@ jlong glucoselong(uint32_t glval,float drate,const SensorGlucoseData *hist) {
         LOGGER("glucoselong=%" PRId64 "\n",res);
         return res;
         }
-extern const SensorGlucoseData * getlaststream(const uint32_t);
+//extern const SensorGlucoseData * getlaststream(const uint32_t);
+extern std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) ;
 extern "C" JNIEXPORT jlongArray JNICALL   fromjava(getlastGlucose)(JNIEnv *env, jclass cl) {
     auto nu=time(nullptr);
-    if(const auto *hist=getlaststream(nu)) {
+    if(const auto [hist,_]=getlaststream(nu);hist) {
         const ScanData *poll=hist->lastpoll();
         if(poll&&poll->valid()) {
             jlong uit[2];

@@ -794,20 +794,24 @@ extern "C" JNIEXPORT void JNICALL fromjava(setspeakalarms)(JNIEnv *env, jclass t
 extern "C" JNIEXPORT jboolean JNICALL fromjava(speakalarms)(JNIEnv *env, jclass thiz) {
    return settings->data()->speakalarms;
    }
-extern   const SensorGlucoseData *getlaststream(const uint32_t nu);
+//extern   const SensorGlucoseData *getlaststream(const uint32_t nu);
+extern std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) ;
 extern "C" JNIEXPORT jlong JNICALL fromjava(saylastglucose)(JNIEnv *env, jclass thiz) {
    if(speakout) {
+      LOGAR("saylastglucose start");
       const uint32_t nu=time(nullptr);        
-      const auto *hist=getlaststream(nu);
+      const auto [hist,_]=getlaststream(nu);
       if(!hist)  {
          LOGAR("getlaststream(nu)=null");
          return 0;
          }
       const ScanData *poll=hist->lastpoll();
       if(!poll||!poll->valid()) {
+         LOGAR("no stream");
          return 0L;
          }
       if(poll->gettime()<(nu-maxbluetoothage)) {
+         LOGGER("old value %d\n",poll->gettime());
          return poll->gettime()*1000L;
          }
       
@@ -824,7 +828,7 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(saylastglucose)(JNIEnv *env, jclass 
       char *ptr=value+trend.size();
       *ptr++='\n';
       const float glucosevalue= gconvert(nonconvert*10);
-      snprintf(ptr,maxvalue,gformat,glucosevalue);
+      snprintf(ptr,maxvalue+value-ptr,gformat,glucosevalue);
       LOGGER("saylastglucose %s\n",value);
       speak(value);
       }

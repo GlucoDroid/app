@@ -59,7 +59,7 @@ uint32_t makestarttime(int index,uint32_t eventTime) {
    time_t tim=starttime;
    LOGGER("makestarttime(%d,%d)=%d %s",index,eventTime,starttime,ctime(&tim));
 #endif
-	return starttime;
+    return starttime;
    }
 #ifdef MAIN
 #define savejson(sens,name,  index,alg,getjson )x
@@ -71,8 +71,8 @@ extern getjson_t getjson3;
 extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist) ;
 #ifndef NOLOG
 void logbytes(std::string_view text,const uint8_t *value,int vallen) {
-		int totlen=text.size()+2+vallen*3+2;
-		char mess[totlen];
+        int totlen=text.size()+2+vallen*3+2;
+        char mess[totlen];
       memcpy(mess,text.data(),text.size());
       char *ptr=mess+text.size();
       *ptr++=':';
@@ -93,8 +93,8 @@ jlong SiContext::processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data
    if(data[2] != 9||data[0] != -86 || data[1] != 85) {
       static constexpr const int8_t  doauth[]={(int8_t)0x23,(int8_t)0xF7,(int8_t)0x6F,(int8_t)0xD9,(int8_t)0xF4};
       if(totlen==sizeof(doauth)&&!memcmp(data,doauth,sizeof(doauth))&&!sens->pollcount())  {
-      	setNotchinese(sens);
-      	return 4LL;
+          setNotchinese(sens);
+          return 4LL;
          }
       LOGGER("wrong start %d %d %d\n",data[0],data[1],data[2]);
       return 2LL;
@@ -149,15 +149,15 @@ jlong SiContext::processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data
                     sensors->setindices();
                      backup->resendResetDevices(&updateone::sendstream);
                   }
-		   }
-	   double newvalue=0.0;
+           }
+       double newvalue=0.0;
             if((newvalue=process3(index,value,temp))>1.8) {
-	    	sens->getinfo()->pollinterval=newvalue-value;
-	    }
-	   else {
-	   	if(sens->getinfo()->pollinterval<40)
-		   newvalue=value+sens->getinfo()->pollinterval;
-	   	}
+            sens->getinfo()->pollinterval=newvalue-value;
+        }
+       else {
+           if(sens->getinfo()->pollinterval<40)
+           newvalue=value+sens->getinfo()->pollinterval;
+           }
       #ifndef NOLOG
                const long electric= std::byteswap(one[2]);
                const int status = std::byteswap(one[4]);
@@ -168,11 +168,11 @@ jlong SiContext::processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data
                const int abbotttrend=sitrend2abbott(trend);
            LOGGER("SIprocess: index=%d temp=%f electric=%ld value=%f->%f status=%d numOfUnreceived=%d addtime=%d trend=%d rate=%.2f abbotttrend=%d\n", index, temp, electric, value, mgdL/convfactordL,status, numOfUnreceived, addtime,trend,change,abbotttrend);
                  
-//         	if(infuture) sens->setSiIndex(index+1);
-	   if(newvalue>1.8&&newvalue<30) {
+//             if(infuture) sens->setSiIndex(index+1);
+       if(newvalue>1.8&&newvalue<30) {
            sens->savestream(eventTime,index,mgdL,abbotttrend,change);
            sens->retried=0;
-	    saveSi3(sens,index,eventTime,!infuture,value,temp,!numOfUnreceived);
+           saveSi3(sens,index,eventTime,!infuture,value,temp,!numOfUnreceived);
            if(!numOfUnreceived)  {
                  sens->sensorerror=false;
                  if(sensor->finished) {
@@ -204,14 +204,14 @@ jlong SiContext::processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data
                }
            else {
             if(index==maxid)
-	            sens->setSiIndex(maxid+1);
+                sens->setSiIndex(maxid+1);
             LOGGER("SIprocess failed: index=%d temp=%f value=%f numOfUnreceived=%d\n", index, temp, value,numOfUnreceived);
             if(!numOfUnreceived&&!(index%5))  {
                sens->sensorerror=true;
                return 0LL;
                }
             }
-      	}
+          }
      return 1LL;
     }
 /*

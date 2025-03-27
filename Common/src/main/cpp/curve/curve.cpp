@@ -1984,12 +1984,16 @@ static void showlastsstream(const time_t nu,const float getx,std::vector<int> &u
             }
         else {
             LOGSTRING("poll==null\n");
+
+#ifndef NOTCHINESE
          if(hist->notchinese()) {
              const auto eusibinics=usedtext->unsupportedSibionics;
              nvgText(genVG,getx ,gety, eusibinics.data(), eusibinics.data()+eusibinics.size());
              otherproblem=true;
             }
-       else {
+       else 
+#endif
+       {
            time_t starttime=hist->getstarttime();
            auto wait= nu-starttime;
            const int warmup=hist->getWarmupMIN(); 
@@ -4250,7 +4254,7 @@ static bool speakmenutap(float x,float y) {
     float dist=(menupos.bottom-menupos.top)/nrmenu;
     int item=(y-menupos.top)/dist;
     if(item>=0&&item<nrmenu) {
-        LOGGER("menuitem %d\n",item);
+        LOGGER("menuitem selmenu=%d item=%d\n",selmenu,item);
         auto options=optionsmenu[selmenu];
         auto label=usedtext->menustr[selmenu][item];
         if(!options||!options[item]) 

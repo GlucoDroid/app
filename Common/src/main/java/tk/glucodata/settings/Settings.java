@@ -896,11 +896,13 @@ private    void mksettings(MainActivity context,boolean[] issaved) {
     View[][] views;
     final String advhelp=isWearable?null:Natives.advanced();
     if(isWearable) {
-/*    if(!DontTalk) {
-            Button talk=getbutton(context,R.string.talk);
-            talk.setOnClickListener(v ->{
-            tk.glucodata.Talker.config(context);}); 
-            } */
+        Button talk;
+        if(!tk.glucodata.Applic.DontTalk) {
+                talk=getbutton(context,R.string.talk);
+                talk.setOnClickListener(v ->{
+                tk.glucodata.Talker.config(context);});
+                }
+        else talk=null;
         Button complications;
         if(BuildConfig.minSDK>=26) {
             complications = getbutton(context, R.string.complications);
@@ -930,11 +932,11 @@ private    void mksettings(MainActivity context,boolean[] issaved) {
  //     var space2=getlabel(context,"");
         View[] camornum=new View[] {alarmbut,numalarm};
         if(BuildConfig.minSDK>=26) {
-            views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null,new View[]{floatconfig, floatglucose},new View[]{complications}, new View[]{exchanges },   camornum, new View[]{close}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+            views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null,new View[]{floatconfig, floatglucose},new View[]{complications},new View[]{talk}, new View[]{exchanges },   camornum, new View[]{close}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
             ;
         }
         else{
-            views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{floatconfig, floatglucose}, new View[]{exchanges },    camornum,new View[]{close},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+            views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{floatconfig, floatglucose},new View[]{talk},  new View[]{exchanges },    camornum,new View[]{close},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
             ;
         }
         }
@@ -1178,6 +1180,9 @@ static private void exchanges(MainActivity context,View parent) {
         var help = getbutton(context, R.string.helpname);
       help.setOnClickListener(v->{help(R.string.exchangehelp,context); });
       var exportview=getbutton(context,R.string.export);
+      getMargins(help).leftMargin= (int)(tk.glucodata.GlucoseCurve.metrics.density*10.0);
+      getMargins(webserver).leftMargin= (int)(tk.glucodata.GlucoseCurve.metrics.density*2.0);
+
 
         lay = new Layout(context, (l, w, h) -> {
             int[] ret = {w, h};
@@ -1186,7 +1191,7 @@ static private void exchanges(MainActivity context,View parent) {
                 new View[]{help, ok});
 
     final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0);
-        lay.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop*3/4,MainActivity.systembarRight+pad,MainActivity.systembarBottom*7/8);
+        lay.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop*3/4,MainActivity.systembarRight+pad,MainActivity.systembarBottom*7/8+(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0));
         exportview.setOnClickListener(v ->{
             var c=Applic.app.curve;
             if(c!=null) {

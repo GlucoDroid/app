@@ -379,4 +379,8 @@
     <string name="humaninsulin">Human Insulin/Humulin R/Novolin R</string>
     <string name="afrezza">Afrezza</string>
     <string name="not">Not</string>
+    <string name="eusibionics">EU Sibionics - com.sisensing.sijoy</string>
+    <string name="chsibionics">Chinese Sibionics - com.sisensing.sisensingcgm</string>
+    <string name="hematonix">Hematonix - com.sisensing.rusibionics</string>
+    
 </resources>

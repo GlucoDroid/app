@@ -187,6 +187,8 @@ are needed. In your case it has problems with the following file)",
 	.add_s=true,
 .shortinit=shortinit,
 .labels=labels,
+#endif
+#ifndef DONTTALK
 .checked="checked",
 .unchecked="not checked",
 .Undetermined=""sv,

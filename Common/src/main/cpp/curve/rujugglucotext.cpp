@@ -202,6 +202,8 @@ rutext.amount},
 	.add_s=true,
 .shortinit=rushortinit,
 .labels=rulabels,
+#endif
+#ifndef DONTTALK
 .checked="Проверен",
 .unchecked="Не проверен",
 .Undetermined="Не определен",

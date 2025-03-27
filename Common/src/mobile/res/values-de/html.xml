@@ -2654,6 +2654,43 @@ sind.</p>
 </p>
 ]]>
 </string>
+<string name="IOBhelp" >
+<![CDATA[
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/IOBhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/IOBhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/IOBhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Insulin on Board (IOB)</h1>
+<p>Der IOB gibt an, wie viel Insulin von vorherigen Insulingaben
+übrig bleibt. Vor Juggluco 9.2.0 wurde die
+Blutinsulinkonzentrationskurve von Insulin Aspart zur Schätzung des
+IOB verwendet. Jetzt können Sie die Insulinart angeben, und Juggluco
+verwendet eine für diese Insulinart spezifische
+Blutinsulinkonzentrationskurve. Geben Sie „<i>Nicht“</i> an ,
+wenn die Bezeichnung nicht für schnell wirkendes Insulin steht,
+andernfalls geben Sie die Insulinart an. Zur Auswahl stehen:</p>
+<ul>
+	<li><p style="margin-bottom: 0in">Human Insulin/Humulin R/Novolin R 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Insulin Aspart/NovoRapid/NovoLog 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Insulin Lispro/Humalog 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Insulin Glulisin/Apidra 
+	</p></li>
+	<li><p style="margin-bottom: 0in">Fiasp 
+	</p></li>
+	<li><p style="margin-bottom: 0in">URLs 
+	</p></li>
+	<li><p>Afrezza 
+	</p></li>
+</ul>
+<p>Wie die IOB-Formeln berechnet werden, wird auf der folgenden Website beschrieben: <a href="https://www.juggluco.nl/Juggluco/IOB/overview.html">https://www.juggluco.nl/Juggluco/IOB/overview.html</a></p>
+
+<p>Wenn Sie einen schnell wirkenden Insulintyp kennen, der nicht
+erwähnt ist, können Sie mir eine E-Mail senden.</p>
+<p><br/>
+<br/>
+
+</p>
+]]>
+</string>
 <string name="healthpermission" >
 <![CDATA[
 <p><a href="https://www.juggluco.nl/Jugglucohelp/de/healthpermission.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/healthpermission.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/healthpermission.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/healthpermission.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/healthpermission.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/healthpermission.html?lang=en">en</a>&emsp;&emsp;</p><h1>Schreiben von <i>Blutzucker</i> zulassen</h1>
@@ -2821,10 +2858,7 @@ und wieder beim Scannen eines Sensors versehentlich OK berührt habe.</p>
 <p align="left" style="margin-bottom: 0in">Manche Leute fragen nach
 dem Hochformat, aber ich habe das ausgeschaltet, weil es für die
 Anzeige der Glukosekurve völlig ungeeignet ist.</p>
-<p align="left" style="margin-bottom: 0in"><br/>
-
-</p>
-<h2 class="western">Insulin onboard (IOB)</h2>
+<h2 class="western"><a href="https://www.juggluco.nl/Jugglucohelp/de/IOBhelp.html">Insulin onboard (IOB)</a></h2>
 <p><span lang="de-DE">IOB ist ein Maß dafür, wie viel Insulin von
 früheren Insulindosen noch vorhanden ist. Hierzu müssen Sie
 Insulindosen unter einem Etikett in der Kategorie „ </span><span lang="de-DE"><i>Schnell

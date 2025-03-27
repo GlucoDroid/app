@@ -249,7 +249,8 @@ union {
    struct { //Sibionics
        char siBlueToothNum[9];
        bool notchinese:1;
-       char siBetween:7;
+       uint8_t siType:2;  //0: EU, 1:HemaToxic
+       char siBetween:5;
        uint8_t siDeviceNamelen;
        char8_t siToken;
        char8_t siDeviceName[16];
@@ -1962,10 +1963,16 @@ int getbroadcastfrom() const {
 
 
 void setNotchinese() {
-   if(isSibionics()) getinfo()->notchinese=true;
+   if(isSibionics()) {
+        getinfo()->notchinese=true;
+        LOGAR("setNotchinese()");
+        }
     }
 bool notchinese() const {
    return isSibionics()&&getinfo()->notchinese;
+   }
+uint8_t siSubtype() const {
+   return getinfo()->siType;
    }
 int previousstream=-1;
 

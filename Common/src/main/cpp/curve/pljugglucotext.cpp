@@ -203,6 +203,8 @@ hourminstr,
 	.add_s=true,
 .shortinit=plshortinit,
 .labels=pllabels,
+#endif
+#ifndef DONTTALK
 .checked="zaznaczono",
 .unchecked="nie zaznaczono",
 .Undetermined="",

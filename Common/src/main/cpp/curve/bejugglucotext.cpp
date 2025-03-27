@@ -155,6 +155,8 @@ jugglucotext betext {
 	.add_s=true,
 .shortinit=beshortinit,
 .labels=belabels,
+#endif
+#ifndef DONTTALK
 .checked="праверана",
 .unchecked="не праверана",
 .Undetermined="",

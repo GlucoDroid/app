@@ -80,7 +80,7 @@ static void init() {
     final var metrics = Applic.app.getResources().getDisplayMetrics();
     density=metrics.density;
 //   movethreshold=density*2.0f;
-   movethreshold=density;
+   movethreshold=density*2.0f;
     Log.i(LOG_ID,"density="+density);
     if(pos!=0) {
         Floating.xview=pos&0xFFFF;

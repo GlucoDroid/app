@@ -181,7 +181,8 @@ int SensorGlucoseData::updatescan(crypt_t *pass,int sock,int ind,int sensorindex
 			std::vector<subdata> vect;
 			vect.reserve(4);
 			vect.push_back({meminfo.data(),0,offsetof(Info,pin)});
-			vect.push_back({meminfo.data()+offsetof(Info,siBlueToothNum),offsetof(Info,siBlueToothNum),sizeof(Info::siBlueToothNum)});
+                        constexpr const auto siBlueToothNumlen=offsetof(Info,siDeviceNamelen)-offsetof(Info,siBlueToothNum);
+			vect.push_back({meminfo.data()+offsetof(Info,siBlueToothNum),offsetof(Info,siBlueToothNum),siBlueToothNumlen});
 			vect.push_back({meminfo.data()+offsetof(Info,lockcount),offsetof(Info,lockcount),sizeof(Info::lockcount)});
 			vect.push_back({meminfo.data()+offsetof(Info,siIdlen),offsetof(Info,siIdlen),sizeof(Info::siIdlen)+ sizeof(Info::siId) });
 			 if(!senddata(pass,sock,vect, infopath)) {

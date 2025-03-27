@@ -596,12 +596,16 @@ static boolean tocalendarapp=false;
         var am = (AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
         List list;
         if(am.isEnabled()&&am.isTouchExplorationEnabled()&&(list=am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN))!=null&&!list.isEmpty()) {
-                talkbackon(this);
+                if(!DontTalk) {
+                    talkbackon(this);
+                    }
                 if(!Menus.on)
                     Menus.show(this);
             }
         else {
+            if(!DontTalk) {
                 talkbackoff();
+                }
             }
         }
 
@@ -1169,7 +1173,7 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
          return;
       case REQUEST_BARCODE: 
          if(SiBionics==1 &&!isWearable&&useZXing) {
-           if(ZXing.zXingResult(resultCode, data))
+           if(ZXing.zXingResult(resultCode, data,this))
             finepermission();
             else 
             systemlocation();

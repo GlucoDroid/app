@@ -26,7 +26,7 @@ class ZXing {
              intentIntegrator.initiateScan(); 
              }
           }
-    static boolean zXingResult(int resultCode, Intent data) {
+    static boolean zXingResult(int resultCode, Intent data,MainActivity act) {
          if(!isWearable&&useZXing) {
                Log.i(LOG_ID,"zXingResult(" +resultCode+",data)");
                IntentResult intentResult = IntentIntegrator.parseActivityResult(resultCode, data);
@@ -37,7 +37,7 @@ class ZXing {
                    else {
                         Log.i(LOG_ID,"Scan: "+scan);
                         Toaster(scan);
-                        return connectSensor(scan);
+                        return connectSensor(scan,act);
                      }
                   }
                  else {

@@ -40,64 +40,66 @@ extern bool networkpresent;
 
 extern void resetnetwork();
 static void keepnet(uint32_t wastime,uint32_t nu,int minutes) {
-	const bool fromother=backup&&networkpresent&&settings->data()->nobluetooth ;
-	if(fromother) {
-		const uint32_t age=nu-wastime;
-		const int requestage=minutes*108;
-		if(age>requestage) {
-			static uint32_t nextwake=0;
-			if(nu>nextwake) {
-				static bool wakenext=false;
-				if(!wakenext) {
-					resetnetwork();
-					wakenext=true;
-					}
-				else  {
-					backup->getupdatedata()->wakestreamsender();
-					nextwake=nu+60u;
-					wakenext=false;
-					}
-				}
-			}
-		}
-	}
+    const bool fromother=backup&&networkpresent&&settings->data()->nobluetooth ;
+    if(fromother) {
+        const uint32_t age=nu-wastime;
+        const int requestage=minutes*108;
+        if(age>requestage) {
+            static uint32_t nextwake=0;
+            if(nu>nextwake) {
+                static bool wakenext=false;
+                if(!wakenext) {
+                    resetnetwork();
+                    wakenext=true;
+                    }
+                else  {
+                    backup->getupdatedata()->wakestreamsender();
+                    nextwake=nu+60u;
+                    wakenext=false;
+                    }
+                }
+            }
+        }
+    }
 
+extern std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) ;
 std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) {
-// 	uint32_t mintime=nu-maxwatchage;
- 	uint32_t mintime=0;
-	const SensorGlucoseData *take=nullptr;
+//     uint32_t mintime=nu-maxwatchage;
+   uint32_t mintime=0;
+   const SensorGlucoseData *take=nullptr;
    int pos=-1;
    const int total=usedsensors.size();
    int  minutes=15;
 
-	for(int i=0;i<total ;i++) {
-		const int index=usedsensors[i];
-		const SensorGlucoseData *hist=sensors->getSensorData(index);
+    for(int i=0;i<total ;i++) {
+        const int index=usedsensors[i];
+        const SensorGlucoseData *hist=sensors->getSensorData(index);
         const int hiermin=hist->streaminterval();
         if(hiermin<minutes)
             minutes=hiermin;
-		const ScanData *poll=hist->lastpoll();
-		if(poll) {
-			uint32_t then=poll->t;
-			if(then>mintime) {
-				mintime=then;
-				take=hist;
+        const ScanData *poll=hist->lastpoll();
+        if(poll) {
+            uint32_t then=poll->t;
+            if(then>mintime) {
+                mintime=then;
+                take=hist;
                 pos=i;
-				}
-			}
-		}
-	keepnet(mintime,nu,minutes);
+                }
+            }
+        }
+    keepnet(mintime,nu,minutes);
    if(total>1)
       ++pos;
-	return {take,pos};
-	}
+    LOGAR("end getlaststream");
+    return {take,pos};
+    }
 
 extern "C" JNIEXPORT jlong  JNICALL   fromjava(lastglucosetime)(JNIEnv *env, jclass cl) {
-	const auto [hist,index]=getlaststream(maxwatchage);
-	if(hist) 
-		return hist->lastpoll()->t*1000LL;
-		
-	return 0LL;
+    const auto [hist,index]=getlaststream(maxwatchage);
+    if(hist) 
+        return hist->lastpoll()->t*1000LL;
+        
+    return 0LL;
        }
 
 
@@ -109,44 +111,44 @@ int getglucosestr(uint32_t nonconvert,char *glucosestr,int maxglucosestr,int max
 
 extern float threshold(float drate);
 extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclass cl) {
-//	const uint32_t nu=time(nullptr);
-	const auto [hist,index]=getlaststream(maxwatchage);
-	if(!hist)  {
-		LOGSTRINGTAG("getlaststream(maxwatchage)=null\n");
-		return nullptr;
-		}
-	const ScanData *poll=hist->lastpoll();
-	if(!poll||!poll->valid()) {
-		return nullptr;
-		}
+//    const uint32_t nu=time(nullptr);
+    const auto [hist,index]=getlaststream(maxwatchage);
+    if(!hist)  {
+        LOGSTRINGTAG("getlaststream(maxwatchage)=null\n");
+        return nullptr;
+        }
+    const ScanData *poll=hist->lastpoll();
+    if(!poll||!poll->valid()) {
+        return nullptr;
+        }
 
-	const auto nonconvert= poll->g;
-	if(!nonconvert)  {
-		LOGSTRINGTAG("glucose = 0\n");
-		return nullptr;
-		}
-	const int maxbuf=20;
-	char buf[maxbuf];
-	getglucosestr(nonconvert,buf,maxbuf, hist->getmaxmgdL());
-	const char glucoseclass[]= javapackage "strGlucose";
-	static  jclass  item=  (jclass) env->NewGlobalRef(env->FindClass(glucoseclass));
-	if(!item) {
-		LOGGERTAG("FindClass(%s) failed\n",glucoseclass);
-		return nullptr;
-		}
-	const char glsig[]= "(JLjava/lang/String;Ljava/lang/String;FII)V";
-	static jmethodID iconstruct = env->GetMethodID(item,"<init>",glsig);
-	if(!iconstruct) {
-		LOGGERTAG("GetMethodID(item,<init>,%s) failed\n", glsig);
-		return nullptr;
-		}
-	const jlong tim=poll->gettime();
-	const char *sensorid=hist->othershortsensorname().data();
+    const auto nonconvert= poll->g;
+    if(!nonconvert)  {
+        LOGSTRINGTAG("glucose = 0\n");
+        return nullptr;
+        }
+    const int maxbuf=20;
+    char buf[maxbuf];
+    getglucosestr(nonconvert,buf,maxbuf, hist->getmaxmgdL());
+    const char glucoseclass[]= javapackage "strGlucose";
+    static  jclass  item=  (jclass) env->NewGlobalRef(env->FindClass(glucoseclass));
+    if(!item) {
+        LOGGERTAG("FindClass(%s) failed\n",glucoseclass);
+        return nullptr;
+        }
+    const char glsig[]= "(JLjava/lang/String;Ljava/lang/String;FII)V";
+    static jmethodID iconstruct = env->GetMethodID(item,"<init>",glsig);
+    if(!iconstruct) {
+        LOGGERTAG("GetMethodID(item,<init>,%s) failed\n", glsig);
+        return nullptr;
+        }
+    const jlong tim=poll->gettime();
+    const char *sensorid=hist->othershortsensorname().data();
     const int sensorgen2=hist->getSensorgen2();
  
-	LOGGERTAG("strGlucose(%lld,%s,%s,%.1f,%d,%d)\n",(long long)tim,buf,sensorid,poll->ch,index,sensorgen2);
-	const float rateofchange=( nonconvert<glucoselowest||nonconvert>hist->getmaxmgdL())?NAN:threshold(poll->ch);
-	return env->NewObject(item,iconstruct,tim,env->NewStringUTF(buf),env->NewStringUTF(sensorid),rateofchange,index,sensorgen2);
+    LOGGERTAG("strGlucose(%lld,%s,%s,%.1f,%d,%d)\n",(long long)tim,buf,sensorid,poll->ch,index,sensorgen2);
+    const float rateofchange=( nonconvert<glucoselowest||nonconvert>hist->getmaxmgdL())?NAN:threshold(poll->ch);
+    return env->NewObject(item,iconstruct,tim,env->NewStringUTF(buf),env->NewStringUTF(sensorid),rateofchange,index,sensorgen2);
        }
 
 
@@ -183,7 +185,7 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(bytearray2glucose)(JNIEnv *env,
     return env->NewObject(jglucoseclass,iconstruct,(jlong)gl->time,gl->value,gl->rate);
     }
 bool loadglucoseclass(JNIEnv *env) {
-	const char glucosestr[]= javapackage "Glucose";
+    const char glucosestr[]= javapackage "Glucose";
     jglucoseclass=  (jclass) env->NewGlobalRef(env->FindClass(glucosestr));
     if(!jglucoseclass) {
         LOGGERTAG(R"(FindClass()" "%s" R"() failed)" "\n",glucosestr);

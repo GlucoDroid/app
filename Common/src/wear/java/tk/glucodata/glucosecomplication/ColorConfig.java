@@ -175,8 +175,8 @@ static public   void show(MainActivity context, View view) {
       close.setOnClickListener(v-> {});
       MainActivity.setonback(()-> {
          removeContentView(layout); 
-	      view.setVisibility(VISIBLE);
-			 tk.glucodata.glucosecomplication.GlucoseValue.updateall();
+         view.setVisibility(VISIBLE);
+         tk.glucodata.glucosecomplication.GlucoseValue.updateall();
          });
       close.setOnClickListener(v->{
          MainActivity.doonback();

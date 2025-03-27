@@ -243,8 +243,11 @@ private boolean write2(byte[] bytes) {
    }
 private void   authenticate() {
 //	justAuthenticated=true;
-   if(hasNotChinese)
-      write2(Natives.siAuthBytes(dataptr));
+   if(hasNotChinese) {
+      final var bytes=Natives.siAuthBytes(dataptr);
+      if(bytes!=null)
+          write2(bytes);
+      }
    }
 
 

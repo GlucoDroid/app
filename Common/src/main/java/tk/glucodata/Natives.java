@@ -813,6 +813,8 @@ public static native String sensortextfromSensorptr(long sensorptr);
 public static native void finishfromSensorptr(long sensorptr);
 public static native void setInsulinType(int index,int type);
 public static native int getInsulinType(int index);
+public static native int getSiSubtype(long dataptr);
+public static native void setSiSubtype(long dataptr,int type);
 
 
 //public static native void sendxdripold();

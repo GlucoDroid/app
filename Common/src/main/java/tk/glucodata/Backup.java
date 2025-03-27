@@ -586,8 +586,7 @@ public class Backup {
                new View[]{passiveonly, activeonly, both}, new View[]{receive, Sendlabel, Amounts, Scans, Stream, restore}, fromrow, new View[]{Password, editpass, visible}, new View[]{delete, Close, reset, Help, save});
 
           // layout.setPadding(0, MainActivity.systembarTop/2,0,0);
-
-      layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop/2,MainActivity.systembarRight,MainActivity.systembarBottom);
+         layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop/2,MainActivity.systembarRight,MainActivity.systembarBottom);
 
          }
       Close.setOnClickListener(v-> act.doonback());
@@ -782,7 +781,12 @@ public class Backup {
          layall=scroll;
          }
       else {
-      Layout layout=new Layout(act, (l, w, h) -> {
+           var modmar=Layout.getMargins(modify);
+           modmar.leftMargin=(int)(GlucoseCurve.metrics.density*10);
+           var closemar=Layout.getMargins(close);
+           closemar.rightMargin=(int)(GlucoseCurve.metrics.density*10);;
+                                                                                                
+           Layout layout=new Layout(act, (l, w, h) -> {
             var x=GlucoseCurve.getwidth()-MainActivity.systembarRight-w;
             if(x<MainActivity.systembarLeft)
                x=MainActivity.systembarLeft;
@@ -925,7 +929,10 @@ public class Backup {
          }
       else {
          var layout=new Layout(act, new View[]{ip,blpan,p2p,labport,portview,Save},new View[]{recycle},new View[] {battery,Help,alarms,staticnum},errorrow,new View[]{Sync,reinit,hosts,Cancel});
-         layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop/2,MainActivity.systembarRight,MainActivity.systembarBottom);
+
+       var density=GlucoseCurve.metrics.density;
+      layout.setPadding(MainActivity.systembarLeft+(int)(density*10),MainActivity.systembarTop/2,MainActivity.systembarRight+(int)(density*10),MainActivity.systembarBottom+(int)(density*3));
+       //  layout.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop/2,MainActivity.systembarRight,MainActivity.systembarBottom);
 
           Log.i(LOG_ID,"density="+GlucoseCurve.metrics.density+" systembarTop="+ MainActivity.systembarTop+" systembarLeft="+ MainActivity.systembarLeft);
       //    layout.setPadding(pad,MainActivity.systembarTop,MainActivity.systembarRight,MainActivity.systembarBottom);

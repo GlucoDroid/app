@@ -170,6 +170,8 @@ volgende file)",
 	.add_s=true,
 .shortinit=nlshortinit,
 .labels=nllabels,
+#endif
+#ifndef DONTTALK
 .checked="aangevinkt",
 .unchecked="niet aangevinkt",
 .Undetermined="",

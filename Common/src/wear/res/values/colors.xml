@@ -124,5 +124,6 @@
     <color name="gray_white">#EEEEEE</color>
     <color name="dark_pink">#F50057</color>
     <color name="dark_blue">#1565C0</color>
+    <color name="disabled_gray">#696969</color>-->
 </resources>
 

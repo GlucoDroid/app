@@ -311,6 +311,7 @@ bool siInit3()  {
    }
  bool siInit(bool notchinese) {
 #ifdef NOTCHINESE
+
    if(notchinese)
       return siInit2();
 #endif
@@ -384,12 +385,12 @@ bool savejson(SensorGlucoseData *sens,const string_view name,int index,const Alg
 
 void  	SiContext::setNotchinese(SensorGlucoseData *sens) {
    sens->setNotchinese();
-    notchinese=true;
 #ifdef NOTCHINESE
-    this->~SiContext();
+   this->~SiContext();
    auto res= siInit2();
    algcontext=initAlgorithm2(sens,setjson2);
 #endif
+    notchinese=true;
    }
 SiContext::SiContext(SensorGlucoseData *sens): algcontext(
 #ifdef NOTCHINESE

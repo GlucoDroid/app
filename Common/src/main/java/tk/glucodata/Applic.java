@@ -83,7 +83,7 @@ import tk.glucodata.settings.Broadcasts;
 
 public class Applic extends Application {
 static final boolean ALLGALAXY=true;
-static final boolean hasNotChinese=false;
+static final boolean hasNotChinese=true;
 public static final  boolean scrollbar=true;
 public static final  boolean horiScrollbar=true;
 static final float mgdLmult= doLog?18.0182f:18.0f;
@@ -92,8 +92,8 @@ static final float mgdLmult= doLog?18.0182f:18.0f;
 public static boolean hour24=true;
 static public final int TargetSDK=BuildConfig.targetSDK;
 static public final boolean isWearable= BuildConfig.isWear==1;
-static final boolean DontTalk=isWearable;
-//static final boolean DontTalk=false;
+//static final boolean DontTalk=isWearable;
+static public final boolean DontTalk=false;
 static public final boolean useZXing= BuildConfig.noZXing==0;
 //static public final boolean includeLib= isWearable;
 static public final boolean includeLib= true;
@@ -211,8 +211,10 @@ private static void setlanguage() {
         Log.i(LOG_ID,"Applic.setlangauge="+lang+" cur="+curlang);
         if(!lang.equals(curlang)) {
             curlang=lang;
-            if(Talker.istalking())    
-                SuperGattCallback.newtalker(null);
+            if(!DontTalk) {
+                if(Talker.istalking())    
+                        SuperGattCallback.newtalker(null);
+                }
             }
         else  {
             return;
@@ -762,17 +764,21 @@ if(isWearable) {
 
 static public  boolean    talkbackrunning=false;
 static    void        talkbackon(Context cont) {
-    SuperGattCallback.newtalker(cont);
-    talkbackrunning=true;
+    if(!DontTalk) {
+        SuperGattCallback.newtalker(cont);
+        talkbackrunning=true;
 
-    Natives.settouchtalk(true);
-    Natives.setspeakmessages(true);
-    Natives.setspeakalarms(true);
+        Natives.settouchtalk(true);
+        Natives.setspeakmessages(true);
+        Natives.setspeakalarms(true);
+        }
 
     }
 
 static    void        talkbackoff() {
-    talkbackrunning=false;
+    if(!DontTalk) {
+        talkbackrunning=false;
+        }
     }
 @Keep
 static public void speak(String message) {
