@@ -46,9 +46,11 @@ std::pair<std::unique_ptr<data_t>,int> getActivation(jlong timesec) {
     zero->clear();
     auto fill=data_t::newex(50);
    int ret=V120Activation(subenv, nullptr,0, true, (jbyteArray) zero, timesec, 1234, (jbyteArray) fill, fill->size());
+#ifndef NOLOG
    hexstr zerohex((uint8_t*)zero->data(),zero->size());
    hexstr fillhex((uint8_t*)fill->data(),ret);
    LOGGER("getActivation(%jd) zero=%s res=%s\n",timesec,zerohex.str(),fillhex.str());
+#endif
    data_t::deleteex(zero);
    return {std::unique_ptr<data_t>(fill),ret};
    }
@@ -66,9 +68,11 @@ static Data_t getIsecUpdate(jlong timesec) {
     zero.clear();
     Data_t fill(50);
    int ret=V120IsecUpdate(subenv, nullptr,0, true,  zero, timesec, fill, fill.data->size());
+#ifndef NOLOG
    hexstr zerohex((uint8_t*)zero.data->data(),zero.data->size());
    hexstr fillhex((uint8_t*)fill.data->data(),ret);
    LOGGER("getIsecUpdate(%jd) zero=%s res=%s\n",timesec,zerohex.str(),fillhex.str());
+#endif
    fill.used=ret;
    return fill;
    }
@@ -93,8 +97,10 @@ extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(getSItimecmd)(JNIEnv *env, jc
 
    data_t *sijkey=data_t::newex(gegs.key);
    data_t *name=data_t::newex(gegs.appid);
+#ifndef NOLOG
    hexstr key((uint8_t*)sijkey->data(),sijkey->size());
    LOGGER("v120RegisterKey %s %d %s size=%d \n",key.str(),sijkey->size(),name->data(),name->size());
+#endif
    v120RegisterKey(subenv,nullptr,(jbyteArray)sijkey, sijkey->size(), (jbyteArray)name);
    LOGAR(" na v120RegisterKey");
    data_t::deleteex(name);
@@ -259,9 +265,12 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
                       }
                    }
                }
-            const auto starttime=makestarttime(index,eventTime);
+/*            const auto starttime=makestarttime(index,eventTime);
             if(maxid<10||(abs((int)(sens->getinfo()->starttime-starttime))>60*60*4)) {
                    LOGGER("set start time=%d\n",starttime);
+                   */
+            if(maxid<10) {
+                   const auto starttime=makestarttime(index,eventTime);
                    sens->getinfo()->starttime=starttime;
                    sensor->starttime=starttime;
                    sensors->setindices();
