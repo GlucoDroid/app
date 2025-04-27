@@ -79,7 +79,9 @@ extern int    timestr(char *buf,time_t tim) ;
 extern lastscan_t  scantoshow;
 //JNIEXPORT void JNICALL Java_tk_glucodata_Glucose_nfcdata(JNIEnv *env, jobject thiz, jbyteArray uid, jbyteArray info,jbyteArray data) {
 //JNIEXPORT int JNICALL Java_tk_glucodata_Natives_nfcdata(JNIEnv *env, jclass thiz, jbyteArray uid, jbyteArray info,jbyteArray data) {
-//#define SCANLOG
+#ifndef NOLOG
+#define SCANLOG
+#endif
 #if defined(SCANLOG) //|| defined(__arm__) 
 
 class scanlogger {
