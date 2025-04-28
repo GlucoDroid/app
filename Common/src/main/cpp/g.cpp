@@ -1408,14 +1408,14 @@ extern "C" JNIEXPORT jint JNICALL   fromjava(getinfogen)(JNIEnv *env, jclass _cl
     #ifndef NOLOG
     const char label[]="getinfogen ";
     auto labellen=sizeof(label)-1;
-    int totlen=labellen+lens*3+3;
+    int totlen=labellen+lens*3+4;
     char mess[totlen];
     memcpy(mess,label,labellen);
     int pos=labellen;
     for(int i=0;i<lens;i++) {
         pos+=sprintf(mess+pos,"%02X ",info[i]);
         }
-    pos+=sprintf(mess+pos,"%d",gen);
+    pos+=sprintf(mess+pos,"=%d",gen);
     LOGGERN(mess,pos);
     #endif
 

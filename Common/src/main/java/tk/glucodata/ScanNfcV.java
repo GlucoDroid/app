@@ -244,7 +244,7 @@ static public synchronized void scan(GlucoseCurve curve,Tag tag) {
             {
             var isLibre3=uid.length==8&&uid[6]!=7;
             byte[] info = AlgNfcV.nfcinfotimes(tag,(isLibre3||doLog)?1:10);
-            if(info==null) {
+            if(info==null||info.length!=6) {
                     if(isLibre3) {
                            int[] uit= libre3scan(curve,main,vibrator,tag);
                            ret=uit[0];
