@@ -157,6 +157,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
       else {
         LOGGER("don't use too old %d>=%d\n", (nowsec-wastime),maxbluetoothage);
          sens->sensorerror=true;
+         sens->sensorErrorTime=nowsec;
          timeres[1]=0LL;
          }
        }
@@ -170,6 +171,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
             LOGAR("Don't use value");
             }
          sens->sensorerror=true;
+         sens->sensorErrorTime=nowsec;
          timeres[1]=0LL;
       }
    }

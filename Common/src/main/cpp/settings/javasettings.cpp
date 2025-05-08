@@ -181,18 +181,6 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setalarms)(JNIEnv *env, jclass cl,
 extern "C" JNIEXPORT void  JNICALL   fromjava(setAdvancedAlarms)(JNIEnv *env, jclass cl,jfloat verylow1, jfloat veryhigh1, jboolean verylowalarm1, jboolean veryhighalarm1, jboolean prelowalarm1,jboolean prehighalarm1,jfloat prelow,jfloat prehigh) {
     settings->data()->setAdvancedAlarms(roundf(settings->tomgperL(verylow1)), roundf(settings->tomgperL(veryhigh1)),  verylowalarm1,  veryhighalarm1,  prelowalarm1, prehighalarm1,roundf(settings->tomgperL(prelow)), roundf(settings->tomgperL(prehigh)));
    }
-/*
-bool hasnotiset() {
-	if(!settings)
-		return false;
-	const auto set=settings->data();
-	return (!set->dontshowalways)||
-		set->lowalarm||
-		set->highalarm||
-		set->lossalarm||
-		set->availablealarm;
-	}
-*/
 
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(setGraphRange)(JNIEnv *env, jclass cl,jfloat glow,jfloat ghigh) {

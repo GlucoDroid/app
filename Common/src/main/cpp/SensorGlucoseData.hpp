@@ -300,17 +300,21 @@ uint16_t endStreamhistory;
 uint16_t startedwithStreamhistory; 
 uint16_t libreviewnotsendHistory;
 union {
-struct {
-   bool oldsendLibre[15*24*4];
-   uint16_t oldhealthconnectiter;
-   };
-struct {
-   bool sendLibre[20*24*4];
-   uint16_t healthconnectiter;
-   };
-uint16_t broadcastfrom;
+    struct {
+       bool oldsendLibre[15*24*4];
+       uint16_t oldhealthconnectiter;
+       };
+    struct {
+       bool sendLibre[20*24*4];
+       uint16_t healthconnectiter;
+       uint16_t broadcastfrom;
+       };
+//    uint16_t oldbroadcastfrom;
+ //   uint32_t oldlibreStarttime;
+    }; //end union
 uint32_t libreStarttime;
-};
+
+
 
 void clearLibreSendEnd(int start) {
     const int len=(int)sizeof(sendLibre)-start*sizeof(sendLibre[0]);
@@ -1949,6 +1953,10 @@ time_t lifeCount2time(uint32_t lifecount) {
     }
 
 bool sensorerror=false;
+uint32_t sensorErrorTime;
+bool hasSensorError(uint32_t nu) const {
+    return sensorerror&&((nu-sensorErrorTime)<(60*(isDexcom()?15:10)));
+    }
 bool replacesensor=false;
 std::vector<int>viewed;
 int getSiIndex() const {

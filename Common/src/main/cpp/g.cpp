@@ -901,6 +901,7 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(processTooth)(JNIEnv *envin, jclas
     else
         delete newstate;
     sdata->hist->sensorerror=true;
+    sdata->hist->sensorErrorTime=nu;
     return 0LL;
     }
 

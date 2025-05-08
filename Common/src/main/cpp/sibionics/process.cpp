@@ -208,6 +208,7 @@ jlong SiContext::processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data
             LOGGER("SIprocess failed: index=%d temp=%f value=%f numOfUnreceived=%d\n", index, temp, value,numOfUnreceived);
             if(!numOfUnreceived&&!(index%5))  {
                sens->sensorerror=true;
+               sens->sensorErrorTime=nowsecs;
                return 0LL;
                }
             }

@@ -35,9 +35,7 @@ constexpr auto insulinsNR() {
     }
 
 constexpr int maxbluetoothage=11*30;
-#ifdef NDEBUG
 #define CONV18 1 //Minimally different and 18 fits better
-#endif
 #ifdef CONV18
 static constexpr const double convfactor=180.0;
 #else
@@ -310,7 +308,6 @@ struct Tings {
     std::array<char,36> libre3viewDeviceID;
     char _nullchar2;
 
-
     uint8_t voicespeaker;
     uint16_t voicesep:15;
     bool voiceactive:1;
@@ -324,9 +321,11 @@ struct Tings {
     bool currentRelative:1;//*
     bool IOB:1;
     bool healthConnect:1;
+
     bool speakmessages:1;
     bool speakalarms:1;
     bool talktouch:1;
+
     uint16_t sslport;
     int32_t libre3NUMiter;
 
@@ -371,14 +370,20 @@ struct Tings {
 
     Insulin insulintypes[maxvarnr];
     int32_t iobupdate;
+
     uint32_t averylow,averyhigh,aprelow,aprehigh;
+
     int16_t currentProfile,nrProfile,nrProfileMins;
+
     bool verylowalarm,veryhighalarm,prelowalarm,prehighalarm;
-    int8_t reserved2[2];
+    int8_t _reserved2[2];
     AlarmProfile  profiles[maxprofiles];
+
     ProfileMin profileMins[maxprofileMins];
+
     struct ring extraAlarms[maxextraalarms];
     int32_t soundtype;
+
 
 
  void        mkadvancedalarms() {
@@ -440,14 +445,6 @@ template <typename T>
             return at;
         }
    
-/*
-    float voicespeed;
-    float voicepitch;
-    uint8_t voicespeaker;
-    uint16_t voicesep:15;
-    bool voiceactive:1;
-    bool speakmessages:1;
-    bool speakalarms:1; */
 
 #define maketalk(type)\
   auto &type##Get() {  \

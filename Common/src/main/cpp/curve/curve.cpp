@@ -1884,7 +1884,8 @@ static int showerrorvalue(const SensorGlucoseData *sens,const time_t nu,float ge
                         shownglucose[index].errortext=buf;
                 }
             else {
-                if(sens->sensorerror) {
+ 
+                if(sens->hasSensorError(nu)) {
                     const std::string_view sensorerror= sens->replacesensor?usedtext->streplacesensor: usedtext->stsensorerror;
                     char buf[sensorerror.size()+17];
                     int senslen= sens->showsensorname().size();
