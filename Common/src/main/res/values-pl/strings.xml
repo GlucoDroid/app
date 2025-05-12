@@ -387,4 +387,26 @@
     <string name="autoqrmessage">Prześlij dane z tego telefonu do innego telefonu w sieci domowej. Naciśnięcie przycisku OK spowoduje wygenerowanie połączenia na tym telefonie i wyświetlenie kodu QR, który można zeskanować za pomocą innego urządzenia z systemem Android. Zeskanowanie kodu QR za pomocą lewego menu→Zdjęcie na drugim telefonie spowoduje wygenerowanie połączenia, dzięki któremu telefon będzie odbierał wszystkie dane z tego telefonu.</string>
     
     <string name="googlescan">Skanowanie Google</string>
+    <string name="usedweight">UWAGA: waga (%.1f) większa niż 0</string>
+ 
+ <string name="verylowglucose">" Poziom bardzo NISKI!"</string>
+ <string name="veryhighglucose">" Poziom bardzo WYSOKI!"</string>
+
+ <string name="verylowglucoseshort">" HIPOGLIKEMIA!!"</string>
+ <string name="veryhighglucoseshort">" HIPERGLIKEMIA!!"</string>
+
+ <string name="prelowglucose">" SPADEK glikemii!"</string>
+ <string name="prehighglucose">" WZROST glikemii!"</string>
+
+ <string name="verylowglucosealarm">Alarm dla bardzo niskiego poziomu glikemii</string>
+ <string name="veryhighglucosealarm"> Alarm dla bardzo wysokiego poziomu glikemii</string>
+
+ <string name="prelowglucosealarm">Alarm dla spadku glikemii poniżej poziomu</string>
+ <string name="prehighglucosealarm"> Alarm dla wzrostu glikemii powyżej poziomu</string>
+    <string name="schedules">Plany</string>
+    <string name="profile">"Profil "</string>
+ <string name="lossofsignal">Utrata sygnału</string>
+ <string name="valuenotification">Powiadomienie o wartości</string>
+ <string name="nothing"></string>
+
 </resources>
