@@ -183,6 +183,7 @@ static jlong save3current(SensorGlucoseData *sens, const oneminute *minptr) {
 			sens->replacesensor=true;
 			}*/
 		sens->sensorerror=true;
+                sens->sensorErrorTime=now;
 		LOGGER("save3current %d invalid value=%d\n",minptr->lifeCount,curval);
 		}
 	return res;

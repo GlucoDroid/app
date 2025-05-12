@@ -1268,7 +1268,7 @@ static bool        showerror(NVGcontext* genVG,const string_view str1,const stri
     nvgTextAlign(genVG,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
     nvgTextBox( genVG, dleft+dwidth/10, dtop+dheight/2, dwidth*8/10, str2.begin(), str2.end());
 
-    if(settings->data()->speakmessages) {
+    if(settings->data()->speakmessagesget()) {
         char buf[str1.size()+str2.size()+2+10];
         memcpy(buf,str1.data(),str1.size());
         char *ptr=buf+str1.size();
@@ -1401,7 +1401,7 @@ static void    showscanner(NVGcontext* genVG,const SensorGlucoseData *hist,int s
         }
 #ifndef DONTTALK
 
-    if(settings->data()->speakmessages) {
+    if(settings->data()->speakmessagesget()) {
         char value[300];
         char *ptr=value;;
         if(isold) {
@@ -1613,7 +1613,7 @@ if(nocutoff) {
     const float lowY=dheight+dtop+dbottom;
     for(auto tim=first;tim<=last;tim+=tstep) {
         float dtim=transx(tim);
-        char buf[8];
+        char buf[20];
         struct tm tmbuf;
         time_t tmptime=tim;
          struct tm *stm=localtime_r(&tmptime,&tmbuf);
@@ -1884,7 +1884,8 @@ static int showerrorvalue(const SensorGlucoseData *sens,const time_t nu,float ge
                         shownglucose[index].errortext=buf;
                 }
             else {
-                if(sens->sensorerror) {
+ 
+                if(sens->hasSensorError(nu)) {
                     const std::string_view sensorerror= sens->replacesensor?usedtext->streplacesensor: usedtext->stsensorerror;
                     char buf[sensorerror.size()+17];
                     int senslen= sens->showsensorname().size();
@@ -2771,7 +2772,7 @@ int onestep() {
 extern void render() ;
 
 
-int getalarmcode(const uint32_t glval,SensorGlucoseData *hist) ;
+int getalarmcode(const uint32_t glval,float drate,SensorGlucoseData *hist) ;
 extern void     processglucosevalue(int sendindex,int newstart) ;
 
 static bool dohealth(int sensorindex) {
@@ -2826,7 +2827,7 @@ void     processglucosevalue(int sendindex,int newstart) {
 
 
                      const float glu= gconvert(poll->g*10);
-                     const int alarm=getalarmcode(poll->g,hist);
+                     const int alarm=getalarmcode(poll->g,poll->getchange(),hist);
                      
                      sensor *senso=sensors->getsensor(sendindex);
                      bool wasnoblue=settings->data()->nobluetooth;

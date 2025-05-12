@@ -380,6 +380,7 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
                 LOGGER("SIprocess failed: index=%d temp=%f value=%f reindex=%d\n", index, temp, value,reindex);
                 if(!reindex&&!(index%5))  {
                       sens->sensorerror=true;
+                      sens->sensorErrorTime=nowsecs;
                       return 0LL;
                       }
                     }

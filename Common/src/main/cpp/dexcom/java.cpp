@@ -157,6 +157,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
       else {
         LOGGER("don't use too old %d>=%d\n", (nowsec-wastime),maxbluetoothage);
          sens->sensorerror=true;
+         sens->sensorErrorTime=nowsec;
          timeres[1]=0LL;
          }
        }
@@ -170,6 +171,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
             LOGAR("Don't use value");
             }
          sens->sensorerror=true;
+         sens->sensorErrorTime=nowsec;
          timeres[1]=0LL;
       }
    }
@@ -455,7 +457,12 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(makeRound12bytes)(JNIEnv *e
       return nullptr;
        }
   LOGGER("makeRound12bytes %d\n",which);
-   return getjbyteArray(envin,mkround12(reinterpret_cast<dexcomstream *>(dataptr)->dexcontext.key[which])); //TODO make mkround12 not copy unnecessarily
+   const KeyPair &key=reinterpret_cast<dexcomstream *>(dataptr)->dexcontext.key[which];
+   if(key.invalid())  {
+        LOGAR("makeRound12bytes key.invalid()");
+        return nullptr;
+        }
+   return getjbyteArray(envin,mkround12(key)); //TODO make mkround12 not copy unnecessarily
    }
 
 
