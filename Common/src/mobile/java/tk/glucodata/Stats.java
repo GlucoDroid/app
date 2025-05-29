@@ -21,6 +21,10 @@
 
 package tk.glucodata;
 
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -41,143 +45,163 @@ import static tk.glucodata.util.getlabel;
 class Stats {
 private static final String LOG_ID="Stats";
 static private void askdays(MainActivity act) {
-	var label=getlabel(act,act.getString(R.string.days));
+   var label=getlabel(act,act.getString(R.string.days));
 
-	int pad= (int)(tk.glucodata.GlucoseCurve.metrics.density*8);
-     	label.setPadding(pad,pad,pad,pad);
-	Button Ok = getbutton(act, R.string.ok);
-	Button Cancel = getbutton(act, R.string.cancel);
-       EditText days= smallScreen?geteditwearos(act):geteditview(act,new editfocus()) ;
-	days.setMinEms(4);
-	Layout layout = new Layout(act, (l, w, h) -> {
-		int wid = GlucoseCurve.getwidth();
-		if(!smallScreen) {
-			int hei = GlucoseCurve.getheight();
-			if(hei>h&&wid>w) {
-			       int half= wid / 2;
-			       int af=(half-w)/4;
-			    l.setX(half - w-af);
-			    l.setY((hei - h) / 2);
-			    }
-			   else {
-			    l.setX(0);
-			    l.setY(0);
-			   	}
-			   }
-		else {
-			    l.setX((wid-w)/2);
-			    l.setY(0);
-			}
-		return new int[]{w, h};
-		},new View[]{label,days},new View[]{Cancel,Ok});
-     	layout.setPadding(pad,pad,pad,pad);
-	act.addContentView(layout,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+   int pad= (int)(tk.glucodata.GlucoseCurve.metrics.density*8);
+   label.setPadding(pad,pad,pad,pad);
+   Button Ok = getbutton(act, R.string.ok);
+   Button Cancel = getbutton(act, R.string.cancel);
+   EditText days= smallScreen?geteditwearos(act):geteditview(act,new editfocus()) ;
+   days.setMinEms(4);
+   days.setText(""+Natives.getAnalysedays());
+   Layout layout = new Layout(act, (l, w, h) -> {
+      int wid = GlucoseCurve.getwidth();
+      if(!smallScreen) {
+         int hei = GlucoseCurve.getheight();
+         if(hei>h&&wid>w) {
+                int half= wid / 2;
+                int af=(half-w)/4;
+             l.setX(half - w-af);
+             l.setY((hei - h) / 2);
+             }
+            else {
+             l.setX(0);
+             l.setY(0);
+               }
+            }
+      else {
+             l.setX((wid-w)/2);
+             l.setY(0);
+         }
+      return new int[]{w, h};
+      },new View[]{label,days},new View[]{Cancel,Ok});
+        layout.setPadding(pad,pad,pad,pad);
+   act.addContentView(layout,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         layout.setBackgroundResource(R.drawable.dialogbackground);
-	days.requestFocus();
-	if(!smallScreen) {
-		act.curve.numberview.showkeyboard(act);
-		}
-	else  {
-		help.showkeyboard(act,days);
-		}
+   days.requestFocus();
+   if(!smallScreen) {
+      act.curve.numberview.showkeyboard(act);
+      }
+   else  {
+      help.showkeyboard(act,days);
+      }
 final Runnable closeonback=()-> {
-		removeContentView(layout);
-		if(smallScreen) {
-			help.hidekeyboard(act);
-			}
-		else
-			act.curve.numberview.hidekeyboard() ;
-		mkstats(act);
-		};
-	Cancel.setOnClickListener(v -> {
-		act.poponback();	
-		closeonback.run();
-		});
-	Ok.setOnClickListener(v -> {
-		int get=0;
-		String str=days.getText().toString();
-		try {
-			get=Integer.parseInt(str);  
-			}
-		catch(Throwable e) {
-			stack(LOG_ID, e);
-			};
-		if(get<=0) {
-        		Applic.argToaster(act, "'"+str+act.getString(R.string.invaliddays), Toast.LENGTH_SHORT);
-			return;
-			}
-		act.poponback();	
-		act.curve.statspresent=false;
-		act.curve.summarybutton=null;
-		Natives.analysedays(get);
-		removeContentView(layout);
-		if(smallScreen) {
-			help.hidekeyboard(act);
-			}
-		else
-			act.curve.numberview.hidekeyboard() ;
-		act.requestRender();
-		mkstats(act);
-		});
-	act.setonback(closeonback);
-	}
+      removeContentView(layout);
+      if(smallScreen) {
+         help.hidekeyboard(act);
+         }
+      else
+         act.curve.numberview.hidekeyboard() ;
+      mkstats(act);
+      };
+   Cancel.setOnClickListener(v -> {
+      act.poponback();   
+      closeonback.run();
+      });
+   Ok.setOnClickListener(v -> {
+      int get=0;
+      String str=days.getText().toString();
+      try {
+         get=Integer.parseInt(str);  
+         }
+      catch(Throwable e) {
+         stack(LOG_ID, e);
+         };
+      if(get<=0) {
+              Applic.argToaster(act, "'"+str+act.getString(R.string.invaliddays), Toast.LENGTH_SHORT);
+         return;
+         }
+      act.poponback();   
+      act.curve.statspresent=false;
+      act.curve.summarybutton=null;
+      Natives.analysedays(get);
+      removeContentView(layout);
+      if(smallScreen) {
+         help.hidekeyboard(act);
+         }
+      else
+         act.curve.numberview.hidekeyboard() ;
+      act.requestRender();
+      mkstats(act);
+      });
+   act.setonback(closeonback);
+   }
 
-	static void mkstats(MainActivity act) {
-		act.clearonback();
-		Button Help = getbutton(act, R.string.helpname);
-		Button Close = getbutton(act, R.string.closename);
-		Button Days = getbutton(act, R.string.days);
-		Button Curve = getbutton(act, R.string.summarygraph);
-		Layout layout = new Layout(act, (l, w, h) -> {
-			int height = GlucoseCurve.getheight();
-			int width = GlucoseCurve.getwidth();
-			if(width>w) l.setX(width - w-MainActivity.systembarRight);
+private static void webPercentiles(Context context, int days) {
+    final long endtime=Natives.percentileEndtime(days);
+	final String key=Natives.getApiSecret();
+    final String url="http://127.0.0.1:17580/x/report?days="+days+"&endtime="+endtime+((key!=null&& !key.isEmpty())?("&token="+key):"");
+    var intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+    context.startActivity(intent);
+    }
+   static void mkstats(MainActivity act) {
+      act.clearonback();
 
-			if(height>h) l.setY((height - h -MainActivity. systembarBottom));
-			return new int[]{w, h};
-		}, new View[]{Days, Help, Close, Curve});
-		if(!act.curve.statspresent)
-			Curve.setVisibility(INVISIBLE);
-		act.curve.summarybutton=Curve;
-		act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-final Runnable closeonback=()-> {
-			act.curve.statspresent=false;
-			act.curve.summarybutton=null;
-			removeContentView(layout);
-			Natives.endstats();
-			{if(doLog) {Log.i(LOG_ID,"closeonback");};};
+        var stats=getbutton(act,R.string.save);
 
-			if(Menus.on)  {
-				Menus.show(act);
-				}
-			else
-				act.requestRender();
-			};
-Close.setOnClickListener(v -> {
-	act.poponback();
-	closeonback.run();
-	});
-act.setonback(closeonback);
-		Help.setOnClickListener(v ->  {
+
+      Button Help = getbutton(act, R.string.helpname);
+      Button Close = getbutton(act, R.string.closename);
+      Button Days = getbutton(act, R.string.days);
+      Button Curve = getbutton(act, R.string.summarygraph);
+      Layout layout = new Layout(act, (l, w, h) -> {
+         int height = GlucoseCurve.getheight();
+         int width = GlucoseCurve.getwidth();
+         if(width>w) l.setX(width - w-MainActivity.systembarRight);
+
+         if(height>h) l.setY((height - h -MainActivity. systembarBottom));
+         return new int[]{w, h};
+      }, new View[]{Days, Help, Close,stats, Curve});
+      if(!act.curve.statspresent)
+         Curve.setVisibility(INVISIBLE);
+      act.curve.summarybutton=Curve;
+      act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+    final Runnable closeonback=()-> {
+             act.curve.statspresent=false;
+             act.curve.summarybutton=null;
+             removeContentView(layout);
+             Natives.endstats();
+             {if(doLog) {Log.i(LOG_ID,"closeonback");};};
+
+             if(Menus.on)  {
+                Menus.show(act);
+                }
+             else
+                act.requestRender();
+             };
+    Close.setOnClickListener(v -> {
+       act.poponback();
+       closeonback.run();
+       });
+    act.setonback(closeonback);
+      Help.setOnClickListener(v ->  {
                     act.lightBars(false);
                     help.help(R.string.stathelp, act,l->act.lightBars(!Natives.getInvertColors( ))); 
                     });
-		Days.setOnClickListener(v -> {
-			act.poponback();
-			askdays(act);
-			removeContentView(layout);
-		});
-		Curve.setOnClickListener(v -> {
-			act.poponback();
-			act.setonback(()-> {
-				Natives.summarygraph(false);
-				Stats.mkstats(act);
-            			act.requestRender();
-				});
-			Natives.summarygraph(true);
-			removeContentView(layout);
-			act.requestRender();
-		});
+      Days.setOnClickListener(v -> {
+         act.poponback();
+         askdays(act);
+         removeContentView(layout);
+      });
+      Curve.setOnClickListener(v -> {
+         act.poponback();
+         act.setonback(()-> {
+            Natives.summarygraph(false);
+            Stats.mkstats(act);
+            act.requestRender();
+            });
+         Natives.summarygraph(true);
+         removeContentView(layout);
+         act.requestRender();
+      });
 
-	}
+        stats.setOnClickListener(v->  {
+            if(Natives.getusexdripwebserver() ) {
+                webPercentiles(act,Natives.getAnalysedays());
+                }
+            else {
+                    Confirm.message(act,"Web server needed","Go to left menu->Settings->Exchange data->Web server to activate webserver",()->{}); 
+                }
+            });
+   }
 }

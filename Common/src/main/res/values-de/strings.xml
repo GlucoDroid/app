@@ -375,9 +375,10 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
 <string name="prelowglucosealarm">Alarm, wenn bald unter</string>
 <string name="prehighglucosealarm">Alarm, wenn bald über</string>
 <string name="schedules">Zeitpläne</string>
-<string name="profile">"Profil"</string>
+<string name="profile">"Profil "</string>
 <string name="lossofsignal">Signalverlust</string>
 <string name="valuenotification">Wertbenachrichtigung</string>
  <string name="advanced">Extra</string>
-
+<string name="scantranstitle">TRANSMITTER-Datenmatrix scannen</string>
+<string name="scantransmessage">Sibionics 2 Sensor-Datenmatrix erfolgreich gescannt. \nScannen Sie jetzt die Transmitter-Datenmatrix.</string>
 </resources>

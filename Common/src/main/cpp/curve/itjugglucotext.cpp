@@ -20,7 +20,7 @@
 
 
 #include "jugglucotext.hpp"
-extern jugglucotext engtext;
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view itlabels[]= {"Rapida","Carboidrati","Glucosio","Lenta","Bike","Walk","Capillare"};
 constexpr static Shortcut_t  itshortinit[]= { {"Muffin", .54f},
@@ -57,9 +57,11 @@ constexpr static Shortcut_t  itshortinit[]= { {"Muffin", .54f},
 
 .07300000f}};
 #endif
+#endif //INJUGGLUCO
 static jugglucotext ittext {
 	.daylabel={"dom","lun","mar","mer","gio","ven","sab"},
 
+#ifdef INJUGGLUCO
 .speakdaylabel={
 "Domenica",
 "Lunedi",
@@ -92,7 +94,9 @@ static jugglucotext ittext {
 	.laststream="Ultima scansione:",
 	.sensorends="Il sensore teminerà il: ",
 	.sensorexpectedend="Expected to end: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Nuovo valore",
 	.averageglucose="Media glicemica: ",
 	.duration="Duarata: %.1f giorni",
@@ -121,12 +125,17 @@ static jugglucotext ittext {
 		"Mirror",
 		ittext.newamount,
 		"Lista", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Statistiche",
+#ifdef INJUGGLUCO
 		"Talk",
 		"Float       "
 		},
 	.menustr2= {"Ultima scansione","Scansioni","Flusso","Cronologia","Valori","Pasti","Modalità scura       "}, 
 	.menustr3= {hourminstr,"Cerca","Data","Giorno prima","Giorno dopo","Settimana prima","Settimana dopo"}, 
+#endif //INJUGGLUCO
 #else
 	.amount="Valore",
  .menustr0= {
@@ -138,6 +147,7 @@ static jugglucotext ittext {
 	 },
    .menustr2= {"Data",hourminstr,"Giorno dietro             ",ittext.amount},
 #endif
+#ifdef INJUGGLUCO
 	.scanerrors={
 		{"Scan Error (%d)","Riprova"},
 		{"Errore di installazione","?"},
@@ -196,22 +206,12 @@ seguenti file)",
 .deleted="Deleted"sv,
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
-
-
+#endif //INJUGGLUCO
+,.summarygraph="Grafico di sommario"sv
+,.logdays="Giorni"sv
 
 
 }
 		;
-#ifdef JUGGLUCO_APP
-#include "logs.hpp"
-#else
-#include <stdio.h>
-#define LOGGER(...) fprintf(stderr,__VA_ARGS__)
-
-#endif
-extern void setuseit() ;
-void setuseit() {
-	usedtext= &ittext;
-	LOGGER("history3info=%s\n",ittext.history3info.data());
-	}
+addlang(it);
 

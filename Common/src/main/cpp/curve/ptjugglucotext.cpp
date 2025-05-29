@@ -21,6 +21,7 @@
 
 
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view ptlabels[]={"Insu Rápida","Carbohidra","Glicemia","Insul Lenta","Bicicleta","Caminhada","Sangue"};
 constexpr static Shortcut_t  ptshortinit[]= { {"Pão",
@@ -50,10 +51,12 @@ constexpr static Shortcut_t  ptshortinit[]= { {"Pão",
         {"Mixcogumelo",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 
 jugglucotext pttext {
         .daylabel={"Dom","Seg","Ter","Qua","Qui","Sex","Sáb"},
 
+#ifdef INJUGGLUCO
 .speakdaylabel={
 	"Domingo",
 "Segunda-feira",
@@ -94,7 +97,9 @@ jugglucotext pttext {
         .laststream="Último stream:",
         .sensorends="Sensor termina: ",
 	.sensorexpectedend="Expected to end: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
         .newamount="Novo valor",
         .averageglucose="Glicose Média: ",
         .duration="Duração: %.1f dias",
@@ -123,12 +128,17 @@ jugglucotext pttext {
                 "Espelhar",
                 pttext.newamount,
                 "Listagem", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
                 "Estatísticas",
+#ifdef INJUGGLUCO
 				"Talk",
 				"Float        "
                 },
         .menustr2= {"Último Scan","Scans","Stream","Histórico","Valores","Refeições","Modo escuro        "},
         .menustr3= {hourminstr,"Procurar","Data","Dia anterior","Dia seguinte","Semana anterior","Semana seguinte"},
+#endif //INJUGGLUCO
 #else
  .amount="Valor",
  .menustr0= {
@@ -140,6 +150,7 @@ jugglucotext pttext {
 .menustr2= {"Data",hourminstr,"Dia anterior                 ",pttext.amount},
 #endif
 
+#ifdef INJUGGLUCO
         .scanerrors={
                 {"Scan Erro (%d)","Tentar de novo"},
                 {"Erro de instalação","?"},
@@ -199,7 +210,10 @@ são necessárias. No seu caso, tem problemas com o seguinte ficheiro)",
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
 
+#endif //INJUGGLUCO
+,.summarygraph="Gráfico de resumo"sv
 
+,.logdays="Dias"sv
 
 
                 }
@@ -208,8 +222,5 @@ são necessárias. No seu caso, tem problemas com o seguinte ficheiro)",
                 ;
 
 
-extern void setusept() ;
-void setusept() {
-	usedtext= &pttext;
-	}
+addlang(pt);
 

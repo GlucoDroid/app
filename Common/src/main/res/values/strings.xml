@@ -387,7 +387,7 @@
     <string name="eusibionics">EU Sibionics - com.sisensing.sijoy</string>
     <string name="chsibionics">Chinese Sibionics - com.sisensing.sisensingcgm</string>
     <string name="hematonix">Hematonix - com.sisensing.rusibionics</string>
-    <string name="sibionics2">Sibionics2 - com.sisensing.eco</string>
+    <string name="sibionics2">Sibionics 2 - com.sisensing.eco</string>
     <string name="datapresent">"Data present: "</string>
     <string name="overwrite">Overwrite?</string>
     <string name="autoqr">Auto QR</string>
@@ -417,5 +417,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
  <string name="lossofsignal">Loss of signal</string>
  <string name="valuenotification">Value notification</string>
  <string name="nothing"></string>
- 
+ <string name="scantranstitle">Scan TRANSMITTER data matrix</string>
+ <string name="scantransmessage">Sibionics 2 sensor data matrix succesfully scanned. \nScan now the transmitter data matrix."</string>
 </resources>

@@ -1,3 +1,5 @@
+/*MODIFIED for Juggluco
+*/
 /**
  * @file
  * 64-bit optimised implementation of Ascon128a AEAD cipher.
@@ -288,7 +290,7 @@ ascon_aead128a_encrypt_final(ascon_aead_ctx_t* const ctx,
     // Squeeze out tag into its buffer.
     ascon_aead_generate_tag(ctx, tag, tag_len);
     // Final security cleanup of the internal state, key and buffer.
-//    ascon_aead_cleanup(ctx);
+//    ascon_aead_cleanup(ctx); // Removed for Juggluco
  ctx->bufstate.buffer_len = 0;
     return freshly_generated_ciphertext_len;
 }
@@ -386,7 +388,8 @@ ascon_aead128a_decrypt_final(ascon_aead_ctx_t* const ctx,
     // Validate tag with variable len
     *is_tag_valid = ascon_aead_is_tag_valid(ctx, expected_tag, expected_tag_len);
     // Final security cleanup of the internal state and key.
-//    ascon_aead_cleanup(ctx);
+//    ascon_aead_cleanup(ctx);//  Removed for Juggluco
+
 
  ctx->bufstate.buffer_len = 0;
     return freshly_generated_plaintext_len;

@@ -130,8 +130,7 @@ extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(getSItimecmd)(JNIEnv *env, jc
    data_t *sijkey=data_t::newex(gegs.key);
    data_t *name=data_t::newex(gegs.appid);
 #ifndef NOLOG
-   hexstr key((uint8_t*)sijkey->data(),sijkey->size());
-   LOGGER("v120RegisterKey %s %d %s size=%d \n",key.str(),sijkey->size(),name->data(),name->size());
+   LOGGER("v120RegisterKey %.*s %.*s size=%d \n",sijkey->size(),sijkey->data(),name->size(),name->data(),name->size());
 #endif
    v120RegisterKey(subenv,nullptr,(jbyteArray)sijkey, sijkey->size(), (jbyteArray)name);
    LOGAR(" na v120RegisterKey");
@@ -318,8 +317,7 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
     #ifdef USE_PROCESS
        double newvalue;
        if(algcontext) {
-            newvalue= process2(index,value,temp);
-            if((index%5==0)&&newvalue>1.8)
+            if(value>=2.0&&value<27.8&&(newvalue= process2(index,value,temp))>1.8&&(index%5==0))
                 sens->getinfo()->pollinterval=newvalue-value;
            else {
              if(sens->getinfo()->pollinterval<40) 

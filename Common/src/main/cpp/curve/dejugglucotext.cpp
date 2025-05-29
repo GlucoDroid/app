@@ -21,6 +21,7 @@
 
 
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view delabels[]={ "Ins schnell", "Kohlenhydra", "Dextrose", "Langes Insu", "radeln", "Walk", "Blut"};
 constexpr static Shortcut_t  deshortinit[]= { {"Bread",
@@ -48,10 +49,12 @@ constexpr static Shortcut_t  deshortinit[]= { {"Bread",
         {"Mix mushro",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 //DIT IS EEN NIEUWE FILE
 jugglucotext detext {
 .daylabel={"So","Mo","Di","Mi","Do","Fr","Sa"},
 
+#ifdef INJUGGLUCO
 .speakdaylabel={"Sonntag",
 "Montag",
 "Dienstag",
@@ -84,7 +87,9 @@ jugglucotext detext {
 .laststream="Letzter Stream:",
 .sensorends="Endet offiziell:",
  .sensorexpectedend="Erwartetes Ende:",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 .newamount="Neue Menge",
 .averageglucose="Durchschnittliche Glukose: ",
 .duration="Dauer: %.1f Tage",
@@ -114,13 +119,18 @@ jugglucotext detext {
 "Klon",
 detext.newamount,
 "Liste",
+#else
+       .statistics=
+#endif //INJUGGLUCO
 "Statistiken",
+#ifdef INJUGGLUCO
 "Sprechen",
 "Schweben       "
 },
 .menustr2= {"Letzter Scan","Scans","Stream","History","Mengen","Mahlzeiten","Dunkelmodus       "},
 .menustr3= {hourminstr,"Suche", "Datum", "Vortag", "Tag später", "Woche zurück", "Woche später"},
 
+#endif //INJUGGLUCO
 #else
   .amount="Menge",
   .menustr0= {
@@ -133,6 +143,7 @@ detext.newamount,
 "Vortag                         ",detext.amount},
 #endif
 
+#ifdef INJUGGLUCO
 .scanerrors={
 {"Scanfehler (%d)","Versuchen Sie es erneut"},
 {"Installationsfehler","?"},
@@ -187,6 +198,9 @@ detext.newamount,
 .nolocationpermission="Benötigt Standortberechtigung"sv,
 .nonearbydevicespermission="Benötigt Berechtigung für Geräte in der Nähe"sv
 
+#endif //INJUGGLUCO
+ ,.summarygraph="Überblick Graph"sv
+,.logdays="Tage"sv
 		}
 
 
@@ -194,6 +208,7 @@ detext.newamount,
 
 
 extern void setusede() ;
+addlang(de);
 void setusede() {
 	usedtext= &detext;
 	}

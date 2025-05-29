@@ -567,21 +567,24 @@ private	void oldonCharacteristicChanged(byte[] value) {
 //            this.f14472dGb = new byte[25];
 		    mBLELoginHandler = () -> {
 			BLELogincharacteristic.setValue(a);
-			if (!mBluetoothGatt.writeCharacteristic(BLELogincharacteristic)) {
+            var gatt = mBluetoothGatt;
+            if(gatt==null)
+                return;
+			if(!gatt.writeCharacteristic(BLELogincharacteristic)) {
 			    var mess = "phase2 retry=" + BLELoginposted + " writeCharacteristic(BLELogincharacteristic)";
 			    Log.e(LOG_ID, SerialNumber+" "+mess);
 			    handshake = mess;
 			    wrotepass[1] = System.currentTimeMillis();
-			    if (BLELoginposted < 5) {
-				++BLELoginposted;
-				Applic.app.getHandler().postDelayed(mBLELoginHandler, 100);
-				return;
-			    }
-			    var gatt = mBluetoothGatt;
-			    if (gatt != null)
-				gatt.disconnect();
+			    if(BLELoginposted < 5) {
+                    ++BLELoginposted;
+                    Applic.app.getHandler().postDelayed(mBLELoginHandler, 100);
+                    return;
+                    }
+			  //  var gatt = mBluetoothGatt;
+			    if(gatt != null)
+                    gatt.disconnect();
 			    return;
-			}
+                }
 			conphase = 3;
 			justenablednotification = true;
 			BLELoginposted = 0;

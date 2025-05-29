@@ -298,25 +298,11 @@ public void backglucose() {
 private final static Application getApplication() {
    return Applic.app;
     }
-    /*
-public void setfiles(long ident) {
-    numio.open(datadir,ident);
-}
-*/
-/*
-public AllData(@NonNull Applic app) {
-    Applic.app=app;
 
-//       mMyApp = new IQApp(MY_APP);
-   } */
 static private void senderror(int type) {
    errorm("Senderror "+type);
    }
-   /*
-public void Toaster(String mess) {
-   Applic.app.getHandler().post(()-> { Applic.argToaster(getApplication(), mess, Toast.LENGTH_SHORT);}) ;
-   }
-   */
+
 static private void errorm(String mess) {
     Log.e(LOG_ID,mess);
     Applic.Toaster(mess);

@@ -20,6 +20,7 @@
 
 
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view labels[]={"Ins. rapide","Glucides","Dextro","Ins. basale","Vélo","Marche","Sang"};
 constexpr static Shortcut_t  shortinit[]= { {"Pain blanc",
@@ -49,9 +50,11 @@ constexpr static Shortcut_t  shortinit[]= { {"Pain blanc",
         {"Aquarius",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 
 jugglucotext frtext {
 	.daylabel={"Dim","Lun","Mar","Mer","Jeu","Ven","Sam"},
+#ifdef INJUGGLUCO
 .speakdaylabel={
 "Dimanche",
 "Lundi",
@@ -88,7 +91,9 @@ jugglucotext frtext {
 	.laststream="Dernier flux:",
 	.sensorends="Expiration capteur: ",
 	.sensorexpectedend="Expected to end: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Nouvelle quantité",
 	.averageglucose="Glucose moyen: ",
 	.duration="Durée: %.1f jours",
@@ -117,12 +122,17 @@ jugglucotext frtext {
 		"Miroir",
 		frtext.newamount,
 		"Liste", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Statistiques",
+#ifdef INJUGGLUCO
 		"Parler",
 		"Flotter        "
 		},
 	.menustr2= {"Dernier scan","Scans","Flux","Historique","Quantités","Repas","Mode sombre        "},
 	.menustr3= {hourminstr,"Rechercher","Date","Jour avant","Jour après","Semaine avant","Semaine après"},
+#endif //INJUGGLUCO
 #else
  .amount="Quantité",
  .menustr0= {
@@ -135,6 +145,7 @@ jugglucotext frtext {
 "Jour avant                    ",frtext.amount},
 #endif
 
+#ifdef INJUGGLUCO
 	.scanerrors={
 		{"Erreur de scan (%d)","Réessayez"},
 		{"Erreur d'installation","?"},
@@ -193,15 +204,11 @@ requis. Dans votre cas le fichier suivant pose problème )",
 .nonearbydevicespermission="Needs nearby devices permission"sv
 
 
+#endif //INJUGGLUCO
+,.summarygraph="Graphique résumé"sv
+,.logdays="Jours"sv 
+
+		} ;
 
 
-		}
-
-
-		;
-
-
-extern void setusefr() ;
-void setusefr() {
-	usedtext= &frtext;
-	}
+addlang(fr);

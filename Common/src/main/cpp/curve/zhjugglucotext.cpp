@@ -1,12 +1,15 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view labels[] = {"快速胰岛素", "碳水化合物", "右旋糖酐", "长效胰岛素", "骑自行车", "步行", "血液"};
 constexpr static Shortcut_t  shortinit[] = { {"面包", .48}, {"醋酸红", .56f}, {"醋酸红2", .595f}, {"葡萄", .165f}, {"水果酸", .058f}, {"米饭", .75f}, {"通心粉", .65f}, {"番茄", .03f}, {"墨西哥", .078f}, {"橙汁", .109f}, {"运动粉", .873f}, {"混合胡", .07f}, {"混合蘑", .073f}};
 #endif
+#endif
 
 
-jugglucotext chiText {
+jugglucotext zhtext {
     .daylabel = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"},
+#ifdef INJUGGLUCO
     .speakdaylabel = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"},
     .monthlabel = {
         "一月", "二月", "三月", "四月", "五月", "六月",
@@ -37,7 +40,9 @@ jugglucotext chiText {
     .sensorends = "结束于: ",
 	.sensorexpectedend="Expected to end: ",
 
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
     .newamount = "新标签",
     .averageglucose = "平均葡萄糖: ",
     .duration = "持续时间: %.1f 天",
@@ -64,12 +69,17 @@ jugglucotext chiText {
     .menustr1 = {
         "导出",
         "镜像",
-        chiText.newamount,
+        zhtext.newamount,
         "列表", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
         "统计",
+#ifdef INJUGGLUCO
         "播报",
         "悬浮窗        "
     },
+
     .menustr2 = {"最后一次扫描",
         "扫描数据",
         "蓝牙数据",
@@ -84,6 +94,7 @@ jugglucotext chiText {
         "向后一天",
         "向前一周",
         "向后一周"},
+#endif
 #else
     .amount = "标签",
     .menustr0 = {
@@ -95,9 +106,10 @@ jugglucotext chiText {
     .menustr2 = {"日期  ",
         hourminstr,
         "向后一天                       ",
-        chiText.amount},
+        zhtext.amount},
 #endif
 
+#ifdef INJUGGLUCO
     .scanerrors = {
         {"扫描错误 (%d)",
             "再试一次"},
@@ -172,13 +184,14 @@ jugglucotext chiText {
 .deleted="Deleted"sv,
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
-
-
-
+#endif //INJUGGLUCO
+,.summarygraph="总结图"sv
+,.logdays="天"sv
 
 };
 #include "logs.hpp"
+addlang(zh);
 void setusezh() {
-LOGAR("usedtext= &chiText");
- usedtext= &chiText;
+LOGAR("usedtext= &zhtext");
+ usedtext= &zhtext;
  }

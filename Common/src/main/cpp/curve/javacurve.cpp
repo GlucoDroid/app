@@ -10,6 +10,7 @@
 //#include "nanovg_gl.h"
 //#include "nanovg_gl_utils.h"
 //#define OLDEVERSENSE
+#include "JCurve.hpp"
 
 extern Sensoren *sensors;
 #define NANOVG_GLES2_IMPLEMENTATION
@@ -22,10 +23,10 @@ extern "C" JNIEXPORT jint JNICALL fromjava(openglversion)(JNIEnv* env, jclass ob
 #endif
 }
 
-void   initopengl(int started);
+/*
 extern "C" JNIEXPORT void JNICALL fromjava(initopengl)(JNIEnv* env, jclass obj,jboolean started) {
    initopengl(started);
-    }
+    } */
 
 
 extern bool alarmongoing;
@@ -39,20 +40,14 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(turnoffalarm)(JNIEnv* env, jclass
    return alarmongoing;
    }
 
-extern void resizescreen(int widthin, int heightin,int initscreenwidth);
 extern "C" JNIEXPORT void JNICALL fromjava(resize)(JNIEnv* env, jclass obj, jint widthin, jint heightin,jint initscreenwidth) {
-   resizescreen(widthin,heightin,initscreenwidth);
+   appcurve.resizescreen(widthin,heightin,initscreenwidth);
    }
 
 
-extern void setfontsize(float small,float menu,float density,float headin) ;
-extern "C" JNIEXPORT void JNICALL fromjava(setfontsize)(JNIEnv* env, jclass obj, jfloat small,jfloat menu,jfloat density,jfloat headin) {
-   setfontsize(small,menu,density,headin);
-   }
 
-extern float getfreey();
 extern "C" JNIEXPORT jfloat JNICALL fromjava(freey) (JNIEnv *env, jclass clazz) {
-   return getfreey();
+   return appcurve.getfreey();
    }
 
 extern void setusedsensors() ;
@@ -76,9 +71,9 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(getUsedSensorName)(JNIEnv *envin
    }
 
 
-extern int badscanMessage(int kind);
+extern int badscanMessage(NVGcontext* avg,int kind) ;
 extern "C" JNIEXPORT jint JNICALL fromjava(badscan)(JNIEnv* env, jclass obj,jint kind) {
-   return badscanMessage( kind) ;
+   return ::appcurve.badscanMessage(::genVG, kind) ;
    }
 
 jobject glucosecurve=0;
@@ -391,16 +386,16 @@ void render() {
 //   onestep();
    }
 #endif
-jint onestep();
+extern NVGcontext* genVG;
+jint onestep(NVGcontext* genVG);
 extern "C" JNIEXPORT jint JNICALL fromjava(step)(JNIEnv* env, jclass obj) {
-   return onestep();
+   return appcurve.onestep(::genVG);
    }
 
 extern char localestrbuf[15];
 
 
-
-void  setlocale(const char *localestrbuf,const size_t len) ;
+void  setlocale(NVGcontext* avg,const char *localestrbuf,const size_t len) ;
 
 
 extern "C" JNIEXPORT void JNICALL fromjava(setlocale)(JNIEnv *env, jclass clazz,jstring jlocalestr) {
@@ -408,33 +403,29 @@ extern "C" JNIEXPORT void JNICALL fromjava(setlocale)(JNIEnv *env, jclass clazz,
       size_t len=env->GetStringLength(jlocalestr);
       env->GetStringUTFRegion( jlocalestr, 0,len, localestrbuf);
       localestrbuf[2]='_';
-      setlocale(localestrbuf,5);
+      appcurve.setlocale(genVG,localestrbuf,5);
 
       }
    }
 
 extern uint32_t starttime;
 
-extern void setdiffcurrent();
 
-extern int diffcurrent;
-extern bool nowclamp;
 
-extern bool doclamp;
-bool nowclamp=false;
-static void setdiffcurrent(bool val) {
-   doclamp=false;
-   nowclamp=val;
-   /*
-   if(val) {
-      setdiffcurrent();
-      }
-   else 
-      diffcurrent=0; */
-   }
+
+extern void initopengl(float small,float menu,float density,float headin) ;
+
+
+//extern void setdiffcurrent();
+extern "C" JNIEXPORT void JNICALL fromjava(initopengl)(JNIEnv* env, jclass obj, jfloat small,jfloat menu,jfloat density,jfloat headin) {
+    initopengl(small,menu,density,headin);
+
+    appcurve.setdiffcurrent(settings->data()->currentRelative);
+}
+
 extern "C" JNIEXPORT void  JNICALL   fromjava(setcurrentRelative)(JNIEnv *env, jclass cl,jboolean val) {
    settings->data()->currentRelative=val;
-   setdiffcurrent(val);
+   appcurve.setdiffcurrent(val);
    }
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getcurrentRelative)(JNIEnv *env, jclass cl) {
    return settings->data()->currentRelative;
@@ -469,38 +460,37 @@ extern "C" JNIEXPORT int JNICALL fromjava(setfilesdir)(JNIEnv *env, jclass clazz
       country=(char *)"\0";
       }
    auto res= setfilesdir({filesdirbuf,filesdirlen},country);
-
+    appcurve.setunit(settings->data()->unit);
    return res;
    }
-void calccurvegegs();
-
+/*
 extern "C" JNIEXPORT void JNICALL fromjava(calccurvegegs)(JNIEnv *env, jclass clazz) {
    calccurvegegs();
    setdiffcurrent(settings->data()->currentRelative);
-   }
+   } */
 
 extern void flingX(float vol);
 extern "C" JNIEXPORT void JNICALL fromjava(flingX) (JNIEnv *env, jclass clazz,jfloat vol) {
-   flingX(vol);
+   appcurve.flingX(vol);
    }
 
-extern int translate(float dx,float dy,float yold,float y);
+//extern int translate(float dx,float dy,float yold,float y);
 extern "C" JNIEXPORT jint JNICALL fromjava(translate) (JNIEnv *env, jclass clazz,jfloat dx,jfloat dy,jfloat yold,jfloat y) {
-   return translate(dx,dy,yold,y);
+   return appcurve.translate(dx,dy,yold,y);
    }
 
 void xscaleGesture(float scalex,float midx);
 extern "C" JNIEXPORT void JNICALL fromjava(xscale) (JNIEnv *env, jclass clazz,jfloat scalex,jfloat midx) {
-   xscaleGesture(scalex,midx);
+   appcurve.xscaleGesture(scalex,midx);
    }
 
 void prevscr() ;
 extern "C" JNIEXPORT void JNICALL fromjava(prevscr)(JNIEnv* env, jclass obj) {
-   prevscr();
+   appcurve.prevscr();
    }
 void  nextscr() ;
 extern "C" JNIEXPORT void JNICALL fromjava(nextscr)(JNIEnv* env, jclass obj) {
-    nextscr() ;
+    appcurve.nextscr() ;
     }
 
 void pressedback() ;
@@ -515,12 +505,12 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(isbutton) (JNIEnv *env, jclass cl
 
 int64_t screentap(float x,float y);
 extern "C" JNIEXPORT jlong JNICALL fromjava(tap) (JNIEnv *env, jclass clazz,jfloat x,jfloat y) {
-   return screentap(x,y);
+   return appcurve.screentap(x,y);
    }
 
 int64_t longpress(float x,float y);
 extern "C" JNIEXPORT jlong JNICALL fromjava(longpress) (JNIEnv *env, jclass clazz,jfloat x,jfloat y) {
-   return longpress(x,y);
+   return appcurve.longpress(x,y);
    }
 
 #include "numhit.hpp"
@@ -580,11 +570,11 @@ extern "C" JNIEXPORT void JNICALL fromjava(freehitptr)(JNIEnv *env, jclass thiz,
    }
 extern int duration;
 extern "C" JNIEXPORT jlong JNICALL fromjava(getstarttime) (JNIEnv *env, jclass clazz) {
-   return static_cast<jlong>(starttime)*1000l;
+   return static_cast<jlong>(appcurve.starttime)*1000l;
    };
 
 extern "C" JNIEXPORT jlong JNICALL fromjava(getendtime) (JNIEnv *env, jclass clazz) {
-   auto end=   std::min(starttime+duration,(uint32_t)time(nullptr));
+   auto end=   std::min(appcurve.starttime+appcurve.duration,(uint32_t)time(nullptr));
    return static_cast<jlong>(end)*1000l;
    };
 
@@ -599,15 +589,14 @@ extern "C" JNIEXPORT void JNICALL fromjava(stopsearch) (JNIEnv *env, jclass claz
    }
 int nextforward() ;
 extern "C" JNIEXPORT jint JNICALL fromjava(latersearch) (JNIEnv *env, jclass clazz) {
-   return nextforward();
+   return appcurve.nextforward();
    }
 int nextpast();
 extern "C" JNIEXPORT jint JNICALL fromjava(earliersearch) (JNIEnv *env, jclass clazz) {
-   return nextpast();
+   return appcurve.nextpast();
    }
 
    extern int carbotype;
-int searchcommando(int type, float under,float above,int frommin,int tomin,bool forward,const char *regingr,float amount) ;
 extern "C" JNIEXPORT jint JNICALL fromjava(search) (JNIEnv *env, jclass clazz,jint type, jfloat under,jfloat above,jint frommin,jint tomin,jboolean forward,jstring jregingr,jfloat amount) {
         const char *regingr=nullptr;
    if(jregingr!=nullptr&&type==carbotype)  {
@@ -617,14 +606,12 @@ extern "C" JNIEXPORT jint JNICALL fromjava(search) (JNIEnv *env, jclass clazz,ji
          return 3;
          }
       }
-   jint res= searchcommando(type, under,above,frommin,tomin,forward,regingr, amount);
+   jint res= appcurve.searchcommando(type, under,above,frommin,tomin,forward,regingr, amount);
    if(regingr)
       env->ReleaseStringUTFChars(jregingr, regingr);
    return res;
    }
 
-void begrenstijd();
-extern void setstarttime(uint32_t);
 extern "C" JNIEXPORT void JNICALL fromjava(movedate) (JNIEnv *env, jclass clazz,jlong milli,jint year,jint month,jint day) {
    time_t tim=milli/1000l;
    struct tm      stm{};
@@ -633,17 +620,15 @@ extern "C" JNIEXPORT void JNICALL fromjava(movedate) (JNIEnv *env, jclass clazz,
    stm.tm_mon=month;
    stm.tm_mday=day;
    time_t timto=mktime(&stm);
-   setstarttime(starttime+uint32_t((int64_t)timto-(int64_t)tim));
-   begrenstijd() ;
+   appcurve.setstarttime(appcurve.starttime+uint32_t((int64_t)timto-(int64_t)tim));
+   appcurve.begrenstijd() ;
    };
-void prevdays(int nr);
 extern "C" JNIEXPORT void JNICALL fromjava(prevday)(JNIEnv* env, jclass obj,jint val) {
-   prevdays(val);
+   appcurve.prevdays(val);
    }
 
-void nextdays(int nr) ;
 extern "C" JNIEXPORT void JNICALL fromjava(nextday)(JNIEnv* env, jclass obj,jint val) {
-   nextdays(val);
+   appcurve.nextdays(val);
    }
 /*
 extern "C" JNIEXPORT jlong JNICALL fromjava(lastpoll)(JNIEnv *env, jclass thiz) {
@@ -661,15 +646,13 @@ extern "C" JNIEXPORT void JNICALL fromjava(firstpage)(JNIEnv *env, jclass thiz) 
    numfirstpage();
    }
 
-void numpagenum(const uint32_t tim) ;
 uint32_t maxtime();
 extern "C" JNIEXPORT void JNICALL fromjava(lastpage)(JNIEnv *env, jclass thiz) {
-   numpagenum(maxtime());
+   appcurve.numpagenum(maxtime());
    }
 
-void endnumlist() ;
 extern "C" JNIEXPORT void JNICALL fromjava(endnumlist)(JNIEnv *env, jclass thiz) {
-    endnumlist();
+    appcurve.endnumlist();
    }
 #endif
 extern int showui;
@@ -695,15 +678,14 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(openNums)(JNIEnv *env, jclass thiz,j
    return res;
    }
 extern "C" JNIEXPORT void JNICALL fromjava(setlastcolor)(JNIEnv *env, jclass thiz,jint color) {
-   LOGGER("lasttouchedcolor=%d color=%x\n",lasttouchedcolor,color);
-   if(lasttouchedcolor<0)
+   if(appcurve.lasttouchedcolor<0)
       return;
-   setcolor(lasttouchedcolor, hexcoloralpha((uint32_t)color));
+   appcurve.setcolor(appcurve.lasttouchedcolor, hexcoloralpha((uint32_t)color));
    }
 extern "C" JNIEXPORT jint JNICALL fromjava(getlastcolor)(JNIEnv *env, jclass thiz) {
-   if(lasttouchedcolor<0)
+   if(appcurve.lasttouchedcolor<0)
       return 0xFFFFFFFF;
-   return  fromNVGcolor(getcolor(lasttouchedcolor));
+   return  fromNVGcolor(appcurve.getcolor(appcurve.lasttouchedcolor));
    }
 #ifndef WEAROS
 extern bool makepercetages() ;
@@ -711,10 +693,9 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(makepercentages)(JNIEnv *env, jcl
    return makepercetages();
    }
 extern int numlist;
-            extern void numiterinit();
 extern "C" JNIEXPORT void JNICALL fromjava(makenumbers)(JNIEnv *env, jclass thiz) {
          if(!numlist) {
-            numiterinit();
+            appcurve.numiterinit();
             numlist=1;
             }
          }
@@ -734,10 +715,10 @@ extern int shownumbers;
 extern int showmeals;
 #define defdisplay(kind)\
 extern "C" JNIEXPORT jboolean JNICALL fromjava(getshow##kind)(JNIEnv *env, jclass thiz) {\
-   return show##kind;\
+   return appcurve.show##kind;\
    }\
 extern "C" JNIEXPORT void JNICALL fromjava(setshow##kind)(JNIEnv *env, jclass thiz,jboolean val) {\
-   show##kind=val;\
+   appcurve.show##kind=val;\
    }
 
 defdisplay(scans)
@@ -865,7 +846,7 @@ extern "C" JNIEXPORT void JNICALL fromjava(setsystemui)(JNIEnv *env, jclass thiz
 
 extern "C" JNIEXPORT void JNICALL fromjava(settonow)(JNIEnv *env, jclass thiz) {
    auto max=time(nullptr);
-   setstarttime(max-duration*3/5);
+   appcurve.setstarttime(max-appcurve.duration*3/5);
    }
 
 
@@ -887,17 +868,84 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(showlastscan)(JNIEnv *env, jclass
    }
 
 
-extern jint width,height;
 extern int statusbarheight;
 extern int statusbarleft,statusbarright;
-  void withbottom();
 extern "C" JNIEXPORT void JNICALL fromjava(systembar)(JNIEnv *env, jclass thiz,jint left,jint top,jint right,jint bottom) {
-   statusbarheight=top*4/5;
- statusbarleft=left;
- statusbarright=right;
- dbottom=bottom;
+ appcurve.statusbarheight=top*4/5;
+ appcurve.statusbarleft=left;
+ appcurve.statusbarright=right;
+ appcurve.dbottom=bottom;
 //  resizescreen(width, height,width);
-  withbottom();
+  appcurve.withbottom();
    }
+
+
+
+#include "fromjava.h"
+extern bool fixatey;
+
+extern bool showsummarygraph;
+extern "C" JNIEXPORT void JNICALL fromjava(summarygraph) (JNIEnv *env, jclass clazz,jboolean val) {
+	 showsummarygraph=val;
+	 if(val) {
+		 fixatey=false;
+		 }
+	else {
+	      fixatey=settings->data()->fixatey;
+
+		}
+	}
+
+extern int daystoanalyse;
+extern bool mkpercentiles(int days);
+extern "C" JNIEXPORT void JNICALL fromjava(analysedays) (JNIEnv *env, jclass clazz,jint days) {
+	daystoanalyse=days;
+	mkpercentiles(days);
+    LOGGER("end analysedays(%d)\n",days);
+	}
+extern "C" JNIEXPORT jint JNICALL fromjava(getAnalysedays) (JNIEnv *env, jclass clazz) {
+	return daystoanalyse;
+	}
+
+extern bool showpers;
+extern "C" JNIEXPORT void JNICALL fromjava(endstats) (JNIEnv *env, jclass clazz) {
+	showpers=0;
+	appcurve.begrenstijd() ;
+	}
+#include "net/watchserver/Getopts.hpp"
+extern bool hassummary(Getopts &opts);
+extern int getminutes(time_t tim);
+extern "C" JNIEXPORT jlong JNICALL fromjava(percentileEndtime) (JNIEnv *env, jclass clazz,jint days) {
+    const uint32_t  endtime=appcurve.starttime+appcurve.duration;
+    const uint32_t startday=endtime-getminutes(endtime)*60;
+    const uint32_t endday=startday+daysecs-1;
+    Getopts opts;
+    opts.end=endday;
+    opts.start=endday-days*daysecs;
+    const bool hassum=hassummary(opts); 
+    return endtime;
+    }
+
+#endif
+extern "C" JNIEXPORT void  JNICALL   fromjava(setInvertColors)(JNIEnv *env, jclass cl,jboolean val) {
+	appcurve.setinvertcolors(val);
+	}
+
+#if defined(JUGGLUCO_APP)&&!defined(WEAROS)
+extern bool  exportdata(uint32_t starttime, uint32_t duration,int type,int fd,float days) ;
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(exportdata)(JNIEnv *env, jclass cl,jint type,jint fd,jfloat days) {
+        return  exportdata(appcurve.starttime, appcurve.duration,type,fd,days);
+        }
 #endif
 
+extern bool fixatex;
+extern "C" JNIEXPORT void  JNICALL   fromjava(setfixatex)(JNIEnv *env, jclass cl,jboolean val) {
+	settings->data()->fixatex=val;
+	fixatex=val;
+	settings->data()->duration=appcurve.duration;
+	}
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(setunit)(JNIEnv *env, jclass cl,jint unit) {
+	settings->setunit(unit);
+        appcurve.setunit(unit);
+	}

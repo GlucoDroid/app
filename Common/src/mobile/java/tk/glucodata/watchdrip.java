@@ -38,7 +38,7 @@ import com.eveningoutpost.dexdrip.services.broadcastservice.models.Settings;
 public class watchdrip extends BroadcastReceiver {
 private static String  LOG_ID="watchdrip";
 
-private static   String  tostring(Bundle bundle) {
+ static   String  tostring(Bundle bundle) {
         if(bundle==null)
             return "";
         var builder = new StringBuilder();

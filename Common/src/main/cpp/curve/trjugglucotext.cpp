@@ -1,4 +1,5 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view trlabels[]={"HizliEtkili",
 "Karbonhidrt",
@@ -34,6 +35,7 @@ constexpr static Shortcut_t  trshortinit[]= { {"Ekmek",
         {"Mix Mantar",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 
 extern jugglucotext trtext;
 jugglucotext trtext {
@@ -44,6 +46,7 @@ jugglucotext trtext {
         "Prş",
         "Cum",
         "Cts"},
+#ifdef INJUGGLUCO
 .speakdaylabel={ "Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"},
         .monthlabel={
       "Ock",
@@ -82,7 +85,9 @@ jugglucotext trtext {
         .laststream="Son Akış:",
         .sensorends="Resmi olarak bitiş: ",
         .sensorexpectedend="Beklenen bitiş: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
         .newamount="Yeni Miktar",
         .averageglucose="Ortalama Glikoz: ",
         .duration="Duration: %.1f gün",
@@ -113,7 +118,11 @@ jugglucotext trtext {
                 "Klon",
                 trtext.newamount,
                 "Liste", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
                 "İstatistikler",
+#ifdef INJUGGLUCO
                 "Seslendirme",
                 "Yüzen Glikoz       "
                 },
@@ -131,6 +140,7 @@ jugglucotext trtext {
         "Sonraki Gün",
         "Önceki Hafta",
         "Sonraki Hafta"},
+#endif //INJUGGLUCO
 #else
  .amount="Miktar",
  .menustr0= {
@@ -145,6 +155,7 @@ hourminstr,
 trtext.amount},
 #endif
 
+#ifdef INJUGGLUCO
         .scanerrors={
                 {"Tarama Hatası (%d)", "Tekrar Deneyin"},
                 {"Yükleme Hatası", "?"},
@@ -200,14 +211,13 @@ muhtemelen bu dosyaları başka bir şekilde tespit edilemez hale getirmek daha 
 .deleted="Silindi"sv,
 .nolocationpermission="Konum izni gerekiyor"sv,
 .nonearbydevicespermission="Yakındaki Cihazlar izni gerekiyor"sv
+#endif //INJUGGLUCO
+,.summarygraph="Özet Grafiği"sv
+,.logdays="Günler"sv
                 }
 
 
                 ;
 
-#include "logs.hpp"
-void setusetr() {
-LOGAR("setuse tr");
- usedtext= &trtext;
- }
+addlang(tr);
 

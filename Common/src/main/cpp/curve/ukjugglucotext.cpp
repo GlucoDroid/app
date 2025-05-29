@@ -1,4 +1,5 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view uklabels[]={"Швидкий","Вуглев","Дэкстр","Довгий","Велос","Прагул","Кров"};
 constexpr static Shortcut_t  ukshortinit[]= { {"Bread",
@@ -28,10 +29,12 @@ constexpr static Shortcut_t  ukshortinit[]= { {"Bread",
         {"Mix mushro",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 
 jugglucotext uktext {
 .daylabel={"Ндл","Пнд","Втр","Срд","Чтв","Птн","Сбт"},
 
+#ifdef INJUGGLUCO
 .speakdaylabel={
 "неділя",
 "понеділок",
@@ -65,7 +68,9 @@ jugglucotext uktext {
 	.laststream="Останній потік:",
 	.sensorends="Датчик закінчується: ",
 	.sensorexpectedend="Очікується закінчення: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Нова сума",
 	.averageglucose="Середня глюкоза: ",
 	.duration="Тривалість: %.1f днів",
@@ -94,7 +99,11 @@ jugglucotext uktext {
 		"Клон",
 		uktext.newamount,
 		"Список",
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Статистика",
+#ifdef INJUGGLUCO
 		"Говорити",
 		"Плавати        "
 		},
@@ -106,6 +115,7 @@ jugglucotext uktext {
 	    "Їжа",
 	    "Dark mode        "},
 	.menustr3= {hourminstr,"Пошук","Дата","День назад","Через день","Тиждень тому","Тиждень пізн"},
+#endif //INJUGGLUCO
 #else
  .amount="Сума",
  .menustr0= {
@@ -118,6 +128,7 @@ jugglucotext uktext {
 "День назад                ",uktext.amount},
 #endif
 
+#ifdef INJUGGLUCO
 	.scanerrors={
 		{"Помилка сканування (%d)","Спробуйте знову"},
 		{"Помилка встановлення","?"},
@@ -174,16 +185,13 @@ jugglucotext uktext {
 .deleted="Deleted"sv,
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
-
-
-
+#endif //INJUGGLUCO
+,.summarygraph="Зведений графік"sv
+,.logdays="Днів"sv
 
 		}
 
 
 		;
 
-extern void setuseuk() ;
-void setuseuk() {
- usedtext= &uktext;
- }
+addlang(uk);

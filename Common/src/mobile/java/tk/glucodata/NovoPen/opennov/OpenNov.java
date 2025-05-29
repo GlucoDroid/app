@@ -1,5 +1,5 @@
 /*
-All files in this directory tree are a modification of files of xDrip
+All files in this directory tree are a modification for Juggluco of files of xDrip:
 https://github.com/NightscoutFoundation/xDrip
 */
 package tk.glucodata.NovoPen.opennov;

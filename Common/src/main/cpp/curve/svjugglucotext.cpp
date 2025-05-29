@@ -1,4 +1,5 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view svlabels[]={
   // max 11 bytes
@@ -27,9 +28,11 @@ constexpr static Shortcut_t  svshortinit[]= {
   {"Mix svamp", .07300000f}
   };
 #endif
+#endif //INJUGGLUCO
 
 jugglucotext svtext {
 	.daylabel={"Sön", "Mån", "Tis", "Ons", "Tor", "Fre", "Lör"},
+#ifdef INJUGGLUCO
   .speakdaylabel={ "Söndag","Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag"},
 	.monthlabel={ "Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"},
 	.scanned="Skannad",
@@ -55,7 +58,9 @@ jugglucotext svtext {
 	.laststream="Senast strömmade:",
 	.sensorends="Avslutas officielt: ",
 	.sensorexpectedend="Förväntat avslut: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Nytt värde",
 	.averageglucose="Medelglukos: ",
 	.duration="Varaktighet: %.1f dagar",
@@ -84,9 +89,13 @@ jugglucotext svtext {
 	.menustr1={
 		"Export",
 		"Spegling",
-		"Värde",
+                svtext.newamount,
 		"Lista",
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Statistik",
+#ifdef INJUGGLUCO
 		"Tal",
 		"Flytande     "
 		},
@@ -105,6 +114,7 @@ jugglucotext svtext {
     "Dag senare",
     "Vecka tidigare",
     "Vecka senare"},
+#endif //INJUGGLUCO
 #else
    .amount="Värde",
    .menustr0= {
@@ -122,6 +132,7 @@ jugglucotext svtext {
     },
 #endif
 
+#ifdef INJUGGLUCO
 	.scanerrors={
 		{"Skanningsfel (%d)", "Försök igen"},
 		{"Installationsfel", "?"},
@@ -189,12 +200,16 @@ eller Denylist) och ändra sitt eget namn, båda behövs. I ditt fall
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
 
+#endif //INJUGGLUCO
+ ,.summarygraph="Sammanfattningsgraf"sv
 
+,.logdays="Dagar"sv
 
 
 	};
 
 extern void setusesv() ;
+addlang(sv);
 void setusesv() {
   usedtext= &svtext;
   }

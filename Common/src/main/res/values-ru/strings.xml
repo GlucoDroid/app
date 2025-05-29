@@ -323,4 +323,6 @@
 <string name="mgdL">мг/дл</string>
 <string name="interval">Интервал</string>
 <string name="off">Выкл</string>
+<string name="scantranstitle">Сканировать матрицу данных ПЕРЕДАТЧИКА</string>
+<string name="scantransmessage">Матрица данных датчика Sibionics 2 успешно просканирована. \nТеперь сканируйте матрицу данных передатчика."</string>
 </resources>

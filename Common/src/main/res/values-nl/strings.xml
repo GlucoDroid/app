@@ -373,6 +373,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="profile">"Profiel "</string>
  <string name="lossofsignal">Signaal verlies</string>
  <string name="valuenotification">Waarde aanwezig</string>
-
+<string name="scantranstitle">TRANSMITTER datamatrix scannen</string>
+<string name="scantransmessage">Sibionics 2 sensor datamatrix succesvol gescand. \nScan nu de transmitter datamatrix."</string>
 </resources>
 

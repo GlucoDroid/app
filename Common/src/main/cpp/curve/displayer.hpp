@@ -20,9 +20,10 @@
 
 
 #pragma once
+struct NVGcontext;
 class Displayer {
  public:
- virtual int display()=0; 
-   virtual ~Displayer(){};
+ virtual int display(NVGcontext* avg)=0; 
+ virtual ~Displayer(){};
 };
 

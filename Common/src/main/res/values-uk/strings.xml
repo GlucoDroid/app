@@ -341,4 +341,6 @@
  <string name="streamingenabled">" Потокове передавання ввімкн"</string>
  <string name="streamingnotenabled">" Потокове передавання не ввімкн"</string>
  <string name="threshold">Threshold</string>
+ <string name="scantranstitle">Сканувати матрицю даних ПЕРЕДАВАЧА</string>
+<string name="scantransmessage">Матрицю даних датчика Sibionics 2 успішно проскановано. \nТепер проскануйте матрицю даних передавача."</string>
 </resources>

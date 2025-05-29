@@ -196,7 +196,7 @@ const std::pair<int,const T*> findoldestwith(NumIter<T> *nums,int count,const F&
 //extern template<typename F> const Num *findoldest(NumIter<Num> *nums,int count,const F& notval=notva<Num>) ;
 //extern template<typename F> const Num *findnewest(NumIter<Num> *nums,int count,const F& notval=notva<Num>) ;
 struct NVGcontext;
-extern void shownums(NVGcontext* vg, NumIter<Num> *numiters, const int nr) ;
+//extern void shownums(NVGcontext* vg, NumIter<Num> *numiters, const int nr) ;
 
 extern void shownumsback(NVGcontext* vg, NumIter<Num> *numiters, const int nr) ;
 extern void shownumsbacknewest(NVGcontext* vg, NumIter<Num> *numiters, const int nr,const int numnr) ;

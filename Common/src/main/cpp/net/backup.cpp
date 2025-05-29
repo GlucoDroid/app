@@ -411,9 +411,8 @@ globalsocket=serversock;
 		socklen_t sin_size = sizeof(their_addr) ;
 		LOGGERTAG("accept(%d,%p,%d)\n",serversock,addrptr,sin_size);
 		int new_fd = accept(serversock, addrptr, &sin_size);
-        const auto tag=get_owner_tag(new_fd);
 		LOGGERTAG("na accept(serversock=%d)=%d\n",serversock,new_fd);
-		if (new_fd == -1) {
+		if(new_fd == -1) {
 			int ern=errno;
 			servererror("accept %d",ern);
 			LOGGERTAG("%s\n",servererrorbuf);
@@ -432,6 +431,7 @@ globalsocket=serversock;
 				} 
 			continue;
 			}
+        const auto tag=get_owner_tag(new_fd);
 		if(!networkpresent) {
 			LOGGERTAG("serverloop !networkpresent close %d\n",new_fd);
 			sockclose(new_fd);

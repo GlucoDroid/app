@@ -192,19 +192,13 @@ bool securewatchcommands(SSL *ssl) {
 	struct recdata outdata;
 	if(sslstopconnection)
 		return false;
-
-	     void wakesender();
-	      wakesender();
-bool watchcommands(char *rbuf,int len,recdata *outdata,bool secure) ;
-/*
-	if(!watchcommands(rbuf, len,&outdata,true) ) {
-		sslservererror(ssl);
-		return false;
-		}
-	return SSL_writeptr(ssl,outdata.data(),outdata.size())&&!sslstopconnection;
-; */
+        extern void wakesender();
+        wakesender();
+        bool watchcommands(char *rbuf,int len,recdata *outdata,bool secure) ;
 	bool res=watchcommands(rbuf, len,&outdata,true);
 	bool res2= SSL_writeptr(ssl,outdata.data(),outdata.size());
+   LOGGER("securewatchcommands: delete outdata.allbuf=%p\n",outdata.allbuf);
+    delete[] outdata.allbuf;
 	return res&&res2&&!sslstopconnection;
 	} 
 

@@ -85,3 +85,11 @@
 //#define ENCRYPTMESSAGES 1
 
 //#define ADD_ConnectDecodeResult
+
+#define MENUARROWS 1
+#define PERCENTILES 1
+
+#define USE_RUSSIAN 1 
+#ifndef JUGGLUCO_APP
+#define DONTTALK  
+#endif

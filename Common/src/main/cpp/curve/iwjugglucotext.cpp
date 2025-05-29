@@ -232,7 +232,9 @@ iwtext.newamount,
 .nonearbydevicespermission="Needs nearby devices permission"sv
 
 
+,.summarygraph="Summary graph"sv
 
+,.logdays="Daily log"sv
 
 }
 
@@ -240,6 +242,7 @@ iwtext.newamount,
 ;
 
 
+addlang(iw);
 void setuseiw() {
   usedtext= &iwtext;
   }

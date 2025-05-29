@@ -119,9 +119,9 @@ public void redraw() {
         tmpcurve.requestRender();
     }
 
-final private Handler mHandler;
-private final long uiThreadId;
-public Handler getHandler() {
+static private Handler mHandler;
+private static  long uiThreadId;
+public static Handler getHandler() {
     return mHandler;
     }
 static public MainActivity getActivity() {
@@ -150,7 +150,7 @@ static public    void argToaster(Context context,String message,int duration) {
             speak(message);
         }
     }
-private void RunOnUiThreader(Runnable action) {
+static public void RunOnUiThread(Runnable action) {
     if (Thread.currentThread().getId() != uiThreadId) {
         mHandler.post(action);
       } else {
@@ -158,25 +158,23 @@ private void RunOnUiThreader(Runnable action) {
         }
     }
 static public void postDelayed(Runnable action,long mmsecs) {
-    Applic.app.getHandler().postDelayed( action ,mmsecs);
+    Applic.getHandler().postDelayed( action ,mmsecs);
     }
+    /*
 static  public void RunOnUiThread(Runnable action) {
-    app.RunOnUiThreader(action);
-    }
-public static Applic app;
+   app.RunOnUiThreader(action);
+    } */
+public static  Applic app;
 private final IntentFilter mintimefilter ;
 @MainThread
 public Applic() {
     super();
+    app=this;
     android.util.Log.i(LOG_ID,"start tk.glucodata");
     mintimefilter = new IntentFilter();
     mintimefilter.addAction(Intent.ACTION_TIME_TICK);
-    //android.util.Log.e(LOG_ID,"addAction");
-    app=this;
     mHandler = new Handler(Looper.getMainLooper());
-    //android.util.Log.e(LOG_ID,"getMainLooper");
     uiThreadId=Thread.currentThread().getId();
-    //android.util.Log.e(LOG_ID,"currentThread().getId");
     if(!isWearable) {
         numdata=new AllData();
         }
@@ -637,6 +635,7 @@ static void updatescreen() {
 static float headfontsize;
 static float mediumfontsize;
   static public float largefontsize;
+static float menufontsize ;
 boolean needsnatives() {
   {if(doLog) {Log.i(LOG_ID,"needsnatives");};};
   final var res=getResources();
@@ -646,7 +645,7 @@ boolean needsnatives() {
   {if(doLog) {Log.i(LOG_ID,"heightPixels="+GlucoseCurve.metrics.heightPixels+" widthPixels="+GlucoseCurve.metrics.widthPixels);};};
   var newinitscreenwidth= Math.max(GlucoseCurve.metrics.heightPixels,GlucoseCurve.metrics.widthPixels);
   boolean ret;
-  final float menufontsize = res.getDimension(R.dimen.abc_text_size_menu_material);
+  menufontsize = res.getDimension(R.dimen.abc_text_size_menu_material);
     final double screensize=(newinitscreenwidth/menufontsize);
   final boolean smallsize=screensize<34.0;
     if(newinitscreenwidth!=initscreenwidth)  {
@@ -668,8 +667,8 @@ boolean needsnatives() {
      smallfontsize = res.getDimension(R.dimen.abc_text_size_small_material);
      largefontsize = res.getDimension(R.dimen.abc_text_size_large_material);
      mediumfontsize = res.getDimension(R.dimen.abc_text_size_medium_material);
-     Natives.setfontsize(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
-   Notify.mkpaint();
+//     Natives.setfontsize(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
+      Notify.mkpaint();
      return ret;
      }
    /*

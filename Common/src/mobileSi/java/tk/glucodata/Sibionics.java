@@ -27,7 +27,9 @@ import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.useZXing;
 import static tk.glucodata.InsulinTypeHolder.getradiobutton;
 import static tk.glucodata.Log.doLog;
-import static tk.glucodata.ZXing.scanZXing;
+import static tk.glucodata.MainActivity.REQUEST_BARCODE;
+import static tk.glucodata.MainActivity.REQUEST_BARCODE_SIB2;
+import static tk.glucodata.ZXing.scanZXingAlg;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -87,25 +89,21 @@ longserialnumber
 Sibionics2:
 */
 
-private static void selectType(long dataptr,MainActivity act) {
+private static void selectType(String name,long dataptr,MainActivity act) {
     int subtype=Natives.getSiSubtype(dataptr);
+    /*
     if(subtype==3) {
         Natives.freedataptr(dataptr);
         return;
-        }
+        } */
 
     var group=new RadioGroup(act);
     int id=0;
     group.addView(getradiobutton(act,R.string.eusibionics,id++));
     group.addView(getradiobutton(act,R.string.hematonix,id++));
-    group.addView(getradiobutton(act,R.string.chsibionics,id));
-//    group.addView(getradiobutton(act,R.string.sibionics2,id));
-
+    group.addView(getradiobutton(act,R.string.chsibionics,id++));
+    group.addView(getradiobutton(act,R.string.sibionics2,id));
     group.check(subtype);
-
-    group.setOnCheckedChangeListener( (g,i)-> {
-        Natives.setSiSubtype(dataptr,i);
-         });
    var ok=getbutton(act, R.string.ok);
     int height = GlucoseCurve.getheight();
     int width = GlucoseCurve.getwidth();
@@ -120,7 +118,28 @@ private static void selectType(long dataptr,MainActivity act) {
    layout.setPadding(0,0,0,rand);
    MainActivity.setonback(() -> {
       removeContentView(layout);
-      Natives.freedataptr(dataptr);
+      int type=group.getCheckedRadioButtonId();
+      Log.i(LOG_ID,"getCheckedRadioButtonId()="+type);
+      if(type>=0) {
+          Natives.setSiSubtype(dataptr,type);
+          if(type==3) {
+                Confirm.ask2(act,act.getString(R.string.scantranstitle) ,act.getString( R.string.scantransmessage) , 
+                ()-> {
+                        scanner(act,REQUEST_BARCODE_SIB2,dataptr);
+                        },
+                () -> {
+                    Natives.finishSensor(dataptr);
+                    Natives.freedataptr(dataptr);
+                    SensorBluetooth.sensorEnded(name);
+                    }
+
+                );
+
+            }
+           else {
+              }
+            }
+
       });
    ok.setOnClickListener(v-> {
         MainActivity.doonback();
@@ -129,58 +148,88 @@ private static void selectType(long dataptr,MainActivity act) {
     act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
     }
 
-
-static void connectSensor(final String scantag,MainActivity act)  {
+static long wasdataptr=0L;
+static void connectSensor(final String scantag,MainActivity act,int request,long dataptr2)  {
      if(!isWearable) {
-            if(scantag.endsWith("MirrorJuggluco")) {
-                MirrorString.makeMirror(scantag,act);
-                return;
-                }
-             else {
-                String name=Natives.addSIscangetName(scantag);
-                if(name!=null)  {
-                   MainActivity.tocalendarapp=true;
-                   var dataptr= Natives.getdataptr(name);
-                   int type=Natives.getLibreVersion(dataptr);
-                   {if(doLog) {Log.i(LOG_ID,"type="+type);};};
-                   if(type== 0x10) {
-                        selectType(dataptr,act);
+        switch(request) {
+            case REQUEST_BARCODE:{
+                if(scantag.endsWith("MirrorJuggluco")) {
+                    MirrorString.makeMirror(scantag,act);
+                    return;
+                    }
+                 else {
+                    String name=Natives.addSIscangetName(scantag);
+                    if(name!=null)  {
+                       MainActivity.tocalendarapp=true;
+                       var dataptr= Natives.getdataptr(name);
+                       int type=Natives.getLibreVersion(dataptr);
+                       {if(doLog) {Log.i(LOG_ID,"type="+type);};};
+                       if(type== 0x10) {
+                            selectType(name,dataptr,act);
+                            }
+                       else
+                            Natives.freedataptr(dataptr);
+                       var res=SensorBluetooth.updateDevices();
+                       Applic.wakemirrors();
+                       if(res) {
+                            act.finepermission(); 
+                            }
+                          else
+                            act.systemlocation();
+                       return;
+                       }
+                    }
+                 }break;
+               case REQUEST_BARCODE_SIB2: {
+                    if(Natives.siTransmitterScan(dataptr2,scantag)) {
+                        Natives.freedataptr(dataptr2);
+                        return;
                         }
-                   else
-                        Natives.freedataptr(dataptr);
-                   var res=SensorBluetooth.updateDevices();
-                   Applic.wakemirrors();
-                   if(res) {
-                        act.finepermission(); 
+                    else {
+                        transmitterScanCancelled(dataptr2);
                         }
-                      else
-                        act.systemlocation();
-                   return;
-                   }
+
+                    }
                 }
-             }
+                }
           wrongtag(); 
          }
 
+static void transmitterScanCancelled(long dataptr2) {
+            if(dataptr2!=0L) {
+                Natives.finishSensor(dataptr2);
+                var serial=Natives.getSensorName(dataptr2);
+                Natives.freedataptr(dataptr2);
+                if(serial!=null)  {
+                    Log.i(LOG_ID,"transmitterScanCancelled "+serial);
+                    SensorBluetooth.sensorEnded(serial);
+                    }
+                 }
+            else {
+                Log.i(LOG_ID,"transmitterScanCancelled dataptr==0");
+                }
+           }
 
 
 
-
-public static void scan(MainActivity act) {
+public static void scanner(MainActivity act,int type,long dataptr) {
     if (!isWearable) {
         if(!Natives.getGoogleScan())
-            scanZXing(act);
+            scanZXingAlg(act,type,dataptr);
         else {
             try {
-                scanGoogle(act);
+                scanGoogle(act,type,dataptr);
                 } catch (Throwable th) {
                     Log.stack(LOG_ID, "scanGoogle", th);
-                    scanZXing(act);
+                    scanZXingAlg(act,type,dataptr);
                     }
            }
       }
 }
-private static void scanGoogle(MainActivity act) {
+public static void scan(MainActivity act,int type) {
+    scanner(act,type,0L);
+    }
+private static void scanGoogle(MainActivity act,int type,long dataptr) {
      if(!isWearable) {
         if(doLog) {Log.i(LOG_ID, "before scan");};
         final var options =  new com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder().setBarcodeFormats( com.google.mlkit.vision.barcode.common.Barcode.FORMAT_DATA_MATRIX, com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build();
@@ -190,13 +239,14 @@ private static void scanGoogle(MainActivity act) {
                var rawValue = barcode.getRawValue();
                var message="Scanned: "+rawValue;
                if(doLog) {Log.i(LOG_ID,message);};
-               connectSensor(rawValue,act);
+               connectSensor(rawValue,act,type,dataptr);
                })
            .addOnCanceledListener(
                () -> {
                     var message="Scan cancelled";
                     if(doLog) {Log.i(LOG_ID,message);};
                     Toast.makeText(act, message, Toast.LENGTH_LONG).show();
+                    transmitterScanCancelled(dataptr);
                      // Task canceled
                    })
        .addOnFailureListener(
@@ -206,7 +256,7 @@ private static void scanGoogle(MainActivity act) {
             Toast.makeText(act, message, Toast.LENGTH_SHORT).show();  
             if(useZXing) {
                 Toast.makeText(act, "Move to zXing", Toast.LENGTH_SHORT).show();
-                scanZXing(act);
+                scanZXingAlg(act,type,dataptr);
                 }
         
          // Task failed with an exception

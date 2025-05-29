@@ -90,7 +90,58 @@ extern "C" JNIEXPORT void JNICALL   fromjava(siSaveDeviceName)(JNIEnv *env, jcla
    env->GetStringUTFRegion( jdeviceName, 0,len, name);
    info->siDeviceNamelen=len;
    name[len]='\0';
-  // sendstreaming(sens);  //TODO??
+  sendstreaming(sens);  
+  backup->resendResetDevices();
+  backup->wakebackup(Backup::wakeall);
+  // sendstreaming(sens);  
+   }
+
+
+extern "C" JNIEXPORT jboolean JNICALL   fromjava(siTransmitterScan)(JNIEnv *env, jclass cl,jlong dataptr,jstring jscancode) {
+	if(!dataptr) {
+        LOGAR("siTransmitterScan dataptr==null");
+		return false;
+        }
+	const jint getlen= env->GetStringUTFLength( jscancode);
+    if(getlen!=59) {
+        LOGGER("siTransmitterScan len==%d\n",getlen);
+        return false;
+        }
+   const char *scancode = env->GetStringUTFChars( jscancode, NULL);
+   if(!scancode) {
+        LOGAR("siTransmitterScan  GetStringUTFChars()=null");
+        return false;
+        }
+   if(!std::ranges::contains_subrange(std::string_view(scancode,getlen),sibionicsRecognition)) {
+        LOGGER("siTransmitterScan  not %s in %s\n",sibionicsRecognition.data(),scancode);
+        return false;
+        }
+
+	streamdata *sdata=reinterpret_cast<streamdata *>(dataptr);
+    auto *sens= sdata->hist;
+   auto *info=sens->getinfo();
+   info->siToken='%';
+
+   char *name=(char *)info->siDeviceName;
+   constexpr const int namlen= 10;
+   memcpy(name,scancode+getlen-namlen,namlen);
+   info->siDeviceNamelen=namlen;
+   name[namlen]='\0';
+   LOGGER("siTransmitterScan %s\n",name);
+  sendstreaming(sens);  
+  backup->resendResetDevices();
+  backup->wakebackup(Backup::wakeall);
+   return true;
+   }
+extern "C" JNIEXPORT jstring JNICALL   fromjava(siGetDeviceName)(JNIEnv *env, jclass cl,jlong dataptr) {
+	if(!dataptr)
+		return nullptr;
+   const streamdata *sdata=reinterpret_cast<streamdata *>(dataptr);
+   const auto *sens= sdata->hist;
+   const auto *info=sens->getinfo();
+   if(info->siDeviceNamelen<=0) return nullptr;
+   const char *name=(char *)info->siDeviceName;
+   return env->NewStringUTF(name);
    }
 
 /*

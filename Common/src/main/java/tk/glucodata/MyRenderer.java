@@ -22,7 +22,10 @@
 package tk.glucodata;
 
 
+import static tk.glucodata.Applic.headfontsize;
+import static tk.glucodata.Applic.menufontsize;
 import static tk.glucodata.GlucoseCurve.STEPBACK;
+import static tk.glucodata.GlucoseCurve.smallfontsize;
 
 import android.opengl.GLSurfaceView;
 
@@ -30,7 +33,7 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class MyRenderer implements GLSurfaceView.Renderer {
-       boolean started=false;
+//       boolean started=false;
         int stepresult = 0;
         int badscan = 0;
 
@@ -53,11 +56,9 @@ public void onSurfaceChanged(GL10 gl, int w, int h) {
         }
        GlucoseCurve.setgeo(w,h);
         }
-
    public void onSurfaceCreated(GL10 gl, EGLConfig config) {
         if(Applic.Nativesloaded) {
-                Natives.initopengl(started);
-                started=true;
+                Natives.initopengl(smallfontsize, menufontsize, GlucoseCurve.metrics.density, headfontsize);
                 }
         }
     }

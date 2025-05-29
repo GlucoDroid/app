@@ -62,15 +62,15 @@ static  {
 //	public static native void enabledStreaming(byte[] uid,byte[] info,boolean val);
 	public static native void enabledStreaming(byte[] uid,byte[] info,int val,byte[] address); // address!=null enables, address==null don't ask again
 public static native boolean hasBluetooth(byte[] sensorident,byte[] patchinfo);
-     public static native void initopengl(boolean started);
+//     public static native void initopengl(boolean started);
      public static native int openglversion();
 	
 //    public static native void showlast();
 //    public static native void hidescanresults();
     public static native void resize(int width, int height,int initscreenwidth);
-     public static native void setfontsize(float small,float menu,float density,float head);
+     public static native void initopengl(float small,float menu,float density,float head);
      public static native int setfilesdir(String dir,String country,String nativedir);
-     public static native void calccurvegegs();
+//     public static native void calccurvegegs();
   public static native void startthreads();
 public static native void startmeals();
 public static native void startsensors( );
@@ -754,6 +754,7 @@ public static native void setHostDeactivated(int pos,boolean val);
 //public static native long makeSIdataptr(String gegs);
 //public static native int getSIindex(long dataptr);
 public static native void siSaveDeviceName(long dataptr,String deviceName);
+public static native String siGetDeviceName(long dataptr);
 public static native long SIprocessData(long dataptr, byte[] bluetoothdata,long mmsec);
 public static native String getSiBluetoothNum(long dataptr);
 public static native byte[] siAsknewdata(long dataptr);
@@ -846,8 +847,10 @@ public static native boolean set2Schedule( );
 public static native void setSoundType(int val);
 public static native int getSoundType( );
 
-    
-
+public static native boolean siTransmitterScan(long dataptr,String scancode);
+public static native long percentileEndtime(int days);
+public static native int getAnalysedays( );
+public static native void onCreate();
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }
 

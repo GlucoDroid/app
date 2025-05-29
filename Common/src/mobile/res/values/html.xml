@@ -1200,6 +1200,13 @@ used in Abbott\'s Libre 3 app.</span></p>
 glucose variability.  A higher coefficient of variation means that
 the glucose values are further from the mean. 
 </p>
+<h3 class="western">Save</h3>
+<p>This presents a report of your glucose values of the specified days. It contains
+statistics, the overview graph and an image
+of separate days. You can print it to PDF and e-mail it to your healthcare professional. You need to have activated left menu→Settings→Exchange
+data→Web server. It opens url <a href="http://127.0.0.1:17580/x/report">http://127.0.0.1:17580/x/report</a>
+in the web browser.
+</p>
 <h3 class="western">Summary graph</h3>
 <p>(Only present when at least 9 days of stream glucose values are
 available).</p>
@@ -2665,7 +2672,7 @@ used.</p>
 </string>
 <string name="loghelp" >
 <![CDATA[
-<p><a href="https://www.juggluco.nl/Jugglucohelp/de/loghelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/loghelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/loghelp.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/loghelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Log</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/loghelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/loghelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/loghelp.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/loghelp.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/loghelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Log</h1>
 <p style="line-height: 100%; margin-bottom: 0in">This is a logging
 version of Juggluco. logfiles can be created in
 /data/data/tk.glucodata/files/logs</p>
@@ -2707,7 +2714,7 @@ this view</p>
 </string>
 <string name="sensormirror" >
 <![CDATA[
-<p><a href="https://www.juggluco.nl/Jugglucohelp/de/sensormirror.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/sensormirror.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/sensormirror.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sensormirror.html?lang=en">en</a>&emsp;&emsp;</p><h1>Sensor information</h1>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/sensormirror.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/sensormirror.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/sensormirror.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/sensormirror.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/sensormirror.html?lang=en">en</a>&emsp;&emsp;</p><h1>Sensor information</h1>
 <p>Gives information about the sensors when <a href="https://www.juggluco.nl/">Juggluco</a>
 functions as the mirror of the stream values:</p>
 <p><b>Started:</b> time the sensor was started. On Libre sensors this
@@ -2753,7 +2760,7 @@ view information.</p>
 </string>
 <string name="QRmirror" >
 <![CDATA[
-<p><a href="https://www.juggluco.nl/Jugglucohelp/de/QRmirror.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/QRmirror.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/QRmirror.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/QRmirror.html?lang=en">en</a>&emsp;&emsp;</p>
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/QRmirror.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/QRmirror.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/QRmirror.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/QRmirror.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/QRmirror.html?lang=en">en</a>&emsp;&emsp;</p>
 <h1>QR mirror</h1>
 <p lang="en-US" style="line-height: 100%; margin-bottom: 0in">You can
 configure the other side of a mirror connection by scanning a QR code

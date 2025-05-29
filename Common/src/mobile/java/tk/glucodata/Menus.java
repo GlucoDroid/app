@@ -67,6 +67,7 @@ import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Log.doLog;
+import static tk.glucodata.MainActivity.REQUEST_BARCODE;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getshowscans;
 import static tk.glucodata.Natives.getsystemui;
@@ -134,7 +135,7 @@ static public void show(MainActivity act) {
         if(tk.glucodata.BuildConfig.SiBionics==1) {
          aboutview.setText(R.string.photo);
         aboutview.setOnClickListener(v ->
-              Sibionics.scan(act));
+              Sibionics.scan(act,REQUEST_BARCODE));
             }
         else  {
            aboutview.setOnClickListener(v ->{

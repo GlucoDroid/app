@@ -29,10 +29,10 @@
 
 //extern bool setfilesdir(const string_view filesdir,const char *country) ;
 extern int startjuggluco(std::string_view dirfiles,const char *country) ;
-extern char *localestr;
-char localebuf[]="en_NL";
+//extern char *localestr;
+//char localebuf[]="en_NL";
 
-char *localestr=localebuf;
+//char *localestr=localebuf;
 extern pathconcat numbasedir;
 extern vector<Numdata*> numdatas;
 
@@ -180,7 +180,7 @@ Starts the program with this configuration.
 )";
 
 	};
-int showui;
+//int showui;
 bool getpassive(int pos);
 bool getactive(int pos); 
 static std::string_view treatmenttype(int labelnr) {
@@ -532,12 +532,13 @@ static constexpr const	char defaultname[]="jugglucodata";
 	else
 		settings->setlinuxcountry();
 //	constexpr size_t nummmaplen=77056;
-	 if(Numdata* numdata=Numdata::getnumdata( pathconcat(numbasedir,"here"),0,nummmaplen))
+/*
+	 if(Numdata* numdata=Numdata::getnumdata( pathconcat(numbasedir,"here"),0L,nummmaplen))
 		numdatas.push_back(numdata);
 		
-	 if(Numdata* numdata=Numdata::getnumdata( pathconcat(numbasedir,"watch"),-1,nummmaplen)) {
+	 if(Numdata* numdata=Numdata::getnumdata( pathconcat(numbasedir,"watch"),-1L,nummmaplen)) {
 		numdatas.push_back(numdata);
-		}
+		} */
 	extern void makenightswitch();
 	makenightswitch();
     settings->data()->initVersion=33;
@@ -748,6 +749,7 @@ bool javaUpdateDevices() {
 	LOGAR("javaUpdateDevices() called");
 	return true;
 	}
+    /*
 extern bool hour24clock;
 bool hour24clock=true;
 
@@ -763,6 +765,7 @@ jugglucotext engtext {
        "Jul","Aug","Sep",
       "Oct","Nov","Dec"}
       };
+      */
 void setfloatptr() {
         }
 void removelibs() {}

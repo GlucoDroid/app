@@ -1,4 +1,5 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view labels[]={"Fast Insuli",
 "Carbohydra",
@@ -34,16 +35,12 @@ constexpr static Shortcut_t  shortinit[]= { {"Bread",
         {"Mix mushro",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 
-extern jugglucotext engtext;
-jugglucotext engtext {
-	.daylabel={"Sun",
-	"Mon",
-	"Tue",
-	"Wed",
-	"Thu",
-	"Fri",
-	"Sat"},
+extern const jugglucotext engtext;
+const jugglucotext engtext {
+	.daylabel={"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
+#ifdef INJUGGLUCO
 .speakdaylabel={ "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"},
 	.monthlabel={
       "Jan",
@@ -73,7 +70,7 @@ jugglucotext engtext {
 #ifndef WEAROS
 	.median="Median",
 	.middle="Middle",
-#endif
+#endif //WEAROS
 	.history="History",
 //	.historyinfo="Once per 15 minutes.\nRemembered on the sensor for 8 hours.\nScanning transfers them to this program.\nSensor: ", 
 //	.history3info="Once per 5 minutes.\nRemembered on the sensor for 14 days.\nTransferred by Bluetooth to this program.\nSensor: ",
@@ -82,7 +79,10 @@ jugglucotext engtext {
 	.laststream="Last stream:",
 	.sensorends="Ends officially: ",
 	.sensorexpectedend="Expected end: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+
+#ifdef INJUGGLUCO
 	.newamount="New Amount",
 	.averageglucose="Average glucose: ",
 	.duration="Duration: %.1f days",
@@ -113,7 +113,11 @@ jugglucotext engtext {
 		"Mirror",
 		engtext.newamount,
 		"List", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Statistics",
+#ifdef INJUGGLUCO
 		"Talk",
 		"Float        "
 		},
@@ -131,6 +135,7 @@ jugglucotext engtext {
 	"Day later",
 	"Week back",
 	"Week later"},
+#endif //INJUGGLUCO
 #else
  .amount="Amount",
  .menustr0= {
@@ -143,8 +148,8 @@ jugglucotext engtext {
 hourminstr,
 "Day back                       ",
 engtext.amount},
-#endif
-
+#endif //WEAROS
+#ifdef INJUGGLUCO
 	.scanerrors={
 		{"Scan Error (%d)", "Try again"},
 		{"Installation Error", "?"},
@@ -204,15 +209,20 @@ are needed. In your case it has problems with the following file)",
 .waitingforconnection="Waiting for connection"sv,
 .deleted="Deleted"sv,
 .nolocationpermission="Needs location permission"sv,
-.nonearbydevicespermission="Needs nearby devices permission"sv
+.nonearbydevicespermission="Needs nearby devices permission"sv,
+#endif //INJUGGLUCO
+.summarygraph="Summary graph"sv
+,.logdays="Daily log"sv
 		}
 
 
 		;
 
-jugglucotext *usedtext= &engtext;
+language language_en("en",&engtext);
+const jugglucotext *usedtext= &engtext;
 #include "logs.hpp"
+/*
 void setuseeng() {
 LOGAR("setuse en");
  usedtext= &engtext;
- }
+ }*/

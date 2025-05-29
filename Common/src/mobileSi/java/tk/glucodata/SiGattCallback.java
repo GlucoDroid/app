@@ -366,6 +366,10 @@ public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status)  {
 public boolean matchDeviceName(String deviceName,String address) {
 	if(deviceName==null)
 		return false;
+        var savedname=Natives.siGetDeviceName(dataptr);
+        if(savedname!=null&&deviceName.equals(savedname))
+                return true;
+
 	final var len=deviceName.length();
 	 final String bluetoothNum=Natives.getSiBluetoothNum(dataptr);
 	if(bluetoothNum.regionMatches(0,deviceName, len-4,4)) {

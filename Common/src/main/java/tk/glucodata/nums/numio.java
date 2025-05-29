@@ -93,7 +93,7 @@ static void makefilesfailed()   { throw new noAccessToFilesDirException("no acce
 static public boolean setlibrary(Applic con) {
 if(true) {
    var loc=Locale.getDefault();
-       String country=loc.getCountry();
+   String country=loc.getCountry();
    var locstr=loc.getLanguage();
    Applic.curlang=locstr;
    File files=con.getFilesDir();
@@ -101,32 +101,32 @@ if(true) {
    if(!files.isDirectory())  {
        Log.e(LOG_ID,filespath+" not a directory");
        if(!files.mkdirs()) {
-       Log.e(LOG_ID,"mkdirs "+filespath+" failed");
-       try {
-          Thread.sleep(5000L);
+           Log.e(LOG_ID,"mkdirs "+filespath+" failed");
+           try {
+              Thread.sleep(5000L);
+              }
+           catch(Throwable th) {
+              Log.stack(LOG_ID,"sleep",th);
+              };
+          files=con.getFilesDir();
+          filespath=files.getAbsolutePath();
+          if(!files.isDirectory()) {
+                if(!files.mkdirs()) {
+                    Log.e(LOG_ID,"mkdirs "+filespath+" failed");
+                     Applic.stopprogram=2;
+                     System.exit(8);
+                     return false;
+                     }
+                else
+                     {if(doLog) {Log.i(LOG_ID,"mkdirs "+filespath+" succeeded");};};
+              }
+           else
+              {if(doLog) {Log.i(LOG_ID,filespath+" is a directory");};};
           }
-       catch(Throwable th) {
-          Log.stack(LOG_ID,"sleep",th);
-          };
-       files=con.getFilesDir();
-       filespath=files.getAbsolutePath();
-      if(!files.isDirectory()) {
-            if(!files.mkdirs()) {
-            Log.e(LOG_ID,"mkdirs "+filespath+" failed");
-            Applic.stopprogram=2;
-               System.exit(8);
-             return false;
-             }
-            else
-             {if(doLog) {Log.i(LOG_ID,"mkdirs "+filespath+" succeeded");};};
-      }
-       else
-          {if(doLog) {Log.i(LOG_ID,filespath+" is a directory");};};
-      }
       }
    int ret=130;
    final String nativedir=con.getApplicationInfo().nativeLibraryDir;
-        Natives.setlocale(locstr);
+   Natives.setlocale(locstr);
    switch (ret=Natives.setfilesdir(filespath, country,nativedir)) {
       case 1:
          settingsnull();
@@ -179,50 +179,50 @@ if(true) {
    }
 
    if(doLog) {
-      var build=new StringBuilder();
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-         build.append("\nVERSION.BASE_OS: "+ Build.VERSION.BASE_OS);
-         }
-      build.append("\nVERSION.RELEASE: "+ RELEASE+"\n"+
-      "VERSION.SDK_INT: "+ Build.VERSION.SDK_INT+"\n"+
-      "BRAND: "+ Build.BRAND+"\n"+
-      "CPU_ABI2: "+ Build.CPU_ABI2+"\n"+
-      "CPU_ABI: "+ Build.CPU_ABI+"\n"+
-      "DEVICE: "+ Build.DEVICE+"\n"+
-      "FINGERPRINT: "+ Build.FINGERPRINT+"\n"+
-      "MANUFACTURER: "+ Build.MANUFACTURER+"\n"+
-      "PRODUCT: "+ Build.PRODUCT+"\n"+
-      "MODEL: "+ Build.MODEL);
+          var build=new StringBuilder();
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+             build.append("\nVERSION.BASE_OS: "+ Build.VERSION.BASE_OS);
+             }
+          build.append("\nVERSION.RELEASE: "+ RELEASE+"\n"+
+          "VERSION.SDK_INT: "+ Build.VERSION.SDK_INT+"\n"+
+          "BRAND: "+ Build.BRAND+"\n"+
+          "CPU_ABI2: "+ Build.CPU_ABI2+"\n"+
+          "CPU_ABI: "+ Build.CPU_ABI+"\n"+
+          "DEVICE: "+ Build.DEVICE+"\n"+
+          "FINGERPRINT: "+ Build.FINGERPRINT+"\n"+
+          "MANUFACTURER: "+ Build.MANUFACTURER+"\n"+
+          "PRODUCT: "+ Build.PRODUCT+"\n"+
+          "MODEL: "+ Build.MODEL);
 
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-         build.append("\nSUPPORTED_ABIS: ");
-         for(var ap: Build.SUPPORTED_ABIS) {
-            build.append(ap);
-            build.append(", ");
-            }
-      }
-   build.append('\n');
-      Natives.log(build.toString());
-       final String version= BuildConfig.VERSION_CODE+" "+ BuildConfig.VERSION_NAME +" "+ BuildConfig.BUILD_TIME+"\n";
-      {if(doLog) {Log.i(LOG_ID,version+locstr+" "+country+" nativeDir="+nativedir);};};
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+             build.append("\nSUPPORTED_ABIS: ");
+             for(var ap: Build.SUPPORTED_ABIS) {
+                build.append(ap);
+                build.append(", ");
+                }
+          }
+          build.append('\n');
+          Natives.log(build.toString());
+           final String version= BuildConfig.VERSION_CODE+" "+ BuildConfig.VERSION_NAME +" "+ BuildConfig.BUILD_TIME+"\n";
+          {if(doLog) {Log.i(LOG_ID,version+locstr+" "+country+" nativeDir="+nativedir);};};
       }
 
    if(!isWearable)
       setDevice(Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT);
 
-    startsensors( );
+   startsensors( );
    startmeals();
    Natives.startthreads();
    {if(doLog) {Log.i(LOG_ID,"after startthreads");};};
    numptrs[1]=Natives.openNums("here",0L);
    newhit=Natives.newhit();
    numptrs[0]=Natives.openNums(datadir,-1L); //order important!!
-   Natives.calccurvegegs();
+//   Natives.calccurvegegs();
    {if(doLog) {Log.i(LOG_ID,"end setlibrary");};};
    Applic.stopprogram=0;
    return true;
    }
-   else {
+else {
       Applic.stopprogram=2;
       return false;
       }

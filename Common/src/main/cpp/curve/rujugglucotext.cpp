@@ -1,4 +1,5 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view rulabels[]={"Kopoтkuй",
 "Yглeвoд",
@@ -33,6 +34,7 @@ constexpr static Shortcut_t  rushortinit[]= { {"Хлеб",
         .07300000f}};
 #endif
 
+#endif //INJUGGLUCO
 jugglucotext rutext {
 	.daylabel={"Вс",
 	"Пн",
@@ -41,6 +43,7 @@ jugglucotext rutext {
 	"Чт",
 	"Пт",
 	"Сб"},
+#ifdef INJUGGLUCO
 .speakdaylabel={ "Воскресенье","Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"},
 	.monthlabel={
       "Янв",
@@ -79,7 +82,9 @@ jugglucotext rutext {
 	.laststream="Последний поток:",
 	.sensorends="Официально заканчивается: ",
     .sensorexpectedend="Ожидаемо заканчивается: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Новая запись",
 	.averageglucose="Средняя ГК: ",
 	.duration="Продолжительность: %.1f день",
@@ -106,9 +111,13 @@ jugglucotext rutext {
 	.menustr1={
 		"Экспорт",
 		"Зеркало",
-		"Новая запись",
+		 rutext.newamount,
 		"Все записи",
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Статистика",
+#ifdef INJUGGLUCO
 		"Озвучка",
 		"Плав. глюк.        "
 		},
@@ -126,6 +135,7 @@ jugglucotext rutext {
 	"День вперед",
 	"Неделя назад",
 	"Неделя вперед"},
+#endif //INJUGGLUCO
 #else
  .amount="Значение",
  .menustr0= {
@@ -140,6 +150,7 @@ hourminstr,
 rutext.amount},
 #endif
 
+#ifdef INJUGGLUCO
 	.scanerrors={
 		{"Ошибка скана (%d)",
 			"Попробуйте еще"},
@@ -221,9 +232,11 @@ rutext.amount},
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
 
+#endif //INJUGGLUCO
+ ,.summarygraph="Обзор графика"sv
 
 
-
+,.logdays="Дни"sv 
 
 		}
 
@@ -232,6 +245,7 @@ rutext.amount},
 
 #include "logs.hpp"
 extern void setuseru();
+addlang(ru);
 void setuseru() {
 LOGAR("Использование rus");
  usedtext= &rutext;

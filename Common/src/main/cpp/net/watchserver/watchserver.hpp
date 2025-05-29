@@ -24,9 +24,10 @@ struct recdata {
 	char *allbuf=nullptr;
 	const char *start;
 	int len;
-	~recdata() {
+/*	~recdata() {
+                LOGGER("~recdata() %p\n",allbuf);
 		delete[] allbuf;
-		}
+		}*/
 	const char *data() const {
 		return start;
 		}

@@ -25,27 +25,25 @@
 #include "numiter.hpp"
 #include "settings/settings.hpp"
 #include "curve.hpp"
-
+#include "JCurve.hpp"
 
  //statusbarleft=left;
  //statusbarright=right;
 extern int statusbarleft,statusbarright;
 extern  NVGcolor *colors[];
-struct  {
+struct geo_t {
  int width;
  int height;
- float second() const {
-   return (dwidth-statusbarleft-statusbarright+width)/2 +dleft+statusbarleft;	
-
+} numcontrol;
+ float JCurve::second(geo_t&geo) const {
+       return (dwidth-statusbarleft-statusbarright+geo.width)/2 +dleft+statusbarleft;	
  	};
-float colwidth() const {
-	return (dwidth-width-statusbarright-statusbarleft)/2;
-	};
-	} numcontrol;
+float JCurve::colwidth(geo_t&geo) const {
+            return (dwidth-geo.width-statusbarright-statusbarleft)/2;
+            };
 
-extern int statusbarheight;
-template <typename F>
-void columnfromabove(NVGcontext* vg,const F &show) {
+//extern int statusbarheight;
+template <typename F> void JCurve::columnfromabove(NVGcontext* vg,const F &show) {
 	float miny=dtop+textheight*.35+statusbarheight;
 	int nr=(dheight-statusbarheight)/textheight;
 	for(float y=miny;nr--&&show(y);y+=textheight) {
@@ -53,8 +51,7 @@ void columnfromabove(NVGcontext* vg,const F &show) {
 
 	}
 	
-template <typename F>
-void columnfrombelow(NVGcontext* vg,int nr,const F &show) {
+template <typename F> void JCurve::columnfrombelow(NVGcontext* vg,int nr,const F &show) {
 	float miny=dtop+textheight*.35+statusbarheight;
 	float maxy= miny+(nr-1)*textheight;
 
@@ -64,7 +61,7 @@ void columnfrombelow(NVGcontext* vg,int nr,const F &show) {
 	}
 
 
-void initcolumns( NVGcontext* vg) {
+void JCurve::initcolumns( NVGcontext* vg) {
 	nvgStrokeColor(vg, *getyellow());
 	nvgStrokeWidth(vg, hitStrokeWidth);
 	nvgFontFaceId(vg,menufont);
@@ -72,25 +69,22 @@ void initcolumns( NVGcontext* vg) {
 	nvgFillColor(vg, *getblack()); 
 	}
 
-extern int nrcolumns;
-template <typename F>
-void numscreen(NVGcontext* vg, const F & col)  {
+extern int nrcolumns; 
+template <typename F> void JCurve::numscreen(NVGcontext* vg, const F & col)  {
    auto l=dleft+ statusbarleft;
-   //auto w=dwidth-statusbarright;
    auto w=dwidth-statusbarright-statusbarleft;
 	initcolumns(vg);
 	if(nrcolumns==1) {
 		col(vg,l,l+w-numcontrol.width-smallsize);
 		}
 	else {
-		float xmid=numcontrol.second();
-		float xwidth=numcontrol.colwidth();
+		float xmid=second(numcontrol);
+		float xwidth=colwidth(numcontrol);
 		col(vg,l,l+xwidth-smallsize);
 		col(vg,xmid+smallsize,xmid+xwidth);
 		}
 	}
-template <typename F>
-void numscreenback(NVGcontext* vg, const F & col)  {
+template <typename F> void JCurve::numscreenback(NVGcontext* vg, const F & col)  {
 	initcolumns(vg);
 	int nr=(dheight-statusbarheight)/textheight;
 
@@ -100,20 +94,15 @@ void numscreenback(NVGcontext* vg, const F & col)  {
 		col(vg,nr,l,l+w-numcontrol.width-smallsize);
 		}
 	else {
-		float xmid=numcontrol.second();
-		float xwidth=numcontrol.colwidth();
+		float xmid=second(numcontrol);
+		float xwidth=colwidth(numcontrol);
 		col(vg,nr,xmid+smallsize,xmid+xwidth);
 		col(vg,nr,l,l+xwidth-smallsize);
 		}
 	}
+    /*
 inline int mktmmin(const struct tm *tmptr) {
 	return tmptr->tm_min;
-	}
-	/*
-inline int mktmmin(const struct tm *tmptr) {
-	if(tmptr-> tm_sec<30)
-		return tmptr->tm_min;
-	return tmptr->tm_min+1;
 	} */
 
 inline int datestr2(const time_t tim,char *buf) {
@@ -124,9 +113,11 @@ inline int datestr2(const time_t tim,char *buf) {
    return len;
 	}
 
+#ifdef JUGGLUCO_APP
 template<typename T>   bool searchhit(const T *ptr); 
 extern template   bool searchhit<Num>(const Num *ptr); 
-void	shower(NVGcontext* vg,const Num *num,const float xpos,const float xend,const float ypos) {
+#endif
+void	JCurve::shower(NVGcontext* vg,const Num *num,const float xpos,const float xend,const float ypos) {
 	if(num->type>=settings->getlabelcount()) {
 //		constexpr char const deleted[]="Deleted";
         const char *deleted=usedtext->deleted.data();
@@ -136,6 +127,7 @@ void	shower(NVGcontext* vg,const Num *num,const float xpos,const float xend,cons
 		nvgText(vg, (xpos+xend)/2,ypos,deleted,deleted+dellen);
 		return;
 		}
+#ifdef JUGGLUCO_APP
 	if(searchhit(num)) {
 		float ry=smallfontlineheight/2;
 		int xmid=(xpos+xend)/2;
@@ -143,6 +135,7 @@ void	shower(NVGcontext* vg,const Num *num,const float xpos,const float xend,cons
 		nvgEllipse(vg,xmid , ypos+ry,(xend-xpos)/2+smallsize, textheight/2);
 		nvgStroke(vg);
 		}
+#endif
 	constexpr int maxitem=80;
 	char item[maxitem];
 	time_t tim=num->time;
@@ -163,10 +156,10 @@ void	shower(NVGcontext* vg,const Num *num,const float xpos,const float xend,cons
 	nvgText(vg, xend,ypos,item,item+itemlen);
 	}
 
-void shownums(NVGcontext* vg, NumIter<Num> *numiters, const int nr) {
+void JCurve::shownums(NVGcontext* vg, NumIter<Num> *numiters, const int nr) {
 LOGGER("shownums width=%d height=%d\n",numcontrol.width,numcontrol.height);
-	numscreen(vg,[numiters,nr](NVGcontext *vg,float xpos,float xend) {
-		columnfromabove(vg,[vg,numiters,nr,xpos,xend](const float ypos) {
+	numscreen(vg,[this,numiters,nr](NVGcontext *vg,float xpos,float xend) {
+		columnfromabove(vg,[this,vg,numiters,nr,xpos,xend](const float ypos) {
 		if(const Num *num=findoldest(numiters,nr,notvali)) {
 			shower(vg,num, xpos, xend,ypos);
 			return true;
@@ -174,10 +167,10 @@ LOGGER("shownums width=%d height=%d\n",numcontrol.width,numcontrol.height);
 		return false;
 		}); });
 	}
-void shownumsback(NVGcontext* vg, NumIter<Num> *numiters, const int nr) {
+void JCurve::shownumsback(NVGcontext* vg, NumIter<Num> *numiters, const int nr) {
 LOGGER("shownumsback width=%d height=%d\n",numcontrol.width,numcontrol.height);
-	numscreenback(vg,[numiters,nr](NVGcontext *vg,int rows,float xpos,float xend) {
-		columnfrombelow(vg,rows,[vg,numiters,nr,xpos,xend](const float ypos) {
+	numscreenback(vg,[this,numiters,nr](NVGcontext *vg,int rows,float xpos,float xend) {
+		columnfrombelow(vg,rows,[this,vg,numiters,nr,xpos,xend](const float ypos) {
 		if(const Num *num=findnewest(numiters,nr,notvali)) {
 			shower(vg,num, xpos, xend,ypos);
 			return true;
@@ -193,7 +186,7 @@ extern float listitemlen;
 extern void numiterinit() ;
 extern int numlist;
 int getcolumns(jint width) {
-	return ((listitemlen*2+width)>dwidth)?1:2;
+	return ((appcurve.listitemlen*2+width)>appcurve.dwidth)?1:2;
 	}
 extern "C" JNIEXPORT jint JNICALL fromjava(getcolumns)(JNIEnv *env, jclass thiz,jint width) {
 	if(!numlist)

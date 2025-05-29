@@ -20,6 +20,7 @@
 
 
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view nllabels[]={ "Insuli snel", "Koolhydraat","Dextro", "Insuli lang","Fietsen", "Wandelen","Bloed"};
 constexpr static Shortcut_t  nlshortinit[]= { {"Meer. Brood",
@@ -46,8 +47,10 @@ constexpr static Shortcut_t  nlshortinit[]= { {"Meer. Brood",
         {"SportPowder",
         .873f}};
 #endif
+#endif
 static jugglucotext nltext {
 	.daylabel={"zo","ma","di","wo","do","vr","za"},
+#ifdef INJUGGLUCO
 .speakdaylabel={
 "Zondag",
 "Maandag",
@@ -81,7 +84,9 @@ static jugglucotext nltext {
 	.laststream="Laatste stream:",
 	.sensorends="Eindigt officieel: ",
       .sensorexpectedend="Verwacht einde: ",
+#endif
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Hoeveelheid",
 	.averageglucose="Gemiddelde glucose: ",
 	.duration="Duur: %.1f dagen",
@@ -112,12 +117,17 @@ static jugglucotext nltext {
 		"Kloon",
 		nltext.newamount,
 		"Lijst", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Statistiek",
+#ifdef INJUGGLUCO
 		"Praat",
 		"Zweef        "
 		},
 	.menustr2= {"Laatste scan","Scans","Stream","History","Hoeveelheden        ","Maaltijden","Dark mode"},
 	.menustr3= {hourminstr,"Zoeken","Datum","Dag terug","Dag later","Week terug","Week later"},
+#endif
 #else
  .amount="Hoeveelheid",
  .menustr0= {
@@ -128,6 +138,7 @@ static jugglucotext nltext {
 	"Stop Alarm" },
 .menustr2= {"Datum",hourminstr, "Dag terug                    ",nltext.amount},
 #endif
+#ifdef INJUGGLUCO
 
 	.scanerrors={
 		{"Scanfout (%d)","Probeer het opnieuw"},
@@ -189,16 +200,15 @@ volgende file)",
 .nolocationpermission="Locatie toestemming nodig"sv,
 .nonearbydevicespermission="Apparaten in de buurt toestemming nodig"sv
 
+#endif //INJUGGLUCO
 
-
+,.summarygraph="Samenvattende grafiek"sv
+,.logdays="Dagen"sv
 		}
 
 
 		;
 
 
-extern void setusenl() ;
-void setusenl() {
-	usedtext= &nltext;
-	}
+addlang(nl);
 

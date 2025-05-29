@@ -1,4 +1,5 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view pllabels[]={"Insul szybk",
 "Węglowodan",
@@ -34,6 +35,7 @@ constexpr static Shortcut_t  plshortinit[]= { {"Chleb",
         {"Miks grzyb",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 
 extern jugglucotext pltext;
 jugglucotext pltext {
@@ -44,6 +46,7 @@ jugglucotext pltext {
 	"czw",
 	"pią",
 	"sob"},
+#ifdef INJUGGLUCO
 .speakdaylabel={ "niedziela","poniedziałek","wtorek","środa","czwartek","piątek","sobota"},
 	.monthlabel={
       "sty",
@@ -82,7 +85,9 @@ jugglucotext pltext {
 	.laststream="Ostatni strumień:",
 	.sensorends="Oficjalny koniec: ",
 	.sensorexpectedend="Koniec po przedł.: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Nowa wartość",
 	.averageglucose="Średnie stęż. glukozy: ",
 	.duration="Okres aktywności: %.1f dni",
@@ -93,8 +98,8 @@ jugglucotext pltext {
 	.SD="Odchylenie standardowe: %.2f",
 	.glucose_variability="Zmienność stęż. glukozy: %.1f%%",
      .menustr0={
-		"Integr. z sys.",
-		„Całe menu”,
+		"Integr. z sys.        ",
+		"Całe menu",
 		"Zegarek",
 		"Sensor",
 		"Ustawienia",
@@ -113,7 +118,11 @@ jugglucotext pltext {
 		"Klonowanie",
 		pltext.newamount,
 		"Lista", 
+#else
+       .statistics=
+#endif //INJUGGLUCO
 		"Statystyka",
+#ifdef INJUGGLUCO
 		"Na głos",
 		"Pływ. wart."
 		},
@@ -123,7 +132,7 @@ jugglucotext pltext {
 	"Historia",
 	"Wartości",
 	"Posiłki",
-	"Tryb ciemny"},
+   "Tryb ciemny        "},
 	.menustr3= {hourminstr,
 	"Wyszukaj",
 	"Data",
@@ -131,27 +140,27 @@ jugglucotext pltext {
 	"Dzień później",
 	"Tydzień wstecz",
 	"Tydzień później"},
+#endif //INJUGGLUCO
 #else
  .amount="Wartość",
  .menustr0= {
 	"Klon",
 	"Sensor",
-	"Tr. ciemny",
+	"   Tr. ciemny      ",
         "Ustawienia",
 	"Zatrzym. alarm"},
 .menustr2= {"Data",
-hourminstr,
-"Dzień wstecz",
-pltext.amount},
+hourminstr, "Dzień wstecz              ",pltext.amount},
 #endif
 
+#ifdef INJUGGLUCO
 	.scanerrors={
 		{"Błąd skanowania (%d)", "Spróbuj ponownie"},
 		{"Błąd instalacji", "?"},
 		{"Błąd przetwarzania danych", "Spróbuj ponownie"},
 		{"Uruchamianie sensora", ""},
 		{"Sensor zakończył działanie", ""},
-		{"Sensor gotowy za "%d minut(y)"},
+		{"Sensor gotowy za", "%d minut(y)"},
 		{"Błąd sensora (373)", "Spróbuj ponownie za 10 minut"},
 		{"Nowy sensor uruchomiony", "Zeskanuj go ponownie, by z niego korzystać"},
 		{"", "Blokuje funkcje dotykowe w czasie skanowania"},
@@ -205,18 +214,9 @@ pltext.amount},
 .deleted="Usunięto"sv,
 .nolocationpermission="Wymaga uprawnienia do lokalizacji"sv,
 .nonearbydevicespermission="Wymaga uprawnienia do wykrywania urządzeń w pobliżu"sv
+#endif //INJUGGLUCO
+,.summarygraph="Wykres zbiorczy"sv
+,.logdays="Dni"sv
+		};
 
-
-
-
-
-		}
-
-
-		;
-
-#include "logs.hpp"
-void setusepl() {
-LOGAR("setuse pl");
- usedtext= &pltext;
- }
+addlang(pl);

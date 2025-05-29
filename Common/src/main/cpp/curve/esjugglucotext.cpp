@@ -228,6 +228,8 @@ son necesarios. En tu caso tiene problemas con el siguiente archivo)",
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
 
+,.summarygraph="Summary graph"sv
+,.logdays="Daily log"sv
 
 }
 
@@ -235,10 +237,6 @@ son necesarios. En tu caso tiene problemas con el siguiente archivo)",
 
 
 #include "logs.hpp"
-extern void setusees() ;
-void setusees() {
-  LOGAR("switch to ES");
-  usedtext= &estext;
-  }
+addlang(es);
 #endif
 

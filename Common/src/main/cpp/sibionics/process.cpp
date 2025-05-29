@@ -151,12 +151,12 @@ jlong SiContext::processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data
                   }
            }
        double newvalue=0.0;
-            if((newvalue=process3(index,value,temp))>1.8) {
+       if(value>=2.0&&value<27.8&&(newvalue=process3(index,value,temp))>1.8) {
             sens->getinfo()->pollinterval=newvalue-value;
-        }
+           }
        else {
            if(sens->getinfo()->pollinterval<40)
-           newvalue=value+sens->getinfo()->pollinterval;
+               newvalue=value+sens->getinfo()->pollinterval;
            }
       #ifndef NOLOG
                const long electric= std::byteswap(one[2]);

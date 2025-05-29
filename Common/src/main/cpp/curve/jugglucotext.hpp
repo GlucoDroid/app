@@ -25,18 +25,27 @@
 #include  <utility>
 #include <string_view>
 #include <span>
+#include <stdint.h>
+#include <unordered_map>
+
+#define INJUGGLUCO JUGGLUCO_APP
 
 using namespace std::literals;
 
+#ifdef INJUGGLUCO
 struct Shortcut_t {const char name[12];const float value;} ;
 constexpr int hourminstrlen=25;
 extern char hourminstr[hourminstrlen];
 typedef const char *charptr_t;
 typedef std::pair<std::string_view,std::string_view> errortype;
+#endif
 struct jugglucotext {
 char daylabel[7][12];
+#ifdef INJUGGLUCO
 const char speakdaylabel[7][24];
+#endif
 char monthlabel[12][15];
+#ifdef INJUGGLUCO
 std::string_view scanned;
 std::string_view readysecEnable;
 std::string_view readysec;
@@ -106,6 +115,12 @@ std::string_view waitingforconnection;
 std::string_view deleted;
 std::string_view nolocationpermission;
 std::string_view nonearbydevicespermission;
+#else
+std::string_view statistics;
+#endif
+std::string_view summarygraph;
+std::string_view logdays;
+#ifdef INJUGGLUCO
 #ifndef DONTTALK
 std::string_view getTrendName(int type) const {
    if(type>=0&&type<6) {
@@ -117,6 +132,38 @@ std::string_view getTrendName(int type) const {
         }
    }
 #endif
+#endif
+#ifndef WEAROS
+std::string_view statisticsName() const {
+    return 
+    #ifdef INJUGGLUCO
+    menustr1[4];
+    #else
+    statistics;
+    #endif
+    }
+#endif
 };
 
-extern jugglucotext *usedtext;
+extern const jugglucotext *usedtext;
+extern const jugglucotext engtext;
+#include <ctype.h>
+#define mklanguagenum2(a,b) a|b<<8
+#define mklanguagenum(lang) mklanguagenum2(lang[0],lang[1])
+#define mklanguagenumlow(lang) mklanguagenum2(tolower(lang[0]),tolower(lang[1]))
+class language {
+    inline static std::unordered_map<uint16_t,const jugglucotext*> langmap;
+    public:
+    language(const char *name,const jugglucotext *data) {
+         langmap.insert({mklanguagenum(name),data});
+         }
+    static const jugglucotext* gettext(uint16_t lang)  {
+    if(auto hit = langmap.find(lang); hit != langmap.end())
+            return hit->second;
+        return &engtext;
+        }
+    static const jugglucotext* gettext(const char *name)  {
+        return gettext(mklanguagenumlow(name));
+        }
+    };
+#define addlang(code) language language_##code(#code,&code##text);

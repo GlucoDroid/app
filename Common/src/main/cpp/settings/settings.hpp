@@ -46,13 +46,12 @@ static constexpr const double convertmultmg=1.0/10.0;
 //static constexpr const float convfactor=180.0f;
 static constexpr const double convfactordL=convfactor*0.1;
 #include <array>
+#include "float_t.hpp"
 //#include <stdfloat>
-typedef float float32_t;
-#ifdef  JUGGLUCO_APP
-#include "appcolor.h"
-#else
-#include "cmdlinecolor.h"
-#endif
+
+#include "curve/nanovg/src/nanovg.h"
+typedef  NVGcolor  color_t;
+
 #include "config.h"
 #include "inout.hpp"
 #include "countryunits.hpp"
@@ -383,7 +382,8 @@ struct Tings {
 
     struct ring extraAlarms[maxextraalarms];
     int32_t soundtype;
-
+    int32_t reserved3;
+    float64_t loadtime;
 
 
  void        mkadvancedalarms() {
@@ -546,8 +546,10 @@ bool setprofile() {
             if(profileMins[i].min<=nu) {
                 currentProfile=profileMins[i].profile;
                 LOGGER("setprofile: min=%d profile=%d\n",profileMins[i].min,currentProfile);
+#ifndef DONTTALK
                 extern bool speakout;
                 speakout=talktouchget();
+#endif
                 return true;
                 }
            } 

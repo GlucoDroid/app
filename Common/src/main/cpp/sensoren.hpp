@@ -39,6 +39,9 @@ inline constexpr const int sensornamelen=16;
 #include "gltype.hpp"
 class SensorGlucoseData;
 inline constexpr const uint16_t LISTEND=0xFFFF;
+#ifdef SIBIONICS
+static constexpr const std::string_view sibionicsRecognition="0697283164";
+#endif
 struct sensor {
    uint32_t starttime;
    uint32_t endtime;
@@ -403,41 +406,30 @@ int makelibre3sensorindex(std::string_view shortname,uint32_t starttime,const ui
       return ind ;
    }
 #endif
+//0106972831641803112412191725121810LT4F241247J21241247YEZ1450HAJ02 EU sibionics
+//0106972831641117112406121725061110LT48240601R21240601YL08230BFY73 Hematoxic
+//0106972831641476112412231725122210LT46241219C21WD9QAXGA52WS4V   len=63 Sibionics light
+//0106972831641476112504081726040710LT46250316C21P2250316015APD66 len=65 Sibionics 2
 //^]0106972831640165112312091724120810LT41231108C^]21231108GEPD802JPP76  SIBIONICS  name 31108GEPD802JPP7
-//^]0106972831641483112411201726051910LT46241155C^]21P22411J6EP  SIBIONICS2
+//^]0106972831641483112411201726051910LT46241155C^]21P22411J6EP  SIBIONICS2 transmitter
 //1155CJ6EP2411
 #ifdef SIBIONICS
-/*
-static auto namefromSIgegs(const char *gegs,const int len,bool hasnum) {
-   if(len==59) {
-       std::string uit;
-       uit.reserve(16);
-       uit.insert(0,gegs+len-9,9);
-       uit.insert(9,gegs+len-23,7);
-       return uit;
-        }
-   else {
-       const char *start=gegs+len-(hasnum?17:16);
-       return std::string(start,start+16);
-       }
-   }   */
 
 static auto namefromSIgegs(const char *gegs,const int len,bool hasnum) {
-   if(len==59) {
-       std::string uit;
-       uit.reserve(16);
-       uit.append(gegs+len-29,3);
-       uit.append(gegs+len-36,2);
-       uit.append(gegs+len-4,4);
-       uit.append(gegs+len-8,4);
-       uit.append(gegs+len-17,3);
-       return uit;
-        }
-   else {
-       const char *start=gegs+len-(hasnum?17:16);
-       return std::string(start,start+16);
-       }
-   }  
+       if(len<65) {
+           std::string uit;
+           uit.reserve(16);
+           const int endlen=len-49;
+           const int startlen=16-endlen;
+           uit.append(gegs+22,startlen);
+           uit.append(gegs+49,endlen);
+           return uit;
+            }
+        else {
+           const char *start=gegs+len-(hasnum?17:16);
+           return std::string(start,start+16);
+           }
+   }
 #endif
 #ifdef DEXCOM
 std::pair<int,SensorGlucoseData *> makeDexComSensorindex(const char *pin,std::string_view gegs,uint32_t now) {
@@ -496,15 +488,13 @@ std::pair<int,SensorGlucoseData *> makeSIsensorindex(std::string_view gegsSI,uin
 #ifndef NOLOG
    LOGGER("makeSIsensorindex(%s) len=%d\n",gegsSI.data(),gegsSI.size());
 #endif
-   std::string_view num="0697283164";
-//   bool hasnum=std::ranges::contains_subrange(gegsSI,num);
+   bool hasnum=std::ranges::contains_subrange(gegsSI,sibionicsRecognition);
    const auto *endcode=gegsSI.end();
-   bool hasnum=std::search(gegsSI.begin(),endcode,num.begin(),num.end())!=endcode;
+/*   bool hasnum=std::search(gegsSI.begin(),endcode,sibionicsRecognition.begin(),sibionicsRecognition.end())!=endcode;  */
    if(!hasnum) {   
       std::string_view si="(SI)";
-   //   if(gegsSI.size()<36||!std::ranges::contains_subrange(gegsSI,si))
-      if(gegsSI.size()<36||std::search(gegsSI.begin(),endcode,si.begin(),si.end())==endcode)  {
-
+  //    if(gegsSI.size()<36||std::search(gegsSI.begin(),endcode,si.begin(),si.end())==endcode)  
+     if(gegsSI.size()<36||!std::ranges::contains_subrange(gegsSI,si)) {
          if(!memcmp(endcode-7,"240",3)) {
             const char *pin=endcode-4;
             for(auto *iter=pin;iter<endcode;++iter) {
@@ -517,7 +507,10 @@ std::pair<int,SensorGlucoseData *> makeSIsensorindex(std::string_view gegsSI,uin
          return {-1,nullptr};
          }
       }
-
+ if(gegsSI.size()==59) {
+        LOGAR("Transmitter tag");
+         return {-1,nullptr};
+        }
    const auto name=namefromSIgegs(gegsSI.data(),gegsSI.size(),hasnum);
 
    removeunused();

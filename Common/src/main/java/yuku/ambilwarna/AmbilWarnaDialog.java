@@ -1,3 +1,8 @@
+/*
+Modified for Juggluco
+Original: https://github.com/yukuku/ambilwarna/
+*/
+
 package yuku.ambilwarna;
 
 import android.app.AlertDialog;

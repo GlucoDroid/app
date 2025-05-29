@@ -376,7 +376,7 @@
     <string name="glulisine">Insulina Glulisine/Apidra</string>
     <string name="humaninsulin">Insulina ludzka /Humulin R/Novolin R</string>
     <string name="afrezza">Afrezza</string>
-    <string name="not">Not</string>
+
     <string name="eusibionics">Sibionics Europa - com.sisensing.sijoy</string>
     <string name="chsibionics">Sibionics Chiny - com.sisensing.sisensingcgm</string>
     <string name="hematonix">Hematonix - com.sisensing.rusibionics</string>
@@ -407,6 +407,5 @@
     <string name="profile">"Profil "</string>
  <string name="lossofsignal">Utrata sygnału</string>
  <string name="valuenotification">Powiadomienie o wartości</string>
- <string name="nothing"></string>
 
 </resources>

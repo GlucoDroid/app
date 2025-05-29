@@ -371,13 +371,8 @@ bool savemeals(FILE * handle,uint32_t starttime,uint32_t endtime) {
 #endif
 
 #ifdef JUGGLUCO_APP
-#include <jni.h>
-#include "fromjava.h"
-
-extern uint32_t starttime;
-extern int duration;
-extern "C" JNIEXPORT jboolean  JNICALL   fromjava(exportdata)(JNIEnv *env, jclass cl,jint type,jint fd,jfloat days) {
-	uint32_t endtime=std::min(starttime+duration,(uint32_t)time(nullptr));
+bool  exportdata(uint32_t starttimein, uint32_t duration,int type,int fd,float days) {
+	uint32_t endtime=std::min(starttimein+duration,(uint32_t)time(nullptr));
 	uint32_t starttime=endtime-days*24*60*60;
 	switch(type) {
 		case 0: return exportnums(fd,starttime,endtime);	;

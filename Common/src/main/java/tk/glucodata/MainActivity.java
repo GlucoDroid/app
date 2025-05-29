@@ -130,7 +130,7 @@ public MainActivity() {
     private NfcAdapter mNfcAdapter=null;
 private boolean started=false;
 private void startall() {
-     {if(doLog) {Log.d(LOG_ID, "startall");};};
+     if(doLog) {Log.d(LOG_ID, "startall");};
      if(!started) {
         startdisplay();
         netinitstep();
@@ -171,7 +171,7 @@ public static int systembarLeft=0;
 public static int systembarRight=0;
 //public static int navigationbarLeft=0;
 private void startdisplay() {
-   {if(doLog) {Log.i(LOG_ID,"startdisplay");};};
+   if(doLog) {Log.i(LOG_ID,"startdisplay");};
    Applic app=    (Applic)getApplication();
     app.setbackgroundcolor(this) ;
     if(Applic.Nativesloaded)
@@ -366,12 +366,12 @@ void showSystemBarsAppearance() {
       if(!glversion())
          return;
       startall();
-      {if(doLog) {Log.i(LOG_ID,"onCreate end");};};
-       if(Menus.on)
+      Natives.onCreate();
+      if(Menus.on)
            Menus.show(this);
 
 //        var gestureListener= new Layout.ScrollListener(); mGestureDetector = new GestureDetector(this, gestureListener);
-        {if(doLog) {Log.i(LOG_ID,"onCreate end");};};
+       if(doLog) {Log.i(LOG_ID,"onCreate end");};
     }
 
 //GestureDetector mGestureDetector;
@@ -721,7 +721,6 @@ void activateresult(boolean res) {
     @Override
     protected void onPause() {
         {if(doLog) {Log.i(LOG_ID,"onPause");};};
-        super.onPause();
         if (mNfcAdapter != null) {
            try {
                     mNfcAdapter.disableReaderMode(this);
@@ -734,6 +733,7 @@ void activateresult(boolean res) {
                 Log.e(LOG_ID,"mNfcAdapter.disableReaderMode "+mess);
                 }
             }
+        super.onPause();
         if(!Applic.Nativesloaded)
             return;
         Natives.wakeuploader();
@@ -1068,6 +1068,7 @@ public static final int PRIVATE_REQUEST=0x80;
 public static final int CHAIN_REQUEST=0x81;
 private static  final int REQUEST_NOTIFICATION=0x50;
 static  final int REQUEST_BARCODE=0x10;
+static  final int REQUEST_BARCODE_SIB2=0x11;
 public static final int REQUEST_EXPORT=0x70;
 //public static final int REQUEST_EXPORT=0x54e806d0;
 public static final int REQUEST_RINGTONE=0x60;
@@ -1173,9 +1174,10 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
                };
             }
          return;
+      case REQUEST_BARCODE_SIB2: 
       case REQUEST_BARCODE: 
          if(SiBionics==1 &&!isWearable&&useZXing) {
-           ZXing.zXingResult(resultCode, data,this);
+           ZXing.zXingResult(resultCode, data,this,requestCode);
            return;
            };break;
     case REQUEST_SAVE_LOGCAT: 

@@ -554,6 +554,13 @@ uint32_t officialendtime() const {
     }
 int expectedWearDuration() const {
     if(isSibionics()) {
+        if(getinfo()->notchinese) {
+            switch(siSubtype()) {
+                case 1: return 1966080;
+                default: return 1972800;
+                }
+
+            };
         return (maxSIhours*60-19)*60;
         }
     if(isLibre3())
@@ -809,9 +816,11 @@ bool canusestreaming() const {
     }
 const std::string_view othershortsensorname() const {
     if(isSibionics()) {
-       const char *name=(char *)&getinfo()->siToken;
-       if(*name)
-             return {name,11};
+       if(siSubtype()!=3) {
+           const char *name=(char *)&getinfo()->siToken;
+           if(*name)
+                 return {name,11};
+            }
       }
    else {
       if(isDexcom()) {
@@ -832,14 +841,15 @@ typedef std::array<char,16>  longsensorname_t;
     return reinterpret_cast<const longsensorname_t *>(sensordir.data()+sensordir.length()-16);
     }
 [[nodiscard]] std::string_view showsensorname() const {
-    if(isSibionics()&&getinfo()->siDeviceName[0]) 
-          return std::string_view((char *)getinfo()->siDeviceName,getinfo()->siDeviceNamelen);
-     else {
-      if(isLibre3()) 
-         return std::string_view(sensordir.data()+sensordir.length()-9,9);
-      else
-         return std::string_view(shortsensorname()->data(),11);
-        }
+    if(isSibionics()) {
+          if(siSubtype()!=3&&getinfo()->siDeviceName[0]) 
+              return std::string_view((char *)getinfo()->siDeviceName,getinfo()->siDeviceNamelen);
+          }
+     else  {
+         if(isLibre3()) 
+             return std::string_view(sensordir.data()+sensordir.length()-9,9);
+         }
+     return std::string_view(shortsensorname()->data(),11);
     }
     /*
 static int getgeneration(const char *info) {

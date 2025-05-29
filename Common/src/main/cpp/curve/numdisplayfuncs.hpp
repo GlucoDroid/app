@@ -25,63 +25,35 @@
 #include "curve.hpp"
 extern int shownlabels;
 
+extern bool selshown;
+extern float tapx,tapy;
 #include "meal/Meal.hpp"
-
+#include "searchgegs.hpp"
 extern Meal *meals;
 extern int carbotype;
-extern int showmeals;
 extern int *numheights;
 extern int shownumbers;
 extern NVGcolor *lastcolor;
 extern int lasttouchedcolor;
 //s/^\(.*\)=.*/extern \1;/g
-struct mealposition {
-	float mealx;
-	float mealstarty;
-	float mealendy;
-	int mealpos;
-	int mealbase;
-	};
-extern vector<mealposition> mealpos;
-
-extern int statusbarheight;
-inline float	numtypeheight(const int type)  {
-		float schuif=statusbarheight+smallfontlineheight*
-#ifdef WEAROS
-   3.8
-#else
-      3.25
-#endif
-
-      ;
-		return dtop+schuif+(dheight-schuif-smallfontlineheight/2)*(numheights[type])/(shownlabels-1);
-		}
-inline bool nearby(float dx,float dy) {
-	
-	const float gr= density*
-#ifdef WEAROS
-	22;
-#else
-	24;
-#endif
-	const float grens=gr*gr;
-	float afst=dx*dx+dy*dy;
-	return afst<grens;
-	}	
+//extern vector<mealposition> mealpos;
+#include "JCurve.hpp"
 //extern  NVGcolor *colors[];
+#include "misc.hpp"
 #include "numdisplay.hpp"
-void NumDisplay::standout(NVGcontext *vg,float x,float y)  {
-	float r=foundPointRadius/2;
-	nvgRect(vg, x-r,  y-r, 2*r, 2*r);
+inline void NumDisplay::standout(JCurve &jcurve,float x,float y)  {
+	float r=jcurve.foundPointRadius/2;
+	nvgRect(jcurve.thevg, x-r,  y-r, 2*r, 2*r);
 
 	}
 
-pair<int,int> NumDisplay::extremenums(const pair<const int,const int> extr) const {
+pair<int,int> NumDisplay::extremenums(JCurve &j,const pair<const int,const int> extr) const {
 	const Numdata *numdata=this;
 	int gmin=extr.first;
 	int gmax=extr.second;
 //	const float * const labelweight=numdata->getweights();
-	for(const Num *it=extrum.first;it!=extrum.second;it++) {
+        auto [first,second]=j.extrums[numdatasPos];
+	for(const Num *it=first;it!=second;it++) {
 		if(numdata->valid(it)) {
 			if(const float w=settings->getlabelweightmgperL(it->type)) {
 				const int val=w*it->value;
@@ -99,30 +71,26 @@ pair<int,int> NumDisplay::extremenums(const pair<const int,const int> extr) cons
 	 LOGGER("extreamenums(%d,%d)->(%d,%d)\n",extr.first,extr.second,gmin,gmax);
 	  return pair<int,int>(gmin,gmax);
 	  }
-void	NumDisplay::mealdisplay(float x,float y,const Num *num) const {
+void	NumDisplay::mealdisplay(JCurve &jcurve,float x,float y,const Num *num) const {
+    
 
 	mealdata   *mdata=meals->datameal();
 	mealdata::mealel   *m=mdata->themeals;
   	const uint32_t mealptr=num->mealptr;
 
-//	int nr=m[mealptr].ingr; if(nr>mealptr) return;
 	int nr=mdata->itemsinmeal(mealptr);
 	if(!nr)
 		return;
 	int start=mealptr-nr;
+        auto smallfontlineheight=jcurve.smallfontlineheight;
 	float mealstarty=y-3*smallfontlineheight;
 	
 	y+=smallfontlineheight;
 	for(int i=start;i<mealptr;i++) {
-		nvgText(genVG, x,y,meals->datameal()->ingredients[m[i].ingr].name.data(),NULL );
+		nvgText(jcurve.thevg, x,y,meals->datameal()->ingredients[m[i].ingr].name.data(),NULL );
 		y+=smallfontlineheight;
 		}
-	mealpos.emplace_back(mealposition{x,
-	mealstarty,
-	y,
-	(int)(num-startdata()),
-	getindex()}
-	);
+	jcurve.mealpos.emplace_back(mealposition{x, mealstarty, y, (int)(num-startdata()), getindex()});
 	}
 /*
 static inline int mktmmin(const struct tm *tmptr) {
@@ -132,17 +100,17 @@ static inline int mktmmin(const struct tm *tmptr) {
 #ifdef DONTTALK
 const
 #endif
-bool speakout=false;
+extern bool speakout;
 extern void speak(const char *message) ;
-template <class TX,class TY> void NumDisplay::showNums(NVGcontext* vg, const TX &transx,  const TY &transy,bool *was) const {
-	auto [low,high]=extrum; 
+template <class TX,class TY> void NumDisplay::showNums(JCurve&jcurve, const TX &transx,  const TY &transy,bool *was) const {
+        NVGcontext* vg=jcurve.thevg;
+	auto [low,high]=jcurve.extrums[numdatasPos];
 	const Numdata *numdata=this;
-//	bool was[catnr-1];memset(was,0,sizeof(was));
-//	const float * const labelweight=numdata->getweights();
+        LOGGER("showNums number= %d",high-low);
 	for(const Num *it=low;it!=high;it++) {
-		if((shownumbers||(showmeals&&it->type==carbotype))&&numdata->valid(it)) {
+		if((jcurve.shownumbers||(jcurve.showmeals&&it->type==carbotype))&&numdata->valid(it)) {
 			int colorindex= it->type;
-			const NVGcolor *colo= getcolor(colorindex);
+			const NVGcolor *colo= jcurve.getcolor(colorindex);
 			nvgFillColor(vg,*colo );
 			nvgTextAlign(vg,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE);
 			float xpos= transx(it->time);
@@ -150,30 +118,34 @@ template <class TX,class TY> void NumDisplay::showNums(NVGcontext* vg, const TX 
 			if(settings->getlabelweightmgperL(it->type)) {
 				ypos= transy(it->value*settings->getlabelweightmgperL(it->type));
 				nvgBeginPath(vg);
-				standout(vg, xpos,ypos);
+				standout(jcurve, xpos,ypos);
 				nvgFill(vg);
 				}
 			else {
-				ypos=numtypeheight(it->type);
+				ypos=jcurve.numtypeheight(it->type);
 				constexpr int maxbuf=20;
 				char buf[maxbuf];	
 				nvgText(vg, xpos,ypos, buf, buf+ snprintf(buf,maxbuf,"%g",it->value));
-				if(showmeals&&it->type==carbotype) {
-					mealdisplay(xpos,ypos,it);	
+				if(jcurve.showmeals&&it->type==carbotype) {
+					mealdisplay(jcurve,xpos,ypos,it);	
 					}
 				}
 
 			int buflen=0;
+#ifdef JUGGLUCO_APP
 			const bool hit=searchdata(it);
 			if(hit) {
 				nvgBeginPath(vg);
-				nvgStrokeWidth(vg,numcircleStrokeWidth);
+				nvgStrokeWidth(vg,jcurve.numcircleStrokeWidth);
 				nvgStrokeColor(vg, *colo);
-				nvgCircle(vg, xpos,ypos,smallsize);
+				nvgCircle(vg, xpos,ypos,jcurve.smallsize);
 				nvgStroke(vg);
 
 			}
-				if(nearby(xpos-tapx,ypos-tapy)) { 
+#else
+        constexpr const bool hit=false;
+#endif
+				if(nearby(xpos-tapx,ypos-tapy,jcurve.density)) {
 						{
 					if(selshown)
 						continue;
@@ -181,19 +153,18 @@ template <class TX,class TY> void NumDisplay::showNums(NVGcontext* vg, const TX 
 					 char buf[maxbuf];
 					 const time_t tim= it->time;
 					 struct tm *tms=localtime(&tim);
-					lasttouchedcolor=colorindex;
-//					buflen=snprintf(buf,maxbuf,"%02d:%02d", tms->tm_hour, mktmmin(tms));
+					jcurve.lasttouchedcolor=colorindex;
 					buflen=mktime(tms->tm_hour, mktmmin(tms),buf);
 					char *buf2=buf+buflen;
 					if(settings->getlabelweightmgperL(it->type))  {
 						constexpr const int maxbuf2=10;
-						nvgText(vg, xpos,ypos+(((ypos-dtop)<(dheight/2))?1:-1)*(hit?2.4:2)*smallsize, buf, buf+buflen);
+						nvgText(vg, xpos,ypos+(((ypos-jcurve.dtop)<(jcurve.dheight/2))?1:-1)*(hit?2.4:2)*jcurve.smallsize, buf, buf+buflen);
 						const int len=snprintf(buf2,maxbuf2,"%.1f", it->value);
-						sidenum(xpos,ypos,buf2,len,hit);
+						jcurve.sidenum(vg,xpos,ypos,buf2,len,hit);
 						nvgTextAlign(vg,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE);
 						}
 					else
-						nvgText(vg, xpos,ypos-(hit?2.4:2)*smallsize, buf, buf+buflen);
+						nvgText(vg, xpos,ypos-(hit?2.4:2)*jcurve.smallsize, buf, buf+buflen);
 
 #ifndef DONTTALK
 					if(speakout) {
@@ -205,12 +176,12 @@ template <class TX,class TY> void NumDisplay::showNums(NVGcontext* vg, const TX 
 					}
 				selshown=true;
 				}
-			if((!was[it->type] &&(!showmeals||it->type!=carbotype)) ||buflen) {
+			if((!was[it->type] &&(!jcurve.showmeals||it->type!=carbotype)) ||buflen) {
 				was[it->type]=true;
 				string_view label=settings->getlabel(it->type);
 				//TODO remove:
 				if(const char *name=label.data()) {
-					nvgText(vg, xpos,ypos+((settings->getlabelweightmgperL(it->type)&&((ypos-dtop)<(dheight/2)))?1:-1)*(hit?smallsize*1.4:smallsize),name,name+label.size());
+					nvgText(vg, xpos,ypos+((settings->getlabelweightmgperL(it->type)&&((ypos-jcurve.dtop)<(jcurve.dheight/2)))?1:-1)*(hit?jcurve.smallsize*1.4:jcurve.smallsize),name,name+label.size());
 					}
 				else {
                 #ifndef NOLOG
@@ -227,46 +198,12 @@ template <class TX,class TY> void NumDisplay::showNums(NVGcontext* vg, const TX 
 
 
 
-const Num * NumDisplay::findpast(const Num *high) const {
-	const Num *low=begin();
-	for(const Num *it=high-1;it>=low;it--) 
-		if(searchdata(it))
-			return it;
-	return nullptr;
-	}
-template <int N>
-const Num * NumDisplay::findpast() const {
-	return findpast(std::get<N>(extrum));
-	}
-template <int N>
-const Num * NumDisplay::findforward() const {
-	const Num *en=end();
-	const Num *start=std::get<N>(extrum);
-	if(const Num *hit=find_if(start,en,searchdata);hit<en) {
-		return hit;
-		}
-	return nullptr;
-	}
 
 
-
- NumDisplay*  NumDisplay::getnumdisplay(string_view base,identtype ident,size_t len)   {
+ NumDisplay*  NumDisplay::getnumdisplay(int index,string_view base,identtype ident,size_t len)   {
 	if(mknumdata(base,ident))
-		return new NumDisplay(base,ident,len);
+		return new NumDisplay(index,base,ident,len);
 	return nullptr;
 	}
 
-template <class TX,class TY>  const Num * NumDisplay::getnearby(const TX &transx,  const TY &transy,const float tapx,const float tapy) const {
-	auto [low,high]=extrum; 
-	for( const Num *it=low;it!=high;it++) {
-		if(valid(it)) {
-			float xpos= transx(it->time);
-			float ypos=settings->getlabelweightmgperL(it->type)?transy(it->value*settings->getlabelweightmgperL(it->type)):numtypeheight(it->type);
-			if(nearby(xpos-tapx,ypos-tapy)) 
-				return it;
-
-			}
-		}
-	return nullptr;
-	}
 

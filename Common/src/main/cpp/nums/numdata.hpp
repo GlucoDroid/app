@@ -85,16 +85,16 @@ static constexpr const int nightSend=176;
 static constexpr const int nightSwitch=180;
 static constexpr const int nightIDstart=184;
 static constexpr const int datastart=256;
+
 std::unique_ptr<char[]> newnumsfile;
 protected:
-
 identtype ident;
 Mmap<Num> nums;
 public:
 Mmap<Libreids> libreids;
 Mmap<int32_t> librechanged;
 Mmap<uint32_t> changetimes;
-
+int numdatasPos;
 static constexpr const std::string_view libreidsname="libreids.dat";
 static constexpr const std::string_view librechangedname="librechanged.dat";
 static constexpr const std::string_view changetimesname="changetimes.dat";
@@ -104,7 +104,7 @@ uint32_t changed(int pos) const {
 bool changedsince(uint32_t tim,int pos) const {
     return changed(pos)>=tim;
     }
-Numdata(const std::string_view base,identtype id,size_t len=0):newnumsfile(numfilename(base,id==0LL?0LL:-1LL)), ident(renamefile(base,id)),nums(newnumsfile.get(),len),libreids(base,libreidsname,len),librechanged(base,librechangedname,len), changetimes(base,changetimesname,len)
+Numdata(int index,const std::string_view base,identtype id,size_t len=0):newnumsfile(numfilename(base,id==0LL?0LL:-1LL)), ident(renamefile(base,id)),nums(newnumsfile.get(),len),libreids(base,libreidsname,len),librechanged(base,librechangedname,len), changetimes(base,changetimesname,len),numdatasPos(index)
 {
     auto lastpo=getlastpos();
     LOGGERTAG("Numdata ident=%lld lastpo=%d\n",ident,lastpo);
@@ -124,7 +124,7 @@ Numdata(const std::string_view base,identtype id,size_t len=0):newnumsfile(numfi
     }
 
 //Numdata(const std::string_view base):Numdata(base,readident(base)) { }
-Numdata(const std::string_view base):Numdata(base,-1LL) { }
+Numdata(int index,const std::string_view base):Numdata(index,base,-1LL) { }
 
 
 void renamefromident(std::string_view base,identtype ident) {
@@ -227,12 +227,12 @@ static bool mknumdata(const string_view base,identtype ident)   {
         }
     return true;
     }
-static Numdata* getnumdata(const string_view base,identtype ident,size_t len)   {
+static Numdata* getnumdata(int index,const string_view base,identtype ident,size_t len)   {
     if(mknumdata(base,ident))
-        return new Numdata(base,ident,len);
+        return new Numdata(index,base,ident,len);
     return nullptr;
     }
-Numdata* createnew(const string_view base,identtype ident,size_t len)  const {
+Numdata* createnew(int index,const string_view base,identtype ident,size_t len)  const {
     fs::path basepath { base.data()};
     if(!fs::is_directory(basepath))  {
         std::error_code err;
@@ -250,7 +250,7 @@ Numdata* createnew(const string_view base,identtype ident,size_t len)  const {
     if(!writeident(base,ident)) {
         LOGARTAG("writeident failed");
         }
-    Numdata *numdata=new Numdata(base,ident,len);
+    Numdata *numdata=new Numdata(index,base,ident,len);
     numdata->addmagic();
     return numdata;
     }

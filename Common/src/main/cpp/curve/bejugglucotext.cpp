@@ -1,4 +1,5 @@
 #include "jugglucotext.hpp"
+#ifdef INJUGGLUCO
 #ifndef WEAROS
 constexpr static std::string_view belabels[]={ "Хуткі", "Вугляв", "Дэкстр", "Доўгі", "Ровар", "Прагул", "Кроў"};
 constexpr static Shortcut_t  beshortinit[]= { {"Bread",
@@ -26,10 +27,12 @@ constexpr static Shortcut_t  beshortinit[]= { {"Bread",
         {"Mix mushro",
         .07300000f}};
 #endif
+#endif //INJUGGLUCO
 
 jugglucotext betext {
 .daylabel={"Нд","Пн","Аў","Ср","Чц","Пт","Сб"},
 
+#ifdef INJUGGLUCO
 .speakdaylabel={
 "нядзеля",
 "панядзелак",
@@ -63,7 +66,9 @@ jugglucotext betext {
 	.laststream="Апошні паток:",
 	.sensorends="Датчык заканчваецца: ",
 	.sensorexpectedend="Чакаецца заканчэнне: ",
+#endif //INJUGGLUCO
 #ifndef WEAROS
+#ifdef INJUGGLUCO
 	.newamount="Новая сума",
 	.averageglucose="Сярэдняя глюкоза: ",
 	.duration="Працягласць: %.1f дзён",
@@ -93,7 +98,12 @@ jugglucotext betext {
         "Клон",
 		betext.newamount,
 		"Спіс",
+#else
+       .statistics=
+#endif //INJUGGLUCO
+
 		"Статыстыка",
+#ifdef INJUGGLUCO
 		"Размаўляць",
 		"Парыць      "
 		},
@@ -105,6 +115,7 @@ jugglucotext betext {
 	    "Ежа",
 	    "Dark mode        "},
 	.menustr3= {hourminstr,"Пошук","Дата","Дзень назад","Праз дзень","Тыдзень таму","Праз тыдзень"},
+#endif //INJUGGLUCO
 #else
  .amount="Сума",
  .menustr0= {
@@ -115,8 +126,8 @@ jugglucotext betext {
 	"Спыніць трывогу" },
 .menustr2= {"Дата",hourminstr,
 "Дзень назад              ",betext.amount},
-
 #endif
+#ifdef INJUGGLUCO
 
 	.scanerrors={
 		{"Памылка сканавання (%d)","Паспрабуй яшчэ"},
@@ -175,13 +186,13 @@ jugglucotext betext {
 .nolocationpermission="Needs location permission"sv,
 .nonearbydevicespermission="Needs nearby devices permission"sv
 
+#endif //INJUGGLUCO
+,.summarygraph="Зводны графік"sv
+,.logdays="Дні"sv
 		}
 
 
 		;
 
 
-extern void setusebe();
-void setusebe() {
- usedtext= &betext;
- }
+addlang(be);

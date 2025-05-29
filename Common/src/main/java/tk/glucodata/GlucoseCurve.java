@@ -65,6 +65,7 @@ import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.usedlocale;
 import static tk.glucodata.BuildConfig.SiBionics;
 import static tk.glucodata.Log.doLog;
+import static tk.glucodata.MainActivity.REQUEST_BARCODE;
 import static tk.glucodata.MainActivity.systembarBottom;
 import static tk.glucodata.MainActivity.systembarLeft;
 import static tk.glucodata.MainActivity.systembarRight;
@@ -84,8 +85,11 @@ boolean statspresent=false;
 @Keep
 void summaryready() {
     statspresent=true;
-    {if(doLog) {Log.i(LOG_ID,"summaryready");};};
+    if(doLog) {Log.i(LOG_ID,"summaryready");};;
     Applic.RunOnUiThread(()-> {
+       if(doLog) {
+           Log.i(LOG_ID,"UIThread summaryready");
+           }
         Button tmp= summarybutton;
         summarybutton=null;
         if(tmp!=null) {
@@ -94,6 +98,9 @@ void summaryready() {
             tmp.bringToFront();
             }
         });
+   if(doLog) {
+           Log.i(LOG_ID,"end summaryready");
+           }
     
     }
 
@@ -483,7 +490,7 @@ void startlibrelink(String lang) {
                     if(!isWearable) {
                         MainActivity activity = (MainActivity) getContext();
                         if(SiBionics==1)
-                            Sibionics.scan(activity);
+                            Sibionics.scan(activity,REQUEST_BARCODE);
                         else
                             doabout(activity);
                         }

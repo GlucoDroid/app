@@ -25,15 +25,15 @@
 extern vector<NumDisplay*> numdatas;
 //extern NumIter<Num> *numiters;
 inline void setpageoldest(const int i,const Num * const el) {
-	numdatas[i]->extrum.first=el;
+	appcurve.extrums[i].first=el;
 	}
 inline const Num *getpageoldest(const int i) {
-	return numdatas[i]->extrum.first;
+	return appcurve.extrums[i].first;
 	}
 inline void setpagenewest(const int i,const Num *const el) {
-	numdatas[i]->extrum.second=el;
+       appcurve.extrums[i].second=el;
 	}
 inline const Num *getpagenewest(const int i) {
-	return numdatas[i]->extrum.second;
+	return  appcurve.extrums[i].second;
 	}
 

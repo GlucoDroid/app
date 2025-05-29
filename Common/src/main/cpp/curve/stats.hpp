@@ -27,6 +27,8 @@ GMI(mmol/mol) = 12.71 + 4.70587 x [mean glucose in mmol/L]
 #include <algorithm>
 #include <numeric>
 #include <math.h>
+struct jugglucotext;
+struct JCurve;
 struct stats {
 	typedef unsigned tottype;
 static constexpr const	int levels[] {250,180,69,53};
@@ -134,8 +136,9 @@ template <class GlucoseEl> stats( std::vector<pair<const GlucoseEl*,const Glucos
 		EA1Cmmol=round(( EA1Cper- 2.15)*10.929);
 
 		this->mean=mean;
-		 logprint("mean=%Lf, sd=%1f vc=%1f\n",mean,sd,vc);
+		logprint("stats::stats mean=%Lf, sd=%1f vc=%1f starttime=%u endtime=%u\n",mean,sd,vc,starttime,endtime);
 		}
-	void  showbar(NVGcontext* vg) ;
-	void otherstats(NVGcontext* vg) ;
+	void  showbar(NVGcontext* vg,JCurve &) ;
+	void otherstats(NVGcontext* vg,JCurve&) ;
+        void otherstats(NVGcontext* vg,JCurve &jcurve,const jugglucotext *usedtext) ;
 	};

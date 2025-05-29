@@ -493,12 +493,30 @@ void setupnetwork() {
 //        backup->wakebackup();
 
        }
+#ifndef JUGGLUCO_APP
 
+extern pathconcat numbasedir;
+extern int64_t openNums(std::string_view numpath,int64_t ident);
+static void cmdOpenNums(std::string_view jbase,int64_t ident) {
+   LOGGER("start cmdOpenNums %s %lld\n",jbase.data(),ident);
+   int len = jbase.size();
+   int blen=numbasedir.length();
+   int alllen=len+blen+1;
+   char base[alllen+1];
+   memcpy(base,numbasedir.data(),blen);
+   base[blen++]='/';
+   memcpy(base+blen,jbase.data(),len);
+   base[alllen]='\0';
+   openNums( string_view(base,alllen),ident);
+   LOGAR("end cmdOpenNums");
+   }
+extern void mkheights() ;
+extern void setusedsensors() ;
 int  startjuggluco(std::string_view dirfiles,const char *country) {
      mkdir(dirfiles.data(),0700);
     int res;
         if((res=setfilesdir(dirfiles,country))) {
-        return res;
+            return res;
         }
         extern int startmeals() ;
         startmeals();
@@ -507,9 +525,14 @@ int  startjuggluco(std::string_view dirfiles,const char *country) {
         extern void startthreads() ;
         startthreads();
 //    settings->data()->initVersion=22;
-    return 0;
-        }
 
+  cmdOpenNums("here",0LL);
+  cmdOpenNums("watch",-1LL); //order important!!
+    mkheights(); 
+    setusedsensors();
+    return 0;
+     }
+#endif
 static void initinjuggluco(std::string_view dirfiles,const char *country) {
         extern bool networkpresent;
         networkpresent=true;

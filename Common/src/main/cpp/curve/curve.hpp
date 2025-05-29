@@ -21,36 +21,15 @@
 
 #pragma once
 
-//#if defined(__aarch64__) 
-#if 0
-#define NANOVG_GLES3_IMPLEMENTATION
-#if __ANDROID_API__ >= 24
-#include <GLES3/gl32.h>
-#elif __ANDROID_API__ >= 21
-#include <GLES3/gl31.h>
-#else
-#include <GLES3/gl3.h>
-#endif
-#else
 #include <GLES2/gl2.h>
 #define NANOVG_GLES2_IMPLEMENTATION
-#endif
 #include "nanovg.h"
 #include "settings/settings.hpp"
-extern float smallfontlineheight;
-extern float dleft,dtop,dbottom,dright,dheight,dwidth;
-extern float density;
-extern float textheight;
-extern	int font,menufont,monofont;
-extern float smallsize,menusize,headsize,midsize, mediumfont;
-extern  float foundPointRadius;
-extern  float hitStrokeWidth;
 constexpr const NVGcolor nvgRGBAf2(const float r, const float g, const float b, const float a)
 {
 return  {{{r,g,b,a}}};
 }
 
-extern int startincolors;
 #define constcol static inline constexpr const
 constcol NVGcolor darkgrayin= nvgRGBAf2(0,0,0,0.4);
 constcol NVGcolor blue=nvgRGBAf2(0, 0,1,1);
@@ -101,13 +80,6 @@ constexpr const int fromNVGcolor(const NVGcolor *col) {
  constcol auto green5=hexcolor(0x19429);
  constcol auto brown2=hexcolor(0x8a3119);
 extern int lasttouchedcolor;
-extern int startincolors;
-inline const NVGcolor *getcolor(const int col) {
-	return settings->data()->colors+startincolors+col;
-	}
-inline void setcolor(const int colindex,const NVGcolor col) {
-	settings->data()->colors[startincolors+colindex]=col;
-	}
 constexpr const int lightredoffset=startbackground-1;
 constexpr const int grayoffset=startbackground-2;
 constexpr const int dooryellowoffset=startbackground-3;
@@ -117,17 +89,7 @@ constexpr const int darkgrayoffset=11;
 inline constexpr const NVGcolor allcolors[]={green5, blue1,kleur4,green,kleur2,lightblue2,red1,kleur3,paars,green1,kleur4, darkgrayin ,green4, greenblue, blue,kleur1, green2, lightblue,green3,brown};
 inline constexpr const int oldnrcolors=std::size(allcolors);
 inline constexpr const int nrcolors=threehouroffset;
-inline const NVGcolor *getblack() {
-	if(startincolors)
-		return &white;
-	return &black;
-	}
 constexpr const auto darkmenu=hexcolor(0x07518e);
-inline const NVGcolor *getmenucolor() {
-	if(startincolors)
-		return &darkmenu;
-	return &black;
-	}
 inline const NVGcolor *getmenuforegroundcolor() {
 	return &white;
 	}
@@ -136,23 +98,8 @@ inline const NVGcolor *getmenuforegroundcolor() {
 constcol NVGcolor 	foregroundgray=  nvgRGBAf2(0,0,0,0.1);
 constcol NVGcolor 	backgroundgray= {{{1.0f,1.0f,1.0f,.4f}}}; 
 
-inline const NVGcolor *getgray() {
-	if(startincolors)
-		return &backgroundgray;
-	return &foregroundgray;
-	}
 constcol NVGcolor backgrounddarkgray=   nvgRGBAf2(.8,.8,.8,.8);
 
-inline const NVGcolor *getdarkgray() {
-	if(startincolors)
-		return &backgrounddarkgray;
-	return &darkgrayin;
-	}
-inline const NVGcolor *getwhite() {
-	if(startincolors)
-		return &black;
-	return &white;
-	}
 
 constexpr const  NVGcolor invertcolor(const NVGcolor *colin)  {
    constexpr const auto invertcolor=[](float c) -> float {
@@ -177,23 +124,12 @@ constexpr const  NVGcolor invertcolor(const NVGcolor colin)  {
  const auto yellowinvert=invertcolor(yellow);
 
  const auto pinkinvert=invertcolor(pink);
-inline const NVGcolor *getyellow() {
-	if(startincolors)
-		return &yellowinvert;
-	else
-		return &yellow;
-	}
 inline const NVGcolor getoldcolor() {
 		return pink;
 	}
 
 constcol NVGcolor  foregroundthreehour=  nvgRGBAf2(1.0,0,1,0.5);
 constcol NVGcolor  backgroundthreehour=  nvgRGBAf2(1.0,0,1,1);
-inline const NVGcolor *getthreehour() {
-	if(startincolors)
-		return &backgroundthreehour;
-	return &foregroundthreehour;
-	}
 
 #include "jugglucotext.hpp"
 extern NVGcontext* genVG;
@@ -231,18 +167,13 @@ inline int mkhourminstr(int hour,int min, char *buf) {
       return  mk24time(hour,min,buf);
    return  mk12hourmin(hour,min,buf);
    }
-inline int datestr(const time_t tim,char *buf) {
-	struct tm tmbuf;
-	 struct tm *stm=localtime_r(&tim,&tmbuf);
-	int len=sprintf(buf,"%s %02d-%02d-%d ",usedtext->daylabel[stm->tm_wday],stm->tm_mday,stm->tm_mon+1,1900+stm->tm_year);
-    len+=mktime(stm->tm_hour,stm->tm_min,buf+len);
-   return len;
-	}
 
 
 
 
 constcol NVGcolor foregroundlightred=  nvgRGBAf2(1, 0.95, 0.95, 1); 
+//constcol NVGcolor foregroundlightred=  hexcolor(0xffe5e5); //a little darker
+//constcol NVGcolor foregroundlightred=  hexcolor(0xffcccb); //much darker
 
 //constcol NVGcolor redblack=hexcolor(0x3D2022);
 //constcol NVGcolor redblack=hexcolor(0x4c1210);
@@ -262,3 +193,11 @@ constcol NVGcolor dooryellow=nvgRGBAf2(0.9,0.9,0.1,0.3);
 //extern int whitefont,blackfont;
 
 
+union bounds_t{
+    float array[4];
+    struct {float xmin,ymin, xmax,ymax;};
+    } ;
+
+inline int mktmmin(const struct tm *tmptr) {
+    return tmptr->tm_min;
+    }

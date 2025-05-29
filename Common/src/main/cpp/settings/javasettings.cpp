@@ -153,9 +153,6 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(set2Schedule)(JNIEnv *env, jcl
         return settings->data()->setprofile() ;
         }
 
-extern "C" JNIEXPORT void  JNICALL   fromjava(setunit)(JNIEnv *env, jclass cl,jint unit) {
-	settings->setunit(unit);
-	}
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(staticnum)(JNIEnv *env, jclass cl) {
 	 return settings->staticnum(); 
 	}
@@ -403,21 +400,6 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getInvertColors)(JNIEnv *env, 
 	return settings->data()->invertcolors;
 	}
 
-extern int startincolors;
-
-extern void setinvertcolors(bool val) ;
-extern int	invertcolors;
-void setinvertcolors(bool val) {
-	invertcolors=val;
-	settings->data()->invertcolors=val;
-	 startincolors=val*startbackground;
-	 }
-
-extern "C" JNIEXPORT void  JNICALL   fromjava(setInvertColors)(JNIEnv *env, jclass cl,jboolean val) {
-	setinvertcolors(val);
-	 LOGGER("startincolors=%d\n",startincolors);
-//	doinvertcolors(val);
-	}
 
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getshowalways)(JNIEnv *env, jclass cl) {
 	return !settings->data()->dontshowalways;
@@ -621,13 +603,6 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getfixatex)(JNIEnv *env, jclas
 	return settings->data()->fixatex;
 	}
 
-extern "C" JNIEXPORT void  JNICALL   fromjava(setfixatex)(JNIEnv *env, jclass cl,jboolean val) {
-	settings->data()->fixatex=val;
-
-extern int duration;
-	fixatex=val;
-	settings->data()->duration=duration;
-	}
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getfixatey)(JNIEnv *env, jclass cl) {
 	return settings->data()->fixatey;
 	}
@@ -1782,17 +1757,14 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setthreshold)(JNIEnv *env, jclass 
 	}
 
 extern bool hour24clock;
-void settimefont() ;
 
 void inithour24() {
 	hour24clock=settings->data()->hour24;
-	settimefont() ;
 	}
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(sethour24)(JNIEnv *env, jclass cl,jboolean val) {
 	settings->data()->hour24=val;
 	hour24clock=val;
-	settimefont() ;
 	}
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(gethour24)(JNIEnv *env, jclass cl) {
 	return settings->data()->hour24;
@@ -1868,4 +1840,15 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setSoundType)(JNIEnv *env, jclass 
     }
 extern "C" JNIEXPORT jint  JNICALL   fromjava(getSoundType)(JNIEnv *env, jclass cl) {
     return settings->data()->soundtypeGet();
+    }
+extern int numlist;
+extern bool showpers;
+extern bool openglstarted;
+extern "C" JNIEXPORT void  JNICALL   fromjava(onCreate)(JNIEnv *env, jclass cl) {
+    openglstarted=false;
+    numlist=0;
+    #ifndef WEAROS
+    showpers=false;
+    #endif
+    
     }
