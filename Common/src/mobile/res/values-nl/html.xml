@@ -2048,9 +2048,21 @@ sensor over te nemen die gestart is met de Libre 3 app. Dit is enkel
 mogelijk wanneer de Libre 3 al ingelogd was met dit E-Mail adres bij
 Libreview. Als je later probeert een Account ID aan de de Libre3 app
 te verbinden, kun je de Freestyle Libre3 sensor niet meer scannen.</p>
-<p style="line-height: 100%; margin-bottom: 0in"><br/>
+<p>Het Libreview-account-ID-nummer kan ook worden <a class="western" href="https://www.juggluco.nl/Juggluco/libre3/convertUUID.html">omgezet</a>
+vanuit de UUID die wordt weergegeven in de adresbalk van
+Libreview-rapporten en handmatig worden ingevoerd in Juggluco.</p>
+<p>Gegevens van Sibionics- en Dexcom-sensoren worden niet naar
+Libreview verzonden.</p>
+<p>Als je gegevens in Libreview-opmaak wilt opslaan, kun je dat ook doen via linker midden → <a href="https://www.juggluco.nl/Jugglucohelp/nl/helpexport.html">Export</a> of via de <a  href="https://www.juggluco.nl/Juggluco/webserver.html#libreview">webserver</a> in Juggluco. Glucosewaarden van Dexcom- en Sibionics-sensoren zijn ook opgenomen.</p>
+<p><br/>
+<br/>
 
 </p>
+<p><br/>
+<br/>
+
+</p>
+
 ]]>
 </string>
 <string name="garminconfig" >
@@ -2758,7 +2770,7 @@ gecodeerd in UTF8.</p>
 <p>De betekenis van de kolommen vindt je op
 <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a>
 .</p>
-<p><strong>Dagen</strong> : Vanaf Juggluco 7.1.0 kun je het aantal
+<p><strong>Dagen</strong>: Vanaf Juggluco 7.1.0 kun je het aantal
 dagen selecteren dat je wilt opslaan. De einddatum is de rechterrand
 van het scherm. Als u gegevens uit het verleden in Juggluco bekijkt,
 worden alleen oude gegevens geëxporteerd (hetzelfde als in het menu
@@ -2767,6 +2779,26 @@ links in het midden -&gt; Statistieken).</p>
 ontvangen via de webserver in Juggluco
 (linkermenu-&gt;Instellingen-&gt;Deel gegevens-&gt;Webserver), zie
 <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a></p>
+<p><b>Libreview</b>: Gegevens opslaan in Libreview-opmaak. Dit maakt
+het mogelijk om gegevens van niet-Freestyle Libre-sensoren te
+importeren in programma\'s en webservices die die opmaak nodig hebben.
+Voor Dexcom-sensoren worden de 5 minuten waarden opgeslagen en voor
+Sibionics-sensoren één streamwaarde per 5 minuten. Het slaat ook de
+History waarden van Libre 0, 2 en 3-sensoren op. Het slaat alleen
+insulinedoses, koolhydraten en opmerkingen op, nadat je <a href="https://www.juggluco.nl/Jugglucohelp/nl/setlibrenumtype.html">labels</a>
+aan deze categorieën hebt toegewezen via het linkermenu →
+Instellingen → Deel gegevens → Libreview → <a href="https://www.juggluco.nl/Jugglucohelp/nl/librenumhelp.html">Zend hoeveelheden</a>.</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p><br/>
+<br/>
+
+</p>
+<p><br/>
+<br/>
+
+</p>
 ]]>
 </string>
 <string name="newamount" >

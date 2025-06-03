@@ -24,7 +24,6 @@
 #include <zlib.h>
 #endif
 #include "net/netstuff.hpp"
-#include "net/makerandom.hpp"
 #include "share/fromjava.h"
 #include "datbackup.hpp"
 #ifdef WEAROS
@@ -338,14 +337,6 @@ bool wearmessages[maxallhosts]={};
 
 
 extern void makepass(char *pass,int len);
-void makepass(char *pass,int len) {
-             constexpr const auto mkchar=[](uint8_t get) { return get%95+32; };
-             uint8_t ran[len];
-             makerandom(ran,len);
-             for(int i=0;i<len;i++) {
-                pass[i]=mkchar(ran[i]);
-                }
-          }
 static bool sendpass=false;
 extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, jclass cl,jstring jident,jboolean create,jint watchHasSensor,jboolean galaxy) {
 

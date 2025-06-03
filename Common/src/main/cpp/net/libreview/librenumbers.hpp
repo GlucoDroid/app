@@ -115,7 +115,7 @@ class Numbers: public LibreType {
 	public:
 
 
-	static int writeentry(char *buf,const std::string_view category,const std::string_view instance,const std::string_view unitname,float units,long long recordnum,uint32_t tim,bool del) {
+	static int writeentry(char *buf,const std::string_view category,const std::string_view instance,const std::string_view unitname,float units,long long recordnum,uint32_t tim,bool del,int decimal=1) {
 		char *ptr=buf;
 		startentry(ptr);
 		addar(ptr,R"(")");
@@ -131,7 +131,7 @@ class Numbers: public LibreType {
 			addstrview(ptr,unitname);
 			addar(ptr,R"(":)");
 			space(ptr);
-			ptr+=sprintf(ptr,"%.1f,",units);
+			ptr+=sprintf(ptr,"%.*f,",decimal,units);
 			}
 		next(ptr);
 		addar(ptr, R"("extendedProperties":)");
@@ -179,7 +179,7 @@ class Numbers: public LibreType {
 		}
 
 	static int writefood(char *buf,const std::string_view type,float units,long long recordnum,uint32_t tim,bool del=false) {
-		return writeentry(buf,"foodType",type,"gramsCarbs",units,recordnum,tim,del);
+		return writeentry(buf,"foodType",type,"gramsCarbs",units,recordnum,tim,del,0);
 		}
 	static int writenote(char *buf,std::string_view label,long long recordnum,uint32_t tim,bool del=false) {
 		return writeentry(buf, "type", "com.abbottdiabetescare.informatics.customnote",label,0.0f,recordnum,tim,del);

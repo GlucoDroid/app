@@ -17,6 +17,7 @@ struct Getopts {
     bool historymode=false;
     bool amountsmode=false; 
     bool darkmode=false;
+    bool exclusivemode=false;
     uint16_t lang=0;
 int days() const {
         return (end-start+daysecs-1)/daysecs;
@@ -28,7 +29,7 @@ int days() const {
         return !memcmp(&start,&other.start,len);
         }
 template <int diff=60*10>
-    bool aboutequal(Getopts &other) const {
+    bool aboutequal(Getopts &other,bool absolute) const {
        if(unit!=other.unit) {
 /*
           if(!unit) unit=settings->data()->unit; 
@@ -48,7 +49,15 @@ template <int diff=60*10>
                 LOGGER("aboutequal: darkmode diffferent %d!=%d\n",darkmode,other.darkmode);
                 return false;
                 }
-        return !(differs(start,other.start,diff)||differs(end,other.end,diff)); 
+       if(!absolute) {
+            if(differs(end,other.end,diff))
+                  return false;
+             }
+        else {
+             if(other.end!=end)
+                  return false;
+             }
+        return !(differs(start,other.start,diff)); 
         }
 private:
 static uint16_t getlan(uint16_t l) {

@@ -135,6 +135,7 @@ int diffcurrent=0;
 
 std::vector<mealposition> mealpos;
 void setdiffcurrent(bool val) {
+   LOGGER("setdiffcurrent(nowclamp=%d)  doclamp=false\n",val);
    doclamp=false;
    nowclamp=val;
    }

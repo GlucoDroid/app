@@ -126,19 +126,23 @@ bool valid(int pos=1) const {
 bool current(int pos=1) const {
     return valid(pos)&&!isnan(ch);
     }
+float inappunit() const {
+       return ::gconvert(g*10);
+       }
+
 } ;
 
 struct CurData {
     const ScanData *data;
     const int startpos,endpos;
     CurData(const ScanData *data,const ScanData *startdat,const ScanData *enddat): data(data),startpos(startdat-data),endpos(enddat-data) {        };
-    const ScanData *startall() {
+    const ScanData *startall() const {
         return data;
     }
-    const ScanData *begin() {
+    const ScanData *begin() const {
         return data+startpos;
     }
-    const ScanData *end() {
+    const ScanData *end() const {
         return data+endpos;
     }
 
@@ -152,6 +156,9 @@ struct Glucose {
     uint16_t getmgdL() const { return glu[1]/10;};
     uint32_t gettime() const {return time;};
     uint32_t getid() const {return id;};
+    float inappunit() const {
+       return ::gconvert(getsputnik());
+        }
     bool isStreamed() const {
         return glu[2]&0x4000;
         }

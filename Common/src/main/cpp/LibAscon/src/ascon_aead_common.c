@@ -129,10 +129,11 @@ ascon_aead_is_tag_valid(ascon_aead_ctx_t* const ctx,
     if (small_neq(computed_tag_chunk, expected_tag, remaining)) { return ASCON_TAG_INVALID; }
     return ASCON_TAG_OK;
 }
-
+#include "logs.hpp"
 ASCON_API void
 ascon_aead_cleanup(ascon_aead_ctx_t* const ctx)
 {
+LOGGER("ascon_aead_cleanup(%p\n",ctx);
 #ifdef ASCON_INPUT_ASSERTS
     ASCON_ASSERT(ctx != NULL);
 #endif

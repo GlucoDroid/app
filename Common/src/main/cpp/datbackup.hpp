@@ -174,6 +174,7 @@ void close() {
 //         if(get_owner_tag(so)==mytag()) 
             ::sockclose(so);
          if(crypt_t *ctx=getcrypt()) {
+//            LOGGER("ascon_aead_cleanup(%p)\n",ctx);
             ascon_aead_cleanup(ctx);
             }
         }
@@ -700,6 +701,7 @@ void resethost(int index) {
 
 int jsetips(const char *port,JNIEnv *env, const jobjectArray jar, const int len,struct sockaddr_in6 *connect ,const int lmaxip) {
     LOGGER("jsetips len=%d\n",len);
+
     int uselen=std::min(lmaxip,len);
     for(int i=0;i<uselen;i++) {
         jstring  jname=(jstring)env->GetObjectArrayElement(jar,i);

@@ -1038,6 +1038,23 @@ nur alte Daten exportiert (dasselbe wie im linken mittleren Menü -&gt; <a href=
 Webserver in Juggluco zu empfangen (Linkes
 Menü-&gt;Einstellungen-&gt;Daten austauschen-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/de/Nightscouthelp.html">Webserver</a>), siehe
 <a href="https://www.juggluco.nl/Juggluco/webserver.html">https://www.juggluco.nl/Juggluco/webserver.html</a></p>
+<p><b>Libreview</b> : Daten im
+Libreview-Format speichern. Dies ermöglicht den Import von Daten von
+Nicht-Freestyle-Libre-Sensoren in Programme und Webdienste, die
+dieses Format benötigen. Für Dexcom-Sensoren werden die
+5-Minuten-Werte gespeichert, für Sibionics-Sensoren alle 5 Minuten
+ein Stream-Wert. Auch die Historywerte der Libre-Sensoren 0, 2 und 3
+werden gespeichert. Insulindosen, Kohlenhydrate und Bemerkungen
+werden erst gespeichert, nachdem Sie diesen <a href="https://www.juggluco.nl/Jugglucohelp/de/setlibrenumtype.html">Kategorien</a> unter linkem
+Menü → Einstellungen → Daten austauschen → Libreview → <a href="https://www.juggluco.nl/Jugglucohelp/de/librenumhelp.html">Mengen senden</a> Etiketten zugewiesen haben.</p>
+<p style="line-height: 100%; margin-bottom: 0in"><br/>
+
+</p>
+<p><br/>
+<br/>
+
+</p>
+
 ]]>
 </string>
 <string name="introhelp" >
@@ -1509,6 +1526,19 @@ ermöglicht die Verwendung eines FreeStyle Libre 3-Sensors, der
 bereits mit der Abbotts Libre 3-App verwendet wurde, mit diesem
 LibreView-Konto.</p>
 <p>Die Libreview-Konto-ID-Nummer kann auch aus der in der Adressleiste von Libreview-Berichten angezeigten UUID <a href="https://www.juggluco.nl/Juggluco/libre3/convertUUID.html">konvertiert</a> und manuell in Juggluco eingegeben werden.</p>
+<p>Daten von Sibionics- und Dexcom-Sensoren werden nicht an Libreview gesendet.</p>
+<p>Wenn Sie Daten im Libreview-Format speichern
+möchten, können Sie dies auch im linken mittleren Menü → <a href="https://www.juggluco.nl/Jugglucohelp/de/helpexport.html">Export</a> oder im <a  href="https://www.juggluco.nl/Juggluco/webserver.html#libreview">Webserver</a> in Juggluco tun. Glukosewerte von Dexcom- und Sibionics-Sensoren sind
+ebenfalls enthalten.</p>
+<p><br/>
+<br/>
+
+</p>
+<p><br/>
+<br/>
+
+</p>
+
 ]]>
 </string>
 <string name="locationpermission" >

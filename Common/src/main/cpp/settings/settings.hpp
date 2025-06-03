@@ -1152,6 +1152,13 @@ inline uint16_t &getlibrenumsdeletednr() {
     return settings->data()->libredeletednr;
     }
 
+inline constexpr const char *getunitstring(int unit) {
+        return unit==1?"mmol/L":"mg/dL";
+        }
+inline constexpr const char *getunitformat(int unit) {
+        return unit==1?"%.1f":"%.0f";
+        }
+
 #ifdef NDK_DEBUG
 constexpr const int librekeepsecs=3000*24*60*60;
 #else

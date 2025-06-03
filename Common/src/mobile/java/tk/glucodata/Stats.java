@@ -130,7 +130,8 @@ final Runnable closeonback=()-> {
 private static void webPercentiles(Context context, int days) {
     final long endtime=Natives.percentileEndtime(days);
 	final String key=Natives.getApiSecret();
-    final String url="http://127.0.0.1:17580/x/report?days="+days+"&endtime="+endtime+((key!=null&& !key.isEmpty())?("&token="+key):"");
+    final String addkey=(key!=null&&!key.isEmpty())?key+"/":"";
+    final String url="http://127.0.0.1:17580/"+addkey+"x/report?days="+days+"&endtime="+endtime;
     var intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
     context.startActivity(intent);
     }

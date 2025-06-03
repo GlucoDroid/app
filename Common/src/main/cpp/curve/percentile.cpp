@@ -969,11 +969,11 @@ struct PercentileGraph {
 class PersImages:public CircularArray<20,PercentileGraph> { 
 public:
 std::mutex mutex;
-recdata *get(Getopts &opt) {
+recdata *get(Getopts &opt,bool absolute) {
         const std::lock_guard<std::mutex> lock(mutex);
         auto beg=begin();
         for(auto iter=end()-1;iter>=beg;--iter) {
-                if(opt.aboutequal(iter->opts)) {
+                if(opt.aboutequal(iter->opts,absolute)) {
                         return &iter->image;
                         }
                 }
@@ -987,10 +987,10 @@ extern void mktypeheader(char *outstart,char *outiter,const bool headonly,recdat
 extern bool givesummarygraph(Getopts &opts,std::string_view origin,recdata *outdata);
 static std::vector<Getopts> newopts;
 
+    /*
 bool hassummary(Getopts &opts) {
     return false;
     }
-    /*
 static bool  queuedata(Getopts &opts,const char *label) {
        const bool newdata=std::ranges::find_if(newopts,[&opts](Getopts &old) { return opts.aboutequal(old);})==newopts.end();
         LOGGER("%s: NOT start=%u end=%u darkmode=%d%s %.2s\n",label,opts.start,opts.end,opts.darkmode, newdata?"":" already queued",(char *)&opts.lang);
@@ -1009,9 +1009,21 @@ bool hassummary(Getopts &opts) {
         return false;
         }
 */
-static bool givepercentiles(Getopts &opts,recdata *outdata);
+//static bool givepercentiles(Getopts &opts,recdata *outdata);
+
+static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata *outdata);
+static std::pair<uint32_t,uint32_t> percStartEnd(Getopts &opts);
 bool givesummarygraph(Getopts &opts,std::string_view origin,recdata *outdata) {
-    if(recdata *rec=persimages.get(opts)) {
+    const auto [startt,endt]=percStartEnd(opts);
+    if(startt>=endt) {
+        LOGAR("givesummarygraph no data");
+        return false;
+        }
+//   LOGGER("opts.end=%u endt=%d diff=%d
+   opts.start=startt;
+   const bool absolute=(opts.end-endt)>(10*60);
+   opts.end=endt;
+    if(recdata *rec=persimages.get(opts,absolute)) {
         LOGGER("persimages.get %p\n", rec->allbuf);
         outdata->start=rec->start;
         outdata->len=rec->len;
@@ -1024,12 +1036,12 @@ struct PercentileGraph {
         Getopts opts; 
         recdata image;
         }; */
-    if(givepercentiles(opts,outdata)) {
+    if(givepercentiles(opts,startt,endt,outdata)) {
           LOGGER("persimages.emplace_back %p\n", outdata->allbuf);
-          {
-          const std::lock_guard<std::mutex> lock(persimages.mutex);
-          persimages.emplace_back(opts,*outdata);
-          }
+              {
+              const std::lock_guard<std::mutex> lock(persimages.mutex);
+              persimages.emplace_back(opts,*outdata);
+              }
           outdata->allbuf=nullptr;
           return true;
           }
@@ -1195,7 +1207,7 @@ std::span<char> getSummaryImage(int startpos,Getopts &opts) {
 
 
 std::span<char> getStatImage(int startpos,Getopts &opts) {
-    const bool has=hassummary(opts);
+//    const bool has=hassummary(opts);
     JCurve statimage;
     if(opts.unit)
         statimage.setunit(opts.unit);
@@ -1206,7 +1218,7 @@ std::span<char> getStatImage(int startpos,Getopts &opts) {
     statimage.starttime=endsecs-duration;
     int days=(endsecs-startsecs+duration-1)/duration;
     const auto [start,endt]=percStartEnd(endsecs,days);
-    LOGGER("getStatImage %d %d days=%d hassummary=%d\n",start,endt,days,has);
+    LOGGER("getStatImage %d %d days=%d\n",start,endt,days);
     if(start>=endt)
         return {(char *)nullptr,0};
     auto stream=getsensorranges(start,endt);
@@ -1303,23 +1315,26 @@ curveimage.showmeals=0;
     }
     */
 
-static bool givepercentiles(Getopts &opts,recdata *outdata) {
 
-    const auto started=clock();
-    JCurve perscurve;
-    perscurve.dheight=winHeight;
-    perscurve.dwidth=winWidth;
+#include "secs.h"
+
+static std::pair<uint32_t,uint32_t> percStartEnd(Getopts &opts) {
     uint32_t endsecs=opts.end;
     uint32_t startsecs=opts.start;
-    bool darkmode=opts.darkmode;
-    if(opts.unit)
-        perscurve.setunit(opts.unit);
-    int showdur=perscurve.duration=24*60*60;
-    uint32_t starttime=endsecs-showdur;
-    uint32_t startday=starttime-getminutes(starttime)*60;
-    perscurve.starttime=startday;
+    constexpr int showdur=daysecs;
     int days=(endsecs-startsecs+showdur-1)/showdur;
-    const auto [start,endt]=percStartEnd(endsecs,days);
+    return percStartEnd(endsecs,days);
+    }
+
+static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata *outdata) {
+    const auto started=clock();
+
+//    uint32_t endsecs=opts.end;
+//    uint32_t startsecs=opts.start;
+    constexpr int showdur=daysecs;
+//    int days=(endsecs-startsecs+showdur-1)/showdur;
+//    const auto [start,endt]=percStartEnd(endsecs,days);
+
     if(start>=endt) {
         LOGAR("givepercentiles: start>=endt");
         return false;
@@ -1329,12 +1344,24 @@ static bool givepercentiles(Getopts &opts,recdata *outdata) {
         LOGAR("givepercentiles: stream.size()<=0");
         return  false;
         }
-    auto *text=language::gettext(opts.lang);
+    const auto *text=language::gettext(opts.lang);
     auto percptr=sortedmatched(&stream,start,endt,text);
     if(!percptr)  {
         LOGAR("sortedmatched==null");
         return false;
         }
+
+//    uint32_t starttime=endsecs-showdur;
+    uint32_t starttime=endt-showdur;
+    uint32_t startday=starttime-getminutes(starttime)*60;
+    JCurve perscurve;
+    perscurve.duration=showdur;
+    perscurve.starttime=startday;
+    bool darkmode=opts.darkmode;
+    if(opts.unit)
+        perscurve.setunit(opts.unit);
+    perscurve.dheight=winHeight;
+    perscurve.dwidth=winWidth;
     perscurve.invertcolorsset(darkmode);
 
     perscurve.usedtext=text;

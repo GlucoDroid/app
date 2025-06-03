@@ -1513,11 +1513,13 @@ static bool setitervar(const char *&iter,std::string_view cond,bool &var) {
       }
    return false;
    }
-extern   std::span<char> gethistory(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,int);
-extern   std::span<char> getstream(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,int);
-extern   std::span<char> getscans(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,int);
-extern   std::span<char> getamounts(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,int);
-extern std::span<char> getmeals(int startpos, int len, uint32_t starttime, uint32_t endtime,bool header,int,int);
+extern   std::span<char> gethistory(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
+extern   std::span<char> getstream(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
+extern   std::span<char> getscans(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
+extern   std::span<char> getamounts(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
+extern std::span<char> getmeals(int startpos, int len, uint32_t starttime, uint32_t endtime,bool header,int,bool,int);
+extern std::span<char> libreviewweb(int startpos, int startlen, uint32_t starttime, uint32_t endtime,bool header,int unit,bool,int maxcount) ;
+
 
 static time_t readtime(const char *&input) {
    struct tm tmbuf {.tm_isdst=0,.tm_gmtoff=0};
@@ -1658,6 +1660,8 @@ Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings
             continue;
          if(setitervar(iter, "amounts"sv, amountsmode))
             continue;
+         if(setitervar(iter, "exclusive"sv, exclusivemode))
+            continue;
                         {
          std::string_view langstr="hl="sv;
          if(!memcmp(iter,langstr.data(), langstr.size())) {
@@ -1686,7 +1690,7 @@ Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings
       }
    };
 
-typedef      std::span<char> (*getdata_t)(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,int);
+typedef      std::span<char> (*getdata_t)(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
 
 
 template <typename T,int N,typename T1> 
@@ -1750,12 +1754,7 @@ static int dayssize(int days) {
     } */
 extern int getminutes(time_t tim);
 
-static bool givereport(const char *input,int inputsizeall,Getopts &opts,std::string_view hostname,bool secure,std::string_view origin,recdata *outdata) {
-    const char *endinput=std::find(input,input+inputsizeall,' ');
-    static constexpr const char datnrstr[]{R"(maxcount=)"};
-    endinput=std::search(input,endinput,datnrstr,datnrstr+sizear(datnrstr));
-    if(endinput[-1]=='?'||endinput[-1]=='&')
-        --endinput;
+static bool givereport(Getopts &opts,std::string_view hostname,bool secure,std::string_view origin,recdata *outdata) {
     const uint32_t endtime=opts.end-1; //otherwise the whole end day is shown when a startday is specified
     const bool darkmode=opts.darkmode;
     const int days=opts.days();
@@ -1794,8 +1793,8 @@ static bool givereport(const char *input,int inputsizeall,Getopts &opts,std::str
     static constexpr const  char historystr[] { R"(&historymode)"};
     static constexpr const  char mealsstr[] { R"(&mealsmode)"};
 
-    static constexpr const char startimage[]{R"("><h3 style="margin-top: 2mm;margin-bottom: -2mm;" id="sumhead" hidden>)"};
-    static constexpr const char aftergraphname[]{R"(</h3><img style="border: 0 none; margin-top:2mm; margin-bottom:-1.8mm;" id="summarygraph" src="http)"};
+    static constexpr const char startimage[]{R"("><h3 style="margin-top: 2.3mm;margin-bottom: -2mm;" id="sumhead" hidden>)"};
+    static constexpr const char aftergraphname[]{R"(</h3><img style="border: 0 none; margin-top:2mm; margin-bottom:-1.4mm;" id="summarygraph" src="http)"};
     static constexpr const  char summarygraph[] { R"(/x/summarygraph?endtime=)"};
     static constexpr const  char enddayhtml[] { R"("><br>
     )"};
@@ -1835,7 +1834,8 @@ loadImages();
     )"};
     opts.end=endday;
     opts.start=endday-days*daysecs;
-    LOGGER("givereport opts.start=%u opts.end=%u\n",opts.start,opts.end);
+    const int maxcount=opts.datnr;
+    LOGGER("givereport opts.start=%u opts.end=%u maxcount=%d\n",opts.start,opts.end,maxcount);
     const int elsize=sizeof(startimg)-1+sizeof(xcurve)-1+sizeof(enddayhtml)-1+addhost.size()+timesize
     +(opts.amountsmode?sizear(amountsstr):0)
     +(opts.scansmode?sizear(scansstr):0)
@@ -1847,7 +1847,7 @@ loadImages();
             };
     
     const int dayslen=places(days);
-    const int showdays= days>100?100:days;
+    const int showdays=(maxcount<days)?maxcount:(days>100?100:days);
     const int summarysize=6+sizear(startimage) +
 sizear(aftergraphname)+text->summarygraph.size()+
     +addhost.size()+sizear(summarygraph)+timesize+sizear(daysstr)+dayslen+
@@ -1953,50 +1953,40 @@ static bool jugglucos(const char * const input,int size, std::string_view hostna
         constexpr const int sumsize=(sizeof(report)-1);
         posptr+=sumsize;
         Getopts opts(posptr,size-sumsize,60*60*24*20);
-        return givereport(input,size,opts,hostname,secure,origin,outdata);
+        return givereport(opts,hostname,secure,origin,outdata);
         }
     }
-/*    {
-    constexpr const char reload[]="reload.jpg";
-    if(!strarcmp(reload,input)) {
-        constexpr const int sumsize=(sizeof(reload)-1);
-        posptr+=sumsize;
-        return givereloadimage(outdata);
-        }
-    } */
 
-
-   constexpr const std::string_view types[]={"history"sv,"stream"sv,"scans"sv,"amounts"sv,"meals"sv};
-    constexpr const getdata_t procs[]={gethistory,getstream,getscans,getamounts,getmeals};
-   constexpr const int perhour[]={12*62,60*81,2*81,5*85,200};
+   constexpr const std::string_view types[]={"history"sv,"stream"sv,"scans"sv,"amounts"sv,"meals"sv,"libreview"sv};
+    constexpr const getdata_t procs[]={gethistory,getstream,getscans,getamounts,getmeals,libreviewweb};
+   constexpr const int perhour[]={12*62,60*81,2*81,5*85,200,700};
    for(int i=0;i<std::size(types);i++) {
       auto type=types[i];
       if(!memcmp(type.data(),posptr,type.size())) {
          posptr+=type.size();
          Getopts opts(posptr,size-type.size());
-
-         int startlen=((opts.end-opts.start)/(60*60))*perhour[i];
+         const int startlen=((opts.end-opts.start)/(60*60))*perhour[i];
          constexpr const int startpos=152;
-         
-         std::span<char> res=procs[i](startpos,startlen,opts.start,opts.end,opts.headermode,opts.unit,opts.datnr);
-         if(!res.data()) {
-            return outofmemory(outdata);
+         std::span<char> res=procs[i](startpos,startlen,opts.start,opts.end,opts.headermode,opts.unit,!opts.exclusivemode,opts.datnr);
+          if(!res.data()) {
+                return outofmemory(outdata);
+                }
+          else {
+                 if(res.size()==std::numeric_limits<size_t>::max()) {
+                    delete[] res.data();
+                    return giveservererror(outdata);
+                    }
+                else {
+                    constexpr const std::string_view plain="text/plain; charset=utf-8"sv;
+                    constexpr const std::string_view html="text/html; charset=utf-8"sv;
+                    outdata->allbuf=res.data();
+                    mktypeheader(res.data()+startpos,res.data()+res.size(),false,outdata,i==4?html:plain,origin);
+                    return true;
+                    }
+                }
+            break;
             }
-         if(res.size()!=std::numeric_limits<size_t>::max()) {
-            constexpr const std::string_view plain="text/plain; charset=utf-8"sv;
-            constexpr const std::string_view html="text/html; charset=utf-8"sv;
-            outdata->allbuf=res.data();
-            mktypeheader(res.data()+startpos,res.data()+res.size(),false,outdata,i==4?html:plain,origin);
-            return true;
-            }
-         else {
-            delete[] res.data();
-            return giveservererror(outdata);
-            }
-         break;
-         }
-      }
-
+       }
    wrongpath({input-jugglucocommand.size(),size+jugglucocommand.size()},outdata);
    return true;
    }

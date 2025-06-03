@@ -848,16 +848,19 @@ extern "C" JNIEXPORT jstring  JNICALL   fromjava(getlibrepass)(JNIEnv *env, jcla
 	}
 
 
-
+/*
 extern "C" JNIEXPORT void  JNICALL   fromjava(setlibreDeviceID)(JNIEnv *env, jclass cl,jboolean libre3,jstring jDeviceID) {
 	auto &deviceID= libre3?settings->data()->libre3viewDeviceID:settings->data()->libreviewDeviceID;
 	const jint jlen = env->GetStringLength(jDeviceID);
 	env->GetStringUTFRegion(jDeviceID, 0,jlen, deviceID.data());
 	deviceID.data()[deviceID.size()]='\0';
-	 }
+	 } */
+
+
+
+extern std::array<char,36> &getDeviceID(bool libre3) ;
 extern "C" JNIEXPORT jstring  JNICALL   fromjava(getlibreDeviceID)(JNIEnv *env, jclass cl,jboolean libre3) {
-	const auto &deviceID= libre3?settings->data()->libre3viewDeviceID:settings->data()->libreviewDeviceID;
-	 return env->NewStringUTF(deviceID.data());
+	 return env->NewStringUTF(getDeviceID(libre3).data());
 	}
 extern "C" JNIEXPORT void  JNICALL   fromjava(setlibreAccountID)(JNIEnv *env, jclass cl,jstring jAccountID) {
 	const jint jlen = env->GetStringLength(jAccountID);

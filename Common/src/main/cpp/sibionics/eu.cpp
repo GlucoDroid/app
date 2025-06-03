@@ -287,7 +287,7 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
         const int maxid=sens->getSiIndex();
         int index=(int) basear[0];
         time_t eventTime=basear[10];
-         if(index!=maxid)   {
+        if(index!=maxid)   {
                 if(index<maxid)   {
                    LOGGER("SIprocess index=%d<maxid=%d\n",index,maxid);
                    return 3LL;
@@ -300,19 +300,19 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
                       }
                    }
                }
-            if(maxid<10) {
-                   const auto starttime=makestarttime(index,eventTime);
-                   sens->getinfo()->starttime=starttime;
-                   sensor->starttime=starttime;
-                   sensors->setindices();
-                   backup->resendResetDevices(&updateone::sendstream);
-                   }
-            double temp=basear[1]/10.0;
-            auto current= basear[2];
-            double value=current/10.0;
-            LOGGER("current=%" PRId64 " %.1f mmol/L\n",current,value);
-            int reindex=(int)basear[4];
-            auto trend=(int)basear[6];
+        if(maxid<10) {
+               const auto starttime=makestarttime(index,eventTime);
+               sens->getinfo()->starttime=starttime;
+               sensor->starttime=starttime;
+               sensors->setindices();
+               backup->resendResetDevices(&updateone::sendstream);
+               }
+        double temp=basear[1]/10.0;
+        auto current= basear[2];
+        double value=current/10.0;
+        LOGGER("current=%" PRId64 " %.1f mmol/L\n",current,value);
+        int reindex=(int)basear[4];
+        auto trend=(int)basear[6];
 
     #ifdef USE_PROCESS
        double newvalue;

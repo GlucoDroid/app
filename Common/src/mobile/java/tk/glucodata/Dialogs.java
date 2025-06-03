@@ -70,21 +70,21 @@ Dialogs(float density) {
 private Button exportbutton(MainActivity activity,String label, int type) {
     Button but=new Button(activity);
     but.setText(label);
-        but.setOnClickListener(
+    but.setOnClickListener(
         v-> {
             float daynr;
-        try {
-        
-            daynr=Float.parseFloat(String.valueOf(days.getText()));
-            } catch(Throwable th) {
-            
-                exportlabel.setText("I don't understand \'"+days.getText()+"\'");
-                return;
-            };
-        if(type==4)
-            algexporter(activity,   type,label,".html",daynr);
-           else
-            exporter( activity,  type,label,daynr);
+            try {
+                daynr=Float.parseFloat(String.valueOf(days.getText()));
+                } catch(Throwable th) {
+
+                    exportlabel.setText("I don't understand \'"+days.getText()+"\'");
+                    return;
+                };
+            switch(type) {
+                case 4: algexporter(activity,   type,label,".html",daynr);break;
+                case 5: algexporter(activity,type,label,".csv",daynr);break;
+                default: exporter( activity,  type,label,daynr);
+                };
             });
     return but;
     }
@@ -108,6 +108,7 @@ public void showexport(MainActivity activity,int width,int height,View parent) {
         Button stream=exportbutton(activity,activity.getString(R.string.streamname),2);
         Button hist=exportbutton(activity,activity.getString(R.string.historyname),3);
         Button meals=exportbutton(activity,activity.getString(R.string.mealsname),4);
+        Button libreview=exportbutton(activity,activity.getString(R.string.libreviewname),5);
         days= smallScreen?geteditwearos(activity):geteditview(activity,new editfocus()) ;
         days.setMinEms(3);
         long hour24=1000*60*60*24;
@@ -163,7 +164,7 @@ public void showexport(MainActivity activity,int width,int height,View parent) {
                 l.setY(MainActivity.systembarTop*3/4);
                  }
                return new int[] {w,h};
-            }, new View[] {help,daylabel,days},gviews,new View[]{exportlabel},lviews);
+            }, new View[] {libreview,help,daylabel,days},gviews,new View[]{exportlabel},lviews);
         exportscreen.setPadding(rand,rand,rand,rand);
         exportscreen.setBackgroundColor( Applic.backgroundcolor);
         activity.addContentView(exportscreen, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));

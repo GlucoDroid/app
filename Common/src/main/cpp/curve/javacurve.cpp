@@ -420,7 +420,7 @@ extern void initopengl(float small,float menu,float density,float headin) ;
 extern "C" JNIEXPORT void JNICALL fromjava(initopengl)(JNIEnv* env, jclass obj, jfloat small,jfloat menu,jfloat density,jfloat headin) {
     initopengl(small,menu,density,headin);
 
-    appcurve.setdiffcurrent(settings->data()->currentRelative);
+//    appcurve.setdiffcurrent(settings->data()->currentRelative);
 }
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(setcurrentRelative)(JNIEnv *env, jclass cl,jboolean val) {
@@ -913,7 +913,6 @@ extern "C" JNIEXPORT void JNICALL fromjava(endstats) (JNIEnv *env, jclass clazz)
 	appcurve.begrenstijd() ;
 	}
 #include "net/watchserver/Getopts.hpp"
-extern bool hassummary(Getopts &opts);
 extern int getminutes(time_t tim);
 extern "C" JNIEXPORT jlong JNICALL fromjava(percentileEndtime) (JNIEnv *env, jclass clazz,jint days) {
     const uint32_t  endtime=appcurve.starttime+appcurve.duration;
@@ -922,7 +921,6 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(percentileEndtime) (JNIEnv *env, jcl
     Getopts opts;
     opts.end=endday;
     opts.start=endday-days*daysecs;
-    const bool hassum=hassummary(opts); 
     return endtime;
     }
 

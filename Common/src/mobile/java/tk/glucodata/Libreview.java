@@ -73,7 +73,6 @@ import static tk.glucodata.Natives.getnewYuApiKey;
 import static tk.glucodata.Natives.getuselibreview;
 import static tk.glucodata.Natives.savelibrerubbish;
 import static tk.glucodata.Natives.setlibreAccountID;
-import static tk.glucodata.Natives.setlibreDeviceID;
 import static tk.glucodata.Natives.setlibrebaseurl;
 import static tk.glucodata.Natives.setlibreemail;
 import static tk.glucodata.Natives.setlibrepass;
@@ -100,14 +99,6 @@ private static String getputtext(String sensorid,String usertoken,String gateway
  }
 
 
-private static String getDeviceID(boolean libre3) {
-   String id=getlibreDeviceID(libre3);
-   if(id==null||id.length()<36)  {
-      id=UUID.randomUUID().toString();
-      setlibreDeviceID(libre3,id);
-      }
-   return id;
-   }
    /*
 private static int getalldata(HttpURLConnection urlConnection,byte[] buf) throws IOException {
    try(InputStream in = urlConnection.getInputStream()) {
@@ -226,7 +217,7 @@ static private boolean gettermversion(String lang) {
 
 static boolean postgetauth(boolean libre3) {
    String gateway=getlibregateway(libre3);
-   String one=getDeviceID(libre3);
+   String one= Natives.getlibreDeviceID(libre3);
 
    String password=getlibrepass();
 
@@ -810,9 +801,9 @@ public static void  config(MainActivity act, View settingsview,CheckBox sendto,b
 
    int[] nochangeamounts={0};
    var numbers=getcheckbox(act,R.string.sendamounts,Natives.getSendNumbers());
-   sendtolibreview.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
+/*   sendtolibreview.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
       numbers.setVisibility(isChecked?VISIBLE:INVISIBLE);;
-      });
+      }); */
    var clear=getbutton(act,act.getString(R.string.changestartbutton));
 
      var statusview=getlabel(act,librestatus==success?(posttime+": "+librestatus):librestatus);
@@ -843,7 +834,7 @@ public static void  config(MainActivity act, View settingsview,CheckBox sendto,b
       send.setOnClickListener(v-> wakelibreview(0));
       }
    else  {
-      numbers.setVisibility(INVISIBLE);;
+//      numbers.setVisibility(INVISIBLE);;
       send.setVisibility(INVISIBLE);
       }
 

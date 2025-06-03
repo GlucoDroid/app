@@ -449,7 +449,7 @@ std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t star
         auto his=sensors->getSensorData(hists[i]);
         LOGGER("sensor %s\n",his->showsensorname().data());
         std::span<const ScanData>     poll=his->getPolldata();
-#ifndef NDEBUG
+#if !defined(NDEBUG)&&defined(JUGGLUCO_APP)
         auto wastimeiter=timeiter;
 #endif
         auto ran=getScanRange(poll.data(),poll.size(),timeiter,endt);
@@ -903,14 +903,16 @@ void JCurve::setdiffcurrent() {
     //diffcurrent=(uint64_t)time(nullptr)-starttime;
     auto now=time(nullptr);
     diffcurrent=now-starttime;
-    LOGGER("now=%u starttime=%u diffcurrent=%d\n",now,starttime,diffcurrent);
     if(diffcurrent>(duration*5/6)) {
         doclamp=false;
-      return;
         }
-    doclamp=true;
+     else
+        doclamp=true;
+    LOGGER("now=%u starttime=%u diffcurrent=%d doclamp=%d\n",now,starttime,diffcurrent,doclamp);
+     return;
     }
 void JCurve::setstarttime(uint32_t newstart) {
+    LOGGER("setstarttime(%u) nowclamp=%d\n",newstart,nowclamp);
     starttime=newstart;
     if(nowclamp) {
         setdiffcurrent();
@@ -1550,7 +1552,7 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
     mealpos.clear();
     hists= sensors->inperiod(starttime2,endtime) ;
     histlen=hists.size();
-    LOGGER("displaycurve %d\n",histlen);
+    LOGGER("displaycurve %d doclamp=%d starttime=%u\n",histlen,doclamp,starttime2);
     delete[] scanranges;
     scanranges=new pair<const ScanData *,const ScanData*> [histlen];
     delete[] pollranges;

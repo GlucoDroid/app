@@ -207,8 +207,4 @@ detext.newamount,
 		;
 
 
-extern void setusede() ;
 addlang(de);
-void setusede() {
-	usedtext= &detext;
-	}

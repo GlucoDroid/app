@@ -523,7 +523,6 @@ public static native String getlibreemail( );
 
 public static native void setlibrepass(String pass);
 public static native String getlibrepass( );
-public static native void setlibreDeviceID(boolean l3,String DeviceID);
 public static native String getlibreDeviceID( boolean l3);
 
 public static native void setlibreAccountID(String AccountID);

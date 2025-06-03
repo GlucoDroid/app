@@ -643,6 +643,7 @@ bool JCurve::nearbyhistory( const float tapx,const float tapy,  const TX &transx
     return false;
     }
 
+#ifndef WEAROS
 static int largepausedaystr(const time_t tim,char *buf) {
         LOGAR("largepausedaystr");
     struct tm stmbuf;
@@ -669,6 +670,7 @@ static void speaknum(const Num *num) {
     LOGGERN(buf,ptr-buf+len);
     speak(buf);
     }
+#endif
 
 #ifndef DONTTALK
     static bool speakmenutap(float x,float y) ;
@@ -1187,18 +1189,18 @@ Numdata *getherenums() {
     }
 
 template <class TX,class TY>  const Num * NumDisplay::getnearby(JCurve &jcurve,const TX &transx,  const TY &transy,const float tapx,const float tapy) const {
-	auto [low,high]=jcurve.extrums[numdatasPos]; 
-	for( const Num *it=low;it!=high;it++) {
-		if(valid(it)) {
-			float xpos= transx(it->time);
-			float ypos=settings->getlabelweightmgperL(it->type)?transy(it->value*settings->getlabelweightmgperL(it->type)):jcurve.numtypeheight(it->type);
-			if(nearby(xpos-tapx,ypos-tapy,jcurve.density))
-				return it;
+    auto [low,high]=jcurve.extrums[numdatasPos]; 
+    for( const Num *it=low;it!=high;it++) {
+        if(valid(it)) {
+            float xpos= transx(it->time);
+            float ypos=settings->getlabelweightmgperL(it->type)?transy(it->value*settings->getlabelweightmgperL(it->type)):jcurve.numtypeheight(it->type);
+            if(nearby(xpos-tapx,ypos-tapy,jcurve.density))
+                return it;
 
-			}
-		}
-	return nullptr;
-	}
+            }
+        }
+    return nullptr;
+    }
 template <class TX,class TY> NumHit *JCurve::nearbynum(const float tapx,const float tapy,const TX &transx,  const TY &transy) {
      for(auto el:numdatas) 
         if(const Num *hit=el->getnearby(*this,transx,transy,tapx,tapy)) {
@@ -1500,6 +1502,7 @@ void resetcurvestate() {
     emptytap=false;
     nrmenu=0,selmenu=0;
     appcurve.calccurvegegs();
+    appcurve.setdiffcurrent(settings->data()->currentRelative);
     }
 
 void    initopengl(int started)  {

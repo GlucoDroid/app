@@ -1,3 +1,3 @@
 #ifndef APPVERSION 
-#define APPVERSION "9.7.0-1"
+#define APPVERSION "9.7.1"
 #endif
