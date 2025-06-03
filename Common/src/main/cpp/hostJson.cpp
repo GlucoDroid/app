@@ -134,7 +134,7 @@ int makeHomeBackupSender() {
     makepass(passstr,passlen);
     passstr[passlen]='\0';
     uint32_t  starttime=0L;
-    bool testip=true,hashostname=false;
+    bool testip=false,hashostname=false;
     char label[10]="auto";
     makepass(label+4,5);
     constexpr const bool detect=true;
@@ -150,7 +150,7 @@ int makeHomeBackupReceiver() {
     makepass(passstr,passlen);
     passstr[passlen]='\0';
     uint32_t  starttime=0L;
-    bool testip=true,hashostname=false;
+    bool testip=false,hashostname=false;
     char label[10]="auto";
     makepass(label+4,5);
     constexpr const bool detect=true;
