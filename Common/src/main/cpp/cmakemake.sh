@@ -30,7 +30,7 @@ fi
 echo $CXXFLAGS
 cmake\
 	-H$APPDIR/Common/src/main/cpp\
-	$DEBUGOPT -DCMAKE_CXX_FLAGS="-std=c++2b $CXXFLAGS "\
+	$DEBUGOPT -DCMAKE_CXX_FLAGS="-std=c++26 $CXXFLAGS "\
 	-DCMAKE_FIND_ROOT_PATH=$OUTPUTDIR\
 	-DCMAKE_BUILD_TYPE=$btype\
 	-DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake\

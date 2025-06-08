@@ -22,6 +22,7 @@ struct lastscan_t scantoshow={-1,nullptr};
 extern bool makepercetages() ;
 
 extern bool hasnetwork();
+
 bool bluetoothEnabled();
 float                JCurve::getboxwidth(const float x) {
                     return std::max((float)(dwidth-x-smallsize),dwidth*.25f);
@@ -2137,4 +2138,4 @@ extern bool  showtextbox(JCurve *,NVGcontext* avg) ;
     return ret;
     }
 
-
+AppCurve appcurve;

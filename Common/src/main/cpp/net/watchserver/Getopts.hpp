@@ -19,6 +19,8 @@ struct Getopts {
     bool darkmode=false;
     bool exclusivemode=false;
     uint16_t lang=0;
+    int width=0,height=0;
+    float glow=0.0f,ghigh=0.0f;
 int days() const {
         return (end-start+daysecs-1)/daysecs;
         }
@@ -57,6 +59,22 @@ template <int diff=60*10>
              if(other.end!=end)
                   return false;
              }
+        if(width!=other.width) {
+                LOGGER("width different %d!=%d\n",width,other.width);
+                return false;
+                }
+        if(height!=other.height) {
+                LOGGER("height different %d!=%d\n",height,other.height);
+                return false;
+                }
+        if(glow!=other.glow) {
+                LOGGER("glow different %d!=%d\n",glow,other.glow);
+                return false;
+                }
+        if(ghigh!=other.ghigh) {
+                LOGGER("ghigh different %d!=%d\n",ghigh,other.ghigh);
+                return false;
+                }
         return !(differs(start,other.start,diff)); 
         }
 private:

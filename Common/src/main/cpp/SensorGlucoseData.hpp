@@ -1884,14 +1884,16 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
             };
         vect.push_back({reinterpret_cast<uint8_t*>(&pollinfo),off,len});
       bool updateStarttime=false;
-      if(isSibionics()&&!getinfo()->update[ind].siStream&&getinfo()->siDeviceName[0]&&
+      if(isSibionics()) {
+        if(!getinfo()->update[ind].siStream&&getinfo()->siDeviceName[0]&&
                                  getinfo()->deviceaddress[0]&&
                                  getinfo()->siDeviceNamelen>3) {
             updateStarttime=true;
-         LOGAR("updateStream send starttime, deviceName and deviceAddress");
+            LOGAR("updateStream send starttime, deviceName and deviceAddress");
             vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starttime),offsetof(Info,starttime),4});
             vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->siDeviceNamelen-1),offsetof(Info,siDeviceNamelen)-1,19});
             vect.push_back({reinterpret_cast<const senddata_t *>(getinfo()->deviceaddress),offsetof(Info,deviceaddress),deviceaddresslen});
+            }
          }
         else {
          if(isDexcom()&&!getinfo()->update[ind].siStream&&pollcount()) {
@@ -1901,13 +1903,13 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
                vect.push_back({reinterpret_cast<const senddata_t *>(getinfo()->DexDeviceName),offsetof(Info,DexDeviceName),12});
                vect.push_back({reinterpret_cast<const senddata_t *>(getinfo()->deviceaddress),offsetof(Info,deviceaddress),deviceaddresslen});
             }
-         if(sendhiststart) {
-            vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starthistory),offsetof(Info,starthistory),sizeof(getinfo()->starthistory)});
-            }
          if(wrotehistory) {
                vect.push_back({reinterpret_cast<const senddata_t *>(&endinfo),offsetof(Info,endStreamhistory),sizeof(endinfo)});
                }
            }
+         if(sendhiststart) {
+            vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->starthistory),offsetof(Info,starthistory),sizeof(getinfo()->starthistory)});
+            }
 
             vect.push_back({reinterpret_cast<const senddata_t *>(&getinfo()->broadcastfrom),offsetof(Info,broadcastfrom),sizeof(getinfo()->broadcastfrom)});
          if(!senddata(pass,sock,vect, infopath,cmd,reinterpret_cast<const uint8_t *>(&streamstart),sizeof(streamstart))) {
@@ -1915,11 +1917,10 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
             return 0;
             }
         if(updateStarttime) {
-            if(writeStartime(pass,sock,sensindex))  {
-                getinfo()->update[ind].siStream=true;
-                return 1;
+            if(!writeStartime(pass,sock,sensindex))  {
+                return 0;
                 }
-            return 0;
+            getinfo()->update[ind].siStream=true;
             }
 
         if(!getinfo()->update[ind].changedstreamstart) {
@@ -2024,7 +2025,8 @@ int getmaxmgdL() const {
          return 500;
         }
 void setSiAdd2Index(int32_t add) {
-        getinfo()->starthistory=add;
+        setstarthistory(add );
+//        getinfo()->starthistory=add;
         }
 int siAddedIndex(int index) const {
         return index+getinfo()->starthistory;

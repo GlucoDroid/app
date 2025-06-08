@@ -5,6 +5,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <math.h>
+#include <assert.h>
 #include "config.h"
 #include "settings/settings.hpp"
 #include "curve.hpp"
@@ -32,7 +33,15 @@ typedef std::pair<std::string_view,std::string_view> errortype;
 struct geo_t;
 struct jugglucotext;
 extern const jugglucotext engtext;
+
 struct JCurve {
+protected:
+JCurve()=default;
+public:
+JCurve(int unit) {
+        setunit(unit);
+        }
+float glow=0.0f,ghigh=0.0f;
 std::pair<const Num*,const Num*> extrums[maxnumsources];
 const char *gformat;
 int glunit;
@@ -55,6 +64,9 @@ void setunit(int unit) {
 inline float gconvert(const float mgperL) const {
     return ::gconvert(mgperL,glunit);
     }
+inline int userunit2mgL(const float unit) const {
+        return (int)round(unit/convertmult);
+        }
 const jugglucotext *usedtext=&engtext;
     NVGcontext *thevg;
 
@@ -347,7 +359,10 @@ inline int mkshowhigh(char *buf, const int maxbuf,int glucosehighest) {
 template <int N> const Num *findpast();
 template <int N=1> const Num *findforward();
 };
-
+struct AppCurve:JCurve {
+    AppCurve() { }
+    };
+extern AppCurve appcurve;
 extern int numlist;
 
 struct shownglucose_t {
@@ -358,4 +373,3 @@ struct shownglucose_t {
     } ;
 
 
-extern JCurve appcurve;

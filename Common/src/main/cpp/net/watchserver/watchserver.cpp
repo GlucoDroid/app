@@ -24,6 +24,7 @@
 #include <charconv>
 #include <inttypes.h>
 #include <system_error>
+#include <utility>
 //#include <arpa/inet.h>
        #include <sys/types.h>
        #include <sys/socket.h>
@@ -1554,7 +1555,7 @@ template <typename Num> static const char *readnum(const char *start,const char 
       case  std::errc::result_out_of_range:
          LOGARWEB("This number is larger than an int. ");
       default:
-         LOGGERWEB("Error %d\n",ec);
+         LOGGERWEB("Error %d\n",std::to_underlying(ec));
          return nullptr;
       }
    }
@@ -1581,10 +1582,30 @@ Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings
          std::string_view startsecstr = "starttime="sv;
          if (!memcmp(iter, startsecstr.data(), startsecstr.size())) {
             iter += startsecstr.length();
+            int  rel;
+            if(*iter=='-') {
+                rel=-1;
+                ++iter;
+                }
+            else {
+              if(*iter=='+') {
+                    rel=1;
+                    ++iter;
+                    }
+              else {
+                  rel=0;
+                  }
+              }
+
             uint32_t tmpstart;
             if(auto tmp=readnum<uint32_t>(iter, ends, tmpstart)) {
                iter = tmp;
-               start=tmpstart;
+               if(rel) {
+                  start=time(nullptr)+rel*tmpstart;
+                }
+              else {
+                   start=tmpstart;
+                   }
                }
             continue;
              }
@@ -1601,11 +1622,31 @@ Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings
          std::string_view endsecstr = "endtime="sv;
          if (!memcmp(iter, endsecstr.data(), endsecstr.size())) {
             iter += endsecstr.length();
+            int  rel;
+            if(*iter=='-') {
+                rel=-1;
+                ++iter;
+                }
+            else {
+              if(*iter=='+') {
+                    rel=1;
+                    ++iter;
+                    }
+              else {
+                  rel=0;
+                  }
+              }
+
 
             uint32_t tmpend;
             if(auto tmp=readnum<uint32_t>(iter, ends, tmpend)) {
                iter = tmp;
-               end=tmpend;
+               if(rel) {
+                   end=time(nullptr)+rel*tmpend;
+                }
+              else {
+                   end=tmpend;
+                   }
                }
             continue;
             }
@@ -1678,7 +1719,61 @@ Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings
                                 iter+=2;
             continue;
             }
-                          }
+        else {
+             std::string_view widthstr = "width="sv;
+             if(!memcmp(iter, widthstr.data(), widthstr.size())) {
+                iter += widthstr.length();
+                int tmpwidth;
+                if(auto tmpiter = readnum<int>(iter, ends, tmpwidth)) {
+                   iter=tmpiter;
+                   width=tmpwidth;
+                   }
+                continue;
+                }
+            else {
+                 std::string_view heightstr = "height="sv;
+                 if(!memcmp(iter, heightstr.data(), heightstr.size())) {
+                    iter += heightstr.length();
+                    int tmpheight;
+                    if(auto tmpiter = readnum<int>(iter, ends, tmpheight)) {
+                       iter=tmpiter;
+                       height=tmpheight;
+                       }
+                    continue;
+                    }
+                 else {
+                     std::string_view glowstr = "glow="sv;
+                     if(!memcmp(iter, glowstr.data(), glowstr.size())) {
+                        iter += glowstr.length();
+                        float tmpglow;
+                        int res=sscanf(iter,"%f",&tmpglow);
+                        if(res<=0) {
+                                flerror("sscan glow=%s failed",iter);
+                                continue;
+                               }
+                       iter+=res;
+                        glow=tmpglow;
+                        continue;
+                        }
+                     else {
+                         std::string_view ghighstr = "ghigh="sv;
+                         if(!memcmp(iter, ghighstr.data(), ghighstr.size())) {
+                            iter += ghighstr.length();
+                            float tmpghigh;
+                            int res=sscanf(iter,"%f",&tmpghigh);
+                            if(res<=0) {
+                                    flerror("sscan ghigh=%s failed",iter);
+                                    continue;
+                                   }
+                            iter+=res;
+                            ghigh=tmpghigh;
+                            continue;
+                            }
+                         }
+                    }
+                }
+            }
+          }
          }
       }
    if(duration<=0)

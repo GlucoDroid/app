@@ -135,7 +135,6 @@ void createcolors() {
 // pyftsubset <font-file> --unicodes=  --output-file=<path>
 #include "fonts.h"
 #endif
-JCurve appcurve;
 NVGcontext* genVG=nullptr;
 
 
@@ -993,8 +992,8 @@ void startstep(NVGcontext* avg,const NVGcolor &col);
 void JCurve::setextremes(pair<int,int> extr) {
     auto [gminin,gmaxin]=extr;
     setend=0;
-    const uint32_t gmaxmax=settings->graphhigh();
-    const uint32_t gminmin=settings->graphlow();
+    const uint32_t gmaxmax=ghigh>0.0f?ghigh:settings->graphhigh();
+    const uint32_t gminmin=glow>0.0f?glow:settings->graphlow();
     if(gmaxin<gmaxmax)
         gmaxin=gmaxmax;
     if(gminin>gminmin)

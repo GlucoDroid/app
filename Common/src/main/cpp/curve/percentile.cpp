@@ -466,6 +466,7 @@ struct persgegs *globalpercptr=nullptr;
 
 
 #include "stats.hpp"
+#ifdef JUGGLUCO_APP
 std::unique_ptr<struct stats> statptr;
 extern void showstats(NVGcontext* vg,JCurve&,stats *stat,const jugglucotext *text) ;
 
@@ -480,6 +481,7 @@ void showpercentiles(NVGcontext* vg) {
             showstats(vg,appcurve,st,usedtext);
         }
     }
+#endif
 //constexpr const int maxdays=50;
 //uint16_t alldata[measuresperday*maxdays];
 
@@ -1208,9 +1210,7 @@ std::span<char> getSummaryImage(int startpos,Getopts &opts) {
 
 std::span<char> getStatImage(int startpos,Getopts &opts) {
 //    const bool has=hassummary(opts);
-    JCurve statimage;
-    if(opts.unit)
-        statimage.setunit(opts.unit);
+    JCurve statimage(opts.unit?opts.unit:settings->data()->unit);
     uint32_t startsecs=opts.start;
     uint32_t endsecs=opts.end;
     statimage.invertcolorsset(opts.darkmode);
@@ -1226,15 +1226,16 @@ std::span<char> getStatImage(int startpos,Getopts &opts) {
         return {(char *)nullptr,0};
     const auto *text=language::gettext(opts.lang);
     statimage.usedtext=text;
-    constexpr float mult=.5f;
 //    constexpr int winHeight=640*mult;
-    constexpr int winHeight=512*mult;
-    constexpr int winWidth=1536*mult;
+    const int winHeight=opts.height?opts.height:256;
+    const int winWidth=opts.width?opts.width:768;
+    const double mult=winHeight/512.0;
+    LOGGER("getStatImage %d %d days=%d width=%f height=%f mult=%f\n",start,endt,days,winWidth,winHeight,mult);
     auto vg = nvgCreateRT(0, winWidth, winHeight);
     destruct _{[vg]{nvgDeleteRT(vg);}};
     statimage.dheight=winHeight;
     statimage.dwidth=winWidth;
-    statimage.setfontsize(38.5f*mult,44.0f*mult,2.8f*mult,308.0f*mult); 
+    statimage.setfontsize(38.5*mult,44.0*mult,2.8*mult,308.0*mult); 
     statimage.initfont(vg);
     backgroundcolor(vg,*statimage.getwhite());
     statimage.startstepNVG(vg,winWidth,winHeight);
@@ -1249,14 +1250,17 @@ std::span<char> getStatImage(int startpos,Getopts &opts) {
 
 
 
-static NVGcontext* getfilevg(JCurve &curveimage) {
-    auto vg = nvgCreateRT(0, winWidth, winHeight);
-    curveimage.dheight=winHeight;
-    curveimage.dwidth=winWidth;
-    curveimage.setfontsize(38.5f/devidewith,44.0f/devidewith,2.8f/devidewith,308.0f/devidewith);
+static NVGcontext* getfilevg(JCurve &curveimage,int width,int height) {
+    double multiply=height/800.0;
+    LOGGER("multiply=%f\n",multiply);
+//constexpr   int winHeight = 1080/devidewith;
+    auto vg = nvgCreateRT(0, width, height);
+    curveimage.dheight=height;
+    curveimage.dwidth=width;
+    curveimage.setfontsize(38.5f*multiply,44.0f*multiply,2.8f*multiply,308.0f*multiply);
     curveimage.initfont(vg);
     backgroundcolor(vg,*curveimage.getwhite());
-    curveimage.startstepNVG(vg,winWidth,winHeight);
+    curveimage.startstepNVG(vg,width,height);
     return vg;
     }
 
@@ -1268,10 +1272,7 @@ std::span<char> getCurveImage(int startpos,Getopts &opts) {
         }
     uint32_t startsecs=opts.start;
     uint32_t endsecs=opts.end;
-    LOGGER("getCurveImage start=%u end=%u\n", startsecs, endsecs);
-    JCurve curveimage;
-    if(opts.unit)
-        curveimage.setunit(opts.unit);
+    JCurve curveimage(opts.unit?opts.unit:settings->data()->unit);
     const auto *text=language::gettext(opts.lang);
     curveimage.usedtext=text;
     curveimage.showstream=opts.streammode;
@@ -1280,7 +1281,14 @@ std::span<char> getCurveImage(int startpos,Getopts &opts) {
     curveimage.showhistories=opts.historymode;
     curveimage.shownumbers=opts.amountsmode;
     curveimage.invertcolorsset(opts.darkmode);
-    NVGcontext* vg=getfilevg(curveimage);
+
+    int width=opts.width?opts.width:winWidth;
+    int height=opts.height?opts.height:winHeight;
+
+    curveimage.glow=curveimage.userunit2mgL(opts.glow);
+    curveimage.ghigh=curveimage.userunit2mgL(opts.ghigh);
+    LOGGER("getCurveImage start=%u end=%u width=%d height=%d\n", startsecs, endsecs,width,height);
+    NVGcontext* vg=getfilevg(curveimage,width,height);
     destruct _{[vg]{nvgDeleteRT(vg);}};
     curveimage.starttime=startsecs; 
     curveimage.duration=endsecs-startsecs;
@@ -1289,7 +1297,7 @@ std::span<char> getCurveImage(int startpos,Getopts &opts) {
     nvgEndFrame(vg);
     unsigned char *rgba = nvgReadPixelsRT(vg);
     int len;
-    unsigned char *png = stbi_write_png_to_mem(startpos,rgba, winWidth*4, winWidth, winHeight, 4, &len);
+    unsigned char *png = stbi_write_png_to_mem(startpos,rgba, width*4, width, height, 4, &len);
     return {(char *)png,static_cast<std::size_t>(len)};
     }
     /*
@@ -1319,6 +1327,11 @@ curveimage.showmeals=0;
 #include "secs.h"
 
 static std::pair<uint32_t,uint32_t> percStartEnd(Getopts &opts) {
+    if(!opts.width)
+        opts.width=winWidth;
+    if(!opts.height)
+        opts.height=winHeight;
+ 
     uint32_t endsecs=opts.end;
     uint32_t startsecs=opts.start;
     constexpr int showdur=daysecs;
@@ -1350,18 +1363,18 @@ static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata 
         LOGAR("sortedmatched==null");
         return false;
         }
-
+    int width=opts.width;
+    int height=opts.height;
 //    uint32_t starttime=endsecs-showdur;
     uint32_t starttime=endt-showdur;
     uint32_t startday=starttime-getminutes(starttime)*60;
-    JCurve perscurve;
+//    JCurve perscurve; perscurve.setunit(opts.unit?opts.unit:settings->data()->unit);
+    JCurve perscurve(opts.unit?opts.unit:settings->data()->unit);
     perscurve.duration=showdur;
     perscurve.starttime=startday;
     bool darkmode=opts.darkmode;
-    if(opts.unit)
-        perscurve.setunit(opts.unit);
-    perscurve.dheight=winHeight;
-    perscurve.dwidth=winWidth;
+    perscurve.dheight=height;
+    perscurve.dwidth=width;
     perscurve.invertcolorsset(darkmode);
 
     perscurve.usedtext=text;
@@ -1369,14 +1382,18 @@ static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata 
     percptr->endday=startday+seconds_in_day;
     perscurve.setend=0;
 
-    perscurve.setfontsize(38.5f/devidewith,44.0f/devidewith,2.8f/devidewith,308.0f/devidewith); 
-    auto vg = nvgCreateRT(0, winWidth, winHeight);
+    //double devidewith=1080.0/height;
+
+    double multiply=height/800.0;
+    LOGGER("multiply=%f\n",multiply);
+    perscurve.setfontsize(38.5f*multiply,44.0f*multiply,2.8f*multiply,308.0f*multiply); 
+    auto vg = nvgCreateRT(0, width, height);
     destruct _{[vg]{nvgDeleteRT(vg);}};
     perscurve.initfont(vg);
 
     backgroundcolor(vg,*perscurve.getwhite());
 
-    perscurve.startstepNVG(vg,winWidth,winHeight);
+    perscurve.startstepNVG(vg,width,height);
 
     percptr->showpercentiles(vg,perscurve); 
     LOGAR("givepercentiles: after showpercentiles");
@@ -1385,7 +1402,7 @@ static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata 
     unsigned char *rgba = nvgReadPixelsRT(vg);
     constexpr const int startpos=152;
     int len;
-    char *imagestart = reinterpret_cast<char *>(stbi_write_png_to_mem(startpos,rgba, winWidth*4, winWidth, winHeight, 4, &len));
+    char *imagestart = reinterpret_cast<char *>(stbi_write_png_to_mem(startpos,rgba, width*4, width, height, 4, &len));
     if(!imagestart) {
         LOGAR("givepercentiles: no image");
         return false;
