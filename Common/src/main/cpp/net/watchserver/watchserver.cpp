@@ -185,7 +185,11 @@ extern std::string haskeyfiles() ;
       sslstopconnection=false;
       }
    else {
+   #ifdef JUGGLUCO_APP
       LOGGERN(working.data(),working.size());
+   #else
+            fprintf(stderr,"**** %s ****\n",working.data());
+   #endif
       }
    return working;
    }
@@ -214,7 +218,11 @@ void startwatchthread() {
       if(settings->data()->useSSL) {
          const std::string error=startsslwatchthread();
          if(error.size()) {
+         #ifdef JUGGLUCO_APP
             LOGGERWEB("%s\n",error.data());
+        #else
+            fprintf(stderr,"*** %s ***\n",error.data());
+        #endif
             }
          }
       }

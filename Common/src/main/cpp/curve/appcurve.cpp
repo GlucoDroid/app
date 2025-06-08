@@ -1,6 +1,9 @@
+
+#include <GLES2/gl2.h>
 #include "config.h"
 #include "SensorGlucoseData.hpp"
 #include "sensoren.hpp"
+#define NANOVG_GLES2_IMPLEMENTATION
 #include "curve.hpp"
 #include "nanovg_gl.h"
 #include "nanovg_gl_utils.h"

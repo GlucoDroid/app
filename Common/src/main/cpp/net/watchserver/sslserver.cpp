@@ -113,12 +113,12 @@ std::string loadsslfunctions() {
    void* cryptohandle;
    if(!(cryptohandle=dlopener(cryptolib, RTLD_NOW))&&(cryptolib[12]='\0', !(cryptohandle=dlopener(cryptolib, RTLD_NOW)))) {
          cryptolib[12]='.';
-        return  std::string("dlopen==nullptr: ")+std::string(dlerror());
+        return  std::string("dlopen==nullptr: ");
         }
    #else
    void* cryptohandle=opencrypto();
    if(!cryptohandle) {
-        return  std::string("dlopen==nullptr: ")+std::string(dlerror());
+        return  std::string("dlopen==nullptr: ");
         }
    #endif
    #define hgetsym(handle,name) *((void **)&name##ptr)=dlsym(handle, #name)
@@ -135,21 +135,23 @@ std::string loadsslfunctions() {
      void *handle;
      if(!(handle=dlopener(libname, RTLD_NOW))&&(libssl[9]='\0',!(handle=dlopener(libname, RTLD_NOW)))) {
          libssl[9]='.';
-        return std::string("dlopen==nullptr: ")+std::string(dlerror());
+        return std::string("dlopen==nullptr: ");
         }
 #else
      void *handle=openssl();
      if(!handle) {
-        return std::string("dlopen==nullptr: ")+std::string(dlerror());
+        return std::string("dlopen==nullptr: ");
         }
 #endif
      *((void **)&TheMethod)=dlsym(handle, "TLSv1_2_server_method");
      if(!TheMethod) {
-        LOGGER("dlsym(TLSv1_2_server_method): %s\n",dlerror());
+        const char *error=dlerror();
+        LOGGER("dlsym(TLSv1_2_server_method): %s\n",error?error:"?");
       *((void **)&TheMethod)=dlsym(handle, "SSLv23_method");
          if(!TheMethod) {
+            const char *error=dlerror();
             dlclose(handle);
-            return std::string("dlsym(SSLv23_method): ")+std::string(dlerror());
+            return std::string("dlsym(SSLv23_method): ")+std::string(error?error:"");
             }
       }
 

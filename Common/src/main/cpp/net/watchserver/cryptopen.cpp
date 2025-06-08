@@ -52,7 +52,7 @@ extern std::string_view globalbasedir;
     #elif defined(__s390x__) || defined(__zarch__) ||defined(__s390__)
     const char *systembase[]={"/usr/lib/s390x-linux-gnu","/usr/lib64","/usr/lib"};
     #else
-	const char *systembase[]={"/usr/lib"};
+	const char *systembase[]={"/usr/lib","/usr/lib64","/usr/lib32"};
 	#endif
 #endif
 
@@ -92,14 +92,26 @@ if(void *handle=dlopen(localname.data(),flags))
 	return handle;
 LOGGER("dlopen %s\n",dlerror());
 #endif
+#if !defined(JUGGLUCO_APP) || !defined(NOLOG)
+constexpr const int maxerr=std::size(systembase)*300;
+char errorm[maxerr];
+int errpos=0;
+
+#endif
 for(const char *base:systembase) {
 	pathconcat sysname(base,filename);
 	if(void *handle=DLOPEN(sysname.data(),flags)) {
 		LOGGER("dlopen %s\n", sysname.data());
 		return handle;
 		}
-	LOGGER("%s: %s\n",sysname.data(),dlerror());
+        errpos+=snprintf(errorm+errpos,maxerr-errpos, "%s\n",dlerror());
 	}
+#if defined(JUGGLUCO_APP) 
+LOGGERN(errorm, errpos);
+#else
+write(STDERR_FILENO,errorm,errpos);
+return nullptr;
+#endif
 #if defined(JUGGLUCO_APP) && __ANDROID_API__ >= 21
 android_create_namespace_t android_create_namespace= (android_create_namespace_t)dlsym(RTLD_DEFAULT, "android_create_namespace");
 if(android_create_namespace) {

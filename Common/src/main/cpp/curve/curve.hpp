@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include <GLES2/gl2.h>
-#define NANOVG_GLES2_IMPLEMENTATION
 #include "nanovg.h"
 #include "settings/settings.hpp"
 constexpr const NVGcolor nvgRGBAf2(const float r, const float g, const float b, const float a)
