@@ -411,7 +411,7 @@ static bool plainwatchcommands(int sock) {
 
 
 static bool alloworigin(std::string_view origin) {
-       return origin.size()>0&&(origin[0]=='*'||settings->data()->apisecretlength>7);
+       return settings->data()->remotelyxdripserver||(origin.size()>0&&(origin[0]=='*'||settings->data()->apisecretlength>7));
    }
 
 static bool mkhtml(recdata *outdata,std::string_view origin,std::string_view header,std::string_view bodyhtml,bool dark=false) {
@@ -1893,8 +1893,12 @@ static bool givereport(Getopts &opts,std::string_view hostname,bool secure,std::
 
     auto *text=lang?language::gettext(lang):usedtext;
     std::string_view statisticsname=text->statisticsName();
-    static constexpr const  char starttext[] {R"(<h3   style="margin-top: -2.5mm;margin-bottom: -1mm;margin-left: 4mm;">)"};
-    static constexpr const  char  afterstatistics[] {R"(</h3><img style="margin-left: 5mm;margin-bottom:-5.5mm;object-fit:contain; width:150mm; height:auto;border:0 none;" id="stats" src="http)"};
+    static constexpr const  char starttext[] {R"(<h2   style="margin-top: -2.5mm;margin-bottom: -1mm;margin-left: 4mm;">)"};
+    static constexpr const  char  afterstatistics[] {R"(</h2><img style="vertical-align: text-top;margin-left: 5mm;margin-bottom:-5.5mm;object-fit:contain; width:200mm; height:auto;border:0 none;" id="stats" src="http)"};
+
+
+
+
     static constexpr const  char stats[] { R"(/x/stats?endtime=)"};
     static constexpr const  char daysstr[] { R"(&days=)"};
     static constexpr const  char darkstr[] { R"(&darkmode)"};
@@ -1904,8 +1908,10 @@ static bool givereport(Getopts &opts,std::string_view hostname,bool secure,std::
     static constexpr const  char historystr[] { R"(&historymode)"};
     static constexpr const  char mealsstr[] { R"(&mealsmode)"};
 
-    static constexpr const char startimage[]{R"("><h3 style="margin-top: 2.3mm;margin-bottom: -2mm;" id="sumhead" hidden>)"};
-    static constexpr const char aftergraphname[]{R"(</h3><img style="border: 0 none; margin-top:2mm; margin-bottom:-1.4mm;" id="summarygraph" src="http)"};
+
+
+    static constexpr const char startimage[]{R"("><button hidden id="print">PDF</button><h2 style="margin-top: 3mm;margin-bottom: -1.4mm;" id="sumhead" hidden>)"};
+    static constexpr const char aftergraphname[]{R"(</h2><img style="border: 0 none; margin-top:2mm; margin-bottom:0mm;" id="summarygraph" src="http)"};
     static constexpr const  char summarygraph[] { R"(/x/summarygraph?endtime=)"};
     static constexpr const  char enddayhtml[] { R"("><br>
     )"};
@@ -1919,18 +1925,29 @@ static bool givereport(Getopts &opts,std::string_view hostname,bool secure,std::
         endday=now;
 
     std::string_view logdays=text->logdays;
-    constexpr const char afterdaystr[]{R"(</h3>)"};
+    constexpr const char afterdaystr[]{R"(</h2>)"};
 
 
     constexpr const  char startimg[]{R"(<img loading="lazy" src="http)"};
     constexpr const  char xcurve[]{R"(/x/curve?days=1&starttime=)"};
-    constexpr const  char  endsummary[]{R"("><h3 style="margin-top: 0mm;margin-bottom: 0.1mm;">)"};
+    constexpr const  char  endsummary[]{R"("><h2 style="margin-top: 0mm;margin-bottom: 0.1mm;">)"};
     constexpr const  char  endels[]{R"(<script>    
 const loadImages = () => {
+       let down=document.getElementById('print');
+       down.addEventListener('click', () => {
+            window.print();
+            });
+       onbeforeprint=function(){
+            down.setAttribute("hidden", true);
+            };
+       onafterprint=function(){
+           down.removeAttribute("hidden");
+            };
         let sum=document.getElementById('sumhead');
         let img=document.getElementById('summarygraph');
          const summary =() => {
                 sum.removeAttribute("hidden");
+                down.removeAttribute("hidden");
                 };
          if(img.complete)  {
             summary();
@@ -2020,8 +2037,12 @@ sizear(afterstatistics)+
     LOGGERN(buf,wrotelen);
     assert(wrotelen==totsize);
     return  mkhtml(outdata, origin,R"(<style type="text/css">
-    img {border: 1px dotted #555; object-fit:contain; width:210mm; height:auto; margin-top:0mm; margin-bottom:0.8mm;} 
-    body { margin-left: 0.1mm; } 
+    @media print {
+        img {border: 1px dotted #555; object-fit:contain; width:210mm; height:auto; margin-top:0mm; margin-bottom:0.8mm;} 
+        body { margin-left: 0.1mm; } 
+        }
+    img {border: 1px dotted #555; object-fit:contain; width:100%; height:auto; mmargin-top:0mm; margin-bottom:0.8mm;} 
+    body { margin-left: 1mm; } 
     </style>
     <title>Juggluco Report</title>)"sv,{buf,wrotelen},darkmode);
     }
@@ -2460,8 +2481,8 @@ void mktypeheader(char *outstart,char *outiter,const bool headonly,recdata *outd
       }
    else
        totlen=outiter-startheader;
-   //LOGARWEB("START:");
-   //logwriter(startheader,400);
+   LOGARWEB("START:");
+   logwriter(startheader,400);
    outdata->start=startheader;
    outdata->len=totlen;
 

@@ -936,21 +936,22 @@ void stopsummarythread() {
 struct PercentileGraph {
         Getopts opts; 
         recdata image;
+        char *startimage; 
         PercentileGraph() {
             LOGGER("PercentileGraph() this=%p\n",this);
             }
 //        PercentileGraph(const Getopts &opts,const recdata &image) = delete;
-        PercentileGraph(const Getopts &opts,const recdata &im): opts(opts),image(im) { 
+        PercentileGraph(const Getopts &opts,const recdata &im,char *start): opts(opts),image(im),startimage(start) { 
                 LOGGER("this=%p PercentileGraph(Getopts &opts,recdata &in) allbuf=%p\n",this,image.allbuf); 
                 }
-        PercentileGraph(Getopts &&opts,recdata &&in): opts(opts),image(in) {
+        PercentileGraph(Getopts &&opts,recdata &&in,char *start): opts(opts),image(in),startimage(start) {
 
                 in.allbuf=nullptr;
                 LOGGER("this=%p PercentileGraph(Getopts &&opts,recdata &&in) allbuf=%p\n",this,image.allbuf); 
                 }
       PercentileGraph(const PercentileGraph & in) =delete;
       PercentileGraph(PercentileGraph & in) =delete;
-      PercentileGraph(PercentileGraph && in): opts(in.opts),image(in.image) {
+      PercentileGraph(PercentileGraph && in): opts(in.opts),image(in.image),startimage(in.startimage) {
             in.image.allbuf=nullptr; 
             LOGGER("this=%p PercentileGraph(PercentileGraph && in) allbuf=%p\n",this,image.allbuf);
             }
@@ -962,6 +963,7 @@ struct PercentileGraph {
          PercentileGraph& operator =(PercentileGraph&& b) {
             opts=b.opts;
             image=b.image;
+            startimage=b.startimage;
             b.image.allbuf=nullptr;
             LOGGER("this=%p PercentileGraph& operator =(PercentileGraph&& b) allbuf=%p\n",this,image.allbuf);
            return *this; 
@@ -971,12 +973,12 @@ struct PercentileGraph {
 class PersImages:public CircularArray<20,PercentileGraph> { 
 public:
 std::mutex mutex;
-recdata *get(Getopts &opt,bool absolute) {
+PercentileGraph *get(Getopts &opt,bool absolute) {
         const std::lock_guard<std::mutex> lock(mutex);
         auto beg=begin();
         for(auto iter=end()-1;iter>=beg;--iter) {
                 if(opt.aboutequal(iter->opts,absolute)) {
-                        return &iter->image;
+                        return &iter[0];
                         }
                 }
         return nullptr;
@@ -1013,7 +1015,8 @@ bool hassummary(Getopts &opts) {
 */
 //static bool givepercentiles(Getopts &opts,recdata *outdata);
 
-static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata *outdata);
+
+static  char * givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata *outdata,std::string_view origin) ;
 static std::pair<uint32_t,uint32_t> percStartEnd(Getopts &opts);
 bool givesummarygraph(Getopts &opts,std::string_view origin,recdata *outdata) {
     const auto [startt,endt]=percStartEnd(opts);
@@ -1025,24 +1028,19 @@ bool givesummarygraph(Getopts &opts,std::string_view origin,recdata *outdata) {
    opts.start=startt;
    const bool absolute=(opts.end-endt)>(10*60);
    opts.end=endt;
-    if(recdata *rec=persimages.get(opts,absolute)) {
-        LOGGER("persimages.get %p\n", rec->allbuf);
-        outdata->start=rec->start;
-        outdata->len=rec->len;
+    if(PercentileGraph *hit=persimages.get(opts,absolute)) {
+        const auto &rec=hit->image;
+        LOGGER("persimages.get %p\n", rec.allbuf);
+        mktypeheader(hit->startimage,(char *)rec.start+rec.len,false,outdata,"image/png"sv,origin);
         outdata->allbuf=nullptr;
         LOGGER("givesummarygraph: found result opts.start=%u opts.end=%u\n",opts.start,opts.end);
         return true;
         }
-/*
-struct PercentileGraph {
-        Getopts opts; 
-        recdata image;
-        }; */
-    if(givepercentiles(opts,startt,endt,outdata)) {
+    if(char *startimage=givepercentiles(opts,startt,endt,outdata,origin)) {
           LOGGER("persimages.emplace_back %p\n", outdata->allbuf);
               {
               const std::lock_guard<std::mutex> lock(persimages.mutex);
-              persimages.emplace_back(opts,*outdata);
+              persimages.emplace_back(opts,*outdata,startimage);
               }
           outdata->allbuf=nullptr;
           return true;
@@ -1118,10 +1116,13 @@ static NVGcontext* getfilevg(JCurve &curveimage,int width,int height) {
 
 extern bool isLargeCurve(Getopts &opts);
 bool isLargeCurve(Getopts &opts) {
-        const int width=opts.width?opts.width:winWidth;
-        const int height=opts.height?opts.height:winHeight;
-        const double curvetime=settings->data()->loadtime;
-        return ((width*height)*curvetime)>20.0 ;
+        if(opts.width||opts.height) {
+            const int width=opts.width?opts.width:winWidth;
+            const int height=opts.height?opts.height:winHeight;
+            const double curvetime=settings->data()->loadtime;
+            return ((width*height)*curvetime)>20.0 ;
+            }
+        return false;
         }
 std::span<char> getCurveImage(int startpos,Getopts &opts) {
     int width=opts.width?opts.width:winWidth;
@@ -1181,25 +1182,25 @@ static std::pair<uint32_t,uint32_t> percStartEnd(Getopts &opts) {
     return percStartEnd(endsecs,days);
     }
 
-static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata *outdata) {
+static  char * givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata *outdata,std::string_view origin) {
 #ifndef NOLOG
     const auto started=clock();
 #endif
     constexpr int showdur=daysecs;
     if(start>=endt) {
         LOGAR("givepercentiles: start>=endt");
-        return false;
+        return nullptr;
         }
     auto stream=getsensorranges(start,endt);
     if(stream.size()<=0) {
         LOGAR("givepercentiles: stream.size()<=0");
-        return  false;
+        return nullptr;
         }
     const auto *text=language::gettext(opts.lang);
     auto percptr=sortedmatched(&stream,start,endt,text);
     if(!percptr)  {
         LOGAR("sortedmatched==null");
-        return false;
+        return nullptr;
         }
     int width=opts.width;
     int height=opts.height;
@@ -1241,20 +1242,20 @@ static bool givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recdata 
     char *imagestart = reinterpret_cast<char *>(stbi_write_png_to_mem(startpos,rgba, width*4, width, height, 4, &len));
     if(!imagestart) {
         LOGAR("givepercentiles: no image");
-        return false;
+        return nullptr;
         }
     delete[] outdata->allbuf;
     outdata->allbuf=imagestart-startpos;
     char *imageend=imagestart+len;
     constexpr const std::string_view imagetype{"image/png"sv};
     LOGAR("givepercentiles before mktypeheader");
-    mktypeheader(imagestart,imageend,false,outdata,imagetype,""sv);
+    mktypeheader(imagestart,imageend,false,outdata,imagetype,origin);
 #ifndef NOLOG
     const auto stopped=clock();
     double clockduration=((( long double)stopped-started)*1000)/CLOCKS_PER_SEC;
     LOGGER("end givepercentiles start=%u end=%u darkmode=%d loadtime=%lf lang=%.2s\n", opts.start, opts.end, darkmode,clockduration,(const char *)&opts.lang);
 #endif
-    return true;
+    return imagestart;
     }
 #endif
 
