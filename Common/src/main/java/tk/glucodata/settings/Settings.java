@@ -801,7 +801,7 @@ new View[]{isvalue},new View[]{ringisvalue},new View[]{usealarm},new View[]{adva
                      short wa = Short.parseShort(str);
                      Natives.writealarmsuspension(4, wa);
                     }
-                tk.glucodata.SuperGattCallback.glucosealarms.sensorinit();
+                tk.glucodata.SuperGattCallback.glucosealarms.setLossAlarm();
                 } catch(Throwable e) {
                 Log.stack(LOG_ID,"parseShort",e);
                         Applic.argToaster(context,context.getString(R.string.cantsetminutes)+str,Toast.LENGTH_SHORT);

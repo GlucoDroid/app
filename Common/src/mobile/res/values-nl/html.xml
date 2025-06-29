@@ -600,8 +600,8 @@ apparaat om het daar weer te geven. </span><b>Melding</b> <span style="font-weig
 een Android melding voor elke stream glucose die ontvangen wordt. Op
 die manier wordt de melding naar sommige smartwatches gezonden. Er
 bestaat ook en versie van Juggluco die op WearOS horloges draait. En
-voor programmeerbare Garmin horloges met touchscreen bestaat er
-Kerfstok. Kerfstok is een watch app die communiceert met Juggluco,
+voor programmeerbare Garmin horloges is er Kerfstok. Sinds Kerfstok 1.6.0 draait het ook op Garmin horloges zonder 
+touchscreen. Kerfstok is een watch app die communiceert met Juggluco,
 ingevoerde hoeveelheden uitwisselt, de stream glucose waarde
 weergeeft en ook de glucose waarden tijdens sporten kan weergeven,
 zie
@@ -1005,7 +1005,8 @@ sensor.</font></p>
 <p><a href="https://www.juggluco.nl/Jugglucohelp/be/kerfstok.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/kerfstok.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/kerfstok.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/it/kerfstok.html">it</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/kerfstok.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/kerfstok.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pt/kerfstok.html">pt</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/kerfstok.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/kerfstok.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/kerfstok.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/kerfstok.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/kerfstok.html?lang=en">en</a>&emsp;&emsp;</p><h1>Kerfstok</h1>
 <p style="line-height: 100%; margin-bottom: 0in">Kerfstok
 (<a href="https://www.juggluco.nl/Kerfstok/index.html">https://www.juggluco.nl/Kerfstok/index.html</a>)
-is een horloge app voor programmeerbare Garmin smartwatches met
+is een horloge app voor programmeerbare Garmin sporthorloges. Sinds
+Kerfstok 1.6.0 kan het ook gebruikt worden op horloges zonder
 touchscreen. Kerfstok heeft de volgende functies:</p>
 <ul>
 	<li><p style="line-height: 100%; margin-bottom: 0in">Je kunt nummers
@@ -1577,10 +1578,8 @@ vragen elke 5 minute naar een glucose waarden omdat Garmin een hogere
 update frequentie niet toelaat. Via xDrip kon dat er toe leiden dat
 een 10 minute oude glucose waarden getoond werd. Direct verbonden aan
 Juggluco zijn die waarden maximaal 6 minuten oud (als alles goed
-gaat). Als je een programmeerbare Garmin horloge hebt waarop Kerfstok
-niet werkt omdat het geen touchscreen heeft, bestaan er de volgende
-mogelijkheden om toch een niet al te oude glucose waarden op je
-horloge te zien. Een xDrip widget
+gaat). Naast Kerfstok die sinds 1.6.0 ook op Garmin horloges zonder touchscreen draait, bestaan er de volgende
+mogelijkheden om een niet al te oude glucose waarden op je horloge te zien. Een xDrip widget
 (<a class="western" href="https://apps.garmin.com/en-US/apps/73115e04-dc9f-4765-ad88-e7ae283ce995">https://apps.garmin.com/en-US/apps/73115e04-dc9f-4765-ad88-e7ae283ce995</a>)
 vertoont direct na het opstarten altijd de meest recente waarde en
 kan ook tijdens het draaien van een sport activiteit horloge app

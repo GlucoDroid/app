@@ -117,11 +117,18 @@ public void disconnect() {
 public boolean reconnect(long now) {
     final var old=now-showtime+20;
     if(charcha[1]<old&&connectTime<(now-60*1000))  {
-        {if(doLog) {Log.i(LOG_ID,"reconnect "+SerialNumber);};};
-        final var thegatt= mBluetoothGatt;
-        if(thegatt!=null) 
-            thegatt.disconnect();
-        return connectDevice(0);
+        try {
+            if(doLog) {Log.i(LOG_ID,"reconnect "+SerialNumber);};
+            final var thegatt= mBluetoothGatt;
+            if(thegatt!=null) 
+                thegatt.disconnect();
+            } 
+        catch(Throwable th) {
+            Log.stack(LOG_ID,"reconnect",th);
+            }
+        finally {
+            return connectDevice(0);
+            }
         }
      return true;
     }
@@ -140,12 +147,11 @@ void shouldreconnect(long now) {
 
 
     static final long thefuture = 0x7FFFFFFFFFFFFFFFL;
-    static  long oldtime = thefuture;
+    //static  long oldtime = thefuture;
 
  long showtime = Notify.glucosetimeout;
  static long lastfoundL=0L;
 static long lastfound() {
-//        return SuperGattCallback.oldtime - showtime;
         return lastfoundL;
     }
 
@@ -245,8 +251,10 @@ static private int low(long tim,notGlucose    sglucose,float gl,float rate,int a
     static void dowithglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,long sensorstartmsec,long showtime,int sensorgen) {
         if(gl==0.0)
             return;
-        if (glucosealarms == null)
+        if(glucosealarms == null) {
+            Log.e(LOG_ID,"glucosealarms==null");
             return;
+            }
         glucosealarms.setagealarm(timmsec,showtime);
         final long tim = timmsec / 1000L;
         boolean waiting = false;
@@ -394,7 +402,7 @@ else {
     }
 protected void handleGlucoseResult(long res,long timmsec) {
         int glumgdl = (int) (res & 0xFFFFFFFFL);
-        if (glumgdl != 0) {
+        if(glumgdl != 0) {
             int alarm = (int) ((res >> 48) & 0xFFL);
             {if(doLog) {Log.i(LOG_ID, SerialNumber + " alarm=" + alarm);};};
             float gl = Applic.unit == 1 ? glumgdl / mgdLmult : glumgdl;

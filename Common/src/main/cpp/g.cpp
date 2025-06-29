@@ -289,7 +289,7 @@ static     const int waitsig=60;
     else {
     if(alg){
         destruct _desalg([alg=alg]{delete alg;}); //[alg] also works with g++ 13.1.1 , but not with clang++ version 14.0.7 
-        LOGSTRING("alg!=null ");
+        LOGAR("alg!=null");
         if(scanda) {
             LOGSTRING("scanda\n");
             logscanresult(alg);
@@ -339,19 +339,26 @@ static     const int waitsig=60;
                 }
             else {
                 sensor* senso=sensors->getsensor(ab.sensorindex);
+                jlong ret;
                 if(alg->removed) {     
                     LOGGER("%s was %d,set senso->finished=1;\n",senso->shortsensorname()->data(),senso->finished);
-                    ab.removestate();
-                    senso->finished=1;
-                    setstreaming(ab.hist); 
-                    setusedsensors();
-                    backup->resensordata(ab.sensorindex);
                     if(alg->getlsaDetected()) {
-                        return SAS_SENSOR_TERMINATED<<16;
+                        ret=SAS_SENSOR_TERMINATED<<16;
                         }
-                    else
+                    else  {
+                        ab.removestate();
+                        if(!senso->finished) {
+                            senso->finished=1;
+                            setstreaming(ab.hist); 
+                            setusedsensors();
+                            backup->resensordata(ab.sensorindex);
+                            }
                         return SAS_SENSOR_REMOVED<<16;
+                        }
                 
+                    }
+                else {
+                    ret=6<<16;
                     }
                 if(senso->finished) {
                     LOGSTRING("was finished\n");
@@ -360,7 +367,7 @@ static     const int waitsig=60;
                     senso->finished=0;
                     backup->resensordata(ab.sensorindex);
                     }
-                return 6<<16;
+                return ret;
                 }
             
             }

@@ -219,7 +219,7 @@ Data_t askindexdata(jlong index) {
 #else
 #define THREADLOCAL  thread_local
 #endif
-static THREADLOCAL jlong sprintargs[1024];
+static THREADLOCAL jlong sprintargs[2048];
 static  THREADLOCAL int recordsprint=-1;
 #define VISIBLE __attribute__((__visibility__("default")))
 extern "C" int VISIBLE  __vSprintf_chk(char * s, int flag, size_t slen, const char * format, va_list args);
@@ -328,7 +328,7 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
     #ifdef USE_PROCESS
        double newvalue;
        if(algcontext) {
-            if(value>=2.0&&value<27.8&&(newvalue= process2(index,value,temp))>1.8&&(index%5==0))
+            if(current>1&&value<3000.0&&(newvalue= process2(index,value,temp))>1.8&&(index%5==0))
                 sens->getinfo()->pollinterval=newvalue-value;
            else {
              if(sens->getinfo()->pollinterval<40) 

@@ -430,8 +430,8 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                 return;
             }
             val it= sender.findnodeid(id)
-            if(it>=times.size) {
-                  Log.e(LOG_ID,"nodenum ($it) >= times.size (${times.size})");
+            if(it<0||it>=times.size) {
+                  Log.e(LOG_ID,"nodenum ($it) >= times.size || >0 (${times.size})");
                   scope.launch {
                       sender.findWearDevicesWithApp()
                    }

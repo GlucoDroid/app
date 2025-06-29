@@ -32,49 +32,6 @@ public GlucoseAlarms(Application context) {
 	super(context);
 	}
 
-/*public	void handlealarmOnly() {
-		final var view=Floating.floatview;
-		if(view!=null) {
-			view.postInvalidate();
-			}
-		final boolean haslossalarm=hasalarmloss();
-		long wastime = MyGattCallback.oldtime - showtime;
-		final long nu = System.currentTimeMillis();
-		boolean shouldwake = Natives.shouldwakesender();
-		final long tryagain = nu + showtime;
-		long nexttime=tryagain;
-		if(!haslossalarm) {
-			Notify.onenot.oldnotification(wastime);
-			}
-		else  {
-			final long afterwait = waitmmsec() + wastime;
-			if(afterwait > nu) {
-				{if(doLog) {Log.i(LOG_ID, "handlealarm notify");};};
-				Notify.onenot.oldnotification(wastime);
-				SuperGattCallback.previousglucose=null;
-				nexttime = (afterwait < tryagain)  ? afterwait : tryagain;
-		      LossOfSensorAlarm.setalarm(Applic.app, nexttime);
-			} else {
-				if(!saidloss) {
-					{if(doLog) {Log.i(LOG_ID, "handlealarm alarm");};};
-					long lasttime=Natives.lastglucosetime( );
-					if(lasttime!=0L)
-						wastime=lasttime;
-					Notify.onenot.lossalarm(wastime);
-					 if(SuperGattCallback.doWearInt)  {
-						WearInt.missingalarm(nu );
-						}
-					saidloss = true;
-					}
-			}
-			}
-		if (shouldwake) {
-			MessageSender.sendwakestream();
-			Natives.wakestreamsender();
-			}
-		GlucoseWidget.oldvalue(wastime);
-	}
-  */ 
 public	void handlealarm() {
 		SensorBluetooth.reconnectall();
 		final var view=Floating.floatview;
@@ -95,13 +52,13 @@ public	void handlealarm() {
 		else  {
 			final long afterwait = waitmmsec() + wastime;
 			if(afterwait > nu) {
-				{if(doLog) {Log.i(LOG_ID, "handlealarm notify");};};
+				if(doLog) {Log.i(LOG_ID, "handlealarm notify");};;
 				Notify.onenot.oldnotification(wastime);
 				SuperGattCallback.previousglucose=null;
 				nexttime = (afterwait < tryagain)  ? afterwait : tryagain;
 			} else {
 				if(!saidloss) {
-					{if(doLog) {Log.i(LOG_ID, "handlealarm alarm");};};
+					if(doLog) {Log.i(LOG_ID, "handlealarm alarm");};;
 					long lasttime=Natives.lastglucosetime( );
 					if(lasttime!=0L)
 						wastime=lasttime;

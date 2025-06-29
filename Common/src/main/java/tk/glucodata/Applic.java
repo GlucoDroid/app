@@ -365,14 +365,12 @@ static     void explicit(Context context) {
     }
 void initbluetooth(boolean usebluetooth,Context context,boolean frommain) {
     usingbluetooth=usebluetooth;
-    {if(doLog) {Log.i(LOG_ID,"initbluetooth "+usebluetooth);};};
-
+    if(doLog) {Log.i(LOG_ID,"initbluetooth "+usebluetooth);};
     if(!isWearable) {
          if(Natives.getusegarmin()&&numdata.devices==null)
               numdata.initIQ(context);
         }
-     if(usebluetooth)
-        SensorBluetooth.start();
+    SensorBluetooth.start(usebluetooth);
     
     if(!keeprunning.started) {
         if(usebluetooth||Natives.backuphostNr( )>0) {
@@ -684,7 +682,7 @@ static boolean bluetoothEnabled() {
 static final boolean usewakelock=true;
 @Keep
 static void doglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,boolean wasblueoff,long sensorstartmsec, long sensorptr,int sensorgen) {
-   {if(doLog) {Log.i(LOG_ID,"doglucose "+SerialNumber+" "+ mgdl+" "+ gl+" "+rate+" "+ alarm+" "+timmsec+" "+ wasblueoff+ " "+ sensorstartmsec +" sensorptr="+format("%x",sensorptr)+" "+ sensorgen);};};
+   if(doLog) {Log.i(LOG_ID,"doglucose "+SerialNumber+" "+ mgdl+" "+ gl+" "+rate+" "+ alarm+" "+timmsec+" "+ wasblueoff+ " "+ sensorstartmsec +" sensorptr="+format("%x",sensorptr)+" "+ sensorgen);};
 
     var wakelock=    usewakelock?(((PowerManager) app.getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Juggluco::Applic")):null;
     if(wakelock!=null)

@@ -554,7 +554,7 @@ extern bool saveSputnik_PG2(const jniHistory &hist,time_t nutime,int nuid,const 
             LOGGER("senso->finished was %d, set to 1. %s: newnu=%zd nutime=%zd\n",senso->finished,serial.data(),newnu,nutime);
             senso->finished=1;
             extern void    setstreaming(SensorGlucoseData *hist);
-                    setstreaming(hist);
+            setstreaming(hist);
             void setusedsensors() ;
             setusedsensors();
             }

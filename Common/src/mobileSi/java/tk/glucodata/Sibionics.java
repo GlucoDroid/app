@@ -170,6 +170,7 @@ static void connectSensor(final String scantag,MainActivity act,int request,long
                        else
                             Natives.freedataptr(dataptr);
                        var res=SensorBluetooth.updateDevices();
+                       SuperGattCallback.glucosealarms.setLossAlarm();
                        Applic.wakemirrors();
                        if(res) {
                             act.finepermission(); 

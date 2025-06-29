@@ -33,60 +33,6 @@ public GlucoseAlarms(Application context) {
     super(context);
     }
 
-/*
-public    void handlealarm() {
-    SensorBluetooth.reconnectall();
-    final long nu = System.currentTimeMillis();
-    var view=Floating.floatview;
-    if(view!=null) {
-        view.postInvalidate();
-        }
-
-    final long lasttime=Natives.lastglucosetime( );
-    final long nexttime=lasttime+waitmmsec();
-    if(nu>nexttime) {
-        if(hasalarmloss()) {
-            Notify.onenot.lossalarm(lasttime);
-            }
-        }
-    MessageSender.sendwakestream();
-    }
-    */
-
-/*public    void handlealarmOnly() {
-        final long nu = System.currentTimeMillis();
-        final var view=Floating.floatview;
-        if(view!=null) {
-            view.postInvalidate();
-            }
-         tk.glucodata.glucosecomplication.GlucoseValue.updateall();
-
-        long wastime = MyGattCallback.oldtime - showtime;
-
-        final long tryagain = nu + showtime;
-        long nexttime=tryagain;
-
-        if(hasalarmloss())  {
-            final long afterwait = waitmmsec() + wastime;
-            if(afterwait > nu) {
-                {if(doLog) {Log.i(LOG_ID, "handlealarm notify");};};
-                nexttime = (afterwait < tryagain)  ? afterwait : tryagain;
-            LossOfSensorAlarm.setalarm(Applic.app, nexttime);
-            } else {
-                if(!saidloss) {
-                    {if(doLog) {Log.i(LOG_ID, "handlealarm alarm");};};
-                    long lasttime=Natives.lastglucosetime( );
-                    if(lasttime!=0L)
-                        wastime=lasttime;
-                    Notify.onenot.lossalarm(wastime);
-                    saidloss = true;
-                    }
-            }
-            }
-        MessageSender.sendwakestream();
-        Natives.wakestreamsender();
-    }
-  */ 
 public    void handlealarm() {
         SensorBluetooth.reconnectall();
         final long nu = System.currentTimeMillis();

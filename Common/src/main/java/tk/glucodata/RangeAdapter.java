@@ -61,7 +61,7 @@ public void    setarray(List<T> arin)  {
 //                convertView.setBackgroundColor(BLUE);
         }
 
-    if(ar!=null) {
+    if(ar!=null&&position>=0&&position<ar.size()) {
         T str=ar.get(position);
         var text=(TextView)(convertView.findViewById(android.R.id.text1));
         text.setText(dist.apply(str));
@@ -108,7 +108,7 @@ public void    setarray(List<T> arin)  {
             convertView = mInflater.inflate(android.R.layout.simple_spinner_item, parent, false);
 //            parent.setBackgroundColor(RED);
             }
-        if(ar!=null) {
+        if(ar!=null&&position>=0&&position<ar.size()) {
             T str=ar.get(position);
             TextView thetext=convertView.findViewById(android.R.id.text1);
              thetext.setTextColor(WHITE);

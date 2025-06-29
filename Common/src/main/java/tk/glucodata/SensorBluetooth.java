@@ -805,9 +805,11 @@ private boolean resetDevicer(String str,long[] ptrptr) {
 
 static public boolean resetDevice(String str) {
     long[] ptrptr={0L};
-    return resetDevicePtr(str,ptrptr);
+    var ret=resetDevicePtr(str,ptrptr);
+    SuperGattCallback.glucosealarms.setLossAlarm();
+    return ret;
     }
-static public boolean resetDevicePtr(String str,long[] ptrptr) {
+static private boolean resetDevicePtr(String str,long[] ptrptr) {
     {if(doLog) {Log.v(LOG_ID,"resetDevice("+str+")");};};
     if(blueone!=null) {
         return blueone.resetDevicer(str,ptrptr);
@@ -823,23 +825,30 @@ static public   void goscan() {
     }
 
     public SensorBluetooth() {
-        {if(doLog) {Log.v(LOG_ID,"SensorBluetooth");};};
-//        SuperGattCallback.autoconnect=!isWearable&&Natives.getAndroid13();
+        if(doLog) {Log.v(LOG_ID,"SensorBluetooth");};
         SuperGattCallback.autoconnect=Natives.getAndroid13();
 
-        SuperGattCallback.glucosealarms.sensorinit();
+//        SuperGattCallback.glucosealarms.setLossAlarm();
     }
 
-static void start() {
-    if(SensorBluetooth.blueone==null) {
-        blueone=new tk.glucodata.SensorBluetooth();
-        if(blueone!=null) {
-                SuperGattCallback.glucosealarms.sensorinit();
-            blueone.startDevices( Natives.activeSensors());
+static void start(boolean usebluetooth) {
+    final var sensors=Natives.activeSensors();
+    final boolean hasSensors= sensors!=null&&sensors.length>0; 
+    if(hasSensors) {
+            Notify.shownovalue();
+            SuperGattCallback.glucosealarms.setLossAlarm();
             }
-        }
-    else {
-         blueone.connectDevices(0);
+    if(doLog) {Log.v(LOG_ID,"SensorBluetooth.start("+usebluetooth+")");};
+    if(usebluetooth) {
+        if(SensorBluetooth.blueone==null) {
+            blueone=new tk.glucodata.SensorBluetooth();
+            if(blueone!=null&&hasSensors) {
+                blueone.startDevices(sensors);
+                }
+            }
+        else {
+             blueone.connectDevices(0);
+            }
         }
     }
 static final boolean keepBluetooth=false;

@@ -41,54 +41,27 @@ public	static long waitmmsec() {
 	}
 
 
- boolean saidloss = false;
-/*
-public	void handlealarm() {
-		final long nu = System.currentTimeMillis();
-		long wastime = MyGattCallback.oldtime - showtime;
-		final long afterwait = waitmmsec() + wastime;
-		boolean shouldwake = Natives.shouldwakesender();
-		final long tryagain = nu + showtime;
-		if(afterwait > nu) {
-			{if(doLog) {Log.i(LOG_ID, "handlealarm notify");};};
-			Notify.onenot.oldnotification(wastime);
-			long nexttime = (!shouldwake || (afterwait < tryagain && hasalarmloss())) ? afterwait : tryagain;
-			LossOfSensorAlarm.setalarm(Applic.app, nexttime);
-		} else {
-			if (shouldwake)
-				LossOfSensorAlarm.setalarm(Applic.app, tryagain);
-			if (!saidloss) {
-				{if(doLog) {Log.i(LOG_ID, "handlealarm alarm");};};
-				long lasttime=Natives.lastglucosetime( );
-				if(lasttime!=0L)
-					wastime=lasttime;
-				if (hasalarmloss()) {
-					Notify.onenot.lossalarm(wastime);
-				}
-				saidloss = true;
-			}
-		}
-		if (shouldwake)
-			Natives.wakestreamsender();
-	}
-*/
-public  void sensorinit() {
-    if (hasalarmloss()) {
-         Notify.shownovalue();
+boolean saidloss = false;
+
+public  void setLossAlarm() {
+    if(hasalarmloss()) {
+        //Notify.shownovalue();
          saidloss = false;
          final long nu = System.currentTimeMillis();
          SuperGattCallback.lastfoundL=nu;
-         MyGattCallback.oldtime = nu + Notify.glucosetimeout;
+//         MyGattCallback.oldtime = nu + Notify.glucosetimeout;
          LossOfSensorAlarm.setalarm(Applic.app, nu + waitmmsec());
-    }
+       }
 }
 
 public void setagealarm(final long numsec,long showtime) {
     Notify.stoplossalarm();
+
     saidloss = false;
     SuperGattCallback.lastfoundL=numsec;
-    MyGattCallback.oldtime = numsec + showtime;
-    LossOfSensorAlarm.setalarm(Applic.app, MyGattCallback.oldtime);
+   // MyGattCallback.oldtime = numsec + showtime;
+    var oldtime = numsec + showtime;
+    LossOfSensorAlarm.setalarm(Applic.app, oldtime);
     }
 
 
