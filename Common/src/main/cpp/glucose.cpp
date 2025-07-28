@@ -34,6 +34,15 @@ void SensorGlucoseData::backhistory(int pos) {
 		}
 
 	}
+void SensorGlucoseData::backcalibrated(int pos) {
+	const int maxind=backup->getupdatedata()->sendnr;
+	auto *caliUpdated=getinfo()->caliUpdated;
+	for(int i=0;i<maxind;i++) {
+		if(pos<caliUpdated[i]) {
+                        caliUpdated[i]=pos;
+			}
+		}
+	}
 void SensorGlucoseData::backstream(int pos) {
 	const int maxind=backup->getupdatedata()->sendnr;
 	auto *updateptr=getinfo()->update;
@@ -408,10 +417,32 @@ void Sensoren::removeoldstates()  {
 //	settings->data()->unlinkstatestime=nu+period;
 	}
 
+void     setbackupstart(int sendindex,int newstart, void (SensorGlucoseData::*func)(int pos)) {
+	if(!settings)
+		return;
+	if(!sensors)
+		return;
+	if(newstart<0) 
+		return;
+	if(SensorGlucoseData *hist=sensors->getSensorData(sendindex)) {
+		(hist->*func)(newstart);
+		}
+	else {
+		LOGGER("setbackupstart no sensor %d\n",sendindex);
+		}
 
+	}
 
 void     sethistorystart(int sendindex,int newstart) {
-extern	bool hasnotiset();
+        LOGGER("sethistorystart(%d,%d)\n",sendindex,newstart);
+        setbackupstart(sendindex,newstart,&SensorGlucoseData::backhistory);
+        }
+void     setcalibratedstart(int sendindex,int newstart) {
+        LOGGER("setcalibratedstart(%d,%d)\n",sendindex,newstart);
+        setbackupstart(sendindex,newstart,&SensorGlucoseData::backcalibrated);
+        }
+/*
+void     sethistorystart(int sendindex,int newstart) {
 	if(!settings)
 		return;
 	if(!sensors)
@@ -427,7 +458,7 @@ extern	bool hasnotiset();
 		}
 
 	}
-
+*/
 extern int getdeltaindex(float rate);
 #define NOT_DETERMINED ""
 #ifdef XDRIPARROWS
@@ -529,7 +560,7 @@ std::string_view getdeltaname(float rate) {
 */
 void SensorGlucoseData::resetSiIndex() {
                 getinfo()->redoAll=true;
-                setSiIndex(0);
+                setSiIndex(1);
                 const int maxint=backup->getupdatedata()->sendnr;
                 setrawstreamstart(maxint,0);
                 }

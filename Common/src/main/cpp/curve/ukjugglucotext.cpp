@@ -107,7 +107,8 @@ jugglucotext uktext {
 		"Говорити",
 		"Плавати        "
 		},
-	.menustr2= {"Останнє скан.",
+
+	.menustr2= {"Calibrated",
 	    "Скани",
 	    "Потік",
 	    "Історія",
@@ -119,9 +120,9 @@ jugglucotext uktext {
 #else
  .amount="Сума",
  .menustr0= {
-	"Клон",
+	"        Клон",
 	"Датчик",
-	"    Darkmode      ",
+	"Дисплей",
         "Налашт.",
 	"Стоп тривоги" },
 .menustr2= {"Дата",hourminstr,
@@ -188,6 +189,7 @@ jugglucotext uktext {
 #endif //INJUGGLUCO
 ,.summarygraph="Зведений графік"sv
 ,.logdays="Днів"sv
+,.unhide="Unhide"sv
 
 		}
 

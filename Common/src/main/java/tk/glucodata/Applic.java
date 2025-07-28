@@ -370,7 +370,6 @@ void initbluetooth(boolean usebluetooth,Context context,boolean frommain) {
          if(Natives.getusegarmin()&&numdata.devices==null)
               numdata.initIQ(context);
         }
-    SensorBluetooth.start(usebluetooth);
     
     if(!keeprunning.started) {
         if(usebluetooth||Natives.backuphostNr( )>0) {
@@ -382,6 +381,7 @@ void initbluetooth(boolean usebluetooth,Context context,boolean frommain) {
                 ((MainActivity)context).askNotify();
             }
         }
+    SensorBluetooth.start(usebluetooth);
     }
 static boolean possiblybluetooth(Context context) {
     {if(doLog) {Log.i(LOG_ID,"possiblybluetooth");};};
@@ -644,18 +644,17 @@ boolean needsnatives() {
   var newinitscreenwidth= Math.max(GlucoseCurve.metrics.heightPixels,GlucoseCurve.metrics.widthPixels);
   boolean ret;
   menufontsize = res.getDimension(R.dimen.abc_text_size_menu_material);
-    final double screensize=(newinitscreenwidth/menufontsize);
+  final double screensize=(newinitscreenwidth/menufontsize);
   final boolean smallsize=screensize<34.0;
-    if(newinitscreenwidth!=initscreenwidth)  {
-         if(smallsize!= NumberView.smallScreen) {
-            NumberView.smallScreen=smallsize;
-            ret=true;
-            }
-         else
-            ret=false;
-         }
-    else
-       ret=false;
+   if(smallsize!= NumberView.smallScreen) {
+                NumberView.smallScreen=smallsize;
+                if(curve!=null) {
+                    curve.removeviews();            
+                    }
+                ret=true;
+                }
+     else
+                ret=false;
      initscreenwidth=newinitscreenwidth;
      {if(doLog) {Log.i(LOG_ID,"initscreenwidth="+newinitscreenwidth);};};
      {if(doLog) {Log.i(LOG_ID,"menufontsize="+menufontsize);};};
@@ -690,7 +689,7 @@ static void doglucose(String SerialNumber, int mgdl, float gl, float rate, int a
     if(!wasblueoff) {
         Applic.dontusebluetooth();
         }
-    SuperGattCallback.dowithglucose( SerialNumber,  mgdl,  gl, rate,  alarm,  timmsec,sensorstartmsec,Notify.glucosetimeout,sensorgen);
+    SuperGattCallback.dowithglucose( SerialNumber,  mgdl, gl,rate,  alarm,  timmsec,sensorstartmsec,Notify.glucosetimeout,sensorgen);
     if(!isWearable) {
             if(sensorptr!=0L) {
                 {if(doLog) {Log.i(LOG_ID,"sensorptr="+format("%x",sensorptr));};};
@@ -755,7 +754,7 @@ if(isWearable) {
 
     Floating.init(); 
    final var initversion=Natives.getinitVersion();
-    if(initversion<34) {
+    if(initversion<35) {
       if(initversion<29) {
          if(initversion<22) {
             if(initversion<14) {
@@ -770,7 +769,7 @@ if(isWearable) {
             }
          sethour24(DateFormat.is24HourFormat(app));
          }
-      Natives.setinitVersion(34);
+      Natives.setinitVersion(35);
       }
 
    setjavahour24(Natives.gethour24());

@@ -133,18 +133,23 @@ static	ArrayList<Node> nodeslist=null;
 	}
 
 static CheckBox direct=null;
+static CheckBox watchnums=null;
 static Button start=null;
 
 static boolean[] directactive={true};
+static boolean[] numsactive={true};
 
 static void remake() {
-	int dirval;
+	int dirval,numsval;
 	if(nodenum<0) {
 		dirval=-1;
+        numsval=-1;
 		}
 	else {
 		var node=nodeslist.get(nodenum);
-		dirval=Natives.directsensorwatch(makenodename(node));
+        String name=makenodename(node);
+		dirval=Natives.directsensorwatch(name);
+        numsval=Natives.hasWatchNums(name);
 		}
 	if(dirval<0)  {
 		direct.setEnabled(false);
@@ -154,6 +159,15 @@ static void remake() {
 		directactive[0]=false;
 		direct.setChecked(dirval!=0);
 		directactive[0]=true;
+		}
+	if(numsval<0)  {
+		watchnums.setEnabled(false);
+		}
+	else  {
+		watchnums.setEnabled(true);
+		numsactive[0]=false;
+		watchnums.setChecked(numsval!=0);
+		numsactive[0]=true;
 		}
 	if(dirval==1) {
 		start.setEnabled(false);
@@ -194,6 +208,7 @@ static public void show(MainActivity context,View parent) {
 	var defaults=getbutton(context,context.getString(R.string.defaults));
 
 	direct=getcheckbox(context, context.getString(R.string.directconnection),false);
+	watchnums=getcheckbox(context, R.string.watchnums,false);
 	var Ok=getbutton(context,R.string.closename);
 	var Help=getbutton(context,R.string.helpname);
 	Help.setOnClickListener(v-> help.helplight(R.string.wearosinfo,context));
@@ -205,6 +220,7 @@ static public void show(MainActivity context,View parent) {
 	float density=GlucoseCurve.metrics.density;
 	var off=(int)(density*10.0f);
 	direct.setPadding(0,off,0,off);
+	watchnums.setPadding(0,off,0,off);
 
 	remake();
    if(nodeslist==null||nodeslist.isEmpty()) {
@@ -219,7 +235,7 @@ static public void show(MainActivity context,View parent) {
 		if(height>h)
 			l.setY((height-h)/2);
 		return new int[] {w,h};
-		}, new View[]{spin},new View[]{direct},new View[]{start,defaults},new View[]{Help,Ok} );
+		}, new View[]{spin},new View[]{watchnums},new View[]{direct},new View[]{start,defaults},new View[]{Help,Ok} );
 	int laypad=(int)(density*4.0);
 	layout.setPadding(laypad*2,laypad*2,laypad*2,laypad);
 
@@ -261,6 +277,35 @@ static public void show(MainActivity context,View parent) {
 				sendinitwatchapp(nodeslist.get(nodenum)) ;
 				}
 		 });
+	watchnums.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
+			 	if(numsactive[0]) {
+					if(nodenum>=0) {
+						var node=nodeslist.get(nodenum);
+						var name=makenodename(node);
+						{if(doLog) {Log.i(LOG_ID,"watch nums  "+name+" "+isChecked);};};
+						byte[] netinfo=Natives.getmynetinfo(name,true,0,isGalaxy(node),isChecked?1:-1);
+						if(netinfo!=null) {
+							var sender=tk.glucodata.MessageSender.getMessageSender();
+							if(sender!=null) {
+								sender.sendnetinfo(node,netinfo);
+								return;
+								}
+							}
+						}
+					else {
+						{if(doLog) {Log.i(LOG_ID,"nodenum="+nodenum);};};
+						}
+					numsactive[0]=false;
+					watchnums.setChecked(!isChecked);
+					numsactive[0]=true;
+					}
+				else {
+					{if(doLog) {Log.i(LOG_ID,"numsactive[0]=false");};};
+					}
+				return;
+				}
+			 );
+        
 	direct.setOnCheckedChangeListener(
 			 (buttonView,  isChecked) -> {
 			 	if(directactive[0]) {
@@ -268,7 +313,7 @@ static public void show(MainActivity context,View parent) {
 						var node=nodeslist.get(nodenum);
 						var name=makenodename(node);
 						{if(doLog) {Log.i(LOG_ID,"Direct sensor watch connection "+name+" "+isChecked);};};
-						byte[] netinfo=Natives.getmynetinfo(name,true,isChecked?1:-1,isGalaxy(node));
+						byte[] netinfo=Natives.getmynetinfo(name,true,isChecked?1:-1,isGalaxy(node),0);
 						if(netinfo!=null) {
 							var sender=tk.glucodata.MessageSender.getMessageSender();
 							if(sender!=null) {

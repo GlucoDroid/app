@@ -1,3 +1,17 @@
+#!/bin/bash
+if test x$BASH_VERSINFO = x
+then
+echo $0 should be used as bash $0
+exit 1
+fi
+str='                                                                                   '
+datestr=`env LC_NAME=us_EN.UTF-8 date +"%a %b %d %T %Z %Y"`
+strlen=${#str}
+datelen=${#datestr}
+#strleft=$(($strlen-$datelen))
+half=6
+newdate='/*'"${str:0:$half}$datestr${str:$half+$datelen:$strlen}"'*/'
+
 for inname in $*
 do
 tmpname=`mktemp  "$inname-tmpXXXXXX"`
@@ -25,9 +39,8 @@ mv "$inname" "$tmpname"
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
 !
-env LC_NAME=us_EN.UTF-8 date +"/*      %a %b %d %T %Z %Y                                                 */
-
-"; cat "$tmpname") > "$inname"
+echo "$newdate"
+cat "$tmpname") > "$inname"
 rm "$tmpname"
 done
 

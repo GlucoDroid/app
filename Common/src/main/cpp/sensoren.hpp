@@ -315,8 +315,8 @@ void   deletelast() {
       if (last() >= getmaxhistory()) {
          setmaxhistory(last() * 2);
       }
-      SensorGlucoseData *histel = new SensorGlucoseData(pathconcat(inbasedir, name));
       const int32_t lastpos=infoblockptr()->last;
+      SensorGlucoseData *histel = new SensorGlucoseData(pathconcat(inbasedir, name),lastpos);
       hist[lastpos] = histel;
       LOGGER("hist[%d]=%p\n", lastpos,histel);
       sensorlist()[lastpos].starttime = histel->getstarttime();
@@ -599,9 +599,8 @@ SensorGlucoseData *makelibre3sensor(std::string_view shortname,uint32_t starttim
 
 //   static constexpr const uint32_t sensorageseconds = 15 * 24 * 60 * 60u;
    static constexpr const uint32_t maxageseconds = 24 * 24 * 60 * 60u;
-
-   vector<int> inperiod(uint32_t starttime, uint32_t endtime) {
-      vector<int> out;
+template <typename F>
+   void sensorsInPeriod(vector<int> &out,uint32_t starttime, uint32_t endtime,F dont) {
       const uint32_t nu = time(nullptr);
       constexpr const int maxage=maxSIhours*60*60;
       const uint32_t oldsecs=maxage>=starttime?0:starttime-maxage;
@@ -614,7 +613,7 @@ SensorGlucoseData *makelibre3sensor(std::string_view shortname,uint32_t starttim
             prev=sensor.prev;
             const uint32_t startsensor = sensor.starttime;
             if(startsensor >= endtime) {
-                LOGGER("%d: inperiod startsensor (%u) >= endtime (%u) \n",i,startsensor,endtime);
+                LOGGER("%d: sensorsInPeriod startsensor (%u) >= endtime (%u) \n",i,startsensor,endtime);
                 continue;
                 }
              
@@ -625,22 +624,34 @@ SensorGlucoseData *makelibre3sensor(std::string_view shortname,uint32_t starttim
 
              auto oneend = sensor.endtime;
              if(sensor.finished && oneend && oneend < starttime) {
-                LOGGER("%d: inperiod finished &&endtime (%u) <starttime (%u)\n",i,oneend,starttime);
+                LOGGER("%d: sensorsInPeriod finished &&endtime (%u) <starttime (%u)\n",i,oneend,starttime);
                 continue;
              }
-             checkinfo(i, nu);
+             if(!checkinfo(i, nu,dont)) {
+                continue;
+                }
              oneend = sensor.endtime;
              if(oneend && oneend < starttime) {
-                LOGGER("%d: inperiod endtime (%u) <starttime (%u)\n",i,oneend,starttime);
+                LOGGER("%d: sensorsInPeriod endtime (%u) <starttime (%u)\n",i,oneend,starttime);
                 continue;
                 }
              out.push_back(i);
               }
          }
-      return out;
 
    }
-   bool inperiod(int i, uint32_t starttime, uint32_t endtime) {
+
+   vector<int> sensorsInPeriod(uint32_t starttime, uint32_t endtime) {
+     std::vector<int> outvector;
+     sensorsInPeriod(outvector,starttime, endtime,[](const SensorGlucoseData *s){return false;});
+     return outvector;
+     }
+   vector<int> shownSensorsInPeriod(uint32_t starttime, uint32_t endtime) {
+     std::vector<int> outvector;
+     sensorsInPeriod(outvector,starttime, endtime,[](const SensorGlucoseData *s){return s->hide;});
+     return outvector;
+     }
+   bool sensorsInPeriod(int i, uint32_t starttime, uint32_t endtime) {
       auto &sensor=sensorlist()[i];
       const uint32_t startsensor = sensor.starttime;
       if(startsensor >= endtime)
@@ -693,7 +704,7 @@ int firstafter(uint32_t starttime)  {
    }
 
 /*
-vector<SensorGlucoseData *> inperiod(uint32_t starttime,uint32_t endtime) {
+vector<SensorGlucoseData *> sensorsInPeriod(uint32_t starttime,uint32_t endtime) {
    vector<SensorGlucoseData *> out;
    for(int i=last();i>=0;i--) {
       if(sensorlist()[i].starttime>=endtime)
@@ -740,7 +751,7 @@ vector<SensorGlucoseData *> inperiod(uint32_t starttime,uint32_t endtime) {
               return nullptr;
               }
           LOGGER("getSensorData(%d) %s\n",ind,name);
-          hist[ind] = new SensorGlucoseData( pathconcat(inbasedir, std::string_view(name, sensornamelen)));
+          hist[ind] = new SensorGlucoseData( pathconcat(inbasedir, std::string_view(name, sensornamelen)),ind);
           LOGGER("hist[%d]=%p\n",ind,hist[ind]);
            }
       if(hist[ind]) {
@@ -790,16 +801,24 @@ void finishsensor(int ind) {
       sensorlist()[ind].finished=1;
       }
    }
-  void checkinfo(const int ind, uint32_t nu) {
+template <typename F>
+  bool checkinfo(const int ind, uint32_t nu,F dont) {
+  
      const SensorGlucoseData *thishist = getSensorData(ind);
-     if (!thishist)
-   sensorlist()[ind].present = 0;
+     if (!thishist) {
+       sensorlist()[ind].present = 0;
+       return false;
+       }
      else {
+      if(dont(thishist)) {
+        return false;
+        }
+        
       sensorlist()[ind].present = 1;
       uint32_t maxtime = thishist->getmaxtime();
       if(maxtime < nu) {
          if(thishist->isDexcom()&&thishist->pollcount()<maxdexcount&&(nu-sensorlist()[ind].endtime)< youngsensorsecs) {
-            return;
+            return true;
             }
          else {
              LOGGER("%s finished was %d set to 1\n", sensorlist()[ind].name, sensorlist()[ind].finished);
@@ -809,7 +828,11 @@ void finishsensor(int ind) {
        sensorlist()[ind].endtime = thishist->lastused();
     }
           // "TODO test on presence"
+          return true;
      }
+  void checkinfo(const int ind, uint32_t nu) {
+     checkinfo(ind, nu,[](const SensorGlucoseData *){return false;});
+   }
 
    void checkall() {
       const uint32_t nu = time(nullptr);
@@ -1059,6 +1082,23 @@ int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
           return 1;
           }
 
+int sendCalibrates(crypt_t *pass, const int sock,int ind,uint16_t &startSendCalibrate) {
+      const int lastsens=last();
+      const int first=startSendCalibrate;
+      if(lastsens<first)
+        return 2;
+     extern std::mutex caliMutex;
+     std::lock_guard<std::mutex> lock(caliMutex);
+      int did=0;
+      for(int sindex=first;sindex<=lastsens;++sindex) {
+           int res=getSensorData(sindex)->updateCali(pass, sock,ind,sindex);
+           if(!res)
+                return 0;
+            did|=res;
+            }
+       startSendCalibrate=lastsens;
+       return did;
+      }
    int update(crypt_t *pass, const int sock, const int ind, int &startupdate, int &firstsensor,
             const bool upstream, const bool upscan, const bool restoreinfo,const bool resetdevices) {
       LOGGER("Sensoren::update firstsensor=%d sock=%d ind=%d resetdevices=%d\n", firstsensor, sock, ind,resetdevices);

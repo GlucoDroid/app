@@ -43,6 +43,7 @@ constexpr uint16_t sfileonce=17;
 constexpr uint16_t swakeupstream=18;
 constexpr uint16_t sglucose=19;
 constexpr uint16_t sresetdevices=20;
+constexpr uint16_t sStartSendCalibrate=21;
 constexpr uint16_t stest=99;
 
 
@@ -70,31 +71,10 @@ inline static constexpr const char *comlabels[]={
 "sfileonce",
 "swakeupstream",
 "sglucose",
-"sresetdevices"};
-/*int setlabels() {
-comlabeles[1]="sopen";
-comlabeles[2]="smklen";
-comlabeles[3]="swrite";
-comlabeles[4]="sclose";
-comlabeles[5]="sbackup";
-comlabeles[6]="srenum";
-comlabeles[7]="sbackupstop";
-comlabeles[8]="srender";
-comlabeles[9]="snewnums";
-comlabeles[10]="snums";
-comlabeles[11]="snumnr";
-comlabeles[12]="sack";
-comlabeles[13]="snuminit";
-comlabeles[14]="sasklastnum";
-comlabeles[15]="saskfile";
-comlabeles[16]="suptodate";
-comlabeles[17]="sfileonce";
-comlabeles[18]="swakeupstream";
-comlabeles[19]="sglucose";
-comlabeles[20]="sresetdevices";
+"sresetdevices",
+"sStartSendCalibrate"
 };
-int get=setlabels();
-*/
+
 #endif
 
 
@@ -103,80 +83,85 @@ struct datel {
  int32_t len;
 };
 struct fileonce_t {
-         uint16_t  com;
-         uint16_t  namelen;
-	 int32_t totlen;
-         uint16_t  nr;
-         uint16_t  dowith;
-	 datel gegs[];
-	};
+     uint16_t  com;
+     uint16_t  namelen;
+     int32_t totlen;
+     uint16_t  nr;
+     uint16_t  dowith;
+     datel gegs[];
+    };
 struct renderstruct {
-         uint16_t  com;
-	 uint16_t type;
-	 };
+     uint16_t  com;
+     uint16_t type;
+     };
+
+struct uint16_t_arg_struct {
+     uint16_t  com;
+     uint16_t arg;
+     };
 
 struct askfile {
-	uint16_t com;
-         uint16_t  namelen;
-	 uint32_t off;
-	 uint32_t len;
-	char name[];
-	};
+    uint16_t com;
+    uint16_t  namelen;
+    uint32_t off;
+    uint32_t len;
+    char name[];
+    };
 struct dataonly  {
-	int32_t len;
-	uint8_t data[];
-	};
+    int32_t len;
+    uint8_t data[];
+    };
 struct asklastnum {
     const uint16_t com=sasklastnum;
     uint16_t  dbase;
-	};
+    };
 struct sendack {
     uint16_t com=sack;
     uint16_t  nop=1;
-	};
+    };
 constexpr const uint32_t ackres=917521;
 typedef std::conditional<sizeof(long long) == sizeof(int64_t), long long, int64_t >::type identtype;
 
 struct numinit {
-	uint16_t com=snuminit;
-	uint16_t res;
-	uint32_t first;
-	identtype ident;
-	};
+    uint16_t com=snuminit;
+    uint16_t res;
+    uint32_t first;
+    identtype ident;
+    };
 
 struct fileopen {
-	uint16_t com;
-	uint16_t rest;
-	uint32_t len;
-	 char name[];
-	} ;//__attribute__ ((packed));
+    uint16_t com;
+    uint16_t rest;
+    uint32_t len;
+     char name[];
+    } ;//__attribute__ ((packed));
 struct mklen {
-	uint16_t com;
-	int16_t han;
-	uint32_t len;
+    uint16_t com;
+    int16_t han;
+    uint32_t len;
 
-	} ;//__attribute__ ((packed));
+    } ;//__attribute__ ((packed));
 
 
 struct offwrite {
-	uint16_t com;
-	int16_t han;
-	uint32_t off;
-	uint32_t len;
-	unsigned  char data[];
-	} ;//__attribute__ ((packed));
+    uint16_t com;
+    int16_t han;
+    uint32_t off;
+    uint32_t len;
+    unsigned  char data[];
+    } ;//__attribute__ ((packed));
 
 typedef uint8_t senddata_t;
 
 struct numsend {
-	uint16_t type;
-	uint8_t dbase;
-	uint8_t nr;
-	uint32_t totlen;
-	uint32_t first; //don't set everytime
-	uint32_t last; //What when sending partial data?
-	uint32_t nums[];
-	};
+    uint16_t type;
+    uint8_t dbase;
+    uint8_t nr;
+    uint32_t totlen;
+    uint32_t first; //don't set everytime
+    uint32_t last; //What when sending partial data?
+    uint32_t nums[];
+    };
 struct lastpos_t {
         uint16_t type;
         uint16_t dbase;

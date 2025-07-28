@@ -12,6 +12,8 @@ struct Getopts {
     bool headermode=false;
 
     bool streammode=false;
+    bool calibratedmode=false;
+    bool allvaluesmode=false;
     bool scansmode=false;
     bool mealsmode=false;
     bool historymode=false;
@@ -49,6 +51,14 @@ template <int diff=60*10>
                 }
         if(darkmode!=other.darkmode) {
                 LOGGER("aboutequal: darkmode diffferent %d!=%d\n",darkmode,other.darkmode);
+                return false;
+                }
+        if(calibratedmode!=other.calibratedmode) {
+                LOGGER("aboutequal: calibratedmode diffferent %d!=%d\n",calibratedmode,other.calibratedmode);
+                return false;
+                }
+        if(allvaluesmode!=other.allvaluesmode) {
+                LOGGER("aboutequal: allvaluesmode diffferent %d!=%d\n",allvaluesmode,other.allvaluesmode);
                 return false;
                 }
        if(!absolute) {

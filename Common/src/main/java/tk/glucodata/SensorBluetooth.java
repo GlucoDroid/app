@@ -835,7 +835,7 @@ static void start(boolean usebluetooth) {
     final var sensors=Natives.activeSensors();
     final boolean hasSensors= sensors!=null&&sensors.length>0; 
     if(hasSensors) {
-            Notify.shownovalue();
+//          if(!keeprunning.started) Notify.shownovalue();
             SuperGattCallback.glucosealarms.setLossAlarm();
             }
     if(doLog) {Log.v(LOG_ID,"SensorBluetooth.start("+usebluetooth+")");};

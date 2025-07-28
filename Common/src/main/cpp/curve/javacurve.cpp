@@ -90,9 +90,7 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setpaused)(JNIEnv *env, jclass cl,
 JavaVM *vmptr;
 static jmethodID summaryready=nullptr;
 
-#ifdef  WEAROS
 static jmethodID showsensorinfo=nullptr;
-#endif
 jmethodID  jdoglucose=nullptr, jupdateDevices=nullptr, jbluetoothEnabled=nullptr,jspeak=nullptr, jresetWearOS=nullptr, jbluePermission=nullptr;
 //jmethodID jchangedProfile;
 jclass JNIApplic,JNIString;
@@ -163,9 +161,7 @@ if(!cl) {
 else {
    LOGAR("found GlucoseCurve");
    summaryready=env->GetMethodID(cl,"summaryready","()V");
-   #ifdef  WEAROS
-   showsensorinfo=env->GetMethodID(cl,"showsensorinfo","(Ljava/lang/String;)V");
-   #endif
+   showsensorinfo=env->GetMethodID(cl,"showsensorinfo","(Ljava/lang/String;J)V");
    env->DeleteLocalRef(cl);
    }
 
@@ -355,19 +351,17 @@ void visiblebutton() {
       }
    }
 
-   #ifdef  WEAROS
-void callshowsensorinfo(const char *text) {
+void callshowsensorinfo(const char *text, SensorGlucoseData *sensorptr) {
    if(glucosecurve) {
       if(showsensorinfo)  {
          JNIEnv *env =getenv(); 
          LOGAR("call showsensorinfo");
-         env->CallVoidMethod(glucosecurve,showsensorinfo,env->NewStringUTF(text));
+         env->CallVoidMethod(glucosecurve,showsensorinfo,env->NewStringUTF(text),reinterpret_cast<jlong>(sensorptr));
          }
       else
          LOGAR("didn't find GlucoseCurve");
       }
    }
-#endif
 
 void render() {
    LOGAR("Render");
@@ -460,9 +454,18 @@ extern "C" JNIEXPORT int JNICALL fromjava(setfilesdir)(JNIEnv *env, jclass clazz
       country=(char *)"\0";
       }
    auto res= setfilesdir({filesdirbuf,filesdirlen},country);
-    appcurve.setunit(settings->data()->unit);
+   appcurve.setunit(settings->data()->unit);
+   appcurve.showcalibrated=settings->data()->DoCalibrate;
+   appcurve.allvalues=settings->data()->AllValues;
    return res;
    }
+extern "C" JNIEXPORT void  JNICALL   fromjava(setAllValues)(JNIEnv *env, jclass cl,jboolean val) {
+    settings->data()->AllValues=val;
+    appcurve.allvalues=val;
+    }
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getAllValues)(JNIEnv *env, jclass cl) {
+    return settings->data()->AllValues;
+    }
 /*
 extern "C" JNIEXPORT void JNICALL fromjava(calccurvegegs)(JNIEnv *env, jclass clazz) {
    calccurvegegs();
@@ -503,7 +506,6 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(isbutton) (JNIEnv *env, jclass cl
    }
 
 
-int64_t screentap(float x,float y);
 extern "C" JNIEXPORT jlong JNICALL fromjava(tap) (JNIEnv *env, jclass clazz,jfloat x,jfloat y) {
    return appcurve.screentap(x,y);
    }
@@ -537,6 +539,10 @@ extern "C" JNIEXPORT jint JNICALL fromjava(hittype) (JNIEnv *env, jclass clazz,j
 extern "C" JNIEXPORT jint JNICALL fromjava(hitmeal) (JNIEnv *env, jclass clazz,jlong ptr) {
    NumHit *num=reinterpret_cast<NumHit *>(ptr);
    return num->hit->mealptr;
+   }
+extern "C" JNIEXPORT jint JNICALL fromjava(hitexclude) (JNIEnv *env, jclass clazz,jlong ptr) {
+   NumHit *num=reinterpret_cast<NumHit *>(ptr);
+   return num->hit->exclude;
    }
 
 int  hitremove(int64_t ptr);
@@ -613,7 +619,7 @@ extern "C" JNIEXPORT jint JNICALL fromjava(search) (JNIEnv *env, jclass clazz,ji
    }
 
 extern "C" JNIEXPORT void JNICALL fromjava(movedate) (JNIEnv *env, jclass clazz,jlong milli,jint year,jint month,jint day) {
-   time_t tim=milli/1000l;
+   time_t tim=milli/1000LL;
    struct tm      stm{};
    localtime_r(&tim,&stm);
    stm.tm_year=year-1900;
@@ -621,6 +627,10 @@ extern "C" JNIEXPORT void JNICALL fromjava(movedate) (JNIEnv *env, jclass clazz,
    stm.tm_mday=day;
    time_t timto=mktime(&stm);
    appcurve.setstarttime(appcurve.starttime+uint32_t((int64_t)timto-(int64_t)tim));
+   appcurve.begrenstijd() ;
+   };
+extern "C" JNIEXPORT void JNICALL fromjava(setStartTime) (JNIEnv *env, jclass clazz,jlong milli) {
+   appcurve.setstarttime(milli/1000LL);
    appcurve.begrenstijd() ;
    };
 extern "C" JNIEXPORT void JNICALL fromjava(prevday)(JNIEnv* env, jclass obj,jint val) {
@@ -708,17 +718,13 @@ extern "C" JNIEXPORT void JNICALL fromjava(setscreenwidthcm)(JNIEnv *env, jclass
 //   iswatch=(wcm<5.8f);
    }
 */
-extern int showstream;
-extern int showscans;
-extern int showhistories;
-extern int shownumbers;
-extern int showmeals;
 #define defdisplay(kind)\
 extern "C" JNIEXPORT jboolean JNICALL fromjava(getshow##kind)(JNIEnv *env, jclass thiz) {\
    return appcurve.show##kind;\
    }\
 extern "C" JNIEXPORT void JNICALL fromjava(setshow##kind)(JNIEnv *env, jclass thiz,jboolean val) {\
    appcurve.show##kind=val;\
+   settings->data()->show##kind=val;\
    }
 
 defdisplay(scans)
@@ -726,6 +732,7 @@ defdisplay(meals)
 defdisplay(histories)
 defdisplay(stream)
 defdisplay(numbers)
+defdisplay(calibrated)
 #ifdef WEAROS
 void setInitText(const char *message) {
    getenv()->CallStaticVoidMethod(JNIApplic,jsetinittext,getenv()->NewStringUTF(message));
@@ -804,8 +811,8 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(saylastglucose)(JNIEnv *env, jclass 
          LOGAR("getlaststream(nu)=null");
          return 0;
          }
-      const ScanData *poll=hist->lastpoll();
-      if(!poll||!poll->valid()) {
+      const ScanData *poll=hist->lastValidStream();
+      if(!poll) {
          LOGAR("no stream");
          return 0L;
          }
@@ -945,5 +952,5 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setfixatex)(JNIEnv *env, jclass cl
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(setunit)(JNIEnv *env, jclass cl,jint unit) {
 	settings->setunit(unit);
-        appcurve.setunit(unit);
+    appcurve.setunit(unit);
 	}

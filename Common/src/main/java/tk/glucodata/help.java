@@ -104,10 +104,10 @@ public static   void basehelp(int res,Activity act,Consumer<ViewGroup> okproc) {
 
     if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         helpview.setText(fromHtml(text,TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
-    }
+        }
     else {
-    helpview.setText(fromHtml(text));
-    }
+        helpview.setText(fromHtml(text));
+        }
      helpview.setTextColor(Color.WHITE);
      helpview.setTextIsSelectable(true);
      helpview.setScroller(null);

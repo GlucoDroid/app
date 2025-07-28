@@ -377,5 +377,19 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
 <string name="scantransmessage">Sibionics 2 sensor datamatrix succesvol gescand. \nScan nu de transmitter datamatrix."</string>
  <string name="mirrorscansucces">Verbinding toevoegt aan linker midden menu → Kloon</string>
  <string name="nolibrelink">Gebruik in plaats hiervan EverSense Broadcast. Zie help.</string>
+ <string name="calibration">Kalibratie</string>
+<string name="exclude">Sluit uit</string>
+<string name="calibratepast">Toepassen op verleden</string>
+<string name="bloodvar">Bloedglucose:</string>
+<string name="calibrate_a">Helling wijzigen</string>
+<string name="watchnums">Hoeveelheden ingevoerd op horloge</string>
+<string name="calibrated">Gekalibreerd</string>
+<string name="delete_calibration">Kalibratie verwijderen?</string>
+<string name="hide">Verbergen</string>
+<string name="sensorstreamed">Gestreamd</string>
+<string name="sensornotstreamed">Niet gestreamd</string>
+<string name="calibrations">Kalibraties</string>
+ <string name="allvalues">Alle waarden</string>
+<string name="writedown">Schrijf op!</string>
 </resources>
 

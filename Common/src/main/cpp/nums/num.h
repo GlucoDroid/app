@@ -28,6 +28,7 @@ struct Num {
 	  uint32_t mealptr;
 	  uint32_t librenr;
       struct {
+	    uint32_t calibration:31;
         bool exclude:1;
         };
 	  };
@@ -36,4 +37,7 @@ struct Num {
  const uint32_t gettime() const {
  	return time;
 	};
+  bool calibrator(int t) const {
+        return t==type&&!exclude;
+        }
   };

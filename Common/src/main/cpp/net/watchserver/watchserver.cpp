@@ -25,6 +25,7 @@
 #include <inttypes.h>
 #include <system_error>
 #include <utility>
+#include <alloca.h>
 //#include <arpa/inet.h>
        #include <sys/types.h>
        #include <sys/socket.h>
@@ -208,11 +209,11 @@ void makesha1secret() {
 
 extern void stopsummarythread();
 extern void startsummarythread();
-void startwatchthread() {
+void startwatchthread(int port) {
         startsummarythread();
    if(xdripserversock==-1)  {
        makesha1secret();
-      std::thread watch(startwatchserver,false,17580,&xdripserversock);
+      std::thread watch(startwatchserver,false,port,&xdripserversock);
       watch.detach();
    #ifdef USE_SSL
    if(xdripserversslsock==-1)  {
@@ -980,8 +981,16 @@ static bool givecurrent(std::string_view origin,recdata *outdata) {
       outdata->allbuf=new(std::nothrow) char[300+1024];
    if(!outdata->allbuf)
       return outofmemory(outdata);
-    char *start=outdata->allbuf+152,*outiter=start;
-       outiter=textitem(outiter,value)-2;
+
+extern double     calibrateNow(const SensorGlucoseData *sens,const ScanData &value) ;
+   if(double   calibrated=calibrateNow(sens,*value);!isnan(calibrated)) {
+         ScanData *tmp= (ScanData*)alloca(sizeof(ScanData));
+         *tmp=*value;
+         tmp->g=(int32_t) round(calibrated);
+         value=tmp;
+         }
+   char *start=outdata->allbuf+152,*outiter=start;
+   outiter=textitem(outiter,value)-2;
 /*
    long long len=outiter-start;
    char lenstr[20];
@@ -1200,12 +1209,26 @@ char *getdeltastr(char *start) {
    const char *sensorname= sens->shortsensorname()->data();
    int timedif=4*62;
    auto nu=iter->gettime();
-   auto nuval=(iter--)->getmgdL();
+
+extern double     calibrateNow(const SensorGlucoseData *sens,const ScanData &value) ;
+  int nuval;
+   if(double   calibrated=calibrateNow(sens,*iter);!isnan(calibrated)) {
+         nuval=(int)round(calibrated);
+            }
+   else 
+        nuval=iter->getmgdL();
+    --iter;
+//   auto nuval=(iter--)->getmgdL(); //CALIBRATE
    auto old=nu-timedif;
    while(iter>=first) {
       auto wastime=iter->gettime();
       if(wastime<old) {
-         auto prevmgdl=iter->getmgdL();
+         int prevmgdl;
+         if(double   calibrated=calibrateNow(sens,*iter);!isnan(calibrated)) {
+                prevmgdl=(int)round(calibrated);
+               }
+         else
+             prevmgdl=iter->getmgdL();
          auto diff=nuval-prevmgdl;
          longlongtype nowmmsec=nu*1000LL;
          longlongtype prevmmsec=wastime*1000LL;
@@ -1236,7 +1259,13 @@ static char * givebgnow(char *start) {
          return start;
       }
    longlongtype mmsectime=iter->gettime()*1000LL;
-   auto mgdl=iter->getmgdL();
+extern double     calibrateNow(const SensorGlucoseData *sens,const ScanData &value) ;
+  int mgdl;
+   if(double   calibrated=calibrateNow(sens,*iter);!isnan(calibrated)) {
+        mgdl=(int)round(calibrated); 
+         }
+     else
+          mgdl=iter->getmgdL(); 
    int valueid=iter->getid();
    const char * changelabel=getdeltaname(iter->ch).data();
    const char *sensorname= sens->shortsensorname()->data();
@@ -1530,12 +1559,12 @@ static bool setitervar(const char *&iter,std::string_view cond,bool &var) {
       }
    return false;
    }
-extern   std::span<char> gethistory(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
-extern   std::span<char> getstream(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
-extern   std::span<char> getscans(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
-extern   std::span<char> getamounts(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
-extern std::span<char> getmeals(int startpos, int len, uint32_t starttime, uint32_t endtime,bool header,int,bool,int);
-extern std::span<char> libreviewweb(int startpos, int startlen, uint32_t starttime, uint32_t endtime,bool header,int unit,bool,int maxcount) ;
+extern   std::span<char> gethistory(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int,bool);
+extern   std::span<char> getstream(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int,bool);
+extern   std::span<char> getscans(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int,bool);
+extern   std::span<char> getamounts(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int,bool);
+extern std::span<char> getmeals(int startpos, int len, uint32_t starttime, uint32_t endtime,bool header,int,bool,int,bool);
+extern std::span<char> libreviewweb(int startpos, int startlen, uint32_t starttime, uint32_t endtime,bool header,int unit,bool,int maxcount,bool) ;
 
 
 static time_t readtime(const char *&input) {
@@ -1719,12 +1748,16 @@ Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings
             continue;
          if(setitervar(iter, "exclusive"sv, exclusivemode))
             continue;
+         if(setitervar(iter, "calibrated"sv, calibratedmode))
+            continue;
+         if(setitervar(iter, "allvalues"sv, allvaluesmode))
+            continue;
                         {
          std::string_view langstr="hl="sv;
          if(!memcmp(iter,langstr.data(), langstr.size())) {
             iter+=langstr.length();
-                                lang=mklanguagenumlow(iter) ;
-                                iter+=2;
+            lang=mklanguagenumlow(iter) ;
+            iter+=2;
             continue;
             }
         else {
@@ -1801,7 +1834,7 @@ Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings
       }
    };
 
-typedef      std::span<char> (*getdata_t)(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int);
+typedef      std::span<char> (*getdata_t)(int startpos, int len, uint32_t starttime, uint32_t endtime,bool,int,bool,int,bool calibrated);
 
 
 template <typename T,int N,typename T1> 
@@ -1866,6 +1899,12 @@ static int dayssize(int days) {
 extern int getminutes(time_t tim);
 
 static bool givereport(Getopts &opts,std::string_view hostname,bool secure,std::string_view origin,recdata *outdata) {
+   if(!(opts.calibratedmode||opts.streammode)) {
+        if(settings->data()->DoCalibrate) {
+                opts.calibratedmode=true;
+                opts.allvaluesmode=true;
+                }
+        }
     const uint32_t endtime=opts.end-1; //otherwise the whole end day is shown when a startday is specified
     const bool darkmode=opts.darkmode;
     const int days=opts.days();
@@ -1905,6 +1944,8 @@ static bool givereport(Getopts &opts,std::string_view hostname,bool secure,std::
     static constexpr const  char scansstr[] { R"(&scansmode)"};
     static constexpr const  char amountsstr[] { R"(&amountsmode)"};
     static constexpr const  char streamstr[] { R"(&streammode)"};
+    static constexpr const  char calibratedstr[] { R"(&calibratedmode)"};
+    static constexpr const  char allvaluesstr[] { R"(&allvaluesmode)"};
     static constexpr const  char historystr[] { R"(&historymode)"};
     static constexpr const  char mealsstr[] { R"(&mealsmode)"};
 
@@ -1969,7 +2010,11 @@ loadImages();
     +(opts.scansmode?sizear(scansstr):0)
     +(opts.mealsmode?sizear(mealsstr):0)
     +(opts.historymode?sizear(historystr):0)
-    +(opts.streammode?sizear(streamstr):0)+6+unitstr.size();
+    +(opts.streammode?sizear(streamstr):0)+
+    +(opts.calibratedmode?sizear(calibratedstr):0)+
+    +(opts.allvaluesmode?sizear(allvaluesstr):0)+
+
+    6+unitstr.size();
     constexpr const auto places=[](int get) {
             return get<10?1:(get<100?2:(get<1000?3:get<10000?4:5));
             };
@@ -1979,8 +2024,15 @@ loadImages();
     const int summarysize=6+sizear(startimage) +
 sizear(aftergraphname)+text->summarygraph.size()+
     +addhost.size()+sizear(summarygraph)+timesize+sizear(daysstr)+dayslen+
-  (darkmode?sizear(darkstr):0)+sizear(endsummary)+ unitstr.size();
-    const int totsize=(darkmode?((showdays+1)*sizear(darkstr)):0)+elsize*showdays+/*dayssize(showdays)+*/(sizear(daysstr)+dayslen)+sizear(starttext)+
+  (darkmode?sizear(darkstr):0)+
+  (opts.calibratedmode?sizear(calibratedstr):0)+
+  (opts.allvaluesmode?sizear(allvaluesstr):0)
+  +sizear(endsummary)+ unitstr.size();
+    const int totsize=
+(opts.calibratedmode?sizear(calibratedstr):0)+
+  (opts.allvaluesmode?sizear(allvaluesstr):0)+
+
+    (darkmode?((showdays+1)*sizear(darkstr)):0)+elsize*showdays+/*dayssize(showdays)+*/(sizear(daysstr)+dayslen)+sizear(starttext)+
 sizear(afterstatistics)+
     sizear(stats)+timesize+(addhost.size())+summarysize +sizear(endels)+ statisticsname.size()+6+unitstr.size() +
     sizear(afterdaystr)+logdays.size();
@@ -1997,6 +2049,10 @@ sizear(afterstatistics)+
     bufptr+=sprintf(bufptr,"%d",days);
     if(darkmode)
         addar(bufptr,darkstr);
+    if(opts.calibratedmode)
+        addar(bufptr,calibratedstr);
+    if(opts.allvaluesmode)
+        addar(bufptr,allvaluesstr);
      bufptr+=sprintf(bufptr,"&hl=%.2s",langstr);
     addstrview(bufptr,unitstr);
     addar(bufptr,startimage);
@@ -2009,6 +2065,10 @@ sizear(afterstatistics)+
     bufptr+=sprintf(bufptr,"%d",days);
     if(darkmode)
         addar(bufptr,darkstr);
+    if(opts.calibratedmode)
+        addar(bufptr,calibratedstr);
+    if(opts.allvaluesmode)
+        addar(bufptr,allvaluesstr);
      bufptr+=sprintf(bufptr,"&hl=%.2s",langstr);
     addstrview(bufptr,unitstr);
     addar(bufptr,endsummary);
@@ -2021,6 +2081,8 @@ sizear(afterstatistics)+
             uint32_t time=startday-(showdays-day)*60*60*24;
             bufptr+=sprintf(bufptr,"%u",time);
             if(opts.streammode) addar(bufptr,streamstr);
+            if(opts.calibratedmode) addar(bufptr,calibratedstr);
+            if(opts.allvaluesmode) addar(bufptr,allvaluesstr);
             if(opts.scansmode) addar(bufptr,scansstr);
             if(opts.amountsmode) addar(bufptr,amountsstr);
             if(opts.mealsmode) addar(bufptr,mealsstr);
@@ -2108,7 +2170,7 @@ static bool jugglucos(const char * const input,int size, std::string_view hostna
          Getopts opts(posptr,size-type.size());
          const int startlen=((opts.end-opts.start)/(60*60))*perhour[i];
          constexpr const int startpos=152;
-         std::span<char> res=procs[i](startpos,startlen,opts.start,opts.end,opts.headermode,opts.unit,!opts.exclusivemode,opts.datnr);
+         std::span<char> res=procs[i](startpos,startlen,opts.start,opts.end,opts.headermode,opts.unit,!opts.exclusivemode,opts.datnr,opts.calibratedmode);
           if(!res.data()) {
                 return outofmemory(outdata);
                 }

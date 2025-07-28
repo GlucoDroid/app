@@ -126,7 +126,7 @@ jugglucotext trtext {
                 "Seslendirme",
                 "Yüzen Glikoz       "
                 },
-        .menustr2= {"Son Tarama",
+	.menustr2= {"Calibrated",
         "Taramalar",
         "Akış",
         "Geçmiş",
@@ -144,9 +144,9 @@ jugglucotext trtext {
 #else
  .amount="Miktar",
  .menustr0= {
-        "Klon",
+        "        Klon",
         "Sensör",
-        "  KoyuMod      ",
+        "Görüntü",
         "Ayarlar",
         "Alarmı Durdur" },
 .menustr2= {"Tarih  ",
@@ -214,6 +214,7 @@ muhtemelen bu dosyaları başka bir şekilde tespit edilemez hale getirmek daha 
 #endif //INJUGGLUCO
 ,.summarygraph="Özet Grafiği"sv
 ,.logdays="Günler"sv
+,.unhide="Unhide"sv
                 }
 
 

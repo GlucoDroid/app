@@ -42,6 +42,7 @@ import static android.bluetooth.BluetoothProfile.STATE_CONNECTED;
 import static android.bluetooth.BluetoothProfile.STATE_CONNECTING;
 import static android.bluetooth.BluetoothProfile.STATE_DISCONNECTED;
 import static android.bluetooth.BluetoothProfile.STATE_DISCONNECTING;
+import static java.lang.Float.isNaN;
 import static java.util.Objects.isNull;
 import static tk.glucodata.Applic.DontTalk;
 import static tk.glucodata.Applic.app;
@@ -249,6 +250,7 @@ static private int low(long tim,notGlucose    sglucose,float gl,float rate,int a
        return alarm;
       }
     static void dowithglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,long sensorstartmsec,long showtime,int sensorgen) {
+
         if(gl==0.0)
             return;
         if(glucosealarms == null) {
@@ -405,10 +407,17 @@ protected void handleGlucoseResult(long res,long timmsec) {
         if(glumgdl != 0) {
             int alarm = (int) ((res >> 48) & 0xFFL);
             {if(doLog) {Log.i(LOG_ID, SerialNumber + " alarm=" + alarm);};};
-            float gl = Applic.unit == 1 ? glumgdl / mgdLmult : glumgdl;
+
+         /*  float cali=calibrateNow(dataptr,glumgdl); //Already calibrated
+           float mgdlf=isNaN(cali)?glumgdl:cali;
+           float gl = Applic.unit == 1 ? mgdlf / mgdLmult : mgdlf;
+            int mgdl=(int)Math.round(mgdlf); */
+
+           final float gl = Applic.unit == 1 ? glumgdl / mgdLmult : glumgdl;
+
             short ratein = (short) ((res >> 32) & 0xFFFFL);
             float rate = ratein / 1000.0f;
-            dowithglucose(SerialNumber, glumgdl, gl, rate, alarm, timmsec,sensorstartmsec,showtime,sensorgen);
+            dowithglucose(SerialNumber, glumgdl,gl,rate, alarm, timmsec,sensorstartmsec,showtime,sensorgen);
             charcha[0] = timmsec;
             if(!isWearable) {
                 if(Natives.gethealthConnect( )) {

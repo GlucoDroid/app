@@ -77,7 +77,7 @@ std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) {
         const int hiermin=hist->streaminterval();
         if(hiermin<minutes)
             minutes=hiermin;
-        const ScanData *poll=hist->lastpoll();
+        const ScanData *poll=hist->lastValidStream();
         if(poll) {
             uint32_t then=poll->t;
             if(then>mintime) {
@@ -97,7 +97,7 @@ std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu) {
 extern "C" JNIEXPORT jlong  JNICALL   fromjava(lastglucosetime)(JNIEnv *env, jclass cl) {
     const auto [hist,index]=getlaststream(maxwatchage);
     if(hist) 
-        return hist->lastpoll()->t*1000LL;
+        return hist->lastValidStream()->t*1000LL;
         
     return 0LL;
        }
@@ -106,10 +106,11 @@ extern "C" JNIEXPORT jlong  JNICALL   fromjava(lastglucosetime)(JNIEnv *env, jcl
 
 
 
-int getglucosestr(uint32_t nonconvert,char *glucosestr,int maxglucosestr,int maxmgdL);
+int getglucosestr(double nonconvert,char *glucosestr,int maxglucosestr,int glucosehighest) ;
 
 
 extern float threshold(float drate);
+extern double     calibrateNow(const SensorGlucoseData *sens,const ScanData &value);
 extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclass cl) {
 //    const uint32_t nu=time(nullptr);
     const auto [hist,index]=getlaststream(maxwatchage);
@@ -117,15 +118,21 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclas
         LOGSTRINGTAG("getlaststream(maxwatchage)=null\n");
         return nullptr;
         }
-    const ScanData *poll=hist->lastpoll();
-    if(!poll||!poll->valid()) {
+    const ScanData *poll=hist->lastValidStream();
+    if(!poll) {
         return nullptr;
         }
 
-    const auto nonconvert= poll->g;
-    if(!nonconvert)  {
+    if(!poll->valid())  {
         LOGSTRINGTAG("glucose = 0\n");
         return nullptr;
+        }
+    double nonconvert;
+    if(double cali=calibrateNow(hist,*poll);!isnan(cali)) {
+        nonconvert=cali;
+        }
+     else {
+        nonconvert=poll->getmgdL();
         }
     const int maxbuf=20;
     char buf[maxbuf];

@@ -866,26 +866,17 @@ public void onConfigurationChanged(Configuration newConfig) {
 
 
     screenwidth=0;
-    if(Applic.Nativesloaded)
+    if(Applic.Nativesloaded) {
         if(app.needsnatives() ) {
             if(curve!=null) {
                 while(doonback() )
                     ;
-                curve.numberview.deleteviews();    
-                curve.searchspinner=null;
-                if(curve.search!=null) {
-                    removeContentView(curve.search);
-                    curve.search=null;
-                    }
-                if(curve.searchcontrol!=null) {
-                    removeContentView(curve.searchcontrol);
-                    curve.searchcontrol=null;
-                    }
-            }
-            }
+                curve.removeviews();            
+                }
+          }
+      }
 
 
-//    if(settings!=null) settings.invalidate();
 }
 public void requestRender() {
     if(curve!=null)

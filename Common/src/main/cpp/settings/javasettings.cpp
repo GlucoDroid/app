@@ -38,6 +38,27 @@ extern jstring myNewStringUTF(JNIEnv *env,const std::string_view str);
 extern Backup *backup;
 //#define fromjava(x) Java_tk_glucodata_Natives_ ##x
 
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(setDoCalibrate)(JNIEnv *env, jclass cl,jboolean val) {
+    settings->data()->DoCalibrate=val;
+    }
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getDoCalibrate)(JNIEnv *env, jclass cl) {
+    return settings->data()->DoCalibrate;
+    }
+extern "C" JNIEXPORT void  JNICALL   fromjava(setCalibratePast)(JNIEnv *env, jclass cl,jboolean val) {
+    settings->data()->CalibratePast=val;
+    }
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getCalibratePast)(JNIEnv *env, jclass cl) {
+    return settings->data()->CalibratePast;
+    }
+extern "C" JNIEXPORT void  JNICALL   fromjava(setCalibrateA)(JNIEnv *env, jclass cl,jboolean val) {
+    settings->data()->DoNotCalibrateA=!val;
+    }
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getCalibrateA)(JNIEnv *env, jclass cl) {
+    return !settings->data()->DoNotCalibrateA;
+    }
+
+
 extern "C" JNIEXPORT void  JNICALL   fromjava(setGoogleScan)(JNIEnv *env, jclass cl,jboolean val) {
     settings->data()->GoogleScan=!val;
     }
@@ -740,12 +761,12 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getusexdripwebserver)(JNIEnv *
     return settings->data()->usexdripwebserver;
     }
 extern void stopwatchthread() ;
-extern    void startwatchthread() ;
+extern    void startwatchthread(int port) ;
 extern "C" JNIEXPORT void  JNICALL   fromjava(setusexdripwebserver)(JNIEnv *env, jclass cl,jboolean val) {
 #ifndef WEAROS
     settings->data()->usexdripwebserver=val;
     if(val) {
-        startwatchthread();
+        startwatchthread(defaulthttpport);
         }
     else {
         stopwatchthread(); 
@@ -1024,7 +1045,7 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setkerfstokblack)(JNIEnv *env, jcl
     }
 #ifndef WEAROS
 extern "C" JNIEXPORT void  JNICALL   fromjava(setlibrenum)(JNIEnv *env, jclass cl,jint night,jint index,jint kind, jfloat weight) {
-    if(index>=settings->getlabelcount())  {
+    if(index<0||index>=settings->getlabelcount())  {
         return ;
         }
     (night?settings->data()->Nightnums:settings->data()->librenums)[index]={kind,weight};
@@ -1038,13 +1059,13 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setlibrenum)(JNIEnv *env, jclass c
     }
 
 extern "C" JNIEXPORT jint  JNICALL   fromjava(getlibrenumkind)(JNIEnv *env, jclass cl,jint night,jint index) {
-    if(index>=settings->getlabelcount())  {
+    if(index<0||index>=settings->getlabelcount())  {
         return 0;
         }
     return (night?settings->data()->Nightnums:settings->data()->librenums)[index].kind;
     }
 extern "C" JNIEXPORT jfloat  JNICALL   fromjava(getlibrefoodweight)(JNIEnv *env, jclass cl,jint night,jint index) {
-    if(index>=settings->getlabelcount())  {
+    if(index<0||index>=settings->getlabelcount())  {
         return 0.0f;
         }
     return (night?settings->data()->Nightnums:settings->data()->librenums)[index].weight;
@@ -1702,7 +1723,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getIOB)(JNIEnv *env, jclass cl
 #ifndef WEAROS
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(setInsulinType)(JNIEnv *env, jclass cl,jint index,jint type) {
-    if(index>=settings->getlabelcount())  {
+    if(index<0||index>=settings->getlabelcount())  {
         return ;
         }
     LOGGER("setInsulinType(%d,%d)\n",index,type);
@@ -1714,7 +1735,7 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setInsulinType)(JNIEnv *env, jclas
     return;
     }
 extern "C" JNIEXPORT jint  JNICALL   fromjava(getInsulinType)(JNIEnv *env, jclass cl,jint index) {
-    if(index>=settings->getlabelcount())  {
+    if(index<0||index>=settings->getlabelcount())  {
         return 0;
         }
     jint type=static_cast<uint8_t>(settings->data()->insulintypes[index]);

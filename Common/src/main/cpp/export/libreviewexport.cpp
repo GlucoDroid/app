@@ -18,7 +18,7 @@
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
 /*      Fri Jun 20 17:37:44 CEST 2025                                                 */
-
+#ifndef WEAROS
 
 #include <array>
 #include <time.h>
@@ -97,7 +97,7 @@ bool libreviewCGMexport(const uint32_t starttime,const uint32_t endtime,const bo
             return false;
             }
          }
-    auto indices=sensors->inperiod(    starttime,endtime);
+    auto indices=sensors->sensorsInPeriod(    starttime,endtime);
     int totsen=indices.size();
     LOGGER("libreviewCGMexport start time=%u endtime=%u %d indices overlap=%d\n",starttime,endtime,totsen,overlap);
     const int decimal=unit==1;
@@ -220,7 +220,7 @@ bool libreviewexport(int handle,uint32_t starttime,uint32_t endtime) {
                 });
          }
 
-std::span<char> libreviewweb(int startpos, int startlen, uint32_t starttime, uint32_t endtime,bool header,int unit,bool overlap,int maxcount=INT_MAX) {
+std::span<char> libreviewweb(int startpos, int startlen, uint32_t starttime, uint32_t endtime,bool header,int unit,bool overlap,int maxcount=INT_MAX,bool=false) {
     struct {
         char *buf;
         int max;
@@ -257,4 +257,4 @@ std::span<char> libreviewweb(int startpos, int startlen, uint32_t starttime, uin
     return {printdata.buf,(size_t)printdata.iter};
     }
 
-
+#endif

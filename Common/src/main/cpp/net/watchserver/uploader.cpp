@@ -148,13 +148,35 @@ int nightuploadTreatments3(const char *data,int len) {
     }
 
 
+extern double     calibrateONEtest(const SensorGlucoseData *sens,const ScanData &value);
 //extern int Tdatestring(time_t tim,char *buf) ;
 #include "datestring.hpp"
 extern double getdelta(float change);
 extern std::string_view getdeltaname(float change);
-template <class T> int mkuploaditem(char *buf,const char *sensorname,const T &item) {
+template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const char *sensorname,const T &item) {
     const time_t tim=item.gettime();
-    int mgdL=item.getmgdL();
+    int mgdL;
+    if(double calibrated=calibrateONEtest(sens,item);!isnan(calibrated)) {
+        mgdL=(int)round(calibrated);
+         }
+    else
+        mgdL=item.getmgdL();
+    float change= item.getchange();
+    const char * directionlabel=getdeltaname(change).data();
+    double delta=getdelta(change);
+    char timestr[50];
+    Tdatestring(tim,timestr);
+
+    return sprintf(buf,R"({"type":"sgv","device":"%s","dateString":"%s","date":%lld,"sgv":%d,"delta":%.3f,"direction":"%s","noise":1,"filtered":%d,"unfiltered":%d,"rssi":100},)",sensorname,timestr,tim*1000LL,mgdL,delta,directionlabel,mgdL*1000,mgdL*1000);
+    }
+/*
+template <class T> int mkuploaditemv3(SensorGlucoseData *sens,char *buf,const char *sensorname,const T &item) {
+    const time_t tim=item.gettime();
+    if(double calibrated=calibrateONEtest(sens,*item),!isnan(calibrated)) {
+        mgdL=(int)round(calibrated);
+         }
+    else
+        mgdL=item.getmgdL();
     float change= item.getchange();
     const char * directionlabel=getdeltaname(change).data();
     double delta=getdelta(change);
@@ -164,20 +186,7 @@ template <class T> int mkuploaditem(char *buf,const char *sensorname,const T &it
     return sprintf(buf,R"({"type":"sgv","device":"%s","dateString":"%s","date":%lld,"sgv":%d,"delta":%.3f,"direction":"%s","noise":1,"filtered":%d,"unfiltered":%d,"rssi":100},)",sensorname,timestr,tim*1000LL,mgdL,delta,directionlabel,mgdL*1000,mgdL*1000);
 
     }
-
-template <class T> int mkuploaditemv3(char *buf,const char *sensorname,const T &item) {
-    const time_t tim=item.gettime();
-    int mgdL=item.getmgdL();
-    float change= item.getchange();
-    const char * directionlabel=getdeltaname(change).data();
-    double delta=getdelta(change);
-    char timestr[50];
-    Tdatestring(tim,timestr);
-
-    return sprintf(buf,R"({"type":"sgv","device":"%s","dateString":"%s","date":%lld,"sgv":%d,"delta":%.3f,"direction":"%s","noise":1,"filtered":%d,"unfiltered":%d,"rssi":100},)",sensorname,timestr,tim*1000LL,mgdL,delta,directionlabel,mgdL*1000,mgdL*1000);
-
-    }
-
+*/
 extern  const int nighttimeback;
 const int nighttimeback=60*60*24*30;
 
@@ -291,7 +300,7 @@ constexpr const int            maxitems=10440;
                 for(;positer<len;positer++) { //Geen overlappende data?
                     const ScanData &el= gdata[positer];
                     if(el.valid(positer)&&el.gettime()>mintime) {
-                        ptr+=mkuploaditem(ptr,sensornamestr,el);
+                        ptr+=mkuploaditem(sens,ptr,sensornamestr,el);
                         }
                     }
                 LOGGER("%d new positer=%d\n",sensorid,len);

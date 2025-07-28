@@ -168,7 +168,7 @@ private static void showsensormessage(String text,MainActivity act) {
 
     act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
     }
-
+/*
 public static void showsensorinfo(String text,MainActivity act) {
        var width=GlucoseCurve.getwidth();
         help.basehelp(text,act,xzy->{
@@ -181,7 +181,7 @@ public static void showsensorinfo(String text,MainActivity act) {
             return new int[] {w,h};
             }, new ViewGroup.MarginLayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         }
-
+*/
 void showinfo(final SuperGattCallback gatt,MainActivity act) {
 
     if(Natives.optionStreamHistory()&&gatt.sensorgen<2) {
@@ -198,10 +198,18 @@ void showinfo(final SuperGattCallback gatt,MainActivity act) {
       }
 
     starttimeV.setText(datestr(gatt.starttime));
-    if(gatt.streamingEnabled() )
-        streaming.setText(R.string.streamingenabled);
-    else
-        streaming.setText(R.string.streamingnotenabled);
+    if(gatt.sensorgen<=2) {
+        if(gatt.streamingEnabled() )
+            streaming.setText(R.string.streamingenabled);
+        else
+            streaming.setText(R.string.streamingnotenabled);
+        }
+    else {
+        if(gatt.streamingEnabled() )
+            streaming.setText(R.string.sensorstreamed);
+        else
+            streaming.setText(R.string.sensornotstreamed);
+        }
     
 //    var visi=gatt.sensorgen==3?INVISIBLE:VISIBLE;
     final int rssi=gatt.readrssi;
@@ -261,7 +269,10 @@ void showinfo(final SuperGattCallback gatt,MainActivity act) {
 
     {if(doLog) {Log.i(LOG_ID,"info.setVisibility(VISIBLE);");};};
     info.setVisibility(VISIBLE);
-    info.setOnClickListener(v->  showsensorinfo(gatt.getinfo(),act));
+    info.setOnClickListener(v->   {
+        Sensors.show(act,gatt.getinfo(),Natives.getsensorptr(gatt.dataptr));
+        });
+
     }
 TextView[] keytimes; TextView keyinfo;
 TextView[] glucosetimes; TextView glucoseinfo;
@@ -816,7 +827,7 @@ static void start(MainActivity act) {
           if(isWearable)
               nosensors(act);
           else
-              Sensors.show(act);
+              MirrorSensors.show(act);
           return;
           } 
         new bluediag(act,gatts);

@@ -414,6 +414,12 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(streamfromSensorptr)(JNIEnv *env, 
         }
     return ((jlong)len)<<48;
     }
+extern "C" JNIEXPORT void JNICALL   fromjava(setHidefromSensorptr)(JNIEnv *env, jclass cl,jlong sensorptr,jboolean hide) {
+    reinterpret_cast<SensorGlucoseData*>(sensorptr)->hide=hide;
+     }
+extern "C" JNIEXPORT jboolean JNICALL   fromjava(getHidefromSensorptr)(JNIEnv *env, jclass cl,jlong sensorptr) {
+    return reinterpret_cast<const SensorGlucoseData*>(sensorptr)->hide;
+     }
 extern "C" JNIEXPORT void JNICALL   fromjava(healthConnectReset)(JNIEnv *env, jclass cl) {
     sensors->onallsensors([](SensorGlucoseData *sens) {
             auto *info=sens->getinfo();
@@ -802,10 +808,17 @@ float threshold(float drate)  {
 extern "C" JNIEXPORT jfloat JNICALL   fromjava(thresholdchange)(JNIEnv *envin, jclass cl,jfloat drate) {
     return threshold(drate);
     }
-jlong glucoselong(uint32_t glval,float drate,const SensorGlucoseData *hist) {
+
+extern double     calibrateNow(const SensorGlucoseData *sens,const uint32_t time, const double value) ;
+static jlong glucoselong(uint32_t nu,uint32_t glval,float drate,const SensorGlucoseData *hist) {
         if(!glval) 
             return 0LL;
         const jlong rate=roundl(((long double)drate)*1000LL);
+
+        const double cali=calibrateNow(hist,nu,glval);
+        if(!isnan(cali)) {
+            glval=(uint32_t)round(cali);
+            }
 
         const jlong alarmcode= getalarmonly(glval,drate,hist);
         const jlong res= (rate&0xFFFF)<<32|alarmcode|glval;
@@ -817,11 +830,11 @@ extern std::pair<const SensorGlucoseData *,int> getlaststream(const uint32_t nu)
 extern "C" JNIEXPORT jlongArray JNICALL   fromjava(getlastGlucose)(JNIEnv *env, jclass cl) {
     auto nu=time(nullptr);
     if(const auto [hist,_]=getlaststream(nu);hist) {
-        const ScanData *poll=hist->lastpoll();
-        if(poll&&poll->valid()) {
+        const ScanData *poll=hist->lastValidStream();
+        if(poll) {
             jlong uit[2];
             uit[0]=poll->gettime();
-            uit[1]=glucoselong(poll->getmgdL(),poll->getchange(),hist);
+            uit[1]=glucoselong(poll->gettime(),poll->getmgdL(),poll->getchange(),hist);
             jlongArray juit=env->NewLongArray(2);
             env->SetLongArrayRegion(juit, 0, 2,uit );
             return juit;
@@ -829,10 +842,10 @@ extern "C" JNIEXPORT jlongArray JNICALL   fromjava(getlastGlucose)(JNIEnv *env, 
         }
     return nullptr;
     }
-jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist) {
+jlong glucoseback(uint32_t nu,uint32_t glval,float drate,SensorGlucoseData *hist) {
         if(!glval) return 0LL;
         hist->setbluetoothOn(1);
-        auto res= glucoselong(glval,drate,hist);
+        auto res= glucoselong(nu,glval,drate,hist);
         hist->waiting=false;
         return res;
         }
@@ -890,7 +903,7 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(processTooth)(JNIEnv *envin, jclas
         decltype(auto) gluc=algres->currentglucose();
         const uint32_t glval= gluc.getValue();
         const float drate=gluc.rate();
-        if(jlong res=glucoseback(glval,drate,sdata->hist) ) {
+        if(jlong res=glucoseback(nu,glval,drate,sdata->hist) ) {
             sensor *senso=sensors->getsensor(sdata->sensorindex);
             sdata->hist->sensorerror=false;
             if(senso->finished) {

@@ -107,7 +107,8 @@ jugglucotext betext {
 		"Размаўляць",
 		"Парыць      "
 		},
-	.menustr2= {"Апошняе скан.",
+	.menustr2= 
+    {"Calibrated",
 	    "Сканы",
 	    "Паток",
 	    "Гісторыя",
@@ -119,9 +120,9 @@ jugglucotext betext {
 #else
  .amount="Сума",
  .menustr0= {
-	"Клон",
+	"        Клон",
 	"Датчык",
-	"   Darkmode      ",
+	"Дысплей",
         "Налады",
 	"Спыніць трывогу" },
 .menustr2= {"Дата",hourminstr,
@@ -189,6 +190,7 @@ jugglucotext betext {
 #endif //INJUGGLUCO
 ,.summarygraph="Зводны графік"sv
 ,.logdays="Дні"sv
+,.unhide="Unhide"sv
 		}
 
 

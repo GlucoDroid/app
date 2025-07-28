@@ -464,13 +464,13 @@ bool savejson(SensorGlucoseData *sens,const string_view name,int index,const Alg
 void      SiContext::setNotchinese(SensorGlucoseData *sens) {
    sens->setNotchinese();
 #ifdef NOTCHINESE
-   this->~SiContext();
+   release();
    auto res= siInit2();
    algcontext=initAlgorithm2(sens,binState);
 #endif
     notchinese=true;
    }
-SiContext::SiContext(SensorGlucoseData *sens): binState(4,sens->binstatefile,4096),algcontext(
+SiContext::SiContext(SensorGlucoseData *sens): binState(1,sens->binstatefile,2560),algcontext(
 #ifdef NOTCHINESE
         sens->notchinese()?initAlgorithm2(sens,binState):
 #endif
@@ -478,7 +478,7 @@ SiContext::SiContext(SensorGlucoseData *sens): binState(4,sens->binstatefile,409
         initAlgorithm3(sens,binState)),
         notchinese(sens->notchinese()) {
        };
-SiContext::~SiContext() {
+void SiContext::release() {
 #ifndef NOLOG
     int res=
 #endif
@@ -490,6 +490,9 @@ SiContext::~SiContext() {
     releaseAlgorithmContext3)(subenv,nullptr, reinterpret_cast<jobject>(algcontext));
     LOGGER("releaseAlgorithmContext(%p)=%d notchinese=%d\n",algcontext,res,notchinese);
    delete algcontext;
+    }
+SiContext::~SiContext() {
+    release();
     };
 #else
 bool siInit() {return false;}

@@ -77,6 +77,7 @@ import static tk.glucodata.NumberView.geteditwearos;
 import static tk.glucodata.NumberView.smallScreen;
 import static tk.glucodata.RingTones.EnableControls;
 import static tk.glucodata.settings.Settings.editoptions;
+import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getlabel;
 
 public class GlucoseCurve extends GLSurfaceView {
@@ -105,9 +106,10 @@ void summaryready() {
     }
 
 @Keep
-void showsensorinfo(String text) {
+void showsensorinfo(String text,long sensorptr) {
     Applic.RunOnUiThread(()-> {
-        bluediag.showsensorinfo(text,(MainActivity )getContext());
+//        bluediag.showsensorinfo(text,(MainActivity )getContext());
+        Sensors.show((MainActivity )getContext(),text,sensorptr);
         });
     }
 static View[] reopen=new View[5];
@@ -458,55 +460,59 @@ void startlibrelink(String lang) {
         public boolean onSingleTapUp(MotionEvent event) {
             {if(doLog) {Log.d(LOG_ID,"onSingleTapUp");};};
             if (down ) {
-        final float x=event.getX();
-        final float y=event.getY();
+                final float x=event.getX();
+                final float y=event.getY();
                 long choice = Natives.tap(x, y);
                 if(choice==-2L) 
-            return true;
+                    return true;
                 if(choice!=-1L) {
                     int menu = (int) (choice & 0xf);
                     int item = (int) (choice >> 4);
-            {if(doLog) {Log.i(LOG_ID,"menu="+menu+" item="+item);};};
-                    switch (menu) {
-                        case 0:
-                            switch (item) {
-                    case 0: ((MainActivity) getContext()).selectionSystemUI(); break;
-                case 1: Menus.show((MainActivity) getContext());break;
-                case 2: {
-                if(!isWearable) {
-                    MainActivity activity = (MainActivity) getContext();
-                    tk.glucodata.Watch.show(activity);
-                    }
-                    }
-                    break;
-                  case 3: bluediag.start((MainActivity)getContext()); 
-                      break;
-                  case 4: {
-                    MainActivity activity = (MainActivity) getContext(); 
-                    Settings.set(activity);
-                    };break;
+                    {if(doLog) {Log.i(LOG_ID,"menu="+menu+" item="+item);};};
+                switch(menu) {
+                     case 0:
+                        switch (item) {
+                            case 0: ((MainActivity) getContext()).selectionSystemUI(); break;
+                            case 1: Menus.show((MainActivity) getContext());break;
+                            case 2: {
+                            MainActivity activity = (MainActivity) getContext();
+                            if(!isWearable) {
+                                tk.glucodata.Watch.show(activity);
+                                }
+                            else {
+                                }
+                                tk.glucodata.Display.show(activity);
+                                }
 
-                case 5: {
-                    if(!isWearable) {
-                        MainActivity activity = (MainActivity) getContext();
-                        if(SiBionics==1)
-                            Sibionics.scan(activity,REQUEST_BARCODE);
-                        else
-                            doabout(activity);
-                        }
+                                break;
+                              case 3: bluediag.start((MainActivity)getContext()); 
+                                  break;
+                              case 4: {
+                                MainActivity activity = (MainActivity) getContext(); 
+                                Settings.set(activity);
+                                };break;
+
+                            case 5: {
+                                if(!isWearable) {
+                                    MainActivity activity = (MainActivity) getContext();
+                                    if(SiBionics==1)
+                                        Sibionics.scan(activity,REQUEST_BARCODE);
+                                    else
+                                        doabout(activity);
+                                    }
 
 
-                    break;
-                    }
-                                case 6: ((Activity) getContext()).moveTaskToBack(true);break; //keeps current state 
-                                case 7:  Notify.stopalarm();break;
-                                default:
-                            }
+                                break;
+                                }
+                                            case 6: ((Activity) getContext()).moveTaskToBack(true);break; //keeps current state 
+                                            case 7:  Notify.stopalarm();break;
+                                            default:
+                                    }
 
                             break;
              case 1: {
-            switch(item&0xF) {
-                                case 0: dialogs.showexport(( MainActivity)getContext(),getWidth(),getHeight(),null); break;
+                switch(item&0xF) {
+                                    case 0: dialogs.showexport(( MainActivity)getContext(),getWidth(),getHeight(),null); break;
 
 
                    case 1: (new Backup()).mkbackupview(( MainActivity)getContext());break;
@@ -534,19 +540,18 @@ void startlibrelink(String lang) {
                 };break;
             case 2: {
                 var light=item==0;
-            var main=(MainActivity) getContext();
-            main.lightBars(light);
+                var main=(MainActivity) getContext();
+                main.lightBars(light);
                 };break;
             case 3:
-                            switch (item) {
-                                case 1:
-                   startsearch();
+                switch (item) {
+                    case 1: startsearch();
                                     break;
-                                case 2:
-                                    startdatepick(Natives.getstarttime());
+                    case 2:
+                                startdatepick(Natives.getstarttime());
                                     break;
                             };break;
-                      case 0xe: {
+                    case 0xe: {
               if(reopennr>0)
                   return true;
                 MainActivity act = (MainActivity) getContext();
@@ -729,7 +734,7 @@ private void mktimedialog( Button but,final int num ,View parent) {
            hidekeyboard();
      if(searchcontrol!=null)
          searchcontrol.setVisibility(GONE);
-    reopener();
+        reopener();
        Natives.stopsearch();
        requestRender();
        }
@@ -1233,4 +1238,16 @@ if(!isWearable) {
     help.help(about, activity);
     }
     }
+void removeviews() {
+        numberview.deleteviews();    
+        searchspinner=null;
+        if(search!=null) {
+            removeContentView(search);
+            search=null;
+            }
+        if(searchcontrol!=null) {
+            removeContentView(searchcontrol);
+            searchcontrol=null;
+            }
+       }
 }

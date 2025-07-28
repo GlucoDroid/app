@@ -589,7 +589,8 @@ static struct persgegs * sortedmatched( std::vector<pair<const ScanData*,const S
 
 
 
-extern std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t start,uint32_t endt) ;
+extern std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t start,uint32_t endt,bool calibrated,bool allvalues,bool calibratePast,std::vector<std::unique_ptr<ScanData []>> &calibrates ) ;
+//extern std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t start,uint32_t endt) ;
 #ifdef JUGGLUCO_APP
 extern void visiblebutton();
 void makesummarygraph(std::vector<pair<const ScanData*,const ScanData*>> *polldataptr,uint32_t start,uint32_t endt) {
@@ -636,12 +637,18 @@ static std::pair<uint32_t,uint32_t> percStartEnd(uint32_t endt,int days) {
 
 #ifdef JUGGLUCO_APP
 static uint32_t statisticsendtime;
+static std::vector<std::unique_ptr<ScanData []>> globalcalibrates;
 bool mkpercentiles(int days) {
     showsummarygraph=false;
     const auto [start,endt]=percStartEnd(statisticsendtime,days);
     if(start>=endt) return false;
     polldata.clear();
-    polldata=getsensorranges(start,endt);
+    globalcalibrates.clear();
+
+    bool calibrated=settings->data()->DoCalibrate;
+    bool allvalues=true;
+    bool calibratePast=settings->data()->CalibratePast;
+    polldata=getsensorranges(start,endt,calibrated,allvalues,calibratePast,globalcalibrates);
     if(polldata.size()<=0)
         return false;
     std::thread graph(makesummarygraph,&polldata, start, endt);
@@ -1067,7 +1074,9 @@ std::span<char> getStatImage(int startpos,Getopts &opts) {
     LOGGER("getStatImage %d %d days=%d\n",start,endt,days);
     if(start>=endt)
         return {(char *)nullptr,0};
-    auto stream=getsensorranges(start,endt);
+    std::vector<std::unique_ptr<ScanData []>> calibrates;
+    bool calibratePast=settings->data()->CalibratePast;
+    auto stream=getsensorranges(start,endt,opts.calibratedmode,opts.allvaluesmode,calibratePast,calibrates);
     if(stream.size()<=0)
         return {(char *)nullptr,0};
     const auto *text=language::gettext(opts.lang);
@@ -1128,8 +1137,13 @@ std::span<char> getCurveImage(int startpos,Getopts &opts) {
     int width=opts.width?opts.width:winWidth;
     int height=opts.height?opts.height:winHeight;
   
-  if(!(opts.streammode||opts.scansmode||opts.historymode||opts.amountsmode||opts.mealsmode)) {
-        opts.streammode=true;
+  if(!(opts.calibratedmode||opts.streammode||opts.scansmode||opts.historymode||opts.amountsmode||opts.mealsmode)) {
+        if(settings->data()->DoCalibrate) {
+                opts.calibratedmode=true;
+                opts.allvaluesmode=true;
+                }
+        else
+            opts.streammode=true;
         opts.scansmode=true;
         opts.amountsmode=true;
         }
@@ -1146,6 +1160,8 @@ std::span<char> getCurveImage(int startpos,Getopts &opts) {
     curveimage.showhistories=opts.historymode;
     curveimage.shownumbers=opts.amountsmode;
     curveimage.invertcolorsset(opts.darkmode);
+    curveimage.allvalues=opts.allvaluesmode;
+    curveimage.showcalibrated=opts.calibratedmode;
 
 
     curveimage.glow=curveimage.userunit2mgL(opts.glow);
@@ -1191,7 +1207,10 @@ static  char * givepercentiles(Getopts &opts,uint32_t start, uint32_t endt,recda
         LOGAR("givepercentiles: start>=endt");
         return nullptr;
         }
-    auto stream=getsensorranges(start,endt);
+
+    std::vector<std::unique_ptr<ScanData []>> calibrates;
+    bool calibratePast=settings->data()->CalibratePast;
+    auto stream=getsensorranges(start,endt,opts.calibratedmode,opts.allvaluesmode,calibratePast,calibrates);
     if(stream.size()<=0) {
         LOGAR("givepercentiles: stream.size()<=0");
         return nullptr;

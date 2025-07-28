@@ -130,6 +130,6 @@ class scanstate: public multimmap {
     scanstate(int block=1): multimmap(4,block*4096) {}
     scanstate(string_view basedir) : scanstate(TimeFile{}, getpreviousstate(basedir)) { }
     scanstate(string_view prev,SavedApart);
-    using multimmap::multimmap;
+//    using multimmap::multimmap;
     void removefile(); 
 };

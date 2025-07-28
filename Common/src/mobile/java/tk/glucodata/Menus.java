@@ -69,6 +69,7 @@ import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MainActivity.REQUEST_BARCODE;
 import static tk.glucodata.Natives.getInvertColors;
+import static tk.glucodata.Natives.getshowcalibrated;
 import static tk.glucodata.Natives.getshowscans;
 import static tk.glucodata.Natives.getsystemui;
 import static tk.glucodata.Natives.setsystemui;
@@ -208,13 +209,20 @@ static public void show(MainActivity act) {
 	}); 
 	glucosefloatview.setChecked(Natives.getfloatglucose());
 
-        var lastscanview=view.findViewById(R.id.lastscan);lastscanview.setOnClickListener(v ->{
+/*        var lastscanview=view.findViewById(R.id.lastscan);lastscanview.setOnClickListener(v ->{
 		if(Natives.showlastscan()) {
                act.lightBars(!getInvertColors( ));
 			removeContentView(view);
 			act.requestRender();
 			}
-	}); 
+	});  */
+
+        CheckBox calibratedview=view.findViewById(R.id.calibrated);
+        calibratedview.setOnCheckedChangeListener( (buttonView,  isChecked)->{
+            Natives.setshowcalibrated(isChecked);
+            act.requestRender();
+            }); 
+ 	    calibratedview.setChecked(getshowcalibrated()) ;
 
         CheckBox scansview=view.findViewById(R.id.scans);scansview.setOnCheckedChangeListener( (buttonView,  isChecked)->{
 		Natives.setshowscans(isChecked);

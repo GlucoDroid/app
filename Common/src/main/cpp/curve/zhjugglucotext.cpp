@@ -80,7 +80,7 @@ jugglucotext zhtext {
         "悬浮窗        "
     },
 
-    .menustr2 = {"最后一次扫描",
+    .menustr2= {"Calibrated",
         "扫描数据",
         "蓝牙数据",
         "历史记录",
@@ -98,9 +98,9 @@ jugglucotext zhtext {
 #else
     .amount = "标签",
     .menustr0 = {
-        "镜像",
+        "        镜像",
         "传感器",
-        "黑暗模式       ",
+        "显示",
         "设置",
         "停止警报" },
     .menustr2 = {"日期  ",
@@ -187,6 +187,7 @@ jugglucotext zhtext {
 #endif //INJUGGLUCO
 ,.summarygraph="总结图"sv
 ,.logdays="天"sv
+,.unhide="Unhide"sv
 
 };
 #include "logs.hpp"

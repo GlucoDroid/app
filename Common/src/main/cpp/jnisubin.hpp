@@ -64,7 +64,7 @@ outobj(): algobj(&out) {}
 };
 struct jnidata_t {
 	const struct JNINativeInterface* functions;
-	scanstate *map;
+	multimmap *map;
 	};
 
 class PatchEvent {

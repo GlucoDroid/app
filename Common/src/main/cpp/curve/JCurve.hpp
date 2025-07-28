@@ -75,6 +75,7 @@ std::pair<const ScanData *,const ScanData*> *pollranges=nullptr;
 std::pair<int32_t,int32_t> *histpositions=nullptr;
 int histlen=0;
 std::vector<int> hists;
+std::vector<int> hidden;
 ~JCurve() {
         delete[] scanranges;
         delete[] pollranges;
@@ -93,6 +94,8 @@ int statusbarleft=0,statusbarright=0;
 int startincolors=0;
 int lasttouchedcolor=-1;
 int showstream=1;
+int showcalibrated=0;
+
 int showscans=1;
 int showhistories=1;
 int shownumbers=1;
@@ -188,6 +191,8 @@ void setdiffcurrent(bool val) {
      void    withredisplay(NVGcontext* avg,uint32_t nu);
     int    onestep(NVGcontext* avg);
     void     setlocale(NVGcontext* avg,const char *localestrbuf,const size_t len);
+
+    void showButton(NVGcontext* avg,float xpos,float ypos,std::string_view str);
     void    showOK(NVGcontext* avg,float xpos,float ypos);
     template <typename  TI,typename TE> void    textbox(NVGcontext* avg,const TI &title,const TE &text);
      const float     getsetlen(NVGcontext* avg,float x, float  y,const char * set,const char *setend,bounds_t &bounds);
@@ -358,6 +363,11 @@ inline int mkshowhigh(char *buf, const int maxbuf,int glucosehighest) {
 
 template <int N> const Num *findpast();
 template <int N=1> const Num *findforward();
+
+bool hasHidden=false;
+void    showHideButton(NVGcontext* avg);
+void unhide();
+bool allvalues=false;
 };
 struct AppCurve:JCurve {
     AppCurve() { }

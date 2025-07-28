@@ -27,7 +27,6 @@
 #include <string_view>
 extern jclass JNIString;
 extern jstring myNewStringUTF(JNIEnv *env,const std::string_view str);
-void netwakeup();
 extern bool networkpresent;
 
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(backuphasrestore)(JNIEnv *env, jclass cl) {

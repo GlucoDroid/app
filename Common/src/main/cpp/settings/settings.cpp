@@ -318,14 +318,14 @@ void startsensors() {
 
 extern void            startlibrethread();
 extern void startthreads();
+extern    void startwatchthread(int port) ;
 void startthreads() {
     Backup::startbackup(globalbasedir); 
     doversionupdate();
 #ifndef WEAROS
 #ifdef ANDROID__APP
    if(settings->data()->usexdripwebserver) {
-        void startwatchthread() ;
-        startwatchthread();
+        startwatchthread(defaulthttpport);
         }
 #ifndef DONT_USE_LIBREVIEW
     if(settings->data()->uselibre) {
@@ -548,7 +548,7 @@ static void initinjuggluco(std::string_view dirfiles,const char *country) {
         startsensors( );
         extern void startthreads() ;
         startthreads();
-    settings->data()->initVersion=22;
+    settings->data()->initVersion=35;
         }
 
 void initjuggluco(std::string_view dirfiles) {

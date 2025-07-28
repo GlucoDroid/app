@@ -17,14 +17,15 @@
 /*      You should have received a copy of the GNU General Public License            */
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
-/*      Fri Feb 07 12:28:12 CET 2025                                                 */
-
-
+/*      Sat Jul 19 11:28:01 CEST 2025                                                */
 
 package tk.glucodata;
 
-class Sensors {
+import androidx.annotation.Keep;
 
-static void show(Object act) { }
-
-};
+@Keep
+public final class CaliPara {
+    public    long time;
+    public    double  a;
+    public    double  b;
+    };

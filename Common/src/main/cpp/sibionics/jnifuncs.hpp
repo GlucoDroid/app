@@ -117,7 +117,7 @@ AlgorithmContext *vers(initAlgorithm)(const char *shortname) {
      return algcontext;
      }
 #else
-AlgorithmContext *vers(initAlgorithm)(SensorGlucoseData *sens,scanstate &binState) {
+AlgorithmContext *vers(initAlgorithm)(SensorGlucoseData *sens,multimmap &binState) {
     jobject jalg= vers(getAlgorithmContextFromNative)(subenv,nullptr);
     char *shortname=sens->getinfo()->siBlueToothNum;
     int res = vers(initAlgorithmContext)(subenv,nullptr,jalg, 0, reinterpret_cast<jstring>(shortname));
@@ -148,7 +148,8 @@ AlgorithmContext *vers(initAlgorithm)(SensorGlucoseData *sens,scanstate &binStat
             return nullptr;
             }
        }
-    if(sens->pollcount()>0) {
+    LOGGER("binState.map.data=%p\n",binState.map.data());
+    if(sens->getSiIndex()>1) {
            data_t *saved=binState.get(0); 
            if(saved) {
                 LOGGER("setBinaryStructAlgorithmContex %p#%d\n",saved,saved->size());

@@ -105,10 +105,10 @@ static boolean start(Context context) {
           {if(doLog) {Log.i(LOG_ID,"start keeprunning");};};
           Intent i = new Intent(context, keeprunning.class);
            context.startService(i);
+           Notify.foregroundnot(theservice);
            return true;
           }
          
-         Notify.foregroundnot(theservice);
       } catch (Throwable e) {
          stack(LOG_ID, e);
       }

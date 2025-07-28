@@ -69,7 +69,9 @@ static int rate2changeindex(float rate) {
 
   constexpr const int dexmaxtime=907500; //  907385
 constexpr const int DEXSECONDS=5*60;
-extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist);
+
+extern jlong glucoseback(uint32_t nu,uint32_t glval,float drate,SensorGlucoseData *hist) ;
+//extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist);
 extern void wakewithcurrent() ;
 struct glucoseinput {
    uint8_t type;
@@ -150,7 +152,7 @@ void actual(SensorGlucoseData *sens,jlong *timeres,const int sensorindex) const 
       wakewithcurrent();
       if((nowsec-wastime)<maxbluetoothage) {
          sens->sensorerror=false;
-         auto res=glucoseback(mgdL,rate,sens);
+         auto res=glucoseback(wastime,mgdL,rate,sens);
          timeres[1]=res;
          timeres[0]-=age*1000L;
          }

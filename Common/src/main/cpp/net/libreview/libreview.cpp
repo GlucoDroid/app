@@ -518,7 +518,7 @@ return true;
 	uint32_t starttime=(settings->data()->lastlibretime)?(settings->data()->lastlibretime):(nu-librekeepsecs);
 	extern Sensoren *sensors;
 
-	vector<int> sensints=sensors->inperiod(starttime,nu); 
+	vector<int> sensints=sensors->sensorsInPeriod(starttime,nu); 
 	const int senslen=sensints.size();
 
 #ifndef NOLOG

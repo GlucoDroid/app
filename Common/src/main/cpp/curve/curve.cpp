@@ -70,6 +70,10 @@ using namespace std::literals;
 #include "jugglucotext.hpp"
 #include "JCurve.hpp"
 #include "misc.hpp"
+
+extern std::pair<const ScanData*,const ScanData*>      makecalibrated(const SensorGlucoseData *sens,const ScanData *input,ScanData *calibrated,int nr,bool allvalues);
+extern std::pair<const ScanData*,const ScanData*>      makecalibratedback(const SensorGlucoseData *sens,const ScanData *input,ScanData *calibrated,int nr,bool allvalues);
+extern double     calibrateNow(const SensorGlucoseData *sens,const ScanData &value);
 #ifdef DONTTALK
 extern const bool speakout;
 const bool speakout=false;
@@ -443,10 +447,11 @@ pair<const ScanData*,const ScanData*> getScanRange(const ScanData *scan,const in
     }
 
 extern Sensoren *sensors;
+/*
 extern std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t start,uint32_t endt) ;
 
 std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t start,uint32_t endt) {
-    auto hists= sensors->inperiod(start,endt) ;
+    auto hists= sensors->sensorsInPeriod(start,endt) ;
     vector<pair<const ScanData*,const ScanData*>> polldata;
     polldata.reserve(hists.size());
     uint32_t timeiter=start;
@@ -494,6 +499,45 @@ std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t star
         logwriter(buf,len);
 #endif
         polldata.push_back(ran);
+        }
+
+    LOGAR("end getsensorranges: ");
+    return polldata;
+    }
+    */
+    
+std::vector<pair<const ScanData*,const ScanData*>> getsensorranges(uint32_t start,uint32_t endt,bool calibrated,bool allvalues,bool calibratePast,std::vector<std::unique_ptr<ScanData []>> &calibrates ) {
+    auto hists= sensors->sensorsInPeriod(start,endt) ;
+    vector<pair<const ScanData*,const ScanData*>> polldata;
+    polldata.reserve(hists.size());
+    uint32_t timeiter=start;
+    LOGAR("start getsensorranges: ");
+
+    auto califunc=calibratePast?makecalibratedback:makecalibrated;
+    for(int i=hists.size()-1;i>=0&&timeiter<endt;i--)  {
+        auto his=sensors->getSensorData(hists[i]);
+        LOGGER("sensor %s\n",his->showsensorname().data());
+        std::span<const ScanData>     poll=his->getPolldata();
+        auto ran=getScanRange(poll.data(),poll.size(),timeiter,endt);
+        if(ran.first==ran.second)
+            continue;
+        for(const ScanData *striter=ran.second-1;striter>=ran.first;striter--) {
+            if(striter->valid())    {
+                timeiter=striter->t;
+                ran.second=striter+1;
+                break;
+                }
+            }
+        if(calibrated) {
+            int len=ran.second-ran.first;
+            ScanData *calibuf=new ScanData[len];
+            calibrates.emplace_back(calibuf);
+            auto res=califunc(his,ran.first,calibuf,len,allvalues);
+            if(res.first&&res.first!=res.second)
+                polldata.push_back(res);
+            }
+        else
+            polldata.push_back(ran);
         }
 
     LOGAR("end getsensorranges: ");
@@ -1030,7 +1074,8 @@ pair<int,int> JCurve::getextremes(const vector<int> &hists, const pair<const Sca
             const pair<const ScanData *,const ScanData*> *srange=scanranges[j];
             for(const ScanData *it=srange[i].first,*last=srange[i].second;it<last;it++) {
                 if(it->valid()) {
-                    int glu=it->g*10;
+                    auto mgdL=it->g;
+                    int glu=mgdL*10;
                     if(glu>gmax)
                         gmax=glu;
                      if(glu<gmin)
@@ -1349,18 +1394,16 @@ LOGGER("showbluevalue %zd\n",used.size());
         nvgMoveTo(avg,xpos ,dtop) ;
         nvgLineTo( avg, xpos,dheight+dtop+dbottom);
         nvgStroke(avg);
-        #ifndef WEAROS
+#ifndef WEAROS
         if(const auto *sens=sensors->getSensorData()) {
             if(!(sens->isDexcom()||sens->isSibionics())||!sens->unused()) {
                 if(time_t enddate=sens->expectedEndTime()) {
                     float down=0;
 
                     const float timex=xpos+nowLineStrokeWidth;
-            //        constexpr int maxhead=54;
                     constexpr int maxhead=80;
                     char head[maxhead];
 
-                //    memcpy(head,usedtext->sensorends.data(),usedtext->sensorends.size());
                     memcpy(head,usedtext->sensorexpectedend.data(),usedtext->sensorexpectedend.size());
                     const int tstart=usedtext->sensorexpectedend.size();
                     char *endstr=head+tstart;
@@ -1384,11 +1427,10 @@ LOGGER("showbluevalue %zd\n",used.size());
         char tbuf[maxbuf];
         int len=snprintf(tbuf,maxbuf,"IOB: %.1f",getiob(nu));
         nvgTextAlign(avg,NVG_ALIGN_CENTER|NVG_ALIGN_BOTTOM);
-        //nvgText(avg, -dheight/2+down-smallfontlineheight,dwidth-timex, tbuf,tbuf+len);
         nvgText(avg, -dheight*.40f+down-smallfontlineheight,dwidth*.984f-timex, tbuf,tbuf+len);
         nvgResetTransform(avg);
         }
-        #endif
+#endif
         const float getx= xpos+headsize*.9f+8*dwidth/headsize;
 
 constexpr const bool showcurrentdate=true;
@@ -1528,6 +1570,9 @@ if(timdis>0&&((duration/timdis)<grens)) {
 #endif
         }
     }
+
+
+
 void    JCurve::showlines(NVGcontext* avg,int gm,int gmax) {
     const uint32_t endtime=starttime+duration;
     gmin=gm;
@@ -1550,15 +1595,26 @@ void    JCurve::showlines(NVGcontext* avg,int gm,int gmax) {
     }
         
 
-
 int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
     starttime=(doclamp)?(nu-diffcurrent):(starttime);
     const uint32_t starttime2=starttime;
     const uint32_t endtime=starttime2+duration;
     mealpos.clear();
-    hists= sensors->inperiod(starttime2,endtime) ;
+    hidden.clear(); 
+    hists.clear(); 
+    sensors->sensorsInPeriod(hists,starttime2,endtime,[this,starttime2](const SensorGlucoseData *s){
+        if(s->hide) {
+            if(s->lastused()>=starttime2) {
+                hidden.push_back(s->sensorIndex);
+                }
+            return true; 
+            }
+        return false;
+        }
+            );
+            
     histlen=hists.size();
-    LOGGER("displaycurve %d doclamp=%d starttime=%u\n",histlen,doclamp,starttime2);
+    LOGGER("displaycurve histlen=%d doclamp=%d starttime=%u\n",histlen,doclamp,starttime2);
     delete[] scanranges;
     scanranges=new pair<const ScanData *,const ScanData*> [histlen];
     delete[] pollranges;
@@ -1573,6 +1629,7 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
    if(histlen)
       nocutoff=false;
 #endif
+   int  maxStreamels=0;
     for(int i=histlen-1;i>=0;--i) {
         auto his=sensors->getSensorData(hists[i]);
         if(!his)  {
@@ -1592,27 +1649,43 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
         {
             scan=his->getPolldata();
             pollranges[i] =getScanRangeRuim(scan.data(),scan.size(),starttime2,endtime) ;
+            int els=pollranges[i].second-pollranges[i].first;
+            if(els>maxStreamels)
+                maxStreamels=els;
 
-#ifdef SI5MIN
-         sibionics[i]=his->isSibionics();
-#endif
             }
-//        if(showhistories)
 
-//      const auto senso=sensors->getSensorData(hists[i]);
+//        if(showhistories)
       const auto senso=his;
       if(!senso->isDexcom()||(showhistories&&settings->data()->dexcomPredict))
             histpositions[i]= histPositions(his, starttime2,  endtime); 
        else
             histpositions[i]= {0,0}; 
          }
+    ScanData calibrated[histlen][maxStreamels];
+    std::pair<const ScanData*,const ScanData*> caliSpans[histlen];
+    if(showcalibrated)   {
+        auto califunc=settings->data()->CalibratePast?makecalibratedback:makecalibrated;
+        for(int i=histlen-1;i>=0;i--) {
+            const int index= hists[i];
+            const auto *sens=sensors->getSensorData(index);
+            const int nr=pollranges[i].second-pollranges[i].first;
+            caliSpans[i]=califunc(sens,pollranges[i].first,calibrated[i],nr,allvalues);
+            }
+         }
+     else {
+        for(auto &el:caliSpans) {
+                el={};
+                }
+        }
     LOGGER("Before numdatas[i]->getInRange(%u,%u)\n",starttime2,endtime);
     for(int i=0;i< numdatas.size();i++) 
         extrums[i]=numdatas[i]->getInRange(starttime2, endtime) ;
-    const pair<const ScanData *,const ScanData*> *scanpoll[]= {scanranges,pollranges};
+
+    const pair<const ScanData *,const ScanData*> *scanpoll[]= {scanranges,pollranges,caliSpans};
     LOGAR("Before getextremes");
     if((setend<starttime2||settime>=endtime)) {
-       auto extr=getextremes(hists,scanpoll,2,histpositions);
+       auto extr=getextremes(hists,scanpoll,std::size(scanpoll),histpositions);
        for(int i=0;i<numdatas.size();i++)  {
                   LOGGER("%d before extremenums \n",i);
             extr  = numdatas[i]->extremenums(*this,extr);
@@ -1643,7 +1716,7 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
 
     LOGAR("before showhistories");
     const int colorsleft=nrcolors-catnr;
-    const auto segcolor=[catnr,colorsleft,colorseg=colorsleft/3](int index,int seg) {
+    const auto segcolor=[catnr,colorsleft,colorseg=colorsleft/4](int index,int seg) {
          return catnr+(index+colorseg*seg)%colorsleft;
          };
     if(showhistories) {
@@ -1654,12 +1727,27 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
              histcurve(avg,sensors->getSensorData(index), histpositions[i].first, histpositions[i].second,transx,transy,colorindex); 
              }
         }
+    LOGAR("before showcalibrated");
+    if(showcalibrated)   {
+        nvgStrokeWidth(avg, pollCurveStrokeWidth);
+        for(int i=histlen-1;i>=0;i--) {
+            const int index= hists[i];
+            const int colorindex=segcolor(index,3);
+/*            const int nr=pollranges[i].second-pollranges[i].first;
+            ScanData calibrated[nr];
+            const auto *sens=sensors->getSensorData(index);
+            span<ScanData> cali=makecalibrated(sens,pollranges[i].first,calibrated,nr);*/
+            const auto cali=caliSpans[i];
+            if(cali.second>cali.first) {
+                showlineScan(avg,cali.first,cali.second,transx,transy,colorindex);
+                }
+            }
+        }
     LOGAR("before showstream");
     if(showstream)   {
         nvgStrokeWidth(avg, pollCurveStrokeWidth);
         for(int i=histlen-1;i>=0;i--) {
             const int index= hists[i];
-//            int  colorindex=(index+nrcolors/4)%nrcolors;
             int colorindex=segcolor(index,0);
             showlineScan(avg,pollranges[i].first,pollranges[i].second,transx,transy,colorindex
 #ifdef SI5MIN
@@ -1672,12 +1760,12 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
     if(showscans) {
         for(int i=histlen-1;i>=0;i--) {
             const int index=hists[i];
-//            const int colorindex=(index+nrcolors*2/4)%nrcolors;
             int colorindex=segcolor(index,1);
              if(!showScan(avg,scanranges[i].first,scanranges[i].second,transx,transy,colorindex))
                 return 1;
              }
          }
+
     LOGGER("before showsnums catnr=%d\n",catnr);
     if(shownumbers||showmeals)  {
         bool was[catnr];
@@ -1697,6 +1785,14 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
 #endif
         }
 
+#ifdef JUGGLUCO_APP
+    if(hidden.size()) {
+        hasHidden=true;
+        showHideButton(avg);
+        }
+    else
+       hasHidden=false;
+#endif
  return 0;
 }
 
@@ -1914,14 +2010,12 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
 #else
         float gety=smallsize*1.4f+dtop+(dheight-smallsize*.8f)*yh/(usedsize*2.0f);
 #endif
-        const ScanData *poll=hist->lastpoll();
+        const ScanData *poll=hist->lastValidStream();
         if(poll) {
             LOGSTRING("poll!=null\n");
             int age=nu-poll->t;
             if(age<maxbluetoothage) {
                 LOGSTRING("age<maxbluetoothage\n");
-                if(!poll->valid())
-                    return;
 #ifdef JUGGLUCO_APP
                 failures=0;
 #endif
@@ -2135,17 +2229,22 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
     nvgFontSize(avg,mediumfont );
     nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
     nvgText(avg, getx,sensory, sensorname.begin(), sensorname.end());
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
     constexpr const int maxhead=11;
     char head[maxhead];
-#ifdef TESTVALUE
-   static int values[]={230,184};
-    const auto nonconvert= values[index];
-#elif 1
-    const auto nonconvert= poll->g;
-#else
-    const uint32_t nonconvert= 40;
-#endif
+
+    double nonconvert;
+    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
+    float rawconv;
+    if(double calibrated=calibrateNow(hist,*poll);!isnan(calibrated)) {
+        LOGGER("showvalue %.0f calibrated %.0f\n",poll->getmgdL(),calibrated);
+        nonconvert=calibrated;
+        rawconv= gconvert(poll->getmgdL()*10);
+        }
+    else {
+        rawconv=0.0f;
+        nonconvert= poll->getmgdL();
+        LOGAR("showvalue no calibration");
+        }
     nvgFontSize(avg, headsize*.8);
 #ifdef JUGGLUCO_APP
 #ifndef DONTTALK
@@ -2178,7 +2277,7 @@ const                float valuex=getx;
         shownglucose[index].glucosetrend=poll->tr;
 #endif
 #endif
-            float valuex=getx-(convglucose>=10.0f?density*20.0f:0.0f);
+         float valuex=getx-(convglucose>=10.0f?density*20.0f:0.0f);
          char *value=head+1;
             int gllen=snprintf(value,maxhead-1,gformat,convglucose);
          if(gllen<3) {
@@ -2194,6 +2293,13 @@ const float trends[]={-3,0};
             const float rate=poll->ch;
 #endif
             drawarrow(avg,rate,valuex-10*density,gety);
+            if(rawconv>0.0f) {
+                bounds_t bounds;
+                nvgTextBounds(avg, valuex,  gety,value,value+gllen, bounds.array);
+                nvgFontSize(avg,mediumfont );
+                int gllen=snprintf(head,maxhead,gformat,rawconv);
+                nvgText(avg,valuex+bounds.xmax-bounds.xmin+density*6,gety, head, head+gllen);
+                }
             }
         }
 

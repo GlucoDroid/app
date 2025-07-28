@@ -43,6 +43,7 @@ import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Natives.getInvertColors;
 import static tk.glucodata.Natives.getRTL;
 import static tk.glucodata.Natives.getScheduleProfile;
+import static tk.glucodata.Natives.getshowcalibrated;
 import static tk.glucodata.Natives.getshowhistories;
 import static tk.glucodata.Natives.getshownumbers;
 import static tk.glucodata.Natives.getshowscans;
@@ -1013,11 +1014,6 @@ static private void displaysettings(MainActivity context,Settings settings) {
     graphlabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*8.0),0,0,0);
     //colbut.setPadding(0,0,0,0);
     threslabel.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*7.0),0,0,0);
-   //      Button display=getbutton(context,context.getString(R.string.display));
-     var Scans=getcheckbox(context,R.string.scansname,getshowscans()) ;
-     var History=getcheckbox(context,R.string.historyname,getshowhistories()) ;
-     var Stream=getcheckbox(context,R.string.streamname,getshowstream()) ;
-     var Amounts=getcheckbox(context,R.string.amountshort,getshownumbers()) ;
      var setuseclose=getcheckbox(context,R.string.useclose,useclose) ;
     setuseclose.setOnCheckedChangeListener( (buttonView,  isChecked) -> { 
          Specific.setclose(isChecked);
@@ -1025,16 +1021,25 @@ static private void displaysettings(MainActivity context,Settings settings) {
          context.finish();
          context.startActivity(context.getIntent());
       });
+   //      Button display=getbutton(context,context.getString(R.string.display));
+   /*
+     var Scans=getcheckbox(context,R.string.scansname,getshowscans()) ;
+     var Calibrated=getcheckbox(context,R.string.calibrated,getshowcalibrated()) ;
+     var History=getcheckbox(context,R.string.historyname,getshowhistories()) ;
+     var Stream=getcheckbox(context,R.string.streamname,getshowstream()) ;
+     var Amounts=getcheckbox(context,R.string.amountshort,getshownumbers()) ;
 
+Calibrated.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowcalibrated(isChecked); });
 Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowscans(isChecked); });
     History.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowhistories(isChecked); });
     Stream.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshowstream(isChecked); });
     Amounts.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshownumbers(isChecked); });
+    */
        fixed.setPadding(0,0,0,(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0));
         lay = new Layout(context, (l, w, h) -> {
                   int[] ret={w,h};
                  return ret;
-               },new View[]{colbut},graphrow,targetrow,new View[] {hour12},new View[]{scalelabel}, new View[]{fixatex},new View[]{fixatey},new View[]{threslabel,threshold},new View[] {levelleft},new View[]{fixed},new View[]{iob},new View[]{Scans},new View[]{History},new View[]{Stream},new View[]{Amounts},new View[]{setuseclose},new View[]{close},new View[]{langspin});
+               },new View[]{colbut},graphrow,targetrow,new View[] {hour12},new View[]{scalelabel}, new View[]{fixatex},new View[]{fixatey},new View[]{threslabel,threshold},new View[] {levelleft},new View[]{fixed},new View[]{iob}/*,new View[]{Scans},new View[]{History},new View[]{Stream},new View[]{Calibrated},new View[]{Amounts}*/,new View[]{setuseclose},new View[]{close},new View[]{langspin});
          }
       else {    
 //      var iob=getcheckbox(context,"IOB",Natives.getIOB());
@@ -1140,9 +1145,8 @@ private    void mksettings(MainActivity context) {
 
         mgdl.setText(R.string.mgdL);
 
-         final   int padmg=(int)(tk.glucodata.GlucoseCurve.metrics.density*8.0);
+         final   int padmg=!isWearable?(int)(tk.glucodata.GlucoseCurve.metrics.density*40.0):0;
         mgdl.setPadding(0,0,padmg,0);
-        mgdl.setPadding(0,0,0,0);
         mmolL.setPadding(0,0,0,0);
         var leftspace=new Space(context);
        View[] row0;
@@ -1243,6 +1247,11 @@ private    void mksettings(MainActivity context) {
 
     View[][] views;
     final String advhelp=isWearable?null:Natives.advanced();
+
+        var calibration=  getbutton(context,R.string.calibration);
+        calibration.setOnClickListener(v-> {
+            Calibration.show(context,thelayout[0]);
+        });
     if(isWearable) {
         Button talk;
         if(!tk.glucodata.Applic.DontTalk) {
@@ -1277,19 +1286,19 @@ private    void mksettings(MainActivity context) {
 
         floatglucose.setChecked(Natives.getfloatglucose());
         floatglucose.setOnCheckedChangeListener( (buttonView,  isChecked) -> Floating.setfloatglucose(context,isChecked) ) ;
-//      var space=getlabel(context,"");
- //     var space2=getlabel(context,"");
         View[] camornum=new View[] {alarmbut,numalarm};
         if(BuildConfig.minSDK>=26) {
-            views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null,new View[]{floatconfig, floatglucose},new View[]{complications},new View[]{talk}, new View[]{exchanges },   camornum, new View[]{close}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+            views = new View[][]{new View[]{displayview},row0, hasnfc ? (new View[]{globalscan, nfcsound}) : null,new View[]{floatconfig, floatglucose},new View[]{complications},new View[]{talk}, new View[]{exchanges },new View[]{calibration},   camornum, new View[]{close}, new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
             ;
         }
         else{
-            views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{floatconfig, floatglucose},new View[]{talk},  new View[]{exchanges },    camornum,new View[]{close},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
+            views = new View[][]{new View[]{displayview},row0,    hasnfc ? (new View[]{globalscan, nfcsound}) : null, new View[]{floatconfig, floatglucose},new View[]{talk},  new View[]{exchanges },new View[]{calibration},     camornum,new View[]{close},  new View[]{getlabel(context, BuildConfig.BUILD_TIME)}, new View[]{getlabel(context, BuildConfig.VERSION_NAME)}, new View[]{getlabel(context, codestr)}};
             ;
         }
         }
     else {
+        var alarmmarg=getMargins(alarmbut);
+        alarmmarg.rightMargin=(int)(tk.glucodata.GlucoseCurve.metrics.density*30);
         View[] row9;
         var about=getbutton(context,R.string.aboutname);
            about.setOnClickListener(v-> tk.glucodata.GlucoseCurve.doabout(context));
@@ -1322,7 +1331,9 @@ private    void mksettings(MainActivity context) {
                 numdis= new View[]{changelabels,googlescan,displayview};
                 }
         floatconfig.setOnClickListener(v-> tk.glucodata.FloatingConfig.show(context,thelayout[0]));
-        View[] rowglu=new View[]{floatconfig,glucosenotify};
+
+        View[] rowglu=new View[]{floatconfig,calibration,glucosenotify};
+//        View[] rowglu=new View[]{floatconfig,glucosenotify};
         views=new View[][]{row0, hasnfc?new View[]{nfcsound, globalscan,camera}:null,rowglu,new View[]{exchanges,numalarm,alarmbut},numdis, row9};
         }
 

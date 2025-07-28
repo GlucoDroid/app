@@ -396,7 +396,7 @@ Send data from this phone to another phone on your home network.
 Pressing OK will generate a connection on this phone and display a QR code that can be scanned by another Android device. Scanning the QR code with left menu→Photo on the other phone will generate a connection, by which it will receive all data from this phone.</string>
     
     <string name="googlescan">Google scan</string>
-    <string name="usedweight">WARNING: weight (%.1f) larger than 0</string>
+    <string name="usedweight">WARNING: weight (%.1f) not 0</string>
 
  <string name="verylowglucose">" Very LOW glucose!"</string>
  <string name="veryhighglucose">" Very HIGH glucose!"</string>
@@ -423,4 +423,18 @@ Pressing OK will generate a connection on this phone and display a QR code that 
  <string name="resettitle">Reset</string>
  <string name="resetmessage">Clears transmitter memory. Should be pressed before using a new sensor in an already used transmitter.</string>
  <string name="nolibrelink">Use the EverSense Broadcast instead. See help.</string>
+ <string name="calibration">Calibration</string>
+ <string name="exclude">Exclude</string>
+ <string name="calibratepast">Apply to past</string>
+ <string name="bloodvar">Blood glucose:</string>
+ <string name="calibrate_a">Change slope</string>
+ <string name="watchnums">Amounts entered on watch</string>
+ <string name="calibrated">Calibrated</string>
+ <string name="delete_calibration">Delete calibration?</string>
+ <string name="hide">Hide</string>
+ <string name="sensorstreamed">Did stream</string>
+ <string name="sensornotstreamed">Did not stream</string>
+ <string name="calibrations">Calibrations</string>
+ <string name="allvalues">All values</string>
+ <string name="writedown">Write down!</string>
 </resources>

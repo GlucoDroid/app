@@ -61,14 +61,16 @@ inline int getpagesize(void) {
 #include "maxsendtohost.h"
 #include "settings/settings.hpp"
 #include "timevalues.h"
+#include "calibrate/CaliPara.hpp"
 inline    constexpr const char rawstream[]="rawstream.dat";
 #include <string_view>
 extern std::string_view globalbasedir;
 //string basedir(FILEDIR);
 
 extern int writeStartime(crypt_t *pass, const int sock, const int sensorindex); 
+    extern int getgetsendnr();
 
-
+constexpr const int maxcaliNr=50;
 constexpr int maxdays=
 #ifdef TESTLONGSI
 50;
@@ -321,8 +323,102 @@ union {
  //   uint32_t oldlibreStarttime;
     }; //end union
 uint32_t libreStarttime;
-uint32_t Version;
+uint32_t reserved3;
+CaliPara caliPara[maxcaliNr];
+uint32_t caliNr;
+uint32_t caliUpdated[std::max(maxsendtohost,8)];
 
+void updateCaliUpdated(uint32_t val) {
+    const int maxind=getgetsendnr();
+    if(maxind>0) {
+        for(int i=0;i<maxind;++i) {
+            auto &el=caliUpdated[i];
+            if(val<el)
+                el=val;
+            }
+         }
+    }
+
+
+
+void addCali(uint32_t tim, double a, double b) {
+        if(caliNr<maxcaliNr) {
+            LOGGER("%d addCali(%u,%f,%f)\n",caliNr,tim,a,b);
+            int it=caliNr-1;
+            for(;it>=0&&caliPara[it].time>=tim;--it) 
+                ;
+            ++it; 
+            if(it<caliNr) {
+               if(caliPara[it].time!=tim) {
+                    memmove(caliPara+it+1,caliPara+it,(caliNr-it)*sizeof(caliPara[0]));
+                    ++caliNr;
+                    }
+                else {
+                   int it2=it+1;
+                   for(;it2<caliNr&&caliPara[it2].time==tim;++it2)
+                        ;
+                   --it2;
+                   if(it2>it) { //Remove duplicates
+                        int len=it2-it;
+                        memmove(caliPara+it+1,caliPara+it2+1,len*sizeof(caliPara[0]));
+                        caliNr-=len;
+                        }
+                  }
+                updateCaliUpdated(it);
+                }
+             else {
+                ++caliNr;
+                }
+
+            caliPara[it]={tim,0,a,b};
+            }
+        else {
+            LOGGER("Can't add %d==maxcaliNr addCali(%u,%f,%f)\n",caliNr,tim,a,b);
+              }
+        }
+
+bool removeCaliPos(int pos) {
+        if(pos>=caliNr) {
+                LOGGER("removeCaliPos(%d) >= caliNr(%d)\n",pos,caliNr);
+                return false;
+                }
+        --caliNr;
+        if(pos<caliNr) {
+                LOGGER("removeCaliPos(%d) move new CaliNr=%d\n",pos,caliNr);
+                memmove(caliPara+pos,caliPara+pos+1,sizeof(caliPara[0])*(caliNr-pos));
+                updateCaliUpdated(pos);
+                }
+          else {
+                LOGGER("removeCaliPos(%d) last\n",pos);
+                }
+        return true;
+        }
+void removeCali(uint32_t tim) {
+     CaliPara *last=caliPara+caliNr-1;
+     if(last->time==tim) {
+        LOGGER("removeCali(%u) last\n",tim);
+        do {
+            --caliNr;
+            } while(caliNr>0&&caliPara[caliNr-1].time==tim);
+        return;
+        }
+     for(CaliPara *iter=last-1;iter>=caliPara;--iter) {
+        if(iter->time==tim) {
+                CaliPara *first=iter-1;
+                while(first>=caliPara&&first->time==tim)
+                        --first;
+                const int rmlen=iter-first;
+                ++first;
+                const int removedpos= first-caliPara;
+                LOGGER("removeCali(%u) pos %d len=%d\n",tim,removedpos,rmlen);
+                memmove(first,first+rmlen,reinterpret_cast<uint8_t*>(last)-reinterpret_cast<uint8_t*>(iter));
+                caliNr-=rmlen;
+                updateCaliUpdated(removedpos);
+                return;
+                }
+        }
+      LOGGER("removeCali(%u) not found\n",tim);
+      }
 
 
 void clearLibreSendEnd(int start) {
@@ -1144,7 +1240,7 @@ pathconcat polluit;
 
 
  static constexpr const char trendsdat[]="trends.dat";
-SensorGlucoseData(string_view sensordir,int spec,string_view baseuit): sensordir(sensordir),meminfo(sensordir,infopdat,sizeof(struct Info)),historydata(sensordir,"data.dat",getinfo()?historybytes(perhour()):(haserror=true,0)),
+SensorGlucoseData(string_view sensordir,int spec,string_view baseuit,int sensorindex): sensordir(sensordir),meminfo(sensordir,infopdat,sizeof(struct Info)),historydata(sensordir,"data.dat",getinfo()?historybytes(perhour()):(haserror=true,0)),
 scansize(maxscansize()),
 scans(sensordir,"current.dat",scansize),
 polls(sensordir,"polls.dat",maxstreampos()),
@@ -1162,6 +1258,7 @@ specstart(spec),
 #ifdef SIHISTORY
  ,statefile3(sensordir,"state3.json")
 #endif
+,sensorIndex(sensorindex)
 {
 LOGGER("%p=SensorGlucoseData(%s)\n",this, baseuit.data());
 if(error()) {
@@ -1222,6 +1319,7 @@ const char * relstatefile() {
     } */
 pathconcat statefile;
 pathconcat binstatefile;
+const int sensorIndex;
 
 #ifdef SIHISTORY
 pathconcat statefile3;
@@ -1229,10 +1327,10 @@ pathconcat statefile3;
 
 
 
-SensorGlucoseData(string_view sensin,int specin): SensorGlucoseData(sensin, specin, std::string_view(sensin.data()+specin,sensin.size()-specin)) {
+SensorGlucoseData(string_view sensin,int specin,int sensorindex): SensorGlucoseData(sensin, specin, std::string_view(sensin.data()+specin,sensin.size()-specin),sensorindex) {
     }
     public:
-SensorGlucoseData(string_view sensin): SensorGlucoseData(sensin,globalbasedir.size()+1) {
+SensorGlucoseData(string_view sensin,int sensorindex): SensorGlucoseData(sensin,globalbasedir.size()+1,sensorindex) {
     }
 //bool haserror=false;
 bool error() const {
@@ -1342,7 +1440,10 @@ void savestream(time_t tim,int id,int glu,int trend,float change) {
 
 bool saveStreamAgain(time_t tim,int id,int glu,int trend,float change) {
      int index=id-5;
-     while(polls[index].id>id)
+     if(index<0) {
+        return true;
+        }
+     while(index>0&&polls[index].id>id)
         --index;
      while(index<getinfo()->pollcount&&polls[index].id<id) {
         ++index;
@@ -1480,6 +1581,14 @@ const ScanData *lastpoll() const {
         return polls.data()+polc-1;
     return nullptr;
     }
+const ScanData *lastValidStream() const {
+    for(int i=pollcount()-1;i>=0;--i) {
+        const ScanData *el= polls.data()+i;
+        if(el->valid())
+                return el;
+        }
+    return nullptr;
+    }
 const ScanData *getscan(int ind) const {
     return scans.data()+ind;
     }
@@ -1528,11 +1637,8 @@ uint32_t lastused() const {
     }
 
 void updateinit(const int ind) {
-    const int pos=offsetof(struct Info,update[0])+sizeof(updatestate)*(ind+1);
-    if(meminfo.size()<pos) {
-        meminfo.extend(pos);
-        }
     getinfo()->update[ind]={};    
+    getinfo()->caliUpdated[ind]={};
     }
 
 
@@ -1546,12 +1652,12 @@ static  const ScanData *firstnotless(std::span<const ScanData> dat,const uint32_
     }
 static CurData curInperiod(std::span<const ScanData> dat,const uint32_t starttime,const uint32_t endtime) {
     const ScanData *scan=&dat[0];
-        const ScanData *endscan= &dat.end()[0];
-      auto comp=[](const ScanData &el,const ScanData &se ){return el.t<se.t;};
-        ScanData scanst{.t=starttime};
-        auto first=std::lower_bound(scan,endscan, scanst,comp);
-    if(first==endscan) return {scan,endscan,endscan};
-    //   const ScanData scanend{.t=endtime};
+    const ScanData *endscan= &dat.end()[0];
+    auto comp=[](const ScanData &el,const ScanData &se ){return el.t<se.t;};
+    ScanData scanst{.t=starttime};
+    auto first=std::lower_bound(scan,endscan, scanst,comp);
+    if(first==endscan) 
+        return {scan,endscan,endscan};
     scanst.t=endtime;
     return {scan,first,std::lower_bound(first,endscan, scanst,comp)};
     }
@@ -1672,6 +1778,7 @@ void setbackuptime(int ind,uint32_t starttime) {
      }
      */
 void backhistory(int pos) ;
+void backcalibrated(int pos);
 void backstream(int pos) ;
 
 bool setbackuptime(crypt_t *pass,int sock,int ind,uint32_t starttime) {
@@ -1795,7 +1902,6 @@ void setsiScan(int maxind) {
 
 int updateKAuth(crypt_t *pass,int sock,int ind);
 void setsendhiststart() {
-    extern int getgetsendnr();
     const int maxind=getgetsendnr();
     updatestate  *up= getinfo()->update;
     for(int i=0;i<maxind;i++) {
@@ -2062,6 +2168,40 @@ int siAddedIndex(int index) const {
         }
 
 void resetSiIndex();
+
+int updateCali(crypt_t *pass,int sock,int ind,int sensorindex)  {
+     uint32_t wascaliNr=getinfo()->caliNr;
+     uint32_t updatefrom=getinfo()->caliUpdated[ind];
+     if(updatefrom==wascaliNr)
+        return 2;
+     std::vector<subdata> vect;
+     if(updatefrom<wascaliNr) {
+        vect.reserve(2);
+        int caliStart=offsetof(Info,caliPara)+sizeof(Info::caliPara[0])*updatefrom;
+        int caliEnd=offsetof(Info,caliPara) +sizeof(Info::caliPara[0])*wascaliNr;
+
+        vect.push_back({meminfo.data()+caliStart,caliStart,caliEnd-caliStart});
+        }
+     else {
+        vect.reserve(1);
+        }
+     vect.push_back({reinterpret_cast<const senddata_t *>(&wascaliNr),offsetof(Info,caliNr),4});
+    const uint16_t calibratedstartcmd=startcalibratedupdate|sensorindex;
+    if(!senddata(pass,sock,vect, infopath,calibratedstartcmd, reinterpret_cast<const uint8_t *>(&updatefrom),sizeof(updatefrom))) {
+      LOGAR("updateCali: senddata info.data failed");
+      return 0;
+     }
+     LOGGER("updateCali sock=%d ind=%d sensorindex=%d caliNR=%u updatefrom=%u\n",sock,ind,sensorindex,wascaliNr,updatefrom);
+     getinfo()->caliUpdated[ind]=wascaliNr;
+     return 1;
+ }
+void addCali(uint32_t tim, double a, double b) {
+        getinfo()->addCali(tim,a,b);
+        }
+void removeCali(uint32_t tim) {
+        getinfo()->removeCali(tim);
+        }
+bool hide=false;
 };
 
 struct lastscan_t {

@@ -121,6 +121,7 @@ cout<<intro<<"Usages: "<<endl
  <<progname<<R"( [-d dir] -c : clear configuration data)"<<endl
  <<progname<<R"( -x[-+]: start eXport/xDrip/Nightscout web server (https://www.juggluco.nl/Juggluco/webserver.html) or not (-x-))"<<endl
  <<progname<<R"( -X[-+]:  the same but server can also be assessed remotely)"<<endl
+ <<progname<<R"( -W port:  use port for the http server (default 17580))"<<endl
  <<progname<<R"( -g secret: use as api_secret secret
 )"
 #ifdef USE_SSL
@@ -140,7 +141,7 @@ R"(
     -1C means label 1 (second) is Carbohydrate
     -2O means give label 2 as a cOmment
 )"<<progname<<R"( [-d dir] -V: the above categories are used for Libreview (http://127.0.0.1/x/libreview) instead of nightscout
-)"<<progname<<R"( [-d dir] -t[+]: give treatments/amounts via Nightscout interface
+)"<<progname<<R"( [-d dir] -t[-+]: give treatments/amounts via Nightscout interface
 )"<<progname<<R"( [-d dir] -N filename: export nums 
 )"<<progname<<R"( [-d dir] -S filename: export scans 
 )"<<progname<<R"( [-d dir] -B filename: export stream 
@@ -149,6 +150,7 @@ R"(
 )"<<progname<<R"( [-d dir] -V filename: save in libreview format. Use -V without filename for setting categories for entered numbers. 
 )" << progname<<R"( [-d dir] -M : mmol/L
 )" << progname<<R"( [-d dir] -G : mg/dL
+)" << progname<<R"( [-d dir] -k[-+] : Calibrate 
 )" << progname<<R"( [-d dir] -R n : remove n-th connection
 )" << progname<<R"( [-d dir] -Z n : resend data to n-th connection
 )" << progname<<R"( [-d dir] -q n : display QR for n-th connection. Scan with left menu->Photo in Juggluco.
@@ -340,16 +342,21 @@ const char *label=nullptr;
 bool xremote=false,activeonly=false,passiveonly=false,testip=true
 
 ;
-int xdripserver=-1,use_ssl=-1,give_treatments=-1;
+int xdripserver=-1,use_ssl=-1,give_treatments=-1,calibrate=0;
 int changer=-1;
 int unit=0;
+int httpport=0;
 int labeltype[maxvarnr]{};
 uint32_t starttime=0,endtime=UINT32_MAX;
 bool night=true;
-
+/*
+Not used:
+D E F I J K O Q T U V W Y 
+f j q u y 
+*/
 const char *autoQR=nullptr;
 char *api_secret=nullptr,*sslport=nullptr;
-           for(int opt;(opt = getopt(argc, argv, "q:V::Z:o:e::g:p:d:lcX::x::ransvibAPw:hN:S:B:H:m:GMR:L:C:0:1:2:3:4:5:6:7:8:9:t::")) != -1;) {
+           for(int opt;(opt = getopt(argc, argv, "W:k::q:V::Z:o:e::g:p:d:lcX::x::ransvibAPw:hN:S:B:H:m:GMR:L:C:0:1:2:3:4:5:6:7:8:9:t::")) != -1;) {
            if(opt>='0'&&opt<='9') {
             int num=opt-'0';
             if(optarg[0]>='0'&&optarg[0]<='9') {
@@ -364,6 +371,32 @@ char *api_secret=nullptr,*sslport=nullptr;
             }
         else {
            switch (opt) {
+                case 'k':
+
+                    if(optarg) {
+                        cout<<"Calibrate arg:"<<optarg<<':'<<endl;
+                        if(!optarg[1]) {
+                            switch(optarg[0]) {
+                                case '+': calibrate=1;break;
+                                case '-': calibrate=-1;break;
+                                default: {
+                                    goto WRONGARG;
+                                    }
+                                };
+                            break;
+                            }
+                         else {
+                            WRONGARG:
+                            cerr<<"Unknown arg: "<<optarg<<endl;;
+                            cerr<<"Argument to -k should be + or -\n";
+                            return 10;
+                            }
+                        }
+                    else {
+                        cout<<"Calibrate\n";
+                        calibrate=1;
+                        }
+                    break;
                   case 'v': showversion();return 1234;
                   case 'i': testip=false; break;
                   case 'X': xremote=true;
@@ -423,11 +456,24 @@ char *api_secret=nullptr,*sslport=nullptr;
                case 'w': password=optarg;break;
                case 'p': port=optarg;
                if(port.size()>5) {
-                       cerr<<"%s too large, port is maximally 5 digits\n";
-                return 7;
+                       cerr<<port<<" too large, port is maximally 5 digits\n";
+                        return 7;
                        }
                    
                    break;
+               case 'W':
+                    httpport=atoi(optarg); 
+                    if(httpport<1) {
+                        cerr<<httpport<<" too small, port should be larger than 0\n";
+                        return 7;
+                        }
+                     if(httpport>UINT16_MAX) {
+                        cerr<<httpport<<" too large, port should be smaller than 65536\n";
+                        return 7;
+                        }
+
+                    break;
+
                case 'l': list=true;break;;
                case 'c': clear=true;break;
                case 'N': numexport=optarg;break;
@@ -553,6 +599,14 @@ static constexpr const    char defaultname[]="jugglucodata";
         settings->data()->saytreatments=give_treatments;
         did=true;
         }
+    if(httpport) {
+        settings->data()->httpport=httpport;
+        did=true;
+        }
+    if(calibrate) {
+        settings->data()->DoCalibrate=calibrate>0;
+        did=true;
+       }
     if(xdripserver>=0) {
         settings->data()->usexdripwebserver=xdripserver;
         settings->data()->remotelyxdripserver=xremote;
@@ -575,7 +629,7 @@ static constexpr const    char defaultname[]="jugglucodata";
         } */
     extern void makenightswitch();
     makenightswitch();
-    settings->data()->initVersion=34;
+    settings->data()->initVersion=35;
     if(!backup)  {
         fprintf(stderr,"My error: No Backup\n");
         return 2;
@@ -735,10 +789,9 @@ int main(int argc,char **argv) {
     atexit(exitproc);
     setalarm();
 
-
     if(settings->data()->usexdripwebserver) {
-        void startwatchthread() ;
-        startwatchthread();
+        void startwatchthread(int port) ;
+        startwatchthread(settings->data()->httpport);
         }
 //extern void    sendlibre3viewdata();
 //    sendlibre3viewdata();
@@ -766,7 +819,7 @@ void     processglucosevalue(int sendindex,int newstart) {
             LOGGER("newstart=%d\n",newstart);
             hist->backstream(newstart);
             }
-        if(const ScanData *poll=hist->lastpoll()) {
+        if(const ScanData *poll=hist->lastValidStream()) {
             const time_t nutime=time(nullptr);
             const time_t tim=poll->t;
             const int dif=nutime-tim;

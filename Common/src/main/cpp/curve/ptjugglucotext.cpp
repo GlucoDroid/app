@@ -136,15 +136,16 @@ jugglucotext pttext {
 				"Talk",
 				"Float        "
                 },
-        .menustr2= {"Último Scan","Scans","Stream","Histórico","Valores","Refeições","Modo escuro        "},
+
+	.menustr2= {"Calibrated", "Scans","Stream","Histórico","Valores","Refeições","Modo escuro        "},
         .menustr3= {hourminstr,"Procurar","Data","Dia anterior","Dia seguinte","Semana anterior","Semana seguinte"},
 #endif //INJUGGLUCO
 #else
  .amount="Valor",
  .menustr0= {
-        "Espelhar",
+        "           Espelhar",
         "Sensor",
-	"    Darkmode      ",
+	"Exibir",
         "Definições",
         "Parar Alarme" },
 .menustr2= {"Data",hourminstr,"Dia anterior                 ",pttext.amount},
@@ -214,6 +215,7 @@ são necessárias. No seu caso, tem problemas com o seguinte ficheiro)",
 ,.summarygraph="Gráfico de resumo"sv
 
 ,.logdays="Dias"sv
+,.unhide="Unhide"sv
 
 
                 }

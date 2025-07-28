@@ -85,3 +85,4 @@ dataonlyptr receivedataonly(int sock, crypt_t *ctx,const int len) ;
 bool receiveractive();
 constexpr const int streamupdatebit=1<<15;
 constexpr const int starthistoryupdate=1<<14;
+constexpr const int startcalibratedupdate=3<<14;

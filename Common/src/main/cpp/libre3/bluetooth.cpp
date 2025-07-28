@@ -159,7 +159,7 @@ static void save3history(SensorGlucoseData *sens, const oneminute *minptr) {
 	}
 
 
-extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist) ;
+extern jlong glucoseback(uint32_t nu,uint32_t glval,float drate,SensorGlucoseData *hist) ;
 static jlong save3current(SensorGlucoseData *sens, const oneminute *minptr) {
 	auto curval= minptr->readingMgDl;
 	jlong res=0LL;
@@ -174,7 +174,7 @@ static jlong save3current(SensorGlucoseData *sens, const oneminute *minptr) {
 			}
 		const float rate= rateofchange/100.0f;
 		sens->savepollallIDs<60>(now,minptr->lifeCount,curval,minptr->trend,rate);
-		res=glucoseback(curval,rate,sens);
+		res=glucoseback(now,curval,rate,sens);
 		sens->consecutivelifecount();
 		}
 	else {

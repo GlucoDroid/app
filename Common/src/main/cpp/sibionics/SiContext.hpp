@@ -32,12 +32,13 @@ template <typename T> struct gegs;
 typedef gegs<signed char> data_t;
 class SiContext {
 private:
-   scanstate binState;
+   multimmap binState;
    AlgorithmContext *algcontext;
    bool notchinese;
    double process2(int index,double value, double temp);
    double process3(int index,double value, double temp);
    void  	setNotchinese(SensorGlucoseData *sens);
+   void release();
 public:
    SiContext(SensorGlucoseData *sens);
     jlong processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data,int totlen,int sensorindex) ;

@@ -133,16 +133,15 @@ public static void    mklayout(Activity context, int night, CheckBox donum, int[
 		hidekeyboard(context);
 		removeContentView(librenumlayout) ;
 		final var checked= sendnumbers.isChecked();
-	//	setSendNumbers(checked);
 		parent.setVisibility(VISIBLE);
 		donothing[0]=2;
 		donum.setChecked(checked);
 		donothing[0]=0;
 		};
-	setonback(closerun);
+    setonback(closerun);
     close.setOnClickListener(v->{
 	    poponback();
-    	closerun.run();
+    	   closerun.run();
     });
 
         librenumlayout.setBackgroundColor(Applic.backgroundcolor);

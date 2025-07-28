@@ -70,9 +70,12 @@ char servererrorbuf[maxservererror]="";
 #define servererror(...) savebuferror(servererrorbuf,maxservererror,__VA_ARGS__)
 static bool serverloop(int sock, passhost_t *hosts,int &hostlen,int *socks)  ;
 static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bool *shutdownreceiver) {
+    constexpr const char receiver[]{"RECEIVER"};
 #ifndef HAVE_NOPRCTL
-	prctl(PR_SET_NAME, "RECEIVER", 0, 0, 0);
+	prctl(PR_SET_NAME, receiver, 0, 0, 0);
 #endif
+   LOGGERN(receiver,sizeof(receiver)-1);
+   
 	destruct receiv([shutdownreceiver]{
 			if(shutdownreceiver==::shutdownreceiver) {
 				::shutdownreceiver=nullptr;
@@ -80,19 +83,21 @@ static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bo
 				}
 
 			;});
-//	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM};
 	struct addrinfo hints{.ai_flags=AI_PASSIVE,.ai_family=AF_INET6,.ai_socktype=SOCK_STREAM};
 
 	struct addrinfo *servinfo=nullptr;
 	destruct serv([&servinfo]{ if(servinfo)freeaddrinfo(servinfo);});
 	destruct wweg([port]{delete[] port;});
+    LOGARTAG("before getaddrinfo");
 	if(int status= getaddrinfo(nullptr,port,&hints,&servinfo)) {
+        LOGARTAG("after failed getaddrinfo");
 		serverprint("getaddrinfo: %s",gai_strerror(status));
 		LOGGERTAG("%s\n",servererrorbuf);
 		return false;
 		}
+    LOGARTAG("after getaddrinfo");
 	RESTART: {
-	int sock;
+	int sock=-1;
 	for(struct addrinfo *ips=servinfo;;ips=ips->ai_next) {
 		if(!ips) {
 			LOGARTAG("no addresses to bind left");
@@ -102,15 +107,14 @@ static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bo
 				}
 			sleep(1);
 			goto RESTART;
-//			return false;
 			}
-//		sock=socket(ips->ai_family,ips->ai_socktype,ips->ai_protocol);
 		sock=socket(AF_INET6,ips->ai_socktype,ips->ai_protocol);
 		if(sock==-1) {
 			servererror("socket");
 			LOGGERTAG("%s\n",servererrorbuf);
 			continue;
 			}
+        LOGGERTAG("startserver sock=%d\n",sock);
 		const int  yes=1;	
 		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
 			servererror("setsockopt close(%d)",sock);
@@ -126,7 +130,7 @@ static bool startserver(char *port, passhost_t *hosts,int *hostlen,int *socks,bo
 			}
 		break;
 		}
-        const auto tag=get_owner_tag(sock);
+    const auto tag=get_owner_tag(sock);
 	constexpr int const BACKLOG=5;
 	if(listen(sock, BACKLOG) == -1) {
 		if(*shutdownreceiver) {
@@ -584,9 +588,6 @@ void startreceiver(const char *port,passhost_t *hosts,int &hostlen,int *socks) {
 	}
 #ifdef MAIN
 
-void netwakeup() {
-	LOGARTAG("wakeup");
-	}
 //s/\([A-Z]\+\)/printf(\"\1=%d\\n\",\1);/g
 int main(int argc, char **argv) {
  printf("EBADF=%d\n",EBADF); printf("EINVAL=%d\n",EINVAL); printf("ENOTSOCK=%d\n",ENOTSOCK); printf("EOPNOTSUPP=%d\n",EOPNOTSUPP); 

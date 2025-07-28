@@ -122,7 +122,7 @@ iwtext.newamount,
 "לצוף"
 },
 .menustr2= {
-"סריקה אחרונה",
+"Calibrated",
 	"סריקות",
 	"זרם",
 	"היסטוריה",
@@ -141,9 +141,9 @@ iwtext.newamount,
 #else
   .amount="כמות",
   .menustr0= {
-"מַרְאָה",
+"        מַרְאָה",
 "חיישן",
-"מצב אפל",
+"Display",
          "הגדרות",
 "עצור אזעקה" },
 .menustr2= {"תאריך ",hourminstr,"יום אחורה ",iwtext.amount},
@@ -235,6 +235,7 @@ iwtext.newamount,
 ,.summarygraph="Summary graph"sv
 
 ,.logdays="Daily log"sv
+,.unhide="Unhide"sv
 
 }
 

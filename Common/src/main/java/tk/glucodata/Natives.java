@@ -465,7 +465,7 @@ public static native int getLibreVersion(long dataptr);
 public static native void USenabledStreaming(byte[] sensorident,byte[] jauth,byte[] address);
 public static native void closedynlib( );
 public static native strGlucose lastglucose();
-public static native byte[] getmynetinfo(String name,boolean create,int watchhassensor,boolean galaxy);
+public static native byte[] getmynetinfo(String name,boolean create,int watchhassensor,boolean galaxy,int setnums);
 public static native boolean setmynetinfo(String name,byte[] jar,boolean galaxy);
 
 public static native long lastglucosetime( );
@@ -476,6 +476,9 @@ public static native boolean getshowscans();
 public static native boolean getshowhistories();
 public static native boolean getshowstream();
 public static native boolean getshownumbers();
+
+public static native boolean getshowcalibrated();
+public static native void setshowcalibrated(boolean val);
 
 public static native boolean getshowmeals();
 public static native void setshowmeals(boolean val);
@@ -852,7 +855,28 @@ public static native int getAnalysedays( );
 public static native void onCreate();
 public static native void setbloodvar(byte val);
 public static native byte getbloodvar( );
+public static native boolean hitexclude(long ptr);
 
+public static native int calibrateNR(long sensorptr);
+public static native boolean getCalibrator(long sensorptr,int pos,CaliPara calip);
+public static native boolean removeCalibrator(long sensorptr,int pos);
+//public static native float calibrateNow(long dataptr,float mgdL);
+
+public static native void setDoCalibrate(boolean val);
+public static native boolean getDoCalibrate( );
+
+public static native void setCalibratePast(boolean val);
+public static native boolean getCalibratePast( );
+
+public static native void setCalibrateA(boolean val);
+public static native boolean getCalibrateA( );
+public static native void setStartTime(long milli);
+public static native int hasWatchNums(String ident);
+public static native void setHidefromSensorptr(long sensorptr,boolean hide);
+public static native boolean getHidefromSensorptr(long sensorptr);
+public static native boolean shouldExclude(long msec);
+public static native void setAllValues(boolean val);
+public static native boolean getAllValues( );
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }
 

@@ -401,6 +401,8 @@ static private void newsensor(Activity act,String text,String name) {
     int pad=width/30;
     {if(doLog) {Log.i(LOG_ID,"newsensor "+name);};};
     act.runOnUiThread(() -> {
+       TextView nameview=getlabel(act,name);
+       nameview.setTextSize(TypedValue.COMPLEX_UNIT_PX, Applic.largefontsize);
        TextView tv=getlabel(act,text);
        if(!isWearable)
                tv.setTextSize(TypedValue.COMPLEX_UNIT_PX,Applic.largefontsize);
@@ -426,7 +428,7 @@ static private void newsensor(Activity act,String text,String name) {
                 }
 
                 return new int[] {w,h};
-            },new View[]{tv},new View[]{calBox},new View[]{ok});
+            },new View[]{nameview},new View[]{tv},new View[]{calBox},new View[]{ok});
             ok.setOnClickListener(v->{
                removeContentView(lay); 
                if(stillused&&calBox.isChecked()) {

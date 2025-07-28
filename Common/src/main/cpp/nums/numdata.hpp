@@ -51,7 +51,9 @@
 extern Meal *meals;
 extern Backup *backup;
 void    setnumchanged();
-
+class Numdata;
+extern void removeCalibration(const Num *num);
+extern void addCalibration(uint32_t time,int  type, Num *num,const Numdata*);
 extern   void Garmindeletelast(int base,int pos,int end );
 typedef std::conditional<sizeof(long long) == sizeof(int64_t), long long, int64_t >::type identtype; //to get rid of %lld warning
 constexpr size_t nummmaplen=77056;//  ((sizeof(size_t)==4)?64ul*1024ul*1024ul:(1024ul*1024*1024ul))/sizeof(Num);
@@ -174,26 +176,6 @@ bool valid(const Num *num)const {
         return true;
     return false;
     }
-    /*
-uint32_t starttime= UINT32_MAX;
-void firstime(void) {
-    starttime= UINT32_MAX;
-    Num *en=end();
-    for(Num *it=begin();it<en;it++) {
-        if(valid(it)) {
-            if(auto tim=it->time;tim<starttime)  {
-                time_t t=tim;
-                LOGGERTAG("tim %s",ctime(&t));
-                t=starttime;
-                LOGGERTAG(" < starttime %s",ctime(&t));
-                starttime=tim;
-                }
-            }
-        }
-    time_t t=starttime;
-    LOGGERTAG("starttime %s",ctime(&t));
-    }    
-    */
 static constexpr unsigned char magic[]={0xFE,0xD2,0xDE,0xAD};
 unsigned char *raw() {
     return reinterpret_cast<unsigned char *>(nums.data());
@@ -616,8 +598,13 @@ void numsaveonly( const uint32_t time, const float32_t value, const uint32_t typ
     else {
         setchangetimes(ind,ind+1);
         }
-    uint32_t mealptr=meals->datameal()->endmeal(mealptrin);
-    *num={.time=time,.mealptr=mealptr,.value=value,.type=type};
+    if(type==settings->data()->bloodvar) {
+        *num={.time=time,.exclude=(bool)mealptrin,.value=value,.type=type};
+        }
+    else {
+        uint32_t mealptr=meals->datameal()->endmeal(mealptrin);
+        *num={.time=time,.mealptr=mealptr,.value=value,.type=type};
+        }
     inclastpos();
     inclastpolledpos();
     setlastchange(num);
@@ -625,7 +612,8 @@ void numsaveonly( const uint32_t time, const float32_t value, const uint32_t typ
     nightBack(ind);
     updateposnowake(ind,lastnum);
     addlibrechange(ind);
-    LOGGERTAG("pos=%d newlastnum=%d numsave %f %s mealptrin=%d mealptr=%d\n",ind,lastnum,value,settings->getlabel(type).data(),mealptrin,mealptr);
+    LOGGERTAG("numsaveonly pos=%d newlastnum=%d numsave %f %s mealptrin=%d\n",ind,lastnum,value,settings->getlabel(type).data(),mealptrin);
+    addCalibration( time, type,num,this);
      }
 
 void numsave( const uint32_t time, const float32_t value, const uint32_t type,const uint32_t mealptrin) {
@@ -633,8 +621,6 @@ void numsave( const uint32_t time, const float32_t value, const uint32_t type,co
     if(backup)
         backup->wakebackup(Backup::wakenums);
     setnumchanged();
-    //wakeuploader();
-    //wakeaftermin(1);
      }
 
 
@@ -645,10 +631,11 @@ void numsavepos(int pos, uint32_t time, float32_t value, uint32_t type,uint32_t 
         }
     else {
         LOGGERTAG("numsavepos %d %d %f %s\n",pos,mealptr,value,settings->getlabel(type).data());
-        if(mealptr&&!meals->datameal()->goodmeal(mealptr)) {
+        if(mealptr&&type!=settings->data()->bloodvar&&!meals->datameal()->goodmeal(mealptr)) {
             mealptr=0;
             }
         Num &num=at(pos);
+        removeCalibration(&num);
         addlibrenumsdeleted(&num,pos);
         num={.time=time,.mealptr=mealptr,.value=value,.type=type};
         if(pos>=getlibreSolid()) {
@@ -661,6 +648,7 @@ void numsavepos(int pos, uint32_t time, float32_t value, uint32_t type,uint32_t 
         nightBack(pos);
         updatepos(pos,getlastpos()); //ADDED
         setchangetimes(pos,pos+1);
+        addCalibration( time, type,&num,this);
         }
     setnumchanged();
      }
@@ -673,6 +661,7 @@ void changeDevice() {
     }
 void numremove(int pos) {
     Num &num=at(pos);
+    removeCalibration(&num);
     addlibrenumsdeleted(&num,pos);
     LOGGERTAG("numremove(%d)\n",pos);
 //    num.type=removedtype;
@@ -710,6 +699,7 @@ int getdeclastpos() {
     }
     
 int numremove(Num *num) {
+    removeCalibration(num);
     const int ver=end()-num;
     int pos=index(num);
     LOGGERTAG("numremove(NUM %d)\n",pos);
@@ -912,10 +902,11 @@ void    libremovelarger(int from,int to,int movelen) { //to>from
 
 public:
 void numchange(const Num *hit, uint32_t time, float32_t value, uint32_t type,uint32_t mealptr) {
+    removeCalibration(hit);
     const int oldpos=hit-startdata();
     LOGGERTAG("Start numchange oldpos=%d\n",oldpos);
     addlibrenumsdeleted(hit,oldpos);
-    if(mealptr==0)
+    if(mealptr==0&&type!=settings->data()->bloodvar)
         mealptr=hit->mealptr;
 
     Num *num;
@@ -930,7 +921,7 @@ void numchange(const Num *hit, uint32_t time, float32_t value, uint32_t type,uin
             pos=num-startdata();
             lastupdate=getlastpos();
             libremovelarger(pos,pos+1,movelen);
-               setchangetimes(pos,pos+1+movelen);
+            setchangetimes(pos,pos+1+movelen);
             }
         else {
             if(num>(hit+1)) {
@@ -966,9 +957,14 @@ void numchange(const Num *hit, uint32_t time, float32_t value, uint32_t type,uin
         setchangetimes(pos,pos+1);
         }
     LOGGERTAG("numchange %d %d\n",pos,mealptr);
-    mealptr=meals->datameal()->endmeal(mealptr);
     const int newpos=num-startdata();
-    *num={.time=time,.mealptr=mealptr,.value=value,.type=type};
+    if(type==settings->data()->bloodvar) {
+        *num={.time=time,.exclude=(bool)mealptr,.value=value,.type=type};
+        }
+    else {
+        mealptr=meals->datameal()->endmeal(mealptr);
+        *num={.time=time,.mealptr=mealptr,.value=value,.type=type};
+        }
 
     if(newpos>=getlibreSolid()) {
         addlibrechange(newpos);
@@ -979,6 +975,7 @@ void numchange(const Num *hit, uint32_t time, float32_t value, uint32_t type,uin
     nightBack(pos);
     updatepos(pos,lastupdate);
     setnumchanged();
+    addCalibration( time, type,num,this);
     }
 std::pair<const Num*,const Num*> getInRange(const uint32_t start,const uint32_t endtime) const {
     Num zoek;

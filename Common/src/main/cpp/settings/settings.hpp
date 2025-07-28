@@ -19,6 +19,7 @@
 /*      Fri Jan 27 12:36:58 CET 2023                                                 */
 
 #pragma once
+inline constexpr const int defaulthttpport=17580;
 #include <stdint.h>
 enum class Insulin: uint8_t {
     Not=0,
@@ -47,6 +48,7 @@ static constexpr const double convertmultmg=1.0/10.0;
 static constexpr const double convfactordL=convfactor*0.1;
 #include <array>
 #include "float_t.hpp"
+
 //#include <stdfloat>
 
 #include "curve/nanovg/src/nanovg.h"
@@ -282,14 +284,26 @@ struct Tings {
     char _nullchar1;
     uint8_t librecountry;
     
-    int8_t empty2b;
+    int8_t empty2b:2;
+
+    bool showcalibrated:1;
+    bool showscans:1;
+    bool showstream:1;
+
+    bool showhistories:1;
+    bool shownumbers:1;
+    bool showmeals:1;
+
     uint8_t bloodvar;
 
     float32_t threshold;
     int32_t floatglucose;
 
     char newYuApiKey[41];
-    char reserved7:4;
+    bool AllValues:1;
+    bool DoNotCalibrateA:1;
+    bool CalibratePast:1;
+    bool DoCalibrate:1;
     bool GoogleScan:1;
     bool logcat:1;
     bool noalarmclock:1;
@@ -378,7 +392,7 @@ struct Tings {
     int16_t currentProfile,nrProfile,nrProfileMins;
 
     bool verylowalarm,veryhighalarm,prelowalarm,prehighalarm;
-    int8_t _reserved2[2];
+    uint16_t httpport;
     AlarmProfile  profiles[maxprofiles];
 
     ProfileMin profileMins[maxprofileMins];
@@ -388,7 +402,16 @@ struct Tings {
     int32_t reserved3;
     float64_t loadtime;
 
-
+void defaultshows() {
+    showcalibrated=false;
+    showscans=true;
+    showstream=true;
+    showhistories=true;
+    shownumbers=true;
+    showmeals=false;
+    bloodvar=6;
+    httpport=defaulthttpport;
+    }
  void        mkadvancedalarms() {
     struct ring *al=extraAlarms;
     for(int i=0;i<maxextraalarms;i++) {
@@ -676,7 +699,6 @@ void mklabels() {
         strcpy( varsptr[i].name,usedtext->labels[i].data());
     }
     data()->mealvar=1;
-    data()->bloodvar=6;
     data()->varcount=nrlab;
     mkshorts() ;
 }
@@ -720,6 +742,7 @@ Settings(const char *settingsname,const char *base,const char *country): Mmap(se
 //    if(data()->initVersion<30) 
    { 
     LOGGER("initVersion=%d\n",data()->initVersion);
+   if(data()->initVersion<35) { 
    if(data()->initVersion<34) { 
    if(data()->initVersion<33) { 
     if(data()->initVersion<31) { 
@@ -836,6 +859,8 @@ if(data()->startlibretime>now) {
 
     data()->loadtime=10.0/(3000.0*3000.0);
       }
+     data()->defaultshows();
+    }
    }
     setconvert(country);
 
@@ -1059,7 +1084,7 @@ void setshortcutcount(int nr) {
 
 static constexpr const string_view unknownlabel{"Unspecified"};
 const string_view getlabel(const int index) const  {
-    if(index<getlabelcount())
+    if(index>=0&&index<getlabelcount())
         return data()->vars[index].name;
     return unknownlabel;
     }

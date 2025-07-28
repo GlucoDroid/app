@@ -667,7 +667,8 @@ private static void      confirmGetAccountID(MainActivity context) {
 private static void getAccountid(MainActivity context,    Predicate<Boolean> getgegs,View settingsview,CheckBox sendto,boolean[] donothing) {
    var setmanually=Natives.manualLibreAccountIDnumber()!=-1L;
    var manual=getcheckbox(context,R.string.manual, setmanually);;
-
+   var writedown=getlabel(context,R.string.writedown);
+   writedown.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*2),0,0,0);
    long accountidnum=Natives.getlibreAccountIDnumber();
    var editid = new EditText(context);
    editid.setText(accountidnum+"");
@@ -684,13 +685,15 @@ private static void getAccountid(MainActivity context,    Predicate<Boolean> get
    Consumer<Boolean> domanual= isChecked -> {
       if(!isChecked) {
          fromlibreview.setVisibility(VISIBLE);
+         writedown.setVisibility(GONE);
          editid.setVisibility(INVISIBLE);
          save.setVisibility(INVISIBLE);
 
       }
       else {
+         writedown.setVisibility(VISIBLE);
          editid.setVisibility(VISIBLE);
-         fromlibreview.setVisibility(INVISIBLE);
+         fromlibreview.setVisibility(GONE);
          save.setVisibility(VISIBLE);
       }
    };
@@ -713,7 +716,7 @@ private static void getAccountid(MainActivity context,    Predicate<Boolean> get
          };
       lay.setY(MainActivity.systembarTop);
       return new int[] {w,h};}, 
-            new View[]{manual,editid,help},new View[]{fromlibreview,close,save});
+            new View[]{manual,editid,help},new View[]{writedown,fromlibreview,close,save});
 
       layout.setBackgroundResource(R.drawable.dialogbackground);
       int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;
@@ -859,8 +862,7 @@ public static void  config(MainActivity act, View settingsview,CheckBox sendto,b
       };
    act.setonback(closerun);
    cancel.setOnClickListener(v->  {
-         act.poponback();
-         closerun.run();
+         act.doonback();
          });
     Predicate<Boolean> getgegs= use -> {
          String emailstr=email.getText().toString();
@@ -907,12 +909,12 @@ public static void  config(MainActivity act, View settingsview,CheckBox sendto,b
          donothing[0]=false;
          });
    getaccountid.setOnClickListener(v->  {
-         boolean turnonlibre=sendtolibreview.isChecked();
+         act.poponback();
          getgegs.test(false);
 
          layout.setVisibility(GONE);
          removeContentView(layout);
-       getAccountid(act,getgegs,  settingsview,sendto, donothing);
+         getAccountid(act,getgegs,  settingsview,sendto, donothing);
       });
          layout.setBackgroundResource(R.drawable.dialogbackground);
          int pad= (int)tk.glucodata.GlucoseCurve.metrics.density*7;

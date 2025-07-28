@@ -127,16 +127,16 @@ detext.newamount,
 "Sprechen",
 "Schweben       "
 },
-.menustr2= {"Letzter Scan","Scans","Stream","History","Mengen","Mahlzeiten","Dunkelmodus       "},
+.menustr2= {"Kalibriert","Scans","Stream","History","Mengen","Mahlzeiten","Dunkelmodus       "},
 .menustr3= {hourminstr,"Suche", "Datum", "Vortag", "Tag später", "Woche zurück", "Woche später"},
 
 #endif //INJUGGLUCO
 #else
   .amount="Menge",
   .menustr0= {
-"Klon",
+"        Klon",
 "Sensor",
-	"  Darkmode      ",
+	"Anzeige",
          "Einstellen",
 "Stop Alarm" },
 .menustr2= {"Datum      ",hourminstr,
@@ -201,6 +201,7 @@ detext.newamount,
 #endif //INJUGGLUCO
  ,.summarygraph="Überblick Graph"sv
 ,.logdays="Tage"sv
+,.unhide="Einblenden"sv
 		}
 
 

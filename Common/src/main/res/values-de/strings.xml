@@ -383,4 +383,18 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
 <string name="scantransmessage">Sibionics 2 Sensor-Datenmatrix erfolgreich gescannt. \nScannen Sie jetzt die Transmitter-Datenmatrix.</string>
  <string name="mirrorscansucces">Verbindung zum linken mittleren Menü → Klon erfolgreich hinzugefügt.</string>
  <string name="nolibrelink">Verwenden Sie stattdessen EverSense Broadcast. Siehe Hilfe.</string>
+ <string name="calibration">Kalibrierung</string>
+<string name="exclude">Ausschließen</string>
+<string name="calibratepast">Auf Vergangenheit anwenden</string>
+<string name="bloodvar">Blutzucker: </string>
+<string name="calibrate_a">Steigung ändern</string>
+<string name="watchnums">Mengen werden auf der Uhr eingegeben</string>
+<string name="calibrated">Kalibriert</string>
+<string name="delete_calibration">Kalibrierung löschen?</string>
+<string name="hide">Ausblenden</string>
+<string name="sensorstreamed">Gestreamt</string>
+<string name="sensornotstreamed">Nicht gestreamt</string>
+<string name="calibrations">Kalibrierungen</string>
+ <string name="allvalues">Alle Werte</string>
+ <string name="writedown">Aufschreiben!</string>
 </resources>

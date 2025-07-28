@@ -63,13 +63,10 @@ int updatenums(crypt_t*pass,int sock,struct changednums *nums,int ind) {
       else
          return 0;
       }
-#ifdef USE_MEAL
-   if(int did=meals->datameal()->updatemeal(pass,sock,nums[0].lastmeal))
+   if(int did=meals->datameal()->updatemeal(pass,sock,nums[0].lastmeal)) {
       return ret|did;
+      }
    return 0;
-#else   
-   return ret;
-#endif
    }
    /*
 void remakenums() {

@@ -311,10 +311,17 @@ bool sendrenum(crypt_t *pass,const int sock) {
 	} */
 bool sendrender(crypt_t *pass,const int sock) {
 	return sendone(pass,sock,srender);
-/*
-	const uint32_t com=srender;
-	return sendcommand(sock,reinterpret_cast<const senddata_t *>(&com),4);*/
 	}
+
+static bool    senduint16(crypt_t*pass,int sock,uint16_t com,uint16_t arg) {
+    uint16_t_arg_struct data{com,arg};
+    return sendcommand(pass,sock,reinterpret_cast<uint8_t*>(&data),sizeof(data));
+    }
+bool sendStartSendCalibrate(crypt_t *pass,const int sock,const uint16_t sensorindex) {
+    LOGGERTAG("sendStartSendCalibrate sock=%d sensorindex=%hd\n",sock,sensorindex);
+    return senduint16(pass,sock,sStartSendCalibrate,sensorindex);
+    }
+
 bool sendshowglucose(crypt_t *pass,const int sock,const uint16_t sensorindex) {
 	struct renderstruct rend{sglucose,sensorindex};
 	LOGGERTAG("sendshowglucose(pass,%d,%d)\n",sock,sensorindex);
@@ -464,3 +471,6 @@ bool sendcommands(int sock) {
 	return true;
 	}
 	#endif
+
+
+

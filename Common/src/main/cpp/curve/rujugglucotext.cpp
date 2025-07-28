@@ -121,7 +121,7 @@ jugglucotext rutext {
 		"Озвучка",
 		"Плав. глюк.        "
 		},
-	.menustr2= {"Последний скан",
+	.menustr2= {"Calibrated",
 	"Сканирование        ",
 	"Поток",
 	"История",
@@ -139,9 +139,9 @@ jugglucotext rutext {
 #else
  .amount="Значение",
  .menustr0= {
-	"Зеркало",
+	"            Зеркало",
 	"Датчик",
-	"    Темная тема      ",
+	"Дисплей",
         "Настройки",
 	"Стоп тревога" },
 .menustr2= {"К дате  ",
@@ -237,6 +237,7 @@ rutext.amount},
 
 
 ,.logdays="Дни"sv 
+,.unhide="Unhide"sv
 
 		}
 

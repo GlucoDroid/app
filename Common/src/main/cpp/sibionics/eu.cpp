@@ -245,7 +245,8 @@ extern uint32_t makestarttime(int index,uint32_t eventTime);
 //#include "sibionics/json.hpp"
 //extern bool savejson(SensorGlucoseData *sens,std::string_view, int index,const AlgorithmContext *alg,getjson_t getjson );
 //extern getjson_t getjson2;
-extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist) ;
+//extern jlong glucoseback(uint32_t glval,float drate,SensorGlucoseData *hist) ;
+extern jlong glucoseback(uint32_t nu,uint32_t glval,float drate,SensorGlucoseData *hist) ;
 
 jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *data,int sensorindex)  {
    const int datasize=data->size();
@@ -356,7 +357,7 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
                             LOGGER("SIprocess finished=%d\n", sensor->finished);
                             backup->resensordata(sensorindex);
                             }
-                     auto res=glucoseback(mgdL,change,sens);
+                     auto res=glucoseback(eventTime,mgdL,change,sens);
 /*                     if(!(index%5))  {
                         if(algcontext)
                             savejson(sens,sens->statefile,index,algcontext,getjson2);

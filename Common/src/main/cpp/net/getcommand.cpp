@@ -232,6 +232,18 @@ for(int it=0;it<len;) {
 			ret=true;
 			}
 			break;
+                case sStartSendCalibrate:
+		        {comlen=sizeof(uint16_t_arg_struct);
+			addlen(it,comlen);
+			if(it>len) {
+				return {it,comlen};
+				}
+			const uint16_t_arg_struct *stru=reinterpret_cast<const uint16_t_arg_struct*>(data);
+                    extern void setCalibrates(uint16_t sensorindex) ;
+                        setCalibrates(stru->arg);
+			ret=true;
+			}
+                        break;
 		case srender:
 		    {comlen=4;
 			addlen(it,comlen);
@@ -276,11 +288,9 @@ extern				bool updateDevices() ;
 				return {it,comlen};
 				}
 
-			bool netwakeup(int sock,passhost_t *host,crypt_t *ctx);
-			if(netwakeup(sock,host,ctx)) {
-				return {-1,-1};
-				}
-			break;
+			extern void wakeupall();
+			wakeupall();
+                        break;
 		case swakeupstream: 
 			ret=true;
 			comlen=4;
@@ -289,10 +299,8 @@ extern				bool updateDevices() ;
 				return {it,comlen};
 				}
 
-			bool netwakeupstream(int sock,passhost_t *host,crypt_t *ctx);
-			if(netwakeupstream(sock,host,ctx)) {
-				return {-1,-1};
-				}
+			extern void wakeupstream();
+			wakeupstream();
 			break;
 		case saskfile:		
 			{int minlen=sizeof(askfile);
@@ -705,6 +713,7 @@ static std::pair<int,int> getstartinfo(const struct fileonce_t *gegs,const uint8
 	return {sendindex,startpos};
 	}	
 void sethistorystart(int,int);
+void setcalibratedstart(int,int);
 #ifdef WEAROS
 #include "curve/jugglucotext.hpp"
  extern void setInitText(const char *message);
@@ -718,7 +727,7 @@ static bool savefileonce(const struct fileonce_t *gegs) {
 	const uint8_t *start=reinterpret_cast<const uint8_t*>(&gegs->gegs[nr]);
 	const char *name=reinterpret_cast<const char *>(start);
 	int fp=filedata.open(name);
-	LOGGERTAG("savefileonce %s %d show=%d\n",name,nr, (gegs->dowith&streamupdatebit));
+	LOGGERTAG("savefileonce %s %d show=%d\n",name,nr, (gegs->dowith&startcalibratedupdate));
 	if(fp<0)
 		return false;
 	destruct des([fp](){filedata.close(fp);});
@@ -730,17 +739,23 @@ static bool savefileonce(const struct fileonce_t *gegs) {
 			}
 		start+=gegs->gegs[i].len;
 		}
-	if((gegs->dowith&streamupdatebit)) {
-		const auto [sendindex,startpos]=getstartinfo(gegs,start);
-		processglucosevalue(sendindex,startpos);
+        if((gegs->dowith&startcalibratedupdate)==startcalibratedupdate) {
+            const auto [sendindex,startpos]=getstartinfo(gegs,start);
+            setcalibratedstart(sendindex,startpos);
+            }
+         else {
+            if((gegs->dowith&streamupdatebit)==streamupdatebit) {
+                    const auto [sendindex,startpos]=getstartinfo(gegs,start);
+                    processglucosevalue(sendindex,startpos);
 
-		}
-	else {
-		if((gegs->dowith&starthistoryupdate)) {
-			const auto [sendindex,startpos]=getstartinfo(gegs,start);
-			sethistorystart(sendindex,startpos);
-			}
-		}
+                    }
+            else {
+                    if((gegs->dowith&starthistoryupdate)==starthistoryupdate) {
+                            const auto [sendindex,startpos]=getstartinfo(gegs,start);
+                            sethistorystart(sendindex,startpos);
+                            }
+                 }
+            }
 	LOGSTRINGTAG("savedata success\n");
 #ifdef WEAROS
    static const bool res=startedreceiving();

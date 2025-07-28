@@ -136,8 +136,14 @@ struct updateone {
     bool sendNight:1;
     bool sendLibre:1;
     bool sendjugglucoid:1;
-    uint8_t passNotUsed[16];
+    uint16_t startSendCalibrate;
+    uint8_t NotUsed[14];
     struct changednums nums[2];
+    void setCalibrate(uint16_t sensorindex) {
+        if(sensorindex<startSendCalibrate)
+                startSendCalibrate=sensorindex;
+                
+        }
     void setindex(int index,int allin) {
         LOGGER("setindex(%d,%d)\n",index,allin);
         ind=index;
@@ -183,6 +189,7 @@ int updatescansu() ;
 int update(); 
 int updateiob();
 int numbertypes();
+int sendCalibrate();
     };
 
 #include "maxsendtohost.h"
@@ -564,6 +571,7 @@ void clearhost(int index) {
     host.startsensors=0;
     host.firstsensor=0;
     host.updatesettings=0;
+    host.startSendCalibrate=0;
     host.backupupdated=0;
     host.iobupdated=0;
     host.starttime=0;

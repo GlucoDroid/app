@@ -448,7 +448,7 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                     return
                 }
             val netinfo: ByteArray?
-            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, 0,true) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode)) }
+            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, 0,true,0) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode),0) }
             if(netinfo == null) {
                 Log.e(LOG_ID,"netinfo=null")
                 return
@@ -490,7 +490,7 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                         Log.d(LOG_ID,"name=null")
                         continue
                         }
-                    val netinfo = Natives.getmynetinfo(name, isWearable, 0, isGalaxy(node)) ?: continue
+                    val netinfo = Natives.getmynetinfo(name, isWearable, 0, isGalaxy(node),0) ?: continue
                     sender.sendnetinfo(node, netinfo)
                     times[i] = nextnetinfo
                 } else {

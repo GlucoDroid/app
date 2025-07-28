@@ -121,7 +121,8 @@ estext.newamount,
 "Hablar",
 "Flotante        "
 },
-.menustr2= {"Último escaneo",
+.menustr2= 
+    {"Calibrated",
 "Escaneos",
 "Flujos",
 "Historial",
@@ -139,9 +140,9 @@ estext.newamount,
 #else
   .amount="Cuantía",
   .menustr0= {
-" Espejo",
+"        Espejo",
 "Sensor",
-"   Oscuro      ",
+"Display",
          "Ajustes",
 "Detener alarma" },
 .menustr2= {"Fecha ",
@@ -230,6 +231,7 @@ son necesarios. En tu caso tiene problemas con el siguiente archivo)",
 
 ,.summarygraph="Summary graph"sv
 ,.logdays="Daily log"sv
+,.unhide="Unhide"sv
 
 }
 

@@ -159,14 +159,14 @@
 
         />
 
-    <Button
-        android:id="@+id/lastscan"
+    <CheckBox
+        android:id="@+id/calibrated"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_row="0"
         android:layout_column="4"
         android:layout_columnWeight="1"
-        android:text="@string/last_scan" />
+        android:text="@string/calibrated" />
     <CheckBox
         android:id="@+id/scans"
         android:layout_width="wrap_content"

@@ -25,6 +25,8 @@ package tk.glucodata;
 
 import static android.text.Html.TO_HTML_PARAGRAPH_LINES_CONSECUTIVE;
 import static android.text.Html.fromHtml;
+import static android.view.View.GONE;
+import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static tk.glucodata.Layout.getMargins;
 import static tk.glucodata.Log.doLog;
@@ -40,6 +42,7 @@ import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -47,8 +50,8 @@ import androidx.appcompat.app.AlertDialog;
 
 import java.util.ArrayList;
 
-class Sensors {
-final private static String LOG_ID="Sensors";
+class MirrorSensors {
+final private static String LOG_ID="MirrorSensors";
 /*
 public static native long[] activeSensorPtrs( );
 public static native String namefromSensorptr(long sensorptr);
@@ -73,30 +76,19 @@ private static void confirmFinish(MainActivity act,long ptr) {
             }
         }).show().setCanceledOnTouchOutside(false);
     }
-
-static void setinfo(TextView info,long ptr) {
-        String text=Natives.sensortextfromSensorptr(ptr);
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            info.setText(fromHtml(text,TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
-            }
-        else {
-            info.setText(fromHtml(text));
-            }
-        }
+private static boolean isVisible=false;
 static void show(MainActivity act) {
+    if(isVisible)
+        return;
+    isVisible=true;
     long[] ptrs=Natives.activeSensorPtrs();
     if(ptrs.length==0) {
         bluediag.nosensors(act);
         return;
         }
-    var info=new TextView(act);
-    info.setMovementMethod(new ScrollingMovementMethod());
+    var sensors=new Sensors(act);
     var help=getbutton(act,R.string.helpname);
     help.setOnClickListener(v-> helplight(R.string.sensormirror,act));
-    var close=getbutton(act,R.string.closename);
-    close.setOnClickListener(v -> {
-        MainActivity.doonback();
-        });
     var finish=getbutton(act,R.string.finish);
     var list=new ArrayList<Long>(ptrs.length);
     for(var p : ptrs) {
@@ -114,7 +106,7 @@ static void show(MainActivity act) {
         });
     spin.setAdapter(adap);
     int[] waspos={0};
-    setinfo(info,ptrs[0]);
+    sensors.setSensorptrText(ptrs[0]);
     finish.setOnClickListener(v -> {
         var pos=waspos[0];
         if(pos>=0&&pos<ptrs.length) {
@@ -140,8 +132,11 @@ static void show(MainActivity act) {
             {if(doLog) {Log.i(LOG_ID,"onItemSelected "+position);};};
             if(position!=waspos[0]) {
                 waspos[0]=position;
-                setinfo(info,ptrs[position]);
-               
+                sensors.setSensorptrText(ptrs[position]);
+
+                      
+      //          setinfo(info,calview,ptrs[position]);
+
                 }
 
         }
@@ -158,26 +153,23 @@ static void show(MainActivity act) {
     var buttons=new Layout(act, (x,w,h)->{ 
          return new int[] {w,h};
            } 
-                   , new View[]{finish},new View[]{help},new View[]{usebluetooth},new View[]{spin},new View[]{close}
+                   , new View[]{finish},new View[]{help},new View[]{usebluetooth},new View[]{spin}
           );
      buttons.usebaseline=false;
     var width=GlucoseCurve.getwidth(); 
     var height=GlucoseCurve.getheight(); 
     getMargins(finish).topMargin=(int)(MainActivity.systembarTop);
     var layout=new Layout(act, (x,w,h)->{ 
-       // float ypos=(height-h+MainActivity.systembarTop-MainActivity.systembarBottom)*.5f;
         x.setX((width-w+MainActivity.systembarLeft-MainActivity.systembarRight)*.5f);
-       // x.setY(ypos);
-        {if(doLog) {Log.i(LOG_ID,"baselines info="+info.getBaseline()+" buttons="+buttons.getBaseline());};};
-//        if(ypos<MainActivity.systembarTop) getMargins(finish).topMargin=(int)(MainActivity.systembarTop-ypos);
          return new int[] {w,h};
            },
-          new View[]{info,buttons});
+          new View[]{sensors.viewgroup,buttons});
      layout.usebaseline=false;
     layout.setBackgroundResource(R.drawable.dialogbackground);
     layout.setPadding((int)(GlucoseCurve.metrics.density*10),0,(int)(GlucoseCurve.metrics.density*5),0);
     act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
     MainActivity.setonback(() -> {
+            isVisible=false;
             removeContentView(layout);
             });
 

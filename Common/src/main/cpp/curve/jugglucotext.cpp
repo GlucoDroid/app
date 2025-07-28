@@ -121,7 +121,7 @@ const jugglucotext engtext {
 		"Talk",
 		"Float        "
 		},
-	.menustr2= {"Last Scan",
+	.menustr2= {"Calibrated",
 	"Scans",
 	"Stream",
 	"History",
@@ -139,10 +139,10 @@ const jugglucotext engtext {
 #else
  .amount="Amount",
  .menustr0= {
-	"Mirror",
+	"        Mirror",
 	"Sensor",
-	"  Darkmode      ",
-        "Settings",
+	"Display",
+    "Settings",
 	"Stop Alarm" },
 .menustr2= {"Date  ",
 hourminstr,
@@ -213,6 +213,7 @@ are needed. In your case it has problems with the following file)",
 #endif //INJUGGLUCO
 .summarygraph="Summary graph"sv
 ,.logdays="Daily log"sv
+,.unhide="Show"sv
 		}
 
 

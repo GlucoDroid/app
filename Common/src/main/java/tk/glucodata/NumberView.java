@@ -35,6 +35,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -42,7 +43,6 @@ import android.widget.HorizontalScrollView;
 import android.widget.ListPopupWindow;
 import android.widget.PopupWindow;
 import android.widget.ScrollView;
-import android.widget.Space;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.TimePicker;
@@ -73,6 +73,7 @@ import static java.lang.System.currentTimeMillis;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Applic.systemtimeformat;
 import static tk.glucodata.GlucoseCurve.mktime;
+import static tk.glucodata.Layout.getMargins;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MainActivity.systembarLeft;
 import static tk.glucodata.MainActivity.systembarRight;
@@ -82,6 +83,7 @@ import static tk.glucodata.settings.Settings.editoptions;
 import static tk.glucodata.settings.Settings.getGenSpin;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
+import static tk.glucodata.util.getcheckbox;
 import static tk.glucodata.util.getlabel;
 
 
@@ -138,34 +140,41 @@ void closenumview() {
     }
 
 Button mealbutton;
+CheckBox excludebox;
 public void  addnumberview(MainActivity activity, long hitptr) {
     if(currentnum!=0L&&currentnum!=numio.newhit) 
             Natives.freehitptr(currentnum);
     long time= Natives.hittime(hitptr)*1000L;
+    lasttime=time;
     int bron= Natives.gethitindex(hitptr);
     var type=Natives.hittype(hitptr);
+    var exclude=Natives.hitexclude(hitptr);
     addnumberview(activity, bron,time,Natives.hitvalue(hitptr),type,-1);
     if(hitptr!=numio.newhit) {
-        if(!Natives.staticnum())
-            deletebutton.setVisibility(VISIBLE);
-        else
-            deletebutton.setVisibility(GONE);
+        if(!Natives.staticnum()) {
+            seedelete();
+            }
+        else {
+            nodelete();
+            }
         currentnum = hitptr;
-        setmealbutton(type,bron, Natives.hitmeal(hitptr)) ;
+        setmealbutton(type,bron, Natives.hitmeal(hitptr),exclude) ;
         }
     else {
-        deletebutton.setVisibility(GONE);
-        setmealbutton(type,bron, 0) ;
+
+        nodelete();
+        setmealbutton(type,bron, 0,shouldexclude) ;
         currentnum=0L;
         }
-           if(dateview!=null)
-           thedate=time;
+           if(dateview!=null) {
+               thedate = time;
+              }
 
             if(timeview!=null) {
                 cal.setTimeInMillis(time);
                 int hour = cal.get(Calendar.HOUR_OF_DAY);
                 int min = cal.get(Calendar.MINUTE);
-        thetime=hour * 60 + min;
+                thetime=hour * 60 + min;
                 }
         }
 float roundto(float get,float ro) {
@@ -175,7 +184,12 @@ final private int[] newmealptr={0};
 final private Layout[] mealview={null};
 private long lasttime=0L;
 private TextView messagetext;
-
+boolean shouldexclude=false;
+void  setExcludeTime(long time){
+      shouldexclude = Natives.shouldExclude(time);
+      EnableControls(excludebox, !shouldexclude);
+      excludebox.setChecked(shouldexclude);
+       }
 //public static String minhourstr(Date dat) {
 public static String minhourstr(long mmsec) {
    if(systemtimeformat())
@@ -200,44 +214,26 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 
         timeview=timebutton;
     mealbutton=getbutton(context,R.string.mealname);
+    excludebox=getcheckbox(context,R.string.exclude,true);
     source.setMinWidth(mealbutton.getMinWidth());
     messagetext=getlabel(context,R.string.dontchangeamounts);
-    //int pads=(int)(GlucoseCurve.metrics.density*8);
-        //messagetext.setPadding(pads,0,0,0);
-    //messagetext.setVisibility(GONE);
     mealbutton.setVisibility(GONE);
+    excludebox.setVisibility(GONE);
     if(smallScreen) {
         valueedit=geteditwearos(context);
         }
     else  {
         valueedit = geteditview(context,new editfocus());
         }
-    valueedit.setMinEms(isWearable?1:4);
+    valueedit.setMinEms(isWearable?2:4);
 
-//        View[] row1 = {getspinner(context), valueedit};
         deletebutton = new Button(context);
 
- //       deletebutton = new MaterialButton(context);
-//      ((MaterialButton) deletebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         deletebutton.setText(R.string.delete);
 
         Button cancel = new Button(context);
         cancel.setText(R.string.cancel);
         savebutton = new Button(context);
-/*    if(isWearable) {
-       cancel.setMinWidth(0);
-       cancel.setMinimumWidth(0);
-       savebutton.setMinWidth(0);
-       savebutton.setMinimumWidth(0);
-       deletebutton.setMinWidth(0);
-       deletebutton.setMinimumWidth(0);
-       datebutton.setMinWidth(0);
-       datebutton.setMinimumWidth(0);
-       timebutton.setMinWidth(0);
-       timebutton.setMinimumWidth(0);
-       } */
-//        savebutton = new MaterialButton(context);
- //     ((MaterialButton) savebutton).setCornerRadius(GlucoseCurve.dpToPx(30));
         savebutton.setText(R.string.save);
 
     Button helpbutton;
@@ -253,32 +249,48 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
     if(isWearable) {
         int height=GlucoseCurve.getheight();
         int width=GlucoseCurve.getwidth();
-      var lab1=getlabel(context," ");
-      var lab2=getlabel(context," ");
+      getMargins(timebutton).rightMargin= getMargins(datebutton).leftMargin =(int)(width*0.08f);
+//      getMargins(timebutton).rightMargin=(int)(width*0.10f);
       if(useclose)  {
+   //      getMargins(deletebutton).rightMargin=getMargins(savebutton).leftMargin =(int)(width*0.05f);
+//      getMargins(deletebutton).rightMargin=getMargins(savebutton).leftMargin =(int)(width*0.12f);
           layout = new Layout(context, (lay,w,h) -> { 
-            if(height>h)
-               lay.setY((height-h)*.5f+GlucoseCurve.metrics.density*10.0f);
-            if(width>w)
-               lay.setX((width-w)*.5f);
-          return new int[]{w,h}; }, new View[]{lab1,datebutton,timebutton,lab2} ,new View[]{getspinner(context), valueedit}, new View[]{messagetext,savebutton,deletebutton},new View[]{cancel});
+          return new int[]{w,h}; }, new View[]{datebutton,timebutton} ,new View[]{getspinner(context), valueedit}, new View[]{excludebox},new View[]{messagetext,savebutton,deletebutton},new View[]{cancel});
       }
       else {
-      var space1=new Space(context);
-      var space2=new Space(context);
-      var space3=new Space(context);
-      var space4=new Space(context);
+ //     getMargins(deletebutton).bottomMargin=getMargins(savebutton).bottomMargin =(int)(width*0.12f);
        layout = new Layout(context, (lay,w,h) -> {
-            if(height>h)
-               lay.setY((height-h)*.5f);
-            if(width>w)
-               lay.setX((width-w)*.5f);
    return new int[]{w,h};
-   }, new View[]{space1,datebutton,timebutton,space2} ,new View[]{getspinner(context), valueedit}, new View[]{space3,messagetext,savebutton,deletebutton,space4});
+   }, new View[]{datebutton,timebutton} ,new View[]{getspinner(context), valueedit},new View[]{excludebox}, new View[]{messagetext,savebutton,deletebutton});
    }
 
 //       int sidepad=(int)(GlucoseCurve.metrics.density*20);
  //       layout.setPadding(sidepad,0,sidepad,0);
+
+        if(true) {
+          layout.setPadding((int)(width*0.01f),(int)(height*.15f),(int)(width*0.01f),(int)(height*.01f));
+           ScrollView scroll=new ScrollView(context);
+           scroll.setFillViewport(true);
+        scroll.setSmoothScrollingEnabled(false);
+          scroll.setScrollbarFadingEnabled(true);
+          scroll.setVerticalScrollBarEnabled(true);
+//           scroll.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+           scroll.addView(layout, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+           newnumview=scroll;
+           }
+         else {
+           var frame=new FrameLayout(context);
+           frame.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+           newnumview=frame;
+             }
+             /*
+      newnumview.measure(MATCH_PARENT, MATCH_PARENT);
+      var h=newnumview.getMeasuredHeight();
+      var w=newnumview.getMeasuredWidth();
+       if(height>h)
+               newnumview.setY((height-h)*.5f+GlucoseCurve.metrics.density*10.0f);
+        if(width>w)
+           newnumview.setX((width-w)*.5f);  */
       }
   else { 
    layout=new Layout(context, (lay, w, h) -> {
@@ -331,7 +343,7 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
               lay.setY(MainActivity.systembarTop*3/4);
             }
 
-            return new int[] {w,h}; },new View[]{helpbutton,getspinner(context), valueedit},new View[]{datebutton, mealbutton,source,timebutton},new View[]{cancel,messagetext,deletebutton, savebutton});
+            return new int[] {w,h}; },new View[]{helpbutton,getspinner(context), valueedit},new View[]{datebutton, excludebox,mealbutton,source,timebutton},new View[]{cancel,messagetext,deletebutton, savebutton});
          }
 
         timebutton.setOnClickListener(
@@ -361,19 +373,6 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
 
             });
     if(isWearable) {
-        if(false) {
-           ScrollView hori=new ScrollView(context);
-           hori.setFillViewport(true);
-          hori.setScrollbarFadingEnabled(false);
-           hori.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-           newnumview=hori;
-           }
-         else {
-           var frame=new FrameLayout(context);
-           frame.addView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-
-           newnumview=frame;
-             }
 
         }
     else  {
@@ -457,15 +456,14 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
       datebutton.setText(DateFormat.getDateInstance(DateFormat.SHORT).format(dat));
    else
        datebutton.setText(DateFormat.getDateInstance(DateFormat.DEFAULT).format(dat));
-//     timebutton.setText(DateFormat.getTimeInstance(DateFormat.SHORT).format(dat));
-     timebutton.setText(minhourstr(time));
+    timebutton.setText(minhourstr(time));
     if(value< Float.MAX_VALUE)
         valueedit.setText(String.valueOf(value));
     else
         valueedit.setText("");
     spinner.setSelection(type);
-        editfocus.setedittext(valueedit);
-        source.setText( bron==1?"      ":"           \u231A         ");
+    editfocus.setedittext(valueedit);
+    source.setText( bron==1?"      ":"           \u231A         ");
     source.setTextAlignment( TEXT_ALIGNMENT_CENTER);
     int pads=(int)(GlucoseCurve.metrics.density*10);
         source.setPadding(0,pads,0,pads);
@@ -520,27 +518,21 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
         mealview[0]=null;
         {if(doLog) {Log.i(LOG_ID,"onClick");};};
         menucall.onClick(mealbutton);
-    //    setmealbutton(type,bron, tmpmealptr) ;
-
-// mealbutton.setOnClickListener(menucall);
         }
     else {
         timebutton.setTextColor(savebutton.getCurrentTextColor());
         datebutton.setTextColor(savebutton.getCurrentTextColor());
-    //    int mptr=((currentnum!=0L)?Natives.hitmeal(currentnum):0);
-    //    setmealbutton(type,bron, mptr) ;
     }
 
+    setExcludeTime(time);
     return newnumview;
     }
 void deletedialog(View v,int[] mealptr) {
     if(currentnum==0L) {
         newnumview.setVisibility(GONE);
         hidekeyboard();
-        // ((Applic) ((Activity) v.getContext()).getApplication()). redraw();
         return;
         }
-//    Applic  context= ((Applic) ((Activity) v.getContext()).getApplication());
     MainActivity  context=  ((MainActivity) v.getContext());
 
     long time= Natives.hittime(currentnum)*1000L;
@@ -548,10 +540,8 @@ void deletedialog(View v,int[] mealptr) {
     int type=Natives.hittype(currentnum);
     ArrayList<String> labels= ((Applic)context.getApplication()).getlabels();
     String mess= DateFormat.getDateTimeInstance(DateFormat.DEFAULT,DateFormat.DEFAULT).format(time)+" "+ labels.get(type)+" "+value;
-       // AlertDialog.Builder builder = new AlertDialog.Builder(context,R.style.mydialogstyle);
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle(R.string.deletequestion).
-     setMessage(mess).
+        builder.setTitle(R.string.deletequestion).setMessage(mess).
            setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
             if(mealptr[0]!=0)
@@ -568,7 +558,7 @@ void deletedialog(View v,int[] mealptr) {
                         alldata.deletelast(index,last,waslast);
                         if(pos<last)
                              alldata.changedback(index);
-                             }
+                        }
                         Natives.freehitptr(currentnum);
                       ((Applic) ((Activity) v.getContext()).getApplication()). redraw();
                       }
@@ -586,19 +576,31 @@ void deletedialog(View v,int[] mealptr) {
         GlucoseCurve.reopener();
         context.poponback();
 
-    //        context.clearonback();
                     }
                 }) .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int id) {
-/*            if(currentnum!=0) {
-                if(currentnum!=numio.newhit) 
-                    Natives.freehitptr(currentnum);
-                currentnum=0;
-                }
-         newnumview.setVisibility(View.GONE);
-         keyboard.setVisibility(View.GONE);*/
             }
         }).show().setCanceledOnTouchOutside(false);
+    }
+
+
+private void nodelete() {
+    deletebutton.setVisibility(GONE);
+    if(isWearable)
+        getMargins(savebutton).leftMargin =0;
+    }
+
+private void seedelete() {
+    deletebutton.setVisibility(VISIBLE);
+    if(isWearable) {
+        int width=GlucoseCurve.getwidth();
+         if(useclose)  {
+             getMargins(deletebutton).rightMargin=getMargins(savebutton).leftMargin =(int)(width*0.05f);
+             }
+         else {
+          getMargins(deletebutton).rightMargin=getMargins(savebutton).leftMargin =(int)(width*0.12f);
+            }
+         }
     }
 public void addnumberwithmenu(MainActivity context,int mealptr) {
     if(currentnum!=0L)  {
@@ -608,8 +610,8 @@ public void addnumberwithmenu(MainActivity context,int mealptr) {
         }
     var type=Natives.getmealvar();
      addnumberview(context,1,currentTimeMillis(),Float.MAX_VALUE,type,mealptr);
-    setmealbutton(type,1, 0) ;
-        deletebutton.setVisibility(GONE);
+    setmealbutton(type,1, 0,shouldexclude) ;
+    nodelete();
     thetime=-1;
     thedate=0L;
     }
@@ -620,9 +622,9 @@ public View addnumberview(MainActivity context) {
         currentnum=0L;
         }
     View lay=  addnumberview(context,1,currentTimeMillis(),Float.MAX_VALUE,0,-1);
-    setmealbutton(0,1, 0) ;
+    setmealbutton(0,1, 0,shouldexclude) ;
     spinner.performClick();
-        deletebutton.setVisibility(GONE);
+    nodelete();
     thetime=-1;
     thedate=0L;
     return lay;
@@ -646,9 +648,13 @@ private boolean saveamount(Activity activity,TextView timeview,TextView value,in
         Log.stack(LOG_ID,"parseFloat "+strval,e);
         };
 
+    if(labelsel==Natives.getbloodvar()) { 
+        mealptr=excludebox.isChecked()?1:0;
+        }
     if(currentnum!=0&&currentnum!=numio.newhit) {
-        long dat=thedate==0L?Natives.hittime(currentnum)*1000L:thedate;
-        if(timeview!=null) {
+//        long dat=thedate==0L?Natives.hittime(currentnum)*1000L:thedate;
+        long dat=thedate==0L?lasttime:thedate;
+/*        if(timeview!=null) {
             cal.setTimeInMillis(dat);
             int minutes = thetime;
             if(minutes>=0) {
@@ -657,8 +663,7 @@ private boolean saveamount(Activity activity,TextView timeview,TextView value,in
                 cal.set(Calendar.SECOND,0);
                 }
             dat= cal.getTimeInMillis();
-            }
-
+            } */
         Natives.hitchange(currentnum,dat/1000L,val,labelsel,mealptr);
         int index=Natives.gethitindex(currentnum);
         if(!isWearable) {
@@ -670,7 +675,7 @@ private boolean saveamount(Activity activity,TextView timeview,TextView value,in
 
     else {
         long dat=thedate==0L?lasttime:thedate;
-        cal.setTimeInMillis(dat);
+        /* cal.setTimeInMillis(dat);
         if(timeview!=null) {
             int minutes = thetime;
             if(minutes>=0) {
@@ -679,7 +684,7 @@ private boolean saveamount(Activity activity,TextView timeview,TextView value,in
                 cal.set(Calendar.SECOND,0);
                 }
             }
-        dat= cal.getTimeInMillis();
+        dat= cal.getTimeInMillis(); */
         final int index=1;
         Natives.saveNum(numio.numptrs[index],dat/1000,val,labelsel,mealptr);
         if(!isWearable) {
@@ -692,12 +697,14 @@ private boolean saveamount(Activity activity,TextView timeview,TextView value,in
     return true;
     }
 Dater dater=null;
+
 Dater numdater=(year,month,day)-> {
          cal.set(Calendar.YEAR,year);
          cal.set(Calendar.MONTH,month);
          cal.set(Calendar.DAY_OF_MONTH,day);
          long dat= cal.getTimeInMillis();
         thedate=dat;
+        setExcludeTime(dat);
         dateview.setText( DateFormat.getDateInstance( DateFormat.DEFAULT) .format(dat)); } ;
 
 Layout getdateview(MainActivity activity) {
@@ -805,7 +812,16 @@ TimePicker pick=null;
 ObjIntConsumer<Integer> settime=null;
 ObjIntConsumer<Integer>  numsettime=(hour,min)-> {
     thetime= hour*60+min;
-        timeview.setText(String.format(Locale.US,"%02d:%02d",hour,min ));
+    cal.setTimeInMillis(thedate==0?lasttime:thedate);
+    int minutes = thetime;
+    if(minutes>=0) {
+        cal.set(Calendar.HOUR_OF_DAY, minutes / 60);
+        cal.set(Calendar.MINUTE, minutes % 60);
+        cal.set(Calendar.SECOND,0);
+    }
+    thedate= cal.getTimeInMillis();
+     setExcludeTime(thedate);
+    timeview.setText(String.format(Locale.US,"%02d:%02d",hour,min ));
     };
 void gettimeview(MainActivity activity,Runnable parent) {
     int id=thetime; 
@@ -943,22 +959,35 @@ pick.setCurrentMinute(minin);
 }
 LabelAdapter<String> numspinadapt;
 
-void setmealbutton(int labelsel,int bron,int mealptr) {
+void setmealbutton(int labelsel,int bron,int mealptr,boolean exclude) {
        {if(doLog) {Log.i(LOG_ID,"bron="+bron+" mealptr="+mealptr);};};
-        if(labelsel==Natives.getmealvar() &&(bron==1|| mealptr>0)) {
-        mealbutton.setVisibility(VISIBLE);
-        source.setVisibility(GONE);
-        }
+        if(!isWearable&&labelsel==Natives.getmealvar() &&(bron==1|| mealptr>0)) {
+            mealbutton.setVisibility(VISIBLE);
+            source.setVisibility(GONE);
+            excludebox.setVisibility(GONE);
+            }
 
     else {
-        mealbutton.setVisibility(GONE);
-        source.setVisibility(VISIBLE);
-        }
+       if(labelsel==Natives.getbloodvar()) {
+            mealbutton.setVisibility(GONE);
+            source.setVisibility(GONE);
+            excludebox.setVisibility(VISIBLE);
+            if(shouldexclude)
+                excludebox.setChecked(true);
+            else
+                excludebox.setChecked(exclude);
+            }
+        else  {
+            mealbutton.setVisibility(GONE);
+            source.setVisibility(VISIBLE);
+            excludebox.setVisibility(GONE);
+            }
+            }
   
       }
 void setmealbutton(int labelsel,long hitptr) {
     boolean here=(hitptr==0L||hitptr==numio.newhit);
-    setmealbutton(labelsel, here?1:Natives.gethitindex(hitptr),here?1:Natives.hitmeal(hitptr));
+    setmealbutton(labelsel, here?1:Natives.gethitindex(hitptr),here?1:Natives.hitmeal(hitptr),here?shouldexclude:Natives.hitexclude(hitptr));
     }
 Spinner getspinner(Activity context) {
 if(spinner==null) {
@@ -968,8 +997,7 @@ if(spinner==null) {
     spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
         @Override
         public  void onItemSelected (AdapterView<?> parent, View view, int position, long id) {
-        labelsel=position;
-        if(!isWearable)
+            labelsel=position;
             setmealbutton(position,currentnum);
             }
         @Override
@@ -977,36 +1005,26 @@ if(spinner==null) {
             labelsel=-1;
 
         } });
-//    spinner.clearAnimation();
     }
 return spinner;
 
 }
 
 static EditText geteditview(Context context,View.OnFocusChangeListener focus) {
-//static EditText geteditview(Context context) {
     EditText  under=new EditText(context);// under.setText(str);
     under.setInputType( InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
     under.setMinEms(2);
     under.setOnFocusChangeListener(focus);
     under.setSelectAllOnFocus(true);
     under.setMinHeight(GlucoseCurve.dpToPx(50));
-/*    under.setSelectAllOnFocus(true);
-    under.setOnTouchListener(ontouchedit);
-    */
-
     closekeyboard(under) ;
-//    under.setFocusableInTouchMode(true);
-//    under.setFocusable(true); under.requestFocus();
-//    under.setTextIsSelectable(true);
-        return under;
+    return under;
 }
 
 static EditText geteditwearos(Context context) {
     var valedit=new EditText(context);
-//    valedit.setMinEms(3);
     valedit.setInputType(InputType.TYPE_CLASS_NUMBER |InputType.TYPE_NUMBER_FLAG_DECIMAL);//| InputType.IME_FLAG_NO_FULLSCREEN);
-        valedit.setImeOptions(editoptions);
+    valedit.setImeOptions(editoptions);
     return valedit;
     }
 /*

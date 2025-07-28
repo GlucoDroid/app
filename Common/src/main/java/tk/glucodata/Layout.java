@@ -84,7 +84,7 @@ void init(Context context,Placer placer,int nr) {
     }
     public Layout(Context context,Placer placer, int nr) {
         super(context);
-    init(context,placer,nr);
+        init(context,placer,nr);
         }
     public Layout(Context context, View [] ... rows) {
     this(context,Layout::noneplacer,rows);

@@ -120,6 +120,7 @@ std::string_view statistics;
 #endif
 std::string_view summarygraph;
 std::string_view logdays;
+std::string_view unhide;
 #ifdef INJUGGLUCO
 #ifndef DONTTALK
 std::string_view getTrendName(int type) const {

@@ -292,6 +292,32 @@ static bool hasDirectWatchConnection(const passhost_t *wearhost) {
             }
         }
     }
+static bool hasWatchNums(const passhost_t *wearhost) {
+    if(!wearhost)
+        return false;
+       if constexpr(iswatchapp()) {
+            LOGGERTAG("is watch isSensor=%d\n",wearhost->isSender());
+            if(wearhost->isSender()&&getsendto(wearhost).sendnums)  {
+                  LOGSTRINGTAG("watch nums sender\n");
+            return true;
+            }
+        else  {
+              LOGSTRINGTAG("watch no nums sender\n");
+            return false;
+            }
+               }
+    else {
+        LOGGERTAG("is no watch isSender=%d\n",wearhost->isSender());
+        if(wearhost->isSender()&&getsendto(wearhost).sendnums) {
+              LOGSTRINGTAG("watch no nums sender\n");
+            return false;
+            }
+        else  {
+                  LOGSTRINGTAG("watch nums sender\n");
+                  return true;
+            }
+        }
+    }
 /*watchsensor
 -1: not
 1: yes
@@ -336,7 +362,7 @@ bool wearmessages[maxallhosts]={};
 
 extern void makepass(char *pass,int len);
 static bool sendpass=false;
-extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, jclass cl,jstring jident,jboolean create,jint watchHasSensor,jboolean galaxy) {
+extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, jclass cl,jstring jident,jboolean create,jint watchHasSensor,jboolean galaxy,jint setnums) {
 
     if(!backup) {
         LOGSTRINGTAG("getmynetinfo backup=null\n");
@@ -408,6 +434,18 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
             info.setpass=true;
             sendpass=false;
            }
+        if(usedversion&&setnums) {
+            if(wearhost->index>=0) {
+                auto &sendhost= getsendto(index);
+                bool sendnums=setnums<0;
+                sendhost.sendnums=sendnums;
+                bool receive=!(sendnums&&sendhost.sendstream);
+                const bool        activeonly=getactive(index);
+                const bool        passiveonly=getpassive(index);
+                wearhost->receivefrom=getreceivefrom(index,receive,activeonly,passiveonly);
+                settings->data()->nochangenum=!sendnums;
+                }
+            }
 
         if(watchHasSensor) { 
 
@@ -424,7 +462,7 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
                         }
                 if(wearhost->index>=0) {
                     updateone &updat= getsendto(index);
-                    updat.sendstream=false;
+                    updat.sendstream=false; //******
                     LOGGER("watchHasSEnsor %d sendstream=%d\n",watchHasSensor,updat.sendstream);
                     if(usedversion) {
                         info.sendnums=updat.sendnums;
@@ -465,19 +503,8 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
         setsendinfo(info,wearhost);
         if(usedversion>=4) {
             if(!wearhost->haspass()) {
-
                  char pass[17];
-                 /*
-                 constexpr const auto mkchar=[](uint8_t get) { return get%95+32; };
-                 uint8_t ran[16];
-                 makerandom(ran,16);
-                 for(int i=0;i<16;i++) {
-                    pass[i]=mkchar(ran[i]);
-                    }
-                  */  
                  makepass(pass,16);
-//                 makerandom(info.pass.data(),info.pass.size());
-//                 strcpy((char *)info.pass.data(),pass);
                  LOGGER("create pass %s\n",pass);
                  backup->setpass(info.pass,std::string_view(pass,16));
                  info.setpass=true;
@@ -576,34 +603,37 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
         LOGAR("is watch");
     
         if(info->watchsensor) {
-        settings->data()->nobluetooth=false;
-        bool sendnums=false;
-        if(!host->isSender()||(sendnums=getsendto(index).sendnums,!getsendto(index).sendstream)) {
-            bool sendstream=true;
-            bool sendscans=false;
-            bool receive=info->version>1?(info->sendscans||info->sendnums):true;
-            char portstr[7];
-            snprintf(portstr,6,"%d",port); 
-            const int len=host->nr;
-            const char *names[len];
-            namehost hostnames[len];
-            for(int i=0;i<len;i++) {
-                hostnames[i]=namehost(host->ips+i);
-                names[i]=hostnames[i].data();
-                LOGGERTAG("host: %s\n",names[i]);
+            settings->data()->nobluetooth=false;
+//            bool sendnums=false;
+            if(!host->isSender()||!getsendto(index).sendstream||getsendto(index).sendnums==info->sendnums) {
+
+                bool sendnums=!info->sendnums;
+                settings->data()->nochangenum=!sendnums;
+                bool sendstream=true;
+                bool sendscans=false;
+                bool receive=info->version>1?(info->sendscans||info->sendnums):true;
+                char portstr[7];
+                snprintf(portstr,6,"%d",port); 
+                const int len=host->nr;
+                const char *names[len];
+                namehost hostnames[len];
+                for(int i=0;i<len;i++) {
+                    hostnames[i]=namehost(host->ips+i);
+                    names[i]=hostnames[i].data();
+                    LOGGERTAG("host: %s\n",names[i]);
+                    }
+
+    //            auto [_id,lasttime]=sensors->lastpolltime();
+                auto lasttime=sendstreamfrom();
+
+                bool activeonly=getactive(index);
+                bool passiveonly=getpassive(index);
+                    backup->changehost(index,nullptr,(jobjectArray)names,len,true,portstr,sendnums, sendstream, sendscans,false, receive,activeonly ,backup->getpass(index).data(),lasttime,passiveonly,infolabel,false,true);
                 }
-
-//            auto [_id,lasttime]=sensors->lastpolltime();
-            auto lasttime=sendstreamfrom();
-
-            bool activeonly=getactive(index);
-            bool passiveonly=getpassive(index);
-                backup->changehost(index,nullptr,(jobjectArray)names,len,true,portstr,sendnums, sendstream, sendscans,false, receive,activeonly ,backup->getpass(index).data(),lasttime,passiveonly,infolabel,false,true);
-            }
         }
     else {
         settings->data()->nobluetooth=true;
-        if(host->isSender()) {
+        if(host->isSender()||!info->sendnums) {
             char portstr[7];
             snprintf(portstr,6,"%d",port); 
             const int len=host->nr;
@@ -614,12 +644,13 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
                 names[i]=hostnames[i].data();
                 LOGGERTAG("host: %s\n",names[i]);
                 }
-            bool sendnums=getsendto(index).sendnums;
+            bool sendnums=!info->sendnums;
+            settings->data()->nochangenum=!sendnums;
             bool activeonly=getactive(index);
             bool passiveonly=getpassive(index);
             uint32_t starttime=0; //continues where left if sendnums=true
             bool receive=true;
-                backup->changehost(index,nullptr,(jobjectArray)names,len,true,portstr,sendnums, false, false,false, receive,activeonly ,backup->getpass(index).data(),starttime,passiveonly,infolabel,false,true);
+            backup->changehost(index,nullptr,(jobjectArray)names,len,true,portstr,sendnums, false, false,false, receive,activeonly ,backup->getpass(index).data(),starttime,passiveonly,infolabel,false,true);
 
 
             }
@@ -738,6 +769,24 @@ extern "C" JNIEXPORT jint  JNICALL   fromjava(directsensorwatch)(JNIEnv *env, jc
         if((nu-last)>3*60)
             return -1;
         return hasDirectWatchConnection(host);
+        }
+    return -1;
+       }
+extern "C" JNIEXPORT jint  JNICALL   fromjava(hasWatchNums)(JNIEnv *env, jclass cl,jstring jident) {
+
+    if(!jident) return -1;
+
+      const char *id = env->GetStringUTFChars( jident, NULL);
+        if (id == nullptr) return false;
+        destruct   dest([jident,id,env]() {env->ReleaseStringUTFChars(jident, id);});
+
+    if(passhost_t *host=getwearoshost(false,id,true)) {
+        int index=hostindex(host);
+        uint32_t nu=time(nullptr);
+        long last=lastuptodate[index];
+        if((nu-last)>3*60)
+            return -1;
+        return hasWatchNums(host);
         }
     return -1;
        }

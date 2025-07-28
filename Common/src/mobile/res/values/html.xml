@@ -997,13 +997,13 @@ have again do one or all of the following one or multiple times:</p>
 	<li><p style="line-height: 100%; margin-bottom: 0in">Reboot the
 	watch;</p></li>
 	<li><p style="line-height: 100%; margin-bottom: 0in">Reboot the
-	phone.</p>
+	phone.</p></li>
 </ul>
-	<p style="line-height: 100%; margin-bottom: 0in"><b>Refresh</b>
-	rewrites this dialog with new information (e.g. after Reinit or
-	Sync).</p>
-	<p style="line-height: 100%; margin-bottom: 0in">Checking &quot;<b>Glucose&quot;</b>
-	determines if glucose values are sent to the watch.</p></li>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Refresh</b>
+rewrites this dialog with new information (e.g. after Reinit or
+Sync).</p>
+<p style="line-height: 100%; margin-bottom: 0in">Checking &quot;<b>Glucose&quot;</b>
+determines if glucose values are sent to the watch.</p>
 <p style="line-height: 100%; margin-bottom: 0in"><a href="https://www.juggluco.nl/Jugglucohelp/garminconfig.html"><b>Config</b></a>:
 set Dark mode, Shortcuts and ID.</p>
 <p style="line-height: 100%; margin-bottom: 0in"><b>WARNING: Juggluco
@@ -2277,12 +2277,16 @@ value and a change direction arrow.</p>
 <string name="staticnum" >
 <![CDATA[
 <p><a href="https://www.juggluco.nl/Jugglucohelp/be/staticnum.html">be</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/de/staticnum.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/fr/staticnum.html">fr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/staticnum.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/pl/staticnum.html">pl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/ru/staticnum.html">ru</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/tr/staticnum.html">tr</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/uk/staticnum.html">uk</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/zh/staticnum.html">zh</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/staticnum.html?lang=en">en</a>&emsp;&emsp;</p><h1 align="center">Blocked</h1>
-<p style="margin-bottom: 0in"><b>Left middle menu→Mirror→&quot;</b><em><b>Mirror
-sends </b></em><em><b>mounts</b></em><b>&quot;</b> is set to prevent
+<p style="margin-bottom: 0in"><span lang="en-US"><b>Left middle
+menu→Mirror→”</b></span><em><span lang="en-US"><b>Mirror sends
+mounts”</b></span></em><span lang="en-US"> is set to prevent
 entering amounts in this app, because they will be overridden by
-amounts received from the mirror connection.</p>
+amounts received from the mirror connection.</span></p>
 <p style="margin-bottom: 0in">If this app doesn\'t receive amounts
 from a mirror connection, unset this option.</p>
+<p style="margin-bottom: 0in">This setting is also changed, on both
+watch and phone, with left menu→Watch→WearOS config→”Amounts
+entered on watch”.</p>
 ]]>
 </string>
 <string name="talkhelp" >
@@ -2442,6 +2446,11 @@ button brings you to to a display in which you can specify a meal out
 of its components. The carbohydrates content is then calculated or
 you can specify the carbohydrate content and the needed quantify of
 one ingredient is then calculated.</p>
+<p><b>Exclude</b>: Exclude a blood glucose measurement from <a href="https://www.juggluco.nl/Jugglucohelp/calibrationhelp.html">calibrations</a>,
+because the glucose level is rising or falling or the sensor is still
+warming up.
+
+</p>
 <p><br/>
 <br/>
 
@@ -2530,7 +2539,7 @@ values and amounts to Libreview and to get the account id used during
 Freestyle Libre 3 sensor activation. Touch to change settings.</p>
 <h2 class="western"><strike>Patched Libre</strike>. <b>Deprecated! Will be removed from future versions. Switch to the Eversense Broadcast.</b></h2>
 <p>The Patched Libre broadcast was used in the past to send the glucose values to xDrip. 
-<h2 class="western"><a name="eversense"></a>EverSense broadcast</h2>
+<h2 class="western"><a name="eversense"></a>EverSense</h2>
 <p>Yet another glucose broadcast. It can be used to send every minute
 a glucose value to xDrip. In xDrip you need to set “<i>460G/EverSense</i>”
 as the <i>Hardware Data Source</i>. 
@@ -2742,7 +2751,7 @@ WearOS watch, you can do this with a single button: <a href="https://www.juggluc
 menu→Watch→WearOS config</a>→”Direct sensor-watch
 connection”.  
 </p>
-<p>When using different sensors, you can select for which sensor to
+<p>When using multiple sensors, you can select for which sensor to
 view information.</p>
 <p><br/>
 <br/>
@@ -2819,6 +2828,119 @@ Which one is active is shown under left menu → Settings → <a href="https://w
 and left middle menu → <a href="https://www.juggluco.nl/Jugglucohelp/talkhelp.html">Talk</a>. Initially the profile is “<b>Default</b>”, you can change it to
 “<b>Profile 1”</b> or “<b>Profile 2”</b> etc. What you
 specify in Alarm and Talk are specific for the active profile.</p>
+]]>
+</string>
+<string name="calibrationslist" >
+<![CDATA[
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/calibrationslist.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/calibrationslist.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/calibrationslist.html?lang=en">en</a>&emsp;&emsp;</p><h1>Calibrations</h1>
+<p style="line-height: 100%; margin-bottom: 0in">Shows the
+calibrations made for this sensor. Every calibration consists of the
+time it was made and the slope (a) and intercept b of the relation
+between the blood glucose and the sensor glucose:</p>
+<p style="line-height: 100%; margin-bottom: 0in">Blood
+glucose=a*SensorGlucose+b</p>
+<p style="line-height: 100%; margin-bottom: 0in">When “change
+slope” is not set in left menu→Settings→<a href="https://www.juggluco.nl/Jugglucohelp/calibrationhelp.html">Calibration</a>, or when there are too few finger prick measurements or the finger prick
+measurements aren’t diverce enough a=1. So that only b is
+determined.</p>
+<p style="line-height: 100%; margin-bottom: 0in">Touching the
+calibration moves to the calibration time. Touching “<b>Delete</b>”
+removes the calibration.</p>
+<p style="line-height: 100%; margin-bottom: 0in"><b>Settings</b>:
+Other way to get to left menu-&gt;Settings-&gt;<a href="https://www.juggluco.nl/Jugglucohelp/calibrationhelp.html">Calibration</a>.</p>
+<p><br/>
+<br/>
+
+</p>
+<p><br/>
+<br/>
+
+</p>
+]]>
+</string>
+<string name="calibrationhelp" >
+<![CDATA[
+<p><a href="https://www.juggluco.nl/Jugglucohelp/de/calibrationhelp.html">de</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/nl/calibrationhelp.html">nl</a>&emsp;&emsp;<a href="https://www.juggluco.nl/Jugglucohelp/calibrationhelp.html?lang=en">en</a>&emsp;&emsp;</p><h1>Calibration</h1>
+<p>Juggluco 10.0.0 and higher have the possibility to calibrate
+sensors.</p>
+<p><i><b>Blood glucose</b></i>: Specify which label stands for the
+blood glucose finger prick measurements. Hereafter, all blood glucose
+values entered under that label will be used for calibration, except
+when you specify “<i>Exclude</i>” under left middle menu→<a href="https://www.juggluco.nl/Jugglucohelp/newamount.html">New amount</a>. When the rate of change is too large (absolutely) it will be
+automatically excluded.</p>
+<p>You should only exclude glucose values that are not appropriate
+for calibration because the glucose level is not steady. All other
+values should not be excluded, even when you think that the sensor
+don’t need to be calibrated. When you don’t want to calibrate,
+unset “Active” and unset right middle menu→Calibrated. This way
+all appropriate glucose values are used for calibration, not only
+those that don’t agree.</p>
+<p>Every new finger prick that is not excluded gives a new
+calibration. You can view the calibrations made by pressing
+<a href="https://www.juggluco.nl/Jugglucohelp/calibrationslist.html">“Calibrations”</a> in the sensor information screen. You can come to
+sensor information by long pressing the glucose curve or under left
+menu→Sensor. (Calibrations are specific to a particular sensor.)</p>
+<p>If “<i><b>Apply to past</b></i>” is not set, glucose values
+are calibrated with the last calibration before the glucose value. If
+“<i>Apply to past</i>” is set the last calibration is applied to
+all glucose values of this sensor. 
+</p>
+<p><i><b>Change slope:</b></i></p>
+<p style="font-variant: normal; font-style: normal; font-weight: normal">
+If “<i>Change slope</i>” is not set, only a certain value is
+added or subtracted from every sensor glucose value to get the
+calibrated glucose value. The relation between calibrated value and
+sensor value is:</p>
+<p style="font-variant: normal; font-style: normal"><b>Calibrated
+glucose=SensorGlucose + b</b></p>
+<p style="font-variant: normal; font-style: normal; font-weight: normal">
+The value of b is determined by calibration.</p>
+<p style="font-variant: normal; font-style: normal; font-weight: normal">
+If “<i>Change slope</i>” is set the relation becomes:</p>
+<p style="font-variant: normal; font-style: normal"><b>Calibrated
+glucose=a * SensorGlucose + b</b></p>
+<p>Whereby <b>a</b> can be different from 1. This kind of calibration
+is only possible when enough blood glucose measurements are made with
+values representing all sensor glucose levels. When if example all
+glucose measurements were made when the glucose value was around 90
+mg/dL (5 mmol/L) and the sensor values are spread from 54 mg/dL to
+180 mg/dL (3 mmol/L to 10 mmol/L) these values are not diverse enough
+to infer the value of <b>a</b>. Juggluco itself checks if there are
+enough values (count &gt;=3) and there is enough variance (standard
+deviation blood glucose &gt; 0.62 * standard deviation CGM glucose).</p>
+<p>Juggluco weights glucose measurements dependent on how old they
+are. The current glucose value has weight=1, older glucose values
+have a smaller weight. The calibration is also weighted so that an
+older calibration has less influence, so that a goes to 1 with time
+and b to zero with time.</p>
+<p>The total weight of used blood glucose measurements determined how
+much weight is given to the calibration. With more (recent) blood
+glucose measurements, the calibrated glucose values are tilted more
+to the best fit inferred between blood glucose and CGM glucose from
+these measurements.</p>
+<p><i><b>Active</b></i>:</p>
+<p>When active is set, the calibrated glucose values are used for
+alarms, broadcasts, Health connect, the nightscout/xDrip webserver in
+Juggluco, glucose values send to watches and floating glucose. On the
+right side of Juggluco the calibrated value is displayed in large
+font with the uncalibrated value after it in small font. It is never
+used for sending to Libreview or applied to scans or history values.</p>
+<p>The calibrated glucose values can always be viewed by switching on
+right middle menu→Calibrated.</p>
+<b><i>All values</i>:</b> For certain values there is no calibrated value.
+The curve of calibrated values (switched on with right middle
+menu→Calibrated) will show nothing, if “<i>All values</i>” is
+not checked. If “<i>All values</i>” is checked, it will show the
+uncalibrated value. This way you can switch off right middle
+menu→Stream and still see all values.</p>
+<p><br/>
+<br/>
+
+</p>
+<p><br/>
+<br/>
+
+</p>
 ]]>
 </string>
 </resources>

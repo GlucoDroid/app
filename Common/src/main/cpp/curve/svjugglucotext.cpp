@@ -99,8 +99,8 @@ jugglucotext svtext {
 		"Tal",
 		"Flytande     "
 		},
-	.menustr2= {
-    "Senaste skanning",
+
+	.menustr2= {"Calibrated",
     "Skanningar",
     "Strömmade",
     "Historik",
@@ -118,10 +118,10 @@ jugglucotext svtext {
 #else
    .amount="Värde",
    .menustr0= {
-      "Spegling",
+      "           Spegling",
       "Sensor",
-      "  Mörkt läge      ",
-      "Inställningar",
+      "Visa",
+      "  Inställningar",
       "Stoppa larm"
     },
     .menustr2= {
@@ -204,12 +204,9 @@ eller Denylist) och ändra sitt eget namn, båda behövs. I ditt fall
  ,.summarygraph="Sammanfattningsgraf"sv
 
 ,.logdays="Dagar"sv
+,.unhide="Unhide"sv
 
 
 	};
 
-extern void setusesv() ;
 addlang(sv);
-void setusesv() {
-  usedtext= &svtext;
-  }

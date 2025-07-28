@@ -126,7 +126,7 @@ jugglucotext pltext {
 		"Na głos",
 		"Pływ. wart."
 		},
-	.menustr2= {"Ostatni odczyt",
+	.menustr2= {"Calibrated",
 	"Skany",
 	"Strumień",
 	"Historia",
@@ -144,9 +144,9 @@ jugglucotext pltext {
 #else
  .amount="Wartość",
  .menustr0= {
-	"Klon",
+	"        Klon",
 	"Sensor",
-	"   Tr. ciemny      ",
+	"Ekran",
         "Ustawienia",
 	"Zatrzym. alarm"},
 .menustr2= {"Data",
@@ -217,6 +217,7 @@ hourminstr, "Dzień wstecz              ",pltext.amount},
 #endif //INJUGGLUCO
 ,.summarygraph="Wykres zbiorczy"sv
 ,.logdays="Dni"sv
+,.unhide="Unhide"sv
 		};
 
 addlang(pl);

@@ -125,16 +125,16 @@ static jugglucotext nltext {
 		"Praat",
 		"Zweef        "
 		},
-	.menustr2= {"Laatste scan","Scans","Stream","History","Hoeveelheden        ","Maaltijden","Dark mode"},
+	.menustr2= {"Gekalibreerd","Scans","Stream","History","Hoeveelheden        ","Maaltijden","Dark mode"},
 	.menustr3= {hourminstr,"Zoeken","Datum","Dag terug","Dag later","Week terug","Week later"},
 #endif
 #else
  .amount="Hoeveelheid",
  .menustr0= {
-	"Kloon",
+	"       Kloon",
 	"Sensor",
-	"  Darkmode      ",
-        "Instellingen",
+	"Toon",
+        "   Instellingen",
 	"Stop Alarm" },
 .menustr2= {"Datum",hourminstr, "Dag terug                    ",nltext.amount},
 #endif
@@ -204,6 +204,7 @@ volgende file)",
 
 ,.summarygraph="Samenvattende grafiek"sv
 ,.logdays="Dagen"sv
+,.unhide="Zichtbaar"sv
 		}
 
 

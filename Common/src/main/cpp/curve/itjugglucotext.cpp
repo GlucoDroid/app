@@ -133,16 +133,16 @@ static jugglucotext ittext {
 		"Talk",
 		"Float       "
 		},
-	.menustr2= {"Ultima scansione","Scansioni","Flusso","Cronologia","Valori","Pasti","Modalità scura       "}, 
+	.menustr2= {"Calibrated","Scansioni","Flusso","Cronologia","Valori","Pasti","Modalità scura       "}, 
 	.menustr3= {hourminstr,"Cerca","Data","Giorno prima","Giorno dopo","Settimana prima","Settimana dopo"}, 
 #endif //INJUGGLUCO
 #else
 	.amount="Valore",
  .menustr0= {
-	"Mirror",
+	"        Mirror",
 	"Sensore",
-	"       Darkmode      ",
-	"Impostazione",
+	"Display",
+	"      Impostazione",
 	"Stop Allarme"
 	 },
    .menustr2= {"Data",hourminstr,"Giorno dietro             ",ittext.amount},
@@ -209,6 +209,7 @@ seguenti file)",
 #endif //INJUGGLUCO
 ,.summarygraph="Grafico di sommario"sv
 ,.logdays="Giorni"sv
+,.unhide="Unhide"sv
 
 
 }

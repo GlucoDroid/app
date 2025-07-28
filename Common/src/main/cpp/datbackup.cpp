@@ -59,6 +59,13 @@ int updateone::updateiob() {
             }
      return 2;
     }
+
+
+int updateone::sendCalibrate() {
+    return sensors->sendCalibrates(getcrypt(), getsock(),ind,startSendCalibrate);
+    }
+
+
 #ifndef WEAROS
 int updateone::numbertypes() {
     if(!sendNight&&!sendLibre) {
@@ -207,7 +214,10 @@ int     updateone::updatenums() {
             }
         sendjugglucoid=true;
         }
-    return ::updatenums(getcrypt(),getsock(),nums,ind);
+    if(int did= ::updatenums(getcrypt(),getsock(),nums,ind))  {
+        return sendCalibrate()|did;
+        }
+    return 0; 
     }
 
 int  updateone::updatestreamu() {
@@ -224,19 +234,17 @@ int updateone::updatescansu() {
         return 0;
     return sensors->updatescanss(getcrypt(),getsock(),ind,firstsensor,sendstream);
      } 
-bool netwakeup(int sock,passhost_t *pass,crypt_t *ctx){
+void wakeupall(){
     if(backup) {
-        LOGGER("netwakeup %d\n",sock);
+        LOGAR("wakeupall");
         backup->wakebackup(Backup::wakeall|Backup::wakereconnect);
         }
-    return false;
     }
-bool netwakeupstream(int sock,passhost_t *pass,crypt_t *ctx){
+void wakeupstream(){
     if(backup) {
-        LOGGER("netwakeupstream %d\n",sock);
+        LOGAR("wakeupstream");
         backup->wakebackup(Backup::wakestream|Backup::wakereconnect);
         }
-    return false;
     }
 bool networkpresent=false;
 
@@ -680,4 +688,14 @@ void    sendstartsensors(int startpos) {
     }
 
 
+extern void setCalibrates(uint16_t sensorindex) ;
 
+void setCalibrates(uint16_t sensorindex) {
+    LOGGER("setCalibrates(%hd)\n",sensorindex);
+    const int maxint=getgetsendnr();
+    for(int i=0;i<maxint;++i) {
+        auto &host=backup->getupdatedata()->tosend[i];
+        if(host.sendnums)
+            host.setCalibrate(sensorindex);
+        }
+    }
