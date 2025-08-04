@@ -26,7 +26,7 @@
 #pragma once
 struct CaliPara {
     uint32_t time;
-    uint32_t reserved;
+    float32_t weight;
     float64_t  a;
     float64_t  b;
 //    CaliPara(uint32_t time,float64_t a, float64_t b):time(time),a(a),b(b) {}

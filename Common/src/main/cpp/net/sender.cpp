@@ -49,6 +49,7 @@
 #include "myfdsan.h"
 #define lerrortag(...) lerror("sender: " __VA_ARGS__)
 #define LOGGERTAG(...) LOGGER("sender: " __VA_ARGS__)
+#define LOGARTAG(...) LOGAR("sender: " __VA_ARGS__)
 #define LOGSTRINGTAG(...) LOGSTRING("sender: " __VA_ARGS__)
 #define flerrortag(...) flerror("sender: " __VA_ARGS__)
 
@@ -61,17 +62,17 @@ void   sendpassinit(int sock,passhost_t *host,crypt_t *ctx) {
    constexpr int takelen=ASCON_AEAD_NONCE_LEN-makelen;
    uint8_t *takestart=nonce+makelen;
        makerandom(nonce, makelen);
-   if(sendni(sock,nonce,makelen)!=makelen) {
-      lerrortag("sendpassinit send");
+   if(int didsend=sendni(sock,nonce,makelen);didsend!=makelen) {
+      flerrortag("sendpassinit send sock=%d ret=%d\n",sock,didsend);
       return;
       }
    int len=recvni(sock,takestart,takelen);
    if(len!=takelen) {
-      lerrortag("recv");
+      flerrortag("sendpassinit sock=%d recv len=%d\n",sock,len);
       return;
       }
         ascon_aead128a_init(ctx, host->pass.data(),nonce);   
-   LOGSTRINGTAG("end sendpassinit\n");
+   LOGARTAG("end sendpassinit");
    }
 bool unblock(int sock) {
   if( int val = fcntl(sock, F_GETFL, NULL);val >=0) {
@@ -140,7 +141,7 @@ static int testsendmagic(passhost_t *pass,int sock) {
       }
 constexpr const int recsize=sizeof(receivemagic);
    char buf[recsize];
-   LOGSTRINGTAG("before recv magic\n");
+   LOGARTAG("before recv magic");
    int gotlen;
    if((gotlen=recvni(sock,buf,recsize))!=recsize) {
       char *ptr=getmirrorerror(pass);
@@ -150,7 +151,7 @@ constexpr const int recsize=sizeof(receivemagic);
       LOGGERTAG("%s\n",ptr);
       return 2;
       }
-   LOGSTRINGTAG("after recv magic\n");
+   LOGARTAG("after recv magic");
    if(memcmp(buf,receivemagic,recsize-4)) {//4 less for version info
       char wrong[]="Wrong magic";
       char *buf=getmirrorerror(pass);
@@ -289,7 +290,7 @@ static int connectone( const struct sockaddr_in6  *sin, int &sock,char stype,pas
          cons[use++]={so,POLLOUT,0};
          }
       else {
-         LOGSTRINGTAG("close\n");
+         LOGARTAG("close");
          sockclose(so);
          return -1;
          }
@@ -522,7 +523,7 @@ bool activate=true;
          }
       use=newuse;
       }
-   LOGSTRINGTAG("no one\n");
+   LOGARTAG("no one");
    return -1;
    }
 

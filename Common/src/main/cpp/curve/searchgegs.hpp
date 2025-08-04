@@ -10,6 +10,7 @@
     static constexpr const int historysearchtype=2|glucosetype;
     static constexpr const int scansearchtype=1|glucosetype;
     static constexpr const int streamsearchtype=4|glucosetype;
+    static constexpr const int calibratedStreamsearchtype=8|glucosetype;
 
 struct  Searchgegs {
     int type;float under;float above;int frommin; int tomin;
@@ -59,6 +60,15 @@ struct  Searchgegs {
         if(!g||!g->valid())
             return false;
         uint32_t glu=g->g*10.0;
+        if(g->t&&glu&&glu>=under&&glu<=above&&righttime(g->t)) {
+            return  true;
+            }
+        return false;
+        }
+    bool operator() (const ScanData *g,float value) const {
+        if(!g||!g->valid())
+            return false;
+        uint32_t glu=value*10.0;
         if(g->t&&glu&&glu>=under&&glu<=above&&righttime(g->t)) {
             return  true;
             }

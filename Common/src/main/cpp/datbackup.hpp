@@ -666,11 +666,13 @@ void setcrypt(passhost_t *host) {
 static constexpr const std::array<uint8_t,16> remix= {0x19,0xED,0xA0,0x4A,0x94,0x9D,0x0C,0xD7,0x82,0x4A,0x74,0xA9,0x0E,0x71,0x84,0x8B};
 //,0x87,0x7F,0x0F,0xD7,0xA8,0xEE,0x8C,0xD7,0x80
 static void    setpass( std::array<uint8_t,16> &passuit,const string_view passin) {
-    const int len=passin.size();
+    int len=passin.size();
     if(!len) {
         passuit={};
         return;
         }    
+    if(len>16)
+        len=16;
     for(int i=0;i<len;i++) {
         passuit[i]=passin[i]^remix[i];
         }

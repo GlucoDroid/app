@@ -56,6 +56,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import tk.glucodata.nums.numio;
 import tk.glucodata.settings.Settings;
 
+import static tk.glucodata.Layout.getMargins;
 import static android.util.TypedValue.COMPLEX_UNIT_PX;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -218,6 +219,7 @@ void getnumcontrol(MainActivity activity) {
         selectnumbers();
         hidesave(scansearch);
         hidesave(streamsearch);
+        hidesave(calibratedsearch);
         hidesave(historysearch);
            });
 //    s/\(first[^6]*.6\)/(int)(\1)/g
@@ -757,6 +759,7 @@ if(!isWearable) {
         searchspinner.setSelection(labelsel);
         scansearch.setChecked(true);
         streamsearch.setChecked(true);
+        calibratedsearch.setChecked(true);
         historysearch.setChecked(true);
     if(Applic.hour24)  {
         fromtime.setText("00:00");
@@ -806,7 +809,8 @@ void search(boolean forward) {
             if(ingsearch.length()==0)
                 ingsearch=null;
                 }
-           int glsearch=((historysearch.isChecked()?0x40000002:0)| (scansearch.isChecked()?0x40000001:0))|(streamsearch.isChecked()?0x40000004:0);
+           int glsearch=((historysearch.isChecked()?0x40000002:0)| (scansearch.isChecked()?0x40000001:0))|(streamsearch.isChecked()?0x40000004:0)| (calibratedsearch.isChecked()?0x40000008:0);
+
        if(Natives.search(glsearch==0?labelsel:glsearch,funder,fabove,minutes[0],minutes[1],forward,ingsearch,ingamount)==0) {
 
            search.setVisibility(GONE);
@@ -893,7 +897,8 @@ void search(boolean forward) {
 
 //RadioButton numbers;
 
-    CheckBox scansearch,historysearch,streamsearch;
+    CheckBox scansearch,historysearch,streamsearch,calibratedsearch;
+
     Button fromtime, totime;
 
 //https://gist.github.com/kakajika/a236ba721a5c0ad3c1446e16a7423a63
@@ -914,22 +919,15 @@ void selectnumbers() {
             scansearch.setChecked(false);
             historysearch.setChecked(false);
             streamsearch.setChecked(false);
+            calibratedsearch.setChecked(false);
        //     spinner.setVisibility(VISIBLE);
         }
 void glucoselisten(CompoundButton one) {
     one.setOnClickListener(v -> {
-        if(historysearch.isChecked()||scansearch.isChecked()||streamsearch.isChecked()) {
-           // numbers.setChecked(false);
-        //    spinner.setVisibility(GONE);
-        labelsel=searchspinner.getCount()-1;
-        searchspinner.setSelection(labelsel);
-        }
-        else {
-          //  numbers.setChecked(true);
-         //   spinner.setVisibility(VISIBLE);
-
-        }
-//        but.setChecked(!but.isChecked()); {if(doLog) {Log.d(LOG_ID,"now "+ but.isChecked());};};
+        if(historysearch.isChecked()||scansearch.isChecked()||streamsearch.isChecked()||calibratedsearch.isChecked()) {
+            labelsel=searchspinner.getCount()-1;
+            searchspinner.setSelection(labelsel);
+            }
     });
 }
 Spinner searchspinner;
@@ -1078,12 +1076,15 @@ else {
     scansearch=new CheckBox(context); scansearch.setText(R.string.scanname);
      historysearch=new CheckBox(context); historysearch.setText(R.string.historyname);
      streamsearch=new CheckBox(context); streamsearch.setText(R.string.streamname);
-     streamsearch.setPadding(0,0,(int)metrics.density*8,0);
+     calibratedsearch=new CheckBox(context); calibratedsearch.setText(R.string.calibrated);
+     
         glucoselisten(scansearch) ;
         glucoselisten(historysearch) ;
         glucoselisten(streamsearch) ;
+        glucoselisten(calibratedsearch) ;
 
-    View[] glucoseline={scansearch,historysearch,streamsearch};
+    getMargins(calibratedsearch).rightMargin=getMargins(streamsearch).rightMargin =(int)metrics.density*10;
+
     fromtime =new Button(context); //fromtime.setText("00:00");
     TextView gline=new TextView(context);gline.setText(" - ");
 
@@ -1172,7 +1173,7 @@ if(!smallScreen) {
       {if(doLog) {Log.i(LOG_ID,"smallScreen search h="+h+" height="+height+" w="+w+" width="+width+" posx="+xpos+" posy="+ypos);};};
         }
         return new int[] {w,h};
-        },buttonline,glucoseline, timeline,goline);
+        },buttonline,new View[]{scansearch,calibratedsearch},new View[]{historysearch,streamsearch}, timeline,goline);
 
          mktimedialog( fromtime,0 ,layout);
       mktimedialog( totime,1 ,layout);

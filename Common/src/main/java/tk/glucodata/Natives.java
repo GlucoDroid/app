@@ -877,6 +877,9 @@ public static native boolean getHidefromSensorptr(long sensorptr);
 public static native boolean shouldExclude(long msec);
 public static native void setAllValues(boolean val);
 public static native boolean getAllValues( );
+
+public static native void setResetSibionics2(long dataptr,boolean val);
+public static native boolean getResetSibionics2(long dataptr);
 //s/^extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }
 

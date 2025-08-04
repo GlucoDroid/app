@@ -90,13 +90,24 @@ extern "C" JNIEXPORT void JNICALL   fromjava(siSaveDeviceName)(JNIEnv *env, jcla
    char *name=(char *)info->siDeviceName;
    env->GetStringUTFRegion( jdeviceName, 0,len, name);
    info->siDeviceNamelen=len;
-   name[len]='\0';
+
+  name[len]='\0';
   sendstreaming(sens);  
   backup->resendResetDevices();
   backup->wakebackup(Backup::wakeall);
   // sendstreaming(sens);  
    }
 
+extern "C" JNIEXPORT void  JNICALL   fromjava(setResetSibionics2)(JNIEnv *env, jclass cl,jlong dataptr,jboolean val) {
+    if(!dataptr)
+        return;
+    reinterpret_cast<streamdata *>(dataptr)->hist->getinfo()->reset=val;
+    }
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getResetSibionics2)(JNIEnv *env, jclass cl,jlong dataptr) {
+    if(!dataptr)
+        return false;
+    return reinterpret_cast<streamdata *>(dataptr)->hist->getinfo()->reset;
+    }
 
 extern "C" JNIEXPORT jboolean JNICALL   fromjava(siTransmitterScan)(JNIEnv *env, jclass cl,jlong dataptr,jstring jscancode) {
     if(!dataptr) {
@@ -168,15 +179,19 @@ if(!dataptr) {
    LOGAR("SIprocessData dataptr==null");
    return 0LL;
     }
-  uint32_t timsec=mmsec/1000L;
- data_t *bluedata=fromjbyteArray(envin,bluetoothdata);
-  destruct _destbluedata([bluedata]{data_t::deleteex(bluedata);});
  sistream *sdata=reinterpret_cast<sistream *>(dataptr);
   SensorGlucoseData *sens=sdata->hist;
   if(!sens) {
       LOGAR("SIprocessData SensorGlucoseData==null");
       return 0LL;
      }
+  if(sens->getinfo()->reset) {
+        LOGAR("SIprocessData reset");
+        return 10LL;
+        }
+  uint32_t timsec=mmsec/1000L;
+ data_t *bluedata=fromjbyteArray(envin,bluetoothdata);
+ destruct _destbluedata([bluedata]{data_t::deleteex(bluedata);});
 #ifdef NOTCHINESE
    if(sens->notchinese()) {
          

@@ -822,7 +822,7 @@ static int getgludraw(float val,int sensorgen) {
 		return mmolicon[ind];
 		}
 	else {
-		int intval=(int)val;
+		int intval=(int)Math.round(val);
 		if(intval<40)
 			return R.drawable.alarm39;
         if(sensorgen==0x40) {

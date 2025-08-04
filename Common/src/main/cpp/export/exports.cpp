@@ -217,7 +217,7 @@ bool fexportscans(myfilep handle, int unit,CurData   (SensorGlucoseData::*proc)(
             const auto mgdL=scan->getmgdL();
             const float rawconvert=gconvert(mgdL*10,unit); 
             if(isCalibrated) {
-		       const SensorGlucoseData *sensdata=sensors->getSensorData(sensorindex);
+               const SensorGlucoseData *sensdata=sensors->getSensorData(sensorindex);
                float calconvert;
                if(double calibrated=calibrateONE(sensdata,*scan);!isnan(calibrated)) {
                   calconvert=gconvert(10.0*calibrated,unit);

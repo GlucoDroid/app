@@ -35,6 +35,7 @@
 
 #define lerrortag(...) lerror("getcommands: " __VA_ARGS__)
 #define LOGGERTAG(...) LOGGER("getcommands: " __VA_ARGS__)
+#define LOGARTAG(...) LOGAR("getcommands: " __VA_ARGS__)
 #define LOGSTRINGTAG(...) LOGSTRING("getcommands: " __VA_ARGS__)
 #define flerrortag(...) flerror("getcommands: " __VA_ARGS__)
 
@@ -142,7 +143,7 @@ for(int it=0;it<len;) {
 	if(!(host->receivefrom&2)&&command!=sbackupstop&&command!=swakeupstream&&command!=sbackup&&command!=sack)  {
 
       savemessage(host,"Other side sends, but I am not configured to receive");
-		LOGSTRINGTAG("interpret: I don't receive from  this host\n");
+		LOGARTAG("interpret: I don't receive from  this host");
 		return {-1,0};
 		}
 
@@ -156,7 +157,7 @@ for(int it=0;it<len;) {
 				}
 			if(sendni(sock,&ackres,sizeof(ackres))!=sizeof(ackres)) 
 				return {-1,0};
-			LOGSTRINGTAG("ack send\n");
+			LOGARTAG("ack send");
 			ret=true;
 			};break;
 		case sopen: 
@@ -211,7 +212,7 @@ for(int it=0;it<len;) {
 			if(it>len) {
 				return {it,comlen};
 				}
-			LOGSTRINGTAG("swrite\n");
+			LOGARTAG("swrite");
 			ret= filedata.savedata(wcom->han,wcom->off,wcom->len,wcom->data);
 			};break;
 		case sclose: comlen=4;
@@ -333,7 +334,7 @@ extern				bool updateDevices() ;
 
 		case sfileonce:
 			{
-			LOGSTRINGTAG("fileonce\n");
+			LOGARTAG("fileonce");
 			int tolen=offsetof(fileonce_t,nr);
 			const fileonce_t *gegs=reinterpret_cast<const fileonce_t *>(data);
 			if(len>(it+tolen)) {
@@ -388,16 +389,16 @@ bool	getcommandsnopass(int sock,passhost_t *host) {
 		}
 
 	while(true) {
-		LOGSTRINGTAG("voor recv\n");
+		LOGARTAG("voor recv");
 		int len=recvni(sock,com+start,maxcom-start);
-		LOGGERTAG("%d=recv\n",len);
+		LOGGERTAG("sock=%d recv len=%d\n",sock,len);
 		switch(len) { 
 			case 0: {
-				LOGSTRINGTAG("closed\n");
+				LOGGERTAG("closed sock=%d\n",sock);
 				return false;
 				};
 			case -1: {
-				lerrortag("recv");
+				flerrortag("recv sock=%d\n",sock);
 				return false;
 				}
 			default:
@@ -471,13 +472,13 @@ static bool getcom(int sock, passhost_t *host,ascon_aead_ctx_t *ctx) {
 			LOGGERTAG("recv tag %d\n",getlen);
 			return false;
 			}
-		LOGSTRINGTAG("got tag\n");
+		LOGARTAG("got tag");
 		constexpr int testlen=16;
 		senddata_t start[testlen];
 		const int len1=recvni(sock,start,testlen);
 		switch(len1) {
 			case 0: {
-			LOGSTRINGTAG("recv==0\n");
+			LOGARTAG("recv==0");
 			return false;
 			};
 			case -1: {
@@ -530,12 +531,12 @@ static bool getcom(int sock, passhost_t *host,ascon_aead_ctx_t *ctx) {
 		
 		std::unique_ptr<uint8_t[] > deltoo(incrypt);
 		int len=0;
-		LOGSTRINGTAG("voor recv\n");
+		LOGARTAG("voor recv");
 		for(;len<bijlen;) {
 			int bij=recvni(sock,incrypt+len,bijlen-len);
 			switch(bij) {
 				case 0: {
-				LOGSTRINGTAG("2: recv==0\n");
+				LOGARTAG("2: recv==0");
 				return false;
 				};
 				case -1: {
@@ -545,18 +546,18 @@ static bool getcom(int sock, passhost_t *host,ascon_aead_ctx_t *ctx) {
 				}
 			len+=bij;
 			}
-		LOGSTRINGTAG("voor ascon_aead128a_decrypt_update\n");
+		LOGARTAG("voor ascon_aead128a_decrypt_update");
 		if(totlen>testlen)
 			res+= ascon_aead128a_decrypt_update(ctx, uit+res, incrypt, bijlen);
 		bool is_tag_valid;
 		res += ascon_aead128a_decrypt_final( ctx,uit+res, &is_tag_valid, tag, taglen);
 		if(!is_tag_valid) {		
          savemessage(host,"3: Encrypted with a different password");
-			LOGSTRINGTAG("ascon_aead128a_decrypt_final returns invalid\n");
+			LOGARTAG("ascon_aead128a_decrypt_final returns invalid");
 			return false;
 			}
 		else
-			LOGSTRINGTAG("ascon_aead128a_decrypt_final valid\n");
+			LOGARTAG("ascon_aead128a_decrypt_final valid");
 		status.ininterpret=true;
 		if(int res=interpretcommands(sock,host,ctx,uit+intlen,datlen)) {
 			if(res==1)
@@ -581,7 +582,7 @@ static unique_al<4> receivedatanopass(int sock,const int totlen) {
 		bij=recvni(sock,buf+took,totlen-took);
 		switch(bij) {
 			case -1:lerrortag("recv");return unique_al<4>(nullptr);
-			case 0:LOGSTRINGTAG("recv==0\n"); return unique_al<4>(nullptr);
+			case 0:LOGARTAG("recv==0"); return unique_al<4>(nullptr);
 
 
 			};
@@ -623,7 +624,7 @@ unique_al<4>  receivedatapass(int sock,crypt_t *ctx,int messlen) {
 	bool is_tag_valid;
 	res += ascon_aead128a_decrypt_final( ctx,tmpbuf+res, &is_tag_valid, buf, taglen);
 	if(!is_tag_valid) {		
-		LOGSTRINGTAG("ascon_aead128a_decrypt_final returns invalid tag\n");
+		LOGARTAG("ascon_aead128a_decrypt_final returns invalid tag");
 		return unique_al<4>(nullptr);
 		}
 
@@ -734,7 +735,7 @@ static bool savefileonce(const struct fileonce_t *gegs) {
 	start+=(gegs->namelen);
 	for(int i=0;i<nr;i++) {
 		if(!filedata.savedata(fp,gegs->gegs[i].off,gegs->gegs[i].len,start)) {
-			LOGSTRINGTAG("savedata failed\n");
+			LOGARTAG("savedata failed");
 			return false;
 			}
 		start+=gegs->gegs[i].len;
@@ -756,7 +757,7 @@ static bool savefileonce(const struct fileonce_t *gegs) {
                             }
                  }
             }
-	LOGSTRINGTAG("savedata success\n");
+	LOGARTAG("savedata success");
 #ifdef WEAROS
    static const bool res=startedreceiving();
 #endif

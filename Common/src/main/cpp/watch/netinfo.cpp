@@ -34,7 +34,9 @@
 #include <array>
 std::array<int,maxallhosts>        peers2us,us2peers;
 //void setall(std::array<int<maxallhosts>&ar,const int ini) {    
+//      s/LOGSTRINGTAG("\([^"]*\)\\n")/LOGARTAG("\1")
 #define LOGGERTAG(...) LOGGER("netinfo: " __VA_ARGS__)
+#define LOGARTAG(...) LOGAR("netinfo: " __VA_ARGS__)
 #define LOGSTRINGTAG(...) LOGSTRING("netinfo: " __VA_ARGS__)
 
 
@@ -94,7 +96,7 @@ passhost_t * getwearoshost(const bool create,const char *label,bool galaxy,bool 
       bool newhost;
     if(found==endhosts) {
         if(!create) {
-            LOGSTRINGTAG("!create\n");
+            LOGARTAG("!create");
             return nullptr;
         }
         if(nrhost==maxallhosts) {
@@ -131,9 +133,9 @@ passhost_t * getwearoshost(const bool create,const char *label,bool galaxy,bool 
 
     const bool onedirection=!usedversion||usedversion==3;
     if constexpr( iswatchapp()) {
-        LOGSTRINGTAG("watch app\n");
+        LOGARTAG("watch app");
       if(isGalaxyWatch<0) {
-         LOGAR("isGalaxyWatch<0");
+         LOGARTAG("isGalaxyWatch<0");
          return nullptr;
          }
         sendstream=false;
@@ -142,14 +144,14 @@ passhost_t * getwearoshost(const bool create,const char *label,bool galaxy,bool 
         receive=true;
 
         if(isGalaxyWatch) {  
-            LOGSTRINGTAG("I am Galaxy Watch\n");
+            LOGARTAG("I am Galaxy Watch");
             if(onedirection) {
                 activeonly=true;
                 }
             //passiveonly=false;
             }
         else {
-            LOGSTRINGTAG("I am No Galaxy Watch\n");
+            LOGARTAG("I am No Galaxy Watch");
             if(onedirection) {
              //   activeonly=false;
                 passiveonly=true;
@@ -157,20 +159,20 @@ passhost_t * getwearoshost(const bool create,const char *label,bool galaxy,bool 
             }
         }
     else {
-        LOGSTRINGTAG("no watch app\n");
+        LOGARTAG("no watch app");
         sendstream=true;
         sendscans=true;
         sendnums=true;
         receive=false;
         if(galaxy) {
-            LOGSTRINGTAG("connected to galaxy\n");
+            LOGARTAG("connected to galaxy");
             //activeonly=false;
             if(onedirection) {
                 passiveonly=true;
                 }
             }
         else {
-            LOGSTRINGTAG("not connected to galaxy\n");
+            LOGARTAG("not connected to galaxy");
             if(onedirection) {
                 activeonly=true;
                 }
@@ -181,7 +183,7 @@ passhost_t * getwearoshost(const bool create,const char *label,bool galaxy,bool 
         
         int ret=backup->changehost(nrhost,nullptr,nullptr,0,false,defaultport,sendnums, sendstream, sendscans,false, receive,activeonly ,newhost?std::string_view(nullptr,0):backup->getpass(nrhost).data(),0,passiveonly,label,false,true);
     if(ret<0&&ret!=-2) { 
-        LOGSTRINGTAG("changehost<0\n");
+        LOGARTAG("changehost<0");
         return nullptr;
         }
 
@@ -218,20 +220,20 @@ static void setdefaults(const char *infolabel,bool galaxy) {
         bool receive;
        const bool onedirection=!usedversion||usedversion==3;
         if constexpr(iswatchapp()) {
-            LOGSTRINGTAG("is watch\n");
+            LOGARTAG("is watch");
             sendnums=false;
             sendstream=false;
             sendscans=false;
             receive=true;
             if(isGalaxyWatch) {  
-                LOGSTRINGTAG("I am Galaxy Watch\n");
+                LOGARTAG("I am Galaxy Watch");
                 if(onedirection) {
                     activeonly=true;
                     }
                 //passiveonly=false;
                 }
             else {
-                LOGSTRINGTAG("I am No Galaxy Watch\n");
+                LOGARTAG("I am No Galaxy Watch");
                 //activeonly=false;
                 if(onedirection) {
                     passiveonly=true;
@@ -239,20 +241,20 @@ static void setdefaults(const char *infolabel,bool galaxy) {
                 }
             }
         else  {
-            LOGSTRINGTAG("no watch app\n");
+            LOGARTAG("no watch app");
             sendstream=true;
             sendscans=true;
             sendnums=true;
             receive=false;
             if(galaxy) {
-                LOGSTRINGTAG("connected to galaxy\n");
+                LOGARTAG("connected to galaxy");
                 //activeonly=false;
                 if(onedirection) {
                     passiveonly=true;
                     }
                 }
             else {
-                LOGSTRINGTAG("not connected to galaxy\n");
+                LOGARTAG("not connected to galaxy");
                 if(onedirection) {
                     activeonly=true;
                     }
@@ -269,26 +271,26 @@ updateone &getsendto(const passhost_t *host);
 static bool hasDirectWatchConnection(const passhost_t *wearhost) {
     if(!wearhost)
         return false;
-       if constexpr(iswatchapp()) {
-                LOGGERTAG("is watch isSender=%d\n",wearhost->isSender());
-                 if(wearhost->isSender()&&getsendto(wearhost).sendstream)  {
-                  LOGSTRINGTAG("watch sender\n");
-            return true;
-            }
-        else  {
-                  LOGSTRINGTAG("watch no sender\n");
-            return false;
-            }
-               }
+    if constexpr(iswatchapp()) {
+           LOGGERTAG("is watch isSender=%d\n",wearhost->isSender());
+            if(wearhost->isSender()&&getsendto(wearhost).sendstream)  {
+                LOGARTAG("watch sender");
+                return true;
+                }
+            else  {
+                LOGARTAG("watch no sender");
+                return false;
+                }
+           }
     else {
                 LOGGERTAG("is no watch isSender=%d\n",wearhost->isSender());
         if(wearhost->isSender()&&getsendto(wearhost).sendstream) {
-                  LOGSTRINGTAG("watch no sender\n");
+            LOGARTAG("watch no sender");
             return false;
             }
         else  {
-                  LOGSTRINGTAG("watch sender\n");
-                  return true;
+            LOGARTAG("watch sender");
+            return true;
             }
         }
     }
@@ -298,22 +300,22 @@ static bool hasWatchNums(const passhost_t *wearhost) {
        if constexpr(iswatchapp()) {
             LOGGERTAG("is watch isSensor=%d\n",wearhost->isSender());
             if(wearhost->isSender()&&getsendto(wearhost).sendnums)  {
-                  LOGSTRINGTAG("watch nums sender\n");
+                  LOGARTAG("watch nums sender");
             return true;
             }
         else  {
-              LOGSTRINGTAG("watch no nums sender\n");
+              LOGARTAG("watch no nums sender");
             return false;
             }
                }
     else {
         LOGGERTAG("is no watch isSender=%d\n",wearhost->isSender());
         if(wearhost->isSender()&&getsendto(wearhost).sendnums) {
-              LOGSTRINGTAG("watch no nums sender\n");
+              LOGARTAG("watch no nums sender");
             return false;
             }
         else  {
-                  LOGSTRINGTAG("watch nums sender\n");
+                  LOGARTAG("watch nums sender");
                   return true;
             }
         }
@@ -365,16 +367,16 @@ static bool sendpass=false;
 extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, jclass cl,jstring jident,jboolean create,jint watchHasSensor,jboolean galaxy,jint setnums) {
 
     if(!backup) {
-        LOGSTRINGTAG("getmynetinfo backup=null\n");
+        LOGARTAG("getmynetinfo backup=null");
         return nullptr;
         }
     if(!jident) {
-        LOGSTRINGTAG("jident=null\n");
+        LOGARTAG("jident=null");
         return nullptr;
         }
       const char *id = env->GetStringUTFChars( jident, NULL);
         if (id == nullptr) {
-        LOGSTRINGTAG("id=null\n");
+        LOGARTAG("id=null");
         return nullptr;
         }
     destruct   dest([jident,id,env]() {env->ReleaseStringUTFChars(jident, id);});
@@ -383,7 +385,7 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
     LOGGERTAG("getmynetinfo(%s,%d,%d,%d) port=%d\n", id,create,watchHasSensor,galaxy,myport);
     passhost_t *wearhost=getwearoshost(create,id,galaxy);
     if(!wearhost)  {
-        LOGSTRINGTAG("wearhost==null\n");
+        LOGARTAG("wearhost==null");
         return nullptr;
         }
     struct updatedata *update=backup->getupdatedata();
@@ -406,7 +408,7 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
 #ifdef WEAROS_MESSAGES
         auto newcrc=crc32(0,reinterpret_cast<const Bytef*>(info.ips),info.nr*sizeof(info.ips[0]));
         if(newcrc!=crcs[index]) {
-            LOGSTRINGTAG("crc different\n");
+            LOGARTAG("crc different");
         const bool setmess=!haswlan;
         #ifndef WEAROS
             if(setmess)
@@ -415,21 +417,21 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
         crcs[index]=newcrc;
         }
     else  {
-            LOGSTRINGTAG("crc the same\n");
+            LOGARTAG("crc the same");
         }
     info.blue=wearmessages[index];
 #endif
         }
     else  {
         if(!getownip(&info.ip)) {
-            LOGSTRINGTAG("!getownip\n");
+            LOGARTAG("!getownip");
             return nullptr;
             }
         info.ip.sin6_port= htons(myport);
         }
     if constexpr(!iswatchapp()) {
         if(usedversion>=4&&sendpass) {
-            LOGAR("sendpass");
+            LOGARTAG("sendpass");
             memcpy(info.pass.data(),wearhost->pass.data(),info.pass.size());
             info.setpass=true;
             sendpass=false;
@@ -505,7 +507,8 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
             if(!wearhost->haspass()) {
                  char pass[17];
                  makepass(pass,16);
-                 LOGGER("create pass %s\n",pass);
+                 pass[16]='\0';
+                 LOGGER("created pass %.16s\n",pass);
                  backup->setpass(info.pass,std::string_view(pass,16));
                  info.setpass=true;
                  }
@@ -553,7 +556,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
        namehost oldname(host->ips);
        LOGGERTAG("hostname %s->%s\n",oldname.data(),hostnamer.data());
         if(!host->putip(&info->ip)) {
-        LOGSTRINGTAG("putip failed\n");
+        LOGARTAG("putip failed");
         }
         }
    else  {
@@ -568,7 +571,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
                        }
                     //remakewearhost=true;
                     memcpy(host->pass.data(),info->pass.data(),info->pass.size());
-                    LOGAR("setpass");
+                    LOGARTAG("setpass");
                     backup->setcrypt(host);
                     backup->closesocksone(index,host);
                     }
@@ -600,7 +603,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
     const uint16_t port=host->getport();
     LOGGERTAG("setmynetinfo port=%d nr=%d watchsensor=%d\n",port,host->nr,info->watchsensor);
     if constexpr(iswatchapp()) {
-        LOGAR("is watch");
+        LOGARTAG("is watch");
     
         if(info->watchsensor) {
             settings->data()->nobluetooth=false;

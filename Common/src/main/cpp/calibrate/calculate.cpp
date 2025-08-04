@@ -170,13 +170,14 @@ bool shouldexclude(const uint32_t time) {
         }
     return false; 
     }
-static std::pair<double,double> calculate(const SensorGlucoseData *sens, const uint32_t newtime) {
+#include <tuple>
+static std::tuple<double,double,double> calculate(const SensorGlucoseData *sens, const uint32_t newtime) {
     const auto oldtime=sens->firstpolltime();
     const int bloodvar=settings->data()->bloodvar;
     std::vector<double> y,x,w;
     std::span<const ScanData> stream=sens->getPolldata();
     const ScanData *startsen=&stream.begin()[0];
-    int mindistance=30*60;
+    const int mindistance=30*60;
     uint32_t nexttime=UINT_MAX;
     for(const Numdata *numdata:numdatas) {
         const ScanData *endsen=&stream.end()[0];
@@ -240,23 +241,23 @@ static std::pair<double,double> calculate(const SensorGlucoseData *sens, const u
             double b=moderateB(preB,totweight,3.0);
             LOGGER("calibrate: preA=%.2f a=%.2f preB=%.2f b=%.2f\n",preA,a,preB,b);
             if(a>0.7&&a<1.3)
-                return {a,b}; 
+                return {a,b,totweight}; 
              }
         }
      else {
         if(nr<1) {
             constexpr const double nan=NAN;
-            return {nan,nan};
+            return {nan,nan,nan};
             }
         }
      double preB=distance(w,x,y, nr)/totweight;
      double b =moderateB(preB,totweight,3.0);
      LOGGER("calibrate: preB=%.2f b=%.2f\n",preB,b);
-     return {1.0,b};
+     return {1.0,b,totweight};
     }
 
 static void addCali(SensorGlucoseData *sens, const uint32_t newtime,const Num *num, const Numdata *numdata) {
-    const auto [a,b]=calculate(sens,  newtime);
+    const auto [a,b,weight]=calculate(sens,  newtime);
     if(isnan(a)) {
         LOGAR("addCali a is nan");
         return;
@@ -268,7 +269,7 @@ static void addCali(SensorGlucoseData *sens, const uint32_t newtime,const Num *n
       {
     const std::lock_guard<std::mutex> lock(caliMutex);
     if(num<numdata->end()&&num->gettime()==newtime) {
-        sens->addCali(newtime,a,b);
+        sens->addCali(newtime,weight,a,b);
         }
    else {
        LOGGER("addCali %u not longer present\n",newtime);
@@ -285,6 +286,10 @@ void threadCalibration(uint32_t tim,const Num *num,const Numdata *numdata) {
             addCali(sensors->getSensorData(index),tim,num,numdata);
             }
         setCalibrates(*std::ranges::min_element(sens));
+        extern void render(); 
+        render(); 
+        backup->wakebackup(Backup::wakenums);
+
         }
     else {
         LOGGER("threadCalibration: no sensors at %u\n",tim);
@@ -347,6 +352,7 @@ const CaliPara *getCaliBefore(const CaliPara *first,const CaliPara *end,uint32_t
         }
     return cali-1;
     }
+
 double     calibrateONE(const SensorGlucoseData *sens,const uint32_t time, const double value) {
     const auto *info=sens->getinfo();
     const uint32_t nr=info->caliNr;
@@ -355,6 +361,9 @@ double     calibrateONE(const SensorGlucoseData *sens,const uint32_t time, const
         return NAN;
         }
     const CaliPara *first = info->caliPara;
+    if(settings->data()->CalibratePast) 
+        return calibrateValue(first[nr-1],time,value);
+        
     if(const CaliPara *cali=getCaliBefore( first,first+nr,time)) {
         return calibrateValue(*cali,time,value);
         }

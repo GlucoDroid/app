@@ -80,12 +80,12 @@ private static boolean isVisible=false;
 static void show(MainActivity act) {
     if(isVisible)
         return;
-    isVisible=true;
     long[] ptrs=Natives.activeSensorPtrs();
     if(ptrs.length==0) {
         bluediag.nosensors(act);
         return;
         }
+    isVisible=true;
     var sensors=new Sensors(act);
     var help=getbutton(act,R.string.helpname);
     help.setOnClickListener(v-> helplight(R.string.sensormirror,act));

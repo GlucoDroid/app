@@ -771,6 +771,11 @@ public boolean realsendmessage(Object message) {
 //if(!isRelease) nexttime=sendtime+waittime;
 
       try {
+       final int devlen=devices.size();
+       if(devlen<=devused) {
+          if(doLog) {Log.d(LOG_ID,"realsendmessage devices.size()("+devlen+")<="+devused);};;
+          return false;
+          }
           mConnectIQ.sendMessage(devices.get(devused), mMyApp, message, new IQSendMessageListener() {
          @Override
          public void onMessageStatus(IQDevice device, IQApp app, IQMessageStatus status) {
@@ -794,7 +799,7 @@ public boolean realsendmessage(Object message) {
             if(mess==null)
                mess="";
             }
-            
+            mess="mConnectIQ.sendMessages: "+mess;
              Log.stack(LOG_ID,mess,error);
 
          Applic.app.Toaster(mess);
@@ -968,9 +973,7 @@ void register(Context context) {
                             Applic.argToaster(getApplication(), "Opening  Kerfstok...", Toast.LENGTH_SHORT);
                             mConnectIQ.openApplication(devices.get(devused), app, mOpenAppListener);
                         } catch (Exception ex) {
-            String mess=ex!=null?ex.getMessage():null;
-            if(mess==null)
-               mess="Exception during Opening app";
+            String mess= "getApplicationInfo: "+(ex!=null?ex.getMessage():"");
             Log.stack(LOG_ID,mess,ex);
                         }
                     }

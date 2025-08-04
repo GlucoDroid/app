@@ -4,6 +4,7 @@
 #include "numdisplay.hpp"
 #include "searchgegs.hpp"
 #include "SensorGlucoseData.hpp"
+#include "calibrate/Calibrate.hpp"
 extern vector<NumDisplay*> numdatas;
 extern Searchgegs searchdata;
 Searchgegs searchdata={.type=nosearchtype};
@@ -112,13 +113,22 @@ static const ScanData * findScan(const ScanData *start,const ScanData *en) {
     for(const ScanData *it=en-1;it>=start;--it) {
         if(searchdata(it))
             return it;
-            /*
-        int32_t glu=it->g;
-        if(glu&&glu>=low&&glu<=high)
-            return it;
-            */
         }
     return nullptr;
+ }
+
+static const ScanData * findCalibratedScan(const SensorGlucoseData  *sens,const ScanData *start,const ScanData *en) {
+  CalibrateBackward  cali(sens); 
+  if(!cali.size())
+      return nullptr;
+  for(const ScanData *it=en-1;it>=start;--it) {
+        double  calValue=cali.backvalue(*it);
+        if(isnan(calValue))
+            return nullptr;
+        if(searchdata(it,calValue))
+            return it;
+        }
+   return nullptr;
  }
 static const Glucose * findhistory(const SensorGlucoseData  * hist, const uint32_t firstpos, const uint32_t lastpos) {
     for(auto pos=lastpos;pos>=firstpos;--pos)  {
@@ -174,62 +184,73 @@ uint32_t JCurve::glucosesearch(uint32_t starttime,uint32_t endtime) {
                 //continue;
                 goto skiphistory;
                 }
-            if((searchdata.type&historysearchtype)==historysearchtype) {
-                int endpos;
-                if(tim<endtime)
-                    endpos=lastpos;
-                else {
-                    int period=his->getinterval();
-                    endpos=lastpos-(tim-endtime)/period;
-                    if(endpos<1)
-                        endpos=1;    
-                    }
-                while(endpos<lastpos&&    his->timeatpos(endpos)<endtime)
-                    endpos++;
-                uint32_t tmptim;
-                while(!(tmptim=his->timeatpos(endpos))||tmptim>=endtime) {
-                    endpos--;
-                    if(endpos<=firstpos)
-                        goto skiphistory;
-                    }
+            if((searchdata.type&glucosetype)==glucosetype) {
+                if((searchdata.type&historysearchtype)==historysearchtype) {
+                    int endpos;
+                    if(tim<endtime)
+                        endpos=lastpos;
+                    else {
+                        int period=his->getinterval();
+                        endpos=lastpos-(tim-endtime)/period;
+                        if(endpos<1)
+                            endpos=1;    
+                        }
+                    while(endpos<lastpos&&    his->timeatpos(endpos)<endtime)
+                        endpos++;
+                    uint32_t tmptim;
+                    while(!(tmptim=his->timeatpos(endpos))||tmptim>=endtime) {
+                        endpos--;
+                        if(endpos<=firstpos)
+                            goto skiphistory;
+                        }
 
-                int startpos=his->gettimepos(hittime);
-                if(startpos<1) 
-                    startpos=1;
-                else {
-                    
-                    while(startpos>1&&(!(tmptim=his->timeatpos(startpos))||tmptim>=hittime))
-                        startpos--;
-                    while(startpos<endpos&&    his->timeatpos(startpos)<hittime)
-                        startpos++;
+                    int startpos=his->gettimepos(hittime);
+                    if(startpos<1) 
+                        startpos=1;
+                    else {
+                        
+                        while(startpos>1&&(!(tmptim=his->timeatpos(startpos))||tmptim>=hittime))
+                            startpos--;
+                        while(startpos<endpos&&    his->timeatpos(startpos)<hittime)
+                            startpos++;
+                        }
+                     const Glucose *mog=findhistory(his,startpos,endpos); 
+                     if(mog&&mog->gettime()>hittime) {
+                        histhit=mog;
+                        hittime=mog->gettime();
+                        logglucose("glucosesearch mog ",mog);
+                        }
                     }
-                 const Glucose *mog=findhistory(his,startpos,endpos); 
-                 if(mog&&mog->gettime()>hittime) {
-                    histhit=mog;
-                    hittime=mog->gettime();
-                    logglucose("glucosesearch mog ",mog);
-                    }
+                skiphistory:
+                if((searchdata.type&scansearchtype)==scansearchtype) {
+                    std::span<const ScanData>     scan=his->getScandata();
+                    auto [under,above] =getScanRange(scan.data(),scan.size(),hittime,endtime) ;
+                    const ScanData *mogscan=findScan(under,above);
+                    if(mogscan&&mogscan->t>hittime) {
+                        scanhit=mogscan;
+                        hittime=mogscan->t;
+                        }
+                        }
+                if(searchdata.type&12) {
+                    std::span<const ScanData>     scan=his->getPolldata();
+                    auto [under,above] =getScanRange(scan.data(),scan.size(),hittime,endtime) ;
+                    if((searchdata.type&streamsearchtype)==streamsearchtype) {
+                        const ScanData *mogscan=findScan(under,above);
+                        if(mogscan&&mogscan->t>hittime) {
+                            scanhit=mogscan;
+                            hittime=mogscan->t;
+                            }
+                           }
+                    if((searchdata.type&calibratedStreamsearchtype)==calibratedStreamsearchtype) {
+                        const ScanData *mogscan=findCalibratedScan(his,under,above);
+                        if(mogscan&&mogscan->t>hittime) {
+                            scanhit=mogscan;
+                            hittime=mogscan->t;
+                            }
+                           }
                 }
-            skiphistory:
-            if((searchdata.type&scansearchtype)==scansearchtype) {
-                std::span<const ScanData>     scan=his->getScandata();
-                auto [under,above] =getScanRange(scan.data(),scan.size(),hittime,endtime) ;
-                const ScanData *mogscan=findScan(under,above);
-                if(mogscan&&mogscan->t>hittime) {
-                    scanhit=mogscan;
-                    hittime=mogscan->t;
-                    }
-                    }
-            if((searchdata.type&streamsearchtype)==streamsearchtype) {
-                std::span<const ScanData>     scan=his->getPolldata();
-                auto [under,above] =getScanRange(scan.data(),scan.size(),hittime,endtime) ;
-                const ScanData *mogscan=findScan(under,above);
-                if(mogscan&&mogscan->t>hittime) {
-                    scanhit=mogscan;
-                    hittime=mogscan->t;
-                    }
-                   }
-        }
+              }
+           }
        }
 
     uint32_t res;
@@ -252,6 +273,19 @@ uint32_t JCurve::glucosesearch(uint32_t starttime,uint32_t endtime) {
     glucosesel(res);
     return 0;
     }
+
+static const ScanData * findforwardCalibratedScan(const SensorGlucoseData  *sens, const ScanData *start,const ScanData *en) {
+  CalibrateForward  cali(sens); 
+  if(!cali.size())
+     return nullptr;
+  for(const ScanData *it=start;it<en;++it) {
+        double  calValue=cali.value(*it);
+        if(!isnan(calValue)&&searchdata(it,calValue))
+            if(searchdata(it,calValue))
+                return it;
+        }
+   return nullptr;
+ }
 
 static const ScanData * findforwardScan(const ScanData *start,const ScanData *en) {
     for(const ScanData *it=start;it<en;++it) {
@@ -346,17 +380,24 @@ uint32_t JCurve::glucoseforwardsearch(uint32_t starttime,uint32_t endtime) {
             hittime=mogscan->t;
             }
                }
-
-    if((searchdata.type&streamsearchtype)==streamsearchtype) {
+     if(searchdata.type&12) {
         const std::span<const ScanData>     scan=his->getPolldata();
         auto [under,above] =getScanRange(scan.data(),scan.size(),starttime,hittime) ;
-        const ScanData *mogscan=findforwardScan(under,above);
-        if(mogscan&&mogscan->t<hittime) {
-            scanhit=mogscan;
-            hittime=mogscan->t;
+        if((searchdata.type&streamsearchtype)==streamsearchtype) {
+            const ScanData *mogscan=findforwardScan(under,above);
+            if(mogscan&&mogscan->t<hittime) {
+                scanhit=mogscan;
+                hittime=mogscan->t;
+                }
+              }
+        if((searchdata.type&calibratedStreamsearchtype)==calibratedStreamsearchtype) {
+            const ScanData *mogscan=findforwardCalibratedScan(his,under,above);
+            if(mogscan&&mogscan->t<hittime) {
+                scanhit=mogscan;
+                hittime=mogscan->t;
+                }
+              }
             }
-               }
-
 
 
 

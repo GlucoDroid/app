@@ -33,6 +33,11 @@ import static tk.glucodata.ZXing.scanZXingAlg;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static tk.glucodata.util.getlabel;
+import static tk.glucodata.util.getbutton;
+import static tk.glucodata.util.getcheckbox;
+
+
 
 import android.view.View;
 import android.view.ViewGroup;
@@ -88,6 +93,40 @@ longserialnumber
 /*
 Sibionics2:
 */
+private static void asktransmitter(MainActivity act,String name,long dataptr) {
+    var title=getlabel(act,R.string.scantranstitle);
+    var message=getlabel(act, R.string.scantransmessage);
+    var cancel=getbutton(act,R.string.cancel);
+    var ok=getbutton(act,R.string.ok);
+    var reset=getcheckbox(act,R.string.resetname, true);
+
+    cancel.setOnClickListener(v-> {
+        MainActivity.doonback();
+        });
+    int height = GlucoseCurve.getheight();
+    int width = GlucoseCurve.getwidth();
+    var layout=new Layout(act,(l,w,h)->{
+         l.setX((width-w)*.5f);
+         l.setY((height-h)*.3f);
+         return new int[] {w,h};
+           },new View[]{title},new View[]{message},new View[]{cancel,reset,ok});
+    ok.setOnClickListener(v-> {
+        removeContentView(layout);
+        Natives.setResetSibionics2(dataptr,reset.isChecked());
+        scanner(act,REQUEST_BARCODE_SIB2,dataptr);
+        });   
+   MainActivity.setonback(() -> {
+      removeContentView(layout);
+      Natives.finishSensor(dataptr);
+      Natives.freedataptr(dataptr);
+      SensorBluetooth.sensorEnded(name);
+      });
+    layout.setBackgroundResource(R.drawable.dialogbackground);
+   final int rand=(int)tk.glucodata.GlucoseCurve.metrics.density*10;
+   final int siderand=(int)tk.glucodata.GlucoseCurve.metrics.density*20;
+   layout.setPadding(siderand,rand,siderand,rand);
+   act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
+    }
 
 private static void selectType(String name,long dataptr,MainActivity act) {
     int subtype=Natives.getSiSubtype(dataptr);
@@ -123,6 +162,7 @@ private static void selectType(String name,long dataptr,MainActivity act) {
       if(type>=0) {
           Natives.setSiSubtype(dataptr,type);
           if(type==3) {
+          /*
                 Confirm.ask2(act,act.getString(R.string.scantranstitle) ,act.getString( R.string.scantransmessage) , 
                 ()-> {
                         scanner(act,REQUEST_BARCODE_SIB2,dataptr);
@@ -134,6 +174,8 @@ private static void selectType(String name,long dataptr,MainActivity act) {
                     }
 
                 );
+                */
+                asktransmitter(act,name,dataptr);
 
             }
            else {

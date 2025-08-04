@@ -123,7 +123,8 @@ bool valid(int pos=1) const {
         ht->t=prev->t;
         return false;
         }
-    return g&&g>38&&g<502&&id>=0&&id<maxminutes&&t>1598911200u&&t<2145909600u;
+   // return g&&g>38&&g<502&&id>=0&&id<maxminutes&&t>1598911200u&&t<2145909600u;
+    return g&&g<552&&id>=0&&id<maxminutes&&t>1598911200u&&t<2145909600u;
     }
 bool current(int pos=1) const {
     return valid(pos)&&!isnan(ch);
@@ -259,7 +260,8 @@ union {
        char siBlueToothNum[9];
        bool notchinese:1;
        uint8_t siType:2;  //0: EU, 1:HemaToxic
-       char siBetween:5;
+       char siBetween:4;
+       bool reset:1;
        uint8_t siDeviceNamelen;
        char8_t siToken;
        char8_t siDeviceName[16];
@@ -341,7 +343,7 @@ void updateCaliUpdated(uint32_t val) {
 
 
 
-void addCali(uint32_t tim, double a, double b) {
+void addCali(uint32_t tim, float weight,double a, double b) {
         if(caliNr<maxcaliNr) {
             LOGGER("%d addCali(%u,%f,%f)\n",caliNr,tim,a,b);
             int it=caliNr-1;
@@ -370,7 +372,7 @@ void addCali(uint32_t tim, double a, double b) {
                 ++caliNr;
                 }
 
-            caliPara[it]={tim,0,a,b};
+            caliPara[it]={tim,weight,a,b};
             }
         else {
             LOGGER("Can't add %d==maxcaliNr addCali(%u,%f,%f)\n",caliNr,tim,a,b);
@@ -2020,7 +2022,7 @@ int updatestream(crypt_t *pass,int sock,int ind,int sensindex,int sendscan)  {
         vect.push_back({reinterpret_cast<uint8_t*>(&pollinfo),off,len});
       bool updateStarttime=false;
       if(isSibionics()) {
-        if(!getinfo()->update[ind].siStream&&getinfo()->siDeviceName[0]&&
+        if(!getinfo()->update[ind].siStream&&pollcount()>0&&getinfo()->siDeviceName[0]&&
                                  getinfo()->deviceaddress[0]&&
                                  getinfo()->siDeviceNamelen>3) {
             updateStarttime=true;
@@ -2195,8 +2197,8 @@ int updateCali(crypt_t *pass,int sock,int ind,int sensorindex)  {
      getinfo()->caliUpdated[ind]=wascaliNr;
      return 1;
  }
-void addCali(uint32_t tim, double a, double b) {
-        getinfo()->addCali(tim,a,b);
+void addCali(uint32_t tim,float weight,double a, double b) {
+        getinfo()->addCali(tim,weight,a,b);
         }
 void removeCali(uint32_t tim) {
         getinfo()->removeCali(tim);

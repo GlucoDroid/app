@@ -171,6 +171,8 @@ void setdiffcurrent(bool val) {
     void    timelines(NVGcontext* avg,const displaytime *disp, const LT &transx ,uint32_t nu);
     template <class LT> void    epochlines(NVGcontext* avg,uint32_t first,uint32_t last, const LT &transx);
     void    drawarrow(NVGcontext* avg, float rate,float getx,float gety);
+
+ int    showLargevalue(NVGcontext* avg, int index,float getx,float gety,float convglucose,const ScanData *poll) ;
      void    showvalue(NVGcontext* avg, const ScanData *poll,const SensorGlucoseData *hist, float getx,float gety,int index,uint32_t nu);
      int    showerrorvalue(NVGcontext* avg,const SensorGlucoseData *sens,const time_t nu,float getx,float gety,int index);
      void    showlastsstream(NVGcontext* avg,const time_t nu,const float getx,std::vector<int> &used );
@@ -201,11 +203,7 @@ void setdiffcurrent(bool val) {
     void    showfromstart(NVGcontext* avg);
      void    shownumlist(NVGcontext* avg);
 
-    template <class TX,class TY> void showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high,  const TX &transx,  const TY &transy,const int colorindex
-    #ifdef SI5MIN
-    ,bool isSibionics
-    #endif
-    ); 
+    template <class TX,class TY> void showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high,  const TX &transx,  const TY &transy,const int colorindex,bool search); 
 void setfontsize(float small,float menu,float density,float headin);
 void resizescreen(int widthin, int heightin,int initscreenwidth);
 void withbottom();

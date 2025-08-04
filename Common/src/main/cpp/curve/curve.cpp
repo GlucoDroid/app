@@ -664,14 +664,8 @@ template <class TX,class TY> bool    JCurve::showScan(NVGcontext* avg,const Scan
 
     }
 
-template <class TX,class TY> void JCurve::showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high,  const TX &transx,  const TY &transy,const int colorindex
-#ifdef SI5MIN
-,bool isSibionics
-#endif
-) {
-#ifdef JUGGLUCO_APP
-    bool search=streamsearchtype==(streamsearchtype&searchdata.type);
-#endif
+template <class TX,class TY> void JCurve::showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high,  const TX &transx,  const TY &transy,const int colorindex,bool search
+) { 
 #ifdef SI5MIN
    uint32_t dif=isSibionics?8*60:pollgapdist;
 #else
@@ -1687,7 +1681,7 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
     if((setend<starttime2||settime>=endtime)) {
        auto extr=getextremes(hists,scanpoll,std::size(scanpoll),histpositions);
        for(int i=0;i<numdatas.size();i++)  {
-                  LOGGER("%d before extremenums \n",i);
+            LOGGER("%d before extremenums \n",i);
             extr  = numdatas[i]->extremenums(*this,extr);
             }
        setextremes(extr) ;
@@ -1737,9 +1731,14 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
             ScanData calibrated[nr];
             const auto *sens=sensors->getSensorData(index);
             span<ScanData> cali=makecalibrated(sens,pollranges[i].first,calibrated,nr);*/
+            #ifdef JUGGLUCO_APP
+                bool search=calibratedStreamsearchtype==(calibratedStreamsearchtype&searchdata.type);
+            #else 
+                bool search=false;
+            #endif
             const auto cali=caliSpans[i];
             if(cali.second>cali.first) {
-                showlineScan(avg,cali.first,cali.second,transx,transy,colorindex);
+                showlineScan(avg,cali.first,cali.second,transx,transy,colorindex,search);
                 }
             }
         }
@@ -1749,11 +1748,12 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
         for(int i=histlen-1;i>=0;i--) {
             const int index= hists[i];
             int colorindex=segcolor(index,0);
-            showlineScan(avg,pollranges[i].first,pollranges[i].second,transx,transy,colorindex
-#ifdef SI5MIN
-         ,sibionics[i]
-#endif
-         );
+            #ifdef JUGGLUCO_APP
+                bool search=streamsearchtype==(streamsearchtype&searchdata.type);
+            #else 
+                bool search=false;
+            #endif
+            showlineScan(avg,pollranges[i].first,pollranges[i].second,transx,transy,colorindex,search);
              }
         }
     LOGAR("before showscans");
@@ -2012,10 +2012,10 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
 #endif
         const ScanData *poll=hist->lastValidStream();
         if(poll) {
-            LOGSTRING("poll!=null\n");
+            LOGAR("poll!=null");
             int age=nu-poll->t;
             if(age<maxbluetoothage) {
-                LOGSTRING("age<maxbluetoothage\n");
+                LOGAR("age<maxbluetoothage");
 #ifdef JUGGLUCO_APP
                 failures=0;
 #endif
@@ -2069,7 +2069,7 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
                 }
             }
         else {
-            LOGSTRING("poll==null\n");
+            LOGAR("poll==null");
 
 #ifndef NOTCHINESE
          if(hist->notchinese()) {
@@ -2208,7 +2208,7 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
         LOGAR("failures>3" );
         for(int i=0;i<used.size();i++) {
             if(SensorGlucoseData *hist=sensors->getSensorData(used[i])) {
-                LOGSTRING("set waiting=true\n");
+                LOGAR("set waiting=true");
             hist->waiting=true;
                 }
             }
@@ -2220,7 +2220,30 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
 
     LOGAR(" end showlastsstream");
     }
-
+/*
+int    JCurve::showLargevalue(NVGcontext* avg, int index,float getx,float gety,float convglucose,const ScanData *poll) {
+        constexpr const int maxhead=11;
+        char head[maxhead];
+#ifdef JUGGLUCO_APP
+#ifndef DONTTALK
+        shownglucose[index].glucosevalue=convglucose;
+        shownglucose[index].glucosetrend=poll->tr;
+#endif
+#endif
+         float valuex=getx-(convglucose>=10.0f?density*20.0f:0.0f);
+         char *value=head+1;
+         int gllen=snprintf(value,maxhead-1,gformat,convglucose);
+         if(gllen<3) {
+            value=head;
+            *value=' ';
+            ++gllen;
+            }
+        nvgText(avg,valuex ,gety, value, value+gllen);
+        const float rate=poll->ch;
+        drawarrow(avg,rate,valuex-10*density,gety);
+        return valuex;
+        }
+*/
  void    JCurve::showvalue(NVGcontext* avg, const ScanData *poll,const SensorGlucoseData *hist, float getx,float gety,int index,uint32_t nu) {
     const auto sensorname=hist->othershortsensorname();
     LOGGER("showvalue %s\n",sensorname.data());
@@ -2232,19 +2255,9 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
     constexpr const int maxhead=11;
     char head[maxhead];
 
-    double nonconvert;
     nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
-    float rawconv;
-    if(double calibrated=calibrateNow(hist,*poll);!isnan(calibrated)) {
-        LOGGER("showvalue %d calibrated %.0f\n",poll->getmgdL(),calibrated);
-        nonconvert=calibrated;
-        rawconv= gconvert(poll->getmgdL()*10);
-        }
-    else {
-        rawconv=0.0f;
-        nonconvert= poll->getmgdL();
-        LOGAR("showvalue no calibration");
-        }
+    const int nonconvert=poll->getmgdL();
+    double calibrated=calibrateNow(hist,*poll);
     nvgFontSize(avg, headsize*.8);
 #ifdef JUGGLUCO_APP
 #ifndef DONTTALK
@@ -2252,51 +2265,64 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
     shownglucose[index].glucosevaluey=sensory;
 #endif
 #endif
-    if(nonconvert<glucoselowest) {
-        const  float valuex=getx;
-        int gllen=mkshowlow(head, maxhead) ;
-        nvgText(avg,valuex,gety, head, head+gllen);
-        }
-    else {
-        int glucosehighest=hist->getmaxmgdL();
-        if(nonconvert>glucosehighest) {
-            float valuex=getx-density*14.0f;
-            int gllen=mkshowhigh(head, maxhead,glucosehighest) ;
-            nvgText(avg,valuex ,gety, head, head+gllen);
+    if(isnan(calibrated)) {
+        if(nonconvert<glucoselowest) {
+            const  float valuex=getx;
+            int gllen=mkshowlow(head, maxhead) ;
+            nvgText(avg,valuex,gety, head, head+gllen);
+            return;
             }
         else {
-            const float convglucose= gconvert(nonconvert*10.0);
+            int glucosehighest=hist->getmaxmgdL();
+            if(nonconvert>glucosehighest) {
+                float valuex=getx-density*14.0f;
+                int gllen=mkshowhigh(head, maxhead,glucosehighest) ;
+                nvgText(avg,valuex ,gety, head, head+gllen);
+                return;
+                }
+              }
+           calibrated=nonconvert;
+           }
+        const float convglucose= gconvert(calibrated*10.0);
     #ifdef JUGGLUCO_APP
     #ifndef DONTTALK
-            shownglucose[index].glucosevalue=convglucose;
-            shownglucose[index].glucosetrend=poll->tr;
-    #endif
-    #endif
-             float valuex=getx-(convglucose>=10.0f?density*20.0f:0.0f);
-             char *value=head+1;
-             int gllen=snprintf(value,maxhead-1,gformat,convglucose);
-             if(gllen<3) {
-                value=head;
-                *value=' ';
-                ++gllen;
-                }
-             nvgText(avg,valuex ,gety, value, value+gllen);
-    #ifdef TESTVALUE
-    const float trends[]={-3,0};
-                const float rate=trends[index];
-    #else
-                const float rate=poll->ch;
-    #endif
-                drawarrow(avg,rate,valuex-10*density,gety);
-                if(rawconv>0.0f) {
-                    bounds_t bounds;
-                    nvgTextBounds(avg, valuex,  gety,value,value+gllen, bounds.array);
-                    nvgFontSize(avg,mediumfont );
-                    int gllen=snprintf(head,maxhead,gformat,rawconv);
-                    nvgText(avg,valuex+bounds.xmax-bounds.xmin+density*6,gety, head, head+gllen);
+        shownglucose[index].glucosevalue=convglucose;
+        shownglucose[index].glucosetrend=poll->tr;
+#endif
+#endif
+         float valuex=getx-(convglucose>=10.0f?density*20.0f:0.0f);
+         char *value=head+1;
+         int gllen=snprintf(value,maxhead-1,gformat,convglucose);
+         if(gllen<3) {
+            value=head;
+            *value=' ';
+            ++gllen;
+            }
+         nvgText(avg,valuex ,gety, value, value+gllen);
+        const float rate=poll->ch;
+        drawarrow(avg,rate,valuex-10*density,gety);
+        if(calibrated!=nonconvert) {
+            bounds_t bounds;
+            nvgTextBounds(avg, valuex,  gety,value,value+gllen, bounds.array);
+              nvgFontSize(avg,mediumfont );
+                float nextx=valuex+bounds.xmax-bounds.xmin+density*6;
+                if(nonconvert<glucoselowest) {
+                    int gllen=mkshowlow(head, maxhead) ;
+                    nvgText(avg,nextx,gety, head, head+gllen);
                     }
-                }
-        }
+                else {
+                    int glucosehighest=hist->getmaxmgdL();
+                    if(nonconvert>glucosehighest) {
+                        int gllen=mkshowhigh(head, maxhead,glucosehighest) ;
+                        nvgText(avg,nextx ,gety, head, head+gllen);
+                        }
+                    else {
+                        const float rawconv=gconvert(nonconvert*10.0);
+                        int gllen=snprintf(head,maxhead,gformat,rawconv);
+                        nvgText(avg,nextx,gety, head, head+gllen);
+                        }
+                    }
+         }
 
     }
 

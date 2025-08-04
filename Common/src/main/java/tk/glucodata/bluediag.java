@@ -567,7 +567,7 @@ if(!isWearable) {
                     return;
                     }
                 Log.i(LOG_ID,"resetbutton");
-                ((SiGattCallback) gatt).doReset=true;
+                Natives.setResetSibionics2(gatt.dataptr,true);
                 Applic.Toaster("Resetted");
                 });
             });

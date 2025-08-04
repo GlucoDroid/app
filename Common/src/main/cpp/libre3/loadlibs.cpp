@@ -318,7 +318,7 @@ extern "C" JNIEXPORT jbyteArray JNICALL fromjava(processbar)(JNIEnv *env, jclass
 	const bool changelib=false;
 #endif
 static	const bool debug=!changelib&&!globalsetpathworks;
-	LOGSTRING("processbar\n");
+	LOGAR("processbar start");
 	settings->setnodebug(false);
 	usedebug use(debug&&!libre3initialized,3);
 	loadECDHCrypto(changelib);
@@ -329,6 +329,7 @@ static	const bool debug=!changelib&&!globalsetpathworks;
 		}
 	if(changelib)
 		settings->data()->asmworks=true;
+	LOGAR("processbar end");
 	return res;
 	}
 //static  jint  JNICALL   *cryptfunc(process1)(JNIEnv *env, jclass _cl,jint i2, jbyteArray bArr, jbyteArray bArr2);

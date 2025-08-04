@@ -184,13 +184,17 @@ int SensorGlucoseData::updatescan(crypt_t *pass,int sock,int ind,int sensorindex
 		}
 	if(isSibionics()) {
 		LOGGER("GLU: Sibionics updatescan ind=%d sensorindex=%d\n",ind,sensorindex);
-		if(!getinfo()->update[ind].siScan&&getinfo()->siIdlen>16&&getinfo()->siId[0]) {
+		if(!getinfo()->update[ind].siScan&&getinfo()->siIdlen>16&&getinfo()->siId[0]&&(siSubtype()!=3||getinfo()->siDeviceNamelen>3)) {
 			LOGGER("GLU: updatescan Write Start: ind=%d sensorindex=%d\n",ind,sensorindex);
 
 			std::vector<subdata> vect;
 			vect.reserve(4);
 			vect.push_back({meminfo.data(),0,offsetof(Info,pin)});
-                        constexpr const auto siBlueToothNumlen=offsetof(Info,siDeviceNamelen)-offsetof(Info,siBlueToothNum);
+            const int siBlueToothNumlen=
+              (siSubtype()==3?
+                (offsetof(Info,siDeviceName)+16):
+                offsetof(Info,siDeviceNamelen))
+                                                -offsetof(Info,siBlueToothNum);
 			vect.push_back({meminfo.data()+offsetof(Info,siBlueToothNum),offsetof(Info,siBlueToothNum),siBlueToothNumlen});
 			vect.push_back({meminfo.data()+offsetof(Info,lockcount),offsetof(Info,lockcount),sizeof(Info::lockcount)});
 			vect.push_back({meminfo.data()+offsetof(Info,siIdlen),offsetof(Info,siIdlen),sizeof(Info::siIdlen)+ sizeof(Info::siId) });

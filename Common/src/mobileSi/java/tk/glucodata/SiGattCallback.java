@@ -270,15 +270,18 @@ private void  sendtime() {
       write2(Natives.getSItimecmd());
    }
 
-boolean doReset=false;
+
 private void   processchanged(byte[] value) {
    long timmsec=System.currentTimeMillis();
   long res=Natives.SIprocessData(dataptr, value,timmsec);
-  if(res==10L||doReset) {
+  if(res==10L) {
        if(writeReset()) {
            Log.i(LOG_ID,"writeReset successful");
+           Natives.setResetSibionics2(dataptr,false);
            }
-       doReset=false;
+       else {
+           Log.i(LOG_ID,"writeReset failed");
+           }
        return;
        }
   if(res==2L) {

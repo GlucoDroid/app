@@ -38,6 +38,7 @@
 //#define LOGGERTAG(...) fprintf(stderr,__VA_ARGS__)
 #define lerrortag(...) lerror("sendcommands: " __VA_ARGS__)
 #define LOGGERTAG(...) LOGGER("sendcommands: " __VA_ARGS__)
+#define LOGARTAG(...) LOGAR("sendcommands: " __VA_ARGS__)
 #define LOGSTRINGTAG(...) LOGSTRING("sendcommands: " __VA_ARGS__)
 #define flerrortag(...) flerror("sendcommands: " __VA_ARGS__)
 
@@ -74,10 +75,10 @@ int16_t sendopen(crypt_t *pass,int sock,std::string_view name) {
 		LOGGERTAG("open %s failed\n",name.data());	
 		return -1;
 		}
-	LOGSTRINGTAG("sendopen after sendcommand\n");
+	LOGARTAG("sendopen after sendcommand");
 	if(pass) {	
 		 if(!receivecrypt(sock,pass,buf))  {
-		 	LOGSTRINGTAG("invalid tag\n");
+		 	LOGARTAG("invalid tag");
 		 	return -1;
 			}
 		}
@@ -96,7 +97,7 @@ int16_t sendopen(crypt_t *pass,int sock,std::string_view name) {
 	int16_t fp=*fps;
 	LOGGERTAG("fp=%d, %hx\n",fp,fps[1]); 
 	if(((~fp)&0xFFFF)!=(0xFFFF&fps[1])) {
-		LOGSTRINGTAG("Transform wrong \n");
+		LOGARTAG("Transform wrong ");
 		return -1;	
 		}
 	return fp;
@@ -142,12 +143,12 @@ bool noacksendcommand(int sock ,const unsigned char *buf,int buflen) {
 		it+=itlen;
 		left-=itlen;
 		}
-	LOGSTRINGTAG("success noacksendcommand\n");
+	LOGARTAG("success noacksendcommand");
 	return true;
 	}
 bool getack(int sock) {
 	uint32_t ans=5;
-	LOGSTRINGTAG("getack\n");
+	LOGARTAG("getack");
 	if(int len=recvni(sock,&ans,sizeof(ans));len!=sizeof(ans)) {
 		flerrortag("%d ans %d\n",sock,len);
 		::shutdown(sock,SHUT_RDWR);
@@ -157,7 +158,7 @@ bool getack(int sock) {
 		LOGGERTAG("ackres %u!=%u\n",ans,ackres);
 		return false;
 		}
-	LOGSTRINGTAG("getack success\n");
+	LOGARTAG("getack success");
 	return true;
 	}
 bool sendcommand(int sock ,const unsigned char *buf,int buflen) {
@@ -338,7 +339,7 @@ bool sendrender(crypt_t *pass,const int sock,const uint16_t type) {
 	
 /*	
 bool oldsenddata(crypt_t *pass,const int sock,const std::vector<subdata>&data,const std::string_view naar) {
-	LOGSTRINGTAG("oldsenddata vect\n");
+	LOGARTAG("oldsenddata vect");
 	if(data.size()==0)
 		return true;
  	if(int16_t han=sendopen(pass,sock,naar);han>0) {
@@ -365,7 +366,7 @@ bool oldsenddata(crypt_t *pass,const int sock,const std::vector<subdata>&data,co
 	return false;
 	}
 bool oldsenddata(crypt_t *pass,const int sock,const int offset,const senddata_t *data,const int datalen,const string_view naar) {
-	LOGSTRINGTAG("oldsenddata\n");
+	LOGARTAG("oldsenddata");
  	if(int16_t han=sendopen(pass,sock,naar);han>0) {
 		int buflen=datasize(datalen)+closesize();
 	        std::unique_ptr<senddata_t[],ardeleter<4,senddata_t>> ptr(new(std::align_val_t(4),std::nothrow) senddata_t[buflen],ardeleter<4,senddata_t>());
