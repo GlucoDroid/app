@@ -1036,6 +1036,9 @@ E07A-000T3YL1R50
  bool isSibionics1() const {
     return isSibionics()&&!(getinfo()->notchinese&&siSubtype()==3);
     }
+ bool isSibionics2() const {
+    return isSibionics()&&getinfo()->notchinese&&siSubtype()==3;
+    }
  bool isDexcom() const {
     return getinfo()->dexcom;
     }
@@ -1265,7 +1268,7 @@ if(error()) {
     LOGGER("SensorGlucoseData %s %s Error\n",sensordir.data(),baseuit.data());
     return;
     }
-if(!isSibionics1())
+if(isSibionics2())
     getinfo()->days=30;
 if(const ScanData *last=lastpoll()) {
     if(last->g) {

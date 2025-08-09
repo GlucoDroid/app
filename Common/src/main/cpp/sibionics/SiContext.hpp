@@ -37,9 +37,9 @@ private:
    bool notchinese;
    double process2(int index,double value, double temp);
    double process3(int index,double value, double temp);
-   void  	setNotchinese(SensorGlucoseData *sens);
    void release();
 public:
+   void  	setNotchinese(SensorGlucoseData *sens);
    SiContext(SensorGlucoseData *sens);
     jlong processData(SensorGlucoseData *sens,time_t nowsecs,int8_t *data,int totlen,int sensorindex) ;
 #ifdef NOTCHINESE

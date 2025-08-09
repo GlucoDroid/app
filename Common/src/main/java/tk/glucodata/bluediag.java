@@ -568,7 +568,8 @@ if(!isWearable) {
                     }
                 Log.i(LOG_ID,"resetbutton");
                 Natives.setResetSibionics2(gatt.dataptr,true);
-                Applic.Toaster("Resetted");
+//                Log.showbytes("Reset Bytes",Natives.getSIResetBytes());
+                Applic.Toaster("Resetted ");
                 });
             });
 
