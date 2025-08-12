@@ -330,6 +330,27 @@ CaliPara caliPara[maxcaliNr];
 uint32_t caliNr;
 uint32_t caliUpdated[std::max(maxsendtohost,8)];
 
+
+int     caliPosAfter(const uint32_t time) {
+    const uint32_t nr=caliNr;
+    if(!nr)  {
+        LOGGER("caliPosAfter(%u) no calibrators\n",time);
+        return 0;
+        }
+    const CaliPara *first = caliPara;
+    extern const CaliPara *getCaliBefore(const CaliPara *first,const CaliPara *end,uint32_t time);
+    if(const CaliPara *cali=getCaliBefore( first,first+nr,time)) {
+        int pos=cali-first+1;
+        LOGGER("caliPosAfter(%u)=%d\n",time,pos);
+        return pos;
+        }
+    LOGGER("caliPosAfter(%u) no calibrator before time\n",time);
+    return 0;
+    }
+void updateCaliTime(int ind, const uint32_t time) {
+        caliUpdated[ind]=caliPosAfter(time);
+        }
+
 void updateCaliUpdated(uint32_t val) {
     const int maxind=getgetsendnr();
     if(maxind>0) {
@@ -1790,7 +1811,7 @@ bool setbackuptime(crypt_t *pass,int sock,int ind,uint32_t starttime) {
     constexpr const int minlen= offsetof(Info,pollcount);
     LOGGER("GLU: %s setbackuptime %u asklen=%d\n",shortsensorname()->data(),starttime,asklen);
     auto dontdestroy=getfromfile(pass,sock,infopath, 0,asklen);
-       dataonly *dat=dontdestroy.get();
+   dataonly *dat=dontdestroy.get();
     if(dat==nullptr) {
         LOGSTRING("GLU: ==nullptr\n");
         return false;
@@ -1836,10 +1857,10 @@ bool setbackuptime(crypt_t *pass,int sock,int ind,uint32_t starttime) {
             uint32_t streamstart=
 #endif
             getinfo()->update[ind].streamstart=getbackuptimestream(starttime);
-            LOGGER("GLU: streamstart=%d streamend=%d\n", streamstart,streamend);
+            LOGGER("GLU: %s streamstart=%d streamend=%d\n", showsensorname().data(),streamstart,streamend);
             }
         else {
-            LOGGER("GLU streamstart=%d\n",getinfo()->update[ind].streamstart);
+            LOGGER("GLU: %s streamstart=%d\n", showsensorname().data(),getinfo()->update[ind].streamstart);
             }
         }
     return true;

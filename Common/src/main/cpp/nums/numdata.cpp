@@ -26,6 +26,11 @@ std::vector<Numdata*> numdatas;
 #include "net/passhost.hpp"
 #include "net/makerandom.hpp"
 extern void makenightswitch();
+void prunenums() {
+    for(auto *num:numdatas) {
+        num->prunenums();
+        }
+    }
 
 void makenightswitch() {
    if(settings->data()->initVersion<28) {
@@ -52,8 +57,8 @@ void makenightswitch() {
         resensordata(0);
 //     settings->data()->initVersion=28;
         }
+     //prunenums();
    }
-
 //bool update(int sock,int &len, struct numspan *ch) 
 int updatenums(crypt_t*pass,int sock,struct changednums *nums,int ind) {
    int ret=0;
@@ -63,7 +68,7 @@ int updatenums(crypt_t*pass,int sock,struct changednums *nums,int ind) {
       else
          return 0;
       }
-   if(int did=meals->datameal()->updatemeal(pass,sock,nums[0].lastmeal)) {
+   if(int did=meals->datameal()->updatemeal(pass,sock,nums[1].lastmeal)) {
       return ret|did;
       }
    return 0;
@@ -102,6 +107,7 @@ bool backupnuminit(const numinit *numst) {
    }
 
 bool numsbackupsendinit(crypt_t*pass,int sock,struct changednums *nuall,uint32_t starttime) {
+   LOGGER("numsbackupsendinit sock=%d starttime=%u  numdatas.size()=%d\n",sock,starttime,numdatas.size());
    for(auto*el:numdatas) 
       if(!el->backupsendinit(pass,sock,nuall,starttime) )
          return false;

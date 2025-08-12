@@ -125,28 +125,32 @@ struct sendmeal  {
 void updatelastmeal(int last) {
     const int hnr=backup->getsendhostnr();
     for(int i=0;i<hnr;i++) {
-        struct changednums *nu=backup->getnums(i,0); 
+        struct changednums *nu=backup->getnums(i,1); 
         if(last<nu->lastmeal)
             nu->lastmeal=last;
         }
     }
 int updatemeal( crypt_t*pass,int sock,uint32_t &lastmeal) {
-    int startmeal=std::min(lastmeal,gotlastmeal);
+    uint32_t startmeal=std::min(lastmeal,gotlastmeal);
+    LOGGER("updatemeal lastmeal=%u gotlastmeal=%u startmeal=%d mealindex=%d\n",lastmeal,gotlastmeal,startmeal,mealindex);
+    auto wasmealindex=mealindex;
     if(mealindex>startmeal) {
         std::vector<subdata> vect;
         vect.reserve(5);
         vect.push_back({reinterpret_cast<uint8_t*>(&startmeal),(int)offsetof(mealdata,gotlastmeal),(int)sizeof(gotlastmeal)});
         vect.push_back({reinterpret_cast<uint8_t*>(this),0,(int)offsetof(mealdata,gotlastingredient)});
         const int startind=offsetof(mealdata,mealindex);
-        vect.push_back({reinterpret_cast<uint8_t*>(&mealindex),startind,(int)(offsetof(mealdata,units)-startind+unitnr*sizeof(units[0]))});
+        vect.push_back({reinterpret_cast<const uint8_t*>(&mealindex),startind,(int)(offsetof(mealdata,units)-startind+unitnr*sizeof(units[0]))});
         vect.push_back({reinterpret_cast<uint8_t*>(&ingredients),(int)offsetof(mealdata,ingredients),(int)(ingredientnr*sizeof(ingredients[0]))});
         vect.push_back({reinterpret_cast<uint8_t*>(themeals+startmeal),(int)(offsetof(mealdata,themeals)+startmeal*sizeof(themeals[0])),(int)((mealindex-startmeal)*sizeof(themeals[0]))});
         if(!senddata(pass,sock,vect,mealsdat) ) {
+            LOGAR("updatemeal failed");
             return 0;
             }
-        lastmeal=mealindex;
+        lastmeal=wasmealindex;
         gotlastmeal=UINT32_MAX;
         //gotlastingredient=UINT16_MAX;
+        LOGAR("updatemeal success");
         return 1;    
         }
     return 2;

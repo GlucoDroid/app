@@ -1155,11 +1155,17 @@ static bool ybezig=false;
                 int gmax=gmin+grange;
                 grange*=dheight/(dheight+dy*1.4);
                 gmin=gmax-grange;
-                    settime=starttime;
-                    setend=starttime+duration;
-                    }
-            if(grange<180)
-                grange=180;
+                if(gmin<0)
+                    gmin=0;
+                settime=starttime;
+                setend=starttime+duration;
+                }
+            if(grange<200)
+                grange=200;
+           else {
+                if(grange>6000)
+                    grange=6000;
+              }
             return 1;
             }
             }
@@ -1174,6 +1180,14 @@ void JCurve::xscaleGesture(float scalex,float midx) {
     double oldduration=duration;
     uint32_t focustime=rat*oldduration+starttime;
     duration=(int)round(oldduration/pow(scalex,5.0));
+constexpr const int maxduration=30*24*60*60;
+constexpr const int minduration=10*60;
+    if(duration>maxduration)
+        duration=maxduration;
+   else {
+       if(duration<minduration)
+                duration=minduration;
+        }
     LOGGER("xscale scale=%f mid=%f oldduration=%f newduration=%d\n",scalex,midx,oldduration,duration);
     setstarttime(focustime-rat*duration);
     auto maxstart= maxstarttime();

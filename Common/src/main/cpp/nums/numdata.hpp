@@ -977,20 +977,44 @@ void numchange(const Num *hit, uint32_t time, float32_t value, uint32_t type,uin
     setnumchanged();
     addCalibration( time, type,num,this);
     }
+void prunenums() {
+    LOGGER("start prunenums %lld\n",ident);
+    Num *beg=  begin();
+    Num *en= end();
+    if(beg==en) {
+        LOGAR("prunenums() no nums"); 
+        return;
+        }
+    uint32_t prevtime=beg->time;
+    for(Num *iter=beg+1;iter<en;++iter) {
+        if(iter->time<prevtime)  {
+            LOGGER("wrong time %u, becomes %u\n",iter->time,prevtime);
+            iter->time=prevtime;
+            }
+        else {
+            prevtime=iter->time;
+            }
+        }
+    LOGGER("end prunenums %lld\n",ident);
+    }
 std::pair<const Num*,const Num*> getInRange(const uint32_t start,const uint32_t endtime) const {
     Num zoek;
     zoek.time=start;
 
     const Num *beg=  begin();
     const Num *en= end();
-    auto comp=[](const Num &el,const Num &se ){return el.time<se.time;};
+    constexpr auto comp{[](const Num &el,const Num &se ){
+        return (el.time<se.time);
+        ;}};
       const Num *low=std::lower_bound(beg,en, zoek,comp);
     if(low==en) {
+        LOGAR("getInRange {en,en}");
         return {en,en};
         }
     zoek.time=endtime;
 //      const Num *high=std::upper_bound(low,en, zoek,comp);
       const Num *high=std::lower_bound(low,en, zoek,comp);
+    LOGGER("getInRange {%d,%d}\n",low-beg,high-beg);
     return {low,high};
     }
 uint32_t getlasttime() const {
@@ -1061,32 +1085,46 @@ void updateposnowake(int pos,int end) {
      NUMLOCKGUARD
     int ind=getindex();
     const int hnr=backup->getsendhostnr();
-    LOGGERTAG("updateposnowake pos=%d ind=%d hnr=%d\n",pos, ind,hnr);
+    LOGGERTAG("updateposnowake pos=%d dbase index=%d sendhostnr=%d\n",pos, ind,hnr);
     for(int hostindex=0;hostindex<hnr;hostindex++) {
         updatebusy[hostindex]=true;
         struct changednums *nu=backup->getnums(hostindex,ind); 
         int st=nu->changed[0].start;
-        LOGGERTAG("st=%d nu->len=%d\n",st,nu->len);
+        LOGGERTAG("hostindex=%d st=%d nu->len=%d\n",hostindex,st,nu->len);
         if(pos<st) {
             if(pos==(st-1)) {
                 nu->changed[0].start=pos;    
                 LOGGERTAG("under start=%d\n",pos);
                 }
             else {
-                if(nu->len>=maxchanged) {
-                    int mini=nu->changed[0].start;
-                    for(int i=1;i<maxchanged;i++) {
-                        if(nu->changed[i].start<mini)
-                            mini=nu->changed[i].start;
+                if(nu->len<maxchanged) {
+                    LOGGERTAG("changed[%d] %d %d\n",nu->len,pos,end);
+                    for(int i=1;i<nu->len;i++) {
+                        auto start=nu->changed[i].start;
+                        auto end2=nu->changed[i].end;
+                        if(start>=pos&&start<=end) {
+                            nu->changed[i].start=pos;
+                            nu->changed[i].end=std::max(end2,end);
+                            continue;
+                             }
+                        else {
+                            if(pos>=start&&pos<=end2) {
+                               nu->changed[i].end=std::max(end2,end);
+                               continue;
+                               }
+                            }
                         }
-                    nu->changed[0].start=mini;
-                    nu->len=1;
-                    LOGGERTAG("toomuch start=%d\n",mini);
-                    }
-                else {
                     nu->changed[nu->len++]={pos,end};
-                    LOGGERTAG("changed %d %d\n",pos,end);
+                    continue;
+                     } 
+                int mini=nu->changed[0].start;
+                for(int i=1;i<maxchanged;i++) {
+                    if(nu->changed[i].start<mini)
+                        mini=nu->changed[i].start;
                     }
+                nu->changed[0].start=std::min(mini,pos);
+                nu->len=1;
+                LOGGERTAG("toomuch start=%d\n",mini);
                 }
             }
 
@@ -1185,9 +1223,10 @@ bool sendbackupinit(crypt_t*pass,int sock,struct changednums *nuall) {
 
     struct changednums *nu=nuall+getindex();    
     struct numspan *ch=nu->changed;
-    ch[0].start=nu->lastlastpos=getfirstpos();
+    auto firstpos=getfirstpos();
+    ch[0].start=nu->lastlastpos=firstpos;
     nu->len=1;
-    LOGARTAG("end NUMLOCKGUARD");
+    LOGGERTAG("end NUMLOCKGUARD lastlastpos=%d\n",firstpos);
     }
 
     numinit gegs{.first=static_cast<uint32_t>(getfirstpos()),.ident=ident};
@@ -1200,7 +1239,9 @@ bool sendbackupinit(crypt_t*pass,int sock,struct changednums *nuall) {
     return true;
     }
 bool backupsendinit(crypt_t*pass,int sock,struct changednums *nuall,uint32_t starttime) {
-    LOGGERTAG("NUM: backupsendinit %u ",starttime);
+    const int index=getindex();
+    LOGGERTAG("NUM%d: backupsendinit %u\n",index,starttime);
+
     if(starttime&&(getfirstpos()!=getlastpos()))  {
         asklastnum ask{.dbase=(bool)ident};
          if(!noacksendcommand(pass,sock,reinterpret_cast<uint8_t*>(&ask),sizeof(ask))) {
@@ -1214,7 +1255,7 @@ bool backupsendinit(crypt_t*pass,int sock,struct changednums *nuall,uint32_t sta
             return false;
             }
         int pos=*posptr;
-           LOGGERTAG("NUM: get pos=%d ",pos);
+       LOGGERTAG("NUM: get pos=%d\n",pos);
         if(pos<=getfirstpos())
             goto STARTOVER;
         if(pos>getlastpos()) {
@@ -1227,26 +1268,43 @@ bool backupsendinit(crypt_t*pass,int sock,struct changednums *nuall,uint32_t sta
             }
          { 
         NUMLOCKGUARD
-        struct changednums *nu=nuall+getindex();    
+        struct changednums *nu=nuall+index;    
         struct numspan *ch=nu->changed;
         ch[0].start=nu->lastlastpos=pos;
         nu->len=1;
+        nu->lastmeal=findEarlymeal(pos);
+        meals->datameal()->gotlastmeal=UINT32_MAX; //?
         }
-        LOGAR("end backupsendinit");
+        LOGGER("end backupsendinit dindex=%d lastlastpos=%d\n",index,pos);
         return true;
         }
     STARTOVER:
     LOGARTAG("NUM: zero start");
     return sendbackupinit(pass,sock,nuall);
     }
-
+private:
+uint32_t findEarlymeal(int pos) const {
+    const uint32_t mealindex=meals->datameal()->mealindex;
+    const int mealvar=settings->data()->mealvar;
+    for(int it=pos;it>=0;--it) {
+        const Num &num=at(it);
+        if(num.mealptr&&num.type==mealvar&&num.mealptr<mealindex) {
+            LOGGER("findEarlymeal(%d)=%d\n",pos,num.mealptr);
+            return num.mealptr+1;
+            }
+        }
+    LOGGER("findEarlymeal(%d)=0\n",pos);
+    return 0;
+    }
+public:
 static inline constexpr const int intinnum=(sizeof(Num)/sizeof(uint32_t));
 int update(crypt_t*pass,int sock,struct changednums *nuall,int ind) {
 //     NUMLOCKGUARD
     nummutex.lock();
     updatebusy[ind]=false; //Otherwise it has lock in network operation and which can lead to an ANR kill off app.
-    struct changednums *nu=nuall+getindex();    
-    LOGARTAG("nums: update");
+    const int  dbindex=getindex();
+    struct changednums *nu=nuall+dbindex;    
+    LOGGER("numdata: update ind=%d dbindex=%d nu->len=%d\n",ind,dbindex,nu->len);
     struct numspan *ch=nu->changed;
     int endpos=getlastpos();
 
@@ -1255,6 +1313,7 @@ int update(crypt_t*pass,int sock,struct changednums *nuall,int ind) {
     int offoutnr=0;
     int totlen=0;
     for(int i=nu->len-1;i>=0;i--) {
+        LOGGERTAG("update changed[%d] start=%d end=%d\n",i,ch[i].start,ch[i].end);
         int chend=ch[i].end==0?endpos:ch[i].end;
         if(ch[i].start<chend) {    
             int len=sizeof(Num)*(chend-ch[i].start);
@@ -1265,9 +1324,12 @@ int update(crypt_t*pass,int sock,struct changednums *nuall,int ind) {
     int ret;
     if(!offoutnr) {
         nummutex.unlock();
-        if(nu->lastlastpos==endpos)
+        if(nu->lastlastpos==endpos) {
+            LOGGERTAG("ind=%d dbase=%d lastlastpos==endpos %d\n",ind,dbase,endpos);
             ret=2;
+            }
         else {
+            LOGGERTAG("ind=%d dbase=%d lastlastpos (%d) !=endpos (%d)\n",ind,dbase,nu->lastlastpos,endpos);
             if(!sendlastpos(pass,sock,dbase,endpos))  {
                 return 0;
                 }
@@ -1302,19 +1364,25 @@ int update(crypt_t*pass,int sock,struct changednums *nuall,int ind) {
                 }
             }
         nummutex.unlock();
-         if(!sendcommand(pass, sock ,destructptr.get(),totlen))
+         if(!sendcommand(pass, sock ,destructptr.get(),totlen)) {
+            LOGGERTAG("update sendcommand failed dbase=%d totlen=%d\n",dbase,totlen);
              return 0;
+             }
         ret=1;
 
         }
 
       {NUMLOCKGUARD
-        if(updatebusy[ind])
+        if(updatebusy[ind]) {
+            LOGARTAG("updatebusy");
             return 2;
+            }
+        LOGGER("numdata::update %p ind=%d dbase=%d ch[0].end=%d lastlastpos=%d\n",nu, ind,dbase,ch[0].end,endpos);
         nu->lastlastpos=endpos;
         ch[0].start=endpos;
+        ch[0].end=0;
         nu->len=1;
-        LOGAR("end update");
+        LOGGER("end numdata::update dbase=%d\n",dbase);
     }
     return ret;
     }

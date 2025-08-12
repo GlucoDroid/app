@@ -77,7 +77,7 @@ bool mkfile(int fp,uint32_t len) {
     return true;
     }
 char showhex(int get) {
-    return (get>10?(get-10)+'A':get+'0');
+    return (get>=10?(get-10)+'A':get+'0');
     }
 auto loghex(const unsigned char *data, int len) {
 constexpr const int maxbytes=16;

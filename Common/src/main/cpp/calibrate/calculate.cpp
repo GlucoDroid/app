@@ -518,3 +518,23 @@ std::pair<const ScanData*,const ScanData*>      makecalibratedback(const SensorG
         }
     return {calibrated,outiter};
     }
+
+
+int     caliPosAfter(const SensorGlucoseData *sens,const uint32_t time) {
+    const auto *info=sens->getinfo();
+    const uint32_t nr=info->caliNr;
+    if(!nr)  {
+        LOGGER("caliPosAfter(%s,%u) no calibrators\n",sens->shortsensorname(),time);
+        return 0;
+        }
+    const CaliPara *first = info->caliPara;
+    if(const CaliPara *cali=getCaliBefore( first,first+nr,time)) {
+        int pos=cali-first+1;
+        LOGGER("caliPosAfter(%s,%u)=%d\n",sens->shortsensorname(),time,pos);
+        return pos;
+        }
+    LOGGER("caliPosAfter(%s,%u) no calibrator before time\n",sens->shortsensorname(),time);
+    return 0;
+    }
+
+

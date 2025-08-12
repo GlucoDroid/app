@@ -42,6 +42,7 @@
 #include <cinttypes>
 #include <charconv>
 #include <string>
+#include <new>
 using namespace std::literals;
 //#include "glucose.hpp"
 //ScanData   *glucosenow=nullptr;
@@ -1629,7 +1630,7 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
    if(histlen)
       nocutoff=false;
 #endif
-   int  maxStreamels=0;
+//   int  maxStreamels=0;
     for(int i=histlen-1;i>=0;--i) {
         auto his=sensors->getSensorData(hists[i]);
         if(!his)  {
@@ -1649,9 +1650,8 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
         {
             scan=his->getPolldata();
             pollranges[i] =getScanRangeRuim(scan.data(),scan.size(),starttime2,endtime) ;
-            int els=pollranges[i].second-pollranges[i].first;
-            if(els>maxStreamels)
-                maxStreamels=els;
+/*            int els=pollranges[i].second-pollranges[i].first;
+            if(els>maxStreamels) maxStreamels=els;*/
 
             }
 
@@ -1662,7 +1662,9 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
        else
             histpositions[i]= {0,0}; 
          }
-    ScanData calibrated[histlen][maxStreamels];
+//    if(!showcalibrated) maxStreamels=0;
+//    ScanData calibrated[histlen][maxStreamels];
+    std::unique_ptr<ScanData []> calibrated[histlen];
     std::pair<const ScanData*,const ScanData*> caliSpans[histlen];
     if(showcalibrated)   {
         auto califunc=settings->data()->CalibratePast?makecalibratedback:makecalibrated;
@@ -1670,7 +1672,10 @@ int    JCurve::displaycurve(NVGcontext* avg,time_t nu) {
             const int index= hists[i];
             const auto *sens=sensors->getSensorData(index);
             const int nr=pollranges[i].second-pollranges[i].first;
-            caliSpans[i]=califunc(sens,pollranges[i].first,calibrated[i],nr,allvalues);
+            ScanData*calidata=new ScanData[nr];
+            calibrated[i].reset(calidata);
+//            new (calibrated+i) std::unique_ptr<ScanData []>(calidata);
+            caliSpans[i]=califunc(sens,pollranges[i].first,calidata,nr,allvalues);
             }
          }
      else {
@@ -1773,7 +1778,7 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
          }
 
     LOGGER("before showsnums catnr=%d\n",catnr);
-    if(shownumbers||showmeals)  {
+    if(catnr>0&&(shownumbers||showmeals))  {
         bool was[catnr];
         memset(was,'\0',sizeof(was));
         for(auto el:numdatas) 
@@ -1781,8 +1786,8 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
         }
 
     if(nu<endtime&&(dwidth-smallfontlineheight)>nupos) {
-            showbluevalue(avg,nu, nupos,usedsensors);
-            LOGAR("end display curve value");
+        showbluevalue(avg,nu, nupos,usedsensors);
+        LOGAR("end display curve value");
         }
     else  {
         LOGAR("end display no value");

@@ -562,12 +562,9 @@ void clearhost(int index) {
     if(int so=host.getsock();so!=-1) {
         LOGGER("shutdown(%d)\n",so);
         ::shutdown(so,SHUT_RDWR);
-    //    host.setsock(-1);
         }
 
     sensors->updateinit(index);
-    host.nums[0].clear();
-    host.nums[1].clear();
     host.startsensors=0;
     host.firstsensor=0;
     host.updatesettings=0;
@@ -579,11 +576,12 @@ void clearhost(int index) {
     host.resetdevices=false;
 //    host.dontuseopen=false;
     host.sendjugglucoid=false;
-
     host.sendNight=false;
     host.sendLibre=false;
 
-    LOGAR("end clearhost");
+    host.nums[0].clear();
+    host.nums[1].clear();
+    LOGGER("end clearhost nums[0].lastlastpos==%d nums[1].lastlastpos==%d\n", host.nums[0].lastlastpos,host.nums[1].lastlastpos);
     }
 void resetall()  {
     if(getupdatedata()->sendnr>0)
@@ -601,7 +599,7 @@ void resetall()  {
 //    fill(crypts.begin(),crypts.end(),nullptr);
     }
 void changereceiver(int allindex,int index,const bool sendnums,const bool sendstream,const bool sendscans,const bool restore,const bool haspass,const uint32_t starttime) {
-    LOGGER("changereceiver(allindex=%d,index=%d,sendnums=%d,sendstream=%d,sendscans=%d,haspass=%d,starttime=%ul)\n",allindex,index,sendnums,sendstream,sendscans,haspass,starttime);
+    LOGGER("changereceiver(allindex=%d,index=%d,sendnums=%d,sendstream=%d,sendscans=%d,haspass=%d,starttime=%u) sendnr=%d\n",allindex,index,sendnums,sendstream,sendscans,haspass,starttime,getupdatedata()->sendnr);
     if(index==getupdatedata()->sendnr) {
         addsize();
         sendsocks.resize(getupdatedata()->sendnr+1,-1);
@@ -617,7 +615,6 @@ void changereceiver(int allindex,int index,const bool sendnums,const bool sendst
         }
     updateone &host=getupdatedata()->tosend[index];
     host.setindex(index,allindex);
-//    if(starttime) host.setbackupstarttime(starttime); 
     if(!starttime)
         host.starttime=1;
     else  {
@@ -830,7 +827,7 @@ int changehost(int index,JNIEnv *env,jobjectArray jnames,int nr,bool detect,stri
     const bool dontopen=sendto&&passiveonly;
     int lmaxip=passhost_t::maxip-(label?1:0);
     auto &thehost=getupdatedata()->allhosts[index];
-
+    LOGGER("changehost newhost=%d thehost.index=%d\n",newhost,thehost.index);
     if(sendto) {
         if(newhost||thehost.index==-1) {  //Fout??
             tohost=getupdatedata()->sendnr;

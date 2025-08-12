@@ -109,6 +109,7 @@ int updateone::update() {
     if(starttime) {
         if(sendnums) {
             if(nums[0].lastlastpos==0&&nums[1].lastlastpos==0) {
+                LOGAR("sendnums==true 2*lastlastpos==0");
                 if(starttime==1)  {
                     for(auto el:numdatas)
                         if(! el->sendbackupinit(pass,getsock(),nums) )
@@ -118,8 +119,20 @@ int updateone::update() {
                     bool numsbackupsendinit(crypt_t*pass,int sock,struct changednums *nuall,uint32_t starttime) ;
                     if(!numsbackupsendinit(pass,getsock(),nums, starttime) )
                         return 0;
+                    startSendCalibrate=sensors->firstafter(starttime);
+                    const int last=sensors->last();
+                    for(int it=startSendCalibrate;it<=last;++it) {
+                        SensorGlucoseData *sens=sensors->getSensorData(it);
+                        sens->getinfo()->updateCaliTime(ind,starttime);
+                        }
                     }
                 }
+             else {
+                LOGGER("sendnums==true nums[0].lastlastpos==%d nums[1].lastlastpos==%d\n", nums[0].lastlastpos,nums[1].lastlastpos);
+                }
+            }
+        else {
+            LOGAR("sendnums==false");
             }
 
         if(starttime!=1)  {
@@ -128,6 +141,9 @@ int updateone::update() {
                     LOGAR("updateone::update failed");
                     return 0;
                     }
+                }
+            else {
+                LOGAR("sendsensor=false");
                 }
             }
         LOGAR("updateone::update set starttime=0");
@@ -200,6 +216,9 @@ extern int  updatenums(crypt_t *,int sock,struct changednums *nums,int);
 int     updateone::updatenums() {
     if(!sendnums)
         return 2;
+    if(starttime) {
+        return update();
+        }
     int soc=getsock();
     if(soc<0)
         return 0;
@@ -223,6 +242,9 @@ int     updateone::updatenums() {
 int  updateone::updatestreamu() {
     if(!sendstream)
         return 2;
+    if(starttime) {
+        return update();
+        }
     if(getsock()<0)
         return 0;
     return sensors->updatestreams(getcrypt(),getsock(),ind,firstsensor,sendscans?2:1);
@@ -230,6 +252,9 @@ int  updateone::updatestreamu() {
 int updateone::updatescansu() {
     if(!sendscans)
         return 2;
+    if(starttime) {
+        return update();
+        }
     if(getsock()<0)
         return 0;
     return sensors->updatescanss(getcrypt(),getsock(),ind,firstsensor,sendstream);

@@ -916,7 +916,7 @@ template <typename F>
                    break;
                    } 
                 const SensorGlucoseData *hist = getSensorData(i);
-                if (!hist) {
+                if(!hist) {
                    LOGSTRING("hist==null\n");
                    continue;
                    }
@@ -1049,8 +1049,8 @@ void convertlast() {
    bool setbackuptime(crypt_t *pass, const int sock, const int ind, const uint32_t starttime,uint16_t &starttimeindex) {
       int nr=last()+1;
       if(starttimeindex>nr)
-         starttimeindex=nr;
-      for (;starttimeindex>0;) {
+            starttimeindex=nr;
+      while(starttimeindex>0) {
          auto newindex=starttimeindex-1;
          if(SensorGlucoseData *hist = getSensorData(newindex)) {
             if(!hist->setbackuptime(pass, sock, ind, starttime))

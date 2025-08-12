@@ -439,9 +439,17 @@ extern "C" JNIEXPORT  jbyteArray  JNICALL   fromjava(getmynetinfo)(JNIEnv *env, 
            }
         if(usedversion&&setnums) {
             if(wearhost->index>=0) {
+                backup->con_vars[wearhost->index]->wakebackuponly(Backup::wakestop);
                 auto &sendhost= getsendto(index);
                 bool sendnums=setnums<0;
                 sendhost.sendnums=sendnums;
+                if(sendnums) {
+                       sendhost.starttime=time(nullptr);
+                       sendhost.nums[0].lastlastpos=0;
+                       sendhost.nums[1].lastlastpos=0;
+//                       sendhost.nums[0].len=1;
+ //                      sendhost.nums[1].len=1;
+                       }
                 bool receive=!(sendnums&&sendhost.sendstream);
                 const bool        activeonly=getactive(index);
                 const bool        passiveonly=getpassive(index);
@@ -545,6 +553,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
     passhost_t *host=getwearoshost(true,id,galaxy);
     if(!host) return false;
    networkpresent=false;
+    destruct _niets {[]() { networkpresent=true;}};
    backup->closeallsocks();
    struct updatedata *update=backup->getupdatedata();
     passhost_t *allhosts=update->allhosts;
@@ -626,8 +635,6 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
                     names[i]=hostnames[i].data();
                     LOGGERTAG("host: %s\n",names[i]);
                     }
-
-    //            auto [_id,lasttime]=sensors->lastpolltime();
                 auto lasttime=sendstreamfrom();
 
                 bool activeonly=getactive(index);
@@ -637,27 +644,35 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
         }
     else {
         settings->data()->nobluetooth=true;
-        if(host->isSender()||!info->sendnums) {
-            char portstr[7];
-            snprintf(portstr,6,"%d",port); 
-            const int len=host->nr;
-            const char *names[len];
-            namehost hostnames[len];
-            for(int i=0;i<len;i++) {
-                hostnames[i]=namehost(host->ips+i);
-                names[i]=hostnames[i].data();
-                LOGGERTAG("host: %s\n",names[i]);
-                }
-            bool sendnums=!info->sendnums;
-            settings->data()->nochangenum=!sendnums;
-            bool activeonly=getactive(index);
-            bool passiveonly=getpassive(index);
-            uint32_t starttime=0; //continues where left if sendnums=true
-            bool receive=true;
-            backup->changehost(index,nullptr,(jobjectArray)names,len,true,portstr,sendnums, false, false,false, receive,activeonly ,backup->getpass(index).data(),starttime,passiveonly,infolabel,false,true);
-
-
+        const bool sendnums=!info->sendnums;
+        if(host->isSender()) {
+             const updateone &updat=getsendto(host);
+             if(!updat.sendstream&&updat.sendnums==sendnums)
+                    return true;
             }
+        else {
+            if(!sendnums)
+                return true;
+            }
+        char portstr[7];
+        snprintf(portstr,6,"%d",port); 
+        const int len=host->nr;
+        const char *names[len];
+        namehost hostnames[len];
+        for(int i=0;i<len;i++) {
+            hostnames[i]=namehost(host->ips+i);
+            names[i]=hostnames[i].data();
+            LOGGERTAG("host: %s\n",names[i]);
+            }
+        settings->data()->nochangenum=!sendnums;
+        bool activeonly=getactive(index);
+        bool passiveonly=getpassive(index);
+        uint32_t starttime=time(nullptr);
+        //continues where left if sendnums=true
+        bool receive=true;
+        backup->changehost(index,nullptr,(jobjectArray)names,len,true,portstr,sendnums, false, false,false, receive,activeonly ,backup->getpass(index).data(),starttime,passiveonly,infolabel,false,true);
+
+
         }
     }
     else { 
@@ -670,7 +685,6 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
             LOGGER("sendstream(%d)=false\n",index);
             }
         }
-    networkpresent=true;
     return true;
     }
 
