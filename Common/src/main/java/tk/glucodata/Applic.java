@@ -848,9 +848,15 @@ static public void startMain() {
         act.startActivityIfNeeded( intent,0);
         }
     else {
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        {if(doLog) {Log.i(LOG_ID,"startActivity MainActivity.thisone==null");};};
-        keeprunning.theservice.startActivity( intent);
+        final var service=keeprunning.theservice;
+        if(service!=null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            {if(doLog) {Log.i(LOG_ID,"startActivity MainActivity.thisone==null");};};
+            service.startActivity( intent);
+            }
+       else {
+            if(doLog) {Log.i(LOG_ID,"keeprunning.theservice==null");};
+          }
         }
       }
 

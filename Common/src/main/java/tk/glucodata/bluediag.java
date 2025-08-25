@@ -348,12 +348,15 @@ static void nosensors(MainActivity act) {
    var width=GlucoseCurve.getwidth();
    if(!useclose)
       close.setVisibility(GONE);
+
+    var help=getbutton(act,R.string.helpname);
+help.setOnClickListener(v-> helplight(R.string.sensorhelp,act));
   Layout layout = new Layout(act, (l, w, h) -> {
       l.setX((width-w)/2);
       l.setY((height-h)/2);
         int[] ret={w,h};
         return ret;
-        },new View[]{bluestate},new View[]{usebluetooth},new View[]{close});
+        },new View[]{bluestate},new View[]{usebluetooth},new View[]{help,close});
     act.setonback(() -> {
             removeContentView(layout);
             });
@@ -367,7 +370,7 @@ static void nosensors(MainActivity act) {
 
       if(!isWearable)
           bluestate.setPadding(pads,0,0,0);
-   layout.setPadding(pads,pads,pads*3,pads);
+   layout.setPadding(pads,pads,pads,pads);
    act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
 
    }

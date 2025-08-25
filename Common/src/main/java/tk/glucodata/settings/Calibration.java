@@ -37,7 +37,7 @@ static public void show(MainActivity act,View parent) {
            parent.setVisibility(GONE);
     Spinner spinner=new Spinner(act);
     avoidSpinnerDropdownFocus(spinner);
-    LabelAdapter<String> numspinadapt=new LabelAdapter<String>(act, Natives.getLabels(),1);
+    LabelAdapter<String> numspinadapt=new LabelAdapter<String>(act, Natives.getLabels(),0);
     spinner.setAdapter(numspinadapt);
     spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
         @Override

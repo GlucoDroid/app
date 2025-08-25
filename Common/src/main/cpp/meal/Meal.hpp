@@ -66,12 +66,12 @@ bool deleteable(int pos)  {
     return (pos==(ingredientnr-1))&&!ingredients[pos].used;
     }
 int getindex()  {
-    LOGGER("getindex=%d\n",mealindex);
+    LOGGER("getindex=%u\n",mealindex);
     themeals[mealindex].ingr=0; 
     return mealindex;
     }
 int endmeal(const int index) {
-    LOGGER("endmeal(%d) mealindex=%d\n",index,mealindex);
+    LOGGER("endmeal(%d) mealindex=%u\n",index,mealindex);
     if(index>mealindex) {
         mealindex=index+1;;
         }
@@ -331,6 +331,12 @@ float getitemamount(int mindex,const int pos) const {
 class Meal: public Mmap<uint32_t> {
 public:
     Meal():Mmap(globalbasedir,mealsdat,startsize) {
+        if(mealdata *meals=datameal()) { 
+                if(meals->mealindex>0x70000000) {
+                        repair(meals);
+                        }
+
+                }
         }
     mealdata *datameal() {
         return reinterpret_cast<mealdata *>(Mmap::data());
@@ -367,7 +373,20 @@ int shouldextend() const {
         }
     }
 
+private:
+    void repair(mealdata *meals) {
+        const int lastmeal=totmeals()-1; 
+        for(int it=lastmeal;it>=0;--it) {
+                const auto &onemeal=meals->themeals[it];
+                if(onemeal.ingr!=0||onemeal.numindex!=0) {
+                        meals->mealindex=it+1;
+                        return;
+                        }
+                }
+        meals->mealindex=0;
+        }
 };
+
 struct meal {
     const struct mealdata *data;
     const    int mealptr,start;

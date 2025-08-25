@@ -969,7 +969,7 @@ pick.setCurrentMinute(minin);
 LabelAdapter<String> numspinadapt;
 
 void setmealbutton(int labelsel,int bron,int mealptr,boolean exclude) {
-       {if(doLog) {Log.i(LOG_ID,"bron="+bron+" mealptr="+mealptr);};};
+       if(doLog) {Log.i(LOG_ID,"bron="+bron+" mealptr="+mealptr);};
         if(!isWearable&&labelsel==Natives.getmealvar() &&(bron==1|| mealptr>0)) {
             mealbutton.setVisibility(VISIBLE);
             source.setVisibility(GONE);

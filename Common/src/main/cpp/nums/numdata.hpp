@@ -911,7 +911,8 @@ void numchange(const Num *hit, uint32_t time, float32_t value, uint32_t type,uin
     const int oldpos=hit-startdata();
     LOGGERTAG("Start numchange oldpos=%d\n",oldpos);
     addlibrenumsdeleted(hit,oldpos);
-    if(mealptr==0&&type!=settings->data()->bloodvar)
+   // if(mealptr==0&&type!=settings->data()->bloodvar)
+    if(mealptr==0&&type!=settings->data()->bloodvar&&hit->type!=settings->data()->bloodvar)
         mealptr=hit->mealptr;
 
     Num *num;

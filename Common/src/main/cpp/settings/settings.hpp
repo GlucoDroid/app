@@ -409,7 +409,7 @@ void defaultshows() {
     showhistories=true;
     shownumbers=true;
     showmeals=false;
-    bloodvar=6;
+    bloodvar=maxvarnr;
     httpport=defaulthttpport;
     }
  void        mkadvancedalarms() {

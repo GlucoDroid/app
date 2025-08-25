@@ -645,11 +645,13 @@ extern "C" JNIEXPORT jbyte  JNICALL   fromjava(getmealvar)(JNIEnv *env, jclass c
 
 
 extern "C" JNIEXPORT void  JNICALL   fromjava(setbloodvar)(JNIEnv *env, jclass cl,jbyte val) {
-    settings->data()->bloodvar=val;
+    settings->data()->bloodvar=(val>=settings->getlabelcount())?maxvarnr:val;
     settings->updated();
     }
  
 extern "C" JNIEXPORT jbyte  JNICALL   fromjava(getbloodvar)(JNIEnv *env, jclass cl) {
+    if(settings->data()->bloodvar>=settings->getlabelcount())
+        return settings->getlabelcount();
     return settings->data()->bloodvar;
     }
 
