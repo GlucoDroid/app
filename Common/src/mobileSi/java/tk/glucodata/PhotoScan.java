@@ -52,8 +52,8 @@ import android.widget.Toast;
 //import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
 //import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
 
-public class Sibionics {
-private static final String LOG_ID="Sibionics";
+public class PhotoScan {
+private static final String LOG_ID="PhotoScan";
 
 
 private static void     wrongtag() {
@@ -187,14 +187,19 @@ static void connectSensor(final String scantag,MainActivity act,int request,long
                        if(type== 0x10) {
                             selectType(name,sensorptr,act);
                             }
-                       var res=SensorBluetooth.updateDevices();
-                       SuperGattCallback.glucosealarms.setLossAlarm();
-                       Applic.wakemirrors();
-                       if(res) {
-                            act.finepermission(); 
+                       if(Natives.getusebluetooth()) {
+                           var res=SensorBluetooth.updateDevices();
+                           SuperGattCallback.glucosealarms.setLossAlarm();
+                           if(res) {
+                                act.finepermission(); 
+                                }
+                              else
+                                act.systemlocation();
                             }
-                          else
-                            act.systemlocation();
+                        else {
+                            Natives.updateUsedSensors();
+                            }
+                       Applic.wakemirrors();
                        return;
                        }
                     }
