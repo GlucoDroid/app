@@ -1963,6 +1963,10 @@ void  JCurve::calccurvegegs() {
 extern NumHit newhit;
 extern Num newnum;
 
+extern Numdata *getherenums();
+Numdata *getherenums() {
+    return newhit.numdisplay;
+    }
 Num newnum;
 #include "numhit.hpp"
 NumHit newhit={nullptr,&newnum};

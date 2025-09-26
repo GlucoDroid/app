@@ -1424,29 +1424,29 @@ static bool apiv1(const char *input,int leftlen,bool behead,bool json,bool hasse
 
                   }
                else  {
-                  if(*posptr==' '||*posptr=='?') {
-                     if(json)
-                        return sgvinterpret(posptr,leftlen,false,true,origin,outdata);
-                     else
-                        return givesgvtxt(posptr,leftlen,origin,outdata,9);
-                     }
-                  else {
-                     std::string_view current="/current";
-                     const auto cursize= current.size();
-                     if(!memcmp(current.data(),posptr,cursize)) {
-                        posptr+=cursize;
-                        std::string_view json2=".json";
-                        if(!memcmp(json2.data(),posptr,json2.size())) 
-                           return currentjson(origin,outdata);
-                        else 
-                           return givecurrent(origin,outdata);
-                        }
+                 std::string_view current="/current";
+                 const auto cursize= current.size();
+                 if(!memcmp(current.data(),posptr,cursize)) {
+                    posptr+=cursize;
+                    std::string_view json2=".json";
+                    if(!memcmp(json2.data(),posptr,json2.size())) 
+                       return currentjson(origin,outdata);
+                    else 
+                       return givecurrent(origin,outdata);
+                    }
+                 else {
+                    if(*posptr=='/')
+                        ++posptr;
+                      if(*posptr==' '||*posptr=='?') {
+                         if(json)
+                            return sgvinterpret(posptr,leftlen,false,true,origin,outdata);
+                         else
+                            return givesgvtxt(posptr,leftlen,origin,outdata,9);
+                         }
                      else {
-
-
-                         wrongpath({input-7,static_cast<size_t>(leftlen+7)}, outdata);
-                        return true;
-                        }
+                             wrongpath({input-7,static_cast<size_t>(leftlen+7)}, outdata);
+                            return true;
+                            }
                      }
                   }
                }
@@ -1600,6 +1600,10 @@ template <typename Num> static const char *readnum(const char *start,const char 
 Getopts::Getopts(const char *posptr,int size,int defaultduration): unit(settings->data()->unit) {
     int duration=0;
    LOGGER("getopts(%s#%d)\n", posptr, size);
+   if(*posptr=='/') {
+        ++posptr;
+        --size;
+        }
    if(*posptr == '?') {
       const char *ends = posptr + size;
       for (const char *iter = posptr + 1; iter < ends; iter = std::find(iter, ends, '&') + 1) {
@@ -1840,7 +1844,7 @@ typedef      std::span<char> (*getdata_t)(int startpos, int len, uint32_t startt
 template <typename T,int N,typename T1> 
 auto strarcmp(const T (&ar)[N],const T1 *ptr) {
     static_assert(sizeof(T)==sizeof(T1));
-    return memcmp(ar,ptr,N-1);
+    return memcmp(ar,ptr,N-1)||isalnum(ptr[N-1]);
     }
 extern std::span<char> getStatImage(int startpos,Getopts&opts) ;
 
@@ -2165,9 +2169,18 @@ static bool jugglucos(const char * const input,int size, std::string_view hostna
    constexpr const int perhour[]={12*62,60*81,2*81,5*85,200,700};
    for(int i=0;i<std::size(types);i++) {
       auto type=types[i];
-      if(!memcmp(type.data(),posptr,type.size())) {
-         posptr+=type.size();
-         Getopts opts(posptr,size-type.size());
+      int typelen=type.size();
+      const char *typedata=type.data();
+      if(!memcmp(typedata,posptr,typelen)) {
+         posptr+=typelen;
+         if(isalnum(*posptr)) {
+            continue;
+            }
+         if(*posptr=='/') {
+            ++posptr;
+            ++typelen;
+            }
+         Getopts opts(posptr,size-typelen);
          const int startlen=((opts.end-opts.start)/(60*60))*perhour[i];
          constexpr const int startpos=152;
          std::span<char> res=procs[i](startpos,startlen,opts.start,opts.end,opts.headermode,opts.unit,!opts.exclusivemode,opts.datnr,opts.calibratedmode);

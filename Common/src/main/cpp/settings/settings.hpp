@@ -904,6 +904,10 @@ if(data()->startlibretime>now) {
      data()->defaultshows();
    }
    }
+   
+#if 0&&defined(WEAROS)&&!defined(NOLOG)
+        data()->logcat=true;
+#endif
     setconvert(country);
 
      showui=getui();

@@ -56,15 +56,15 @@ import java.util.concurrent.TimeUnit;
 public  class GlucoseMeterGatt  extends BluetoothGattCallback {
     MeterList.MeterView view=null;
     final static private String LOG_ID="GlucoseMeterGatt";
-static    final boolean autoconnect=true;
+    static    final boolean autoconnect=true;
     protected BluetoothGatt mBluetoothGatt;
     public BluetoothDevice mActiveBluetoothDevice;
-public final int meterIndex;
-static private final boolean useConnect=(Build.VERSION.SDK_INT >26);
-public GlucoseMeterGatt(int index) {  
-   meterIndex=index;
+    public final int meterIndex;
+    static private final boolean useConnect=(Build.VERSION.SDK_INT >26);
+    public GlucoseMeterGatt(int index) {  
+       meterIndex=index;
 
-    }
+        }
 void updateview() {
         if(view!=null) {
             ((MainActivity)view.getContext()).runOnUiThread(()-> view.setdata(view.meterIndex));
@@ -85,8 +85,10 @@ public String getDeviceName() {
         }
     public void setDevice(BluetoothDevice device) {
         mActiveBluetoothDevice = device;
-        String address = device.getAddress();
-        setDeviceAddress(address);
+        if(device!=null) {
+            String address = device.getAddress();
+            setDeviceAddress(address);
+            }
         }
 long foundtime=0L;
  private static final String TimeCharUUID = "00002a2b-0000-1000-8000-00805f9b34fb";
@@ -150,7 +152,8 @@ boolean newvalues=false;
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         final var value=characteristic.getValue();
         final var uuid=characteristic.getUuid().toString();
-        Log.showbytes("Meter: onCharacteristicChanged "+uuid,value);
+        if(doLog)
+            Log.showbytes("Meter: onCharacteristicChanged "+uuid,value);
         switch(uuid) {
             case GlucoseCharUUID:
                 if(Natives.GlucoseMeterSave(meterIndex,value)) {
@@ -198,9 +201,11 @@ private void tryer(Supplier<Boolean> worked) {
                  } }, 20, TimeUnit.MILLISECONDS);
        } 
 private void handleManufactory(BluetoothGatt gatt,String manufacturer) {
-        Log.i(LOG_ID,"handleManufactory "+ manufacturer);
+        if(doLog)
+            Log.i(LOG_ID,"handleManufactory "+ manufacturer);
         if(manufacturer.startsWith("Roche")) {
-                Log.i(LOG_ID,"read DateTime");
+                if(doLog)
+                        Log.i(LOG_ID,"read DateTime");
                 tryer(()->gatt.readCharacteristic(DateTimeChar));
                 return;
                 }
@@ -229,7 +234,7 @@ private void handleManufactory(BluetoothGatt gatt,String manufacturer) {
                 return;
                 }
             if(doLog) {
-                String message = "CharacteristicRead "+bluetoothGattCharacteristic.getUuid().toString();
+               String message = "CharacteristicRead "+bluetoothGattCharacteristic.getUuid().toString();
                Log.i(LOG_ID,message);
                }
             disconnect();
@@ -276,9 +281,8 @@ boolean connected=false;
         final var bondstate = bluetoothGatt.getDevice().getBondState();
         if (doLog) {
                 final String[] state = {"DISCONNECTED", "CONNECTING", "CONNECTED", "DISCONNECTING"};
-                {if(doLog) {Log.i(LOG_ID, meterIndex + " onConnectionStateChange, status:" + status + ", state: " + (newState < state.length ? state[newState] : newState) + " bondstate= "+bondString(bondstate) +" "+ bondstate);};};
-
-        }
+                Log.i(LOG_ID, meterIndex + " onConnectionStateChange, status:" + status + ", state: " + (newState < state.length ? state[newState] : newState) + " bondstate= "+bondString(bondstate) +" "+ bondstate);
+             }
        if(newState == BluetoothProfile.STATE_CONNECTED) {
          isBonded=bondstate==BOND_BONDED;
          connectedTime=tim;
@@ -316,7 +320,8 @@ boolean connected=false;
                    }
             if(newState == BluetoothProfile.STATE_DISCONNECTED) {
                 if(stop) {
-                       Log.i(LOG_ID,"stopping");
+                        if(doLog)
+                           Log.i(LOG_ID,"stopping");
                       close();
                         }
                   else {
@@ -333,12 +338,14 @@ boolean connected=false;
 
     @Override
     public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-        Log.i(LOG_ID,"onDescriptorRead/3 "+status);
+        if(doLog)
+            Log.i(LOG_ID,"onDescriptorRead/3 "+status);
     }
 
     @Override
     public void onDescriptorRead(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattDescriptor descriptor, int status, @NonNull byte[] value) {
-        Log.i(LOG_ID,"onDescriptorRead/4 "+status);
+        if(doLog)
+                Log.i(LOG_ID,"onDescriptorRead/4 "+status);
     }
 
 static private          byte[] VerioGetTimeCMD={0x20, 0x02};
@@ -385,7 +392,12 @@ private void setCareSenseTime(BluetoothGatt bluetoothGatt) {
                 else {
                     if(newerRecords) {
                         byte[] cmd=Natives.getGlucoseMeterNewCMD(meterIndex);
-                        tryer(()->writer(bluetoothGatt, RecordsChar,cmd));
+                        if(cmd!=null) {
+                            tryer(()->writer(bluetoothGatt, RecordsChar,cmd));
+                            }
+                        else {
+                              disconnect();
+                               }
                         }
                     else {
                        byte[] cmd={1,(byte)0x1};
@@ -436,12 +448,14 @@ private void setCareSenseTime(BluetoothGatt bluetoothGatt) {
 
     @Override
     public void onServiceChanged(@NonNull BluetoothGatt gatt) {
+       if(doLog)
         Log.i(LOG_ID,"onServiceChanged ");
     }
 
     @Override
     public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-        Log.i(LOG_ID,"onServicesDiscovered "+status);
+        if(doLog)
+            Log.i(LOG_ID,"onServicesDiscovered "+status);
         discover(gatt);
     }
 
@@ -452,7 +466,7 @@ private void setCareSenseTime(BluetoothGatt bluetoothGatt) {
              close();
             if(doLog) {Log.i(LOG_ID,"getConnectDevice Runnable "+ meterIndex);};
             if(!BluetoothGlucoseMeter.bluetoothIsEnabled()) {
-                Log.e(LOG_ID, "bluetoothIsEnabled() ");
+                Log.e(LOG_ID, "!bluetoothIsEnabled() ");
                 return ;
                 }
             var device= mActiveBluetoothDevice;
@@ -468,7 +482,8 @@ private void setCareSenseTime(BluetoothGatt bluetoothGatt) {
             if(doLog) {
                 var devname=device.getName();
                 if(devname!=null) {
-                        Log.d(LOG_ID, meterIndex + " Try connection to " + device.getAddress()+ " "+devname);;
+                        if(doLog)
+                            Log.d(LOG_ID, meterIndex + " Try connection to " + device.getAddress()+ " "+devname);;
                         }
                 }
             try {
@@ -592,12 +607,14 @@ boolean askDevice() {
                 updateview();
                 if(!discovered) {
                   if(mBluetoothGatt==null) {
-                      Log.i(LOG_ID,"bonded: mBluetoothGatt");
+                     if(doLog)
+                          Log.i(LOG_ID,"bonded: mBluetoothGatt");
                       disconnect();
                       return;
                       }
                   if(mBluetoothGatt.discoverServices()) {
-                         Log.i(LOG_ID,"bonded: bluetoothGatt.discoverServices()  called");
+                        if(doLog)
+                             Log.i(LOG_ID,"bonded: bluetoothGatt.discoverServices()  called");
                         }
                   else {
                          final String mess="bonded: bluetoothGatt.discoverServices()  failed";

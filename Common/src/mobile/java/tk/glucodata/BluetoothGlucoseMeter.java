@@ -65,12 +65,15 @@ private static void addBondStateReceiver() {
               }
               final int previousBondState = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE,BluetoothDevice.ERROR);
               final int bondState = intent.getIntExtra(EXTRA_BOND_STATE, BluetoothDevice.ERROR);
-              Log.i(LOG_ID,"Bond Broadcast "+address+": "+bondString(previousBondState)+" to "+bondString(bondState));
-             for(var gatt:meterGatts) {
-                if(gatt.mActiveBluetoothDevice!=null&&device.equals(gatt.mActiveBluetoothDevice)) {
-                    gatt.bonded();
+              if(doLog)
+                  Log.i(LOG_ID,"Bond Broadcast "+address+": "+bondString(previousBondState)+" to "+bondString(bondState));
+              final var gatts=meterGatts;
+              if(gatts!=null) {
+                 for(var gatt:gatts) {
+                    if(gatt.mActiveBluetoothDevice!=null&&device.equals(gatt.mActiveBluetoothDevice)) {
+                        gatt.bonded();
+                        }
                     }
-
                 }
              }
         };
@@ -125,7 +128,8 @@ public static void removeDevice(int index) {
             if(gatt.meterIndex==index) {
                 gatt.stop=true;
                 gatt.view=null;
-                Log.i(LOG_ID,"removeDevice remove "+index);
+                if(doLog)
+                    Log.i(LOG_ID,"removeDevice remove "+index);
                 gatt.disconnect();
                 }
              else {
@@ -140,7 +144,8 @@ public static void removeDevice(int index) {
 //          Log.i(LOG_ID,"removeDevice removed "+index);
           }
       else {
-        Log.i(LOG_ID,"removeDevice no devices");
+          if(doLog)
+                Log.i(LOG_ID,"removeDevice no devices");
         }
    }
 static void zeroViews() {
@@ -158,7 +163,8 @@ public static GlucoseMeterGatt addDevice(int index,BluetoothDevice device) {
        {
            var oldgatt = getExistingGatt(index);
            if (oldgatt != null) {
-               Log.i(LOG_ID, "addDevice already added " + index);
+                if(doLog)
+                   Log.i(LOG_ID, "addDevice already added " + index);
                if (oldgatt.connected)
                    oldgatt.disconnect();
                if(device!=null)
@@ -166,7 +172,8 @@ public static GlucoseMeterGatt addDevice(int index,BluetoothDevice device) {
                return oldgatt;
            }
        }
-        Log.i(LOG_ID,"addDevice later "+index);
+       if(doLog)
+                Log.i(LOG_ID,"addDevice later "+index);
         int oldlen=meterGatts.length;
         int len=oldlen+1;
         var tempGatts=new GlucoseMeterGatt[len];
@@ -176,7 +183,8 @@ public static GlucoseMeterGatt addDevice(int index,BluetoothDevice device) {
         gatt.connectOrScan(0);
         }
     else {
-        Log.i(LOG_ID,"addDevice first "+index);
+       if(doLog)
+            Log.i(LOG_ID,"addDevice first "+index);
         meterGatts=new GlucoseMeterGatt[1];
         meterGatts[0]=gatt;
         initBluetooth();
@@ -196,11 +204,13 @@ static GlucoseMeterGatt  getExistingGatt(int index) {
         }
 public static void startDevices() {
     if(Natives.staticnum()) {
-        Log.i(LOG_ID,"startDevices staticnum don't start");
+        if(doLog)
+            Log.i(LOG_ID,"startDevices staticnum don't start");
         return;
         }
         
-    Log.i(LOG_ID,"startDevices");
+    if(doLog)
+       Log.i(LOG_ID,"startDevices");
     getDevices();
     if(meterGatts==null||meterGatts.length==0)
         return;
@@ -208,7 +218,8 @@ public static void startDevices() {
     connectAllDevices(0);
     }
 public static void stopDevices() {
-    Log.i(LOG_ID,"stopDevices");
+    if(doLog)
+        Log.i(LOG_ID,"stopDevices");
 
     removeReceivers();
     stopScanner();
@@ -258,13 +269,16 @@ public static void connectAllDevices(long delayMillis) {
       }
   }
 public static void connectActiveDevices(long delayMillis) {
-    boolean scan=false;
-    for(final var gatt:meterGatts) {
-        scan=scan||!gatt.connectActiveDevice(delayMillis);
-        }
-  if(scan) {
-      startScanner(delayMillis);
-      }
+    final var gatts=meterGatts;
+    if(gatts!=null) { 
+        boolean scan=false;
+        for(final var gatt:gatts) {
+            scan=scan||!gatt.connectActiveDevice(delayMillis);
+            }
+      if(scan) {
+          startScanner(delayMillis);
+          }
+     }
   }
 
 private static BroadcastReceiver mBluetoothAdapterReceiver =null; ;
@@ -290,10 +304,15 @@ static private void addBluetoothStateReceiver() {
             int intExtra = intent.getIntExtra("android.bluetooth.adapter.extra.STATE", -1);
             if(intExtra == BluetoothAdapter.STATE_OFF) {
                 if(doLog) {Log.v(LOG_ID,"BLUETOOTH switched OFF");};
-                scanner.stopScan(false);
-                for(var cb: meterGatts)  {
-                    cb.close();
-                    }
+                final var scann=scanner;
+                if(scann!=null)
+                    scann.stopScan(false);
+               final var gatts=meterGatts;
+               if(gatts!=null) {
+                    for(var cb: gatts)  {
+                        cb.close();
+                        }
+                     }
                 } 
             else if (intExtra == BluetoothAdapter.STATE_ON) {
                 if(doLog) {Log.v(LOG_ID,"BLUETOOTH switched ON");};
@@ -315,13 +334,15 @@ public static boolean initBluetooth() {
             return false;
         } else {
             mBluetoothAdapter = mBluetoothManager.getAdapter();
-            Log.i(LOG_ID,"initBluetooth() success");
+            if(doLog)
+                Log.i(LOG_ID,"initBluetooth() success");
             addReceivers();
             return true;
             }
         }
     else{
-        Log.i(LOG_ID,"initBluetooth() already initialized"); 
+        if(doLog)
+            Log.i(LOG_ID,"initBluetooth() already initialized"); 
         return true;
         }
     }

@@ -125,6 +125,7 @@ static bool         wrongNeighbours(const ScanData *startsen,const ScanData *end
     for(const ScanData *it=value-1;it>=startsen&&it->gettime()>startInterval;--it) {
         const auto val=it->getmgdL();
         if(val<mgdLmin||val>mgdLmax) {
+            LOGGER("wrongNeighbours %d extreme\n",val);
             return true;
             }
         }
@@ -132,6 +133,7 @@ static bool         wrongNeighbours(const ScanData *startsen,const ScanData *end
     for(const ScanData *it=value+1;it<endsen&&it->gettime()<endInterval;++it) {
         const auto val=it->getmgdL();
         if(val<mgdLmin||val>mgdLmax) {
+            LOGGER("wrongNeighbours too large difference between %d and %d diff=%d maxdifference %d\n",val,theval,abs((int)(theval-val)),maxglucosedifference);
             return true;
             }
         }
@@ -211,7 +213,6 @@ bool shouldexclude(const uint32_t time) {
    uint32_t starttime=time-maxdifference;
    uint32_t endtime=time+maxdifference;
    vector<int> indices=sensors->sensorsInPeriod(starttime, endtime);
-   LOGGER("shouldexclude:  %u - %u %d\n",starttime,endtime,indices.size());
    if(!indices.size())  {
         LOGGER("shouldexclude: no sensors between %u and %u\n",starttime,endtime);
         return true;
@@ -232,6 +233,7 @@ bool shouldexclude(const uint32_t time) {
           }
 
         }
+    LOGGER("shouldexclude:  %u - %u nrsensors=%d exclude=%d\n",starttime,endtime,indices.size(),exclude);
     return exclude; 
     }
 

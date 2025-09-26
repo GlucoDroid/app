@@ -36,6 +36,8 @@ import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getlabel;
 
+import static tk.glucodata.Log.doLog;
+
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.graphics.Color;
@@ -76,15 +78,27 @@ public class DeviceList {
          super(view);
          view.setOnClickListener(v -> {
              int pos=getAbsoluteAdapterPosition();
-             String deviceName=BluetoothGlucoseMeter.scanner.deviceNames.get(pos);
-             var device=BluetoothGlucoseMeter.scanner.devices.get(pos);
-             int meterIndex=Natives.GlucoseMeterGetIndex(deviceName);
-             Log.i(LOG_ID,deviceName+" getId()="+view.getId()+" pos="+pos+" meterIndex="+meterIndex);
-             if(meterIndex>=0) {
-                MeterConfig.config((MainActivity)view.getContext(),meterIndex,parent,device);
-                }
-             else {
-                Applic.Toaster("Adding meter "+deviceName+" failed");
+             final var scan=BluetoothGlucoseMeter.scanner;
+             if(scan!=null) {
+                 if(pos<scan.deviceNames.size()) {
+                     String deviceName=scan.deviceNames.get(pos);
+                     var device=scan.devices.get(pos);
+                     int meterIndex=Natives.GlucoseMeterGetIndex(deviceName);
+                     if(doLog)
+                         Log.i(LOG_ID,deviceName+" getId()="+view.getId()+" pos="+pos+" meterIndex="+meterIndex);
+                     if(meterIndex>=0) {
+                        MeterConfig.config((MainActivity)view.getContext(),meterIndex,parent,device);
+                        }
+                     else {
+                        Applic.Toaster("Adding meter "+deviceName+" failed");
+                        }
+                     }
+                  else {
+                    Log.e(LOG_ID,"pos "+pos+" >=deviceNames "+ scan.deviceNames.size());
+                    }
+                 }
+              else {
+                    Log.e(LOG_ID,"scanner==null");
                 }
              });
         }
@@ -120,8 +134,7 @@ String newname;
                  SpannableString str = new SpannableString(nameaddress+"\t"+newname);
                  int spanlength=str.length();
                  int newlen=newname.length();
-    //              str.setSpan(new BackgroundColorSpan(Color.YELLOW), spanlength-newlen,spanlength, 0);
-                  str.setSpan(new ForegroundColorSpan(Color.YELLOW), spanlength-newlen,spanlength, 0);
+                 str.setSpan(new ForegroundColorSpan(Color.YELLOW), spanlength-newlen,spanlength, 0);
                  text.setText(str);
                  }
             else

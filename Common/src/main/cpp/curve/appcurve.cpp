@@ -1264,10 +1264,6 @@ int  hitremove(int64_t ptr) {
 
      return res;
     }
-extern Numdata *getherenums();
-Numdata *getherenums() {
-    return newhit.numdisplay;
-    }
 
 template <class TX,class TY>  const Num * NumDisplay::getnearby(JCurve &jcurve,const TX &transx,  const TY &transy,const float tapx,const float tapy) const {
     auto [low,high]=jcurve.extrums[numdatasPos]; 

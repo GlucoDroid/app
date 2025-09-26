@@ -1109,7 +1109,7 @@ private void    savekey(FileInputStream input,String outkeystr) {
 @Override
 protected void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
-    Log.format("Main.onActivityResult %x\n",requestCode);
+    Log.format("Main.onActivityResult requestCode%x resultCode=%d\n",requestCode,resultCode);
     switch(requestCode) {
    /*
          case REQUEST_CHECK_SETTINGS:
@@ -1177,6 +1177,7 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
             if(resultCode == Activity.RESULT_OK) {
                Uri uri; 
                if(data==null||(uri= data.getData()) == null) { 
+                  Log.i(LOG_ID,"onActivityResult data=null");
                   //TODO error
                   return;
                   }
@@ -1193,6 +1194,9 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
                 else
                    Natives.saveLogcat(fd);
                }
+           else  {
+            Log.i(LOG_ID,"savelog: resultCode="+resultCode);
+              }
         };break;
 
     };

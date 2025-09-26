@@ -48,7 +48,8 @@ class MeterConfig {
 static void config(MainActivity context, int meterIndex, View parent, BluetoothDevice device) {
     if(parent!=null)
        EnableControls(parent,false);
-     Log.i(LOG_ID,"MeterConfig "+meterIndex);
+    if(doLog)
+       Log.i(LOG_ID,"MeterConfig "+meterIndex);
     String deviceName=Natives.GlucoseMeterDeviceName(meterIndex);
     if(deviceName==null) {
         deviceName="Error: no device name";

@@ -65,7 +65,7 @@ import static android.graphics.Color.RED;
 import static android.widget.LinearLayout.VERTICAL;
 
 public class MeterList {
-  static private final String LOG_ID ="MeterList";
+//  static private final String LOG_ID ="MeterList";
 static final class MeterView extends Layout{
    int meterIndex;
    TextView text;
@@ -95,10 +95,10 @@ static final class MeterView extends Layout{
                         }
 
                       }
-                  }
-            if(gatt.receivedTime>0L) {
+                if(gatt.receivedTime>0L) {
                     addtext+="\n"+context.getString(gatt.newvalues?R.string.newdata:R.string.nonewdata)+": "+bluediag.datestr(gatt. receivedTime);
-                }
+                        }
+                  }
             }
         text.setText(addtext);
          active.setChecked(a);
