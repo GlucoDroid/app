@@ -140,7 +140,6 @@
   <string name="status">Status</string>
   <string name="config">Konfigurieren</string>
   <string name="initwatchapp">Init Watch App</string>
-  <string name="directconnection">Direkte Sensor-Uhr-Verbindung</string>
   <string name="nowatchesfound">Keine Uhren gefunden</string>
   <string name="getkerfstok">Hol dir die Watch-App Kerfstok</string>
   <string name="mealname">Mahlzeit</string>
@@ -278,7 +277,7 @@
  <string name="novalue">Kein Wert</string>
  <string name="menus">Menü</string>
 <string name="system_ui">System UI</string>
-<string name="watch">Uhren</string>
+<string name="watches">Uhren</string>
 <string name="sensor">Sensor</string>
 <string name="settings">Einstellungen</string>
 <string name="aboutname">About</string>
@@ -388,7 +387,6 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
 <string name="calibratepast">Auf Vergangenheit anwenden</string>
 <string name="bloodvar">Blutzucker: </string>
 <string name="calibrate_a">Steigung ändern</string>
-<string name="watchnums">Zahlen (Mengen) auf der Uhr eingeben</string>
 <string name="calibrated">Kalibriert</string>
 <string name="delete_calibration">Kalibrierung löschen?</string>
 <string name="hide">Ausblenden</string>
@@ -407,5 +405,10 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
 <string name="newdata">"Neue Daten"</string>
 <string name="isconnected">Verbunden</string>
 <string name="isdisconnected">Getrennt</string>
+<string name="phone">Telephon</string>
+<string name="watch">Uhr</string>
+<string name="directsensor">Direkte Sensor-</string>
+<string name="enternums">Mengen eingeben auf</string>
+  <string name="connectionl">Verbindung</string>
 </resources>
 

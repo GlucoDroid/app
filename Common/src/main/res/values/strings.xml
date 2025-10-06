@@ -144,7 +144,6 @@
  <string name="status">Status</string>
  <string name="config">Config</string>
  <string name="initwatchapp">Init watch app</string>
- <string name="directconnection">Direct sensor-watch connection</string>
  <string name="nowatchesfound">No watches found</string>
  <string name="getkerfstok">Get watch app Kerfstok</string>
  <string name="mealname">Meal</string>
@@ -285,7 +284,7 @@
  <string name="libreisviewed">Spy views</string>
  <string name="novalue">No value</string>
  <string name="talk">Talk</string>
- <string name="watch">Watch</string>
+ <string name="watches">Watch</string>
  <string name="menus">Menus</string>
  <string name="system_ui">System UI</string>
  <string name="sensor">Sensor</string>
@@ -379,7 +378,7 @@
     <string name="aspart">Insulin Aspart/NovoRapid/NovoLog</string>
     <string name="fiasp">Fiasp</string>
     <string name="lispro">Insulin Lispro/Humalog</string>
-    <string name="urli">URLi</string>
+    <string name="urli">URLi/Lyumjev/insulin lispro-aabc</string>
     <string name="glulisine">Insulin Glulisine/Apidra</string>
     <string name="humaninsulin">Human Insulin/Humulin R/Novolin R</string>
     <string name="afrezza">Afrezza</string>
@@ -428,7 +427,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
  <string name="calibratepast">Apply to past</string>
  <string name="bloodvar">Blood glucose:</string>
  <string name="calibrate_a">Change slope</string>
- <string name="watchnums">Enter numbers (amounts) on watch</string>
  <string name="calibrated">Calibrated</string>
  <string name="delete_calibration">Delete calibration?</string>
  <string name="hide">Hide</string>
@@ -447,5 +445,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
  <string name="newdata">"New data"</string>
 <string name="isconnected">Connected</string> 
 <string name="isdisconnected">Disconnected</string> 
-
+<string name="phone">phone</string>
+ <string name="watch">watch</string>
+<string name="directsensor">Direct sensor-</string>
+<string name="enternums">Enter amounts on</string>
+<string name="connectionl">connection</string>
+<string name="disconnectsensor">Bug</string>
 </resources>

@@ -143,7 +143,6 @@
  <string name="status">Статус</string>
  <string name="config">Канфігурацыя</string>
  <string name="initwatchapp">Запуск праграмы для гадзінніка</string>
- <string name="directconnection">Прамое злучэнне датчык-гадзіннік</string>
  <string name="nowatchesfound">Гадзіннік не знойдзены</string>
  <string name="getkerfstok">Спампаваць праграму для гадзіннікаў Kerfstok</string>
  <string name="mealname">Ежа</string>
@@ -281,7 +280,7 @@
  <string name="libreisviewed">Шпіёнскія віды</string>
  <string name="novalue">Няма каштоўнасці</string>
  <string name="talk">Размаўляць</string>
- <string name="watch">Глядзець</string>
+ <string name="watches">Глядзець</string>
  <string name="menus">Меню</string>
 <string name="system_ui">System UI</string>
 <string name="sensor">Датчык</string>
@@ -341,4 +340,10 @@
  <string name="streamingenabled">" Паток уключаны"</string>
  <string name="streamingnotenabled">" Паток не ўключаны"</string>
  <string name="threshold">Threshold</string>
+
+ <string name="directsensor">Прамое злучэнне датчык-</string>
+ <string name="watch">гадзіннік</string>
+ <string name="phone">тэлефон</string>
+ <string name="connectionl"></string>
+
 </resources>

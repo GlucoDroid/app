@@ -143,7 +143,6 @@
 <string name="status">Etat</string>
 <string name="config">Config</string>
 <string name="initwatchapp">Initialiser appli montre</string>
-<string name="directconnection">Connexion directe capteur-montre</string>
 <string name="nowatchesfound">Pas de montre trouvée</string>
 <string name="getkerfstok">Obtenir appli montre Kerfstok</string>
 <string name="mealname">Repas</string>
@@ -275,7 +274,7 @@
  <string name="test">Test</string>
 
 <string name="system_ui">Intf. systèm</string>
-<string name="watch">Montre</string>
+<string name="watches">Montre</string>
 <string name="sensor">Capteur</string>
 <string name="settings">Paramètres</string>
 <string name="aboutname">A propos</string>
@@ -292,4 +291,10 @@
 <string name="day_later">Jour après</string>
 <string name="week_back">Semaine avant</string>
 <string name="week_later">Semaine après</string>
+
+<string name="phone">téléphone</string>
+<string name="watch">montre</string>
+<string name="enternums">Enter amounts on</string>
+<string name="directsensor">Connexion directe capteur-</string>
+<string name="connectionl"></string>
 </resources>

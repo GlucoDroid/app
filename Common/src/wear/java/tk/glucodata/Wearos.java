@@ -21,8 +21,5 @@
 
 package tk.glucodata;
 public class Wearos  {
-    public static boolean MessageReceiverEnabled() {
-        return true;
-    }
 public static   void sendinitwatchapp(Object obj) {}
 }

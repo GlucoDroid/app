@@ -30,7 +30,13 @@ import static tk.glucodata.MessageSender.initwearos;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
+import static android.content.pm.PackageManager.DONT_KILL_APP;
 
+import android.app.Application;
+import android.content.ComponentName;
+import android.content.pm.PackageManager;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -39,158 +45,174 @@ static private final boolean TestBridge=BuildConfig.DEBUG;
 static private float glucose=80f;
 static private float trend=-5.2f;
 static private final  String LOG_ID="Watch";
+
+static private void enableMessageReceiver(boolean val) {
+    try{
+       Application app= Applic.app;
+       PackageManager manage = app.getPackageManager();
+       ComponentName scan= new ComponentName(app, tk.glucodata.MessageReceiver.class);
+       int com=val?COMPONENT_ENABLED_STATE_ENABLED:COMPONENT_ENABLED_STATE_DISABLED;
+       manage.setComponentEnabledSetting(scan,com , DONT_KILL_APP);
+      }
+    catch (Throwable e) {
+        Log.stack(LOG_ID,e);
+        }
+    }
+static private void setuseWearos(boolean value) {
+    enableMessageReceiver(value);
+    }
 static public void show(MainActivity context) {
        var notify=getcheckbox(context,context.getString(R.string.notify), Notify.alertwatch);
-	
-	notify.setOnCheckedChangeListener(
-		(buttonView,  isChecked) ->  {
-			Applic.app.setnotify(isChecked);
-			});
+    
+    notify.setOnCheckedChangeListener(
+        (buttonView,  isChecked) ->  {
+            Applic.app.setnotify(isChecked);
+            });
 
        var separate=getcheckbox(context,context.getString(R.string.separate), Notify.alertseparate);
-	separate.setOnCheckedChangeListener(
-		(buttonView,  isChecked) ->  {
-			Notify.alertseparate=isChecked;
-			Natives.setSeparate(isChecked);
-			});
+    separate.setOnCheckedChangeListener(
+        (buttonView,  isChecked) ->  {
+            Notify.alertseparate=isChecked;
+            Natives.setSeparate(isChecked);
+            });
 
-	       var watchdrip=getcheckbox(context,"Watchdrip", SuperGattCallback.doWearInt);
-		watchdrip.setOnCheckedChangeListener(
-			(buttonView,  isChecked) ->  {
-				Natives.setwatchdrip(isChecked);
-				tk.glucodata.watchdrip.set(isChecked);
-				});
+           var watchdrip=getcheckbox(context,"Watchdrip", SuperGattCallback.doWearInt);
+        watchdrip.setOnCheckedChangeListener(
+            (buttonView,  isChecked) ->  {
+                Natives.setwatchdrip(isChecked);
+                tk.glucodata.watchdrip.set(isChecked);
+                });
        var gadget=getcheckbox(context,"GadgetBridge", SuperGattCallback.doGadgetbridge);
-		gadget.setOnCheckedChangeListener(
-			(buttonView,  isChecked) ->  {
-				Natives.setgadgetbridge(isChecked);
-				SuperGattCallback.doGadgetbridge=isChecked;
-				});
-	var test=TestBridge?getbutton(context,"Test"):null;
-	View[] mibandrow;
-	if(TestBridge) {
-		test.setOnClickListener(v-> {
-			int mgdl;
-			trend += 0.6f;
-			if (trend > 5f)
-				trend = -5f;
-			if(Applic.unit==1) {
-				glucose += 0.6f;
-				if (glucose > 28f)
-					glucose = 2.2f;
+        gadget.setOnCheckedChangeListener(
+            (buttonView,  isChecked) ->  {
+                Natives.setgadgetbridge(isChecked);
+                SuperGattCallback.doGadgetbridge=isChecked;
+                });
+    var test=TestBridge?getbutton(context,"Test"):null;
+    View[] mibandrow;
+    if(TestBridge) {
+        test.setOnClickListener(v-> {
+            int mgdl;
+            trend += 0.6f;
+            if (trend > 5f)
+                trend = -5f;
+            if(Applic.unit==1) {
+                glucose += 0.6f;
+                if (glucose > 28f)
+                    glucose = 2.2f;
 
-			mgdl=(int)Math.round(glucose*mgdLmult);
-			}
-			else {
-				glucose += 13f;
-				if (glucose > 500f)
-					glucose = 40f;
-				mgdl=(int)glucose;
+            mgdl=(int)Math.round(glucose*mgdLmult);
+            }
+            else {
+                glucose += 13f;
+                if (glucose > 500f)
+                    glucose = 40f;
+                mgdl=(int)glucose;
 
-			}
-				
-				Gadgetbridge.sendglucose(""+glucose,mgdl,glucose,trend, System.currentTimeMillis());
-				});
+            }
+                
+                Gadgetbridge.sendglucose(""+glucose,mgdl,glucose,trend, System.currentTimeMillis());
+                });
 
-		mibandrow=new View[]{watchdrip,gadget,test};
-		}
-	else  {
-		mibandrow=new View[]{watchdrip,gadget};
-		}
-	var usexdripserver=Natives.getusexdripwebserver();
-	var server=getcheckbox(context,R.string.webserver,usexdripserver);
-	server.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setusexdripwebserver(isChecked));
-	var serverconfig=getbutton(context,R.string.config);
-	var usegarmin=Natives.getusegarmin();
-	var kerfstok=getcheckbox(context,"Kerfstok",usegarmin); 
-	var status=getbutton(context,R.string.status);
-	status.setVisibility(usegarmin?VISIBLE:INVISIBLE);
-	kerfstok.setOnCheckedChangeListener(
-			 (buttonView,  isChecked) -> {
-			 if(isChecked&&!usegarmin)
-				Applic.app.numdata.reinit(context);
-			status.setVisibility(isChecked?VISIBLE:INVISIBLE);
-			 });
-	var useWearos=Applic.useWearos();
-	if(useWearos) {
-		var sender=tk.glucodata.MessageSender.getMessageSender();
-	        if(sender!=null) sender.finddevices();
- 		Natives.networkpresent();
-		}
+        mibandrow=new View[]{watchdrip,gadget,test};
+        }
+    else  {
+        mibandrow=new View[]{watchdrip,gadget};
+        }
+    var usexdripserver=Natives.getusexdripwebserver();
+    var server=getcheckbox(context,R.string.webserver,usexdripserver);
+    server.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setusexdripwebserver(isChecked));
+    var serverconfig=getbutton(context,R.string.config);
+    var usegarmin=Natives.getusegarmin();
+    var kerfstok=getcheckbox(context,"Kerfstok",usegarmin); 
+    var status=getbutton(context,R.string.status);
+    status.setVisibility(usegarmin?VISIBLE:INVISIBLE);
+    kerfstok.setOnCheckedChangeListener(
+             (buttonView,  isChecked) -> {
+             if(isChecked&&!usegarmin)
+                Applic.app.numdata.reinit(context);
+            status.setVisibility(isChecked?VISIBLE:INVISIBLE);
+             });
+    var useWearos=Applic.useWearos();
+    if(useWearos) {
+        var sender=tk.glucodata.MessageSender.getMessageSender();
+            if(sender!=null) sender.finddevices();
+         Natives.networkpresent();
+        }
 
-	var wearbox=getcheckbox( context, "WearOS", useWearos);
-	var wearossettings=getbutton(context,R.string.config);
-	wearossettings.setVisibility(useWearos?VISIBLE:INVISIBLE);
-	wearbox.setOnCheckedChangeListener(
-			 (buttonView,  isChecked) -> {
-			Wearos.setuseWearos(isChecked);
-			 if(isChecked) {
-			 	if(!useWearos) {
-					initwearos(Applic.app);
-					}
-				else  {
-					var sender=tk.glucodata.MessageSender.getMessageSender();
-					if(sender!=null) sender.finddevices();
-					}
-				Natives.networkpresent();
-				}
-			wearossettings.setVisibility(isChecked?VISIBLE:INVISIBLE);
-			 });
+    var wearbox=getcheckbox( context, "WearOS", useWearos);
+    var wearossettings=getbutton(context,R.string.config);
+    wearossettings.setVisibility(useWearos?VISIBLE:INVISIBLE);
+    wearbox.setOnCheckedChangeListener(
+             (buttonView,  isChecked) -> {
+            setuseWearos(isChecked);
+             if(isChecked) {
+                 if(!useWearos) {
+                    initwearos(Applic.app);
+                    }
+                else  {
+                    var sender=tk.glucodata.MessageSender.getMessageSender();
+                    if(sender!=null) sender.finddevices();
+                    }
+                Natives.networkpresent();
+                }
+            wearossettings.setVisibility(isChecked?VISIBLE:INVISIBLE);
+             });
 
 
-	var Ok=getbutton(context,R.string.ok);
-	var Help=getbutton(context,R.string.helpname);
-	Help.setOnClickListener(v-> {
+    var Ok=getbutton(context,R.string.ok);
+    var Help=getbutton(context,R.string.helpname);
+    Help.setOnClickListener(v-> {
         context.lightBars(false);
         help.help(R.string.watchinfo,context,l->context.lightBars(!Natives.getInvertColors( ))); 
         });
 
-	var layout=new Layout(context,(l,w,h)-> {
-		var width= GlucoseCurve.getwidth();
-		if(width>w)
-			l.setX((width-w)/2);
+    var layout=new Layout(context,(l,w,h)-> {
+        var width= GlucoseCurve.getwidth();
+        if(width>w)
+            l.setX((width-w)/2);
       l.setY(MainActivity.systembarTop);
-		return new int[] {w,h};
-		},mibandrow,new View[] {notify,separate},new View[]{wearbox,wearossettings},new View[]{server,serverconfig},new View[]{kerfstok,status},new View[]{Help,Ok} );
-	float density=GlucoseCurve.metrics.density;
-	int laypad=(int)(density*4.0);
-	layout.setPadding(laypad*2,laypad*2,laypad*2,laypad);
+        return new int[] {w,h};
+        },mibandrow,new View[] {notify,separate},new View[]{wearbox,wearossettings},new View[]{server,serverconfig},new View[]{kerfstok,status},new View[]{Help,Ok} );
+    float density=GlucoseCurve.metrics.density;
+    int laypad=(int)(density*4.0);
+    layout.setPadding(laypad*2,laypad*2,laypad*2,laypad);
 
-	layout.setBackgroundColor( Applic.backgroundcolor);
-	context.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-	status.setOnClickListener(v->{
-			new GarminStatus(context,Applic.app.numdata,layout);
-			});
-	wearossettings.setOnClickListener(v->{
-			Wearos.show(context,layout);
-			});
-	Ok.setOnClickListener(
-		v -> {
-		   if(usegarmin!=kerfstok.isChecked()) {
-		   	Natives.setusegarmin(!usegarmin);
-			if(usegarmin) {
-				Natives.sethasgarmin(false);
-				Applic.app.numdata.stop();
-				}
-		   	}
-		context.poponback();
-		removeContentView(layout);
-		context.hideSystemUI(); 
-		if(Menus.on) {
-			Menus.show(context);
-			}
-		});
+    layout.setBackgroundColor( Applic.backgroundcolor);
+    context.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+    status.setOnClickListener(v->{
+            new GarminStatus(context,Applic.app.numdata,layout);
+            });
+    wearossettings.setOnClickListener(v->{
+            Wearos.show(context,layout);
+            });
+    Ok.setOnClickListener(
+        v -> {
+           if(usegarmin!=kerfstok.isChecked()) {
+               Natives.setusegarmin(!usegarmin);
+            if(usegarmin) {
+                Natives.sethasgarmin(false);
+                Applic.app.numdata.stop();
+                }
+               }
+        context.poponback();
+        removeContentView(layout);
+        context.hideSystemUI(); 
+        if(Menus.on) {
+            Menus.show(context);
+            }
+        });
 
 
 
-	context.setonback(()-> { removeContentView(layout);
-		context.hideSystemUI(); });
+    context.setonback(()-> { removeContentView(layout);
+        context.hideSystemUI(); });
 
-	serverconfig.setOnClickListener(v->{
-			Nightscout.show(context,layout);
-			});
-	}
-	
+    serverconfig.setOnClickListener(v->{
+            Nightscout.show(context,layout);
+            });
+    }
+    
 
 }
 

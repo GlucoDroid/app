@@ -924,6 +924,9 @@ public static native boolean GlucoseMeterGetActive(int meterIndex);
 public static native int GlucoseMeterCount();
 
 public static native int GlucoseMeterHasIndex(String deviceName);
+
+public static native void setDisconnectSensor(boolean val);
+public static native boolean getDisconnectSensor( );
 //s/^[	 ]*extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }
 

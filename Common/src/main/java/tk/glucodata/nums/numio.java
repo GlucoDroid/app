@@ -204,11 +204,10 @@ if(true) {
           build.append('\n');
           Natives.log(build.toString());
            final String version= BuildConfig.VERSION_CODE+" "+ BuildConfig.VERSION_NAME +" "+ BuildConfig.BUILD_TIME+"\n";
-          {if(doLog) {Log.i(LOG_ID,version+locstr+" "+country+" nativeDir="+nativedir);};};
+          if(doLog) {Log.i(LOG_ID,version+locstr+" "+country+" nativeDir="+nativedir);};
       }
 
-   if(!isWearable)
-      setDevice(Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT);
+   setDevice(Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT);
 
    startsensors( );
    startmeals();

@@ -479,7 +479,7 @@ void      SiContext::setNotchinese(SensorGlucoseData *sens) {
 #endif
     notchinese=true;
    }
-SiContext::SiContext(SensorGlucoseData *sens): binState(1,sens->binstatefile,2560),algcontext(
+SiContext::SiContext(SensorGlucoseData *sens): binState(2,sens->binstatefile,4096),algcontext(
 #ifdef NOTCHINESE
         sens->notchinese()?initAlgorithm2(sens,binState):
 #endif

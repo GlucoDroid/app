@@ -37,7 +37,7 @@ using namespace std;
 int    timestr(char *buf,time_t tim) {
         struct tm tmbuf;
         if(localtime_r(&tim,&tmbuf))
-                return sprintf(buf,"%d-%02d-%02d-%02d:%02d:%02d",1900+tmbuf.tm_year,tmbuf.tm_mon+1,tmbuf.tm_mday,tmbuf.tm_hour,tmbuf.tm_min,tmbuf.tm_sec);
+                return sprintf(buf,"%d-%02d-%02dT%02d:%02d:%02d",1900+tmbuf.tm_year,tmbuf.tm_mon+1,tmbuf.tm_mday,tmbuf.tm_hour,tmbuf.tm_min,tmbuf.tm_sec);
         else {
                 const char fout[]="localtime-failed!!!";
                 memcpy(buf,fout,sizeof(fout));

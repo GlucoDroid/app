@@ -82,13 +82,14 @@ static bool vers(getJNIfunctions)() {
 extern  struct JNINativeInterface envbuf;
 double SiContext::vers(process)(int index,double value, double temp) {
     auto context=reinterpret_cast<jobject>(algcontext);
-     const auto res= vers(processAlgorithmContext)(subenv,nullptr,context,index,value,temp,0.0,targetlow,targethigh);
-     LOGGER("processAlgorithmContext%d(%p,%d,%f,%f,%f,%f,%f)=%f\n",vers(0),algcontext,index,value,temp,0.0,targetlow,targethigh,res);
+    const auto res= vers(processAlgorithmContext)(subenv,nullptr,context,index,value,temp,0.0,targetlow,targethigh);
+    LOGGER("processAlgorithmContext%d(%p,%d,%f,%f,%f,%f,%f)=%f\n",vers(0),algcontext,index,value,temp,0.0,targetlow,targethigh,res);
     if(vers(getBinaryStructAlgorithmContext)) {
         binState.reset();
        jnidata_t  hierjnidata={&envbuf,&binState};
        JNIEnv *hiersubenv=(JNIEnv *) &hierjnidata;
         jbyteArray bar=vers(getBinaryStructAlgorithmContext)(hiersubenv,nullptr,context);
+//        LOGAR("getBinaryStructAlgorithmContext");
         data_t *data=(data_t *)bar;
         binState.setpos(0,data);
         }

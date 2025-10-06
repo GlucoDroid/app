@@ -417,7 +417,6 @@ static class ScrollListener extends GestureDetector.SimpleOnGestureListener {
 */
 @Override
 public boolean onTouchEvent(MotionEvent event) {
-   {if(doLog) {Log.i(LOG_ID,"onTouchEvent");};};
    return true;
    }
     @Override

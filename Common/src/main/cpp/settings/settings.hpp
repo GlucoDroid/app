@@ -285,7 +285,8 @@ struct Tings {
     char _nullchar1;
     uint8_t librecountry;
     
-    int8_t empty2b:2;
+    int8_t reserved1:1;
+    bool DisconnectSensor:1;
 
     bool showcalibrated:1;
     bool showscans:1;

@@ -145,7 +145,6 @@
  <string name="status">Status</string>
  <string name="config">Config</string>
  <string name="initwatchapp">Init horloge app</string>
- <string name="directconnection">Directe sensor-horloge verbinding</string>
  <string name="nowatchesfound">Geen horloges gevonden</string>
  <string name="getkerfstok">Krijg horloge app Kerfstok</string>
  <string name="mealname">Maaltijd</string>
@@ -273,7 +272,7 @@
  <string name="menus">Menu\'s</string>
 
 <string name="system_ui">System UI</string>
-<string name="watch">Horloges</string>
+<string name="watches">Horloges</string>
 <string name="sensor">Sensor</string>
 <string name="settings">Instellingen</string>
 <string name="aboutname">About</string>
@@ -382,7 +381,6 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
 <string name="calibratepast">Toepassen op verleden</string>
 <string name="bloodvar">Bloedglucose:</string>
 <string name="calibrate_a">Helling wijzigen</string>
-<string name="watchnums">Voer nummers (hoeveelheden) in op horloge</string>
 <string name="calibrated">Gekalibreerd</string>
 <string name="delete_calibration">Kalibratie verwijderen?</string>
 <string name="hide">Verbergen</string>
@@ -401,5 +399,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
 <string name="newdata">"Nieuwe gegevens"</string>
 <string name="isconnected">Verbonden</string>
 <string name="isdisconnected">Verbinding verbroken</string>
+<string name="phone">telefoon</string>
+<string name="watch">horloge</string>
+<string name="directsensor">Directe sensor-</string>
+<string name="enternums">Voer hoeveelheden in op</string>
+ <string name="connectionl">verbinding</string>
 </resources>
 

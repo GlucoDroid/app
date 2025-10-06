@@ -22,6 +22,7 @@
 
 package tk.glucodata;
 
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.RED;
 import static android.graphics.Color.BLUE;
@@ -46,6 +47,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.Application;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -416,11 +418,27 @@ public static void sendsettings() {
             }
         } */
 
+
+static private boolean MessageReceiverEnabled() {
+    if(!isWearable) {
+        try{
+        Application app= Applic.app;
+          PackageManager manage = app.getPackageManager();
+        ComponentName scan= new ComponentName(app, "tk.glucodata.MessageReceiver");
+        return manage.getComponentEnabledSetting(scan)!=COMPONENT_ENABLED_STATE_DISABLED;
+        }
+        catch (Throwable e) {
+
+            Log.stack(LOG_ID,e);
+        }
+        }
+    return false;
+    }
 static public boolean useWearos() {
     if(isWearable)
         return true;
     else
-        return tk.glucodata.Wearos.MessageReceiverEnabled();
+        return MessageReceiverEnabled();
     }
 private void initialize() {
         if (android.os.Build.VERSION.SDK_INT >=  android.os.Build.VERSION_CODES.LOLLIPOP) {
@@ -761,7 +779,7 @@ if(isWearable) {
 
     Floating.init(); 
    final var initversion=Natives.getinitVersion();
-    if(initversion<35) {
+    if(initversion<36) {
       if(initversion<29) {
          if(initversion<22) {
             if(initversion<14) {
@@ -776,7 +794,7 @@ if(isWearable) {
             }
          sethour24(DateFormat.is24HourFormat(app));
          }
-      Natives.setinitVersion(35);
+      Natives.setinitVersion(36);
       }
 
    setjavahour24(Natives.gethour24());

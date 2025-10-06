@@ -426,6 +426,10 @@ private	void oldonCharacteristicChanged(byte[] value) {
 						}
 					if(wakeLock!=null)
 						wakeLock.release();
+                    if(isWearable) {
+                        if(Natives.getDisconnectSensor())
+                            disconnect();  
+                        }
 				}
 			}
 			;

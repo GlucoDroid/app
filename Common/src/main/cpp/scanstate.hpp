@@ -71,8 +71,7 @@ class multimmap {
         if(!map.data())
             return nullptr;
         int pos=datpos(datnr);
-        if(pos<datastart())
-            return nullptr;
+//        if(pos<datastart()) return nullptr;
         data_t *dat=reinterpret_cast<data_t*>(map.data()+pos);
         if(dat->len>0)
             return dat;    
@@ -85,7 +84,7 @@ class multimmap {
         int was=freepos;
         data_t *dat=reinterpret_cast<data_t*>(map.data()+was);
         dat->len=len;
-        freepos+=alignstart<int>(sizeof(data_t)+len);
+        freepos+=alignstart<int64_t>(sizeof(data_t)+len);
         return dat;
         }
     void reset() {

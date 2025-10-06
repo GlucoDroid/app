@@ -722,10 +722,11 @@ void activateresult(boolean res) {
     }
     @Override
     protected void onPause() {
-        {if(doLog) {Log.i(LOG_ID,"onPause");};};
-        if (mNfcAdapter != null) {
+        super.onPause();
+        if(doLog) {Log.i(LOG_ID,"onPause");};
+        if(mNfcAdapter != null) {
            try {
-                    mNfcAdapter.disableReaderMode(this);
+               mNfcAdapter.disableReaderMode(this);
             }
            catch(Throwable error) {
                 String mess=error!=null?error.getMessage():null;
@@ -735,7 +736,6 @@ void activateresult(boolean res) {
                 Log.e(LOG_ID,"mNfcAdapter.disableReaderMode "+mess);
                 }
             }
-        super.onPause();
         if(!Applic.Nativesloaded)
             return;
         Natives.wakeuploader();

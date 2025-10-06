@@ -144,7 +144,6 @@
 <string name="status">Estado</string>
 <string name="config">Configuração</string>
 <string name="initwatchapp">Iniciar aplicação de monitorização</string>
-<string name="directconnection">Conexão direta sensor-watch</string>
 <string name="nowatchesfound">Relógio não encontrado</string>
 <string name="getkerfstok">Obtenha a aplicação de relógio Kerfstok</string>
 <string name="mealname">Refeição</string>
@@ -211,7 +210,7 @@
     <string name="notify">Notificar</string>
 
 <string name="system_ui">UI do Sistema</string>
-<string name="watch">Relógio</string>
+<string name="watches">Relógio</string>
 <string name="sensor">Sensor</string>
 <string name="settings">Definições</string>
 <string name="aboutname">Sobre</string>
@@ -228,6 +227,11 @@
 <string name="day_later">Dia seguinte</string>
 <string name="week_back">Semana anterior</string>
 <string name="week_later">Semana seguinte</string>
+
+<string name="watch">watch</string>
+<string name="phone">telefone</string>
+<string name="directsensor">Conexão direta sensor-</string>
+<string name="connectionl"></string>
 </resources>
 
 

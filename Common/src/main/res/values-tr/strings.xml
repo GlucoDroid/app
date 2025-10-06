@@ -143,7 +143,6 @@
  <string name="status">Durum</string>
  <string name="config">Yapılandır</string>
  <string name="initwatchapp">Saat uygumasını başlat</string>
- <string name="directconnection">Doğrudan sensör-saat bağlantısı</string>
  <string name="nowatchesfound">Saat bulunamadı</string>
  <string name="getkerfstok">Kerfstok saat uygulamasını edinin</string>
  <string name="mealname">Yemek</string>
@@ -283,7 +282,7 @@
  <string name="libreisviewed">Casus görünümü</string>
  <string name="novalue">Veri yok</string>
  <string name="talk">Seslendirme</string>
- <string name="watch">Saat</string>
+ <string name="watches">Saat</string>
  <string name="menus">Menüler</string>
  <string name="system_ui">Sistem Arayüzü</string>
  <string name="sensor">Sensör</string>
@@ -367,12 +366,9 @@
    <string name="filesize">Dosya Boyutu</string> 
    <string name="logging">Günlük kaydı</string> 
     <string name="aspart">Insülin Aspart/NovoRapid/NovoLog</string>
-    <string name="fiasp">Fiasp</string>
     <string name="lispro">Insülin Lispro/Humalog</string>
-    <string name="urli">URLi</string>
     <string name="glulisine">Insülin Glulisine/Apidra</string>
     <string name="humaninsulin">Human Insülin/Humulin R/Novolin R</string>
-    <string name="afrezza">Afrezza</string>
     <string name="not">Değil</string>
     <string name="eusibionics">EU Sibionics - com.sisensing.sijoy</string>
     <string name="chsibionics">Chinese Sibionics - com.sisensing.sisensingcgm</string>
@@ -387,4 +383,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     
     <string name="googlescan">Google Tarama</string>
 
+ <string name="watch">saat</string>
+ <string name="phone">telefon</string>
+ <string name="directsensor">Doğrudan sensör-</string>
+<string name="connectionl">bağlantısı</string>
 </resources>

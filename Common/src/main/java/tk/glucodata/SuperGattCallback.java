@@ -622,7 +622,15 @@ private boolean used_priority=false;
             Log.e(LOG_ID, SerialNumber +" "+"setpriority BluetoothGatt==null");
             }
     }
-
+boolean disableNoCheck(BluetoothGatt gatt, BluetoothGattCharacteristic ch) {
+        gatt.setCharacteristicNotification(ch, false);
+        BluetoothGattDescriptor descriptor = ch.getDescriptor(mCharacteristicConfigDescriptor);
+        if(!descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
+            Log.e(LOG_ID, SerialNumber + " " + "descriptor.setValue())  failed");
+            return false;
+        }
+        return gatt.writeDescriptor(descriptor);
+        }
     boolean    disablenotification(BluetoothGatt gatt, BluetoothGattCharacteristic ch) {
         if(isNull(gatt)) {
             return false;
@@ -630,13 +638,7 @@ private boolean used_priority=false;
         if(isNull(ch))
             return false;
         try {
-            gatt.setCharacteristicNotification(ch, false);
-            BluetoothGattDescriptor descriptor = ch.getDescriptor(mCharacteristicConfigDescriptor);
-            if (!descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
-                Log.e(LOG_ID, SerialNumber + " " + "descriptor.setValue())  failed");
-                return false;
-            }
-            return gatt.writeDescriptor(descriptor);
+             return disableNoCheck(gatt,ch);
         }
         catch(Throwable th) {
             Log.stack(LOG_ID,"disablenotification",th);

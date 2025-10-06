@@ -144,7 +144,6 @@
  <string name="status">状态</string>
  <string name="config">配置</string>
  <string name="initwatchapp">初始化手表应用程序</string>
- <string name="directconnection">手表直接连接传感器</string>
  <string name="nowatchesfound">未找到手表</string>
  <string name="getkerfstok">获取手表应用程序 Kerfstok</string>
  <string name="mealname">餐</string>
@@ -282,7 +281,7 @@
  <string name="libreisviewed">查看状态同步</string>
  <string name="novalue">没有值</string>
  <string name="talk">播报</string>
-    <string name="watch">手表</string>
+    <string name="watches">手表</string>
  <string name="menus">菜单</string>
  <string name="system_ui">系统UI</string>
  <string name="sensor">传感器</string>
@@ -339,4 +338,9 @@
  <string name="off">关</string>
  <string name="streamingenabled">" 传输已开启"</string>
  <string name="streamingnotenabled">" 传输未开启"</string>
+
+<string name="directsensor"></string>
+    <string name="watch">手表</string>
+    <string name="phone">手机</string>
+ <string name="connectionl">直接连接传感器</string>
 </resources>

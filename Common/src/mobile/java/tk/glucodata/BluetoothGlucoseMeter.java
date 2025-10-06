@@ -202,18 +202,35 @@ static GlucoseMeterGatt  getExistingGatt(int index) {
             }
         return null; 
         }
+private static boolean devicesStarted=false;
 public static void startDevices() {
+    if(devicesStarted) {
+        if(doLog)
+            Log.i(LOG_ID,"startDevices: already started");
+        return;
+        }
     if(Natives.staticnum()) {
         if(doLog)
             Log.i(LOG_ID,"startDevices staticnum don't start");
         return;
         }
-        
-    if(doLog)
-       Log.i(LOG_ID,"startDevices");
-    getDevices();
-    if(meterGatts==null||meterGatts.length==0)
-        return;
+    if(meterGatts==null) {
+        getDevices();
+        if(meterGatts==null||meterGatts.length==0) {
+            if(doLog)
+               Log.i(LOG_ID,"startDevices no Devices found");
+            return;
+            }
+        else {
+            if(doLog)
+               Log.i(LOG_ID,"startDevices found devices");
+            }
+         }
+    else {
+        if(doLog)
+            Log.i(LOG_ID,"startDevices: meterGatts!=null");
+        }
+    devicesStarted=true;
     initBluetooth();
     connectAllDevices(0);
     }
@@ -232,6 +249,7 @@ public static void stopDevices() {
                 }
         }
     meterGatts=null;
+    devicesStarted=false;
     }
 static MeterScanner scanner=null;
 public static void startScanner(long msec) {

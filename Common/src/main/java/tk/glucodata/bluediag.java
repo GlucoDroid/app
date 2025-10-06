@@ -178,15 +178,16 @@ public static void showsensorinfo(String text,MainActivity act) {
         }
 */
 void showinfo(final SuperGattCallback gatt,MainActivity act) {
-
+    if(isWearable)  {
+        disconnectsensor.setVisibility(gatt.sensorgen<=3?VISIBLE:GONE);
+        }
     if(Natives.optionStreamHistory()&&gatt.sensorgen<2) {
        streamhistory.setVisibility(VISIBLE);
       alarmclock.setVisibility(GONE);
       resetbutton.setVisibility(GONE);
         }
-        
     else  {
-        streamhistory.setVisibility(GONE);
+      streamhistory.setVisibility(GONE);
       alarmclock.setVisibility(gatt.sensorgen==0x40?VISIBLE:GONE);
       final boolean resetvis=gatt.sensorgen==0x10&&Natives.getSiSubtype(gatt.dataptr)==3;
       resetbutton.setVisibility(resetvis?VISIBLE:GONE);
@@ -276,7 +277,7 @@ private BluetoothAdapter mBluetoothAdapter=null;
 //boolean setwakelock=false;
 CheckBox usebluetooth;
 boolean wasuse;
-CheckBox priority,streamhistory, alarmclock;
+CheckBox priority,streamhistory, alarmclock,disconnectsensor;
 Button resetbutton;
 
 Button locationpermission;
@@ -516,8 +517,13 @@ if(!isWearable) {
 
         {if(doLog) {Log.i(LOG_ID,"finish.setVisibility(GONE);");};};
         finish.setVisibility(GONE);
-    }
-}
+        }
+    } 
+else {
+   disconnectsensor=view.findViewById(R.id.disconnectsensor);
+   disconnectsensor.setChecked(Natives.getDisconnectSensor());
+   disconnectsensor.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setDisconnectSensor(isChecked) );
+   }
     if (gatts == null || gatts.size()== 0) {
         //priority.setVisibility(GONE);
         forget.setVisibility(GONE);

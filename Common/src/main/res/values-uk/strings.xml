@@ -143,7 +143,6 @@
  <string name="status">Статус</string>
  <string name="config">Конфігурація</string>
  <string name="initwatchapp">Запустити додаток для годинника</string>
- <string name="directconnection">Пряме підкл. датчика до годинника</string>
  <string name="nowatchesfound">Годинників не знайдено</string>
  <string name="getkerfstok">Завантажте додаток для годинника Kerfstok</string>
  <string name="mealname">Їжа</string>
@@ -281,7 +280,7 @@
  <string name="libreisviewed">Шпигунські погляди</string>
  <string name="novalue">Жодного значення</string>
  <string name="talk">Говорити</string>
- <string name="watch">Дивитися</string>
+ <string name="watches">Дивитися</string>
  <string name="menus">Меню</string>
 <string name="system_ui">System UI</string>
 <string name="sensor">Датчик</string>
@@ -343,4 +342,11 @@
  <string name="threshold">Threshold</string>
  <string name="scantranstitle">Сканувати матрицю даних ПЕРЕДАВАЧА</string>
 <string name="scantransmessage">Матрицю даних датчика Sibionics 2 успішно проскановано. \nТепер проскануйте матрицю даних передавача."</string>
+
+
+
+<string name="phone">телефону</string>
+<string name="watch">годинника</string>
+<string name="directsensor">Пряме підкл. датчика до</string>
+<string name="connectionl"></string>
 </resources>

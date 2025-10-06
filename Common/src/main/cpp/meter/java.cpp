@@ -148,7 +148,7 @@ extern "C" JNIEXPORT jboolean JNICALL   fromjava(GlucoseMeterSaveTime)(JNIEnv *e
     const time_t now=time(nullptr);
     int offset=now-metertime;
     meter->timeoffset=offset;
-    #ifdef NOLOG
+    #ifndef NOLOG
     char timebuf[27];
     LOGGER("GlucoseMeterSaveTime offset%d now: %zu metertime: %zu %s\n",offset,now,metertime,ctime_r(&metertime,timebuf));
     #endif

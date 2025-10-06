@@ -138,7 +138,6 @@
   <string name="status">Status</string>
   <string name="config">Konfiguration</string>
   <string name="initwatchapp">Initialisera klockappen</string>
-  <string name="directconnection">Direktanslutning mellan sensor och klocka</string>
   <string name="nowatchesfound">Ingen klocka hittades</string>
   <string name="getkerfstok">Skaffa klockappen Kerfstok</string>
   <string name="mealname">Måltid</string>
@@ -269,7 +268,7 @@
   <string name="libreisviewed">Spionera</string>
   <string name="novalue">Inget värde</string>
   <string name="talk">Prata</string>
-  <string name="watch">Klocka</string>
+  <string name="watches">Klocka</string>
   <string name="menus">Menyer</string>
   <string name="system_ui">System UI</string>
   <string name="sensor">Sensor</string>
@@ -331,4 +330,9 @@
   <string name="everSensebroadcast">EverSense</string>
   <string name="threshold">Tröskel</string>
   <string name="untouchablequestion">Gör flytande glukos opekbar?</string>
+
+<string name="phone">telefon</string>
+<string name="watch">klocka</string>
+<string name="directsensor">Direktanslutning mellan sensor och</string>
+<string name="connectionl"></string>
 </resources>

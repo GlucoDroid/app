@@ -56,7 +56,6 @@
     <string name="deletereminder">Удалить напоминание?</string>
     <string name="detect">Обнаружение</string>
     <string name="devicespecific">Установите настройки для конкретного устройства</string>
-    <string name="directconnection">Прямое подключение датчика к часам</string>
     <string name="disablecamerakey">Клавиша отключения камеры</string>
     <string name="display">Дисплей</string>
     <string name="disturb">Беспокоить</string>
@@ -301,7 +300,7 @@
     <string name="vibrationname">Вибрация</string>
     <string name="visible">Видимый</string>
     <string name="wakelock">Пробуждение</string>
-    <string name="watch">Часы</string>
+    <string name="watches">Часы</string>
     <string name="watchappinstalled">Установлено приложение для часов</string>
     <string name="webserver">Web - сервер</string>
     <string name="week_back">Неделя назад</string>
@@ -325,4 +324,11 @@
 <string name="off">Выкл</string>
 <string name="scantranstitle">Сканировать матрицу данных ПЕРЕДАТЧИКА</string>
 <string name="scantransmessage">Матрица данных датчика Sibionics 2 успешно просканирована. \nТеперь сканируйте матрицу данных передатчика."</string>
+
+
+<string name="phone">телефону</string>
+<string name="watch">часам</string>
+<string name="directsensor">Прямое подключение датчика к</string>
+<string name="connectionl"></string>
 </resources>
+

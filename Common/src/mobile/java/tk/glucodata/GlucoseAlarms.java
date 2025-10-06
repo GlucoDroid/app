@@ -71,7 +71,11 @@ public    void handlealarm() {
                         }
                     saidloss = true;
                     }
-            }
+                 else {
+                    Notify.onenot.oldnotification(wastime);
+                    if(doLog) {Log.i(LOG_ID, "handlealarm saidloss");};;
+                    }
+               }
             }
         LossOfSensorAlarm.setalarm(Applic.app, nexttime);
         if (shouldwake) {

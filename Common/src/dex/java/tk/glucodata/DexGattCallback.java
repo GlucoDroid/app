@@ -275,7 +275,7 @@ private boolean connected=false;
                             long stillwait = mmsectimebetween - alreadywaited - 27500;
                             {if(doLog) {Log.i(LOG_ID, "justdata=" + justdata + " alreadywaited=" + alreadywaited + " stillwait=" + stillwait);};};
                             if(stillwait>0)
-                                setalarm(tim+stillwait);
+                                onalarm=setalarm(tim+stillwait,onalarm,SerialNumber );
                              else
                                 sensorbluetooth.connectToActiveDevice(this, 0);
                         } else {
@@ -996,17 +996,19 @@ static private PendingIntent mkintents(Context context,String id,int alarmreques
      }
 private PendingIntent onalarm=null;
 static private int alarmrequest=14;
-private void setalarm(long alarmtime) {
+static  PendingIntent  setalarm(long alarmtime,PendingIntent onalarm,String SerialNumber) {
     try {
             Context context=Applic.app;
             if(onalarm==null)
-               onalarm= mkintents(context,SerialNumber,alarmrequest++);
+               onalarm= mkintents(context,SerialNumber,alarmrequest);
             {if(doLog) {Log.i(LOG_ID,"setalarm "+alarmtime);};};
             AlarmManager manager= (AlarmManager) context.getSystemService(ALARM_SERVICE);
             manager.setAlarmClock(new AlarmManager.AlarmClockInfo(alarmtime, onalarm), onalarm);
+            return onalarm;
             }
        catch(Throwable e) {
            Log.stack(LOG_ID,"setalarm", e);
+           return null;
            }
     finally {
         {if(doLog) {Log.i(LOG_ID,"after setalarm");};};

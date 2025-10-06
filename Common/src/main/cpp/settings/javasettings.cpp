@@ -1834,6 +1834,52 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getalarmclock)(JNIEnv *env, jc
    settings->data()->noalarmclock;
     }
 #ifdef WEAROS
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(setDisconnectSensor)(JNIEnv *env, jclass cl,jboolean val) {
+    settings->data()->DisconnectSensor=val;
+    }
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getDisconnectSensor)(JNIEnv *env, jclass cl) {
+    return settings->data()->DisconnectSensor;
+    }
+
+
+std::string_view getjstring(JNIEnv *env,jstring jstr)  {
+	size_t strlen= env->GetStringUTFLength( jstr);
+	jint jstrlen = env->GetStringLength( jstr);
+	char *strbuf=new char[strlen+1];
+	env->GetStringUTFRegion( jstr, 0,jstrlen, strbuf);
+	strbuf[strlen]='\0';
+	return {strbuf,strlen};
+	}
+extern "C" JNIEXPORT void JNICALL fromjava(setDevice) (JNIEnv *env, jclass clazz, jstring jMANUFACTURER, jstring jMODEL, int SDK_INTin) { 
+   if(settings->data()->initVersion<36) { 
+	if(jMODEL) {
+                size_t strlen= env->GetStringUTFLength( jMODEL);
+                jint jMODELlen = env->GetStringLength( jMODEL);
+                char strbuf[strlen+1];
+                env->GetStringUTFRegion( jMODEL, 0,jMODELlen, strbuf);
+                strbuf[strlen]='\0';
+                constexpr const char samsung[]{"SM-"};
+//SM-R860
+                if(!memcmp(samsung,strbuf,3)) {
+                        constexpr const char watch4[]{"R8"};
+                        if(memcmp(watch4,strbuf+3,2)) { 
+                                LOGGER("MODEL %s Samsung not Watch4\n",strbuf);
+                                settings->data()->DisconnectSensor=true;
+                                return;
+                                }
+                        else {
+                                LOGGER("MODEL %s Samsung Watch4\n",strbuf);
+                                }
+		        }
+                else {
+                        LOGGER("MODEL %s not Samsung\n",strbuf);
+                    }
+	           }
+        }
+      }
+
+
 extern "C" JNIEXPORT void  JNICALL   fromjava(setdontuseclose)(JNIEnv *env, jclass cl,jboolean val) {
     settings->data()->dontuseclose=val;
     }

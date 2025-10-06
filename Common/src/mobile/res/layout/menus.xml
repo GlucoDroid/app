@@ -33,7 +33,7 @@
 
         android:layout_column="0"
         android:layout_columnWeight="1"
-        android:text="@string/watch" />
+        android:text="@string/watches" />
 
     <Button
         android:id="@+id/sensor"

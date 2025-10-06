@@ -298,7 +298,7 @@ private int scanTries=0;
                               Log.d(LOG_ID,"serial number: " + cb.SerialNumber+" address: " + address);
                              }
                         else {
-                             Log.d(LOG_ID,"serial number: " + cb.SerialNumber+" no filter");
+                             Log.d(LOG_ID,"serial number: " + cb.SerialNumber+" no address");
                              }
                          }
                    final var service=cb.getService();

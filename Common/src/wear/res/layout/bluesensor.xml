@@ -85,9 +85,17 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_column="7"
-                android:layout_columnSpan="2"
+                android:layout_columnSpan="1"
                 android:layout_row="0"
                 android:text="@string/high_priority" />
+            <CheckBox
+                android:id="@+id/disconnectsensor"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_column="8"
+                android:layout_columnSpan="1"
+                android:layout_row="0"
+                android:text="@string/disconnectsensor" />
             <CheckBox
                 android:id="@+id/android13"
                 android:layout_width="wrap_content"

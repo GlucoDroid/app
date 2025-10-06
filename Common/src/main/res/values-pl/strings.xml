@@ -143,7 +143,6 @@
  <string name="status">Status</string>
  <string name="config">Konfiguracja</string>
  <string name="initwatchapp">Nawiąż połączenie z zegarkiem</string>
- <string name="directconnection">Bezpośrednie połączenie sensor-zegarek</string>
  <string name="nowatchesfound">Nie znaleziono zegarków</string>
  <string name="getkerfstok">Pobierz aplikację Kerfstok na zegarek</string>
  <string name="mealname">Posiłek</string>
@@ -282,7 +281,7 @@
  <string name="libreisviewed">Podgl. ekr.</string>
  <string name="novalue">Brak wartości</string>
  <string name="talk">Na głos</string>
-    <string name="watch">Zegarek</string>
+    <string name="watches">Zegarek</string>
  <string name="menus">Całe menu</string>
  <string name="system_ui">Integr. z sys.</string>
  <string name="sensor">Sensor</string>
@@ -407,4 +406,8 @@
  <string name="lossofsignal">Utrata sygnału</string>
  <string name="valuenotification">Powiadomienie o wartości</string>
 
+  <string name="watch">zegarek</string>
+  <string name="phone">telefon</string>
+ <string name="directsensor">Bezpośrednie połączenie sensor-</string>
+ <string name="connectionl"></string>
 </resources>

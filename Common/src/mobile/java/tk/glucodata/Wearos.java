@@ -32,6 +32,7 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.RadioButton;
 import android.widget.Space;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -40,9 +41,6 @@ import com.google.android.gms.wearable.Node;
 
 import java.util.ArrayList;
 
-import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
-import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
-import static android.content.pm.PackageManager.DONT_KILL_APP;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 import static android.view.View.GONE;
@@ -56,118 +54,79 @@ import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
 import static tk.glucodata.util.getlabel;
+import static tk.glucodata.util.getradiobutton;
 
 
 class Wearos {
 static private final String LOG_ID="Wearos";
-/*
-static CheckBox getcheckbox(Context context, String label) {
-    var check=new CheckBox(context);
-    check.setText(label);
-    return check;
-    } */
 
-static boolean MessageReceiverEnabled() {
-    try{
-    Application app= Applic.app;
-      PackageManager manage = app.getPackageManager();
-    ComponentName scan= new ComponentName(app, "tk.glucodata.MessageReceiver");
-    return manage.getComponentEnabledSetting(scan)!=COMPONENT_ENABLED_STATE_DISABLED;
-    }
-    catch (Throwable e) {
 
-        Log.stack(LOG_ID,e);
-    }
-    return false;
-    }
-static public void setuseWearos(boolean value) {
-    enableMessageReceiver(value);
-//    return Natives.setuseWearos(value);
-    }
-static int nodenum=-1;
-static    ArrayList<Node> nodeslist=null;
-    static Spinner mkspinner(MainActivity context) {
-    var spin=new Spinner(context);
-    
-
+private static    ArrayList<Node> getnodeslist() {
     var send=tk.glucodata.MessageSender.getMessageSender();
     if(send!=null) {
         var nodes=send.getNodes();
         if(nodes!=null) {
-            nodeslist=new ArrayList<>(nodes);
-            var adap = new RangeAdapter<com.google.android.gms.wearable.Node>(nodeslist, context, node -> {
-                if (node != null)
-                    return node.getDisplayName()+" - "+node.getId();
-                return "Error";
-            });
-            spin.setAdapter(adap);
+            return new ArrayList<>(nodes);
         }
-        }
-    else {
-        return null;
-        }
+     }
+   return null;
+   }
+static Spinner mkspinner(MainActivity context, ArrayList<Node> nodeslist,IntConsumer setpos) {
+    var spin=new Spinner(context);
+    var adap = new RangeAdapter<com.google.android.gms.wearable.Node>(nodeslist, context, node -> {
+        if (node != null)
+            return node.getDisplayName()+" - "+node.getId();
+        return "Error";
+        });
+    spin.setAdapter(adap);
 
     spin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
         @Override
         public  void onItemSelected (AdapterView<?> parent, View view, int position, long id) {
             {if(doLog) {Log.i(LOG_ID,"onItemSelected");};};
-            try {
-            if(nodeslist!=null&&nodeslist.size()>position) {
-                nodenum=position;
-                remake();
-//                var node = nodeslist.get(position);
-    //            showinfo(node);
-                }
-                }
-            catch(Throwable e) {
-                Log.stack(LOG_ID,e);
-                }
-        }
+            setpos.accept(position);
+           }
         @Override
         public  void onNothingSelected (AdapterView<?> parent) {
-            nodenum=-1;
-            remake();
+            setpos.accept(-1);
         } });
     avoidSpinnerDropdownFocus(spin);
     return spin;
     }
 
-static CheckBox direct=null;
-static CheckBox watchnums=null;
-static Button start=null;
 
-static boolean[] directactive={true};
-static boolean[] numsactive={true};
-
-static void remake() {
+static void remake( RadioButton[] sensordirect, RadioButton[] nswitch, Button start, Node node) {
     int dirval,numsval;
-    if(nodenum<0) {
+    if(node==null) {
         dirval=-1;
         numsval=-1;
         }
     else {
-        var node=nodeslist.get(nodenum);
         String name=makenodename(node);
         dirval=Natives.directsensorwatch(name);
         numsval=Natives.hasWatchNums(name);
         }
     if(dirval<0)  {
-        direct.setEnabled(false);
+        for(var v:sensordirect) {
+            v.setEnabled(false);
+            }
         }
     else  {
-        direct.setEnabled(true);
-        directactive[0]=false;
-        direct.setChecked(dirval!=0);
-        directactive[0]=true;
+        for(var v:sensordirect) {
+            v.setEnabled(true);
+            }
+        sensordirect[0].setChecked(dirval==0);
+        sensordirect[1].setChecked(dirval!=0);
         }
     if(numsval<0)  {
-        watchnums.setEnabled(false);
+        for(var n:nswitch)
+            n.setEnabled(false);
         }
     else  {
-        watchnums.setEnabled(true);
-        numsactive[0]=false;
-        watchnums.setChecked(numsval!=0);
-        numsactive[0]=true;
+        for(var n:nswitch)
+            n.setEnabled(true);
+        nswitch[0].setChecked(numsval==0);
+        nswitch[1].setChecked(numsval!=0);
         }
     if(dirval==1) {
         start.setEnabled(false);
@@ -176,9 +135,144 @@ static void remake() {
         start.setEnabled(true);
     }
 
+
+static public void show(MainActivity context,View parent) {
+   final int[] nodenumptr={-1};
+    var start=getbutton(context,R.string.initwatchapp);
+    var defaults=getbutton(context,context.getString(R.string.defaults));
+    var directstring=context.getString(R.string.directsensor);
+    var direct=getlabel(context, directstring);
+    if(directstring.length()==0)
+        direct.setVisibility(GONE);
+    var connectionstring=context.getString(R.string.connectionl);
+    var connection=getlabel(context, connectionstring);
+    if(connectionstring.length()==0)
+        connection.setVisibility(GONE);
+    var sphone=getradiobutton(context, R.string.phone);
+    var swatch=getradiobutton(context, R.string.watch);
+    RadioButton[]sswitch={sphone,swatch}; 
+    Backup.setradio(sswitch);
+
+
+    var enternums=getlabel(context, R.string.enternums);
+
+    var nphone=getradiobutton(context, R.string.phone);
+    var nwatch=getradiobutton(context, R.string.watch);
+    RadioButton[]nswitch={nphone,nwatch}; 
+    Backup.setradio(nswitch);
+    var Ok=getbutton(context,R.string.closename);
+    var Help=getbutton(context,R.string.helpname);
+    Help.setOnClickListener(v-> help.helplight(R.string.wearosinfo,context));
+   var nodeslistin=getnodeslist();
+   if(nodeslistin==null||nodeslistin.size()==0) {
+       Applic.argToaster(context, R.string.nowatchesfound , Toast.LENGTH_LONG);
+       if(nodeslistin==null) {
+          nodeslistin=new ArrayList<>();
+          }
+       }
+   final var nodeslist=nodeslistin;
+   IntConsumer setpos= pos-> {
+            try {
+                nodenumptr[0]=pos;
+                if(nodeslist!=null&&nodeslist.size()>pos) {
+                    Node node=pos<0?null:nodeslist.get(pos);
+                    remake(sswitch, nswitch,  start, node);
+                    }
+                }
+            catch(Throwable e) {
+                Log.stack(LOG_ID,e);
+                }
+          };
+    var spin=mkspinner(context,nodeslist,setpos);
+   EnableControls(parent,false);
+    float density=GlucoseCurve.metrics.density;
+    var off=(int)(density*6.0f);
+    direct.setPadding(off,0,0,0);
+    connection.setPadding(off,0,off,0);
+    enternums.setPadding(off,0,0,0);
+    nwatch.setPadding(0,0,off,0);
+
+   setpos.accept(nodenumptr[0]);
+   if(nodeslist==null||nodeslist.isEmpty()) {
+      start.setVisibility(GONE);
+      defaults.setVisibility(GONE);
+      }
+    var layout=new Layout(context,(l,w,h)-> {
+        var width=GlucoseCurve.getwidth();
+        var height=GlucoseCurve.getheight();
+        if(width>w)
+            l.setX((width-w)/2);
+        if(height>h)
+            l.setY((height-h)/2);
+        return new int[] {w,h};
+        }, new View[]{spin},new View[]{enternums,nphone,nwatch},new View[]{direct,sphone,swatch,connection},new View[]{start,defaults},new View[]{Help,Ok} );
+    int laypad=(int)(density*4.0);
+    layout.setPadding(laypad*2,laypad*2,laypad*2,laypad);
+
+    layout.setBackgroundResource(R.drawable.dialogbackground);
+    context.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+    Ok.setOnClickListener(v -> {
+        final  var watchnums=nwatch.isChecked();
+        final boolean watchdirect=swatch.isChecked(); 
+        if(nodenumptr[0]>=0) {
+                var node=nodeslist.get(nodenumptr[0]);
+                var name=makenodename(node);
+                {if(doLog) {Log.i(LOG_ID,"watch nums  "+name+" "+watchnums);};};
+                byte[] netinfo=Natives.getmynetinfo(name,true,watchdirect?1:-1,isGalaxy(node),watchnums?1:-1);
+                Applic.switchbluetooth(name,netinfo,watchdirect);
+                }
+            else {
+                {if(doLog) {Log.i(LOG_ID,"nodenumptr[0]="+nodenumptr[0]);};};
+                }
+        context.poponback();
+        EnableControls(parent,true);
+        removeContentView(layout);
+        context.hideSystemUI(); 
+        }
+        );
+
+    defaults.setOnClickListener(v -> {
+        if(nodenumptr[0]>=0) {
+            var sender=tk.glucodata.MessageSender.getMessageSender();
+            if(sender!=null) {
+                var nod=nodeslist.get(nodenumptr[0]);
+                String name=makenodename(nod);
+                Runnable setdef=()-> {
+                    sender.toDefaults(nod);
+                    {if(doLog) {Log.i(LOG_ID,"set to default "+name);};};
+                    Natives.setWearosdefaults(name,isGalaxy(nod));
+                    var main=MainActivity.thisone;
+                    Applic.setbluetooth(main==null?Applic.app:main,true);
+                    };
+                if(Natives.directsensorwatch(name)<0) {
+                    confirmunsynced(context,setdef);
+                    }
+                else
+                    setdef.run();
+                }
+            }
+     });
+    start.setOnClickListener(v -> {
+            if(nodenumptr[0]>=0) {
+                sendinitwatchapp(nodeslist.get(nodenumptr[0])) ;
+                }
+         });
+
+    context.setonback(()-> { 
+        removeContentView(layout);
+        context.hideSystemUI(); }
+        );
+
+    }
+static String makenodename(Node node) {
+    return node.getId();
+    }
+
+
+
 private static void confirmunsynced(MainActivity act,Runnable save) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(act);
-        builder.setTitle(R.string.notsynced).
+    AlertDialog.Builder builder = new AlertDialog.Builder(act);
+     builder.setTitle(R.string.notsynced).
     setMessage(R.string.lossdata).
            setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                @Override
@@ -201,175 +295,8 @@ static void sendinitwatchapp(Node nod) {
       Natives.resetbylabel(nodeName,isGalaxy(nod));
       sender.startWearOSActivity(nodeName);
       }
-
-static public void show(MainActivity context,View parent) {
-   EnableControls(parent,false);
-    nodenum=-1;
-    start=getbutton(context,R.string.initwatchapp);
-    var defaults=getbutton(context,context.getString(R.string.defaults));
-
-    direct=getcheckbox(context, context.getString(R.string.directconnection),false);
-    watchnums=getcheckbox(context, R.string.watchnums,false);
-    var Ok=getbutton(context,R.string.closename);
-    var Help=getbutton(context,R.string.helpname);
-    Help.setOnClickListener(v-> help.helplight(R.string.wearosinfo,context));
-    var spin=mkspinner(context);
-    if(spin==null) {
-            Applic.argToaster(context, R.string.nowatchesfound , Toast.LENGTH_SHORT);
-        return;
-        }
-    float density=GlucoseCurve.metrics.density;
-    var off=(int)(density*10.0f);
-    direct.setPadding(0,off,0,off);
-    watchnums.setPadding(0,off,0,off);
-
-    remake();
-   if(nodeslist==null||nodeslist.isEmpty()) {
-      start.setVisibility(GONE);
-      defaults.setVisibility(GONE);
-      }
-    var layout=new Layout(context,(l,w,h)-> {
-        var width=GlucoseCurve.getwidth();
-        var height=GlucoseCurve.getheight();
-        if(width>w)
-            l.setX((width-w)/2);
-        if(height>h)
-            l.setY((height-h)/2);
-        return new int[] {w,h};
-        }, new View[]{spin},new View[]{watchnums},new View[]{direct},new View[]{start,defaults},new View[]{Help,Ok} );
-    int laypad=(int)(density*4.0);
-    layout.setPadding(laypad*2,laypad*2,laypad*2,laypad);
-
-    layout.setBackgroundResource(R.drawable.dialogbackground);
-    context.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-    Ok.setOnClickListener(v -> {
-        direct = null;
-        nodeslist = null;
-        nodenum = -1;
-        context.poponback();
-           EnableControls(parent,true);
-        removeContentView(layout);
-        context.hideSystemUI(); }
-        );
-
-    defaults.setOnClickListener(v -> {
-            if(nodenum>=0) {
-                var sender=tk.glucodata.MessageSender.getMessageSender();
-                if(sender!=null) {
-                    var nod=nodeslist.get(nodenum);
-                    String name=makenodename(nod);
-                    Runnable setdef=()-> {
-                        sender.toDefaults(nod);
-                        {if(doLog) {Log.i(LOG_ID,"set to default "+name);};};
-                        Natives.setWearosdefaults(name,isGalaxy(nod));
-                        var main=MainActivity.thisone;
-                        Applic.setbluetooth(main==null?Applic.app:main,true);
-                        };
-                    if(Natives.directsensorwatch(name)<0) {
-                        confirmunsynced(context,setdef);
-                        }
-                    else
-                        setdef.run();
-                    }
-                }
-         });
-    start.setOnClickListener(v -> {
-            if(nodenum>=0) {
-                sendinitwatchapp(nodeslist.get(nodenum)) ;
-                }
-         });
-    watchnums.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
-                 if(numsactive[0]) {
-                    if(nodenum>=0) {
-                        var node=nodeslist.get(nodenum);
-                        var name=makenodename(node);
-                        {if(doLog) {Log.i(LOG_ID,"watch nums  "+name+" "+isChecked);};};
-                        byte[] netinfo=Natives.getmynetinfo(name,true,0,isGalaxy(node),isChecked?1:-1);
-                        if(netinfo!=null) {
-                            var sender=tk.glucodata.MessageSender.getMessageSender();
-                            if(sender!=null) {
-                                sender.sendnetinfo(node,netinfo);
-                                return;
-                                }
-                            }
-                        }
-                    else {
-                        {if(doLog) {Log.i(LOG_ID,"nodenum="+nodenum);};};
-                        }
-                    numsactive[0]=false;
-                    watchnums.setChecked(!isChecked);
-                    numsactive[0]=true;
-                    }
-                else {
-                    {if(doLog) {Log.i(LOG_ID,"numsactive[0]=false");};};
-                    }
-                return;
-                }
-             );
-        
-    direct.setOnCheckedChangeListener(
-             (buttonView,  isChecked) -> {
-                 if(directactive[0]) {
-                    if(nodenum>=0) {
-                        var node=nodeslist.get(nodenum);
-                        var name=makenodename(node);
-                        if(doLog) {Log.i(LOG_ID,"Direct sensor watch connection "+name+" "+isChecked);};
-                        byte[] netinfo=Natives.getmynetinfo(name,true,isChecked?1:-1,isGalaxy(node),0);
-/*                        if(netinfo!=null) {
-                            var sender=tk.glucodata.MessageSender.getMessageSender();
-                            if(sender!=null) {
-                                sender.sendnetinfo(node,netinfo);
-                                sender.sendbluetooth(node,isChecked);
-                                var main=MainActivity.thisone;
-                                boolean here= !isChecked;
-                                Applic.setbluetooth(main==null?Applic.app:main,here);
-                                return;
-                                }
-                            }*/
-                        if(Applic.switchbluetooth(name,netinfo,isChecked))
-                            return;
-                        }
-                    else {
-                        {if(doLog) {Log.i(LOG_ID,"nodenum="+nodenum);};};
-                        }
-                    directactive[0]=false;
-                    direct.setChecked(!isChecked);
-                    directactive[0]=true;
-                    }
-                else {
-                    {if(doLog) {Log.i(LOG_ID,"directactive[0]=false");};};
-                    }
-                return;
-                }
-             );
-
-
-
-    context.setonback(()-> { 
-        removeContentView(layout);
-        context.hideSystemUI(); }
-        );
-
-    }
-static String makenodename(Node node) {
-    return node.getId();
-    }
-
-static private void enableMessageReceiver(boolean val) {
-    try{
-    Application app= Applic.app;
-      PackageManager manage = app.getPackageManager();
-//    ComponentName  scan= new ComponentName(app, "tk.glucodata.MessageReceiver");
-    ComponentName  scan= new ComponentName(app, tk.glucodata.MessageReceiver.class);
-    int com=val?COMPONENT_ENABLED_STATE_ENABLED:COMPONENT_ENABLED_STATE_DISABLED;
-       manage.setComponentEnabledSetting(scan,com , DONT_KILL_APP);
-    }
-    catch (Throwable e) {
-
-        Log.stack(LOG_ID,e);
-    }
-    }
 }
+
 
 
 
