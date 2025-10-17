@@ -27,6 +27,8 @@
 #include <algorithm>
 #include <string.h>
 #include <charconv>
+#include <sys/uio.h>
+
 //#undef NOLOG
 #include "logs.hpp"
 #include "inout.hpp"
@@ -139,6 +141,21 @@ void logwriter(const char *buf,const int len) {
 	       sys_write(handle,buf,len);
        	}
 	}
+
+//ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
+
+static void logwritev(const struct iovec *iov, int iovcnt) {
+	if(dolog) {
+		static int handle=STDERR_FILENO;
+	#ifndef NOTAPP
+		 if(handle==STDERR_FILENO)
+			handle=getlogfile();
+	#endif
+	       writev(handle,iov,iovcnt);
+       	}
+	}
+
+
 int vloggert( const char *format, va_list args) {
 	if(dolog) {
 		if(logging::log	)
@@ -221,7 +238,20 @@ void flerror(const char* fmt, ...){
 	logwriter(uitbuf,len);
 	}
 
-
+void LOGGERNO(const char *buf,int len,bool endl) {
+	if(dolog)	 {
+		if(logging::log	)
+			return ;
+		logging now;
+        char timegitbuf[50];
+        const size_t start=snprintf(timegitbuf,50,"%lu %ld ",time(nullptr), (long)syscall(SYS_gettid));
+        static char nl[]{"\n"};
+        const int arlen=2+endl; 
+         const struct iovec ar[3] {{( void*)timegitbuf,start},{( void*)buf,(size_t)len},{( void*)nl,sizeof(nl)-1}};
+        logwritev(ar,arlen);
+        }
+    }
+    /*
 void LOGGERNO(const char *buf,int len,bool endl) {
 	if(dolog)	 {
 		if(logging::log	)
@@ -245,7 +275,7 @@ void LOGGERNO(const char *buf,int len,bool endl) {
 			}
 		}
 	}
-
+*/
 
 
 void LOGGERN(const char *buf,int len) {

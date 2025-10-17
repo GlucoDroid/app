@@ -167,10 +167,12 @@ static long lastfound() {
 
     static public void writealarmsuspension(int kind, short wa) {
         short prevsus = Natives.readalarmsuspension(kind);
-        Natives.writealarmsuspension(kind, wa);
-        int versch = wa - prevsus;
-        nextalarm[kind] += versch * 60;
-    }
+        if(prevsus!=wa) {
+            Natives.writealarmsuspension(kind, wa);
+            int versch = wa - prevsus;
+            nextalarm[kind] += versch * 60;
+            }
+        }
 
 
 static final int mininterval=55;
@@ -677,7 +679,7 @@ static   boolean enableGattDescriptornote(String note,BluetoothGatt bluetoothGat
              Log.e(LOG_ID, note +" "+"bluetoothGatt1.writeDescriptor(descriptor))  failed");
              return success;
              }
-          {if(doLog){showbytes(LOG_ID+" "+note +" "+    "enableNotification ",type);};}
+          if(doLog){showbytes(LOG_ID+" "+note +" "+    "enableNotification ",type);};
           if(!bluetoothGatt1.setCharacteristicNotification(bluetoothGattCharacteristic, type[0]!=0)) {
              Log.e(LOG_ID, note +" "+"setCharacteristicNotification("+bluetoothGattCharacteristic.getUuid().toString()+",true) failed");
              return false;

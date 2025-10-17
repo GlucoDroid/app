@@ -826,13 +826,19 @@ new View[]{isvalue},new View[]{ringisvalue},new View[]{usealarm},new View[]{adva
              try  {
                 if(str != null) {
                      short wa = Short.parseShort(str);
-                     Natives.writealarmsuspension(4, wa);
+                     if(wa!=Natives.readalarmsuspension(4)) {
+                        Natives.writealarmsuspension(4, wa);
+                        tk.glucodata.SuperGattCallback.glucosealarms.setLossAlarm();
+                        }
                     }
-                tk.glucodata.SuperGattCallback.glucosealarms.setLossAlarm();
+                  else {
+                        Applic.argToaster(context,context.getString(R.string.cantsetminutes)+" nothing",Toast.LENGTH_SHORT);
+                        return false;
+                        }
                 } catch(Throwable e) {
-                Log.stack(LOG_ID,"parseShort",e);
-                        Applic.argToaster(context,context.getString(R.string.cantsetminutes)+str,Toast.LENGTH_SHORT);
-                return false;
+                    Log.stack(LOG_ID,"parseShort",e);
+                    Applic.argToaster(context,context.getString(R.string.cantsetminutes)+str,Toast.LENGTH_SHORT);
+                    return false;
                 }
             }
          boolean haslow=((CheckBox) lowalarm[0]).isChecked();

@@ -23,7 +23,7 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view delabels[]={ "Ins schnell", "Kohlenhydra", "Dextrose", "Langes Insu", "radeln", "Walk", "Blut"};
+constexpr static std::string_view delabels[]={ "Kohlenhydra", "Dextrose","Ins schnell",  "Langes Insu", "radeln", "Walk", "Blut"};
 constexpr static Shortcut_t  deshortinit[]= { {"Bread",
         .48},
         {"Currantbun1",

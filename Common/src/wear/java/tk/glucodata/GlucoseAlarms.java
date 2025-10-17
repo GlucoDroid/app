@@ -40,7 +40,7 @@ public    void handlealarm() {
         if(view!=null) {
             view.postInvalidate();
             }
-         tk.glucodata.glucosecomplication.GlucoseValue.updateall();
+        tk.glucodata.glucosecomplication.GlucoseValue.updateall();
 
         long wastime = SuperGattCallback.lastfoundL;
         if(wastime==0L) {
@@ -52,18 +52,21 @@ public    void handlealarm() {
         if(hasalarmloss())  {
             final long afterwait = waitmmsec() + wastime;
             if(afterwait > nu) {
-                {if(doLog) {Log.i(LOG_ID, "handlealarm notify");};};
+                if(doLog) {Log.i(LOG_ID, "handlealarm notify");};
                 nexttime = (afterwait < tryagain)  ? afterwait : tryagain;
             } else {
                 if(!saidloss) {
-                    {if(doLog) {Log.i(LOG_ID, "handlealarm alarm");};};
+                    if(doLog) {Log.i(LOG_ID, "handlealarm alarm");};
                     long lasttime=Natives.lastglucosetime( );
                     if(lasttime!=0L)
                         wastime=lasttime;
                     Notify.onenot.lossalarm(wastime);
                     saidloss = true;
                     }
-            }
+               else {
+                    if(doLog) {Log.i(LOG_ID, "handlealarm saidloss==true");};
+                  }
+               }
             }
         LossOfSensorAlarm.setalarm(Applic.app, nexttime);
         MessageSender.sendwakestream();

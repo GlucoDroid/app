@@ -401,6 +401,10 @@ extern "C" JNIEXPORT  jboolean  JNICALL   fromjava(dexPutPubKey)(JNIEnv *envin, 
        LOGGER("dexPutPubKey certnr=%d should be in [1,3]\n",which);
        return false;
    	}
+   if(!input) {
+     LOGAR("dexPutPubKey input==null");
+     return false;
+     }
    const auto arlen=envin->GetArrayLength(input);
    if(arlen!=160) {
       LOGGER("dexPutPubKey arlen=%d should be 160\n",arlen);

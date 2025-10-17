@@ -519,15 +519,19 @@ if(!dataptr) {
   uint32_t timsec=mmsec/1000L;
  data_t *bluedata=fromjbyteArray(envin,bluetoothdata);
  destruct _destbluedata([bluedata]{data_t::deleteex(bluedata);});
-
+/*
   if(sens->getinfo()->reset) {
         if(!sens->getinfo()->notchinese||!V120Reset) {
             sdata->sicontext.setNotchinese(sens);
             }
         LOGAR("SIprocessData reset");
         return 10LL;
-        }
+        } */
    if(sens->notchinese()) {
+        if(sens->getinfo()->reset) {
+            LOGAR("SIprocessData reset");
+            return 10LL;
+            }
          const jlong res=sdata->sicontext.processData2(sens,timsec,bluedata,sdata->sensorindex);
          LOGGER("processData2=%lld\n",res);
          return res;

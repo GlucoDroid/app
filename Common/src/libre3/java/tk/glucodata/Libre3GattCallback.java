@@ -51,6 +51,7 @@ import static tk.glucodata.Applic.app;
 import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.DexGattCallback.setalarm;
 import static tk.glucodata.Log.doLog;
+import static tk.glucodata.LossOfSensorAlarm.cancelalarm;
 import static tk.glucodata.Natives.endcrypt;
 import static tk.glucodata.Natives.initcrypt;
 import static tk.glucodata.Natives.intDecrypt;
@@ -84,6 +85,7 @@ private  final void info(String in) {
 void free() {
     super.free();
     {if(doLog) {Log.i(LOG_ID, SerialNumber + ": "+"free");};};
+    cancelalarm();
     var tmp=cryptptr;
     cryptptr=0L;
     endcrypt(tmp);
@@ -585,7 +587,7 @@ private void realdisconnected(BluetoothGatt bluetoothGatt,int status,long tim) {
     else {
         bluetoothGatt.close();
         mBluetoothGatt = null;
-        if(isWearable) {
+        if(isWearable&&Natives.getDisconnectSensor()) {
             final long alreadywaited = tim - datatime;
             final long mmsectimebetween = 60 * 1000;
             long stillwait = mmsectimebetween - alreadywaited - 55000;

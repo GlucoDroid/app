@@ -32,6 +32,7 @@ import android.os.Build;
 import static android.app.AlarmManager.RTC_WAKEUP;
 import static android.app.PendingIntent.getBroadcast;
 import static android.content.Context.ALARM_SERVICE;
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Log.doLog;
 
 public class LossOfSensorAlarm extends BroadcastReceiver {
@@ -68,14 +69,17 @@ static    void setalarm(Context context, long alarmtime) {
         mkintents(context);
         {if(doLog) {Log.i(LOG_ID,"setalarm "+alarmtime);};};
         final int type=RTC_WAKEUP;
-//        AlarmManager.ELAPSED_REALTIME_WAKEUP or AlarmManager.RTC_WAKEUP as the alarm type.
 
         AlarmManager manager= (AlarmManager) context.getSystemService(ALARM_SERVICE);
 
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            manager.setExactAndAllowWhileIdle(type,alarmtime,onalarm);
-        }
+            if(isWearable) {
+                 manager.setAlarmClock(new AlarmManager.AlarmClockInfo(alarmtime, onalarm), onalarm);
+                 }
+            else 
+                manager.setExactAndAllowWhileIdle(type,alarmtime,onalarm);
+           }
         else
             manager.setExact(type,alarmtime,onalarm);
        }

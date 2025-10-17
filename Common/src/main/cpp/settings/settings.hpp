@@ -726,9 +726,9 @@ void mkshorts() {
 void mklabels() {
     LOGSTRING("mklabels\n");
     Tings::Variables *varsptr=data()->vars;
-    varsptr[0].prec=.5f;
+    varsptr[0].prec=1.0f;
     varsptr[1].prec=1.0f;
-    varsptr[2].prec=1.0f;
+    varsptr[2].prec=.5f;
     varsptr[3].prec=.5f;
     varsptr[4].prec=1.0f;
     varsptr[5].prec=1.0f;
@@ -740,7 +740,7 @@ void mklabels() {
     for(unsigned int i=0;i<nrlab;i++) {
         strcpy( varsptr[i].name,usedtext->labels[i].data());
     }
-    data()->mealvar=1;
+    data()->mealvar=0;
     data()->varcount=nrlab;
     mkshorts() ;
 }

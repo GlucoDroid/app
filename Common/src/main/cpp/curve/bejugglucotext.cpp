@@ -1,7 +1,7 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view belabels[]={ "Хуткі", "Вугляв", "Дэкстр", "Доўгі", "Ровар", "Прагул", "Кроў"};
+constexpr static std::string_view belabels[]={ "Вугляв", "Дэкстр", "Хуткі", "Доўгі", "Ровар", "Прагул", "Кроў"};
 constexpr static Shortcut_t  beshortinit[]= { {"Bread",
         .48},
         {"Currantbun1",

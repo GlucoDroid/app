@@ -1,9 +1,10 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view trlabels[]={"HizliEtkili",
+constexpr static std::string_view trlabels[]={
 "Karbonhidrt",
 "Dextro",
+"HizliEtkili",
 "Uzun Etkili",
 "Bisiklet",
 "Yürüyüş",

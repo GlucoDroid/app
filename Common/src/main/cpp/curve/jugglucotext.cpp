@@ -1,9 +1,9 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view labels[]={"Fast Insuli",
-"Carbohydra",
+constexpr static std::string_view labels[]={"Carbohydra",
 "Dextro",
+"Fast Insuli",
 "Long Insuli",
 "Bike",
 "Walk",

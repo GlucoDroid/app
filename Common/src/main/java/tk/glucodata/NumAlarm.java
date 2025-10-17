@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import static android.app.AlarmManager.RTC_WAKEUP;
 import static android.app.PendingIntent.getBroadcast;
 import static android.content.Context.ALARM_SERVICE;
+import static tk.glucodata.Applic.isWearable;
 import static tk.glucodata.Log.doLog;
 
 public class NumAlarm extends BroadcastReceiver {
@@ -149,8 +150,13 @@ static  private  void setalarm(Context context, long alarmtime,boolean profiles)
 //	manager.cancel(onalarm);//is done automatically
         final int type=RTC_WAKEUP;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            manager.setExactAndAllowWhileIdle(type,alarmtime,onalarm);
-        }
+            if(isWearable) {
+                 manager.setAlarmClock(new AlarmManager.AlarmClockInfo(alarmtime, onalarm), onalarm);
+                 }
+            else  {
+                manager.setExactAndAllowWhileIdle(type,alarmtime,onalarm);
+                }
+            }
         else
             manager.setExact(type,alarmtime,onalarm);
     }

@@ -1647,13 +1647,6 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setLibreCountry)(JNIEnv *env, jcla
 
 extern bool switchgen2();
 
-extern "C" JNIEXPORT jboolean  JNICALL   fromjava(optionStreamHistory)(JNIEnv *env, jclass cl) {
-#if defined(__aarch64__) 
-   return false;
-#else
-    return !settings->data()->nobluetooth;
-#endif
-   }
 extern "C" JNIEXPORT void  JNICALL   fromjava(setStreamHistory)(JNIEnv *env, jclass cl,jboolean val) {
     if(val!= settings->data()->streamHistory) {
         settings->data()->streamHistory=val;

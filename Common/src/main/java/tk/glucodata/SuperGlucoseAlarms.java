@@ -45,7 +45,6 @@ boolean saidloss = false;
 
 public  void setLossAlarm() {
     if(hasalarmloss()) {
-        //Notify.shownovalue();
          saidloss = false;
          final long nu = System.currentTimeMillis();
          SuperGattCallback.lastfoundL=nu;

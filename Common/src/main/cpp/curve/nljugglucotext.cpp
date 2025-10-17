@@ -22,7 +22,7 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view nllabels[]={ "Insuli snel", "Koolhydraat","Dextro", "Insuli lang","Fietsen", "Wandelen","Bloed"};
+constexpr static std::string_view nllabels[]={  "Koolhydraat","Dextro","Insuli snel", "Insuli lang","Fietsen", "Wandelen","Bloed"};
 constexpr static Shortcut_t  nlshortinit[]= { {"Meer. Brood",
         .42f},
 {

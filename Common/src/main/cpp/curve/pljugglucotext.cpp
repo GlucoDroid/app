@@ -1,9 +1,10 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view pllabels[]={"Insul szybk",
+constexpr static std::string_view pllabels[]={
 "Węglowodan",
 "Dextro",
+"Insul szybk",
 "Insul dług",
 "Rower",
 "Spacer",

@@ -1,9 +1,10 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view rulabels[]={"Kopoтkuй",
+constexpr static std::string_view rulabels[]={
 "Yглeвoд",
 "Сахар",
+"Kopoтkuй",
 "Дoлгuй",
 "Велик",
 "Хoдьбa",

@@ -179,9 +179,9 @@ public static void showsensorinfo(String text,MainActivity act) {
 */
 void showinfo(final SuperGattCallback gatt,MainActivity act) {
     if(isWearable)  {
-        disconnectsensor.setVisibility(gatt.sensorgen<=3?VISIBLE:GONE);
+        disconnectsensor.setVisibility(gatt.sensorgen==3?VISIBLE:GONE);
         }
-    if(Natives.optionStreamHistory()&&gatt.sensorgen<2) {
+    if(Natives.optionStreamHistory(gatt.dataptr)) {
        streamhistory.setVisibility(VISIBLE);
       alarmclock.setVisibility(GONE);
       resetbutton.setVisibility(GONE);
@@ -349,7 +349,7 @@ static void nosensors(MainActivity act) {
 
     var streamhistory=getcheckbox(act,R.string.streamhistory,Natives.getStreamHistory());
     streamhistory.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setStreamHistory(isChecked) );
-    if(!Natives.optionStreamHistory()||!wasused)
+    if(!Natives.optionStreamHistory(0L)||!wasused)
         streamhistory.setVisibility(GONE);
 help.setOnClickListener(v-> helplight(R.string.sensorhelp,act));
   Layout layout = new Layout(act, (l, w, h) -> {

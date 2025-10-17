@@ -4,9 +4,9 @@
 constexpr static std::string_view svlabels[]={
   // max 11 bytes
   // 12345678901
-    "Insulin",
     "Kolhydrater",
     "Dextro",
+    "Insulin",
     "Basinsulin",
     "Cykling",
     "Promenad",

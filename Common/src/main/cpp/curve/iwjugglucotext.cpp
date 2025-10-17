@@ -4,9 +4,9 @@
 #ifndef WEAROS
 //Just some examples
 constexpr static std::string_view iwlabels[]={
-"מהיר Insuli",
 "קרבוהידרה",
 "דקסטרו",
+"מהיר Insuli",
 "לונג אינסולי",
 "אופניים",
 "ללכת",

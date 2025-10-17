@@ -31,11 +31,12 @@
 #include <jni.h>
 #include <stdio.h>
 #include <unistd.h>
-    #include <sys/types.h>
-       #include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/prctl.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/uio.h>
 #include <thread>
 #include <future>
 extern "C" {
@@ -948,8 +949,11 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(processTooth)(JNIEnv *envin, jclas
     data_t *bluedata=fromjbyteArray(envin,bluetoothdata);
     uint32_t nu=time(NULL);
 #ifndef NORAWSTREAM
-    write(sdata->blueuit,reinterpret_cast<const char *>(&nu),sizeof(nu));
-    write(sdata->blueuit,bluedata->data(),bluedata->size());
+    const struct iovec iov[2]{{reinterpret_cast<void *>(&nu),sizeof(nu)},
+        {reinterpret_cast<void *>(bluedata->data()),(size_t)bluedata->size()}};
+    writev(sdata->blueuit,iov,2);
+  /*  write(sdata->blueuit,reinterpret_cast<const char *>(&nu),sizeof(nu));
+    write(sdata->blueuit,bluedata->data(),bluedata->size()); */
 #endif
 //    scanstate *newstate=new scanstate(sdata->hist->getsensordir(),nu);
     scanstate *newstate=new scanstate(defaultscanstate);
@@ -1428,7 +1432,7 @@ extern std::vector<int> usedsensors;
      bool has2=false,has1=false;
      for(int index:usedsensors) {
          auto sens=sensors->getSensorData(index);
-         if(sens->getsensorgen()==2) {
+         if(sens->useLibre2rootcheck()) {
              has2=true;
             }
         else {
@@ -1523,4 +1527,20 @@ extern "C" JNIEXPORT jint JNICALL   fromjava(getinfogen)(JNIEnv *env, jclass _cl
 
 extern "C" JNIEXPORT jboolean JNICALL   fromjava(hasData)(JNIEnv *env, jclass _cl) {
    return sensors->last()>=0||settings->getlabelcount()>0;
+   }
+
+
+extern "C" JNIEXPORT jboolean  JNICALL   fromjava(optionStreamHistory)(JNIEnv *env, jclass cl,jlong dataptr) {
+#if defined(__aarch64__) 
+   return false;
+#else
+    const streamdata *sdata=reinterpret_cast<const streamdata *>(dataptr);
+    if(!sdata) {
+        return !settings->data()->nobluetooth;
+        }
+    if(sdata->libreversion>=2)
+        return false;
+    const SensorGlucoseData* sensorptr=sdata->hist;
+    return !sensorptr->useLibre2rootcheck();
+#endif
    }

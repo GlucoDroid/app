@@ -702,7 +702,7 @@ public static native boolean canSendNumbers(int night);
 public static native int getinfogen(byte[] info);
 public static native void setStreamHistory(boolean val);
 public static native boolean getStreamHistory( );
-public static native boolean optionStreamHistory();
+public static native boolean optionStreamHistory(long dataptr);
 public static native void setLibreIsViewed(boolean val);
 public static native boolean getLibreIsViewed( );
 public static native void setRTL(boolean val);

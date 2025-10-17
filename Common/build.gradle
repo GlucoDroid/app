@@ -21,7 +21,7 @@ if(false) {
 
    }
 else {
-      ndkver = '29.0.14033849'
+      ndkver = '29.0.14206865'
       APPCOMPAT = '1.7.1'
       GMSWEAR = '19.0.0'
      GMSBASE = '18.8.0'
@@ -30,7 +30,7 @@ else {
    CPPSTD = "-std=gnu++26"
        }
 
-CMAKEVERSION = "4.1.1"
+CMAKEVERSION = "4.1.2"
 android {
  buildFeatures.buildConfig = true
  namespace "tk.glucodata"
@@ -86,7 +86,7 @@ android {
         //compileSdk 36
         applicationId "tk.glucodata"
 
-         versionName '10.3.4'
+         versionName '10.3.6'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -163,8 +163,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         libreOld {
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode 806 //LIBRE2ONLY
-         //    versionName '10.3.4-no3'
+            versionCode 809 //LIBRE2ONLY
+         //    versionName '10.3.6-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
             externalNativeBuild.cmake {
@@ -177,7 +177,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //       minSdk 23
             dimension 'libreVersion'
         versionNameSuffix '-li3'
-        versionCode 807 //LIBRE3
+        versionCode 810 //LIBRE3
     //******  Zet op rollout op 100% ******
 
                buildConfigField 'int', 'libreVersion', '3'
@@ -192,7 +192,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         si {
       dimension 'SiBionics'
         versionNameSuffix '-si'
-        versionCode 807 
+        versionCode 810 
        buildConfigField 'int', 'SiBionics', '1'
        externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -201,7 +201,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
         nosi {
             dimension 'SiBionics'
-         versionCode 806 
+         versionCode 809 
          versionNameSuffix '-nosi'
           buildConfigField 'int', 'SiBionics', '0'
           externalNativeBuild.cmake {
@@ -219,9 +219,9 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         minSdkVersion 26
         buildConfigField 'int', 'minSDK', "$minSdk"
         manifestPlaceholders["minSDK"] = "$minSdk"
-        versionCode 808 //WATCH
+        versionCode 811 //WATCH
     //******  Zet op rollout op 100% ******
-        //versionName '10.3.4-wear'
+        //versionName '10.3.6-wear'
         versionNameSuffix '-wear'
         signingConfig signingConfigs.alg
 
@@ -243,8 +243,8 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 
 //        minSdk 19
             dimension 'wearos'
-        versionCode 808 //WATCH
-        //versionName '10.3.4-small'
+        versionCode 811 //WATCH
+        //versionName '10.3.6-small'
         versionNameSuffix '-small'
         signingConfig signingConfigs.alg
 
@@ -603,12 +603,12 @@ dependencies {
     implementation 'androidx.core:core:1.17.0'
    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.10'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.10'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.20'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.20'
     implementation "com.google.android.gms:play-services-base:$GMSBASE"
 //    implementation "com.google.android.gms:play-services-base:18.8.0"
  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2'
-  mobileImplementation 'androidx.health.connect:connect-client:1.1.0-rc03'
+  mobileImplementation 'androidx.health.connect:connect-client:1.1.0'
 //  mobileImplementation files('/n/ojka/Downloads/ciq-companion-app-sdk-2.0.3.aar');
   mobileImplementation 'com.garmin.connectiq:ciq-companion-app-sdk:2.3.0@aar'
 

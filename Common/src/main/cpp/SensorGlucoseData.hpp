@@ -546,6 +546,12 @@ int getsensorgen() const {
       return 0;
     return getgeneration((const char *)info->data());
     }
+bool useLibre2rootcheck() const {
+        const int gen=getsensorgen();
+        if(gen>2)
+                return false;
+        return gen==2||getinfo()->wearduration>20160;
+        }
 void setsensorgen() {
 /*    extern void setlastGen(int gen);
     const data_t *info=getpatchinfo();

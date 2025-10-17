@@ -22,7 +22,7 @@
 #include "jugglucotext.hpp"
 #ifdef INJUGGLUCO
 #ifndef WEAROS
-constexpr static std::string_view itlabels[]= {"Rapida","Carboidrati","Glucosio","Lenta","Bike","Walk","Capillare"};
+constexpr static std::string_view itlabels[]= {"Carboidrati","Glucosio","Rapida","Lenta","Bike","Walk","Capillare"};
 constexpr static Shortcut_t  itshortinit[]= { {"Muffin", .54f},
 
 {"Uva",
