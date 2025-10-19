@@ -324,7 +324,7 @@ constexpr const int            maxitems=10440;
                         LOGGER("%d nightupload Success\n",sensorid);
                         LOGGER("%d saved nightiter=%d\n", sensorid,len);
                         newstartsensor=sensorid;
-                  continue;
+                        continue;
                         }
                     else {
                         LOGSTRING("nightupload failure\n");

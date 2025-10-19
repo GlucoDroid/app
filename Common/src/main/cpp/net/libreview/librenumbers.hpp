@@ -315,7 +315,7 @@ bool didwrite=false;
 
 int nextlibrenr() {
 	const int ret= libreNR++;
-	LOGGER("nextlibrenr()=%d\n",ret);
+//	LOGGER("nextlibrenr()=%d\n",ret);
 	return ret;
 	}
 public:

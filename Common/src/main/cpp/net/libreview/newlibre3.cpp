@@ -361,6 +361,7 @@ bool sendlibre3viewdata(bool hasnewcurrent,uint32_t nu) {
 	const time_t tim=oldtimer;
 	LOGGER("Start sendlibre3viewdata startlibre3view=%d lastsensor=%d from=%s",startsensor,lastsensor,ctime(&tim));
 #endif
+    int usedsensors=0;
 	for(int i=startsensor;i<=lastsensor;i++) {
 		SensorGlucoseData *sensdata=sensors->getSensorData(i);
 		if(sensdata->isLibre3()) {
@@ -374,7 +375,13 @@ bool sendlibre3viewdata(bool hasnewcurrent,uint32_t nu) {
 					}
 				}
 			else  {
+                ++usedsensors;
 				inhistory+=add;
+                if(usedsensors>=4) {
+                    lastsensor=i; 
+                    LOGGER("sendlibre3viewdata 4 sensors is enough lastsensor=%d\n",i);
+                    break;
+                    }
 				}
 			}
 		else {

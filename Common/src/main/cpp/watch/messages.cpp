@@ -271,12 +271,12 @@ void tobluetooth(int hostnr,bool sender,int *sockin, int *sockother,std::binary_
     LOGGERN(buf,len);
     }
 //    LOGSTRINGTAG("tobluetooth before release\n");
-    waitstarted->release();
+  waitstarted->release();
   auto &status=mirrorstatus[hostnr].toblue[sender];
   status.running(true);
    while(true) { 
-        int inlen=recvni(sock,buf,maxbuf);
-       LOGGERTAG("tobluetooth recvni(%d,...)=%d\n",sock,inlen);
+     const int inlen=recvni(sock,buf,maxbuf);
+     LOGGERTAG("tobluetooth recvni(%d,...)=%d\n",sock,inlen);
      if(inlen<=0||((status.recv=true)&&!(status.sendmessage=sendmessage(phonehost,phonesender,buf,inlen))))  {
          if(inlen>0)
             LOGGERTAG("sendmessage failed %d %d #%d\n",phonehost,phonesender,inlen);
@@ -306,7 +306,7 @@ void closesock(int &sock) {
         }
 }
 extern    bool    getcommandsnopass(int sock,passhost_t *host); //TODO password?
-extern bool	getcommands(int,passhost_t *);
+extern bool    getcommands(int,passhost_t *);
 extern    void receiversockopt(int new_fd);
 
 static void messagereceivecommands(passhost_t *pass) {
@@ -337,7 +337,7 @@ static void messagereceivecommands(passhost_t *pass) {
         std::thread th(tobluetooth,index,false,    &messagereceiversockets[index],hostsocks+index,&waitstarted); //TODO handshake?
         waitstarted.acquire();
 
-          int &recsock=hostsocks[index];
+        int &recsock=hostsocks[index];
         if(recsock!=-1)
             closesock(recsock);
 
@@ -347,14 +347,14 @@ static void messagereceivecommands(passhost_t *pass) {
 #ifdef ENCRYPTMESSAGES 
         LOGARTAG("Encrypt getcommands");
     
-	    getcommands
+        getcommands
 #else
         getcommandsnopass
 #endif
         (recsock,pass);
 
-         LOGGERTAG("%d message join\n",index);
-         shutdown(messagereceiversockets[index],SHUT_RDWR);
+        LOGGERTAG("%d message join\n",index);
+        shutdown(messagereceiversockets[index],SHUT_RDWR);
         th.join();
         if(recsock!=-1) {
             closesock(recsock);
