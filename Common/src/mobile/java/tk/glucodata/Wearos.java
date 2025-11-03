@@ -95,7 +95,7 @@ static Spinner mkspinner(MainActivity context, ArrayList<Node> nodeslist,IntCons
     }
 
 
-static void remake( RadioButton[] sensordirect, RadioButton[] nswitch, Button start, Node node) {
+static void remake( RadioButton[] sensordirect, RadioButton[] nswitch,  Node node) {
     int dirval,numsval;
     if(node==null) {
         dirval=-1;
@@ -128,17 +128,18 @@ static void remake( RadioButton[] sensordirect, RadioButton[] nswitch, Button st
         nswitch[0].setChecked(numsval==0);
         nswitch[1].setChecked(numsval!=0);
         }
+        /*
     if(dirval==1) {
         start.setEnabled(false);
         }
     else
-        start.setEnabled(true);
+        start.setEnabled(true); */
     }
 
 
 static public void show(MainActivity context,View parent) {
    final int[] nodenumptr={-1};
-    var start=getbutton(context,R.string.initwatchapp);
+//    var start=getbutton(context,R.string.initwatchapp);
     var defaults=getbutton(context,context.getString(R.string.defaults));
     var directstring=context.getString(R.string.directsensor);
     var direct=getlabel(context, directstring);
@@ -176,7 +177,7 @@ static public void show(MainActivity context,View parent) {
                 nodenumptr[0]=pos;
                 if(nodeslist!=null&&nodeslist.size()>pos) {
                     Node node=pos<0?null:nodeslist.get(pos);
-                    remake(sswitch, nswitch,  start, node);
+                    remake(sswitch, nswitch,   node);
                     }
                 }
             catch(Throwable e) {
@@ -194,7 +195,7 @@ static public void show(MainActivity context,View parent) {
 
    setpos.accept(nodenumptr[0]);
    if(nodeslist==null||nodeslist.isEmpty()) {
-      start.setVisibility(GONE);
+     // start.setVisibility(GONE);
       defaults.setVisibility(GONE);
       }
     var layout=new Layout(context,(l,w,h)-> {
@@ -205,7 +206,7 @@ static public void show(MainActivity context,View parent) {
         if(height>h)
             l.setY((height-h)/2);
         return new int[] {w,h};
-        }, new View[]{spin},new View[]{enternums,nphone,nwatch},new View[]{direct,sphone,swatch,connection},new View[]{start,defaults},new View[]{Help,Ok} );
+        }, new View[]{spin},new View[]{enternums,nphone,nwatch},new View[]{direct,sphone,swatch,connection},new View[]{defaults},new View[]{Help,Ok} );
     int laypad=(int)(density*4.0);
     layout.setPadding(laypad*2,laypad*2,laypad*2,laypad);
 
@@ -252,12 +253,13 @@ static public void show(MainActivity context,View parent) {
                 }
             }
      });
+     /*
     start.setOnClickListener(v -> {
             if(nodenumptr[0]>=0) {
                 sendinitwatchapp(nodeslist.get(nodenumptr[0])) ;
                 }
          });
-
+*/
     context.setonback(()-> { 
         removeContentView(layout);
         context.hideSystemUI(); }

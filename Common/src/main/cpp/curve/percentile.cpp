@@ -977,6 +977,7 @@ struct PercentileGraph {
             }
         };
 #include <atomic>
+
 class PersImages:public CircularArray<20,PercentileGraph> { 
 public:
 std::mutex mutex;

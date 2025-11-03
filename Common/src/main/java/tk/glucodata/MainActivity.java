@@ -458,6 +458,7 @@ public static boolean hasnfc=false;
 private static boolean askNFC=true;
 
 private static    final int nfcflags=NfcAdapter.FLAG_READER_NFC_V | NfcAdapter.FLAG_READER_NFC_A|NfcAdapter.FLAG_READER_NFC_B|NfcAdapter.FLAG_READER_NFC_F|NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK| NfcAdapter.FLAG_READER_NFC_BARCODE; //=415. Activation of sensor was only possible if app not at the foreground, so I add some flags
+//private static    final int nfcflags=NfcAdapter.FLAG_READER_NFC_V |NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK; 
 public void setnfc() {
 try {
     if (mNfcAdapter == null) {
@@ -474,23 +475,23 @@ try {
             }
         }
     } else {
-        if (!mNfcAdapter.isEnabled()) {
-        if(!isWearable) {
-        if(askNFC) {
-            Applic.argToaster(this, getResources().getString(R.string.error_nfc_disabled), Toast.LENGTH_LONG);
-            if(Natives.backuphostNr( )==0) {
-                try {
-                   startActivity(new Intent(Settings.ACTION_NFC_SETTINGS));
-                   }
-                   catch(Throwable th) {
-                       Log.stack(LOG_ID,"Settings.ACTION_NFC_SETTINGS",th);
+        if(!mNfcAdapter.isEnabled()) {
+            if(!isWearable) {
+            if(askNFC) {
+                Applic.argToaster(this, getResources().getString(R.string.error_nfc_disabled), Toast.LENGTH_LONG);
+                if(Natives.backuphostNr( )==0) {
+                    try {
+                       startActivity(new Intent(Settings.ACTION_NFC_SETTINGS));
                        }
+                       catch(Throwable th) {
+                           Log.stack(LOG_ID,"Settings.ACTION_NFC_SETTINGS",th);
+                           }
+                       }
+                askNFC=false;
                    }
-            askNFC=false;
-               }
-              }
+                  }
 
-        return;
+            return;
         } else {
     
 //            mNfcAdapter.enableReaderMode(this, this,  NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS|NfcAdapter.FLAG_READER_NFC_V , null);
@@ -529,17 +530,18 @@ private static int resumenr=isRelease?10:2;
 static boolean tocalendarapp=false;
     @Override
     protected void onResume() {
-      {if(doLog) {Log.i(LOG_ID,"onResume");};};
-        super.onResume();
-        if(curve!=null) {
-            if(!curve.waitnfc) {
-                {if(doLog) {Log.d(LOG_ID,"onResume setnfc");};};
-                setnfc();
-                } 
-            else
-                {if(doLog) {Log.d(LOG_ID,"onResume no setnfc");};};
-            }
+    if(doLog) {Log.i(LOG_ID,"onResume");};;
+    super.onResume();
+    if(curve!=null) {
+        if(!curve.waitnfc) {
+            {if(doLog) {Log.d(LOG_ID,"onResume setnfc");};};
+            setnfc();
+            } 
+        else
+            {if(doLog) {Log.d(LOG_ID,"onResume no setnfc");};};
         }
+     return;
+    }
     @Override
     protected void onStart() {
       super.onStart();
@@ -722,8 +724,7 @@ void activateresult(boolean res) {
     }
     @Override
     protected void onPause() {
-        super.onPause();
-        if(doLog) {Log.i(LOG_ID,"onPause");};
+      if(doLog) {Log.i(LOG_ID,"onPause");};
         if(mNfcAdapter != null) {
            try {
                mNfcAdapter.disableReaderMode(this);
@@ -735,7 +736,11 @@ void activateresult(boolean res) {
                     }
                 Log.e(LOG_ID,"mNfcAdapter.disableReaderMode "+mess);
                 }
+            finally  {
+                mNfcAdapter=null;
+                }
             }
+        super.onPause();
         if(!Applic.Nativesloaded)
             return;
         Natives.wakeuploader();
@@ -754,8 +759,7 @@ void activateresult(boolean res) {
                 UseWifi.stopusewifi();
                 }
             }
-
-        }
+    }
 @Override
 protected void onStop() {
     {if(doLog) {Log.i(LOG_ID,"onStop");};};

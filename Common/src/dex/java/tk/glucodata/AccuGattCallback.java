@@ -248,15 +248,6 @@ private boolean connected=false;
 
   private boolean isBonded=false;
 
-static public String bondString(int bonded) {
-    return  switch(bonded) {
-        case BOND_NONE-> "BOND_NONE";
-        case BOND_BONDING-> "BOND_BONDING";
-        case BOND_BONDED-> "BOND_BONDED";
-        case BluetoothDevice.ERROR-> "BOND ERROR";
-        default->"BOND Unknown";
-        };
-    }
 @SuppressLint("MissingPermission")
 @Override
 public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {

@@ -570,14 +570,6 @@ globalsocket=serversock;
             shutdown(oldsock,SHUT_RDWR);
             sockclose(oldsock);
             }
-/*
-        int len=name.size();
-        char *ptr=new char[17];
-        const char *wasname=name.data();
-        if(len>15)
-            strcpy(ptr,wasname+len-15);
-        else
-            strcpy(ptr,wasname); */
         socks[pos]=new_fd;
         std::thread  handlecon(receiverthread,new_fd,hit,pos);
         handlecon.detach();

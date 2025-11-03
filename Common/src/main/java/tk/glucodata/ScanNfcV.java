@@ -144,8 +144,8 @@ static private int[] libre3scan(GlucoseCurve curve,MainActivity main, Vibrator v
             ret= 0xFD;
             }
         else {
-           if(libreVersion == 3) {
-                if(streamptr>=0L&&streamptr<7L) {
+          if(libreVersion == 3) {
+            if(streamptr>=0L&&streamptr<7L) {
                 switch((int)(streamptr&0xFFFFFFF)) {
                     case 1: {
                         {if(doLog) {Log.i(LOG_ID,"streamptr==1");};};
@@ -410,9 +410,10 @@ static private void newsensor(Activity act,String text,String name) {
 
         CheckBox calBox = new CheckBox(act);
         calBox.setPadding(0,pad,0,pad);
-        calBox.setChecked(true);
+        long timedata=Natives.getSensorEndData(name);
+        final var endtime=   (timedata&0xFFFFFFFFL)*1000L;
+        calBox.setChecked((timedata>>32)!=0L);
         calBox.setText(R.string.addsensorenddate);
-        final var endtime=        Natives.sensorends()*1000L;
         final boolean  stillused=endtime>System.currentTimeMillis();
         if(!stillused)
             calBox.setVisibility(GONE);

@@ -24,8 +24,8 @@ package tk.glucodata;
 import static android.bluetooth.BluetoothDevice.ACTION_BOND_STATE_CHANGED;
 import static android.bluetooth.BluetoothDevice.EXTRA_BOND_STATE;
 
-import static tk.glucodata.AccuGattCallback.bondString;
 import static tk.glucodata.Log.doLog;
+import static tk.glucodata.SuperGattCallback.bondString;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;

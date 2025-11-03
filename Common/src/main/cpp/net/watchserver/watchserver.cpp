@@ -341,18 +341,6 @@ void handlewatch(int sock) {
 
 #include "getitems.hpp"
 
-/*
-               const char authfailure[]  = "Authentication failed - check api-secret\n"
-                        + "\n" + (authNeeded ? "secret is required " : "secret is not required")
-                        + "\n" + secretCheckResult.trinary("no secret supplied", "supplied secret matches", "supplied secret doesn't match")
-                        + "\n" + "Your address: " + socket.getInetAddress().toString()
-                        + "\n\n";
-                if (JoH.ratelimit("web-auth-failure", 10)) {
-                    UserError.Log.e(TAG, failureMessage);
-                }
-                response = new WebResponse(failureMessage, 403, "text/plain");
-
-*/
 std::string_view servererrorstr="HTTP/1.0 500 Internal Server Error\r\n\r\n";
 
 void servererror(int sock) {
@@ -473,8 +461,6 @@ static bool mkhtml(recdata *outdata,std::string_view origin,std::string_view hea
 void mktypeheader(char *outstart,char *outiter,const bool headonly,recdata *outdata,std::string_view type,std::string_view origin) ;
  void mkjsonheader(char *outstart,char *outiter,const bool headonly,recdata *outdata,std::string_view origin) ;
 static bool givestatushtml(recdata *outdata) {
-//static   constexpr const char status[]="HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 19\r\n\r\n<h1>STATUS OK</h1>\n";
-//static   constexpr const char status[]="HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 19\r\n\r\n<h1>STATUS OK</h1>";
 static   constexpr const char statusstart[]="HTTP/1.1 200 OK\r\nX-Powered-By: Express\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET,PUT,POST,DELETE,OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization, Content-Length, X-Requested-With\r\nVary: Accept, Accept-Encoding\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 18\r\nDate: ";
 
 static   constexpr const char statusend[]=" GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\n\r\n<h1>STATUS OK</h1>";
@@ -499,7 +485,6 @@ stmbuf.tm_hour,stmbuf.tm_mday,stmbuf.tm_sec);
 }
 static bool outofmemory(recdata *outdata) {
 
-//   const char notfoundtxt[]="HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: ";
 static   constexpr const char status[]="HTTP/1.1 413 Content Too Large\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 30\r\n\r\n<h1>Server out of memory</h1>\n";
    const int statuslen=sizeof(status)-1;
    outdata->allbuf=nullptr;
@@ -975,10 +960,7 @@ static bool givecurrent(std::string_view origin,recdata *outdata) {
          return givenothing(outdata);
       }
    const ScanData *value=iter;;
-//static   constexpr const char header[]="HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ";
-//static   constexpr const char header[]="HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ";
-//   constexpr const int headerlen=sizeof(header)-1;
-      outdata->allbuf=new(std::nothrow) char[300+1024];
+   outdata->allbuf=new(std::nothrow) char[300+1024];
    if(!outdata->allbuf)
       return outofmemory(outdata);
 
@@ -1008,30 +990,6 @@ extern double     calibrateNow(const SensorGlucoseData *sens,const ScanData &val
    mktypeheader(start,outiter,false,outdata,plain,origin) ;
    return true;
    }
-//https:///api/v1/entries/sgv.txt?count=24&find[date][$gte]=1676554219000&find[date][$lt]=1676561418000
-/*
-
-HTTP/1.1 200 OK
-Server: Cowboy
-Connection: keep-alive
-X-Dns-Prefetch-Control: off
-Expect-Ct: max-age=0
-Strict-Transport-Security: max-age=31536000
-X-Download-Options: noopen
-X-Content-Type-Options: nosniff
-X-Permitted-Cross-Domain-Policies: none
-Referrer-Policy: no-referrer
-X-Xss-Protection: 0
-X-Powered-By: Express
-Last-Modified: Sat, 18 Feb 2023 21:13:37 GMT   
-Vary: Accept, Accept-Encoding
-Content-Type: text/plain; charset=utf-8
-Etag: W/"25a4-my3ekyu7A50gkeDVfLaUWFRnkhQ"
-Content-Encoding: gzip
-Date: Sat, 18 Feb 2023 22:08:56 GMT                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-Transfer-Encoding: chunked
-Via: 1.1 vegur
-*/
 int formattime(char *buf, time_t tim) {
      struct tm tmbuf;
    gmtime_r(&tim, &tmbuf);
@@ -1042,11 +1000,6 @@ int formattime(char *buf, time_t tim) {
 bool givesgvtxt(const char *input,int inlen,std::string_view origin,recdata *outdata,char sep=9);
 bool givesgvtxt(int nr,int interval,uint32_t lowerend,uint32_t higherend,std::string_view origin,recdata *outdata,char sep=9) {
 
-//   static   constexpr const char header[]="HTTP/1.1 200 OK\r\nExpect-Ct: max-age=0\r\nAccess-Control-Allow-Origin: *\r\nVary: Accept, Accept-Encoding\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ";
-//   static   constexpr const char header[]="HTTP/1.1 200 OK\r\nExpect-Ct: max-age=0\r\nStrict-Transport-Security: max-age=31536000\r\nServer: Cowboy\r\nConnection: keep-alive\r\nX-Dns-Prefetch-Control: off\r\nX-Download-Options: noopen\r\nX-Content-Type-Options: nosniff\r\nX-Permitted-Cross-Domain-Policies: none\r\nReferrer-Policy: no-referrer\r\nX-Xss-Protection: 0\r\nX-Powered-By: Express\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ";
-//   static   constexpr const char header[]="HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ";
-//   static   constexpr const char header[]="HTTP/1.1 200 OK\r\nContent-Type: text/csv; charset=utf-8\r\nContent-Length: ";
-//   text/csv; charset=utf-8
    constexpr const int headerlen=200;
     const int bufsize= headerlen+1+100*nr+100;
       outdata->allbuf=new(std::nothrow) char[bufsize];
@@ -1055,7 +1008,6 @@ bool givesgvtxt(int nr,int interval,uint32_t lowerend,uint32_t higherend,std::st
       return outofmemory(outdata);
       }
     char *start=outdata->allbuf+250,*outiter=start;
-//   int interval=4*61;
    if(!getitems(outiter,nr,lowerend,higherend,true,interval,[sep](char *outiter,int datit, const ScanData *iter,const sensorname_t * sensorname ,const time_t starttime) {
       return textitem(outiter,iter,sep);
    })) {
@@ -1066,21 +1018,6 @@ bool givesgvtxt(int nr,int interval,uint32_t lowerend,uint32_t higherend,std::st
 
    constexpr const std::string_view plain=R"(text/plain; charset=utf-8)";
    mktypeheader(start,outiter,false,outdata,plain,origin);
-   /*
-   outiter-=2;
-   long long len=outiter-start;
-   char lenstr[30];
-   int lenlen=sprintf(lenstr,"%lld\r\n\r\n",len);
-
-   char *startheader=start-lenlen-headerlen;
-   outdata->start=startheader;
-   LOGARWEB("Before add header");
-   addar(startheader,header);
-   LOGARWEB("Before add lenstr");
-   memcpy(startheader,lenstr,lenlen);
-   startheader+=lenlen;
-   outdata->len=outiter-outdata->start;
-//   LOGGERN(outdata->start,outdata->len); */
    return true;
 }
 extern int getdeltaindex(float rate);
@@ -2442,13 +2379,6 @@ constexpr const std::string_view status="status.json";
    if(!memcmp(status.data(),toget.data(),status.size())) {
       return givedripstatus(origin,outdata);
       } 
-      /*
-std::string_view socket="socket.io";
-const auto socketsize= socket.size();
-   if(!memcmp(socket.data(),toget.data(),socketsize)) {
-      return givenothing(outdata);
-      }
-      */
 std::string_view index="index.html";
 const auto indexsize= index.size();
    if(toget.data()[0]==' '||!memcmp(index.data(),toget.data(),indexsize)) {
@@ -2463,8 +2393,6 @@ const auto indexsize= index.size();
 
 
 void wrongpath(std::string_view toget, recdata *outdata) {
-//   const char notfoundtxt[]="HTTP/1.0 404 Not Found\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: text/plain\r\nContent-Length: ";
-//   const char notfoundtxt[]="HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: ";
    const char notfoundtxt[]="HTTP/1.1 400 Bad Request\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: text/plain\r\nContent-Length: ";
    constexpr const int startlen=sizeof(notfoundtxt)-1;
    constexpr int maxant=4096;
@@ -2492,34 +2420,6 @@ void wrongpath(std::string_view toget, recdata *outdata) {
 
 
 
-/*
-void mkjsonheader(char *outstart,char *outiter,const bool headonly,recdata *outdata)  {
-   const char header1[]="HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " ;
-   const int header1len=sizeof(header1)-1;
-   int uitlen=outiter-outstart;
-   constexpr const int maxlen=20;
-   char lenstr[maxlen];
-   const int getlen=snprintf(lenstr,maxlen,"%d\r\n\r\n",uitlen);
-   const int headerlen=header1len+getlen;
-   char * const startheader=outstart-headerlen;
-   memcpy(startheader,header1,header1len);
-   LOGGERWEB("direct: len=%d\n",header1len);
-   logwriter(startheader,80);
-   memcpy(startheader+header1len,lenstr,getlen);
-   int totlen;
-   if(headonly) {
-      totlen=headerlen;
-      startheader[totlen]='\0';
-      }
-   else
-       totlen=outiter-startheader;
-   LOGARWEB("All:");
-   logwriter(startheader,totlen);
-   outdata->start=startheader;
-   outdata->len=totlen;
-
-   }
- */
 void mktypeheader(char *outstart,char *outiter,const bool headonly,recdata *outdata,std::string_view type,std::string_view origin)  {
    static constexpr const char httpok[]="HTTP/1.1 200 OK";
    static constexpr const char allowheader[]="\r\nAccess-Control-Allow-Origin: ";
@@ -3094,14 +2994,6 @@ static bool    sgvinterpret(const char *start,int len,bool headonly,bool gmt,std
    }
 
 
-/*
-HTTP/1.0 200 OK
-Date: Sat, 26 Feb 2022 19:08:27 GMT
-Access-Control-Allow-Origin: *
-Content-Type: application/json
-Content-Length: 6890
-
-*/
 
 class V3Args {
 public:
@@ -3404,21 +3296,6 @@ char *        V3Args::treatmentlist(char *outstart,uint32_t minmodified,uint32_t
    }
 
  void mkjsonheader(char *outstart,char *outiter,const bool headonly,recdata *outdata) ;
-/*
-bool treatmenthistoryV3(const char *start,const char *ends,recdata *outdata) {
-   longlongtype lowerend;
-   if(const char *input=readnum(start,ends,lowerend)) {
-      V3Args args; 
-      auto inputlen= ends-input;
-      if(!args.getargs(input,inputlen)) {
-         wrongpath({input,inputlen},outdata);
-         return false;
-         }
-      }
-   else
-      wrongpath({start,(size_t)(end-start)},outdata);
-   }
-   */
 bool       getv3treatments(const char *input,int inputlen,std::string_view origin,recdata *outdata,uint32_t modifiedafter) {
    V3Args args; 
    if(!args.getargs(input,inputlen)) {
@@ -3460,45 +3337,6 @@ bool treatmenthistoryV3(const char *start,const char *ends,std::string_view orig
       return false;
       }
    }
-//{"app":"Juggluco","date":1705002216000,"sgv":190,"delta":10.97,"direction":"Flat","type":"sgv","utcOffset":0,"identifier":"64011dbf1a09ef8e1b65989e","created_at":"2024-01-11T19:43:36.000Z","srvModified":1705002231031,"srvCreated":1705002231031}
-
-   /*
-int mkv3streamid(char *outiter,const sensorname_t *name,int num) { 
-const uint16_t *gets=reinterpret_cast<const uint16_t*>(&name[2]);
-int ch2=name->back();
-int len=sprintf(outiter,"%04hx%04hx-%04hx-%04hx-%02xee-eeeeeeeeeeee",gets[3],gets[2],gets[1],gets[0],ch2);
-outiter+=24;
-if(auto [ptr,ec]=std::to_chars(outiter,outiter+10,num);ec != std::errc()) {
-   LOGGER("tochar failed: %s\n",std::make_error_code(ec).message().c_str());
-   } 
-//puts(buf);
-return len;
-//0fffffff-ffff-ffff-ffff-17500fffffff"
-//c149bacfb000007f
-}
-int mkv1streamid(char *outiter,const sensorname_t *name,int num) { 
-const uint16_t *gets=reinterpret_cast<const uint16_t*>(&name[2]);
-int ch2=name->back();
-int len=sprintf(outiter,"%04hx%04hx%04hx%04hx%02xeeeee",gets[3],gets[2],gets[1],gets[0],ch2);
-outiter+=18;
-if(auto [ptr,ec]=std::to_chars(outiter,outiter+10,num);ec != std::errc()) {
-   LOGGER("tochar failed: %s\n",std::make_error_code(ec).message().c_str());
-   } 
-//puts(buf);
-
-return len;
-//0fffffff-ffff-ffff-ffff-17500fffffff"
-//c149bacfb000007f
-}
-*/
-
-//{"sgv":113,"direction":"Flat","srvCreated":1706383248228}
-/*
- {
-      "date": 1706539449000,
-      "sgv": 132,
-      "direction": "Flat"
-    } */
 static char * writev3entryfield(char *outin,const ScanData *val,const bool date,const bool sgv,const bool direction) {
    char *outptr=outin;
    *outptr++='{';

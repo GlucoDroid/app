@@ -504,6 +504,28 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(str2sensorptr)(JNIEnv *env, jclass
     return reinterpret_cast<jlong>(sens);
     }
 
+extern "C" JNIEXPORT jlong JNICALL   fromjava(getSensorEndData)(JNIEnv *env, jclass cl,jstring jsensor) {
+    if(!sensors) {
+      LOGAR("ERROR: sensors==null");
+      return 0LL;
+      }
+    constexpr const  int shortsensorlen=11;
+    jint getlen= env->GetStringUTFLength( jsensor);
+    if(getlen!=shortsensorlen) {
+        LOGGER("sensorlen=%d\n",getlen);
+        }    
+    char sensor[shortsensorlen+1];
+    env->GetStringUTFRegion( jsensor, 0,shortsensorlen, sensor);
+    sensor[sizeof(sensor)-1]='\0';
+
+    const SensorGlucoseData *sens= sensors->gethistshort(sensor);
+    if(sens==nullptr) {
+        LOGGER("Unknown sensor %s\n",sensor);
+        return 0LL;
+        }
+    jlong show=(!(sens->pollcount()&&sens->isLibre3()>0));
+    return sens->expectedEndTime()|show<<32;
+    }
 extern "C" JNIEXPORT jlong JNICALL   fromjava(getdataptr)(JNIEnv *env, jclass cl,jstring jsensor) {
     if(!sensors) {
       LOGAR("ERROR: sensors==null");

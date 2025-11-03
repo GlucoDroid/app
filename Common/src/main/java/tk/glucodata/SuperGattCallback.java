@@ -22,28 +22,24 @@
 package tk.glucodata;
 
 import android.annotation.SuppressLint;
-import android.app.Application;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.content.Context;
-import android.content.Intent;
 import android.os.Build;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import static android.bluetooth.BluetoothDevice.BOND_BONDED;
+import static android.bluetooth.BluetoothDevice.BOND_BONDING;
+import static android.bluetooth.BluetoothDevice.BOND_NONE;
 import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_BALANCED;
 import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH;
 import static android.bluetooth.BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
 import static android.bluetooth.BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
-import static android.bluetooth.BluetoothProfile.STATE_CONNECTED;
-import static android.bluetooth.BluetoothProfile.STATE_CONNECTING;
-import static android.bluetooth.BluetoothProfile.STATE_DISCONNECTED;
-import static android.bluetooth.BluetoothProfile.STATE_DISCONNECTING;
-import static java.lang.Float.isNaN;
 import static java.util.Objects.isNull;
 import static tk.glucodata.Applic.DontTalk;
 import static tk.glucodata.Applic.app;
@@ -723,5 +719,15 @@ public void setGattOptions(BluetoothGatt gatt) {
 @Override 
 public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
     {if(doLog) {Log.i(LOG_ID,"onPhyUpdate txPhy="+txPhy+" rxPhy="+rxPhy+" status="+status);};};
+    }
+
+static public String bondString(int bonded) {
+    return  switch(bonded) {
+        case BOND_NONE-> "BOND_NONE";
+        case BOND_BONDING-> "BOND_BONDING";
+        case BOND_BONDED-> "BOND_BONDED";
+        case BluetoothDevice.ERROR-> "BOND ERROR";
+        default->"BOND Unknown";
+        };
     }
 }

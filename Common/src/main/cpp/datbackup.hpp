@@ -216,32 +216,28 @@ struct  condvar_t {
     uintptr_t dobackup=0;
     std::mutex backupmutex;
     std::condition_variable backupcond; 
-    /*
-void setkind(uintptr_t kind){
-       if(dobackup)
-           dobackup=kind;
-      }
-      */
-void wakebackuponly(uintptr_t kind){
-     std::lock_guard<std::mutex> lck(backupmutex);
-     dobackup=kind|(dobackup&(wakeend|wakestop));
-     backupcond.notify_one();                        
-     }
-void wakebackup(uintptr_t kind){
-        {
-          std::lock_guard<std::mutex> lck(backupmutex);
-          auto wasdo=dobackup;
-          dobackup=dobackup|kind;
-        if(wasdo) {
-                   LOGGER("wakebackup %lx  no-notify\n",kind);
-            return;
-            }
 
-        LOGGER("wakebackup %lx notify\n",kind);
-        }
-        backupcond.notify_one();                        
-      }
+    void wakebackuponly(uintptr_t kind){
+         std::lock_guard<std::mutex> lck(backupmutex);
+         dobackup=kind|(dobackup&(wakeend|wakestop));
+         backupcond.notify_one();                        
+         }
+    void wakebackup(uintptr_t kind){
+            {
+              std::lock_guard<std::mutex> lck(backupmutex);
+              auto wasdo=dobackup;
+              dobackup=dobackup|kind;
+            if(wasdo) {
+                       LOGGER("wakebackup %lx  no-notify\n",kind);
+                return;
+                }
+
+            LOGGER("wakebackup %lx notify\n",kind);
+            }
+            backupcond.notify_one();                        
+          }
     };
+
 std::vector<condvar_t*> con_vars;
 struct updatedata* getupdatedata() {return reinterpret_cast<struct updatedata*>(mapdata.data());}
 const struct updatedata* getupdatedata() const {return reinterpret_cast<const struct updatedata*>(mapdata.data());}
@@ -342,14 +338,6 @@ Backup(std::string_view base): mapdata(base,backupdat,sizeof(struct updatedata))
 
 
     startactivereceivers();
-    /*
-   for(int i=0;i<len;i++) {
-       hostsocks[i]=-1;
-       passhost_t *ph= getupdatedata()->allhosts+i;
-       if(ph->activereceive) {
-           setactivereceive(i,ph); 
-           }
-       } */
    if(!getupdatedata()->port[0])
        strcpy(getupdatedata()->port,defaultport );
 
@@ -364,12 +352,6 @@ Backup(std::string_view base): mapdata(base,backupdat,sizeof(struct updatedata))
 
 
    shouldaskfordata=getshouldaskfordata();
-   /*
-   #ifdef WEAROS_MESSAGES
-   extern void startmessagereceivers(Backup*);
-   if(wearmessages)
-       startmessagereceivers(this);
-   #endif */
    }
 
 void resensordata(int sensor)  {
@@ -449,7 +431,6 @@ void getport(int pos,char *buf) {
         strcpy(buf,defaultport);
     else
         snprintf(buf,6, "%d",port);
-//    snprintf(buf,6, "%d",ntohs(host.ips[0].sin6_port));
     }
 
 void addsize() {
@@ -984,6 +965,12 @@ extern    void clearnetworkcache();
     LOGGER("changehost=%d\n",ret);
     return ret;
     }
+
+
+
+
+
+
 bool isreceiving() const {
     const auto nr=getupdatedata()->hostnr;
     const passhost_t *host=getupdatedata()->allhosts;
@@ -996,7 +983,6 @@ bool isreceiving() const {
             }
         }
     return receives;
-//    return getupdatedata()->hostnr!= getupdatedata()->sendnr;
     }
 
 void deactivateHost(int index,bool deactive) {

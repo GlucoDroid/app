@@ -62,7 +62,7 @@ void retimelog(const char *name) {
 			if(endptr==dat+endpos&&tim>1598911200u&&tim<1914444000u) {
 				char buf[25];
 				int end=timestr(buf,tim);
-				outp<<buf<<" "<<dat+endpos+1<<endl;
+				outp<<buf<<was<<dat+endpos+1<<endl;
 				}
 			else {
 				dat[endpos]=was;

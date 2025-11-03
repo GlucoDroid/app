@@ -10,9 +10,13 @@ template <int N> struct max_size{ };
 template <typename T,int N> struct CircleIterator ;
 template <int N,typename T>
 class CircularArray {
+typedef T  (&dataAr_t)[N];
 alignas(T) uint8_t   databuf[N*sizeof(T)];
-T  (&data)[N]=reinterpret_cast<T (&)[N]>(databuf); //Prevent default constucter
+//T  (&data)[N]=reinterpret_cast<T (&)[N]>(databuf); //Prevent default constucter
 int pos=0;
+constexpr dataAr_t data() {
+    return reinterpret_cast<dataAr_t>(databuf); 
+    }
 public:
 using value_type=T;
 static constexpr const int max_size=N;
@@ -21,12 +25,12 @@ CircularArray() {
         }
 template <typename ... TS> 
         CircularArray(::max_size<N>,TS &&... args):pos(sizeof...(TS)) {
-        new(data) T[N]{std::forward<TS>(args)...};
+        new(data()) T[N]{std::forward<TS>(args)...};
         LOGAR("CircularArray ::max_size<N>");
         } 
 template <typename ... TS> 
         CircularArray(TS && ... args):pos(sizeof...(TS)) {
-        new(data) T[N]{std::forward<TS>(args)...};
+        new(data()) T[N]{std::forward<TS>(args)...};
         LOGAR("CircularArray<TS");
         }
 template <typename TE>
@@ -37,25 +41,29 @@ void push_back(TE &&el) {
 template <typename ... TS>
 void emplace_back(TS && ... els) {
         LOGGER("CircularArray::emplace_back %d\n",pos);
-        T*ptr=data+(pos++%N);
-        if(pos>N) 
-            ptr->~T();
+        T*ptr=addItem();
         new (ptr) T(std::forward<TS>(els)...);
         };
+T *addItem() {
+        T*ptr=data()+(pos++%N);
+        if(pos>N) 
+            ptr->~T();
+         return ptr;
+        }
 template <typename TE>
 void set(int index,TE &&el) {
-        T*ptr=data+(index%N);
+        T*ptr=data()+(index%N);
         if(index>=N) 
             ptr->~T();
         *ptr=std::forward<TE>(el);
         };
 T &at(int index) {
         LOGGER("CircularArray::at(%d)\n",index);
-        return data[index%N];
+        return data()[index%N];
         };
 const T &at(int index) const {
         LOGGER("CircularArray::at(%d)\n",index);
-        return data[index%N];
+        return data()[index%N];
         };
 int capacity() const {
         return N;
@@ -90,7 +98,7 @@ const T &operator[](int i) const {
 void inc(){
      ++pos;
         }
-friend bool operator== (const CircularArray& a, const CircularArray& b) { return a.data == b.data&&a.pos==b.pos; };
+friend bool operator== (const CircularArray& a, const CircularArray& b) { return a.data() == b.data()&&a.pos==b.pos; };
 friend bool operator!= (const CircularArray& a, const CircularArray& b) { return !(a==b); };     
 };
 template <typename T,typename ...Ts> struct gettype{

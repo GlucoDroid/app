@@ -291,18 +291,6 @@ std::vector<crypt_t *> crypts;
 Backup *backup=nullptr;
 #define SENDPASSIVE 1
 #define RECEIVEFROM 2
-/*
-bool sendtype(int sock,char type) {
-    if(sock!=-1) {
-        char ant=type;
-        if(sendni(sock,&ant,1)!=1) {
-        //    return false;
-            
-            }
-        }
-    return true;
-    }
-    */
 static int saysender(const passhost_t *host) {
     if(host->activereceive) 
         return RECEIVEFROM;

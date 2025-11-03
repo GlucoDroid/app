@@ -24,7 +24,7 @@ else {
       ndkver = '29.0.14206865'
       APPCOMPAT = '1.7.1'
       GMSWEAR = '19.0.0'
-     GMSBASE = '18.8.0'
+     GMSBASE = '18.9.0'
       MINSDK = 21
     TARGETSDK = 35
    CPPSTD = "-std=gnu++26"
@@ -86,7 +86,7 @@ android {
         //compileSdk 36
         applicationId "tk.glucodata"
 
-         versionName '10.3.8'
+         versionName '10.3.9'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -164,7 +164,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
             versionCode 815 //LIBRE2ONLY
-         //    versionName '10.3.8-no3'
+         //    versionName '10.3.9-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
             externalNativeBuild.cmake {
@@ -221,7 +221,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         manifestPlaceholders["minSDK"] = "$minSdk"
         versionCode 817 //WATCH
     //******  Zet op rollout op 100% ******
-        //versionName '10.3.8-wear'
+        //versionName '10.3.9-wear'
         versionNameSuffix '-wear'
         signingConfig signingConfigs.alg
 
@@ -244,7 +244,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //        minSdk 19
             dimension 'wearos'
         versionCode 817 //WATCH
-        //versionName '10.3.8-small'
+        //versionName '10.3.9-small'
         versionNameSuffix '-small'
         signingConfig signingConfigs.alg
 
@@ -603,8 +603,8 @@ dependencies {
     implementation 'androidx.core:core:1.17.0'
    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.20'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.20'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.21'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.21'
     implementation "com.google.android.gms:play-services-base:$GMSBASE"
 //    implementation "com.google.android.gms:play-services-base:18.8.0"
  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2'
