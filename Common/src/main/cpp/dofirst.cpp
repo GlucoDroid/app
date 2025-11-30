@@ -40,6 +40,26 @@ void usepath() {
 #define _GNU_SOURCE 1
 #include <dlfcn.h>
 #include "settings/settings.hpp"
+#include <sys/wait.h>
+
+static int mysystem(const char *cmd) {
+    pid_t pid = fork();
+    if (pid == -1) {
+        return -1;
+    }
+    if (pid == 0) {
+        execl(cmd, cmd, (char *)NULL);
+        _exit(127);
+    }
+    int status;
+    if (waitpid(pid, &status, 0) == -1) {
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    return -1;
+}
 
 /*
 static const char *owerjslkdfjlsdQQ(void) {
@@ -58,8 +78,7 @@ static bool	getpathworks() {
 	constexpr const char path[]="PATH";
 	const char *oldpath=getenv(path);
 	setenv(path,globalbasedir.data(),1);
-	int err=system("testprog");
-	LOGGER("testprog gives %d\n",err);
+	    int err=mysystem(testprog.data());	LOGGER("testprog gives %d\n",err);
 	setenv(path,oldpath,1);
 	unlink(testprog.data());
 	return !err;
