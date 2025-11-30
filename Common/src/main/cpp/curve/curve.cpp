@@ -1386,6 +1386,13 @@ int JCurve::largedaystr(const time_t tim,char *buf) {
 
 void       JCurve::showbluevalue(NVGcontext* avg,const time_t nu,const int xpos,std::vector<int> &used) {
 LOGGER("showbluevalue %zd\n",used.size());
+    
+    // Define portrait here
+    bool portrait=false;
+#ifndef WEAROS
+    if(height>width) portrait=true;
+#endif
+
         nvgFontSize(avg, smallsize);
         nvgFillColor(avg, *getblack());
 
@@ -1434,6 +1441,11 @@ LOGGER("showbluevalue %zd\n",used.size());
 #endif
         const float getx= xpos+headsize*.9f+8*dwidth/headsize;
 
+        float final_getx=getx;
+        if(portrait) {
+            final_getx=width/2.0f;
+        }
+
 constexpr const bool showcurrentdate=true;
 
 if(showcurrentdate) {
@@ -1445,11 +1457,18 @@ if(showcurrentdate) {
         char tbuf[maxbuf];
          const int datlen=largedaystr(nu,tbuf) ;
         const float timex =
+            portrait ? final_getx - timelen*0.5f : // Center in portrait top panel? Actually getx is calculated relative to xpos.
+            // If portrait, we want it in the top panel.
+            // Timelen is width of time string.
+            // Let's try to center it horizontally in portrait.
+            // The logic below for non-portrait uses getx.
+            // In portrait, let's use final_getx and appropriate y.
+            (portrait ? final_getx - 20*density : // Adjusted guess
             getx
         #ifdef WEAROS
             -timelen*.85f
         #endif
-        ;
+            );
         const float timey = (datehigh+statusbarheight)
         #ifdef WEAROS
         *(used.size()<2?2.5f:1.0f);
@@ -1469,7 +1488,7 @@ if(showcurrentdate) {
         LOGGER("xpos=%d dwidth=%.1f headsize=%.1f density=%.1f getx=%.1f timex=%.1f\n",xpos,dwidth,headsize, density,getx,timex);
         }
       }
-    showlastsstream(avg,nu, getx,used) ;
+    showlastsstream(avg,nu, final_getx,used) ;
     }
 
  void       JCurve::showsavedomain(NVGcontext* avg,const float last, const float dlow,const float dhigh) {
@@ -2003,7 +2022,29 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
          }
 
 
+void    JCurve::showvalue(NVGcontext* avg, const ScanData *poll,const SensorGlucoseData *hist, float getx,float gety,int index,uint32_t nu) {
+    if(!poll) return;
+    int32_t mgdL=poll->getmgdL();
+    float glu=gconvert(mgdL*10);
+    char buf[64];
+    int len=snprintf(buf,64,gformat,glu);
+    nvgFontSize(avg,headsize);
+    nvgFillColor(avg,*getcolor(index));
+    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
+    nvgText(avg,getx,gety,buf,buf+len);
+    
+    // Trend arrow
+    if(poll->tr) {
+        const auto trend=usedtext->getTrendName(poll->tr);
+        if(!trend.empty()) {
+             // simplified trend display
+             nvgText(avg, getx+len*headsize*0.6f, gety, trend.data(), trend.data()+trend.size());
+        }
+    }
+}
+
  void    JCurve::showlastsstream(NVGcontext* avg,const time_t nu,const float getx,std::vector<int> &used ) {
+    bool portrait = height > width;
 //LOGGER("showlaststream %d\n",used.size());
     const auto usedsize=used.size();
 #ifdef JUGGLUCO_APP
@@ -2033,6 +2074,28 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
 #else
         float gety=smallsize*1.4f+dtop+(dheight-smallsize*.8f)*yh/(usedsize*2.0f);
 #endif
+        bool portrait=false;
+#ifndef WEAROS
+        if(height>width) portrait=true;
+#endif
+        if(portrait) {
+             float top_panel_height = dtop;
+             // Draw in top third (0 to dtop).
+             // We want to distribute items vertically in the top panel.
+             // yh is i*2+1. usedsize*2.0f is total slots.
+             // Standard formula: start + height * ratio.
+             // Top panel start is 0 (or small margin).
+             // Top panel height is dtop.
+             // Leave some space at top for date/time (which is around smallfontlineheight*2).
+             float top_margin = smallfontlineheight*3.0f; // Approx space for date/IOB
+             if(top_panel_height > top_margin) {
+                 float available_height = top_panel_height - top_margin;
+                 gety = top_margin + available_height*yh/(usedsize*2.0f);
+             } else {
+                 gety = top_panel_height*yh/(usedsize*2.0f); // Fallback if tight
+             }
+        }
+
         const ScanData *poll=hist->lastValidStream();
         if(poll) {
             LOGAR("poll!=null");
@@ -2181,6 +2244,17 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
         nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
         nvgFontSize(avg,headsize/4 );
         float gety=smallsize*.5f+dtop+dheight/2.0f;
+        if(portrait) {
+             float top_panel_height = dtop;
+             float top_margin = smallfontlineheight*3.0f;
+             if(top_panel_height > top_margin) {
+                 float available_height = top_panel_height - top_margin;
+                 gety = top_margin + available_height/2.0f;
+             } else {
+                 gety = top_panel_height/2.0f;
+             }
+        }
+
         if(neterror) {
 //            nvgText(avg,newgetx ,gety, usedtext->networkproblem.begin(), usedtext->networkproblem.end());
              nvgTextBox(avg,  newgetx, gety, getboxwidth(newgetx), usedtext->networkproblem.begin(), usedtext->networkproblem.end());
@@ -2244,109 +2318,3 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
 
     LOGAR(" end showlastsstream");
     }
-/*
-int    JCurve::showLargevalue(NVGcontext* avg, int index,float getx,float gety,float convglucose,const ScanData *poll) {
-        constexpr const int maxhead=11;
-        char head[maxhead];
-#ifdef JUGGLUCO_APP
-#ifndef DONTTALK
-        shownglucose[index].glucosevalue=convglucose;
-        shownglucose[index].glucosetrend=poll->tr;
-#endif
-#endif
-         float valuex=getx-(convglucose>=10.0f?density*20.0f:0.0f);
-         char *value=head+1;
-         int gllen=snprintf(value,maxhead-1,gformat,convglucose);
-         if(gllen<3) {
-            value=head;
-            *value=' ';
-            ++gllen;
-            }
-        nvgText(avg,valuex ,gety, value, value+gllen);
-        const float rate=poll->ch;
-        drawarrow(avg,rate,valuex-10*density,gety);
-        return valuex;
-        }
-*/
- void    JCurve::showvalue(NVGcontext* avg, const ScanData *poll,const SensorGlucoseData *hist, float getx,float gety,int index,uint32_t nu) {
-    const auto sensorname=hist->othershortsensorname();
-    LOGGER("showvalue %s\n",sensorname.data());
-    float sensory= gety+headsize/3.1;
-    nvgFillColor(avg, *getblack());
-    nvgFontSize(avg,mediumfont );
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
-    nvgText(avg, getx,sensory, sensorname.begin(), sensorname.end());
-    constexpr const int maxhead=11;
-    char head[maxhead];
-
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
-    const int nonconvert=poll->getmgdL();
-    double calibrated=calibrateNow(hist,*poll);
-    nvgFontSize(avg, headsize*.8);
-#ifdef JUGGLUCO_APP
-#ifndef DONTTALK
-    shownglucose[index].glucosevaluex=getx;
-    shownglucose[index].glucosevaluey=sensory;
-#endif
-#endif
-    if(isnan(calibrated)) {
-        if(nonconvert<glucoselowest) {
-            const  float valuex=getx;
-            int gllen=mkshowlow(head, maxhead) ;
-            nvgText(avg,valuex,gety, head, head+gllen);
-            return;
-            }
-        else {
-            int glucosehighest=hist->getmaxmgdL();
-            if(nonconvert>glucosehighest) {
-                float valuex=getx-density*14.0f;
-                int gllen=mkshowhigh(head, maxhead,glucosehighest) ;
-                nvgText(avg,valuex ,gety, head, head+gllen);
-                return;
-                }
-              }
-           calibrated=nonconvert;
-           }
-        const float convglucose= gconvert(calibrated*10.0);
-    #ifdef JUGGLUCO_APP
-    #ifndef DONTTALK
-        shownglucose[index].glucosevalue=convglucose;
-        shownglucose[index].glucosetrend=poll->tr;
-#endif
-#endif
-         float valuex=getx-(convglucose>=10.0f?density*20.0f:0.0f);
-         char *value=head+1;
-         int gllen=snprintf(value,maxhead-1,gformat,convglucose);
-         if(gllen<3) {
-            value=head;
-            *value=' ';
-            ++gllen;
-            }
-         nvgText(avg,valuex ,gety, value, value+gllen);
-        const float rate=poll->ch;
-        drawarrow(avg,rate,valuex-10*density,gety);
-        if(calibrated!=nonconvert) {
-            bounds_t bounds;
-            nvgTextBounds(avg, valuex,  gety,value,value+gllen, bounds.array);
-              nvgFontSize(avg,mediumfont );
-                float nextx=valuex+bounds.xmax-bounds.xmin+density*6;
-                if(nonconvert<glucoselowest) {
-                    int gllen=mkshowlow(head, maxhead) ;
-                    nvgText(avg,nextx,gety, head, head+gllen);
-                    }
-                else {
-                    int glucosehighest=hist->getmaxmgdL();
-                    if(nonconvert>glucosehighest) {
-                        int gllen=mkshowhigh(head, maxhead,glucosehighest) ;
-                        nvgText(avg,nextx ,gety, head, head+gllen);
-                        }
-                    else {
-                        const float rawconv=gconvert(nonconvert*10.0);
-                        int gllen=snprintf(head,maxhead,gformat,rawconv);
-                        nvgText(avg,nextx,gety, head, head+gllen);
-                        }
-                    }
-         }
-
-    }
-
