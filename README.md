@@ -1,4 +1,4 @@
-![Screenshot](jugglucong_screenshot.png)
+![Screenshot](juggluco_screenshot.png)
 
 # JugglucoNG 
 ## 0.1.20
