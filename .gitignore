@@ -20,3 +20,11 @@ local.properties
 
 # Misc
 *.iml
+
+#libs
+*/jniLibs/
+Common/src/main/jniLibs/
+Common/src/libre3/jniLibs/
+BTautoconnect.patch
+Common/src/mobileSi/jniLibs/
+*/mobileLibre*
