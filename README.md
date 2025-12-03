@@ -1,5 +1,4 @@
-![Light](jugglucong_dark.png)
-![Dark](jugglucong_light.png)
+![Screenshot](jugglucong_screenshot.png)
 
 # JugglucoNG 
 ## 0.1.20
