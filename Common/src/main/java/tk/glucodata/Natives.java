@@ -322,7 +322,6 @@ public static native void setcamerakey(int on);
 public static native String readlowring( );
 public static native void writelowring(String juristr);
 public static native String readhighring( );
-public static native void writehighring(String juristr);
 public static native String readagainring( );
 public static native void writeagainring(String juristr);
 public static native String readnumring( );
@@ -879,6 +878,10 @@ public static native boolean getAllValues( );
 
 public static native void setResetSibionics2(long dataptr,boolean val);
 public static native boolean getResetSibionics2(long dataptr);
+public static native void siClearCalibration(long dataptr);
+public static native void siClearAll(long dataptr);
+public static native void setViewMode(long dataptr, int mode);
+public static native int getViewMode(long dataptr);
 public static native long str2sensorptr(String sensor);
 public static native void setSensorptrResetSibionics2(long sensorptr,boolean val);
 public static native boolean getSensorptrResetSibionics2(long sensorptr);
@@ -930,5 +933,3 @@ public static native boolean getDisconnectSensor( );
 public static native long getSensorEndData(String sensor);
 //s/^[	 ]*extern.*JNIEXPORT[         ]*\([a-zA-Z]*\)[ ]*JNICALL[      ]*fromjava(\([^)]*\)) *(JNIEnv[^,]*,[^,)]*[,)]\([^){]*\)[^a-zA-Z0-9]*$/public static native \1 \2(\3);/g
 }
-
-

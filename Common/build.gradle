@@ -84,9 +84,9 @@ android {
 
     //    buildConfigField 'int', 'noZXing', '1'
         //compileSdk 36
-        applicationId "tk.glucodata"
+        applicationId "tk.glucodata.ng"
 
-         versionName '10.3.10'
+         versionName '0.1.20'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'

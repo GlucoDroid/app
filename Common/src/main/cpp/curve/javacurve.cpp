@@ -92,8 +92,10 @@ static jmethodID summaryready=nullptr;
 
 static jmethodID showsensorinfo=nullptr;
 jmethodID  jdoglucose=nullptr, jupdateDevices=nullptr, jbluetoothEnabled=nullptr,jspeak=nullptr, jresetWearOS=nullptr, jbluePermission=nullptr;
+// New declarations for MainActivity static methods
+jmethodID jopenSettingsPanel=nullptr, jopenSensorListPanel=nullptr, jlaunchQrScan=nullptr;
 //jmethodID jchangedProfile;
-jclass JNIApplic,JNIString;
+jclass JNIApplic,JNIString,JNIMainActivity;
 #ifdef OLDEVERSENSE
 #ifndef  WEAROS
 jclass EverSense;
@@ -215,7 +217,7 @@ if(cl) {
       }
 #endif
    if(!(jbluePermission=env->GetStaticMethodID(JNIApplic,"bluePermission","()I"))) {
-      LOGAR(R"(jbluePermission=env->GetStaticMethodID(JNIApplic,"bluePermission","()I") failed)" "");
+      LOGAR(R"(GetStaticMethodID(JNIApplic,"bluePermission","()I") failed)" "");
       }
       /*
    if(!(jtoCalendar=env->GetStaticMethodID(JNIApplic,"toCalendar","()V"))) {
@@ -225,6 +227,25 @@ if(cl) {
 else {
    LOGAR(R"(FindClass("tk/glucodata/Applic") failed)" "");
    }
+}
+
+{
+const static jclass cl=env->FindClass("tk/glucodata/MainActivity");
+if(cl) {
+   JNIMainActivity = (jclass)env->NewGlobalRef(cl);
+   env->DeleteLocalRef(cl);
+   if(!(jopenSettingsPanel = env->GetStaticMethodID(JNIMainActivity, "openSettingsPanel", "()V"))) {
+       LOGAR(R"(GetStaticMethodID(JNIMainActivity,"openSettingsPanel","()V") failed)" "");
+   }
+   if(!(jopenSensorListPanel = env->GetStaticMethodID(JNIMainActivity, "openSensorListPanel", "()V"))) {
+       LOGAR(R"(GetStaticMethodID(JNIMainActivity,"openSensorListPanel","()V") failed)" "");
+   }
+   if(!(jlaunchQrScan = env->GetStaticMethodID(JNIMainActivity, "launchQrScan", "()V"))) {
+       LOGAR(R"(GetStaticMethodID(JNIMainActivity,"launchQrScan","()V") failed)" "");
+   }
+} else {
+   LOGAR(R"(FindClass("tk/glucodata/MainActivity") failed)" "");
+}
 }
 
 
@@ -880,7 +901,7 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(showlastscan)(JNIEnv *env, jclass
 extern int statusbarheight;
 extern int statusbarleft,statusbarright;
 extern "C" JNIEXPORT void JNICALL fromjava(systembar)(JNIEnv *env, jclass thiz,jint left,jint top,jint right,jint bottom) {
- appcurve.statusbarheight=top*4/5;
+ appcurve.statusbarheight=top;
  appcurve.statusbarleft=left;
  appcurve.statusbarright=right;
  appcurve.dbottom=bottom;
@@ -958,3 +979,27 @@ void setallunit(int unit) {
 extern "C" JNIEXPORT void  JNICALL   fromjava(setunit)(JNIEnv *env, jclass cl,jint unit) {
         setallunit(unit);
 	}
+
+extern "C" JNIEXPORT void JNICALL fromjava(openSettingsActivity)(JNIEnv *env, jclass cl) {
+    if (JNIMainActivity && jopenSettingsPanel) {
+        env->CallStaticVoidMethod(JNIMainActivity, jopenSettingsPanel);
+    } else {
+        LOGAR("JNIMainActivity or jopenSettingsPanel not initialized");
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL fromjava(openSensorListActivity)(JNIEnv *env, jclass cl) {
+    if (JNIMainActivity && jopenSensorListPanel) {
+        env->CallStaticVoidMethod(JNIMainActivity, jopenSensorListPanel);
+    } else {
+        LOGAR("JNIMainActivity or jopenSensorListPanel not initialized");
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL fromjava(startQrScanActivity)(JNIEnv *env, jclass cl) {
+    if (JNIMainActivity && jlaunchQrScan) {
+        env->CallStaticVoidMethod(JNIMainActivity, jlaunchQrScan);
+    } else {
+        LOGAR("JNIMainActivity or jlaunchQrScan not initialized");
+    }
+}

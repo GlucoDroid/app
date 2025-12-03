@@ -135,6 +135,10 @@ float inappunit() const {
 
 } ;
 
+struct RawData {
+    uint16_t raw;
+};
+
 struct CurData {
     const ScanData *data;
     const int startpos,endpos;
@@ -326,7 +330,7 @@ union {
  //   uint32_t oldlibreStarttime;
     }; //end union
 uint32_t libreStarttime;
-uint32_t reserved3;
+uint32_t viewMode;
 CaliPara caliPara[maxcaliNr];
 uint32_t caliNr;
 uint32_t caliUpdated[std::max(maxsendtohost,8)];
@@ -507,6 +511,7 @@ Mmap<uint8_t> historydata;
 
 const size_t scansize;
 Mmap<ScanData> scans,polls;
+Mmap<RawData> rawpolls;
 Mmap<std::array<uint16_t,16>> trends;
 //static constexpr int getinfo()->dupl=3,days=15;
 const int historybytes(int perhour=4)  {
@@ -587,6 +592,14 @@ const char *deviceaddress() const {
 const int glucosebytes()const {
     return getelsize();
     }
+const ScanData* getPollsData() const { return polls.data(); }
+const RawData* getRawPollsData() const { return rawpolls.data(); }
+uint16_t getRawForPoll(const ScanData *poll) const {
+    if (!poll) return 0;
+    const ptrdiff_t idx = poll - polls.data();
+    if (idx >= 0 && idx < (ptrdiff_t)polls.size()) return rawpolls[idx].raw;
+    return 0;
+}
 bool waiting=true;
 const int32_t maxpos() const {
   if(isSibionics()) {
@@ -1311,6 +1324,7 @@ SensorGlucoseData(string_view sensordir,int spec,string_view baseuit,int sensori
 scansize(maxscansize()),
 scans(sensordir,"current.dat",scansize),
 polls(sensordir,"polls.dat",maxstreampos()),
+rawpolls(sensordir,"rawpolls.dat",maxstreampos()),
 trends(sensordir,trendsdat,scansize),
 specstart(spec),
  polluit(baseuit, "polls.dat"),
@@ -1467,11 +1481,11 @@ void savetrend(const nfcdata *scan,std::array<uint16_t,16> &trendbuf){
 
 void saveglucose(const nfcdata*nfc,time_t tim,int id,int glu,int trend,float change) {
     savetrend(nfc,gettrendsbuf(scancount()));
-    saveglucosedata(scans,getinfo()->scancount,tim, id, glu, trend, change);
+    saveglucosedata(scans,getinfo()->scancount,tim, id, glu, trend, change, 0);
     setlastscantime(tim);
     }
 
-bool savepoll(time_t tim,int id,int glu,int trend,float change) {
+bool savepoll(time_t tim,int id,int glu,int trend,float change, int raw=0) {
     if(getinfo()->pollcount) {
         int count=getinfo()->pollcount-1;
         int previd=polls[count].id;
@@ -1491,25 +1505,25 @@ bool savepoll(time_t tim,int id,int glu,int trend,float change) {
             getinfo()->pollinterval= weight*getinfo()->pollinterval+(1.0-weight)*af;
             }
         }
-    saveglucosedata(polls,getinfo()->pollcount,tim, id, glu, trend, change);
+    saveglucosedata(polls,getinfo()->pollcount,tim, id, glu, trend, change, raw);
     return true;
     }
 
-void savestreamonly(time_t tim,int id,int glu,int trend,float change) {
-    saveglucosedata(polls,getinfo()->pollcount,tim, id, glu, trend, change);
+void savestreamonly(time_t tim,int id,int glu,int trend,float change, int raw=0) {
+    saveglucosedata(polls,getinfo()->pollcount,tim, id, glu, trend, change, raw);
     }
 
-void savestream(time_t tim,int id,int glu,int trend,float change) {
+void savestream(time_t tim,int id,int glu,int trend,float change, int raw=0) {
     if(getinfo()->redoAll) {
-        getinfo()->redoAll=saveStreamAgain(tim,id,glu,trend,change);
+        getinfo()->redoAll=saveStreamAgain(tim,id,glu,trend,change, raw);
         return;
         }
      else {
-        saveglucosedata(polls,getinfo()->pollcount,tim, id, glu, trend, change);
+        saveglucosedata(polls,getinfo()->pollcount,tim, id, glu, trend, change, raw);
         }
     }
 
-bool saveStreamAgain(time_t tim,int id,int glu,int trend,float change) {
+bool saveStreamAgain(time_t tim,int id,int glu,int trend,float change, int raw=0) {
      int index=id-5;
      if(index<0) {
         return true;
@@ -1519,7 +1533,8 @@ bool saveStreamAgain(time_t tim,int id,int glu,int trend,float change) {
      while(index<getinfo()->pollcount&&polls[index].id<id) {
         ++index;
         }
-     polls[index]={static_cast<uint32_t>(tim),id,glu,trend,change};
+     polls[index]={static_cast<uint32_t>(tim),id,(int32_t)glu,trend,change};
+     rawpolls[index]={(uint16_t)raw};
      const int count=index+1;
      if(count<getinfo()->pollcount) {
         return true;
@@ -1527,13 +1542,17 @@ bool saveStreamAgain(time_t tim,int id,int glu,int trend,float change) {
     getinfo()->pollcount=count;
     return false;
     }
-void saveglucosedata(Mmap<ScanData> &streamscans,uint32_t &count,time_t tim,int id,int glu,int trend,float change) {
-     streamscans[count++]={static_cast<uint32_t>(tim),id,glu,trend,change};
+void saveglucosedata(Mmap<ScanData> &streamscans,uint32_t &count,time_t tim,int id,int glu,int trend,float change, int raw=0) {
+     streamscans[count]={static_cast<uint32_t>(tim),id,(int32_t)glu,trend,change};
+     if(&streamscans == &polls) {
+         rawpolls[count]={(uint16_t)raw};
+     }
+     count++;
     }
 bool hasStreamID(const int id) const {
     return polls[id].id==id&&polls[id].g;
     }
-template <int secs> int savepollallIDsonly(time_t tim,const int id,int glu,int trend,float change) {
+template <int secs> int savepollallIDsonly(time_t tim,const int id,int glu,int trend,float change, int raw=0) {
     int count=getinfo()->pollcount;
     if(count<id) {
        LOGGER("savepollallIDsonly count=%d<id=%d\n",count,id);
@@ -1550,19 +1569,22 @@ template <int secs> int savepollallIDsonly(time_t tim,const int id,int glu,int t
            }
           }
       for(uint32_t timiter=startiter;count<id;++count,timiter+=secs)  {
-          if(!polls[count].t||polls[count].id!=count)
-              polls[count]={timiter,count,0,0,0.0};
+          if(!polls[count].t||polls[count].id!=count) {
+              polls[count]={timiter,count,0,0,0};
+              rawpolls[count]={0};
+          }
           }
       if(!count) {
           getinfo()->pollstart=id;    
           }
       }
     LOGGER("count=%d savepollallIDsonly(%lu,%d,%.1f,%d,%.1f) %s",count,tim,id,glu/convfactordL,trend,change,ctime(&tim));
-    polls[id]={static_cast<uint32_t>(tim),id,glu,trend,change};
+    polls[id]={static_cast<uint32_t>(tim),id,(int32_t)glu,trend,change};
+    rawpolls[id]={(uint16_t)raw};
     return count;
     }
-template <int secs> bool savepollallIDs(time_t tim,const int id,int glu,int trend,float change) {
-    int count=savepollallIDsonly<secs>(tim,id,glu,trend,change);
+template <int secs> bool savepollallIDs(time_t tim,const int id,int glu,int trend,float change, int raw=0) {
+    int count=savepollallIDsonly<secs>(tim,id,glu,trend,change, raw);
     if(id==count)
         getinfo()->pollcount=id+1;
     else {

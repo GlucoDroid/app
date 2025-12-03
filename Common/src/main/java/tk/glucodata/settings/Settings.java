@@ -21,8 +21,8 @@
 
 package tk.glucodata.settings;
 
-import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+//import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+//import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
 import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
 import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
 import static android.content.pm.PackageManager.DONT_KILL_APP;
@@ -251,7 +251,7 @@ static void hideSystemUI() {
 void finish() {
     layoutweg();
     settinglayout.setVisibility(GONE);
-    
+    /*
     try {
         activity.setRequestedOrientation(Natives.getScreenOrientation());
         }
@@ -261,7 +261,7 @@ void finish() {
             mess="error";
             }
            Log.e(LOG_ID ,mess);
-       }
+       } */
 //    if(editlabel!=null) removeContentView(editlabel) ;
     removeContentView(settinglayout);
     thisone=null;
@@ -431,7 +431,7 @@ static private void advancedalarm(MainActivity context,View parview) {
             },verylowalarm,veryhighalarm,prelowalarm,prehighalarm,new View[]{help,schedules,close});
         layout=lay;
     final int sidepad=(int)(GlucoseCurve.metrics.density*8);
-    layout.setPadding(MainActivity.systembarLeft+sidepad,MainActivity.systembarTop*2/3,sidepad+MainActivity.systembarRight,sidepad+MainActivity.systembarBottom*9/10);
+    layout.setPadding(MainActivity.systembarLeft+sidepad,(int)(GlucoseCurve.metrics.density*50),sidepad+MainActivity.systembarRight,sidepad+MainActivity.systembarBottom);
         }
 
 
@@ -1073,11 +1073,11 @@ Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshows
         });
         var dexfuture=getcheckbox(context,R.string.dexfuture,Natives.getdexcomPredict());
          dexfuture.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.setdexcomPredict(isChecked) );
-          CheckBox reverseorientation =getcheckbox(context,R.string.invertscreen,(Natives.getScreenOrientation()&SCREEN_ORIENTATION_REVERSE_LANDSCAPE)!=0);
-         reverseorientation.setOnCheckedChangeListener( (buttonView,  isChecked) ->  {
-                int ori= (isChecked?SCREEN_ORIENTATION_REVERSE_LANDSCAPE:SCREEN_ORIENTATION_LANDSCAPE);
-                Natives.setScreenOrientation(ori);
-                });
+//          CheckBox reverseorientation =getcheckbox(context,R.string.invertscreen,(Natives.getScreenOrientation()&SCREEN_ORIENTATION_REVERSE_LANDSCAPE)!=1);
+//         reverseorientation.setOnCheckedChangeListener( (buttonView,  isChecked) ->  {
+//                int ori= (isChecked?SCREEN_ORIENTATION_REVERSE_LANDSCAPE:SCREEN_ORIENTATION_LANDSCAPE);
+//                Natives.setScreenOrientation(ori);
+//                });
 
     CheckBox levelleft= new CheckBox(context);
     levelleft.setText(R.string.glucoseaxisleft);
@@ -1091,7 +1091,7 @@ Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshows
         lay = new Layout(context, (l, w, h) -> {
                   int[] ret={w,h};
                  return ret;
-               },graphrow,new View[]{scalelabel,fixatex, fixatey},targetrow,new View[]{threslabel,threshold,dexfuture},new View[] {levelleft,reverseorientation},new View[] {hour12,langspin,iob,fixed},new View[]{colbut,help,close});
+               },graphrow,new View[]{scalelabel,fixatex, fixatey},targetrow,new View[]{threslabel,threshold,dexfuture},new View[] {levelleft/*,reverseorientation*/},new View[] {hour12,langspin,iob,fixed},new View[]{colbut,help,close});
 /*
         iob.setOnCheckedChangeListener( (buttonView,  isChecked) -> {
                 if(!Natives.setIOB(isChecked)) {
@@ -1109,8 +1109,8 @@ Scans.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.setshows
        lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*6.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*7.0),pad*2);
         }
      else {
-      final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*8.0);
-       lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop*3/4,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom*3/4);
+       final int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0);
+       lay.setPadding(MainActivity.systembarLeft,(int)(tk.glucodata.GlucoseCurve.metrics.density*50),MainActivity.systembarRight+pad,MainActivity.systembarBottom);
       }
 
     var scroll=new ScrollView(context);
@@ -1433,7 +1433,7 @@ private    void mksettings(MainActivity context) {
        lay.setPadding((int)(tk.glucodata.GlucoseCurve.metrics.density*14.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*11.0),(int)(tk.glucodata.GlucoseCurve.metrics.density*14.0),pad);
         }
      else {
-       lay.setPadding(MainActivity.systembarLeft+pad,MainActivity.systembarTop*3/4,pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom*3/4);
+       lay.setPadding(MainActivity.systembarLeft+pad,(int)(tk.glucodata.GlucoseCurve.metrics.density*50),pad+MainActivity.systembarRight,pad+MainActivity.systembarBottom);
       }
 
     final    int laywidth=MATCH_PARENT;
@@ -1600,7 +1600,7 @@ static private void exchanges(MainActivity context, View parent) {
                 new View[]{help,meters, ok});
 
     final   int pad=(int)(tk.glucodata.GlucoseCurve.metrics.density*10.0);
-        lay.setPadding(MainActivity.systembarLeft,MainActivity.systembarTop*3/4,MainActivity.systembarRight+pad,MainActivity.systembarBottom*7/8+(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0));
+        lay.setPadding(MainActivity.systembarLeft,(int)(tk.glucodata.GlucoseCurve.metrics.density*50),MainActivity.systembarRight+pad,MainActivity.systembarBottom*7/8+(int)(tk.glucodata.GlucoseCurve.metrics.density*5.0));
         exportview.setOnClickListener(v ->{
             var c=Applic.app.curve;
             if(c!=null) {

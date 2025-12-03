@@ -45,4 +45,4 @@
  public final int getWidth();
  }
 
--whyareyoukeeping class tk.glucodata.Log 
+-whyareyoukeeping class tk.glucodata.Log

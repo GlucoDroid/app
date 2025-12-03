@@ -355,14 +355,27 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
 
        double newvalue;
        if(algcontext) {
-           if(current>1&&value<3000.0&&(newvalue= process2(index,value,temp))>1.8&&(index%5==0)) {
-                sens->getinfo()->pollinterval=newvalue-value;
+           if(current>1&&value<3000.0) {
+                double computed_val = process2(index,value,temp);
+                 // Fix for Sibionics 2 sensor going into error mode with crazy calibration values
+                if(computed_val > 50.0 || computed_val < 0.0) {
+                     LOGGER("SIprocess sanity check failed: index=%d temp=%f value=%f computed=%f. Forcing reset.", index, temp, value, computed_val);
+                     this->reset(sens); // Call the new reset method
+                     return 0LL; // Indicate failure for this data point, context is reset
                 }
-           else {
-             if(sens->getinfo()->pollinterval<40) 
-                    newvalue=value+sens->getinfo()->pollinterval;
-             }
-             }
+                
+                if((newvalue= computed_val)>1.8&&(index%5==0)) {
+                    sens->getinfo()->pollinterval=newvalue-value;
+                }
+                else {
+                    if(sens->getinfo()->pollinterval<40) 
+                        newvalue=value+sens->getinfo()->pollinterval;
+                }
+           }
+           else   {
+                newvalue=value;
+           }
+       }
        else   {
            LOGAR("algcontext==null");
             newvalue=value;
@@ -374,7 +387,7 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
            const int totalIndex=sens->siAddedIndex(index);
            LOGGER("totalIndex=%d index=%d temp=%f value=%f newvalue=%f trend=(%d?) %d %d %1.f itime=%" PRIu64 " %s" ,totalIndex,index,temp,value,newvalue,trend,trend2,abbottrend,change,eventTime,ctime(&eventTime));
           if(newvalue>1.8&&newvalue<30) {
-               sens->savestream(eventTime,totalIndex,mgdL,abbottrend,change);
+               sens->savestream(eventTime,totalIndex,mgdL,abbottrend,change, (int)current);
                sens->setSiIndex(index+1);
                sens->retried=0;
                if(!reindex)  {
@@ -384,7 +397,12 @@ jlong SiContext::processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *dat
                             LOGGER("SIprocess finished=%d\n", sensor->finished);
                             backup->resensordata(sensorindex);
                             }
-                     auto res=glucoseback(eventTime,mgdL,change,sens);
+                     
+                     int notifyMgdL = mgdL;
+                     if (sens->getinfo()->viewMode == 1) {
+                         notifyMgdL = std::round(value * convfactordL);
+                     }
+                     auto res=glucoseback(eventTime,notifyMgdL,change,sens);
 /*                     if(!(index%5))  {
                         if(algcontext)
                             savejson(sens,sens->statefile,index,algcontext,getjson2);

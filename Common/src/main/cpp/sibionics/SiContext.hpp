@@ -46,6 +46,8 @@ public:
     jlong processData2(SensorGlucoseData *sens,time_t nowsecs,data_t *data,int sensorindex) ;
 #endif
    ~SiContext();
+   void reset(SensorGlucoseData *sens);
+   void resetAll(SensorGlucoseData *sens);
 
     };
 #endif

@@ -432,14 +432,6 @@ static private void newsensor(Activity act,String text,String name) {
         Button ok=getbutton(act,R.string.ok);
 
         Layout lay=new Layout(act, (l, w, h) -> {
-           int wid=GlucoseCurve.getwidth()- systembarRight-systembarLeft;
-            if(wid>w)
-                l.setX((wid-w)*.5f+systembarLeft);
-            var hei=metrics.heightPixels-systembarBottom;
-            if(hei>h) {
-                l.setY((hei-h)*.5f);
-                }
-
                 return new int[] {w,h};
             },new View[]{nameview},new View[]{tv},new View[]{calBox},new View[]{ok});
             ok.setOnClickListener(v->{
@@ -452,7 +444,18 @@ static private void newsensor(Activity act,String text,String name) {
                 });
         lay.setPadding(pad,pad,pad,pad);
         lay.setBackgroundColor(Applic.backgroundcolor);
-        act.addContentView(lay, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            lay.setOnApplyWindowInsetsListener((v, insets) -> {
+                int top = insets.getSystemWindowInsetTop();
+                int bottom = insets.getSystemWindowInsetBottom();
+                v.setPadding(insets.getSystemWindowInsetLeft() + pad, top + pad, insets.getSystemWindowInsetRight() + pad, bottom + pad);
+                return insets.consumeSystemWindowInsets();
+            });
+        }
+        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
+        params.gravity = android.view.Gravity.CENTER;
+        act.addContentView(lay, params);
     });
     }
 static boolean askcalendar=true;

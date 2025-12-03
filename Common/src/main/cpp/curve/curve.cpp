@@ -671,7 +671,7 @@ template <class TX,class TY>   void  JCurve::showScan(NVGcontext* avg,const Scan
 
     }
 
-template <class TX,class TY> void JCurve::showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high,  const TX &transx,  const TY &transy,const int colorindex,bool search
+template <class TX,class TY> void JCurve::showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high, const RawData *rawLow, const TX &transx,  const TY &transy,const int colorindex,bool search, bool useRaw, bool forceMainColor
 ) { 
 #ifdef SI5MIN
    uint32_t dif=isSibionics?8*60:pollgapdist;
@@ -741,15 +741,23 @@ template <class TX,class TY> void JCurve::showlineScan(NVGcontext* avg,const Sca
     bool restart=true;
     nvgBeginPath(avg);
     const NVGcolor *col=getcolor(colorindex);
+    if(useRaw && !forceMainColor) col = getdarkgray();
     nvgStrokeColor(avg, *col);
     nvgFillColor(avg,*col);
-    nvgStrokeWidth(avg, pollCurveStrokeWidth);
+    nvgStrokeWidth(avg, pollCurveStrokeWidth * (useRaw ? 0.7f : 1.0f));
     uint32_t late=0;
     float startx=-1000,starty=-1000;
     for(const ScanData *it=low;it!=high;it++) {
         if(it->valid()) {
             const uint32_t tim= it->t;
-            const auto glu=it->g*10;
+            
+            uint16_t raw = 0;
+            if (rawLow) {
+                 raw = (rawLow + (it - low))->raw;
+            }
+            
+            const auto glu= useRaw ? (raw * convfactordL) : (it->g*10);
+            if (useRaw && raw == 0) continue;
             const auto posx= transx(tim),posy=transy(glu);
 /*#ifndef NOLOG
 time_t ttim=tim;
@@ -1388,7 +1396,7 @@ void       JCurve::showbluevalue(NVGcontext* avg,const time_t nu,const int xpos,
 LOGGER("showbluevalue %zd\n",used.size());
     
     // Define portrait here
-    bool portrait=false;
+    bool portrait=true;
 #ifndef WEAROS
     if(height>width) portrait=true;
 #endif
@@ -1443,7 +1451,7 @@ LOGGER("showbluevalue %zd\n",used.size());
 
         float final_getx=getx;
         if(portrait) {
-            final_getx=width/2.0f;
+            final_getx=width/2.0f + 40.0f * density;
         }
 
 constexpr const bool showcurrentdate=true;
@@ -1777,7 +1785,7 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
             #endif
             const auto cali=caliSpans[i];
             if(cali.second>cali.first) {
-                showlineScan(avg,cali.first,cali.second,transx,transy,colorindex,search);
+                showlineScan(avg,cali.first,cali.second,nullptr,transx,transy,colorindex,search, false, false);
                 }
             }
         }
@@ -1792,7 +1800,21 @@ displaytime disp=getdisplaytime(nu,starttime2,endtime, transx);
             #else 
                 bool search=false;
             #endif
-            showlineScan(avg,pollranges[i].first,pollranges[i].second,transx,transy,colorindex,search);
+            
+            const auto *sens = sensors->getSensorData(index);
+            const RawData *rawBase = sens ? sens->getRawPollsData() : nullptr;
+            const RawData *rawLow = rawBase ? (rawBase + (pollranges[i].first - sens->getPollsData())) : nullptr;
+            
+            int viewMode = sens ? sens->getinfo()->viewMode : 0;
+            
+            if (viewMode == 1) {
+                 showlineScan(avg,pollranges[i].first,pollranges[i].second,rawLow,transx,transy,colorindex,search, true, true);
+            } else {
+                 showlineScan(avg,pollranges[i].first,pollranges[i].second,rawLow,transx,transy,colorindex,search, false, false);
+                 if (viewMode == 2) {
+                     showlineScan(avg,pollranges[i].first,pollranges[i].second,rawLow,transx,transy,colorindex,search, true, false);
+                 }
+            }
              }
         }
     LOGAR("before showscans");
@@ -2024,8 +2046,23 @@ void    JCurve::startstepNVG(NVGcontext* avg,int width, int height) {
 
 void    JCurve::showvalue(NVGcontext* avg, const ScanData *poll,const SensorGlucoseData *hist, float getx,float gety,int index,uint32_t nu) {
     if(!poll) return;
-    int32_t mgdL=poll->getmgdL();
-    float glu=gconvert(mgdL*10);
+    
+    int viewMode = hist->getinfo()->viewMode;
+    // 0: Auto, 1: Raw, 2: Auto+Raw
+    uint16_t raw = hist->getRawForPoll(poll);
+    bool useRawAsMain = (viewMode == 1 && raw > 0);
+    
+    // Calculate main value to display
+    int32_t mainVal;
+    if (useRawAsMain) {
+        // Convert raw (mmol*10) to sputnik (mmol*180 or mgdL*10)
+        // convfactordL is ~18. raw * 18 -> sputnik.
+        mainVal = (int32_t)(raw * convfactordL);
+    } else {
+        mainVal = poll->getmgdL() * 10;
+    }
+    
+    float glu=gconvert(mainVal);
     char buf[64];
     int len=snprintf(buf,64,gformat,glu);
     nvgFontSize(avg,headsize);
@@ -2033,13 +2070,28 @@ void    JCurve::showvalue(NVGcontext* avg, const ScanData *poll,const SensorGluc
     nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
     nvgText(avg,getx,gety,buf,buf+len);
     
+    // Draw raw value as secondary if Auto+Raw (2)
+    if(viewMode == 2 && raw > 0) {
+        float rawval = raw / 10.0f;
+        char buf2[32];
+        int len2 = snprintf(buf2, 32, "%.1f", rawval);
+        nvgFontSize(avg, headsize * 0.4f);
+        nvgFillColor(avg, nvgRGBA(128,128,128,255));
+        nvgText(avg, getx, gety + headsize * 0.6f, buf2, buf2+len2);
+    }
+
     // Trend arrow
     if(poll->tr) {
-        const auto trend=usedtext->getTrendName(poll->tr);
-        if(!trend.empty()) {
-             // simplified trend display
-             nvgText(avg, getx+len*headsize*0.6f, gety, trend.data(), trend.data()+trend.size());
+        float rate = 0.0f;
+        switch(poll->tr) {
+            case 1: rate = -2.0f; break; // ↓
+            case 2: rate = -1.0f; break; // ↘
+            case 3: rate = 0.0f; break;  // →
+            case 4: rate = 1.0f; break;  // ↗
+            case 5: rate = 2.0f; break;  // ↑
         }
+        // Draw graphical arrow instead of text to avoid encoding issues
+        drawarrow(avg, rate, getx + len*headsize*0.6f + 20.0f * density, gety);
     }
 }
 
@@ -2074,26 +2126,14 @@ void    JCurve::showvalue(NVGcontext* avg, const ScanData *poll,const SensorGluc
 #else
         float gety=smallsize*1.4f+dtop+(dheight-smallsize*.8f)*yh/(usedsize*2.0f);
 #endif
-        bool portrait=false;
-#ifndef WEAROS
-        if(height>width) portrait=true;
-#endif
+        
         if(portrait) {
-             float top_panel_height = dtop;
-             // Draw in top third (0 to dtop).
-             // We want to distribute items vertically in the top panel.
-             // yh is i*2+1. usedsize*2.0f is total slots.
-             // Standard formula: start + height * ratio.
-             // Top panel start is 0 (or small margin).
-             // Top panel height is dtop.
-             // Leave some space at top for date/time (which is around smallfontlineheight*2).
-             float top_margin = smallfontlineheight*3.0f; // Approx space for date/IOB
-             if(top_panel_height > top_margin) {
-                 float available_height = top_panel_height - top_margin;
-                 gety = top_margin + available_height*yh/(usedsize*2.0f);
-             } else {
-                 gety = top_panel_height*yh/(usedsize*2.0f); // Fallback if tight
-             }
+             // Ensure gety (middle of text) is below status bar (dtop) plus half headsize.
+             // Increased margin to ensure no overlap
+             float safe_top = dtop + headsize + 20.0f * density;
+             if (safe_top < 100.0f * density) safe_top = 100.0f * density; 
+             
+             gety = safe_top + (i * headsize * 1.2f);
         }
 
         const ScanData *poll=hist->lastValidStream();

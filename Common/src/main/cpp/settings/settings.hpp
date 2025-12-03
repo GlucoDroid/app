@@ -810,7 +810,8 @@ Settings(const char *settingsname,const char *base,const char *country): Mmap(se
                                      data()->update=1;
                                      mklabels();
                                      mkalarms();
-                                     data()->logcat=true;
+                                     data()->logcat=false;
+                                      data()->nolog  = true;
                       #ifdef WEAROS
                                      data()->orientation=1;
                       #else
@@ -953,7 +954,7 @@ void setconvert(const char *country) {
             unit=getunit(country);
         else
             unit=3;
-        setalarms(39*18,13*180,true,true,true,true);
+        setalarms(39*18,13*180,false,false,false,false);
         setranges(3*180,12*180,39*18,10*180);
         }
     else {

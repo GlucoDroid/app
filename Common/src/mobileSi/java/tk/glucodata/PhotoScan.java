@@ -106,8 +106,6 @@ private static void asktransmitter(MainActivity act,String name,long sensorptr) 
     int height = GlucoseCurve.getheight();
     int width = GlucoseCurve.getwidth();
     var layout=new Layout(act,(l,w,h)->{
-         l.setX((width-w)*.5f);
-         l.setY((height-h)*.3f);
          return new int[] {w,h};
            },new View[]{title},new View[]{message},new View[]{cancel,reset,ok});
     ok.setOnClickListener(v-> {
@@ -124,7 +122,18 @@ private static void asktransmitter(MainActivity act,String name,long sensorptr) 
    final int rand=(int)tk.glucodata.GlucoseCurve.metrics.density*10;
    final int siderand=(int)tk.glucodata.GlucoseCurve.metrics.density*20;
    layout.setPadding(siderand,rand,siderand,rand);
-   act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
+   
+   if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        layout.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top = insets.getSystemWindowInsetTop();
+            int bottom = insets.getSystemWindowInsetBottom();
+            v.setPadding(insets.getSystemWindowInsetLeft() + siderand, top + rand, insets.getSystemWindowInsetRight() + siderand, bottom + rand);
+            return insets.consumeSystemWindowInsets();
+        });
+    }
+    android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(WRAP_CONTENT,WRAP_CONTENT);
+    params.gravity = android.view.Gravity.CENTER;
+    act.addContentView(layout, params);
     }
 
 private static void selectType(String name,long sensorptr,MainActivity act) {
@@ -143,8 +152,6 @@ private static void selectType(String name,long sensorptr,MainActivity act) {
    final int rand=(int)tk.glucodata.GlucoseCurve.metrics.density*15;
    group.setPadding(rand,rand,(int)tk.glucodata.GlucoseCurve.metrics.density*25,(int)tk.glucodata.GlucoseCurve.metrics.density*20);
    var layout=new Layout(act,(l,w,h)->{
-         l.setX((width-w)*.5f);
-         l.setY((height-h)*.3f);
          return new int[] {w,h};
            },new View[]{group},new View[]{ok});
    layout.setBackgroundColor(Applic.backgroundcolor);
@@ -164,8 +171,17 @@ private static void selectType(String name,long sensorptr,MainActivity act) {
    ok.setOnClickListener(v-> {
         MainActivity.doonback();
         });
-
-    act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT,WRAP_CONTENT));
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        layout.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top = insets.getSystemWindowInsetTop();
+            int bottom = insets.getSystemWindowInsetBottom();
+            v.setPadding(insets.getSystemWindowInsetLeft(), top, insets.getSystemWindowInsetRight(), bottom + rand);
+            return insets.consumeSystemWindowInsets();
+        });
+    }
+    android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(WRAP_CONTENT,WRAP_CONTENT);
+    params.gravity = android.view.Gravity.CENTER;
+    act.addContentView(layout, params);
     }
 
 static long wasdataptr=0L;

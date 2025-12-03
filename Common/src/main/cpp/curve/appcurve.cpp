@@ -23,9 +23,17 @@ static int nrmenu=0,selmenu=0;
 struct lastscan_t scantoshow={-1,nullptr}; 
 extern bool makepercetages() ;
 
+static void showhistory(SensorGlucoseData *hist,const float tapx, const float tapy); // Forward declaration
+
 extern bool hasnetwork();
 
-bool bluetoothEnabled();
+extern bool bluetoothEnabled();
+
+// Declare JNI-related globals for calling Java methods
+extern JNIEnv *getenv(); // From javacurve.cpp
+extern jclass JNIApplic, JNIMainActivity; // From javacurve.cpp
+extern jmethodID jopenSettingsPanel, jopenSensorListPanel, jlaunchQrScan; // From javacurve.cpp
+
 float                JCurve::getboxwidth(const float x) {
                     return std::max((float)(dwidth-x-smallsize),dwidth*.25f);
                     }
@@ -392,6 +400,46 @@ static int64_t menutap(float x,float y) {
     return -1LL;    
     }
 
+void JCurve::drawBottomBar(NVGcontext* vg) {
+    float barHeight = 50.0f * density;
+    float y = height - dbottom - barHeight;
+    float w = width;
+    
+    nvgBeginPath(vg);
+    nvgRect(vg, 0, y, w, barHeight);
+    nvgFillColor(vg, *getmenucolor());
+    nvgFill(vg);
+    
+    nvgFontSize(vg, smallsize);
+    nvgFillColor(vg, *getmenuforegroundcolor());
+    nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+    
+    const char* labels[] = {"Settings", "Sensor", "Scan QR", "<", ">"};
+    int count = 5;
+    
+    bool can_forward = starttime < maxstarttime();
+    if (!can_forward) count--;
+    
+    float btnWidth = w / count;
+    float textY = y + barHeight / 2.0f;
+    
+    for(int i=0; i<count; ++i) {
+        float x = i * btnWidth + btnWidth / 2.0f;
+        const char* label = labels[i];
+        
+        nvgText(vg, x, textY, label, NULL);
+        
+        if(i > 0) {
+             nvgBeginPath(vg);
+             nvgMoveTo(vg, i*btnWidth, y);
+             nvgLineTo(vg, i*btnWidth, y+barHeight);
+             nvgStrokeColor(vg, *getmenuforegroundcolor());
+             nvgStrokeWidth(vg, 1.0f);
+             nvgStroke(vg);
+        }
+    }
+}
+
 void JCurve::unhide() {
     LOGGER("unhide %d\n",hidden.size());
     for(int index:hidden) {
@@ -400,6 +448,45 @@ void JCurve::unhide() {
         } 
      }
 int64_t JCurve::screentap(float x,float y) {
+    float barHeight = 50.0f * density;
+    float barY = height - dbottom - barHeight;
+    if (y > barY && y < height - dbottom) {
+         int count = 5;
+         bool can_forward = starttime < maxstarttime();
+         if (!can_forward) count--;
+         float btnWidth = width / count;
+         int idx = (int)(x / btnWidth);
+         
+         if (idx == 0) { // Settings
+             if (JNIMainActivity && jopenSettingsPanel) {
+                 getenv()->CallStaticVoidMethod(JNIMainActivity, jopenSettingsPanel);
+             } else {
+                 LOGAR("Settings panel JNI method not available");
+             }
+             return -1LL; // Consume the tap
+         } else if (idx == 1) { // Sensor
+             if (JNIMainActivity && jopenSensorListPanel) {
+                 getenv()->CallStaticVoidMethod(JNIMainActivity, jopenSensorListPanel);
+             } else {
+                 LOGAR("Sensor list JNI method not available");
+             }
+             return -1LL; // Consume the tap
+         } else if (idx == 2) { // Scan
+             if (JNIMainActivity && jlaunchQrScan) {
+                 getenv()->CallStaticVoidMethod(JNIMainActivity, jlaunchQrScan);
+             } else {
+                 LOGAR("QR Scan JNI method not available");
+             }
+             return -1LL; // Consume the tap
+         } else if (idx == 3) { // Back
+             prevscr();
+             return -1LL;
+         } else if (idx == 4 && can_forward) { // Forward
+             nextscr();
+             return -1LL;
+         }
+    }
+
     if(hasHidden) {
        if(!(x<hidepos.left||x>=hidepos.right|| y<hidepos.top||y>=hidepos.bottom)) {
             unhide();
@@ -1804,6 +1891,9 @@ tapx=-8000;
           showtext( avg ,nu,selmenu) ;
            }
         }
+    
+    drawBottomBar(avg);
+
     tapx=-8000;
 
 
@@ -2005,7 +2095,11 @@ void JCurve::resizescreen(int widthin, int heightin,int initscreenwidth) {
     width=widthin;
     height=heightin;
     LOGGER("resize(%d,%d)\n",width,height);
+    dleft=statusbarleft; // Use statusbarleft for left margin
+    dtop=statusbarheight; // Ensure top margin respects status bar
+    dright=statusbarright; // Use statusbarright for right margin
     dwidth=width-dleft-dright; //Display area for graph in pixels
+    dheight=height-dtop-dbottom; // Update dheight
 
     textheight=density*48;
     int times=ceil(height/textheight);

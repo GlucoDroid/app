@@ -24,6 +24,7 @@ typedef struct NVGcontext NVGcontext;
 //typedef struct NVGcolor NVGcolor;
 struct displaytime; 
 struct ScanData;
+struct RawData;
 struct NumHit;
 struct Num;
 template <class T> struct NumIter;
@@ -203,7 +204,7 @@ void setdiffcurrent(bool val) {
     void    showfromstart(NVGcontext* avg);
      void    shownumlist(NVGcontext* avg);
 
-    template <class TX,class TY> void showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high,  const TX &transx,  const TY &transy,const int colorindex,bool search); 
+    template <class TX,class TY> void showlineScan(NVGcontext* avg,const ScanData *low,const ScanData *high, const RawData *rawLow, const TX &transx,  const TY &transy,const int colorindex,bool search, bool useRaw=false, bool forceMainColor=false); 
 void setfontsize(float small,float menu,float density,float headin);
 void resizescreen(int widthin, int heightin,int initscreenwidth);
 void withbottom();
@@ -365,6 +366,7 @@ template <int N=1> const Num *findforward();
 bool hasHidden=false;
 void    showHideButton(NVGcontext* avg);
 void unhide();
+void drawBottomBar(NVGcontext* vg);
 bool allvalues=false;
 };
 struct AppCurve:JCurve {

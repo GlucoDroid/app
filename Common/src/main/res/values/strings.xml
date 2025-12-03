@@ -1,7 +1,7 @@
 <resources>
     <string name="language">en</string>
     <string name="languagename">Language</string>
-    <string name="app_name">Juggluco</string>
+    <string name="app_name">JugglucoNG</string>
 
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
@@ -230,7 +230,7 @@
  <string name="deletereminder">Delete reminder?</string>
  <string name="deletelabel">Delete label?</string>
 
- <string name="finish">Terminate</string>
+ <string name="finish">Disconnect</string>
  <string name="finishsensormessage">Stop using this sensor for streaming?</string>
  
  <string name="email">E-Mail:</string>

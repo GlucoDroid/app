@@ -80,6 +80,10 @@ class bluediag {
 
 static  boolean returntoblue=false;
 final static private String LOG_ID="bluediag";
+Button clearbutton;
+Button clearAllButton;
+Spinner calibSpinner;
+View calibRow;
 private static  DateFormat fname;
 public static void mktimeformat() {
         fname= new SimpleDateFormat("MM-dd HH:mm:ss", Locale.US );
@@ -185,12 +189,21 @@ void showinfo(final SuperGattCallback gatt,MainActivity act) {
        streamhistory.setVisibility(VISIBLE);
       alarmclock.setVisibility(GONE);
       resetbutton.setVisibility(GONE);
+      if(clearbutton!=null) clearbutton.setVisibility(GONE);
         }
     else  {
       streamhistory.setVisibility(GONE);
       alarmclock.setVisibility(gatt.sensorgen==0x40?VISIBLE:GONE);
       final boolean resetvis=gatt.sensorgen==0x10&&Natives.getSiSubtype(gatt.dataptr)==3;
       resetbutton.setVisibility(resetvis?VISIBLE:GONE);
+      if(clearbutton!=null) clearbutton.setVisibility(resetvis?VISIBLE:GONE);
+      if(clearAllButton!=null) clearAllButton.setVisibility(resetvis?VISIBLE:GONE);
+      if(calibRow!=null) {
+          calibRow.setVisibility(resetvis?VISIBLE:GONE);
+          if(resetvis && calibSpinner!=null) {
+              calibSpinner.setSelection(Natives.getViewMode(gatt.dataptr));
+          }
+      }
       }
 
     starttimeV.setText(datestr(gatt.starttime));
@@ -370,7 +383,7 @@ help.setOnClickListener(v-> helplight(R.string.sensorhelp,act));
    {if(doLog) {Log.i(LOG_ID,"density="+GlucoseCurve.metrics.density);};};
 
       if(!isWearable)
-          bluestate.setPadding(pads,0,0,0);
+          bluestate.setPadding(pads,100,0,0);
    layout.setPadding(pads,pads,pads,pads);
    act.addContentView(layout, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
 
@@ -458,7 +471,7 @@ bluediag(MainActivity act,final ArrayList<SuperGattCallback> gatts) {
     {if(doLog) {Log.i(LOG_ID,"info.setVisibility(INVISIBLE);");};};
     info.setVisibility(INVISIBLE);
     int width2=GlucoseCurve.getwidth();
-    HorizontalScrollView addscroll2=null;
+    View addscroll2=null;
     if(isWearable) {
         HorizontalScrollView scroll= view.findViewById(R.id.background);
         scroll.setSmoothScrollingEnabled(false);
@@ -471,23 +484,22 @@ bluediag(MainActivity act,final ArrayList<SuperGattCallback> gatts) {
         }
     else {
         measuredgrid grid=view.findViewById(R.id.grid);
-        final var addscroll= new HorizontalScrollView(act);
-        addscroll.addView(grid);
-        addscroll.setSmoothScrollingEnabled(false);
-       addscroll.setVerticalScrollBarEnabled(false);
-        addscroll.setHorizontalScrollBarEnabled(Applic.horiScrollbar);
+        final var horiz= new HorizontalScrollView(act);
+        horiz.addView(grid);
+        horiz.setSmoothScrollingEnabled(false);
+        horiz.setHorizontalScrollBarEnabled(Applic.horiScrollbar);
+        
+        final var vert= new android.widget.ScrollView(act);
+        vert.addView(horiz);
+        vert.setSmoothScrollingEnabled(false);
+        vert.setVerticalScrollBarEnabled(true);
+
         int heightU=GlucoseCurve.getheight();
-        addscroll.setMinimumHeight(heightU);
+        vert.setMinimumHeight(heightU);
         grid.setmeasure((l,w,h)-> {
-            int height=GlucoseCurve.getheight();
-            int width=GlucoseCurve.getwidth();
-            int y= height>h?((height-h)/2):0;
-            addscroll.setY(y);
-            int x=(width>w)?((width-w)/2):0;
-            addscroll.setX(x);
-                //    return new int[]{w,Math.min(h,height-y)};
+             // Logic removed; layout handled by Gravity and WindowInsets
         }); 
-        addscroll2=addscroll;
+        addscroll2=vert;
 
     }
 
@@ -581,6 +593,80 @@ else {
                 Applic.Toaster("Resetted ");
                 });
             });
+
+    ViewGroup parent = (ViewGroup) resetbutton.getParent();
+    if(parent != null) {
+        clearbutton = new Button(act);
+        clearbutton.setText("Clear");
+        int index = parent.indexOfChild(resetbutton);
+        parent.addView(clearbutton, index + 1);
+        clearbutton.setVisibility(GONE);
+
+        clearbutton.setOnClickListener(v -> {
+            Confirm.ask(act, "Clear Calibration", "Wipe all calibration data and restart algorithm?", () -> {
+                if (gatts != null && gatts.size() > gattselected) {
+                   final SuperGattCallback gatt = gatts.get(gattselected);
+                   if(gatt.sensorgen!=0x10 || Natives.getSiSubtype(gatt.dataptr)!=3) {
+                        Applic.Toaster("Not a Sibionics 2 sensor");
+                        return;
+                   }
+                   Natives.siClearCalibration(gatt.dataptr);
+                   // Natives.setResetSibionics2(gatt.dataptr, true);
+                   Applic.Toaster("Calibration Cleared");
+                }
+            });
+        });
+        
+        clearAllButton = new Button(act);
+        clearAllButton.setText("Clear all");
+        parent.addView(clearAllButton, index + 2);
+        clearAllButton.setVisibility(GONE);
+        clearAllButton.setOnClickListener(v -> {
+             Confirm.ask(act, "Factory Reset", "Clears all old data, calibrations, and resets the sensor?", () -> {
+                if (gatts != null && gatts.size() > gattselected) {
+                   final SuperGattCallback gatt = gatts.get(gattselected);
+                   if(gatt.sensorgen!=0x10 || Natives.getSiSubtype(gatt.dataptr)!=3) return;
+                   
+                   Natives.siClearAll(gatt.dataptr);
+                   // resetAll in C++ handles reset=true
+                   Applic.Toaster("Factory Reset Performed");
+                }
+             });
+        });
+        
+        android.widget.LinearLayout row = new android.widget.LinearLayout(act);
+        row.setOrientation(android.widget.LinearLayout.VERTICAL);
+        row.setPadding((int)(GlucoseCurve.metrics.density*10), 0, 0, 0);
+        
+        TextView label = new TextView(act);
+        label.setText("Calibration algorithm: ");
+        label.setTextColor(WHITE);
+        row.addView(label);
+        
+        calibSpinner = new Spinner(act);
+        String[] items = new String[]{"Auto", "Raw", "Auto + raw"};
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(act, android.R.layout.simple_spinner_dropdown_item, items);
+        calibSpinner.setAdapter(adapter);
+        row.addView(calibSpinner);
+        
+        parent.addView(row);
+
+        calibRow = row;
+        calibRow.setVisibility(GONE);
+        
+        calibSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                if (gatts != null && gatts.size() > gattselected) {
+                    final SuperGattCallback gatt = gatts.get(gattselected);
+                    if(gatt.sensorgen==0x10) {
+                        Natives.setViewMode(gatt.dataptr, pos);
+                        act.requestRender();
+                    }
+                }
+            }
+            public void onNothingSelected(AdapterView<?> p) {}
+        });
+    }
 
      if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
     priority.setOnCheckedChangeListener(
@@ -676,7 +762,20 @@ else {
 
       view.setBackgroundColor( Applic.backgroundcolor);
     show(act,showview);
-    act.addContentView(showview, new ViewGroup.LayoutParams( WRAP_CONTENT, WRAP_CONTENT));
+    
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        showview.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top = insets.getSystemWindowInsetTop();
+            int bottom = insets.getSystemWindowInsetBottom();
+            v.setPadding(insets.getSystemWindowInsetLeft(), top, insets.getSystemWindowInsetRight(), bottom);
+            return insets.consumeSystemWindowInsets();
+        });
+    }
+
+    android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    params.gravity = android.view.Gravity.CENTER;
+    act.addContentView(showview, params);
     var scheduled=Applic.scheduler.scheduleAtFixedRate( ()-> {
        {if(doLog) {Log.i(LOG_ID,"scheduled");};};
         act.runOnUiThread( ()-> { 

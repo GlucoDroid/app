@@ -124,6 +124,35 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setResetSibionics2)(JNIEnv *env, j
     auto *sens=stream->hist;
    sens->getinfo()->reset=val;
     }
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(siClearCalibration)(JNIEnv *env, jclass cl,jlong dataptr) {
+    if(!dataptr)
+        return;
+    sistream  *stream=reinterpret_cast<sistream *>(dataptr);
+    auto *sens=stream->hist;
+    if(sens) stream->sicontext.reset(sens);
+    }
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(siClearAll)(JNIEnv *env, jclass cl,jlong dataptr) {
+    if(!dataptr)
+        return;
+    sistream  *stream=reinterpret_cast<sistream *>(dataptr);
+    auto *sens=stream->hist;
+    if(sens) stream->sicontext.resetAll(sens);
+    }
+
+extern "C" JNIEXPORT void JNICALL fromjava(setViewMode)(JNIEnv *env, jclass cl, jlong dataptr, jint mode) {
+    if(!dataptr) return;
+    sistream *stream=reinterpret_cast<sistream *>(dataptr);
+    if(stream->hist) stream->hist->getinfo()->viewMode = mode;
+}
+
+extern "C" JNIEXPORT jint JNICALL fromjava(getViewMode)(JNIEnv *env, jclass cl, jlong dataptr) {
+    if(!dataptr) return 0;
+    sistream *stream=reinterpret_cast<sistream *>(dataptr);
+    if(stream->hist) return stream->hist->getinfo()->viewMode;
+    return 0;
+}
 /*
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getResetSibionics2)(JNIEnv *env, jclass cl,jlong dataptr) {
     if(!dataptr)
@@ -500,6 +529,77 @@ void SiContext::release() {
     LOGGER("releaseAlgorithmContext(%p)=%d notchinese=%d\n",algcontext,res,notchinese);
    delete algcontext;
     }
+void SiContext::reset(SensorGlucoseData *sens) {
+    LOGGER("SiContext::reset() called for sensor %s\n", sens->deviceaddress());
+    release(); // Properly destroy existing algorithm context
+
+    // Wipe the entire memory mapped file content to ensure no stale state persists
+    if (binState.map.data() && binState.map.size() > 0) {
+        memset(binState.map.data(), 0, binState.map.size());
+        LOGSTRING("SiContext::reset() zeroed out binState memory map.\n");
+    }
+    
+    binState.reset(); // Reset allocator headers
+    
+    // Force delete binState file to ensure fresh algorithm state on disk
+    unlink(sens->binstatefile.c_str());
+    // Also delete JSON backups to prevent reloading old state
+    unlink(sens->statefile.c_str());
+    unlink(pathconcat(sens->getsensordir(), "state3.json").c_str());
+    
+    auto *info = sens->getinfo();
+    
+    // Clear old calibration
+    info->caliNr = 0;
+    
+        // Note: Do NOT reset starttime, scancount, etc. to preserve history.
+        // Explicitly clear the reset flag to ensure we don't trigger a hardware reset accidentally.
+        info->reset = false;
+    
+        // Recreate algcontext with clean state
+        if (notchinese) {        algcontext = initAlgorithm2(sens, binState);
+    } else {
+        algcontext = initAlgorithm3(sens, binState);
+    }
+    LOGGER("SiContext::reset() recreated algcontext. New mNativeContext=%lld\n", algcontext ? algcontext->mNativeContext : 0LL);
+
+    LOGSTRING("SiContext::reset() FULL RESET completed. binState wiped & deleted, calibration cleared, algcontext recreated.\n");
+}
+
+void SiContext::resetAll(SensorGlucoseData *sens) {
+    LOGGER("SiContext::resetAll() called for sensor %s\n", sens->deviceaddress());
+    release(); 
+
+    if (binState.map.data() && binState.map.size() > 0) {
+        memset(binState.map.data(), 0, binState.map.size());
+    }
+    
+    binState.reset();
+    unlink(sens->binstatefile.c_str());
+    unlink(sens->statefile.c_str());
+    unlink(pathconcat(sens->getsensordir(), "state3.json").c_str());
+    
+    auto *info = sens->getinfo();
+    info->caliNr = 0;
+    
+    // FULL RESET: Wipe history counters
+    info->starttime = time(nullptr);
+    info->scancount = 0;
+    info->pollcount = 0;
+    info->starthistory = 0;
+    info->endhistory = 0;
+    
+    // TRIGGER SENSOR RESET
+    info->reset = true; 
+
+    if (notchinese) {
+        algcontext = initAlgorithm2(sens, binState);
+    } else {
+        algcontext = initAlgorithm3(sens, binState);
+    }
+    LOGSTRING("SiContext::resetAll() COMPLETE FACTORY RESET performed.\n");
+}
+
 SiContext::~SiContext() {
     release();
     };

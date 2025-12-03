@@ -208,16 +208,16 @@ private void startdisplay() {
       lightBars(!getInvertColors( ));
       }
     setContentView(curve);
-   try {
-      setRequestedOrientation(Natives.getScreenOrientation( ));
-       }
-   catch(       Throwable  error) {
-      String mess=error!=null?error.getMessage():null;
-      if(mess==null) {
-         mess="error";
-         }
-          Log.stack(LOG_ID ,mess,error);
-      }
+//   try {
+//      setRequestedOrientation(Natives.getScreenOrientation( ));
+//       }
+//   catch(       Throwable  error) {
+//      String mess=error!=null?error.getMessage():null;
+//      if(mess==null) {
+//         mess="error";
+//         }
+//          Log.stack(LOG_ID ,mess,error);
+//      }
     getlibrary.getlibrary(this);//after setfilesdir for settings
     handleIntent(getIntent());
     var langstring=getString(R.string.language);
@@ -256,6 +256,20 @@ boolean glversion() {
 //FragmentManager fragmentManager = getSupportFragmentManager();
 //public static boolean wearable=false;
 static MainActivity thisone=null;
+
+    public static void openSettingsPanel() {
+        tk.glucodata.settings.Settings.set(MainActivity.thisone);
+    }
+
+    public static void openSensorListPanel() {
+        // Launch the Sensor menu (Libre/Dexcom sensors) instead of Glucose Meter list
+        tk.glucodata.bluediag.start(MainActivity.thisone);
+    }
+
+    public static void launchQrScan() {
+        tk.glucodata.PhotoScan.scan(MainActivity.thisone, MainActivity.REQUEST_BARCODE);
+    }
+
 static void alarmsExact(Context context) {
     if(TargetSDK>30) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -528,11 +542,17 @@ static  String showmessage=null;
 static public int tryHealth=5;
 private static int resumenr=isRelease?10:2;
 static boolean tocalendarapp=false;
-    @Override
-    protected void onResume() {
-    if(doLog) {Log.i(LOG_ID,"onResume");};;
-    super.onResume();
-    if(curve!=null) {
+        @Override
+        protected void onResume() {
+            int nightModeFlags = getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            boolean isNight = nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            if (Natives.getInvertColors() != isNight) {
+                Natives.setInvertColors(isNight);
+                lightBars(!isNight);
+                requestRender();
+            }
+            if(doLog) {Log.i(LOG_ID,"onResume");};;
+            super.onResume();    if(curve!=null) {
         if(!curve.waitnfc) {
             {if(doLog) {Log.d(LOG_ID,"onResume setnfc");};};
             setnfc();

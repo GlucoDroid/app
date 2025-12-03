@@ -112,14 +112,23 @@ static    void show(MainActivity act,String text, long sensorptr) {
     var scroll=sensors.viewgroup;
     if(!isWearable) {
         scroll.setBackgroundResource(R.drawable.dialogbackground);
-        scroll.measure(WRAP_CONTENT, WRAP_CONTENT);
-        var width=GlucoseCurve.getwidth();
-        scroll.setX((width-scroll.getMeasuredWidth()+MainActivity.systembarLeft-MainActivity.systembarRight)*.5f);
         }
     else {
         scroll.setBackgroundColor(Applic.backgroundcolor);
         }
-    act.addContentView(sensors.viewgroup, new ViewGroup.LayoutParams(param,param));
+
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        sensors.viewgroup.setOnApplyWindowInsetsListener((v, insets) -> {
+             int top = insets.getSystemWindowInsetTop();
+             int bottom = insets.getSystemWindowInsetBottom();
+             v.setPadding(insets.getSystemWindowInsetLeft(), top, insets.getSystemWindowInsetRight(), bottom);
+             return insets.consumeSystemWindowInsets();
+        });
+    }
+
+    android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(param, param);
+    params.gravity = android.view.Gravity.CENTER;
+    act.addContentView(sensors.viewgroup, params);
     MainActivity.setonback(() -> {
             removeContentView(sensors.viewgroup);
             isVisible=false;
