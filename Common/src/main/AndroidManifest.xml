@@ -65,6 +65,7 @@
 
 
     <application
+        android:enableOnBackInvokedCallback="true"
         android:name=".Applic"
         android:allowBackup="false"
         android:debuggable="${debuggable}"
@@ -144,7 +145,7 @@
             android:exported="true"/>
 
         <service
-            android:name=".keeprunning"
+            android:name="tk.glucodata.keeprunning"
             android:enabled="true"
             android:exported="true"
             android:foregroundServiceType="connectedDevice" />

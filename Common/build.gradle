@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
 //    id "io.freefair.lombok" version "8.0.0-rc2"
 }
 
@@ -525,6 +526,12 @@ buildTypes {
     buildToolsVersion '36.1.0'
     buildFeatures {
         aidl true
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.15" // Compatible with Kotlin 2.0.21 used in project? Actually project uses 2.0.21, so compose compiler is built-in.
+        // Wait, for Kotlin 2.0+, we don't need kotlinCompilerExtensionVersion here if using the new plugin, but this project uses 'org.jetbrains.kotlin.android'.
+        // Let's stick to standard configuration for AGP 8.13
     }
        sourceSets {
        mobileLibre3SiDexGoogle {
@@ -641,6 +648,21 @@ dependencies {
      wearImplementation 'androidx.core:core-splashscreen:1.2.0-rc01'
      wearImplementation 'androidx.wear.protolayout:protolayout-external-protobuf:1.3.0'
     mobileImplementation 'com.google.android.material:material:1.13.0'
+    
+    // Compose Dependencies
+    def composeBom = platform('androidx.compose:compose-bom:2024.12.01')
+    implementation composeBom
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+
 configurations {
 mobileLibre3SiDexGoogleImplementation {}
 mobileLibre3SiDexNogoogleImplementation {}

@@ -26,6 +26,7 @@ public class GraphLine implements Parcelable {
     };
 //    @Getter
  //   @Setter
+    @Keep
     public List<GraphPoint> values;
   //  @Getter
    // @Setter

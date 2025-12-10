@@ -466,7 +466,7 @@ private     boolean scanStarter(long delayMillis) {
 long stopscantime=0L;
 private static final int startincreasedwait=300000;
 private int increasedwait=startincreasedwait;
-private void stopScan(boolean retry) {
+public void stopScan(boolean retry) {
         if(doLog) {Log.d(LOG_ID,"Stop scanning "+(retry?"retry":"don't retry"));};
         if(scanOnUI) {
             Applic.app.getHandler().removeCallbacks(this.scanRunnable);
@@ -505,13 +505,14 @@ private void stopScan(boolean retry) {
     }
 
 
-ArrayList<SuperGattCallback> gattcallbacks=new ArrayList<SuperGattCallback>();
+//    static final ArrayList<SuperGattCallback> gattcallbacks = new ArrayList<>();
+    public static final ArrayList<SuperGattCallback> gattcallbacks = new ArrayList<>();
 
-static  ArrayList<SuperGattCallback>  mygatts() {
-    if(blueone==null|| blueone.gattcallbacks.size()==0)
-        return null;
-    return blueone.gattcallbacks;
-    }
+    public static ArrayList<SuperGattCallback> mygatts() {
+        synchronized(gattcallbacks) {
+             return new ArrayList<>(gattcallbacks);
+            }
+        }
 private void removeDevice(String str) {
     for(int i=0;i<gattcallbacks.size();i++) {
         var gatt= gattcallbacks.get(i);
@@ -711,10 +712,9 @@ boolean updateDevicers() {
 //           scanStarter(0);
     }
 
-static boolean updateDevices() {
-    if(blueone==null) {
-        return false;
-        }
+    public static boolean updateDevices() {
+        {if(doLog) {Log.d(LOG_ID,"updateDevices");};};
+        if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {        }
     return  blueone.updateDevicers();
     }
 

@@ -81,17 +81,17 @@ public static boolean doGadgetbridge=false;
     //    private final UUID mCharacteristicUUID_ManufacturerNameString = UUID.fromString("00002a29-0000-1000-8000-00805f9b34fb");
 //    private final UUID mCharacteristicUUID_SerialNumberString = UUID.fromString("00002a25-0000-1000-8000-00805f9b34fb");
 //    private final UUID mSIGDeviceInfoServiceUUID = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb");
-    final long starttime = System.currentTimeMillis();
+    public final long starttime = System.currentTimeMillis();
    long connectTime=0L;
-    String SerialNumber;
+    public String SerialNumber;
     public String mActiveDeviceAddress;
-    long dataptr = 0L;
+    public long dataptr = 0L;
     public BluetoothDevice mActiveBluetoothDevice;
     long foundtime = 0L;
     protected BluetoothGatt mBluetoothGatt;
     boolean superseded=false;
     public final int sensorgen;
-    int readrssi=9999;
+    public int readrssi=9999;
     protected long sensorstartmsec;
 
 protected    SuperGattCallback(String SerialNumber,long dataptr,int gen) {
@@ -144,8 +144,8 @@ void shouldreconnect(long now) {
     }
 
     long[] constatchange = {0L, 0L};
-    String constatstatusstr = "";
-    String handshake = "";
+    public String constatstatusstr = "";
+    public String handshake = "";
     long[] wrotepass = {0L, 0L};
     long[] charcha = {0L, 0L};
 
@@ -488,10 +488,10 @@ public void searchforDeviceAddress() {
         dataptr = 0L;
          //sensorbluetooth=null;
     }
-    boolean streamingEnabled() {//TODO: libre3?
+    public boolean streamingEnabled() {//TODO: libre3?
         return Natives.askstreamingEnabled(dataptr);
         }
-    void finishSensor() {
+    public void finishSensor() {
         Natives.finishSensor(dataptr);
         }
     public void close() {

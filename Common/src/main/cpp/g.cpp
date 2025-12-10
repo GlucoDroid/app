@@ -48,10 +48,11 @@ sighandler_t bsd_signal(int signum, sighandler_t handler);
 //#include <sys/syscall.h>
 //#undef NOLOG
        #include "logs.hpp"
-       #include "inout.hpp"
+#include "inout.hpp"
 #include "libre2.hpp"
 #include "serial.hpp"
 #include "fromjava.h"
+#include "streamdata.hpp"
 
 #include "settings/settings.hpp"
 #include "datbackup.hpp"
@@ -935,6 +936,54 @@ extern "C" JNIEXPORT jlongArray JNICALL   fromjava(getlastGlucose)(JNIEnv *env, 
         }
     return nullptr;
     }
+
+extern double calibrateNow(const SensorGlucoseData *sens, const ScanData &value);
+
+extern "C" JNIEXPORT jlongArray JNICALL fromjava(getGlucoseHistory)(JNIEnv *env, jclass cl, jlong starttime) {
+    auto nu = time(nullptr);
+    const auto [hist, _] = getlaststream(nu);
+
+    if (!hist) return nullptr;
+
+    std::vector<jlong> result;
+    result.reserve(900);
+
+    auto polls = hist->getPolldata();
+    static const double convfactordL = 18.0182;
+
+    for (const auto& item : polls) {
+        if (item.valid() && item.t > starttime) {
+            double cali = calibrateNow(hist, item);
+            jlong valAuto;
+            jlong valRaw;
+
+            // Auto Value
+            if (!isnan(cali)) {
+                valAuto = (jlong)(cali * 10);
+            } else {
+                valAuto = (jlong)item.g * 10; 
+            }
+
+            // Raw Value
+            // Raw is stored in separate array 'rawpolls'
+            uint16_t rawVal = hist->getRawForPoll(&item);
+            // rawVal is 'current' (value*10 from eu.cpp)
+            // valRaw (mg/dL * 10) = (current / 10.0) * 18.0182 * 10 = current * 18.0182
+            valRaw = (jlong)(rawVal * convfactordL);
+
+            result.push_back((jlong)item.t);
+            result.push_back(valAuto);
+            result.push_back(valRaw);
+        }
+    }
+
+    if (result.empty()) return nullptr;
+
+    jlongArray jresult = env->NewLongArray(result.size());
+    env->SetLongArrayRegion(jresult, 0, result.size(), result.data());
+    return jresult;
+}
+
 jlong glucoseback(uint32_t nu,uint32_t glval,float drate,SensorGlucoseData *hist) {
         if(!glval) return 0LL;
         hist->setbluetoothOn(1);
@@ -1037,6 +1086,20 @@ extern "C" JNIEXPORT jstring JNICALL   fromjava(lastsensorname)(JNIEnv *envin, j
 extern "C" JNIEXPORT jlong JNICALL   fromjava(laststarttime)(JNIEnv *envin, jclass cl) {
     return sensors->laststarttime();
     }
+
+extern "C" JNIEXPORT jlong JNICALL fromjava(getSensorEndTime)(JNIEnv *env, jclass cl, jlong dataptr, jboolean official) {
+    if (!dataptr) return 0;
+    const streamdata *sdata = reinterpret_cast<const streamdata*>(dataptr);
+    const SensorGlucoseData *sens = sdata->hist;
+    
+    if (!sens) return 0;
+
+    if (official) {
+        return (jlong)sens->officialendtime() * 1000L;
+    } else {
+        return (jlong)sens->expectedEndTime() * 1000L;
+    }
+}
 
 extern std::vector<int> usedsensors;
 extern void setusedsensors() ;

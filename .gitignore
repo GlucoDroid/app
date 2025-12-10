@@ -29,3 +29,6 @@ BTautoconnect.patch
 Common/src/mobileSi/jniLibs/
 */mobileLibre*
 .idea/
+
+.gemini/
+gha-creds-*.json

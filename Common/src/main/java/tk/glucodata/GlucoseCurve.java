@@ -214,13 +214,17 @@ void getnumcontrol(MainActivity activity) {
 //     search.setImageResource( android.R.attr.actionModeWebSearchDrawable);
 
            search.setOnClickListener(v-> {
-           hidesave(numcontrol);
-        startsearch();
-        selectnumbers();
-        hidesave(scansearch);
-        hidesave(streamsearch);
-        hidesave(calibratedsearch);
-        hidesave(historysearch);
+               // Launch new Compose UI
+               // android.content.Intent intent = new android.content.Intent(activity, tk.glucodata.ui.ComposeUIActivity.class);
+               // activity.startActivity(intent);
+               
+//           hidesave(numcontrol);
+//        startsearch();
+//        selectnumbers();
+//        hidesave(scansearch);
+//        hidesave(streamsearch);
+//        hidesave(calibratedsearch);
+//        hidesave(historysearch);
            });
 //    s/\(first[^6]*.6\)/(int)(\1)/g
     search.setPadding((int)(first.getPaddingLeft()*.69),(int)(first.getPaddingTop()*.69),(int)(first.getPaddingRight()*.69),(int)(first.getPaddingBottom()*.69));

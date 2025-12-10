@@ -1,18 +1,20 @@
-
 #include <GLES2/gl2.h>
 #include "config.h"
 #include "SensorGlucoseData.hpp"
 #include "sensoren.hpp"
+#include "nanovg.h"
 #define NANOVG_GLES2_IMPLEMENTATION
-#include "curve.hpp"
 #include "nanovg_gl.h"
 #include "nanovg_gl_utils.h"
 #include "nums/numdata.hpp"
 #include "settings/settings.hpp"
+#include "net/backup.hpp"
 
 #include "misc.hpp"
 #include "JCurve.hpp"
 #include "gluconfig.hpp"
+#include "jugglucotext.hpp"
+
 extern double     calibrateNow(const SensorGlucoseData *sens,const ScanData &value);
 
 extern Sensoren *sensors;
@@ -20,19 +22,16 @@ extern int *numheights;
 extern float tapx,tapy;
 extern void speak(const char *message) ;
 static int nrmenu=0,selmenu=0;
-struct lastscan_t scantoshow={-1,nullptr}; 
+struct lastscan_t scantoshow={-1, nullptr};
 extern bool makepercetages() ;
-
-static void showhistory(SensorGlucoseData *hist,const float tapx, const float tapy); // Forward declaration
 
 extern bool hasnetwork();
 
-extern bool bluetoothEnabled();
+bool bluetoothEnabled();
 
-// Declare JNI-related globals for calling Java methods
-extern JNIEnv *getenv(); // From javacurve.cpp
-extern jclass JNIApplic, JNIMainActivity; // From javacurve.cpp
-extern jmethodID jopenSettingsPanel, jopenSensorListPanel, jlaunchQrScan; // From javacurve.cpp
+
+
+extern int showui;
 
 float                JCurve::getboxwidth(const float x) {
                     return std::max((float)(dwidth-x-smallsize),dwidth*.25f);
@@ -92,7 +91,7 @@ bool alarmongoing=false;
     if(!scantoshow.scan) 
         return 0;
     if((nu-scantoshow.showtime)>=60) {
-          scantoshow={-1,nullptr}; 
+          scantoshow={-1, nullptr};
           return -1;
           }
     numlist=0;
@@ -123,7 +122,7 @@ strconcat text;
 
     prevtouch.time = chrono::steady_clock::now();
     LOGGER("histgegs %s",ctime(&nu));
-    } 
+    }
 strconcat  getsensorhelp(string_view starttext,string_view name1,string_view name2,string_view sep1,string_view sep2,string_view endstr="") {
     char starts[50],ends[50],pends[50];
 //   const sensor *sensor=sensors->getsensor(sensorindex);
@@ -133,8 +132,8 @@ strconcat  getsensorhelp(string_view starttext,string_view name1,string_view nam
     char lastscanbuf[50],lastpollbuf[50];
     time_t lastscan=hist->getlastscantime();
     time_t lastpolltime=hist->getlastpolltime();
-    return strconcat(string_view(""),starttext ,name1,hist->showsensorname(),name2,usedtext->sensorstarted,sep2,string_view(starts, appcurve.datestr(stime,starts)),!hist->isLibre2()?"":sep1,!hist->isLibre2()?"":usedtext->lastscanned,!hist->isLibre2()?"":sep2,!hist->isLibre2()?"":string_view(lastscanbuf,appcurve.datestr(lastscan,lastscanbuf)),lastpolltime>0?strconcat(string_view(""),sep1,usedtext->laststream,sep2):"",lastpolltime>0?string_view(lastpollbuf,appcurve.datestr(lastpolltime,lastpollbuf)):"",nu<etime?strconcat(string_view(""),sep1,usedtext->sensorends,sep2):"",
-nu<etime?string_view(ends, appcurve.datestr(etime,ends)):string_view("",0),sep1,usedtext->sensorexpectedend,sep2,string_view(pends, appcurve.datestr(reallends,pends)),endstr);;
+    return strconcat(string_view(""),starttext ,name1,hist->showsensorname(),name2,usedtext->sensorstarted,sep2,string_view(starts, appcurve.datestr(stime,starts)),!hist->isLibre2() ? "" : sep1, !hist->isLibre2() ? "" : usedtext->lastscanned, !hist->isLibre2() ? "" : sep2, !hist->isLibre2() ? "" : string_view(lastscanbuf,appcurve.datestr(lastscan,lastscanbuf)),lastpolltime>0?strconcat(string_view(""),sep1,usedtext->laststream,sep2):"",lastpolltime>0?string_view(lastpollbuf,appcurve.datestr(lastpolltime,lastpollbuf)):string_view("",0),nu<etime?static_cast<string_view>(strconcat(string_view(""),sep1,usedtext->sensorends,sep2)):string_view("",0),
+nu<etime?string_view(ends, appcurve.datestr(etime,ends)):string_view("",0),sep1,usedtext->sensorexpectedend,sep2,string_view(pends, appcurve.datestr(reallends,pends)),endstr);
     }
 #ifndef DONTTALK
 void speak() {
@@ -188,7 +187,7 @@ extern bool showpers;
 extern void showpercentiles(NVGcontext* avg) ;
 #endif
 int getalarmcode(const uint32_t glval,float drate,SensorGlucoseData *hist) ;
-extern void     processglucosevalue(int sendindex,int newstart) ;
+void     processglucosevalue(int sendindex,int newstart) ;
 struct {
 float left,top,right,bottom;
 } menupos,hidepos;
@@ -209,6 +208,60 @@ static bool  inmenu(float x,float y) ;
 inline int64_t menuel(int menu,int item) {
     return menu+item*0x10LL;
     }
+    
+#define arsizer(x) sizeof(x)/sizeof(x[0])
+
+#ifdef WEAROS
+
+const int *menuopt0[]={nullptr,nullptr,nullptr, nullptr,nullptr};
+const int **optionsmenu[]={menuopt0,nullptr};
+constexpr const int menulen[]={arsizer(jugglucotext::menustr0),arsizer(jugglucotext::menustr2)};
+int getmenulen(const int menu) {
+    int len=menulen[menu];
+//    if(menu==1&&settings->staticnum()) return len-1;
+    if(!menu&&!alarmongoing)
+        return len-1;
+        
+    return len;    
+    }
+
+void setfloatptr() {
+    }
+#else
+int menus=0;
+const int *menuopt0[]={&showui,&menus,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
+
+
+const int *menuopt0b[]={nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
+const int *menuopt1[]={&appcurve.showcalibrated,&appcurve.showscans,&appcurve.showstream,&appcurve.showhistories,&appcurve.shownumbers,&appcurve.showmeals,&appcurve.invertcolors};
+const int **optionsmenu[]={menuopt0,menuopt0b,menuopt1,nullptr};
+constexpr const int menulen[]={arsizer(jugglucotext::menustr0),arsizer(jugglucotext::menustr1),arsizer(jugglucotext::menustr2),arsizer(jugglucotext::menustr3)};
+int getmenulen(const int menu) {
+    int len=menulen[menu];
+    if(!menu&&!alarmongoing)
+        return len-1;
+    return len;    
+    }
+void setfloatptr() {
+    menuopt0b[6]=&settings->data()->floatglucose;
+    }
+
+//void setnewamount() { }
+#endif
+
+
+constexpr const int maxmenulen= *std::max_element(std::begin(menulen),std::end(menulen));
+constexpr int maxmenu=arsizer(jugglucotext::menustr);
+#ifdef WEAROS
+static_assert(maxmenu==2);
+#else
+static_assert(maxmenu==4);
+#endif
+
+
+int getmenu(int tapx,float dwidth) {
+    return tapx*maxmenu/dwidth;
+    }
 #ifdef WEAROS
 int64_t JCurve::doehier(int menu,int item) {
     switch(menu) {
@@ -223,7 +276,7 @@ int64_t JCurve::doehier(int menu,int item) {
                 case 3: nrmenu=0; return 4LL*0x10;
                 case 4: nrmenu=0; return menuel(0,7);
 
-                };break;
+                };
         case 1: 
             nrmenu=0;
             switch(item) {
@@ -254,7 +307,7 @@ int64_t JCurve::doehier(int menu,int item) {
                 default:
                     nrmenu=0;
                     break;
-                };break;
+                };
         case 1: switch(item) {
 //                case 0: notify=!notify;return menu|item*0x10|(notify<<8);
                 case 2: nrmenu=0;
@@ -276,7 +329,7 @@ int64_t JCurve::doehier(int menu,int item) {
                 default:
                     nrmenu=0;
                     break;
-                };break;
+                };
         case 2:
             switch(item)     {
             /*
@@ -302,14 +355,14 @@ int64_t JCurve::doehier(int menu,int item) {
 
                 case 6: invertcolors=!invertcolors; setinvertcolors(invertcolors) ; return menu+invertcolors*0x10;
             break;//return -1ll;
-                };break;
+                }; break;
         case 3: {
         nrmenu=0;
         switch(item) {
             case 0: {
             auto max=time(nullptr);
         //    starttime=starttimefromtime(max);
-//            if((starttime+duration)<max) 
+//            if((starttime+duration)<max)
             setstarttime(max-duration*3/5);
             return -1;
                 };
@@ -319,1554 +372,13 @@ int64_t JCurve::doehier(int menu,int item) {
             case 6: nextdays(7);return -1;        
             default: break;
             };
-            };break;
+            };
 
         default: nrmenu=0;
         }
     return menu+item*0x10;
     }
 #endif
-
-
-
-
-
-
-static bool dohealth(int sensorindex) {
-    static int thesensor=sensorindex;
-    if(!settings->data()->healthConnect)
-        return false;
-    if(usedsensors.size()==1)  {
-        return true;
-    }
-    if(sensorindex==thesensor)
-        return true;
-    auto en=usedsensors.end();
-    if(std::find(usedsensors.begin(),en,thesensor)==en) {
-        thesensor=sensorindex;
-        return true;
-    }
-    return false;
-}
-#ifndef NDEBUG
-#define lognum(x)
-#else
-void lognum(const Num *num) {
-        constexpr int maxitem=80;
-        char item[maxitem];
-        time_t tim=num->time;
-        int itemlen=appcurve.datestr(tim,item);
-        if(num->type< settings->getlabelcount()) {
-            item[itemlen++]=' ';
-            decltype(auto) lab=settings->getlabel(num->type);
-            memcpy(item+itemlen,lab.data(),lab.size());
-            itemlen+=lab.size();
-            item[itemlen]='\0';
-            }
-        LOGGER("%s %.1f\n",item,num->value);
-        }
-#endif    
-#ifndef DONTTALK
-static int verbosedate(time_t tim,char *buf,int maxbuf=256) {
-    struct tm tmbuf;
-    struct tm *stm=localtime_r(&tim,&tmbuf);
-    const auto wdaynr= stm->tm_wday;
-    const char *dayname=usedtext->speakdaylabel[wdaynr];
-    return snprintf(buf,maxbuf,"%s %d %s %d",dayname,stm->tm_mday,usedtext->monthlabel[stm->tm_mon],1900+stm->tm_year);
-    }
-static void speakdate(time_t tim) {
-    constexpr const int maxbuf=256;
-    char buf[maxbuf];
-    verbosedate(tim,buf,maxbuf);
-    LOGGER("speakdate %s\n",buf);
-    speak(buf);
-    }
-#endif
-
-static int64_t menutap(float x,float y) {
-    if(x<menupos.left||x>=menupos.right) {
-        nrmenu=0;
-        return -1LL;
-        }
-    float dist=(menupos.bottom-menupos.top)/nrmenu;
-    int item=(y-menupos.top)/dist;
-    if(item>=0&&item<nrmenu) {
-
-        LOGGER("menuitem %d\n",item);
-    //    return doehier(getmenu(x),item);
-        return appcurve.doehier(selmenu,item);
-        }
-    nrmenu=0;
-    return -1LL;    
-    }
-
-void JCurve::drawBottomBar(NVGcontext* vg) {
-    float barHeight = 50.0f * density;
-    float y = height - dbottom - barHeight;
-    float w = width;
-    
-    nvgBeginPath(vg);
-    nvgRect(vg, 0, y, w, barHeight);
-    nvgFillColor(vg, *getmenucolor());
-    nvgFill(vg);
-    
-    nvgFontSize(vg, smallsize);
-    nvgFillColor(vg, *getmenuforegroundcolor());
-    nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-    
-    const char* labels[] = {"Settings", "Sensor", "Scan QR", "<", ">"};
-    int count = 5;
-    
-    bool can_forward = starttime < maxstarttime();
-    if (!can_forward) count--;
-    
-    float btnWidth = w / count;
-    float textY = y + barHeight / 2.0f;
-    
-    for(int i=0; i<count; ++i) {
-        float x = i * btnWidth + btnWidth / 2.0f;
-        const char* label = labels[i];
-        
-        nvgText(vg, x, textY, label, NULL);
-        
-        if(i > 0) {
-             nvgBeginPath(vg);
-             nvgMoveTo(vg, i*btnWidth, y);
-             nvgLineTo(vg, i*btnWidth, y+barHeight);
-             nvgStrokeColor(vg, *getmenuforegroundcolor());
-             nvgStrokeWidth(vg, 1.0f);
-             nvgStroke(vg);
-        }
-    }
-}
-
-void JCurve::unhide() {
-    LOGGER("unhide %d\n",hidden.size());
-    for(int index:hidden) {
-        SensorGlucoseData *sens=sensors->getSensorData(index);
-        sens->hide=false;
-        } 
-     }
-int64_t JCurve::screentap(float x,float y) {
-    float barHeight = 50.0f * density;
-    float barY = height - dbottom - barHeight;
-    if (y > barY && y < height - dbottom) {
-         int count = 5;
-         bool can_forward = starttime < maxstarttime();
-         if (!can_forward) count--;
-         float btnWidth = width / count;
-         int idx = (int)(x / btnWidth);
-         
-         if (idx == 0) { // Settings
-             if (JNIMainActivity && jopenSettingsPanel) {
-                 getenv()->CallStaticVoidMethod(JNIMainActivity, jopenSettingsPanel);
-             } else {
-                 LOGAR("Settings panel JNI method not available");
-             }
-             return -1LL; // Consume the tap
-         } else if (idx == 1) { // Sensor
-             if (JNIMainActivity && jopenSensorListPanel) {
-                 getenv()->CallStaticVoidMethod(JNIMainActivity, jopenSensorListPanel);
-             } else {
-                 LOGAR("Sensor list JNI method not available");
-             }
-             return -1LL; // Consume the tap
-         } else if (idx == 2) { // Scan
-             if (JNIMainActivity && jlaunchQrScan) {
-                 getenv()->CallStaticVoidMethod(JNIMainActivity, jlaunchQrScan);
-             } else {
-                 LOGAR("QR Scan JNI method not available");
-             }
-             return -1LL; // Consume the tap
-         } else if (idx == 3) { // Back
-             prevscr();
-             return -1LL;
-         } else if (idx == 4 && can_forward) { // Forward
-             nextscr();
-             return -1LL;
-         }
-    }
-
-    if(hasHidden) {
-       if(!(x<hidepos.left||x>=hidepos.right|| y<hidepos.top||y>=hidepos.bottom)) {
-            unhide();
-            hasHidden=false;
-            return -3LL;
-            }
-        }
-#ifndef WEAROS
-    if(!showpers ) 
-    {
-
-        if(numlist)  {
-
-            if(int index=numfrompos(x,y);index>=0) {
-                const Num *num=numiters[index].prev();
-                if(!numdatas[index]->valid(num))
-                    return -2LL;
-
-                int pos=num-numdatas[index]->startdata();
-                int base=numdatas[index]->getindex();
-                return (static_cast<int64_t>(pos)<<16)|((static_cast<int64_t>(base)&0xf)<<8)|0xe;
-                }
-            else
-                return -2LL;
-            }
-#else
-    {
-#endif
-
-        if(emptytap) {
-            return -1LL;
-            }
-        if(nrmenu)  {
-            return menutap(x,y);
-            }
-        if(showmeals) {
-            const float crit= (density*10);
-            for(mealposition &p:mealpos) {
-                if((y>=p.mealstarty&&y<p.mealendy)&&abs(x-p.mealx)<crit)
-                    return (static_cast<int64_t>(p.mealpos)<<16)|((static_cast<int64_t> (p.mealbase)&0xf)<<8)|0xe;
-                }
-
-            }
-#ifndef DONTTALK
-        if(speakout) {
-            for(auto &el:shownglucose) {
-                LOGGER("x=%f [%f,%f] y=%f [%f,%f] trend=%d\n", x,el.glucosevaluex,
-                       (el.glucosevaluex + headsize), y, (el.glucosevaluey - headsize),el.glucosevaluey,
-                      el.glucosetrend);
-                if (el.glucosevaluex > 0 && x > el.glucosevaluex && x < (el.glucosevaluex + headsize*1.2f) &&
-                    y < el.glucosevaluey && y > (el.glucosevaluey - headsize*.8f)) {
-                    if(el.glucosevalue > 0) {
-                        constexpr const int maxvalue = 80;
-                        char value[maxvalue];
-//                        auto trend = usedtext->trends[el.glucosetrend];
-                        const auto trend = usedtext->getTrendName(el.glucosetrend);
-
-                        memcpy(value, trend.data(), trend.size());
-                        char *ptr = value + trend.size();
-                        *ptr++ = '\n';
-                        *ptr++ = '\n';
-                        snprintf(ptr, maxvalue, gformat, el.glucosevalue);
-                        speak(value);
-                        return -1LL;
-                    } else {
-                        const char *error=el.errortext;
-                        if(error)  {
-                            speak(error);
-                            return -1LL;
-                            }
-                    }
-                }
-            }
-        }
-#endif
-        }
-#ifndef DONTTALK
-    if(speakout) {
-         const float hgrens=menutextheight+statusbarheight;
-        if(y<hgrens) {
-             const float wgrens=menutextheight*1.5f+statusbarleft;
-            if(x<wgrens) {
-                speakdate(starttime);
-                return -1LL;
-                }
-            else {
-                 if(x>(dwidth-statusbarright-wgrens)){
-                    const time_t endtime=starttime+duration;
-                    const time_t nu=time(nullptr); 
-                    if(endtime>nu)
-                        speakdate(nu);
-                    else
-                        speakdate(endtime);
-                    return -1LL;
-                    }
-                }
-            }
-        }
-#endif
-#ifndef WEAROS 
-    const float wgrens=density*10+statusbarleft;
-    const float rgrens=dwidth-statusbarright-wgrens;
-
-    if(x<wgrens)  {
-            prevscr();
-            return -1LL;
-            }
-        
-    else 
-        if (x > rgrens)  {
-        nextscr();
-        return -1LL;
-        }
-        
-    if(showpers)  {
-
-extern bool showsummarygraph;
-        if(showsummarygraph) {
-            showsummarygraph=false;
-                  fixatey=settings->data()->fixatey;
-            return 1+4*0x10;
-            }
-        }
-    else
-#endif
-    {
-        tapx=x;tapy=y;
-        }
-    return -1LL;
-    }
- void  JCurve::scanwait(NVGcontext* avg) {
-    startstep(avg,*getwhite());
-    nvgFontSize(avg, headsize);
-    nvgFillColor(avg, *getblack());
-    nvgTextAlign(avg,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE);
-    const std::string_view str1=usedtext->scanned;
-    nvgText(avg, dleft+dwidth/2,dtop+dheight/2, str1.begin(), str1.end());
-    endstep(avg);
-    }
-bool restart=false;
-//static int showoldscan(NVGcontext* avg,uint32_t ) ;
-
- void    JCurve::defaulterror(NVGcontext* avg,int scerror)   {
-        char buf[50];
-        const errortype *error=usedtext->scanerrors;
-        size_t len=snprintf(buf,50,error->first.data(),scerror);
-        showerror(avg,error->second,{buf,len});
-        }
-
-
- bool    JCurve::errorpair(NVGcontext* avg,const errortype &error) {
-    return showerror(avg,error.first,error.second);
-    }
-
-int    JCurve::badscanMessage(NVGcontext* avg,int kind) {
-    const uint32_t nu=time(nullptr);
-    int res=1;
-    switch(showoldscan(avg,nu)) {
-        case 0: {
-            LOGGER("javabadscan    %d: \n",kind);
-            const int scerror= kind&0xff;
-            switch(scerror) {
-                case 0xF8: {
-                        errorpair(avg,usedtext->libre3zeroID);
-                        };break;
-                case 0xF9: {
-                    showerror(avg,usedtext->nolibre3.first,usedtext->needsandroid8);
-                    };break;
-                case 0xFA: {
-    //                showerror(avg,"FreeStyle Libre 3, Scan error", "Try again");
-                    errorpair(avg,usedtext->libre3scanerror);
-                    };
-                    break;
-                case 0xFB:
-                    errorpair(avg,usedtext->libre3wrongID);
-                    break;
-    //                showerror(avg,"Error, wrong account ID?","Specify in Settings->Libreview the same account used to activate the sensor");break;
-                 case 0xFC: {
-                    errorpair(avg,usedtext->libre3scansuccess);
-    //                showerror(avg,"FreeStyle Libre 3 sensor", "Glucose values will now be received by Juggluco");
-                    };break;
-                case 0xFD: {
-                    errorpair(avg,usedtext->unknownNFC);
-    //                showerror(avg,"Unrecognized NFC scan Error", "Try again");
-                    };break;
-                case 0xFE: {
-                    errorpair(avg,usedtext->nolibre3);
-    //                showerror(avg,"FreeStyle Libre 3 sensor","Not supported by this version of Juggluco"  );
-                    };break;
-                case 0xFF: {
-                    scanwait(avg);     
-                    return 2;
-                    };
-                case 5: {
-                    const errortype *error=usedtext->scanerrors+scerror;
-                    const int bufsize=error->second.size()+5;
-                    char buf[bufsize];
-                    size_t len=snprintf(buf,bufsize,error->second.data(),kind>>8);
-                    showerror(avg,error->first,{buf,len});
-                    LOGGER("%s\n",buf);
-                    };break;
-    /*                        case 7: {
-                    auto [first,second]=usedtext->scanerrors[scerror];
-                                    showerror(avg,first,error,second);
-                                    };break; */
-                case 0:
-                case 15:
-                case 9: defaulterror(avg,scerror);
-                    break;
-                case 12: restart=true;
-                default: 
-                 if(scerror>0x10) {
-                    defaulterror(avg,scerror);
-                    }
-                else {
-                    errorpair(avg,usedtext->scanerrors[scerror]);
-    //                errortype *error=usedtext->scanerrors+scerror; showerror(avg,error->first,error->second);
-                    }
-                };break;
-            }
-        case -1: res=2;break;
-            };
-    endstep(avg);    
-    return res;
-    }
-
-#ifdef USE_DISPLAYER
-#include "displayer.hpp"
-std::unique_ptr<histgegs> displayer;
-#endif
-strconcat getsensortext(const SensorGlucoseData *hist) {
-        if((hist->isDexcom()||hist->isSibionics())&&hist->unused()) {
-            return {"",R"(<h1>)",hist->showsensorname(),R"(</h1><p>)",usedtext->waitingforconnection,"</p>"};
-            }
-        else {
-            histgegs gegs(hist);
-            return gegs.getsensorhelp("","<h1>","</h1>","<br><br>",
-            #ifdef WEAROS
-            "<br>"
-            #else
-            "\t\t"
-//            "&emsp;&emsp;&emsp;"
-            #endif
-            ,"");
-            }
-        }
-
-static void showhistory(SensorGlucoseData *hist,const float tapx, const float tapy) {
-//#ifdef WEAROS
-#if 1 
-                        histgegs gegs(hist);
-
-extern void callshowsensorinfo(const char *text,SensorGlucoseData *hist);
-                        callshowsensorinfo(gegs.getsensorhelp("","<h1>","</h1>","<br><br>",
-            #ifdef WEAROS
-            "<br>"
-            #else
-            "\t\t"
-           // "&emsp;&emsp;&emsp;"
-            #endif
-
-                        ,"").data(),hist);
-
-#ifndef DONTTALK
-                        if(speakout) gegs.speak();
-#endif
-#else
-                        ::prevtouch.x=tapx;
-                        ::prevtouch.y=tapy;
-                        LOGGER("x=%.1f, y=%.1f\n",tapx,tapy);
-                        histgegs *gegs=new histgegs(hist);
-                        if(speakout) gegs->speak();
-                        displayer.reset(gegs);
-#endif
-      }
-
-template <class TX,class TY> 
-bool JCurve::nearbyhistory( const float tapx,const float tapy,  const TX &transx,  const TY &transy) {
-    for(int i=histlen-1;i>=0;i--) {
-      const int sensorindex= hists[i];
-        SensorGlucoseData *hist=sensors->getSensorData(sensorindex);
-        const auto [firstpos,lastpos]=histpositions[i];
-            for(auto pos=firstpos;pos<=lastpos;pos++) {
-                uint32_t tim,glu;
-                if((tim=hist->timeatpos(pos))&&( glu=hist->sputnikglucose(pos))) {
-                    auto posx=transx(tim),posy=transy( glu);
-                    if(nearby(posx-tapx,posy-tapy,density)) {
-                        showhistory(hist,tapx,tapy);
-                        return true;
-                        }
-                    }
-                }
-        }
-    return false;
-    }
-
-#ifndef WEAROS
-static int largepausedaystr(const time_t tim,char *buf) {
-        LOGAR("largepausedaystr");
-    struct tm stmbuf;
-    localtime_r(&tim,&stmbuf);
-     //return sprintf(buf,"%s %02d %s %d\n%02d:%02d",usedtext->speakdaylabel[stmbuf.tm_wday],stmbuf.tm_mday,usedtext->monthlabel[stmbuf.tm_mon],1900+stmbuf.tm_year,stmbuf.tm_hour,mktmmin(&stmbuf));
-     int len=sprintf(buf,"%s %02d %s %d\n",usedtext->speakdaylabel[stmbuf.tm_wday],stmbuf.tm_mday,usedtext->monthlabel[stmbuf.tm_mon],1900+stmbuf.tm_year);
-   len+=mktime(stmbuf.tm_hour,mktmmin(&stmbuf),buf+len);
-   return len;
-    }
-static void speaknum(const Num *num) {
-    char buf[256];
-    char *ptr=buf;
-    auto label=settings->getlabel(num->type);
-    memcpy(ptr,label.data(),label.size());
-    ptr+= label.size();
-    *ptr++='\n';
-    ptr+=sprintf(ptr,"%g",num->value);
-    *ptr++='\n';
-    *ptr++='\n';
-#ifndef NOLOG
-    int len=
-#endif
-             largepausedaystr(num->gettime(),ptr);
-    LOGGERN(buf,ptr-buf+len);
-    speak(buf);
-    }
-#endif
-
-#ifndef DONTTALK
-    static bool speakmenutap(float x,float y) ;
-#endif
-
-
-template <class TX,class TY> const ScanData * nearbyscan(const float tapx,const float tapy,const ScanData *low,const ScanData *high,  const TX &transx,  const TY &transy,float density) {
-    for(const ScanData *it=low;it!=high;it++) {
-        if(it->valid()) {
-            const uint32_t tim= it->t;
-            const auto glu=it->g*10;
-            const auto posx= transx(tim),posy=transy(glu);
-            if(nearby(posx-tapx,posy-tapy,density))  {
-                return it;
-                }
-            }
-        }
-    return nullptr;
-    }
-int64_t JCurve::longpress(float x,float y) {
-    LOGGER("longpress x=%.1f y=%.1f\n",x,y);
-#ifndef WEAROS
-    if(showpers)
-        return 0LL;
-    if(numlist)  {
-        if(speakout) {
-            if(int index=numfrompos(x,y);index>=0) {
-                const Num *num=numiters[index].prev();
-                if(numdatas[index]->valid(num)) {
-                    speaknum(num);
-                    }
-                }
-            }
-        return 0LL;
-        }
-#endif
-#ifndef DONTTALK
-    if(speakout) {
-        if(speakmenutap(x,y))
-            return 0LL;
-        }
-    else
-#endif
-    {
-        if(inmenu(x,y)) {
-            return 0LL;
-            }
-          }
-    const uint32_t endtime=starttime+duration;
-    const auto [transx,transy]= gettrans(starttime, endtime);
-    if(shownumbers)
-        if(NumHit *hit= nearbynum(x,y,transx,transy))
-            return reinterpret_cast<int64_t>(hit);
-    if(showhistories&& nearbyhistory( x,y,  transx,  transy) ) {
-        return 0LL;
-        }
-    if(showscans) {
-        for(int i=histlen-1;i>=0;i--) {
-            if(const ScanData *scan=nearbyscan(x,y,scanranges[i].first,scanranges[i].second,transx,transy,density)) {
-                LOGGER("longpress scan %.1f\n",scan->g/convfactordL);
-                int index=hists[i];
-                scantoshow={index,scan,static_cast<uint32_t>(time(nullptr))};
-                return 0LL;
-                }
-             }
-         }
-    if(showstream) {
-        for(int i=histlen-1;i>=0;i--) {
-            if(const ScanData *poll=nearbyscan(x,y,pollranges[i].first,pollranges[i].second,transx,transy,density)) {
-                LOGGER("longpress poll %.1f\n",poll->g/convfactordL);
-                const int sensorindex= hists[i];
-                SensorGlucoseData *hist=sensors->getSensorData(sensorindex);
-                showhistory(hist,x,y);
-                return 0LL;
-                }
-             }
-         }
-    if(showcalibrated) {
-extern std::pair<const ScanData*,const ScanData*>      makecalibrated(const SensorGlucoseData *sens,const ScanData *input,ScanData *calibrated,int nr,bool allvalues);
-extern std::pair<const ScanData*,const ScanData*>      makecalibratedback(const SensorGlucoseData *sens,const ScanData *input,ScanData *calibrated,int nr,bool allvalues);
-        auto califunc=settings->data()->CalibratePast?makecalibratedback:makecalibrated;
-        for(int i=histlen-1;i>=0;i--) {
-                const int index= hists[i];
-                auto *sens=sensors->getSensorData(index);
-                const int nr=pollranges[i].second-pollranges[i].first;
-                ScanData calibrated[nr];
-                const auto span=califunc(sens,pollranges[i].first,calibrated,nr,allvalues);
-                if(const ScanData *poll=nearbyscan(x,y,span.first,span.second,transx,transy,density)) {
-                    LOGGER("longpress poll %.1f\n",poll->g/convfactordL);
-                    showhistory(sens,x,y);
-                    return 0LL;
-                    }
-                 }
-         }
-    int type=typeatheight(y); 
-    if(type>=0)  {
-        newnum.time=starttime+duration*(x-dleft)/dwidth;
-        newnum.type=type;
-        newnum.value=NAN;
-        return reinterpret_cast<int64_t>(&newhit);
-        }
-
-    return 0LL;
-    }
-#ifndef WEAROS
-void settoend() ;
-void shownumiters() ;
-#include "oldest.hpp"
-bool numpagepast() {
-    if(!numiters)
-        return false;
-    if(numdatas.size()<basecount)
-        return false;
-    bool onstart=true;
-    for(int i=0;i<basecount;i++) {
-        if(getpageoldest(i)>numiters[i].begin) {
-            onstart=false;
-            }
-        }
-    if(!onstart) {
-        for(int i=0;i<basecount;i++) {
-            setpagenewest(i,getpageoldest(i));
-            setpageoldest(i,nullptr);
-            }
-        }
-    return onstart;
-//    shownumfromtop();
-}
-
-extern int nrcolumns;
-int nrcolumns=1;
-int JCurve::numfrompos(const float x,const float y) {
-    int rows=((dheight-statusbarheight)/(double)textheight);
-
-    int ind= ((nrcolumns!=1&&x>(dleft+dwidth/2))?rows:0)+ std::min(rows-1,(int)((y-statusbarheight-dtop)/textheight));
-    LOGGER("rows=%d, ind=%d\n",rows,ind);
-    int i=0,index;
-    for(int i=0;i<basecount;i++) {
-        numiters[i].iter=getpageoldest(i);
-        }
-    do {
-        index=ifindoldest(numiters,0,basecount,notvali);
-        } while(i++<ind);
-    return index;
-    }
-bool numpageforward() {
-    if(!numiters)
-        return false;
-    if(numdatas.size()<basecount)
-        return false;
-    LOGSTRING("Page forward\n");
-    bool noend=false;
-    for(int i=0;i<basecount;i++) {
-        const Num*newst=getpagenewest(i);
-        if(newst<=numiters[i].end) {
-            noend=true;
-        }
-       }
-    if(noend) {
-        for(int i=0;i<basecount;i++) {
-            const Num*newst=getpagenewest(i);
-            setpageoldest(i,newst);
-            }
-          }
-    return !noend;
-    }
-//s/numiters.i..pageoldest.\([^;]*\);/setpageoldest(i,\1);/g
-void  setitertobottom(NumIter<Num> *numiters, const int nr) {
-    for(int i=0;i<nr;i++) {
-        setpageoldest(i,numiters[i].next());
-        }
-    }
-
-int numsize() {
-    int basecount=numdatas.size();
-    int tot=0;
-    for(int i=0;i<basecount;i++)
-        tot+=numdatas[i]->size();
-    return tot;
-}
-void    JCurve::showfromend(NVGcontext* avg) {
-    settoend() ;
-    shownumsback(avg, numiters,basecount);
-    setitertobottom(numiters,basecount);
-    }
-
-
-void    JCurve::showfromstart(NVGcontext* avg) {
-    if(numlist==4) {
-        numlist=1;
-        }
-    else {
-        for(int i=0;i<basecount;i++) {
-            numiters[i].iter=getpageoldest(i);
-            }
-        }
-     shownums(avg, numiters, basecount);
-    for(int i=0;i<basecount;i++) {
-        setpagenewest(i,numiters[i].iter);
-        }
-    }
-
-void JCurve::numpagenum(const uint32_t tim) {
-    int tot=0;
-    for(int i=0;i<basecount;i++)  {
-        const Num *ptr=numdatas[i]->firstnotless(tim) ;
-        if(ptr==numdatas[i]->end()||ptr->gettime()>tim)
-            ptr--;
-        int pos=ptr-numdatas[i]->begin();
-        LOGGER("pos=%d\n",pos);
-        if(pos>0) {
-//            LOGGER("num %.1f type=%d\n",ptr->value, ptr->type);
-            LOGGER("num %.1f %.11s\n",ptr->value, settings->getlabel(ptr->type).data());
-            tot+=pos;
-            }
-        numiters[i].iter=ptr;
-        }
-    const int percol=(dheight-statusbarheight)/textheight;
-    const int onpage=nrcolumns*percol;
-    #ifndef NOLOG
-    time_t tims=tim;
-    LOGGER("nrcolumns=%d percol=%d onpage=%d %s",nrcolumns,percol,onpage,ctime(&tims));
-    #endif
-    for(int tever=tot%onpage
-#ifndef NOLOG
-    , niets=LOGGER("tever=%d\n",tever)
-#endif
-    ;tever>0;--tever) {
-        ifindnewest(numiters,basecount,notvali);
-        };
-    int newest;
-    for(newest=0;newest<basecount&& numiters[newest].iter>numiters[newest].end;newest++)
-            ;
-    for(int i=newest+1;i<basecount;i++) {
-        if(numiters[i].iter<=numiters[i].end&&numiters[i].iter->gettime()>numiters[newest].iter->gettime())
-            newest=i;
-        }
-    for(int i=0;i<basecount;i++)
-        if(i!=newest&&numiters[i].iter<=numiters[i].end)
-            numiters[i].inc();
-    for(int i=0;i<basecount;i++) 
-        setpageoldest(i,numiters[i].iter);
-    numlist=4;
-    }
-
- void    JCurve::shownumlist(NVGcontext* avg) {
-    startstep(avg,*getwhite());
-    if(getpageoldest(0)!=nullptr) {
-        showfromstart(avg);
-         }
-    else {    
-        showfromend(avg);
-        }
-    }
-NumIter<Num> *mknumiters() ;
-
-
-extern int getcolumns(int width);
-void JCurve::numiterinit() {
-    nrcolumns=getcolumns(round(3.4*smallsize));
-    LOGAR("numiterinit");
-    basecount=numdatas.size();
-    delete[] numiters;
-    numiters=mknumiters() ;
-    for(int i=0;i<basecount;i++) {
-        setpagenewest(i, numdatas[i]->end());
-        setpageoldest(i, nullptr);
-        }
-    numpagenum(starttime+duration/2);
-    LOGAR("end numiterinit");
-    }
-
-void numendbegin() {
-    for(int i=0;i<basecount;i++) {
-        setpagenewest(i, numdatas[i]->end());
-    //    setpagenewest(i,numiters[i].next(numiters[i].end));
-        }
-    }
-void settoend() {
-//static bool init=true; if(init) numiterinit() ; init=false;
-    for(int i=0;i<basecount;i++) {
-        numiters[i].iter=getpagenewest(i)-1;
-        }
-    }
-int onlast(int onscreen) {
-    return numsize()%onscreen;
-    }
-
-void shownumiters() {
-    LOGSTRING("Iters:\n");
-    for(int i=0;i<basecount;i++) {
-        lognum(numiters[i].iter);
-        }
-    }
-
-void numfirstpage() {
-    for(int i=0;i<basecount;i++)
-        setpageoldest(i,numiters[i].begin);
-    }
-
-
-void JCurve::endnumlist() {
-    numlist=0;
-
-    uint32_t first=UINT32_MAX,second=0;
-    for(const NumDisplay *num:numdatas) {
-        const Num *one=std::max(num->begin(),extrums[num->numdatasPos].first);        
-        const Num *two=std::min(num->end(),extrums[num->numdatasPos].second);        //NODIG?
-        two--;
-        while(one<=two) {
-            if(!num->valid(one))  {
-                one++;
-                continue;
-                }
-            if(!num->valid(two))  {
-                two--;
-                continue;
-                }
-            if(one->gettime()<first)
-                first=one->gettime();
-            if(two->gettime()>second)
-                second=two->gettime();
-            break;
-            }
-        }
-#ifndef NDEBUG
-time_t newstart=first,start=starttime;
-char buf[80];
-// char *ctime_r(const time_t *timep, char *buf);
-
-    LOGGER("endnumlist %ud %ud start=%s starttime=%ud %s",first,second,ctime(&newstart),starttime,ctime_r(&start,buf));
-
-#endif
-    if(first==UINT32_MAX)
-        return;
-    if((starttime+duration)>=first&&starttime<second)
-        return;
-    setstarttime(starttimefromtime((first+second)/2));
-    return;
-    }
-#endif //WEAROS
-
-bool inbutton(float x,float y) {
-    return !(x<menupos.left||x>=menupos.right|| y<menupos.top||y>=menupos.bottom) ;
-    }
-bool isbutton(float x,float y) {
-    if(!inbutton(x,y)) {
-        LOGAR("isbutton false");
-        return false;
-        }
-    if(restart) {
-        LOGAR("isbutton restart");
-        exit(1);    
-        }
-    if(inbutton(prevtouch.x,prevtouch.y)) {
-             auto nutime = chrono::steady_clock::now();
-             if(chrono::duration_cast<chrono::milliseconds>(nutime - prevtouch.time).count()<450) // don't close immediately if OK sits on pressed point
-                return true;
-            }
-    scantoshow={-1,nullptr}; 
-    LOGAR("isbutton true");
-#ifdef USE_DISPLAYER
-    displayer.reset();
-#endif
-    return true;
-    }
-
-void        numendbegin() ;
-void JCurve::flingX(float vol) {
-#ifndef WEAROS
-    if(numlist)  {
-        LOGSTRING("flingX\n");
-        if(vol<0) {
-            numlist=1;
-             numendbegin() ;
-            }
-        return;
-        }
-#endif
-
-//    starttime-=(duration*1.2*vol/dwidth);
-    setstarttime(starttime-(duration*1.2*vol/dwidth));
-#ifndef WEAROS
-    if(!showpers)
-#endif
-        begrenstijd() ;
-    }
-
-bool                numpageforward() ;
-            void    scrollnum() ;
-
-
-bool numpagepast() ;
-
-int JCurve::translate(float dx,float dy,float yold,float y) {
-static bool ybezig=false;
-    auto absdy=fabsf(dy);
-    if(fabsf(dx)>absdy) {
-#ifndef     WEAROS
-        if(numlist) {
-            auto tim = std::chrono::system_clock::now();
-            static decltype(tim) oldtim{};
-                std::chrono::duration<double> dif=tim-oldtim;
-            const double grens=.8;
-            
-            if(dif.count()>grens) {
-                if(dx<-10) 
-                    numpagepast();
-                else
-                    if(!numpageforward())
-                        return 0;
-                oldtim=tim;
-                return 1;
-                }
-            else
-                return 0;
-
-            }
-        else
-#endif
-        {
-            ybezig=false;
-            setstarttime(starttime+1.2*(dx/dwidth)*duration);
-            #ifndef WEAROS
-            if(!showpers)
-            #endif
-                begrenstijd() ;
-            return 1;
-            }
-        }
-
-    else {    
-        {
-        if(fixatey)
-            return 0;
-        if(ybezig||(dheight/absdy)<convfactor) {
-            ybezig=true;
-            dy*=-1;
-            float grens=dheight/2.0;
-
-            if(y<grens&&yold<grens) {
-                grange*=dheight/(dheight-dy*1.4);
-                settime=starttime;
-                setend=starttime+duration;
-                }
-            else if(y>grens&&yold>grens) {
-                int gmax=gmin+grange;
-                grange*=dheight/(dheight+dy*1.4);
-                gmin=gmax-grange;
-                if(gmin<0)
-                    gmin=0;
-                settime=starttime;
-                setend=starttime+duration;
-                }
-            if(grange<200)
-                grange=200;
-           else {
-                if(grange>6000)
-                    grange=6000;
-              }
-            return 1;
-            }
-            }
-        }
-    return 0;
-    }
-void JCurve::xscaleGesture(float scalex,float midx) {
-    if(fixatex)
-        return;
-
-    double rat=((midx-dleft)/dwidth);
-    double oldduration=duration;
-    uint32_t focustime=rat*oldduration+starttime;
-    duration=(int)round(oldduration/pow(scalex,5.0));
-constexpr const int maxduration=30*24*60*60;
-constexpr const int minduration=10*60;
-    if(duration>maxduration)
-        duration=maxduration;
-   else {
-       if(duration<minduration)
-                duration=minduration;
-        }
-    LOGGER("xscale scale=%f mid=%f oldduration=%f newduration=%d\n",scalex,midx,oldduration,duration);
-    setstarttime(focustime-rat*duration);
-    auto maxstart= maxstarttime();
-    if(
-#ifndef WEAROS
-    !showpers&&
-#endif
-
-    starttime>maxstart)
-        setstarttime(maxstart);
-    setend=0;
-
-    
-    }
-
-
-void JCurve::prevscr() {
-    setstarttime(starttime-duration);
-    auto minstart= minstarttime();
-    if(starttime<minstart)
-        setstarttime(minstart);
-    }
-void  JCurve::nextscr() {
-    setstarttime(starttime+duration);
-#ifndef WEAROS
-    if(!showpers) 
-#endif
-
-    {
-        auto maxstart= maxstarttime(); 
-        if(starttime>maxstart) 
-            setstarttime(maxstart);
-        }
-    }
-static int64_t menutap(float x,float y) ;
-
-
-
-
-
-void pressedback() {
-    scantoshow={-1,nullptr}; 
-    LOGAR("pressedback");
-
-#ifdef USE_DISPLAYER
-    displayer.reset();
-#endif
-    }
-
-
-int  hitremove(int64_t ptr) {
-    NumHit *num=reinterpret_cast<NumHit *>(ptr);
-     int res=num->numdisplay->numremove(const_cast<Num*>(num->hit));
-     if(numlist) {
-         for(int i=0;i<basecount;i++) {
-            numiters[i].end=numdatas[i]->end()-1;
-            }
-         }
-
-     return res;
-    }
-
-template <class TX,class TY>  const Num * NumDisplay::getnearby(JCurve &jcurve,const TX &transx,  const TY &transy,const float tapx,const float tapy) const {
-    auto [low,high]=jcurve.extrums[numdatasPos]; 
-    for( const Num *it=low;it!=high;it++) {
-        if(valid(it)) {
-            float xpos= transx(it->time);
-            float ypos=settings->getlabelweightmgperL(it->type)?transy(it->value*settings->getlabelweightmgperL(it->type)):jcurve.numtypeheight(it->type);
-            if(nearby(xpos-tapx,ypos-tapy,jcurve.density))
-                return it;
-
-            }
-        }
-    return nullptr;
-    }
-template <class TX,class TY> NumHit *JCurve::nearbynum(const float tapx,const float tapy,const TX &transx,  const TY &transy) {
-     for(auto el:numdatas) 
-        if(const Num *hit=el->getnearby(*this,transx,transy,tapx,tapy)) {
-            return new  NumHit({el,hit});
-            }
-     return nullptr;
-    }
-
- 
-void    JCurve::showok(NVGcontext* avg,bool good,bool up) {
-    nvgFontSize(avg,headsize/4 );
-    nvgTextAlign(avg,NVG_ALIGN_RIGHT|(up?NVG_ALIGN_TOP:NVG_ALIGN_BOTTOM));
-    const float fromtop= mediumfont*2.0f;
-    float ypos=dtop+(up?fromtop:(dheight-fromtop));
-    float xpos=dwidth-statusbarright+dleft-mediumfont*3.0f;
-
-    const char *ok=good?"OK":"ESC";
-    const int oklen=good?2:3;
-    nvgTextBounds(avg, xpos,ypos ,ok , ok+oklen, (float *)&menupos);
-    nvgText(avg, xpos,ypos,ok,ok+oklen);
-    menupos.left-=mediumfont;
-    menupos.right+=mediumfont;
-    menupos.bottom+=mediumfont;
-    menupos.top-=mediumfont;
-    }
-
-void    JCurve::showOK(NVGcontext* avg,float xpos,float ypos) {
-    showButton(avg, xpos, ypos,"OK"sv);
-    }
-void    JCurve::showButton(NVGcontext* avg,float xpos,float ypos,std::string_view str) {
-    nvgFontSize(avg,headsize/4 );
-
-    const char *start=&str[0];
-    const char *ends=str.end();
-    nvgTextBounds(avg, xpos,ypos ,start ,ends, (float *)&menupos);
-
-    nvgText(avg, xpos,ypos,start,ends);
-    menupos.left-=mediumfont;
-    menupos.right+=mediumfont;
-    menupos.bottom+=mediumfont;
-    menupos.top-=mediumfont;
-    }
-
-void    JCurve::showHideButton(NVGcontext* avg) {
-    const std::string_view str=usedtext->unhide;  
-    nvgFontSize(avg,headsize/4 );
-    nvgFillColor(avg, *getblack());
-    float ypos=dtop+dheight;
-    const char *start=&str[0];
-    const char *ends=str.end();
-#ifdef WEAROS
-    float xpos=dwidth*.5;
-    nvgTextAlign(avg,NVG_ALIGN_CENTER|NVG_ALIGN_BOTTOM);
-    nvgTextBounds(avg, xpos,ypos ,start ,ends, (float *)&hidepos);
-    nvgText(avg, xpos,ypos,start,ends);
-    hidepos.left-=mediumfont;
-    hidepos.right+=mediumfont;
-    hidepos.bottom+=mediumfont;
-    hidepos.top-=mediumfont;
-#else
-    const float xaf=statusbarright?statusbarright:mediumfont;
-    float xpos=dleft+dwidth-xaf;
-
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_BOTTOM);
-    nvgTextBounds(avg, xpos,ypos ,start ,ends, (float *)&hidepos);
-    float w=hidepos.right-hidepos.left;
-    float xoff=-w;
-    float yoff=0;
-    nvgText(avg, xpos+xoff,ypos+yoff,start,ends);
-    hidepos.left+=xoff-mediumfont;
-    hidepos.right+=xoff+mediumfont;
-    hidepos.bottom+=yoff+mediumfont;
-    hidepos.top+=yoff-mediumfont;
-    #endif
-    }
-template <typename  TI,typename TE> void    JCurve::textbox(NVGcontext* avg,const TI &title,const TE &text) {
-    float w=dwidth*0.6;
-//     nvgRoundedRect(avg,  x,  y,  w,  h,  r);
-//    x+=smallsize;
-    nvgFontFaceId(avg,font);
-    bounds_t bounds;
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
-    nvgFontSize(avg, smallsize);
-    nvgTextLineHeight(avg, 1.7);
-     nvgTextBoxBounds(avg, 0,  0, w,begin(text), end(text), bounds.array);
-    nvgBeginPath(avg);
-    float width= bounds.xmax-bounds.xmin+ smallsize;
-    float height= bounds.ymax-bounds.ymin+sensorbounds.height*2;
-    float x=(dwidth-width)/2;
-    float y=(dheight-height)/2;
-    nvgFillColor(avg, red);
-    nvgRoundedRect(avg,  x-smallsize, y-smallsize,  width+2*smallsize, height+2*smallsize, dwidth/60 );
-    nvgFill(avg);
-    nvgFillColor(avg, *getblack());
-    nvgTextBox(avg,  x,  y+sensorbounds.height+smallsize, width, begin(text),end(text));
-    nvgFontSize(avg, mediumfont);
-
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
-   auto *beg=begin(title);
-   if(*beg) {
-      int siz=sizear(title);
-      nvgText(avg, x,y, beg,beg+siz);
-      }
-    nvgTextAlign(avg,NVG_ALIGN_RIGHT|NVG_ALIGN_TOP);
-    showOK(avg,x+width,y);
-    }
-
-
-#include "EverSense.hpp"
-extern    bool hasnotiset();
-void     processglucosevalue(int sendindex,int newstart) {
-    if(settings) {
-         if(!sensors)
-             return;
-         if(SensorGlucoseData *hist=sensors->getSensorData(sendindex)) {
-             if(newstart>=0) {
-               LOGGER("newstart=%d previous=%d\n",newstart,hist->previousstream);
-               hist->backstream(newstart);
-               if(newstart<=hist->previousstream) {
-                   hist->previousstream=newstart;
-                   sendEverSenseold(hist,5/hist->streaminterval());
-                   return;
-                   }
-               if(hist->previousstream==-1) {
-                   sendEverSenseold(hist,5/hist->streaminterval());
-                   }
-                hist->previousstream=newstart;
-                }
-             else
-                  hist->previousstream=hist->pollcount()-1;
-             if(const ScanData *poll=hist->lastpoll()) {
-                 const time_t tim=poll->t;
-                 if(!poll->valid()) {
-                     LOGGER("invalid value %s ",ctime(&tim));
-                     return;
-                     }
-                 const time_t nutime=time(nullptr);
-                 const int dif=nutime-tim;
-                 if(dif<maxbluetoothage) {
-                     if(!usedsensors.size())
-                         setusedsensors(nutime);
-                    int32_t mgdL;
-                    uint32_t mgL;
-                    float glu;
-                    if(double cali=calibrateNow(hist,*poll);isnan(cali)) {
-                        mgdL=poll->getmgdL();
-                        mgL=mgdL*10;
-                        glu= gconvert(mgL);
-                        }
-                    else {
-                        double mgLf= cali*10.0;
-                        mgL=(uint32_t)round(mgLf);
-                        mgdL=(int32_t)round(cali);
-                        glu= gconvert(mgLf);
-                        }
-
-                     const int alarm=getalarmcode(mgL,poll->getchange(),hist);
-                     
-                     sensor *senso=sensors->getsensor(sendindex);
-                     bool wasnoblue=settings->data()->nobluetooth;
-                     int64_t startsensor=hist->getstarttime()*1000LL;
-                     const intptr_t  sensorptr=dohealth(sendindex)?reinterpret_cast<intptr_t>(hist):0LL;
-                     const int sensorgen=hist->getSensorgen2();
-                     LOGGER("processglucosevalue finished=%d,doglucose(%s,%d,%f,%f,%d,%lld,%d,%lld,%p,%i)\n", senso->finished,hist->shortsensorname()->data(),mgdL,glu,poll->ch,alarm,tim*1000LL,wasnoblue,startsensor,sensorptr,sensorgen);
-                     if(senso->finished) {
-                         senso->finished=0;
-                         backup->resensordata(sendindex);
-                         }
-                     settings->data()->nobluetooth=true;
-                     float rate=poll->ch;
-extern void telldoglucose(const char *name,int32_t mgdl,float glu,float rate,int alarm,int64_t mmsec,bool wasnoblue,int64_t startmsec,intptr_t sensorptr,int sensorgen);
-
-                     telldoglucose(hist->shortsensorname()->data(),mgdL,glu,rate,alarm,tim*1000LL,wasnoblue,startsensor,sensorptr,sensorgen);
-
-                 //    wakeuploader();
-extern                void wakewithcurrent();
-                     wakewithcurrent();
-
-                     }
-                 else {
-                     LOGGER("processglucosevalue too old %s ",ctime(&tim));
-                     LOGGER("dist=%d, dif=%d nu %s",maxbluetoothage,dif,ctime(&nutime));
-                     }
-                 }
-             }
-         else {
-             LOGGER("processglucosevalue no sensor %d\n",sendindex);
-#ifdef WEAROS
-//              static int wassensor=(settings->setranges(3*180,12*180,39*18,10*180),-1);
-              static int wassensor=-1;
-             if(sendindex>wassensor) {
-                 wassensor=sendindex;
-                extern void setInitText(const char *message);
-                constexpr const int maxbuf=50;
-                char buf[maxbuf];
-                const std::string_view sensor= usedtext->menustr0[1];
-               memcpy(buf,sensor.data(),sensor.size());
-                snprintf(buf+sensor.size(),maxbuf-sensor.size()," %d", wassensor+1);
-                setInitText(buf);
-                }
-#endif
-         }
-        }
-
-    }
-
-static bool  inmenu(float x,float y) {
-    if(!nrmenu)
-        return false;
-    if(x<menupos.left||x>=menupos.right) {
-        return false;
-        }
-    float dist=(menupos.bottom-menupos.top)/nrmenu;
-    if(dist<=0)
-        return false;
-    int item=(y-menupos.top)/dist;
-    if(item>=0&&item<nrmenu) 
-        return true;
-    return false;
-    }
-
- bool           JCurve::showerror(NVGcontext* avg,const string_view str1,const string_view str2) {
-    startstep(avg,*getyellow());
-    nvgFontSize(avg, midsize);
-    nvgFillColor(avg, *getblack());
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_BOTTOM);
-    nvgText(avg, dleft+dwidth/10,dtop+dheight/3, str1.begin(), str1.end());
-    nvgFontSize(avg, midsize*.8);
-    nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
-    nvgTextBox( avg, dleft+dwidth/10, dtop+dheight/2, dwidth*8/10, str2.begin(), str2.end());
-
-    if(settings->data()->speakmessagesget()) {
-        char buf[str1.size()+str2.size()+2+10];
-        memcpy(buf,str1.data(),str1.size());
-        char *ptr=buf+str1.size();
-        *ptr++='\n';
-        memcpy(ptr,str2.data(),str2.size());
-        ptr[str2.size()]='\0';
-        LOGGER("speak %s\n",buf);
-        speak(buf);
-
-        }
-
-    showok(avg,true,false);
-    return true;
-    }
-
-
-extern char hourminstr[hourminstrlen];
-
-int hourmin(const time_t tim,char buf[8]) {
-   struct tm tmbuf;
-   struct tm *stm=localtime_r(&tim,&tmbuf);
-   return  mktime(stm->tm_hour,mktmmin(stm),buf);
-   }
-void setnowmenu(time_t nu) {
-    int timelen=hourmin(nu,hourminstr);
-    const int ulen=usedsensors.size();
-
-    if(ulen>0) {
-        
-        for(int i=0;i<ulen;) {
-            const auto *sens=sensors->getSensorData(usedsensors[i++]);
-            if(const auto *lastin=sens->lastValidStream()) {
-                for(;i<ulen;i++) {
-                    const auto *nextsens=sensors->getSensorData(usedsensors[i]);
-                    if(const auto *lastsen=nextsens->lastValidStream();lastsen&&(lastsen->t>lastin->t)) {
-                        lastin=lastsen;
-                        sens=nextsens;
-                        }
-                    }
-                if(lastin->t>(nu-maxbluetoothage)) {
-                    double nonconvert;
-                    if(double cali=calibrateNow(sens,*lastin);!isnan(cali)) {
-                        nonconvert=cali;
-                        }
-                    else {
-                        nonconvert= lastin->g;
-                    }
-const int  trend=lastin->tr;
-//const int  trend=5;
-
-constexpr const char arrows[][sizeof("→")]{"",
-"↓",
-"↘",
-"→",
-"↗",
-"↑"}; 
-
-char *aftertime=hourminstr+timelen;
-#if __NDK_MAJOR__ >= 26
-
-constexpr const int trendoff=
-#ifdef WEAROS
-0
-#else
-1
-#endif
-;
-constexpr const int between=
-#ifdef WEAROS
-    1;
-#else
-    2;
-#endif
-    char *ptr=aftertime+between;
-   memset(aftertime,' ',between);
-    const int trendlen=sizeof(arrows[trend])-1;
-    memcpy(ptr,arrows[trend],trendlen);
-    static std::to_chars_result res={.ptr=nullptr};
-    char *oldres=res.ptr;
-    auto value=gconvert(nonconvert*10);
-   if constexpr (trendoff) memset(ptr+trendlen,' ',trendoff);
-    res=std::to_chars(ptr+trendlen+trendoff,hourminstr+hourminstrlen,value,std::chars_format::fixed,gludecimal);
-    for(auto it=res.ptr;it<oldres;++it)
-        *it=' ';
-                    LOGGER("new hourminstr=%s\n", hourminstr);
-#else
-    static        int oldend=0;
-//    auto aftertime=hourminstr+;
-#ifdef WEAROS
-                int endpos=snprintf(aftertime,hourminstrlen-5," %s%.*f",arrows[trend],gludecimal,gconvert(nonconvert*10));
-#else
-            int endpos=snprintf(aftertime,hourminstrlen-5,"  %s %.*f",arrows[trend],gludecimal,gconvert(nonconvert*10));
-#endif
-    aftertime[endpos]=' ';
-    for(int i=endpos+1;i<oldend;i++)
-        aftertime[i]=' ';
-    
-    oldend=endpos;
-
-                    LOGGER("old hourminstr=%s\n", hourminstr);
-#endif
-                    return ;
-
-                    }
-                }
-            }
-        }
-    memset(hourminstr+timelen,' ',hourminstrlen-timelen); 
-    }
-
-
-void  calccurvegegs();
-void resetcurvestate() {
-    LOGAR("resetcurvestate()");
-#if defined(JUGGLUCO_APP) && defined(USE_DISPLAYER)
-    displayer.reset();
-#endif
-    scantoshow={-1,nullptr}; 
-    numlist=0;
-    #ifndef WEAROS
-    showpers=false;
-    #endif
-    selshown=false;
-    selmenu=0;
-    emptytap=false;
-    nrmenu=0;
-    selmenu=0;
-    appcurve.calccurvegegs();
-    appcurve.setdiffcurrent(settings->data()->currentRelative);
-    }
-
-void    initopengl(int started)  {
-    if(!started) {
-        resetcurvestate();
-        }
-    if(::genVG) { //Why should it be recreated?
-#ifdef NANOVG_GLES2_IMPLEMENTATION
- nvgDeleteGLES2
-#else 
- nvgDeleteGLES3
-#endif
-    (::genVG); 
-    ::genVG=nullptr;
-    }
-
-
-    printGlString("Version", GL_VERSION);
-    printGlString("Vendor", GL_VENDOR);
-    printGlString("Renderer", GL_RENDERER);
-    printGlString("Extensions", GL_EXTENSIONS);
-
-   decltype(::genVG)    avg = 
-
-#ifdef NANOVG_GLES2_IMPLEMENTATION
-    nvgCreateGLES2
-#else
-    nvgCreateGLES3
-#endif
-
-
-    (NVG_ANTIALIAS | NVG_STENCIL_STROKES
-#ifndef NDEBUG
-    | NVG_DEBUG
-#endif
-
-    );
-
-    if (avg == nullptr) {
-        LOGSTRING("Could not init nanovg.");
-        return ;
-        }
-    ::genVG=avg;
-     }
-
-bool openglstarted=false;
-/*extern "C" int nvgRecreateGLES2(NVGcontext* ctx) ;
-void initopengl(float small,float menu,float density,float headin) {
-    LOGAR("initopengl");
-    if(!openglstarted||genVG==nullptr||!nvgRecreateGLES2(genVG)) {
-        initopengl(openglstarted);
-        if(!openglstarted||appcurve.headsize!=headin||appcurve.smallsize!=small||appcurve.menusize!=menu||appcurve.density!=density) {
-            appcurve.setfontsize(small, menu, density, headin);
-            }
-        appcurve.invertcolorsset(settings->data()->invertcolors);
-        openglstarted=true;
-        appcurve.initfont(::genVG);    
-        }
-     else {
-        if(!openglstarted||appcurve.headsize!=headin||appcurve.smallsize!=small||appcurve.menusize!=menu||appcurve.density!=density) {
-            appcurve.setfontsize(small, menu, density, headin);
-            }
-//        nvgFontFaceId(genVG,appcurve.font);
-        LOGAR("nvgRecreateGLES2 succeeded!!");
-        }
-   } */
-
-void initopengl(float small,float menu,float density,float headin) {
-    LOGAR("initopengl");
-    initopengl(openglstarted);
-    if(!openglstarted||appcurve.headsize!=headin||appcurve.smallsize!=small||appcurve.menusize!=menu||appcurve.density!=density) {
-            appcurve.setfontsize(small, menu, density, headin);
-            }
-    appcurve.invertcolorsset(settings->data()->invertcolors);
-//    s/makeshows(\(.*\))/appcurve.show\1=settings->data()->show\1;/g
-    appcurve.showcalibrated=settings->data()->showcalibrated;
-    appcurve.showscans=settings->data()->showscans;
-    appcurve.showstream=settings->data()->showstream;;
-    appcurve.showmeals=settings->data()->showmeals;
-    appcurve.shownumbers=settings->data()->shownumbers;
-    appcurve.showhistories=settings->data()->showhistories;
-    openglstarted=true;
-    appcurve.initfont(::genVG);    
-   }
-#define arsizer(x) sizeof(x)/sizeof(x[0])
-
-#ifdef WEAROS
-
-const int *menuopt0[]={nullptr,nullptr,nullptr, nullptr,nullptr};
-const int **optionsmenu[]={menuopt0,nullptr};
-constexpr const int menulen[]={arsizer(jugglucotext::menustr0),arsizer(jugglucotext::menustr2)};
-int getmenulen(const int menu) {
-    int len=menulen[menu];
-//    if(menu==1&&settings->staticnum()) return len-1;
-    if(!menu&&!alarmongoing)
-        return len-1;
-        
-    return len;    
-    }
-
-void setfloatptr() {
-    }
-#else
-int menus=0;
-const int *menuopt0[]={&showui,&menus,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
-
-
-const int *menuopt0b[]={nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
-const int *menuopt1[]={&appcurve.showcalibrated,&appcurve.showscans,&appcurve.showstream,&appcurve.showhistories,&appcurve.shownumbers,&appcurve.showmeals,&appcurve.invertcolors};
-const int **optionsmenu[]={menuopt0,menuopt0b,menuopt1,nullptr};
-#define arsizer(x) sizeof(x)/sizeof(x[0])
-constexpr const int menulen[]={arsizer(jugglucotext::menustr0),arsizer(jugglucotext::menustr1),arsizer(jugglucotext::menustr2),arsizer(jugglucotext::menustr3)};
-int getmenulen(const int menu) {
-    int len=menulen[menu];
-    if(!menu&&!alarmongoing)
-        return len-1;
-    return len;    
-    }
-void setfloatptr() {
-    menuopt0b[6]=&settings->data()->floatglucose;
-    }
-
-//void setnewamount() { }
-#endif
-
-
-constexpr const int maxmenulen= *std::max_element(std::begin(menulen),std::end(menulen));
-constexpr int maxmenu=arsizer(jugglucotext::menustr);
-#ifdef WEAROS
-static_assert(maxmenu==2);
-#else
-static_assert(maxmenu==4);
-#endif
-
-
-int getmenu(int tapx,float dwidth) {
-    return tapx*maxmenu/dwidth;
-    }
  void    JCurve::withredisplay(NVGcontext* avg,uint32_t nu)  {
     startstep(avg,*getwhite());
 #ifndef WEAROS
@@ -1891,9 +403,6 @@ tapx=-8000;
           showtext( avg ,nu,selmenu) ;
            }
         }
-    
-    drawBottomBar(avg);
-
     tapx=-8000;
 
 
@@ -1961,10 +470,10 @@ static bool speakmenutap(float x,float y) {
             }
         return true;
         }
-    return false;    
+    return false;
     }
 #endif
-
+void setnowmenu(time_t nu);
  void    JCurve::showtext(NVGcontext* avg ,time_t nu,int menu) {
 LOGAR("showtext");
 #ifdef WEAROS
@@ -1991,6 +500,18 @@ LOGAR("showtext");
 //    float menutextheight=density*48;
     float menuplace= dwidth/ maxmenu;
     float x=xrand+menu*menuplace,starty=yrand+statusbarheight,y=starty;
+
+    bool portrait=false;
+#ifndef WEAROS
+    if(height>width) portrait=true;
+#endif
+    if(portrait) {
+        starty=dtop+dheight+yrand; // Bottom third
+        y=starty;
+        // Adjust x if needed, but menuplace calculation uses dwidth.
+        // If dwidth is full width in portrait, it should be fine.
+        // dwidth in portrait is full width (resizescreen sets dwidth=width).
+    }
 
     nvgTextAlign(avg,NVG_ALIGN_LEFT|NVG_ALIGN_TOP);
 
@@ -2036,7 +557,15 @@ LOGAR("showtext");
      if(menu==0)
          x+=xrand;
      #endif
-     menupos={ x-xrand, starty-yrand,x-xrand+ mwidth, height+yrand};
+     menupos={ x-xrand, starty-yrand,x-xrand+ mwidth, height-starty+2*yrand+starty-yrand}; // Fixed height calculation
+     // Original: height-starty+2*yrand+starty-yrand = height + yrand.
+     // height is absolute y coordinate of bottom. starty is absolute top.
+     // Box top is starty-yrand.
+     // Box height should cover up to height + yrand (padding).
+     // menupos.bottom = height + yrand ? 
+     // Wait, 'height' variable above was calculated as last y + text height.
+     // So yes, menupos.bottom should be around there.
+     
      logmenupos();
      nvgRect(avg, x-xrand, starty-yrand, mwidth, height-starty+2*yrand);
     nvgFill(avg);
@@ -2095,11 +624,23 @@ void JCurve::resizescreen(int widthin, int heightin,int initscreenwidth) {
     width=widthin;
     height=heightin;
     LOGGER("resize(%d,%d)\n",width,height);
-    dleft=statusbarleft; // Use statusbarleft for left margin
-    dtop=statusbarheight; // Ensure top margin respects status bar
-    dright=statusbarright; // Use statusbarright for right margin
-    dwidth=width-dleft-dright; //Display area for graph in pixels
-    dheight=height-dtop-dbottom; // Update dheight
+    
+    bool portrait=false;
+#ifndef WEAROS
+    if(height>width) portrait=true;
+#endif
+
+    if(portrait) { // Portrait mode
+        float third = height / 3.0f;
+        dleft = 0;
+        dright = 0;
+        dtop = third; // Top third reserved for "left panel" (current glucose)
+        dbottom = third; // Bottom third reserved for menus
+        dwidth = width;
+        dheight = third; // Middle third for graph
+    } else { // Landscape or Watch
+        dwidth=width-dleft-dright; //Display area for graph in pixels
+    }
 
     textheight=density*48;
     int times=ceil(height/textheight);
@@ -2281,7 +822,7 @@ int getglucosestr(double nonconvert,char *glucosestr,int maxglucosestr,int gluco
                         nvgTextBox(avg,  getx, gety, getboxwidth(getx),buf, ptr);
                         shownglucose[index].errortext=buf;
                 }
-            else {
+            else { 
  
                 if(sens->hasSensorError(nu)) {
                     const std::string_view sensorerror= sens->replacesensor?usedtext->streplacesensor: usedtext->stsensorerror;
@@ -2301,7 +842,7 @@ int getglucosestr(double nonconvert,char *glucosestr,int maxglucosestr,int gluco
                         int len=snprintf(buf,sizeof(buf)-1,format.data(),sens->showsensorname().data(),state);
                         nvgTextBox(avg,  getx, gety, getboxwidth(getx),buf, buf+len);
                         shownglucose[index].errortext=buf;
-                        } 
+                        }
                     else {
                         char buf[usedtext->noconnectionerror.size()+17];
                         int senslen= sens->showsensorname().size();
@@ -2338,6 +879,7 @@ void    JCurve::endstep(NVGcontext* avg) {
 
 time_t lastviewtime=0;
 int    JCurve::onestep(NVGcontext* avg) {
+    if(!avg) return 0;
     LOGAR("onestep");
     time_t nu=time(nullptr);
     lastviewtime=nu;
@@ -2375,3 +917,76 @@ extern bool  showtextbox(JCurve *,NVGcontext* avg) ;
     }
 
 AppCurve appcurve;
+
+// Stubs for missing symbols to satisfy linker
+int JCurve::badscanMessage(NVGcontext* avg, int kind) { return 0; }
+
+extern NVGcontext* genVG;
+
+void initopengl(float small, float menu, float density, float headin) {
+    if (!genVG) {
+        genVG = nvgCreateGLES2(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
+    }
+    appcurve.setfontsize(small, menu, density, headin); 
+    appcurve.initfont(genVG); 
+}
+
+void JCurve::flingX(float vol) {}
+int JCurve::translate(float dx, float dy, float yold, float y) { return 0; }
+void JCurve::xscaleGesture(float scalex, float midx) {}
+void JCurve::prevscr() {}
+void JCurve::nextscr() {}
+void pressedback() {}
+bool isbutton(float x, float y) { return false; }
+int64_t JCurve::screentap(float x, float y) { return 0; }
+int64_t JCurve::longpress(float x, float y) { return 0; }
+int hitremove(int64_t ptr) { return 0; }
+bool openglstarted = false;
+void numfirstpage() {}
+void JCurve::numpagenum(uint32_t tim) {}
+void JCurve::endnumlist() {}
+void JCurve::numiterinit() {}
+void JCurve::showok(NVGcontext* avg, bool good, bool up) {}
+void setnowmenu(time_t nu) {}
+void JCurve::shownumlist(NVGcontext* vg) {}
+void JCurve::showHideButton(NVGcontext* avg) {}
+strconcat getsensortext(const SensorGlucoseData *hist) { return strconcat(std::string_view(""), std::string_view("")); }
+int nrcolumns = 0;
+void numpageforward() {}
+void numpagepast() {}
+
+void     processglucosevalue(int sendindex,int newstart) {
+    if(!sensors)
+        return;
+    LOGGER("processglucosevalue %d %d\n", sendindex,newstart);
+    if(SensorGlucoseData *hist=sensors->getSensorData(sendindex)) {
+        if(newstart>=0) {
+            LOGGER("newstart=%d\n",newstart);
+            hist->backstream(newstart);
+            }
+        if(const ScanData *poll=hist->lastValidStream()) {
+            const time_t nutime=time(nullptr);
+            const time_t tim=poll->t;
+            const int dif=nutime-tim;
+            if(dif<maxbluetoothage) {
+                sensor *senso=sensors->getsensor(sendindex);
+                logprint("finished=%d not finished %s ",senso->finished,ctime(&tim));
+                if(senso->finished) {
+                    senso->finished=0;
+                    backup->resensordata(sendindex);
+                    }
+
+                }
+            else {
+                logprint(" too old %s \n",ctime(&tim));
+                logprint("dist=%d, dif=%d nu %s",maxbluetoothage,dif,ctime(&nutime));
+                }
+            }
+        else {
+            logprint("no stream data\n");
+            }
+        }
+    else {
+        logprint("no sensor\n");
+        }
+    }

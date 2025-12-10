@@ -25,11 +25,11 @@ import androidx.annotation.Keep;
 
 @Keep
 public final class item {
- public long time;
- public  int mealptr;
- public float value;
- public  int label;
- public item(long time,int meal,float value,int label) {
+ @Keep public long time;
+ @Keep public  int mealptr;
+ @Keep public float value;
+ @Keep public  int label;
+ @Keep public item(long time,int meal,float value,int label) {
  	this.time=time;
 	this.mealptr=meal;
  	this.value=value;

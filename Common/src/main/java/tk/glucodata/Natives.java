@@ -128,6 +128,7 @@ public static native String getDeviceAddress(long dataptr,boolean getnew);
 //    public static native void    setwaiting(long dataptr,boolean val);
     public static native String lastsensorname();
 	public static native long laststarttime();
+    public static native long getSensorEndTime(long dataptr, boolean official);
 
     public static native String[] activeSensors();
     public static native byte[] bluetoothOnKey(byte[] sensorident, byte[] patchinfo);
@@ -423,7 +424,7 @@ public static native boolean nfcsound();
 public static native void setnfcsound(boolean val);
 //public static native void setxinfuus(boolean val);
 public static native boolean getxbroadcast();
-//public static native void setxbroadcast(boolean val);
+public static native void setxbroadcast(boolean val);
 public static native boolean getJugglucobroadcast();
 //public static native void setJugglucobroadcast(boolean val);
 
@@ -463,6 +464,7 @@ public static native int getLibreVersion(long dataptr);
 public static native void USenabledStreaming(byte[] sensorident,byte[] jauth,byte[] address);
 public static native void closedynlib( );
 public static native strGlucose lastglucose();
+public static native long[] getGlucoseHistory(long starttime);
 public static native byte[] getmynetinfo(String name,boolean create,int watchhassensor,boolean galaxy,int setnums);
 public static native boolean setmynetinfo(String name,byte[] jar,boolean galaxy);
 

@@ -60,6 +60,7 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ConfigurationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -79,6 +80,7 @@ import android.view.accessibility.AccessibilityManager;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.Keep;
 import androidx.annotation.UiThread;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -95,6 +97,10 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import android.view.Gravity;
+import android.widget.FrameLayout;
+import android.view.ViewGroup;
 
 //import androidx.activity.OnBackPressedCallback;
 //import androidx.activity.OnBackPressedDispatcher;
@@ -116,6 +122,36 @@ public MainActivity() {
 //    boolean    hideSystem=true;
     LaunchShit  permHealth=isWearable?null:new LaunchShit(this);
     public GlucoseCurve curve=null;
+    
+    public void showLegacyUI() {
+        android.content.SharedPreferences prefs = android.preference.PreferenceManager.getDefaultSharedPreferences(this);
+        prefs.edit().putBoolean("use_new_ui", false).apply();
+        
+        if (curve == null) curve = new GlucoseCurve(this);
+        setContentView(curve);
+        
+        com.google.android.material.floatingactionbutton.FloatingActionButton fab = new com.google.android.material.floatingactionbutton.FloatingActionButton(this);
+        fab.setImageResource(android.R.drawable.ic_menu_search);
+        fab.setContentDescription("Switch to New UI");
+        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
+        params.setMargins(0, 0, 64, 64); 
+        
+        fab.setOnClickListener(v -> showComposeUI());
+        
+        addContentView(fab, params);
+    }
+
+    public void showComposeUI() {
+        android.content.SharedPreferences prefs = android.preference.PreferenceManager.getDefaultSharedPreferences(this);
+        prefs.edit().putBoolean("use_new_ui", true).apply();
+        if (curve == null) curve = new GlucoseCurve(this);
+        tk.glucodata.ui.ComposeHostKt.setComposeContent(this, curve);
+    }
+
 //    Button okbutton=null;
     private static final String LOG_ID = "MainActivity";
     private NfcAdapter mNfcAdapter=null;
@@ -203,12 +239,22 @@ private void startdisplay() {
                }
             return windowInsets;
       });
-    // showSystemBarsAppearance();
-      }
-      lightBars(!getInvertColors( ));
-      }
-    setContentView(curve);
-//   try {
+          // showSystemBarsAppearance();
+          }
+          lightBars(!getInvertColors( ));
+          }
+    
+          SharedPreferences prefs = android.preference.PreferenceManager.getDefaultSharedPreferences(this);
+          boolean useNewUI = prefs.getBoolean("use_new_ui", true);
+    
+          if (useNewUI) {
+              tk.glucodata.ui.ComposeHostKt.setComposeContent(this, curve);
+          } else {
+              showLegacyUI();
+          }
+    
+        //   try {
+    
 //      setRequestedOrientation(Natives.getScreenOrientation( ));
 //       }
 //   catch(       Throwable  error) {
@@ -257,15 +303,18 @@ boolean glversion() {
 //public static boolean wearable=false;
 static MainActivity thisone=null;
 
+    @Keep
     public static void openSettingsPanel() {
         tk.glucodata.settings.Settings.set(MainActivity.thisone);
     }
 
+    @Keep
     public static void openSensorListPanel() {
         // Launch the Sensor menu (Libre/Dexcom sensors) instead of Glucose Meter list
         tk.glucodata.bluediag.start(MainActivity.thisone);
     }
 
+    @Keep
     public static void launchQrScan() {
         tk.glucodata.PhotoScan.scan(MainActivity.thisone, MainActivity.REQUEST_BARCODE);
     }

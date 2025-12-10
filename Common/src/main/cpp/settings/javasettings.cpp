@@ -723,10 +723,7 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setxinfuus)(JNIEnv *env, jclass cl
     settings->data()->xinfuus=val;
     } */
 
-    /*
-extern "C" JNIEXPORT void  JNICALL   fromjava(setxbroadcast)(JNIEnv *env, jclass cl,jboolean val) {
-    settings->data()->xdripbroadcast=val;
-    } */
+// Placeholder to read file.
 
 
 
@@ -1191,6 +1188,13 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(geteverSensebroadcast)(JNIEnv 
 
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getxbroadcast)(JNIEnv *env, jclass cl) {
     return settings->data()->xdripBroadcast.nr;
+    }
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(setxbroadcast)(JNIEnv *env, jclass cl,jboolean val) {
+    if(val!=settings->data()->xdripBroadcast.nr) {
+         settings->data()->xdripBroadcast.nr=val;
+         // settings->updated(); // if needed
+        }
     }
 
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getJugglucobroadcast)(JNIEnv *env, jclass cl) {

@@ -76,7 +76,7 @@ import static tk.glucodata.util.getbutton;
 import static tk.glucodata.util.getcheckbox;
 import static tk.glucodata.util.getlabel;
 
-class bluediag {
+public class bluediag {
 
 static  boolean returntoblue=false;
 final static private String LOG_ID="bluediag";
