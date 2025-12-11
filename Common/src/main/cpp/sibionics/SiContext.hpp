@@ -48,6 +48,7 @@ public:
    ~SiContext();
    void reset(SensorGlucoseData *sens);
    void resetAll(SensorGlucoseData *sens);
+   void wipeDataOnly(SensorGlucoseData *sens);
 
     };
 #endif

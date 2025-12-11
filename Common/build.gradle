@@ -87,7 +87,7 @@ android {
         //compileSdk 36
         applicationId "tk.glucodata.ng"
 
-         versionName '0.1.20'
+         versionName '0.2.0-Alpha'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -601,6 +601,10 @@ dependencies {
 //    mobileImplementation 'com.github.lecho:hellocharts-android:v1.5.8'
 //    mobileImplementation 'com.github.lecho:hellocharts-library:1.5.8@aar'
 
+    implementation("androidx.compose.material3:material3:1.4.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.material:material-icons-core:1.7.5")
+    implementation("androidx.compose.material:material-icons-extended:1.7.5")
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.startup:startup-runtime:1.2.0'
     implementation 'androidx.core:core-ktx:1.17.0'

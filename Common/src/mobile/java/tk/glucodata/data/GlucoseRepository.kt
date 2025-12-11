@@ -21,17 +21,38 @@ class GlucoseRepository {
                 val unit = Natives.getunit()
                 if (lastData != null) {
                     var value = lastData.value.toFloatOrNull() ?: 0f
-                    // Natives.lastglucose() returns string formatted according to unit in C++, 
-                    // BUT we are parsing it back. 
-                    // Actually, strGlucose.value comes from C++ `gconvert`. 
-                    // If C++ already converts it, we might be double converting if we are not careful.
-                    // However, getGlucoseHistory returns RAW ints (mg/dL * 10). 
-                    // Let's assume current reading flow is correct for now or needs check?
-                    // The user complained about graph, which uses getHistory.
-                    // Let's focus on getHistory.
+                    var rawValue = 0f
+                    val timeSec = lastData.time
                     
+                    // Try to get raw value from history for this specific timestamp
+                    val rawHistory = Natives.getGlucoseHistory(timeSec - 1)
+                    if (rawHistory != null) {
+                        for (i in rawHistory.indices step 3) {
+                            if (i + 2 >= rawHistory.size) break
+                            val hTime = rawHistory[i]
+                            if (hTime == timeSec) {
+                                val valueAutoRaw = rawHistory[i+1]
+                                val valueRawRaw = rawHistory[i+2]
+                                
+                                val isMmol = (unit == 1)
+                                
+                                // Recalculate values to ensure consistency with getHistory
+                                var v = valueAutoRaw / 10f
+                                var r = valueRawRaw / 10f
+                                
+                                if (isMmol) {
+                                    v = v / 18.0182f
+                                    r = r / 18.0182f
+                                }
+                                value = v
+                                rawValue = r
+                                break
+                            }
+                        }
+                    }
+
                     val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(lastData.time * 1000L))
-                    emit(GlucosePoint(value, timeStr, lastData.time * 1000L, 0f, lastData.rate))
+                    emit(GlucosePoint(value, timeStr, lastData.time * 1000L, rawValue, lastData.rate))
                 } else {
                     emit(null)
                 }

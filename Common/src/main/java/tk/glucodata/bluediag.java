@@ -319,8 +319,13 @@ void confirmFinish(SuperGattCallback gat) {
 
 void    setadapter(Activity act,    final ArrayList<SuperGattCallback> gatts) {
     adap = new RangeAdapter<>(gatts, act, gatt -> {
-        if (gatt != null && gatt.SerialNumber != null)
+        if (gatt != null && gatt.SerialNumber != null) {
+            String status = gatt.constatstatusstr;
+            if (status != null && !status.isEmpty()) {
+                return gatt.SerialNumber + " " + status;
+            }
             return gatt.SerialNumber;
+        }
         return "Error";
     });
     spin.setAdapter(adap);
@@ -510,8 +515,9 @@ bluediag(MainActivity act,final ArrayList<SuperGattCallback> gatts) {
     alarmclock=view.findViewById(R.id.alarmclock);
     resetbutton=view.findViewById(R.id.resetbutton);
    alarmclock.setChecked(Natives.getalarmclock());
-if(!isWearable) {
+    if(!isWearable) {
     Button finish = view.findViewById(R.id.finish);
+    Button reconnect = view.findViewById(R.id.reconnect);
     if (gatts != null && gatts.size() > 0) {
         finish.setOnClickListener(v -> {
             if (gatts != null && gatts.size() > 0) {
@@ -524,11 +530,22 @@ if(!isWearable) {
                 confirmFinish(gat);
             }
         });
+        reconnect.setOnClickListener(v -> {
+             if (gatts != null && gatts.size() > gattselected) {
+                 if (gattselected >= gatts.size()) gattselected = 0;
+                 var gat = gatts.get(gattselected);
+                 Natives.resetbluetooth(gat.dataptr);
+                 gat.disconnect();
+                 gat.connectDevice(100);
+                 Applic.Toaster("Reconnecting " + gat.SerialNumber);
+             }
+        });
     }
     else {
 
         {if(doLog) {Log.i(LOG_ID,"finish.setVisibility(GONE);");};};
         finish.setVisibility(GONE);
+        reconnect.setVisibility(GONE);
         }
     } 
 else {

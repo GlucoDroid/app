@@ -20,7 +20,9 @@ data class SensorInfo(
     val dataptr: Long,
     val officialEnd: String,
     val expectedEnd: String,
-    val viewMode: Int
+    val viewMode: Int,
+    val autoResetDays: Int,
+    val isSibionics2: Boolean
 )
 
 class SensorViewModel : ViewModel() {
@@ -38,30 +40,54 @@ class SensorViewModel : ViewModel() {
             val sensorList = gatts.map { gatt ->
                 val officialEndMs = Natives.getSensorEndTime(gatt.dataptr, true)
                 val expectedEndMs = Natives.getSensorEndTime(gatt.dataptr, false)
+                val startMs = Natives.getSensorStartmsec(gatt.dataptr)
                 val currentViewMode = Natives.getViewMode(gatt.dataptr)
-                
+                var autoResetDays = Natives.getAutoResetDays(gatt.dataptr)
+                val isSi2 = Natives.isSibionics2(gatt.dataptr)
+                // If 0 (Fresh), force to 21 (Default ON)
+                if (isSi2 && autoResetDays == 0) {
+                    Natives.setAutoResetDays(gatt.dataptr, 21)
+                    autoResetDays = 21
+                }
+
                 SensorInfo(
                     serial = gatt.SerialNumber ?: "Unknown",
                     deviceAddress = gatt.mActiveDeviceAddress ?: "Unknown",
                     connectionStatus = gatt.constatstatusstr ?: "Disconnected",
-                    starttime = tk.glucodata.bluediag.datestr(gatt.starttime),
+                    starttime = if (startMs > 0) tk.glucodata.bluediag.datestr(startMs) else "",
                     streaming = gatt.streamingEnabled(),
                     rssi = gatt.readrssi,
                     dataptr = gatt.dataptr,
                     officialEnd = if(officialEndMs > 0) tk.glucodata.bluediag.datestr(officialEndMs) else "",
                     expectedEnd = if(expectedEndMs > 0) tk.glucodata.bluediag.datestr(expectedEndMs) else "",
-                    viewMode = currentViewMode
+                    viewMode = currentViewMode,
+                    autoResetDays = autoResetDays,
+                    isSibionics2 = isSi2
                 )
+
+
             }
             _sensors.value = sensorList
         }
     }
 
-    // "Disconnect" in UI now maps to "Terminate" (finishSensor) as requested.
-    fun terminateSensor(serial: String) {
+    fun setAutoResetDays(serial: String, days: Int) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         if (gatt != null) {
+            Natives.setAutoResetDays(gatt.dataptr, days)
+            refreshSensors()
+        }
+    }
+
+    // "Disconnect" in UI now maps to "Terminate" (finishSensor) as requested.
+    fun terminateSensor(serial: String, wipeData: Boolean = false) {
+        val gatts = SensorBluetooth.mygatts()
+        val gatt = gatts.find { it.SerialNumber == serial }
+        if (gatt != null) {
+            if (wipeData) {
+                Natives.siWipeDataOnly(gatt.dataptr)
+            }
             gatt.finishSensor()
             SensorBluetooth.sensorEnded(serial)
             refreshSensors()
@@ -111,4 +137,42 @@ class SensorViewModel : ViewModel() {
             refreshSensors()
         }
     }
+
+    fun reconnectSensor(serial: String, wipeData: Boolean = false) {
+        val gatts = SensorBluetooth.mygatts()
+        val gatt = gatts.find { it.SerialNumber == serial }
+        if (gatt != null) {
+            if (wipeData) {
+                Natives.siWipeDataOnly(gatt.dataptr)
+            }
+            Natives.resetbluetooth(gatt.dataptr)
+            gatt.disconnect()
+            gatt.connectDevice(100)
+            refreshSensors()
+        }
+    }
 }
+
+//fun reconnectrestartSensor(serial: String, wipeData: Boolean = false, context: Context) {
+//    val gatts = SensorBluetooth.mygatts()
+//    val gatt = gatts.find { it.SerialNumber == serial }
+//    if (gatt != null) {
+//        if (wipeData) {
+//            Natives.siWipeDataOnly(gatt.dataptr)
+//        }
+//        Natives.resetbluetooth(gatt.dataptr)
+//        gatt.disconnect()
+//        gatt.connectDevice(100)
+//        refreshSensors()
+//
+//        // --- Restart the app ---
+//        val pm = context.packageManager
+//        val intent = pm.getLaunchIntentForPackage(context.packageName)
+//        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+//
+//        context.startActivity(intent)
+//
+//        // Needed for a real full restart
+//        exitProcess(0)
+//    }
+//}

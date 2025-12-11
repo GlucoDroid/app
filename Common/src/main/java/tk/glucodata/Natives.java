@@ -879,9 +879,13 @@ public static native void setAllValues(boolean val);
 public static native boolean getAllValues( );
 
 public static native void setResetSibionics2(long dataptr,boolean val);
+public static native void setAutoResetDays(long dataptr, int val);
+public static native int getAutoResetDays(long dataptr);
+public static native boolean isSibionics2(long dataptr);
 public static native boolean getResetSibionics2(long dataptr);
 public static native void siClearCalibration(long dataptr);
 public static native void siClearAll(long dataptr);
+public static native void siWipeDataOnly(long dataptr);
 public static native void setViewMode(long dataptr, int mode);
 public static native int getViewMode(long dataptr);
 public static native long str2sensorptr(String sensor);

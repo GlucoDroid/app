@@ -125,6 +125,29 @@ extern "C" JNIEXPORT void  JNICALL   fromjava(setResetSibionics2)(JNIEnv *env, j
    sens->getinfo()->reset=val;
     }
 
+extern "C" JNIEXPORT void  JNICALL   fromjava(setAutoResetDays)(JNIEnv *env, jclass cl,jlong dataptr,jint val) {
+    if(!dataptr)
+        return;
+    sistream  *stream=reinterpret_cast<sistream *>(dataptr);
+    auto *sens=stream->hist;
+   sens->getinfo()->autoResetDays=val;
+    }
+
+extern "C" JNIEXPORT jint  JNICALL   fromjava(getAutoResetDays)(JNIEnv *env, jclass cl,jlong dataptr) {
+    if(!dataptr)
+        return 0;
+    sistream  *stream=reinterpret_cast<sistream *>(dataptr);
+    auto *sens=stream->hist;
+   return sens->getinfo()->autoResetDays;
+    }
+
+extern "C" JNIEXPORT jboolean JNICALL fromjava(isSibionics2)(JNIEnv *env, jclass cl, jlong dataptr) {
+    if(!dataptr) return false;
+    sistream *stream = reinterpret_cast<sistream *>(dataptr);
+    auto *sens = stream->hist;
+    return sens && sens->isSibionics2();
+}
+
 extern "C" JNIEXPORT void  JNICALL   fromjava(siClearCalibration)(JNIEnv *env, jclass cl,jlong dataptr) {
     if(!dataptr)
         return;
@@ -600,6 +623,40 @@ void SiContext::resetAll(SensorGlucoseData *sens) {
     LOGSTRING("SiContext::resetAll() COMPLETE FACTORY RESET performed.\n");
 }
 
+void SiContext::wipeDataOnly(SensorGlucoseData *sens) {
+    LOGGER("SiContext::wipeDataOnly() called for sensor %s\n", sens->deviceaddress());
+    release(); 
+
+    if (binState.map.data() && binState.map.size() > 0) {
+        memset(binState.map.data(), 0, binState.map.size());
+    }
+    
+    binState.reset();
+    unlink(sens->binstatefile.c_str());
+    unlink(sens->statefile.c_str());
+    unlink(pathconcat(sens->getsensordir(), "state3.json").c_str());
+    
+    auto *info = sens->getinfo();
+    info->caliNr = 0;
+    
+    // FULL RESET: Wipe history counters
+    info->starttime = time(nullptr);
+    info->scancount = 0;
+    info->pollcount = 0;
+    info->starthistory = 0;
+    info->endhistory = 0;
+    
+    // DO NOT TRIGGER SENSOR RESET
+    info->reset = false; 
+
+    if (notchinese) {
+        algcontext = initAlgorithm2(sens, binState);
+    } else {
+        algcontext = initAlgorithm3(sens, binState);
+    }
+    LOGSTRING("SiContext::wipeDataOnly() Local data wiped without sensor reset.\n");
+}
+
 SiContext::~SiContext() {
     release();
     };
@@ -628,10 +685,26 @@ if(!dataptr) {
         return 10LL;
         } */
    if(sens->notchinese()) {
-        if(sens->getinfo()->reset) {
+       auto *info=sens->getinfo();
+        if(info->reset) {
             LOGAR("SIprocessData reset");
             return 10LL;
             }
+        if(info->autoResetDays>0) {
+             if(timsec>info->starttime) {
+                 float age_days=(timsec-info->starttime)/(24.0f*3600.0f);
+                 if(age_days>=info->autoResetDays) {
+                      if(info->siBetween==0) {
+                           info->reset=true;
+                           info->siBetween=1;
+                           LOGGER("Auto Reset triggered: age=%.2f days limit=%d\n",age_days,info->autoResetDays);
+                           return 10LL;
+                      }
+                 } else {
+                      if(info->siBetween!=0) info->siBetween=0;
+                 }
+            }
+        }
          const jlong res=sdata->sicontext.processData2(sens,timsec,bluedata,sdata->sensorindex);
          LOGGER("processData2=%lld\n",res);
          return res;
@@ -642,6 +715,14 @@ if(!dataptr) {
          LOGGER("processData=%lld\n",res);
          return res;
      }
+}
+
+extern "C" JNIEXPORT void  JNICALL   fromjava(siWipeDataOnly)(JNIEnv *env, jclass cl,jlong dataptr) {
+    if(!dataptr)
+        return;
+    sistream  *stream=reinterpret_cast<sistream *>(dataptr);
+    auto *sens=stream->hist;
+    if(sens) stream->sicontext.wipeDataOnly(sens);
 }
 
 #else
