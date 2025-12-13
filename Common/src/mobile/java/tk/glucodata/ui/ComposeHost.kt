@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package tk.glucodata.ui
 
 import android.annotation.SuppressLint
@@ -8,6 +10,7 @@ import android.view.View
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.appcompat.app.AppCompatActivity
+import androidx.annotation.Keep
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -50,6 +53,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import tk.glucodata.Natives
+import tk.glucodata.QRmake
+import tk.glucodata.MainActivity
+import android.widget.Toast
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 import kotlin.math.max
 import kotlin.math.min
@@ -57,6 +64,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import com.google.zxing.integration.android.IntentIntegrator
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
@@ -115,6 +123,10 @@ import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+
 
 
 
@@ -213,6 +225,7 @@ enum class TimeRange(val label: String, val hours: Int) {
 
 }
 
+@Keep
 fun setComposeContent(activity: AppCompatActivity, legacyView: View?) {
     activity.setContent {
         val prefs = activity.getSharedPreferences(activity.packageName + "_preferences", Context.MODE_PRIVATE)
@@ -381,13 +394,16 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
         ) {
             composable("dashboard") { DashboardScreen(dashboardViewModel) }
             composable("sensors") { SensorScreen() }
-            composable("settings") { SettingsScreen(themeMode, onThemeChanged, dashboardViewModel) }
+            composable("settings") { SettingsScreen(navController, themeMode, onThemeChanged, dashboardViewModel) }
+            composable("settings/nightscout") { NightscoutSettingsScreen(navController) }
+            composable("settings/mirror") { MirrorSettingsScreen(navController) }
         }
     }
 }
 
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel) {
+    val context = LocalContext.current
 // This runs every time the Activity/Fragment/Screen hits the ON_RESUME state
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshData()
@@ -410,7 +426,11 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
         floatingActionButton = {
             if (glucoseData.isEmpty()) {
                 FloatingActionButton(onClick = {
-                    tk.glucodata.MainActivity.launchQrScan()
+                    if (context is Activity) {
+                         val integrator = IntentIntegrator(context)
+                         integrator.setRequestCode(MainActivity.REQUEST_BARCODE)
+                         integrator.initiateScan()
+                    }
                 }) {
                     Icon(Icons.Default.Add, contentDescription = "Add Sensor")
                 }
@@ -736,10 +756,12 @@ fun InteractiveGlucoseChart(
                 val bottomAxisHeight = 30.dp.toPx()
                 val chartHeight = height - bottomAxisHeight
 
+                // Viewport
                 val viewportStart = centerTime - visibleDuration / 2
                 val viewportEnd = centerTime + visibleDuration / 2
                 val paddingTime = visibleDuration / 5
 
+                // Filter Data
                 val visiblePoints = safeData.filter {
                     it.timestamp >= (viewportStart - paddingTime) && it.timestamp <= (viewportEnd + paddingTime)
                 }
@@ -977,7 +999,7 @@ fun SearchScreen() {
 }
 
 @Composable
-fun SettingsScreen(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit, viewModel: DashboardViewModel = viewModel()) {
+fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit, viewModel: DashboardViewModel = viewModel()) {
     val context = LocalContext.current
     val unit by viewModel.unit.collectAsState()
     val isMmol = unit == "mmol/L"
@@ -1098,6 +1120,19 @@ fun SettingsScreen(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit, vi
                     onCheckedChange = { viewModel.togglePatchedLibreBroadcast(it) }
                 )
             }
+        )
+
+        ListItem(
+            headlineContent = { Text("Mirror") },
+            supportingContent = { Text("Share/Receive data via Internet/Home Net") },
+            modifier = Modifier.clickable { navController.navigate("settings/mirror") }
+        )
+
+        
+        ListItem(
+            headlineContent = { Text("Nightscout") },
+            supportingContent = { Text("Upload to Nightscout") },
+            modifier = Modifier.clickable { navController.navigate("settings/nightscout") }
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -1364,6 +1399,7 @@ private fun String.capitalize(): String {
 
 @Composable
 fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewModel()) {
+    val context = LocalContext.current
     val sensors by viewModel.sensors.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -1375,7 +1411,11 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
         contentWindowInsets = WindowInsets(0.dp),
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                tk.glucodata.MainActivity.launchQrScan()
+                if (context is Activity) {
+                     val integrator = IntentIntegrator(context)
+                     integrator.setRequestCode(MainActivity.REQUEST_BARCODE)
+                     integrator.initiateScan()
+                }
             }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Sensor")
             }
@@ -1803,10 +1843,11 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
 
                                 horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("1d", style = MaterialTheme.typography.labelSmall)
-                                Text("22d", style = MaterialTheme.typography.labelSmall)
-                            }
+                            )
+//                            {
+//                                Text("1d", style = MaterialTheme.typography.labelSmall)
+//                                Text("22d", style = MaterialTheme.typography.labelSmall)
+//                            }
                         }
                     }
                 }
@@ -1861,4 +1902,294 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
             } // End Column
         } // End Card
 }
+}
+
+@Composable
+fun MirrorSettingsScreen(navController: androidx.navigation.NavController) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    // State for sensors (would ideally be in ViewModel, but using Natives directly for now as per pattern)
+    // We need a way to refresh this list. Triggering on composition or button press.
+    var activeSensors by remember { mutableStateOf(longArrayOf()) }
+    var useBluetooth by remember { mutableStateOf(Natives.getusebluetooth()) }
+
+    LaunchedEffect(Unit) {
+        activeSensors = Natives.activeSensorPtrs()
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Mirror Settings") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            Text("ICE Mirroring (Internet)", style = MaterialTheme.typography.titleMedium)
+            Text("Share or receive data securely over the internet.", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ICE / Home Net Buttons
+            // Send
+            Text("Send Data", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top=8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        if (activity is tk.glucodata.MainActivity) {
+                             val pos = Natives.makeHomeSender()
+                             if (pos >= 0) {
+                                  val json = Natives.getbackJson(pos)
+                                  tk.glucodata.QRmake.show(activity, json)
+                             }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Home Net")
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (activity is tk.glucodata.MainActivity) {
+                             val pos = Natives.makeICESender()
+                             if (pos >= 0) {
+                                  val json = Natives.getbackJson(pos)
+                                  tk.glucodata.QRmake.show(activity, json)
+                             }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Internet (ICE)")
+                }
+            }
+
+            // Receive
+            Text("Receive Data", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top=8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        if (activity is tk.glucodata.MainActivity) {
+                             val pos = Natives.makeHomeReceiver()
+                             if (pos >= 0) {
+                                  val json = Natives.getbackJson(pos)
+                                  tk.glucodata.QRmake.show(activity, json)
+                             }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Home Net")
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (activity is tk.glucodata.MainActivity) {
+                             val pos = Natives.makeICEReceiver()
+                             if (pos >= 0) {
+                                  val json = Natives.getbackJson(pos)
+                                  tk.glucodata.QRmake.show(activity, json)
+                             }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Internet (ICE)")
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            // Sensor Mirroring (Active Sensors)
+            Text("Sensor Mirroring", style = MaterialTheme.typography.titleMedium)
+            
+            ListItem(
+                headlineContent = { Text("Use Bluetooth") },
+                supportingContent = { Text("Enable Bluetooth for sensor connections") },
+                trailingContent = {
+                    Switch(
+                        checked = useBluetooth,
+                        onCheckedChange = { 
+                            Natives.setusebluetooth(it)
+                            useBluetooth = it
+                            // Trigger native update if needed, typically handled by MainActivity onResume/Changes
+                            if (activity is tk.glucodata.MainActivity) {
+                                // MirrorSensors.java does: act.setbluetoothmain(isChecked); act.requestRender(); doonback(); bluediag.start(act);
+                                // We might need to expose setbluetoothmain or just trust Natives + restart
+                                activity.setbluetoothmain(it)
+                            }
+                        }
+                    )
+                }
+            )
+
+            if (activeSensors.isEmpty()) {
+                Text("No active mirrored sensors found.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 8.dp))
+            } else {
+                Text("Active Sensors:", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical=8.dp))
+                activeSensors.forEach { ptr ->
+                    val name = Natives.namefromSensorptr(ptr) ?: "Unknown Sensor"
+                    ListItem(
+                        headlineContent = { Text(name) },
+                        trailingContent = {
+                            Button(onClick = {
+                                Natives.finishfromSensorptr(ptr)
+                                activeSensors = Natives.activeSensorPtrs() // Refresh list
+                                Toast.makeText(context, "Sensor finished", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Text("Finish")
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NightscoutSettingsScreen(navController: androidx.navigation.NavController) {
+    val context = LocalContext.current
+    
+    // Load initial values from Natives
+    // Note: Natives methods are static and blocking, but usually fast enough for UI.
+    // In a perfect world, we'd wrap this in a ViewModel/Suspend, but sticking to existing pattern.
+    var url by remember { mutableStateOf(Natives.getnightuploadurl() ?: "") }
+    var secret by remember { mutableStateOf(Natives.getnightuploadsecret() ?: "") }
+    var isActive by remember { mutableStateOf(Natives.getuseuploader()) }
+    var sendTreatments by remember { mutableStateOf(Natives.getpostTreatments()) }
+    // V3 is only for phone, watch doesn't support it according to NightPost.java logic (isWearable check)
+    // Assuming mobile context here.
+    var isV3 by remember { mutableStateOf(Natives.getnightscoutV3()) }
+    
+    var showSecret by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Nightscout Settings") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    TextButton(onClick = {
+                        // Save Actions
+                        // Calling Natives.setNightUploader(url, secret, active, v3)
+                        Natives.setNightUploader(url, secret, isActive, isV3)
+                        Natives.setpostTreatments(sendTreatments)
+                        navController.popBackStack()
+                        android.widget.Toast.makeText(context, "Saved", android.widget.Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("Save")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            
+            // Active Switch
+            ListItem(
+                headlineContent = { Text("Active") },
+                supportingContent = { Text("Enable Nightscout Upload") },
+                trailingContent = {
+                    Switch(checked = isActive, onCheckedChange = { isActive = it })
+                }
+            )
+            
+            HorizontalDivider()
+
+            // URL
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text("Nightscout URL") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("https://my-nightscout.herokuapp.com") }
+            )
+            
+            // Secret
+            OutlinedTextField(
+                value = secret,
+                onValueChange = { secret = it },
+                label = { Text("API Secret") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = if (showSecret) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                trailingIcon = {
+                   val image = if (showSecret)
+                       Icons.Filled.Visibility
+                   else
+                       Icons.Filled.VisibilityOff
+
+                   IconButton(onClick = { showSecret = !showSecret }) {
+                       Icon(imageVector = image, contentDescription = if (showSecret) "Hide password" else "Show password")
+                   }
+                }
+            )
+
+            HorizontalDivider()
+            
+            // Send Treatments
+            ListItem(
+                headlineContent = { Text("Send Amounts") },
+                supportingContent = { Text("Upload Insulin/Carbs (Treatments)") },
+                trailingContent = {
+                    Switch(checked = sendTreatments, onCheckedChange = { sendTreatments = it })
+                }
+            )
+            
+            // Mobile only V3 check
+            ListItem(
+                headlineContent = { Text("Use V3 API") },
+                supportingContent = { Text("Experimental") },
+                trailingContent = {
+                    Switch(checked = isV3, onCheckedChange = { isV3 = it })
+                }
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Resend / Sync Buttons
+            Button(
+                onClick = { 
+                    Natives.wakeuploader()
+                    android.widget.Toast.makeText(context, "Sending now...", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Send Now")
+            }
+            
+            OutlinedButton(
+                onClick = {
+                     Natives.resetuploader()
+                     android.widget.Toast.makeText(context, "Resend triggered", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Resend Data (Reset)")
+            }
+
+        }
+    }
 }
