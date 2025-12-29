@@ -424,35 +424,24 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        enableEdgeToEdge();
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+            getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        }
+
         super.onCreate(savedInstanceState);
         thisone = this;
-        // The original code had a conditional EdgeToEdge.enable(this) call here.
-        // The instruction implies moving EdgeToEdge.enable() to the start,
-        // but the provided snippet shows `enableEdgeToEdge()` which is a different
-        // method.
-        // Assuming `enableEdgeToEdge()` is the desired call and replaces the old logic.
-        // If the intent was to keep the conditional logic, the instruction was
-        // ambiguous.
-        // Following the provided snippet's structure.
-        // The `start()` call is not present in the original code, but is in the
-        // provided snippet.
-        // Adding it as per the snippet.
-        start();
+
         if (android.os.Build.VERSION.SDK_INT >= 21) {
             Log.i(LOG_ID, "sdk 21 or larger");
-        } else
+        } else {
             Log.i(LOG_ID, "smaller than sdk 21");
+        }
 
         if (isWearable) {
             Specific.splash(this);
         }
-        super.onCreate(savedInstanceState);
-        if (Build.VERSION.SDK_INT >= 30) {
-            if (!isWearable)
-                EdgeToEdge.enable(this);
-        }
-        thisone = this;
         if (Applic.stopprogram > 0) {
             Log.e(LOG_ID, "Stop program");
             if (Applic.stopprogram == 1)
