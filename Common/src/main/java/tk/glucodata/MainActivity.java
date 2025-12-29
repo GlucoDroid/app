@@ -314,8 +314,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     @Keep
     public static void launchQrScan() {
         if (thisone != null) {
-            thisone.runOnUiThread(() -> android.widget.Toast
-                    .makeText(thisone, "QR Scan not implemented", android.widget.Toast.LENGTH_SHORT).show());
+            thisone.runOnUiThread(() -> PhotoScan.scan(thisone, REQUEST_BARCODE));
         }
     }
 
@@ -425,6 +424,21 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        enableEdgeToEdge();
+        super.onCreate(savedInstanceState);
+        thisone = this;
+        // The original code had a conditional EdgeToEdge.enable(this) call here.
+        // The instruction implies moving EdgeToEdge.enable() to the start,
+        // but the provided snippet shows `enableEdgeToEdge()` which is a different
+        // method.
+        // Assuming `enableEdgeToEdge()` is the desired call and replaces the old logic.
+        // If the intent was to keep the conditional logic, the instruction was
+        // ambiguous.
+        // Following the provided snippet's structure.
+        // The `start()` call is not present in the original code, but is in the
+        // provided snippet.
+        // Adding it as per the snippet.
+        start();
         if (android.os.Build.VERSION.SDK_INT >= 21) {
             Log.i(LOG_ID, "sdk 21 or larger");
         } else

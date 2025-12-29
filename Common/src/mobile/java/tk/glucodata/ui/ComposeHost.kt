@@ -64,7 +64,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import com.google.zxing.integration.android.IntentIntegrator
+
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
@@ -430,11 +430,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
         floatingActionButton = {
             if (glucoseData.isEmpty()) {
                 FloatingActionButton(onClick = {
-                    if (context is Activity) {
-                         val integrator = IntentIntegrator(context)
-                         integrator.setRequestCode(MainActivity.REQUEST_BARCODE)
-                         integrator.initiateScan()
-                    }
+                    tk.glucodata.MainActivity.launchQrScan()
                 }) {
                     Icon(Icons.Default.Add, contentDescription = "Add Sensor")
                 }
@@ -1433,11 +1429,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
         contentWindowInsets = WindowInsets(0.dp),
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                if (context is Activity) {
-                     val integrator = IntentIntegrator(context)
-                     integrator.setRequestCode(MainActivity.REQUEST_BARCODE)
-                     integrator.initiateScan()
-                }
+                tk.glucodata.MainActivity.launchQrScan()
             }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Sensor")
             }
@@ -1954,22 +1946,19 @@ fun NightscoutSettingsScreen(navController: androidx.navigation.NavController) {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                actions = {
-                    TextButton(onClick = {
-                        // Save Actions
-                        // Calling Natives.setNightUploader(url, secret, active, v3)
-                        Natives.setNightUploader(url, secret, isActive, isV3)
-                        Natives.setpostTreatments(sendTreatments)
-                        navController.popBackStack()
-                        android.widget.Toast.makeText(context, "Saved", android.widget.Toast.LENGTH_SHORT).show()
-                    }) {
-                        Text("Save")
-                    }
                 }
             )
         }
     ) { padding ->
+        // Auto-save on exit
+        DisposableEffect(Unit) {
+            onDispose {
+                Natives.setNightUploader(url, secret, isActive, isV3)
+                Natives.setpostTreatments(sendTreatments)
+                // Optional: Toast or logging, but user wanted standard app behavior which is silent save usually
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

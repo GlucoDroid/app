@@ -18,7 +18,6 @@
 /*                                                                                   */
 /*      Fri Jan 27 15:31:05 CET 2023                                                 */
 
-
 package tk.glucodata;
 
 import static android.app.Notification.FLAG_ONGOING_EVENT;
@@ -76,191 +75,230 @@ import java.util.concurrent.TimeUnit;
 //import tk.glucodata.Natives;
 
 public class Notify {
-static {
+    static {
         makenotification_audio();
-        };
-static public final int glucosetimeoutSEC=30*11;
-static public final long glucosetimeout=1000L*glucosetimeoutSEC;
+    };
+    static public final int glucosetimeoutSEC = 30 * 11;
+    static public final long glucosetimeout = 1000L * glucosetimeoutSEC;
 
-    static final private String LOG_ID="Notify";
-static Notify onenot=null;
-static void init(Context cont) {
-    if(onenot==null) {
-        onenot = new Notify(cont);
+    static final private String LOG_ID = "Notify";
+    static Notify onenot = null;
+
+    static void init(Context cont) {
+        if (onenot == null) {
+            onenot = new Notify(cont);
 
         }
     }
-static String glucoseformat=null;
-static String pureglucoseformat=null;
-static public String unitlabel="mg/dL";
-//public static int unit=0;
-static void mkunitstr(Context cont,int unit) {
-    Applic.unit=unit;    
-    pureglucoseformat=unit==1?"%.1f":"%.0f";
-    if(isWearable) {
-            glucoseformat=pureglucoseformat;
-        }
-    else  {
-        unitlabel=unit==1?cont.getString(R.string.mmolL):cont.getString(R.string.mgdL);
-            glucoseformat=unit==1?"%.1f "+unitlabel:"%.0f "+unitlabel;
+
+    static String glucoseformat = null;
+    static String pureglucoseformat = null;
+    static public String unitlabel = "mg/dL";
+
+    // public static int unit=0;
+    static void mkunitstr(Context cont, int unit) {
+        Applic.unit = unit;
+        pureglucoseformat = unit == 1 ? "%.1f" : "%.0f";
+        if (isWearable) {
+            glucoseformat = pureglucoseformat;
+        } else {
+            unitlabel = unit == 1 ? cont.getString(R.string.mmolL) : cont.getString(R.string.mgdL);
+            glucoseformat = unit == 1 ? "%.1f " + unitlabel : "%.0f " + unitlabel;
         }
 
     }
-@SuppressLint("NewApi")
-Ringtone setring(String uristr, int res) {
-    if(uristr==null||uristr.length()==0) {
-        uristr= "android.resource://" + Applic.app.getPackageName() + "/" + res;
+
+    @SuppressLint("NewApi")
+    Ringtone setring(String uristr, int res) {
+        if (uristr == null || uristr.length() == 0) {
+            uristr = "android.resource://" + Applic.app.getPackageName() + "/" + res;
         }
-    Uri uri=Uri.parse(uristr);
-    Ringtone ring = RingtoneManager.getRingtone(Applic.app, uri);
-    if(ring==null) {
-        {if(doLog) {Log.i(LOG_ID,"ring==null default");};};
-        uristr= "android.resource://" + Applic.app.getPackageName() + "/" + res;
-        uri=Uri.parse(uristr);
-        ring = RingtoneManager.getRingtone(Applic.app, uri);
+        Uri uri = Uri.parse(uristr);
+        Ringtone ring = RingtoneManager.getRingtone(Applic.app, uri);
+        if (ring == null) {
+            {
+                if (doLog) {
+                    Log.i(LOG_ID, "ring==null default");
+                }
+                ;
+            }
+            ;
+            uristr = "android.resource://" + Applic.app.getPackageName() + "/" + res;
+            uri = Uri.parse(uristr);
+            ring = RingtoneManager.getRingtone(Applic.app, uri);
         }
-    try {
-        if(Build.VERSION.SDK_INT >=23) ring.setLooping(true);
-        } 
-    catch(Throwable e) {
-           Log.stack(LOG_ID,"setring",e);
-           }
-    return ring;
+        try {
+            if (Build.VERSION.SDK_INT >= 23)
+                ring.setLooping(true);
+        } catch (Throwable e) {
+            Log.stack(LOG_ID, "setring", e);
+        }
+        return ring;
     }
-static public String alarmtext(int kind) {
-        return Applic.getContext().getString(switch(kind) {
-                case 0-> R.string.lowglucoseshort;
-                case 1-> R.string.highglucoseshort;
-                case 5-> R.string.verylowglucose;
-                case 6-> R.string.veryhighglucose;
-                case 7-> R.string.prelowglucose;
-                case 8-> R.string.prehighglucose;
-                default -> R.string.nothing;
-                });
-        }
-//                                        0               1           2               3           4           5             6          7                    8
- //                                       low             high         avail       amount        loss        very low     very high   pre low           pre high
-static final private int[] defaults ={ R.raw.siren, R.raw.classic, R.raw.ghost, R.raw.nudge,R.raw.elves, R.raw.verylow, R.raw.veryhigh,R.raw.lowsoon, R.raw.highsoon};
 
+    static public String alarmtext(int kind) {
+        return Applic.getContext().getString(switch (kind) {
+            case 0 -> R.string.lowglucoseshort;
+            case 1 -> R.string.highglucoseshort;
+            case 5 -> R.string.verylowglucose;
+            case 6 -> R.string.veryhighglucose;
+            case 7 -> R.string.prelowglucose;
+            case 8 -> R.string.prehighglucose;
+            default -> R.string.nothing;
+        });
+    }
 
+    // 0 1 2 3 4 5 6 7 8
+    // low high avail amount loss very low very high pre low pre high
+    static final private int[] defaults = { R.raw.siren, R.raw.classic, R.raw.ghost, R.raw.nudge, R.raw.elves,
+            R.raw.verylow, R.raw.veryhigh, R.raw.lowsoon, R.raw.highsoon };
 
-//static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage(isWearable?USAGE_UNKNOWN:USAGE_NOTIFICATION) .build():null;
-//static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage( USAGE_ASSISTANCE_SONIFICATION) .build():null;
-//static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage(USAGE_NOTIFICATION) .build():null;
+    // static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT
+    // >= 21)?new
+    // AudioAttributes.Builder().setUsage(isWearable?USAGE_UNKNOWN:USAGE_NOTIFICATION)
+    // .build():null;
+    // static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT
+    // >= 21)?new AudioAttributes.Builder().setUsage( USAGE_ASSISTANCE_SONIFICATION)
+    // .build():null;
+    // static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT
+    // >= 21)?new AudioAttributes.Builder().setUsage(USAGE_NOTIFICATION)
+    // .build():null;
 
-static AudioAttributes notification_audio;
-//static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage(isWearable? USAGE_ASSISTANCE_SONIFICATION: AudioAttributes.USAGE_NOTIFICATION) .build():null;
-static AudioFocusRequest audiofocusrequest;
-static public void makenotification_audio() {
-    if(android.os.Build.VERSION.SDK_INT >= 21) {
-        int type=Natives.getSoundType( );
-        Log.i(LOG_ID,"getSoundType()="+type);
-        if(type==0) {
-            type=isWearable? USAGE_ASSISTANCE_SONIFICATION: AudioAttributes.USAGE_NOTIFICATION;
-            } 
-        notification_audio=new AudioAttributes.Builder().setUsage(type).build();
-        if(android.os.Build.VERSION.SDK_INT >= 26) {
-                audiofocusrequest = new AudioFocusRequest.Builder( AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes( notification_audio ).build();
+    static AudioAttributes notification_audio;
+    // static AudioAttributes notification_audio=(android.os.Build.VERSION.SDK_INT
+    // >= 21)?new AudioAttributes.Builder().setUsage(isWearable?
+    // USAGE_ASSISTANCE_SONIFICATION: AudioAttributes.USAGE_NOTIFICATION)
+    // .build():null;
+    static AudioFocusRequest audiofocusrequest;
+
+    static public void makenotification_audio() {
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            int type = Natives.getSoundType();
+            Log.i(LOG_ID, "getSoundType()=" + type);
+            if (type == 0) {
+                type = isWearable ? USAGE_ASSISTANCE_SONIFICATION : AudioAttributes.USAGE_NOTIFICATION;
+            }
+            notification_audio = new AudioAttributes.Builder().setUsage(type).build();
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                audiofocusrequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                        .setAudioAttributes(notification_audio).build();
                 Log.i(LOG_ID, "audiofocusrequest  has value");
-                }
-         else {
-                audiofocusrequest =null;
+            } else {
+                audiofocusrequest = null;
                 Log.i(LOG_ID, "audiofocusrequest=null");
-                }
-        }
-    else {
-                notification_audio=null;
+            }
+        } else {
+            notification_audio = null;
         }
     }
 
-static private AudioManager audioManager = (android.os.Build.VERSION.SDK_INT <26)?null:(AudioManager) Applic.getContext().getSystemService(Context.AUDIO_SERVICE);
-static private boolean turnfocusoff=false;
-        static void doTurnFocusoff() {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                final var wasturnoff=turnfocusoff;
-                turnfocusoff=false;
-                if(wasturnoff) {
-                    audioManager.abandonAudioFocusRequest(audiofocusrequest);
-                }
+    static private AudioManager audioManager = (android.os.Build.VERSION.SDK_INT < 26) ? null
+            : (AudioManager) Applic.getContext().getSystemService(Context.AUDIO_SERVICE);
+    static private boolean turnfocusoff = false;
+
+    static void doTurnFocusoff() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            final var wasturnoff = turnfocusoff;
+            turnfocusoff = false;
+            if (wasturnoff) {
+                audioManager.abandonAudioFocusRequest(audiofocusrequest);
             }
         }
+    }
 
-        static void doTurnFocuson() {
-            if(android.os.Build.VERSION.SDK_INT >= 26) {
-                if(!turnfocusoff) {
-                    switch(audioManager.requestAudioFocus(audiofocusrequest)) {
-                        case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
-                            Log.i(LOG_ID,"REQUEST_FAILED");
-                            break;
+    static void doTurnFocuson() {
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            if (!turnfocusoff) {
+                switch (audioManager.requestAudioFocus(audiofocusrequest)) {
+                    case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                        Log.i(LOG_ID, "REQUEST_FAILED");
+                        break;
 
-                        case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
-                            turnfocusoff=true;
-                            Log.i(LOG_ID,"REQUEST_GRANTED");
-                            break;
-                        case AudioManager.AUDIOFOCUS_REQUEST_DELAYED:
-                            Log.i(LOG_ID,"REQUEST_DELAYED");
-                            break;
-                    };
+                    case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                        turnfocusoff = true;
+                        Log.i(LOG_ID, "REQUEST_GRANTED");
+                        break;
+                    case AudioManager.AUDIOFOCUS_REQUEST_DELAYED:
+                        Log.i(LOG_ID, "REQUEST_DELAYED");
+                        break;
                 }
+                ;
             }
         }
-
-
-
-public static Ringtone getring(int kind) {
-    return    mkrings(Natives.readring(kind),kind);
     }
-Ringtone mkring(String uristr,int kind) {
-    {if(doLog) {Log.i(LOG_ID,"ringtone "+kind+" "+uristr);};};
-    var ring=setring(uristr,defaults[kind]);
-    if(android.os.Build.VERSION.SDK_INT >= 21)  {
-          try {
-            ring.setAudioAttributes((kind!=2&&getUSEALARM())?ScanNfcV.audioattributes:notification_audio);
+
+    public static Ringtone getring(int kind) {
+        return mkrings(Natives.readring(kind), kind);
+    }
+
+    Ringtone mkring(String uristr, int kind) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "ringtone " + kind + " " + uristr);
+            }
+            ;
         }
-        catch(Throwable e) {
-            Log.stack(LOG_ID,"mkring",e);
+        ;
+        var ring = setring(uristr, defaults[kind]);
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            try {
+                ring.setAudioAttributes((kind != 2 && getUSEALARM()) ? ScanNfcV.audioattributes : notification_audio);
+            } catch (Throwable e) {
+                Log.stack(LOG_ID, "mkring", e);
             }
 
         }
-    return ring;
-    }
-static public Ringtone mkrings(String uristr,int kind) {
-    if(onenot!=null)
-        return onenot.mkring(uristr,kind);
-    return null;
+        return ring;
     }
 
+    static public Ringtone mkrings(String uristr, int kind) {
+        if (onenot != null)
+            return onenot.mkring(uristr, kind);
+        return null;
+    }
 
-final  static boolean whiteonblack=false;
-@ColorInt  public static int foregroundcolor=BLACK;
-static public float glucosesize;
-static RemoteGlucose arrowNotify;
+    final static boolean whiteonblack = false;
+    @ColorInt
+    public static int foregroundcolor = BLACK;
+    static public float glucosesize;
+    static RemoteGlucose arrowNotify;
 
     static void mkpaint() {
-        if(!isWearable) {
-            DisplayMetrics metrics= Applic.app.getResources().getDisplayMetrics();
-            {if(doLog) {Log.i(LOG_ID,"metrics.density="+ metrics.density+ " width="+metrics.widthPixels+" height="+metrics.heightPixels);};};
-            var notwidth=Math.min(metrics.widthPixels,metrics.heightPixels);
-            arrowNotify=new RemoteGlucose(glucosesize,notwidth,0.12f,whiteonblack?1:0,false);
+        if (!isWearable) {
+            DisplayMetrics metrics = Applic.app.getResources().getDisplayMetrics();
+            {
+                if (doLog) {
+                    Log.i(LOG_ID, "metrics.density=" + metrics.density + " width=" + metrics.widthPixels + " height="
+                            + metrics.heightPixels);
+                }
+                ;
+            }
+            ;
+            var notwidth = Math.min(metrics.widthPixels, metrics.heightPixels);
+            arrowNotify = new RemoteGlucose(glucosesize, notwidth, 0.12f, whiteonblack ? 1 : 0, false);
         }
     }
 
     Notify(Context cont) {
-        showalways=Natives.getshowalways();
-        {if(doLog) {Log.i(LOG_ID,"showalways="+showalways);};};
-        alertseparate=Natives.getSeparate( );
-        mkunitstr(cont,Natives.getunit());
-        notificationManager =(NotificationManager) Applic.app.getSystemService(NOTIFICATION_SERVICE);
+        showalways = Natives.getshowalways();
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "showalways=" + showalways);
+            }
+            ;
+        }
+        ;
+        alertseparate = Natives.getSeparate();
+        mkunitstr(cont, Natives.getunit());
+        notificationManager = (NotificationManager) Applic.app.getSystemService(NOTIFICATION_SERVICE);
         createNotificationChannel(Applic.app);
         mkpaint();
     }
 
-
     private static final String NUMALARM = "MedicationReminder";
     private static final String GLUCOSEALARM = "glucoseAlarm";
-    //  private static final String LOSSALARM = "LossofSensorAlarm";
+    // private static final String LOSSALARM = "LossofSensorAlarm";
     private static final String GLUCOSENOTIFICATION = "glucoseNotification";
-
 
     private void createNotificationChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -274,7 +312,7 @@ static RemoteGlucose arrowNotify;
 
             description = context.getString(R.string.alarm_description);
             importance = NotificationManager.IMPORTANCE_HIGH;
-            channel = new NotificationChannel(GLUCOSEALARM,GLUCOSEALARM, importance);
+            channel = new NotificationChannel(GLUCOSEALARM, GLUCOSEALARM, importance);
             channel.setSound(null, null);
             channel.setDescription(description);
             // allowbubbel(channel);
@@ -283,7 +321,7 @@ static RemoteGlucose arrowNotify;
             description = context.getString(R.string.notification_description);
             importance = NotificationManager.IMPORTANCE_HIGH;
             channel = new NotificationChannel(GLUCOSENOTIFICATION, GLUCOSENOTIFICATION, importance);
-            //allowbubbel(channel);
+            // allowbubbel(channel);
             channel.setSound(null, null);
             channel.setDescription(description);
             notificationManager.createNotificationChannel(channel);
@@ -291,858 +329,1105 @@ static RemoteGlucose arrowNotify;
 
     }
 
-    //        channel.setShowBadge(false);
-    void lowglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(0,gl, format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(isWearable?R.string.lowglucoseshort:R.string.lowglucose), strgl,GLUCOSEALARM,alarm);
-        if(!isWearable) {
-            if(alarm)  {
-                tk.glucodata.WearInt.alarm("LOW "+strgl.value);
-                }
-            }
-    }
-    void highglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(1,gl,format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(isWearable?R.string.highglucoseshort:R.string.highglucose), strgl,GLUCOSEALARM,alarm);
-        if(!isWearable) {
-            if(alarm)  {
-                tk.glucodata.WearInt.alarm("HIGH "+strgl.value);
-                }
+    // channel.setShowBadge(false);
+    void lowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+        arrowglucosealarm(0, gl,
+                format(usedlocale, glucoseformat, gl)
+                        + Applic.getContext().getString(isWearable ? R.string.lowglucoseshort : R.string.lowglucose),
+                strgl, GLUCOSEALARM, alarm);
+        if (!isWearable) {
+            if (alarm) {
+                tk.glucodata.WearInt.alarm("LOW " + strgl.value);
             }
         }
-    void veryhighglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(6,gl,format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(isWearable?R.string.veryhighglucoseshort:R.string.veryhighglucose), strgl,GLUCOSEALARM,alarm);
-        if(!isWearable) {
-            if(alarm)  {
-                tk.glucodata.WearInt.alarm("HIGH "+strgl.value);
-                }
-            }
-        }
-    void verylowglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(5,gl, format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(isWearable?R.string.verylowglucoseshort:R.string.verylowglucose), strgl,GLUCOSEALARM,alarm);
-        if(!isWearable) {
-            if(alarm)  {
-                tk.glucodata.WearInt.alarm("LOW "+strgl.value);
-                }
-            }
     }
 
-    void prehighglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(8,gl,format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(R.string.prehighglucose), strgl,GLUCOSEALARM,alarm);
+    void highglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+        arrowglucosealarm(1, gl,
+                format(usedlocale, glucoseformat, gl)
+                        + Applic.getContext().getString(isWearable ? R.string.highglucoseshort : R.string.highglucose),
+                strgl, GLUCOSEALARM, alarm);
+        if (!isWearable) {
+            if (alarm) {
+                tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
+            }
         }
-    void prelowglucose(notGlucose strgl,float gl,float rate,boolean alarm) {
-        arrowglucosealarm(7,gl, format(usedlocale,glucoseformat, gl)+Applic.getContext().getString(R.string.prelowglucose), strgl,GLUCOSEALARM,alarm);
     }
 
-    static private final int glucosenotificationid=81431;
-    static private final int glucosealarmid=81432;
-    static boolean alertwatch=false;
-    static private boolean showalways=Natives.getshowalways();
-static public String glucosestr(float gl) {
-    return format(usedlocale,glucoseformat, gl);
+    void veryhighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+        arrowglucosealarm(6, gl,
+                format(usedlocale, glucoseformat, gl) + Applic.getContext()
+                        .getString(isWearable ? R.string.veryhighglucoseshort : R.string.veryhighglucose),
+                strgl, GLUCOSEALARM, alarm);
+        if (!isWearable) {
+            if (alarm) {
+                tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
+            }
+        }
     }
-    static public void glucosestatus(boolean val)  {
-        showalways=val;
+
+    void verylowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+        arrowglucosealarm(5, gl,
+                format(usedlocale, glucoseformat, gl) + Applic.getContext()
+                        .getString(isWearable ? R.string.verylowglucoseshort : R.string.verylowglucose),
+                strgl, GLUCOSEALARM, alarm);
+        if (!isWearable) {
+            if (alarm) {
+                tk.glucodata.WearInt.alarm("LOW " + strgl.value);
+            }
+        }
+    }
+
+    void prehighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+        arrowglucosealarm(8, gl,
+                format(usedlocale, glucoseformat, gl) + Applic.getContext().getString(R.string.prehighglucose), strgl,
+                GLUCOSEALARM, alarm);
+    }
+
+    void prelowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+        arrowglucosealarm(7, gl,
+                format(usedlocale, glucoseformat, gl) + Applic.getContext().getString(R.string.prelowglucose), strgl,
+                GLUCOSEALARM, alarm);
+    }
+
+    static private final int glucosenotificationid = 81431;
+    static private final int glucosealarmid = 81432;
+    static boolean alertwatch = false;
+    static private boolean showalways = Natives.getshowalways();
+
+    static public String glucosestr(float gl) {
+        return format(usedlocale, glucoseformat, gl);
+    }
+
+    static public void glucosestatus(boolean val) {
+        showalways = val;
         Natives.setshowalways(val);
-        if(!val) {
-            if(onenot!=null)
+        if (!val) {
+            if (onenot != null)
                 onenot.novalue();
-          }
-      else {
-          showoldglucose();
+        } else {
+            showoldglucose();
         }
     }
-    boolean hasvalue=false;
 
+    boolean hasvalue = false;
 
-void showglucose(notGlucose strgl,float gl) {
-        var message= format(usedlocale,glucoseformat,gl);
-        arrowglucosenotification(2,gl, message,strgl,GLUCOSENOTIFICATION ,true);
-        }
-      /*
-void overwriteglucose() {
-  
-    var strgl=SuperGattCallback.previousglucose;
-    if(strgl==null)
-        return;
-   showglucose(strgl,strgl.gl);
-    }*/
+    void showglucose(notGlucose strgl, float gl) {
+        var message = format(usedlocale, glucoseformat, gl);
+        arrowglucosenotification(2, gl, message, strgl, GLUCOSENOTIFICATION, true);
+    }
+    /*
+     * void overwriteglucose() {
+     * 
+     * var strgl=SuperGattCallback.previousglucose;
+     * if(strgl==null)
+     * return;
+     * showglucose(strgl,strgl.gl);
+     * }
+     */
 
-
-private static void showoldglucose() {
-    var noti=onenot;
-    if(noti==null)
-        return;
-    final var strgl=SuperGattCallback.previousglucose;
-    final var gl=SuperGattCallback.previousglucosevalue;
-    if(strgl==null||gl<2.0f)
-        return;
-    noti.arrowglucosenotification(2,gl, format(usedlocale,glucoseformat,gl),strgl,GLUCOSENOTIFICATION ,true);
+    private static void showoldglucose() {
+        var noti = onenot;
+        if (noti == null)
+            return;
+        final var strgl = SuperGattCallback.previousglucose;
+        final var gl = SuperGattCallback.previousglucosevalue;
+        if (strgl == null || gl < 2.0f)
+            return;
+        noti.arrowglucosenotification(2, gl, format(usedlocale, glucoseformat, gl), strgl, GLUCOSENOTIFICATION, true);
     }
 
-    void normalglucose(notGlucose strgl,float gl,float rate,boolean waiting) {
-        MainActivity.showmessage=null;
-        var act=MainActivity.thisone;
-        if(act!=null)
+    void normalglucose(notGlucose strgl, float gl, float rate, boolean waiting) {
+        MainActivity.showmessage = null;
+        var act = MainActivity.thisone;
+        if (act != null)
             act.cancelglucosedialog();
-        {if(doLog) {Log.i(LOG_ID,"normalglucose waiting="+waiting);};};
-        if(waiting)
-            arrowglucosealarm(2,gl, format(usedlocale,glucoseformat, gl), strgl,GLUCOSENOTIFICATION ,true);
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "normalglucose waiting=" + waiting);
+            }
+            ;
+        }
+        ;
+        if (waiting)
+            arrowglucosealarm(2, gl, format(usedlocale, glucoseformat, gl), strgl, GLUCOSENOTIFICATION, true);
 
-        else if(!isWearable){
-            {if(doLog) {Log.i(LOG_ID,"arrowglucosenotification  alertwatch="+alertwatch+" showalways="+showalways);};};
-            if(showalways||alertwatch) {
-                var message= format(usedlocale,glucoseformat,gl);
-                if(alertwatch)
-                    makeseparatenotification(gl,message, strgl,GLUCOSENOTIFICATION);  
-                arrowglucosenotification(2,gl, message,strgl,GLUCOSENOTIFICATION ,!alertwatch);
+        else if (!isWearable) {
+            {
+                if (doLog) {
+                    Log.i(LOG_ID, "arrowglucosenotification  alertwatch=" + alertwatch + " showalways=" + showalways);
                 }
-            else {
-                if(hasvalue) {
-                    if(keeprunning.started)
+                ;
+            }
+            ;
+            if (showalways || alertwatch) {
+                var message = format(usedlocale, glucoseformat, gl);
+                if (alertwatch)
+                    makeseparatenotification(gl, message, strgl, GLUCOSENOTIFICATION);
+                arrowglucosenotification(2, gl, message, strgl, GLUCOSENOTIFICATION, !alertwatch);
+            } else {
+                if (hasvalue) {
+                    if (keeprunning.started)
                         novalue();
                     else
                         notificationManager.cancel(glucosenotificationid);
                 }
             }
-        }
-        else {
+        } else {
             notificationManager.cancel(glucosealarmid);
         }
     }
 
-
-
     NotificationManager notificationManager;
 
-    //private static boolean isalarm=false;
-    private  static Runnable runstopalarm=null;
-    private static ScheduledFuture<?> stopschedule=null;
+    // private static boolean isalarm=false;
+    private static Runnable runstopalarm = null;
+    private static ScheduledFuture<?> stopschedule = null;
+
     static public void stopalarm() {
         stopalarmnotsend(true);
-        }
+    }
+
     static public void stopalarmnotsend(boolean send) {
-        if(!getisalarm()) {
-            {if(doLog) {Log.d(LOG_ID,"stopalarm not is alarm");};};
+        if (!getisalarm()) {
+            {
+                if (doLog) {
+                    Log.d(LOG_ID, "stopalarm not is alarm");
+                }
+                ;
+            }
+            ;
             return;
         }
-        {if(doLog) {Log.d(LOG_ID,"stopalarm is alarm");};};
-        final var stopper=stopschedule;
-        if(stopper!=null) {
-            stopper.cancel(false);
-            stopschedule=null;
+        {
+            if (doLog) {
+                Log.d(LOG_ID, "stopalarm is alarm");
+            }
+            ;
         }
-        var runner=runstopalarm;
-        if(runner!=null) {
-            if(!isWearable) {
-                if(send)
+        ;
+        final var stopper = stopschedule;
+        if (stopper != null) {
+            stopper.cancel(false);
+            stopschedule = null;
+        }
+        var runner = runstopalarm;
+        if (runner != null) {
+            if (!isWearable) {
+                if (send)
                     Applic.app.numdata.stopalarm();
-                }
+            }
             runner.run();
         }
     }
-//static int alarmnr=0;
+    // static int alarmnr=0;
 
-    public static void playring(Ringtone ring,int duration,boolean sound,boolean flash,boolean vibrate,boolean disturb,int kind) {
-        if(onenot==null)
+    public static void playring(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
+            boolean disturb, int kind) {
+        if (onenot == null)
             return;
-        onenot.playringhier(ring,duration,sound,flash,vibrate,disturb,kind) ;
+        onenot.playringhier(ring, duration, sound, flash, vibrate, disturb, kind);
     }
 
-
     Vibrator vibrator = null;
-private    void vibratealarm(int kind) {
-        var context= Applic.app;
+
+    private void vibratealarm(int kind) {
+        var context = Applic.app;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            vibrator =  ((VibratorManager)(context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE))).getDefaultVibrator();
-        }
-        else
-            vibrator=(Vibrator) context.getSystemService(VIBRATOR_SERVICE);
-        if(android.os.Build.VERSION.SDK_INT < 26) {
-            if(kind!=0)
-                vibrator.vibrate( new long[]  {0, 100, 10,  50, 50 } , 1);
+            vibrator = ((VibratorManager) (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)))
+                    .getDefaultVibrator();
+        } else
+            vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
+        if (android.os.Build.VERSION.SDK_INT < 26) {
+            if (kind != 0)
+                vibrator.vibrate(new long[] { 0, 100, 10, 50, 50 }, 1);
             else
-                vibrator.vibrate(new long[]   {0, 1000, 500,100,500,500,500,100,100},1);
-        }
-        else {
-            if(kind!=0) {
-                final long[] vibrationPatternstart = {0, 70, 50,50,50,50,50,200,30};
-                final int[] amplitude=               {0, 255,150,0,255,50,0,255,50};
-                vibrates(vibrator,vibrationPatternstart,amplitude);
-            }
-            else {
-                final long[] vibrationPatternstart = {0, 1000, 500,100,500,500,500,100,100};
-                final int[]                amplitude={0, 0xff, 128,255,0  ,255,0, 255,  50};
-                vibrates(vibrator,vibrationPatternstart,amplitude);
+                vibrator.vibrate(new long[] { 0, 1000, 500, 100, 500, 500, 500, 100, 100 }, 1);
+        } else {
+            if (kind != 0) {
+                final long[] vibrationPatternstart = { 0, 70, 50, 50, 50, 50, 50, 200, 30 };
+                final int[] amplitude = { 0, 255, 150, 0, 255, 50, 0, 255, 50 };
+                vibrates(vibrator, vibrationPatternstart, amplitude);
+            } else {
+                final long[] vibrationPatternstart = { 0, 1000, 500, 100, 500, 500, 500, 100, 100 };
+                final int[] amplitude = { 0, 0xff, 128, 255, 0, 255, 0, 255, 50 };
+                vibrates(vibrator, vibrationPatternstart, amplitude);
             }
 
         }
-        {if(doLog) {Log.i(LOG_ID,"vibratealarm "+kind);};};
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "vibratealarm " + kind);
+            }
+            ;
         }
+        ;
+    }
+
     void stopvibratealarm() {
         vibrator.cancel();
     }
-private static int  lastalarm=-1;
 
-static    void stoplossalarm(){
-    if(lastalarm==4) {
-        lastalarm=-1;
-        stopalarm();
+    private static int lastalarm = -1;
+
+    static void stoplossalarm() {
+        if (lastalarm == 4) {
+            lastalarm = -1;
+            stopalarm();
         }
     }
 
-
-    private synchronized void playringhier(Ringtone ring,int duration,boolean sound,boolean flash,boolean vibrate,boolean disturb,int kind) {
-        notifyfocus=true;
+    private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
+            boolean disturb, int kind) {
+        notifyfocus = true;
         doTurnFocuson();
         stopalarm();
-//        final int[] curfilter={-1};
-        final boolean glucosealarm=kind<2||kind>4;
-        if(!DontTalk) {
-              if(glucosealarm&&Natives.speakalarms()) {
-                 final var  glu=SuperGattCallback.previousglucose;
-                 if(glu!=null) {
-                           SuperGattCallback.talker.speak(glu.value, getUSEALARM()?ScanNfcV.audioattributes:notification_audio);
-//                            Applic.scheduler.schedule( () -> SuperGattCallback.talker.speak(glu.value, getUSEALARM()?ScanNfcV.audioattributes:notification_audio), 50, TimeUnit.MILLISECONDS);
-                            }
-                        }
+        // final int[] curfilter={-1};
+        final boolean glucosealarm = kind < 2 || kind > 4;
+        if (!DontTalk) {
+            if (glucosealarm && Natives.speakalarms()) {
+                final var glu = SuperGattCallback.previousglucose;
+                if (glu != null) {
+                    SuperGattCallback.talker.speak(glu.value,
+                            getUSEALARM() ? ScanNfcV.audioattributes : notification_audio);
+                    // Applic.scheduler.schedule( () -> SuperGattCallback.talker.speak(glu.value,
+                    // getUSEALARM()?ScanNfcV.audioattributes:notification_audio), 50,
+                    // TimeUnit.MILLISECONDS);
                 }
-        final boolean[] doplaysound={true};
-        if(sound) {
-            if(disturb) {
+            }
+        }
+        final boolean[] doplaysound = { true };
+        if (sound) {
+            if (disturb) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    int filt=notificationManager.getCurrentInterruptionFilter();
-                    {if(doLog) {Log.i(LOG_ID,"getCurrentInterruptionFilter()="+filt);};};
+                    int filt = notificationManager.getCurrentInterruptionFilter();
+                    {
+                        if (doLog) {
+                            Log.i(LOG_ID, "getCurrentInterruptionFilter()=" + filt);
+                        }
+                        ;
+                    }
+                    ;
 
-                    if(filt!=NotificationManager.INTERRUPTION_FILTER_ALL) {
-                            if(notificationManager.isNotificationPolicyAccessGranted()) {
-                            //    curfilter[0]=filt;
-                                notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
-                            }
+                    if (filt != NotificationManager.INTERRUPTION_FILTER_ALL) {
+                        if (notificationManager.isNotificationPolicyAccessGranted()) {
+                            // curfilter[0]=filt;
+                            notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
                         }
                     }
                 }
-            if(doLog) {
-                {if(doLog) {Log.d(LOG_ID,"play "+ring.getTitle(app));};};
             }
-            if(doplaysound[0]) {
-                ring.play();
+            if (doLog) {
+                {
+                    if (doLog) {
+                        Log.d(LOG_ID, "play " + ring.getTitle(app));
+                    }
+                    ;
                 }
+                ;
+            }
+            if (doplaysound[0]) {
+                ring.play();
+            }
         }
-        if(!isWearable) {
-            if(flash) Flash.start(app);
+        if (!isWearable) {
+            if (flash)
+                Flash.start(app);
         }
-        if(vibrate) {
+        if (vibrate) {
             vibratealarm(kind);
         }
-        runstopalarm= () -> {
-            notifyfocus=false;
-            lastalarm=-1;
-            if(getisalarm()) {
-                {if(doLog) {Log.d(LOG_ID,"runstopalarm  isalarm");};};
-                if(sound) {
-                    if(doplaysound[0])  {
+        runstopalarm = () -> {
+            notifyfocus = false;
+            lastalarm = -1;
+            if (getisalarm()) {
+                {
+                    if (doLog) {
+                        Log.d(LOG_ID, "runstopalarm  isalarm");
+                    }
+                    ;
+                }
+                ;
+                if (sound) {
+                    if (doplaysound[0]) {
                         try {
-                            if(doLog) {
-                                {if(doLog) {Log.d(LOG_ID,"stop sound "+ring.getTitle(app));};};
+                            if (doLog) {
+                                {
+                                    if (doLog) {
+                                        Log.d(LOG_ID, "stop sound " + ring.getTitle(app));
+                                    }
+                                    ;
                                 }
+                                ;
+                            }
                             ring.stop();
-                            }
-                         catch(Throwable th) {
-                            Log.stack(LOG_ID,"ring.stop()",th);
-                            }
+                        } catch (Throwable th) {
+                            Log.stack(LOG_ID, "ring.stop()", th);
                         }
                     }
+                }
 
-                if(!isWearable) {
-                    if(flash) Flash.stop();
-                    }
-                if(vibrate) {
+                if (!isWearable) {
+                    if (flash)
+                        Flash.stop();
+                }
+                if (vibrate) {
                     stopvibratealarm();
-                    }
-                if(!DontTalk) {
-                    if(glucosealarm&&Natives.speakalarms()) {
-                        final var  glu=SuperGattCallback.previousglucose;
-                        if(glu!=null) {
+                }
+                if (!DontTalk) {
+                    if (glucosealarm && Natives.speakalarms()) {
+                        final var glu = SuperGattCallback.previousglucose;
+                        if (glu != null) {
                             Applic.scheduler.schedule(
-                            () -> SuperGattCallback.talker.speak(glu.value, getUSEALARM()?ScanNfcV.audioattributes:notification_audio), 300, TimeUnit.MILLISECONDS);
-                            }
-                         else
-                                doTurnFocusoff();
-                        }
-                    else
+                                    () -> SuperGattCallback.talker.speak(glu.value,
+                                            getUSEALARM() ? ScanNfcV.audioattributes : notification_audio),
+                                    300, TimeUnit.MILLISECONDS);
+                        } else
+                            doTurnFocusoff();
+                    } else
                         doTurnFocusoff();
-                  //overwriteglucose();
-                    }
-                else
+                    // overwriteglucose();
+                } else
                     doTurnFocusoff();
 
-                if(glucosealarm) overwriteglucose(kind);
+                if (glucosealarm)
+                    overwriteglucose(kind);
                 setisalarm(false);
 
-                }
-            else  {
-                if(doLog) {
-                    {if(doLog) {Log.d(LOG_ID,"runstopalarm not isalarm "+ring.getTitle(app));};};
+            } else {
+                if (doLog) {
+                    {
+                        if (doLog) {
+                            Log.d(LOG_ID, "runstopalarm not isalarm " + ring.getTitle(app));
+                        }
+                        ;
+                    }
+                    ;
                 }
             }
         };
-    lastalarm=kind;
-    setisalarm(true);
-    {if(doLog) {Log.d(LOG_ID,"schedule stop");};};
-    stopschedule=Applic.scheduler.schedule(runstopalarm, duration, TimeUnit.SECONDS);
+        lastalarm = kind;
+        setisalarm(true);
+        {
+            if (doLog) {
+                Log.d(LOG_ID, "schedule stop");
+            }
+            ;
+        }
+        ;
+        stopschedule = Applic.scheduler.schedule(runstopalarm, duration, TimeUnit.SECONDS);
 
     }
+
     void mksound(int kind) {
-        final Ringtone ring=//rings[kind];
-                mkring(Natives.readring(kind),kind);
-        final int duration=Natives.readalarmduration(kind);
-        final boolean flash=Natives.alarmhasflash(kind);
-        final boolean sound=Natives.alarmhassound(kind);
-        final boolean vibration=Natives.alarmhasvibration(kind);
-        final boolean dist= isWearable || getalarmdisturb(kind);
+        final Ringtone ring = // rings[kind];
+                mkring(Natives.readring(kind), kind);
+        final int duration = Natives.readalarmduration(kind);
+        final boolean flash = Natives.alarmhasflash(kind);
+        final boolean sound = Natives.alarmhassound(kind);
+        final boolean vibration = Natives.alarmhasvibration(kind);
+        final boolean dist = isWearable || getalarmdisturb(kind);
 
-        playringhier(ring,duration,sound,flash,vibration,dist,kind);
+        playringhier(ring, duration, sound, flash, vibration, dist, kind);
     }
 
-
-private static void setmessage(String message,Boolean cancel) {
-    {if(doLog) {Log.i(LOG_ID,"setmessage "+message+" "+cancel);};};
-    if(cancel) {
-        MainActivity.showmessage=message;
-        }
-    else {
-        MainActivity.shownummessage.push(message);
-        }
-    }
-private static void showpopupalarm(String message,Boolean cancel) {
-    var act=MainActivity.thisone;
-    if(act!=null&&act.active) {
-        if(cancel)
-            MainActivity.showmessage=null;
-        {if(doLog) {Log.i(LOG_ID,"showpopupalarm direct "+message);};};
-        act.runOnUiThread(() ->  {
-            if(act.isFinishing()||act.isDestroyed()||!act.active) {
-                setmessage(message,cancel);
-                return;
-                }
-            act.showindialog( message,cancel);
+    private static void setmessage(String message, Boolean cancel) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "setmessage " + message + " " + cancel);
             }
-            );
+            ;
         }
-    else {
-        setmessage(message,cancel);
+        ;
+        if (cancel) {
+            MainActivity.showmessage = message;
+        } else {
+            MainActivity.shownummessage.push(message);
         }
     }
-    private void soundalarm(int kind,int draw,String message,String type,boolean alarm) {
-        if(alarm) {
-            {if(doLog) {Log.d(LOG_ID,"soundalarm "+kind);};};
+
+    private static void showpopupalarm(String message, Boolean cancel) {
+        var act = MainActivity.thisone;
+        if (act != null && act.active) {
+            if (cancel)
+                MainActivity.showmessage = null;
+            {
+                if (doLog) {
+                    Log.i(LOG_ID, "showpopupalarm direct " + message);
+                }
+                ;
+            }
+            ;
+            act.runOnUiThread(() -> {
+                if (act.isFinishing() || act.isDestroyed() || !act.active) {
+                    setmessage(message, cancel);
+                    return;
+                }
+                act.showindialog(message, cancel);
+            });
+        } else {
+            setmessage(message, cancel);
+        }
+    }
+
+    private void soundalarm(int kind, int draw, String message, String type, boolean alarm) {
+        if (alarm) {
+            {
+                if (doLog) {
+                    Log.d(LOG_ID, "soundalarm " + kind);
+                }
+                ;
+            }
+            ;
             mksound(kind);
         }
-        placelargenotification(draw,message,type,!alarm);
+        placelargenotification(draw, message, type, !alarm);
     }
-//private int wasdraw=-1;
-private float wasvalue=0.0f;
-private String wasmessage=null,wastype;
-void overwriteglucose(int kind) {
-//   if(wasdraw==-1) return;
-   if(wasvalue<0.1f)
-      return;
-    var strgl=SuperGattCallback.previousglucose;
-    if(strgl==null)
-        return;
-   arrowglucosenotification(kind,wasvalue,wasmessage,strgl,wastype,true);
-   wasvalue=0.0f;
-   }
-    private void arrowsoundalarm(int kind,float glvalue,String message,notGlucose sglucose,String type,boolean alarm) {
-        if(alarm) {
-        // wasdraw=draw;
-        wasvalue=glvalue;
-         wasmessage=message;wastype=type;
-            makeseparatenotification(glvalue,message, sglucose,type);
-            {if(doLog) {Log.d(LOG_ID,"arrowsoundalarm "+kind);};};
+
+    // private int wasdraw=-1;
+    private float wasvalue = 0.0f;
+    private String wasmessage = null, wastype;
+
+    void overwriteglucose(int kind) {
+        // if(wasdraw==-1) return;
+        if (wasvalue < 0.1f)
+            return;
+        var strgl = SuperGattCallback.previousglucose;
+        if (strgl == null)
+            return;
+        arrowglucosenotification(kind, wasvalue, wasmessage, strgl, wastype, true);
+        wasvalue = 0.0f;
+    }
+
+    private void arrowsoundalarm(int kind, float glvalue, String message, notGlucose sglucose, String type,
+            boolean alarm) {
+        if (alarm) {
+            // wasdraw=draw;
+            wasvalue = glvalue;
+            wasmessage = message;
+            wastype = type;
+            makeseparatenotification(glvalue, message, sglucose, type);
+            {
+                if (doLog) {
+                    Log.d(LOG_ID, "arrowsoundalarm " + kind);
+                }
+                ;
+            }
+            ;
             mksound(kind);
         }
-        arrowplacelargenotification(kind,glvalue,message,sglucose,type,!alarm);
+        arrowplacelargenotification(kind, glvalue, message, sglucose, type, !alarm);
     }
 
-
-    private void lossofsignalalarm(int kind,int draw,String message,String type,boolean alarm) {
-        {if(doLog) {Log.i(LOG_ID,"glucose alarm kind="+kind+" "+message+" alarm="+alarm);};};
-        if(alarm) {
-            if(kind!=2)
-                showpopupalarm(message,true);
-        }
-        else {
-            final var act=MainActivity.thisone;
-            if(act!=null) {
-                {if(doLog) {Log.i(LOG_ID,"act!=null");};};
-                act.replaceDialogMessage(message);
-                }
-            {if(doLog) {Log.i(LOG_ID,"act==null");};};
-            if(MainActivity.showmessage!=null)
-                MainActivity.showmessage=message;
+    private void lossofsignalalarm(int kind, int draw, String message, String type, boolean alarm) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "glucose alarm kind=" + kind + " " + message + " alarm=" + alarm);
             }
-        if(!alarm&&alertwatch)
-            lossofsensornotification(draw,message,GLUCOSENOTIFICATION ,false);
+            ;
+        }
+        ;
+        if (alarm) {
+            if (kind != 2)
+                showpopupalarm(message, true);
+        } else {
+            final var act = MainActivity.thisone;
+            if (act != null) {
+                {
+                    if (doLog) {
+                        Log.i(LOG_ID, "act!=null");
+                    }
+                    ;
+                }
+                ;
+                act.replaceDialogMessage(message);
+            }
+            {
+                if (doLog) {
+                    Log.i(LOG_ID, "act==null");
+                }
+                ;
+            }
+            ;
+            if (MainActivity.showmessage != null)
+                MainActivity.showmessage = message;
+        }
+        if (!alarm && alertwatch)
+            lossofsensornotification(draw, message, GLUCOSENOTIFICATION, false);
         else
-            soundalarm(kind,draw,message,type,alarm);
+            soundalarm(kind, draw, message, type, alarm);
     }
-    private void arrowglucosealarm(int kind,float glvalue,String message,notGlucose strglucose,String type,boolean alarm) {
-        {if(doLog) {Log.i(LOG_ID,"arrowglucosealarm kind="+kind+" "+ message+" alarm="+alarm);};};
-        if(alarm) {
-            if(kind!=2)
-                showpopupalarm(message,true);
+
+    private void arrowglucosealarm(int kind, float glvalue, String message, notGlucose strglucose, String type,
+            boolean alarm) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "arrowglucosealarm kind=" + kind + " " + message + " alarm=" + alarm);
             }
-        else {
-            final var act=MainActivity.thisone;
-            if(act!=null) {
-                {if(doLog) {Log.i(LOG_ID,"act!=null");};};
-                act.replaceDialogMessage(message);
-                }
-            if(MainActivity.showmessage!=null) {
-                {if(doLog) {Log.i(LOG_ID,"MainActivity.showmessage="+message);};};
-                MainActivity.showmessage=message;
-                }
-            }
-        if(!alarm&&alertwatch) {
-            {if(doLog) {Log.i(LOG_ID,"arrowglucosealarm alertwatch="+alertwatch);};};
-            arrowglucosenotification(kind,glvalue,message,strglucose,GLUCOSENOTIFICATION ,false);
+            ;
         }
-        else
-            arrowsoundalarm(kind,glvalue,message,strglucose,type,alarm);
+        ;
+        if (alarm) {
+            if (kind != 2)
+                showpopupalarm(message, true);
+        } else {
+            final var act = MainActivity.thisone;
+            if (act != null) {
+                {
+                    if (doLog) {
+                        Log.i(LOG_ID, "act!=null");
+                    }
+                    ;
+                }
+                ;
+                act.replaceDialogMessage(message);
+            }
+            if (MainActivity.showmessage != null) {
+                {
+                    if (doLog) {
+                        Log.i(LOG_ID, "MainActivity.showmessage=" + message);
+                    }
+                    ;
+                }
+                ;
+                MainActivity.showmessage = message;
+            }
+        }
+        if (!alarm && alertwatch) {
+            {
+                if (doLog) {
+                    Log.i(LOG_ID, "arrowglucosealarm alertwatch=" + alertwatch);
+                }
+                ;
+            }
+            ;
+            arrowglucosenotification(kind, glvalue, message, strglucose, GLUCOSENOTIFICATION, false);
+        } else
+            arrowsoundalarm(kind, glvalue, message, strglucose, type, alarm);
     }
 
     private void canceller() {
         notificationManager.cancel(glucosenotificationid);
-        notificationManager.cancel( numalarmid);
+        notificationManager.cancel(numalarmid);
     }
+
     static public void cancelmessages() {
-        if(onenot!=null)
+        if (onenot != null)
             onenot.canceller();
 
     }
 
+    static final String fromnotification = "FromNotification";
+    final static int forcecloserequest = 10;
+    final static int stopalarmrequest = 8;
+    // static final String closename= "ForceClose";
+    final static int penmutable = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
+            ? PendingIntent.FLAG_IMMUTABLE
+            : 0;
 
+    private final boolean makeicon = !isWearable && tk.glucodata.BuildConfig.minSDK >= 23;
+    private final StatusIcon icons = makeicon ? new StatusIcon() : null;
 
-
-    static final String fromnotification="FromNotification";
-    final static int forcecloserequest=10;
-    final static int stopalarmrequest=8;
-//    static final String closename= "ForceClose";
-    final static int penmutable= android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M? PendingIntent.FLAG_IMMUTABLE:0;
-
-private final boolean makeicon=!isWearable&&tk.glucodata.BuildConfig.minSDK>=23;
-private final StatusIcon icons=makeicon?new StatusIcon():null;
-static int getMaxGlucose(int sensorgen) {
-    if(sensorgen==0x40||sensorgen==0x20)
-        return 400;
-     return 500;
+    static int getMaxGlucose(int sensorgen) {
+        if (sensorgen == 0x40 || sensorgen == 0x20)
+            return 400;
+        return 500;
     }
-static private String getglstring(float glvalue,int sensorgen2) {
-   var maxglucose=getMaxGlucose(sensorgen2);
-   if(Applic.unit==1) {
-      if(glvalue<2.2f) {
-          return "2.2>";
-         }
-      if(glvalue>(((double)maxglucose)/Applic.mgdLmult)) {
-         return "27.8<" ;
-         }
-       var glstr=format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
-       if(glstr.charAt(glstr.length()-1)=='0') 
-               glstr=glstr.substring(0, glstr.length()-2);
-        return glstr;
-       }
-   else {
-      int intval=(int)glvalue;
-      if(intval<40)
-         return "40>"; 
-       if(intval>maxglucose)
-         return "500<";
-       return format(Applic.usedlocale,Notify.pureglucoseformat, glvalue);
-        }
-   }
 
-private void setIcon( Notification.Builder GluNotBuilder,float glvalue,int sensorgen2) {
-    if(makeicon) {
-           final var icon=icons.getIcon(getglstring(glvalue,sensorgen2));  
-           GluNotBuilder.setSmallIcon(icon);
+    static private String getglstring(float glvalue, int sensorgen2) {
+        var maxglucose = getMaxGlucose(sensorgen2);
+        if (Applic.unit == 1) {
+            if (glvalue < 2.2f) {
+                return "2.2>";
+            }
+            if (glvalue > (((double) maxglucose) / Applic.mgdLmult)) {
+                return "27.8<";
+            }
+            var glstr = format(Applic.usedlocale, Notify.pureglucoseformat, glvalue);
+            if (glstr.charAt(glstr.length() - 1) == '0')
+                glstr = glstr.substring(0, glstr.length() - 2);
+            return glstr;
+        } else {
+            int intval = (int) glvalue;
+            if (intval < 40)
+                return "40>";
+            if (intval > maxglucose)
+                return "500<";
+            return format(Applic.usedlocale, Notify.pureglucoseformat, glvalue);
         }
-      else  {
-             var draw= GlucoseDraw.getgludraw(glvalue,sensorgen2);
-              GluNotBuilder.setSmallIcon(draw);
-           }
-       }
-private void  makeseparatenotification(float glvalue,String message,notGlucose glucose,String type) {
-    if(!isWearable) {
-        if(alertseparate) {
-            notificationManager.cancel(glucosealarmid);
-            var intent =mkpending();
-            var GluNotBuilder=mkbuilderintent(type,intent);
-            GluNotBuilder.setDeleteIntent(DeleteReceiver.getDeleteIntent());
-            {if(doLog) {Log.i(LOG_ID,"makeseparatenotification "+glucose.value);};};
+    }
 
-           setIcon(GluNotBuilder,glvalue,glucose.sensorgen2);
-            GluNotBuilder.setShowWhen(true).setContentTitle(message);
-            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//                final int timeout= Build.VERSION.SDK_INT >= 30? 60*1500:60*3000;  
-                final int timeout= 800*60;//Build.VERSION.SDK_INT >= 30? 60*1500:60*3000;  
-                GluNotBuilder.setTimeoutAfter(timeout);
+    private void setIcon(Notification.Builder GluNotBuilder, float glvalue, int sensorgen2) {
+        if (makeicon) {
+            final var icon = icons.getIcon(getglstring(glvalue, sensorgen2));
+            GluNotBuilder.setSmallIcon(icon);
+        } else {
+            var draw = GlucoseDraw.getgludraw(glvalue, sensorgen2);
+            GluNotBuilder.setSmallIcon(draw);
+        }
+    }
+
+    private void makeseparatenotification(float glvalue, String message, notGlucose glucose, String type) {
+        if (!isWearable) {
+            if (alertseparate) {
+                notificationManager.cancel(glucosealarmid);
+                var intent = mkpending();
+                var GluNotBuilder = mkbuilderintent(type, intent);
+                GluNotBuilder.setDeleteIntent(DeleteReceiver.getDeleteIntent());
+                {
+                    if (doLog) {
+                        Log.i(LOG_ID, "makeseparatenotification " + glucose.value);
+                    }
+                    ;
                 }
-            GluNotBuilder.setAutoCancel(true);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
+                ;
+
+                setIcon(GluNotBuilder, glvalue, glucose.sensorgen2);
+                GluNotBuilder.setShowWhen(true).setContentTitle(message);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    // final int timeout= Build.VERSION.SDK_INT >= 30? 60*1500:60*3000;
+                    final int timeout = 800 * 60;// Build.VERSION.SDK_INT >= 30? 60*1500:60*3000;
+                    GluNotBuilder.setTimeoutAfter(timeout);
                 }
-            GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
-                } 
-            Notification notif= GluNotBuilder.build();
-            notif.when= glucose.time;
-            notificationManager.notify(glucosealarmid,notif);
+                GluNotBuilder.setAutoCancel(true);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
+                }
+                GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
+                }
+                Notification notif = GluNotBuilder.build();
+                notif.when = glucose.time;
+                notificationManager.notify(glucosealarmid, notif);
             }
         }
     }
-static public boolean alertseparate=false;
-    private Notification  makearrownotification(int kind,float glvalue,String message,notGlucose glucose,String type,boolean once) {
 
-        var intent =mkpending();
-        var GluNotBuilder=mkbuilderintent(type,intent);
-        if(!alertseparate) {
+    static public boolean alertseparate = false;
+
+    private Notification makearrownotification(int kind, float glvalue, String message, notGlucose glucose, String type,
+            boolean once) {
+
+        var intent = mkpending();
+        var GluNotBuilder = mkbuilderintent(type, intent);
+        if (!alertseparate) {
             GluNotBuilder.setDeleteIntent(DeleteReceiver.getDeleteIntent());
+        }
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "makearrownotification setOnlyAlertOnce(" + once + ") " + glucose.value);
             }
-        {if(doLog) {Log.i(LOG_ID,"makearrownotification setOnlyAlertOnce("+once+") "+glucose.value);};};
+            ;
+        }
+        ;
 
-        //var draw= GlucoseDraw.getgludraw(glvalue);
+        // var draw= GlucoseDraw.getgludraw(glvalue);
 
-          setIcon(GluNotBuilder,glvalue,glucose.sensorgen2);
-//        GluNotBuilder.setSmallIcon(draw). 
+        setIcon(GluNotBuilder, glvalue, glucose.sensorgen2);
+        // GluNotBuilder.setSmallIcon(draw).
         GluNotBuilder.setContentTitle(message).setOnlyAlertOnce(once);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
-            }
-        final boolean glucosealarm=kind<2||kind>4;
-        if(!isWearable) {
-              if(Build.VERSION.SDK_INT  >= 24) {
+        }
+        final boolean glucosealarm = kind < 2 || kind > 4;
+        if (!isWearable) {
+            if (Build.VERSION.SDK_INT >= 24) {
                 GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
-        //    GluNotBuilder.setStyle( new Notification.DecoratedMediaCustomViewStyle());
+                // GluNotBuilder.setStyle( new Notification.DecoratedMediaCustomViewStyle());
             }
             GluNotBuilder.setShowWhen(true);
-            RemoteViews remoteViews=arrowNotify.arrowremote(kind,glucose,glucosealarm&&!once);
-            if(whiteonblack) {
-                if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            RemoteViews remoteViews = arrowNotify.arrowremote(kind, glucose, glucosealarm && !once);
+            if (whiteonblack) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     GluNotBuilder.setColorized(true);
                     GluNotBuilder.setColor(BLACK);
-                    }
-                else
+                } else
                     remoteViews.setInt(arrowandvalue, "setBackgroundColor", BLACK);
-                }
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 GluNotBuilder.setCustomContentView(remoteViews);
             } else
                 GluNotBuilder.setContent(remoteViews);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            GluNotBuilder.setTimeoutAfter(glucosetimeout);
+        }
+        if (isWearable) {
+            GluNotBuilder.setAutoCancel(true);
+        }
+        if (once)
+            GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+        else {
+            // GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+            GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+            // GluNotBuilder.setPriority(Notification.PRIORITY_MAX);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
             }
-    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        GluNotBuilder.setTimeoutAfter(glucosetimeout);
-    }
-    if(isWearable) {GluNotBuilder.setAutoCancel(true);}
-    if(once)
-        GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
-    else  {
-    //    GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
-        GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
-//        GluNotBuilder.setPriority(Notification.PRIORITY_MAX);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
         }
-    }
 
-     {if(doLog) {Log.i(LOG_ID,(once?"":"not ")+"only once");};};
+        {
+            if (doLog) {
+                Log.i(LOG_ID, (once ? "" : "not ") + "only once");
+            }
+            ;
+        }
+        ;
 
-     Notification notif= GluNotBuilder.build();
-    notif.when= glucose.time;
-     return notif;
+        Notification notif = GluNotBuilder.build();
+        notif.when = glucose.time;
+        return notif;
 
     }
-@SuppressWarnings({"deprecation"})
 
-static public PendingIntent mkpending() {
-   {if(doLog) {Log.i(LOG_ID,"mkpending");};};
-    Intent notifyIntent = new Intent(Applic.app,MainActivity.class);
-    notifyIntent.putExtra(fromnotification,true);
-    notifyIntent.addCategory(Intent. CATEGORY_LAUNCHER ) ;
-    notifyIntent.setAction(Intent. ACTION_MAIN ) ;
-    notifyIntent.setFlags(Intent. FLAG_ACTIVITY_CLEAR_TOP | Intent. FLAG_ACTIVITY_SINGLE_TOP );
-    return   PendingIntent.getActivity(Applic.app, 0, notifyIntent, PendingIntent.FLAG_UPDATE_CURRENT|penmutable);
+    @SuppressWarnings({ "deprecation" })
+
+    static public PendingIntent mkpending() {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "mkpending");
+            }
+            ;
+        }
+        ;
+        Intent notifyIntent = new Intent(Applic.app, MainActivity.class);
+        notifyIntent.putExtra(fromnotification, true);
+        notifyIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        notifyIntent.setAction(Intent.ACTION_MAIN);
+        notifyIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return PendingIntent.getActivity(Applic.app, 0, notifyIntent, PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
     }
-private Notification.Builder   mkbuilderintent(String type,PendingIntent notifyPendingIntent) {
-    Notification.Builder  GluNotBuilder;
-     if(true) {
-         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-             GluNotBuilder = new Notification.Builder(Applic.app, type);
-         }
-         else {
-                     GluNotBuilder = new Notification.Builder(Applic.app);
-         }
+
+    private Notification.Builder mkbuilderintent(String type, PendingIntent notifyPendingIntent) {
+        Notification.Builder GluNotBuilder;
+        if (true) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                GluNotBuilder = new Notification.Builder(Applic.app, type);
+            } else {
+                GluNotBuilder = new Notification.Builder(Applic.app);
+            }
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                GluNotBuilder.setChannelId(type);
         }
-    else {
-         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            GluNotBuilder.setChannelId(type);
+        GluNotBuilder.setContentIntent(notifyPendingIntent).setOnlyAlertOnce(true);
+        if (Build.VERSION.SDK_INT >= 20) {
+            GluNotBuilder.setLocalOnly(false);
         }
-    GluNotBuilder.setContentIntent(notifyPendingIntent).setOnlyAlertOnce(true);
-    if (Build.VERSION.SDK_INT >= 20) {
-        GluNotBuilder.setLocalOnly(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            GluNotBuilder.setGroup("aa2");
         }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-        GluNotBuilder.setGroup("aa2");
-        }
-    return GluNotBuilder;
+        return GluNotBuilder;
     }
-private Notification.Builder   mkbuilder(String type) {
-    var build=   mkbuilderintent( type,mkpending()) ;
+
+    private Notification.Builder mkbuilder(String type) {
+        var build = mkbuilderintent(type, mkpending());
         build.setDeleteIntent(DeleteReceiver.getDeleteIntent());
         return build;
     }
 
+    // static final private boolean alertseperate=true;
 
-
-
-//static final private boolean  alertseperate=true;
-
-
-void fornotify(Notification notif) {
-    {if(doLog) {Log.i(LOG_ID, "fornotify ");};};
-    if(isWearable) {
-              notificationManager.notify(glucosealarmid,notif);
+    void fornotify(Notification notif) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "fornotify ");
+            }
+            ;
         }
-    else  {
-         {
-            notificationManager.cancel(glucosenotificationid);
-            if(keeprunning.theservice!=null) {
-                keeprunning.theservice.startForeground(glucosenotificationid,notif);
-                   }
-            else 
-                   notificationManager.notify(glucosenotificationid,notif);
-               }
+        ;
+        if (isWearable) {
+            notificationManager.notify(glucosealarmid, notif);
+        } else {
+            {
+                notificationManager.cancel(glucosenotificationid);
+                if (keeprunning.theservice != null) {
+                    keeprunning.theservice.startForeground(glucosenotificationid, notif);
+                } else
+                    notificationManager.notify(glucosenotificationid, notif);
+            }
         }
     }
-//static final long glucosetimeout=1000*60*3;
+    // static final long glucosetimeout=1000*60*3;
 
     /*
-    @SuppressWarnings("deprecation")
-void oldnotification(long time) {
-    String message= Applic.app.getString(R.string.nonewvalue)+ timef.format(time);
-    {if(doLog) {Log.i(LOG_ID,"oldnotification "+message);};};
-    var GluNotBuilder=mkbuilder(GLUCOSENOTIFICATION);
-    if (Build.VERSION.SDK_INT < 31) {
-            GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
-        }
-    GluNotBuilder.setContentTitle(message).setSmallIcon(R.drawable.novalue).setPriority(Notification.PRIORITY_DEFAULT);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
-        }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        GluNotBuilder.setTimeoutAfter(glucosetimeout);
-        }
-//    RemoteViews remoteViews= new RemoteViews(Applic.app.getPackageName(),R.layout.smallnotification);
-//    GluNotBuilder.setContent(remoteViews);
-    Notification notif= GluNotBuilder.build();
-    fornotify(notif);
-    {if(doLog) {Log.i(LOG_ID,"end oldnotification");};};
+     * @SuppressWarnings("deprecation")
+     * void oldnotification(long time) {
+     * String message= Applic.app.getString(R.string.nonewvalue)+
+     * timef.format(time);
+     * {if(doLog) {Log.i(LOG_ID,"oldnotification "+message);};};
+     * var GluNotBuilder=mkbuilder(GLUCOSENOTIFICATION);
+     * if (Build.VERSION.SDK_INT < 31) {
+     * GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
+     * }
+     * GluNotBuilder.setContentTitle(message).setSmallIcon(R.drawable.novalue).
+     * setPriority(Notification.PRIORITY_DEFAULT);
+     * if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+     * GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
+     * }
+     * if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+     * GluNotBuilder.setTimeoutAfter(glucosetimeout);
+     * }
+     * // RemoteViews remoteViews= new
+     * RemoteViews(Applic.app.getPackageName(),R.layout.smallnotification);
+     * // GluNotBuilder.setContent(remoteViews);
+     * Notification notif= GluNotBuilder.build();
+     * fornotify(notif);
+     * {if(doLog) {Log.i(LOG_ID,"end oldnotification");};};
+     * }
+     */
+    void oldnotification(long time) {
+        final String tformat = timef.format(time);
+        String message = Applic.getContext().getString(R.string.nonewvalue) + tformat;
+        placelargenotification(R.drawable.novalue, message, GLUCOSENOTIFICATION, true);
     }
-*/
-void oldnotification(long time) {
-    final String tformat= timef.format(time);
-    String message = Applic.getContext().getString(R.string.nonewvalue) + tformat;
-     placelargenotification(R.drawable.novalue, message,GLUCOSENOTIFICATION,true);
-    }
-    @SuppressWarnings("deprecation")
-private Notification  makenotification(int draw,String message,String type,boolean once) {
-    var GluNotBuilder=mkbuilder(type);
 
-    if(TargetSDK<31||Build.VERSION.SDK_INT < 31) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
+    @SuppressWarnings("deprecation")
+    private Notification makenotification(int draw, String message, String type, boolean once) {
+        var GluNotBuilder = mkbuilder(type);
+
+        if (TargetSDK < 31 || Build.VERSION.SDK_INT < 31) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
+            }
         }
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "makenotification " + message);
+            }
+            ;
         }
-    {if(doLog) {Log.i(LOG_ID,"makenotification "+message);};};
+        ;
 
         GluNotBuilder.setSmallIcon(draw).setOnlyAlertOnce(once).setContentTitle(message).setShowWhen(true);
 
-    if(!isWearable) {
-        RemoteViews remoteViews = new RemoteViews(app.getPackageName(), R.layout.text);
-        remoteViews.setTextColor(R.id.content, foregroundcolor);
-        remoteViews.setTextViewText(R.id.content, message);
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            GluNotBuilder.setCustomContentView(remoteViews);
-            } 
-        else
-            GluNotBuilder.setContent(remoteViews);
+        if (!isWearable) {
+            RemoteViews remoteViews = new RemoteViews(app.getPackageName(), R.layout.text);
+            remoteViews.setTextColor(R.id.content, foregroundcolor);
+            remoteViews.setTextViewText(R.id.content, message);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                GluNotBuilder.setCustomContentView(remoteViews);
+            } else
+                GluNotBuilder.setContent(remoteViews);
         }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
-    }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        GluNotBuilder.setTimeoutAfter(glucosetimeout);
-    }
-    if(isWearable) {GluNotBuilder.setAutoCancel(true);}
-    if(once)
-        GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
-    else  {
-    //    GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
-        GluNotBuilder.setPriority(Notification.PRIORITY_MAX);
-//        GluNotBuilder.setDefaults(Notification.DEFAULT_VIBRATE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
+            GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
         }
-    }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            GluNotBuilder.setTimeoutAfter(glucosetimeout);
+        }
+        if (isWearable) {
+            GluNotBuilder.setAutoCancel(true);
+        }
+        if (once)
+            GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+        else {
+            // GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+            GluNotBuilder.setPriority(Notification.PRIORITY_MAX);
+            // GluNotBuilder.setDefaults(Notification.DEFAULT_VIBRATE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
+            }
+        }
 
-     {if(doLog) {Log.i(LOG_ID,(once?"":"not ")+"only once");};};
+        {
+            if (doLog) {
+                Log.i(LOG_ID, (once ? "" : "not ") + "only once");
+            }
+            ;
+        }
+        ;
 
-     Notification notif= GluNotBuilder.build();
-     notif.when = System.currentTimeMillis();
-     return notif;
-
-    }
-
-
-
-
-Notification getforgroundnotification() {
-    final String mess= app.getString(SensorBluetooth.blueone!=null?R.string.connectwithsensor:R.string.exchangedata);
-    Notification not=makenotification(R.drawable.novalue,mess,GLUCOSENOTIFICATION,true);
-    not.flags|= FLAG_ONGOING_EVENT;
-    return not;
-    }
-
-static public void shownovalue() {
-    init(Applic.app);
-    onenot.novalue();
-    }
-private void novalue() {
-    {if(doLog) {Log.i(LOG_ID,"novalue");};};
-
-    fornotify(getforgroundnotification());
-//    notificationManager.notify(glucosenotificationid,getforgroundnotification());
-    }
-public void foregroundno(Service service) {
-    Notification not=getforgroundnotification();
-    service.startForeground(glucosenotificationid, not);
-    {if(doLog) {Log.i(LOG_ID,"startforeground");};};
-    }
-static public void foregroundnot(Service service) {
-//    Application app=service.getApplication();
-    init(service);
-    onenot.foregroundno(service);
-    }    
- public void  placelargenotification(int draw,String message,String type,boolean once) {
-        hasvalue=true;
-    fornotify(makenotification(draw,message,type,once));
+        Notification notif = GluNotBuilder.build();
+        notif.when = System.currentTimeMillis();
+        return notif;
 
     }
-static int testtimes=1;
-/*
-static void testnot() {
-    float gl=11.4f;
-    var timmsec= System.currentTimeMillis()-1000;
-    float rate=(float)(1.6*Math.pow(-1,testtimes));
-    --testtimes;
-    boolean waiting=false;
-    var sglucose=new notGlucose(timmsec, format(Applic.usedlocale,Notify.pureglucoseformat, gl) , rate);
-//    Notify.onenot.normalglucose(sglucose,gl, rate,waiting);
-//    var dr=GlucoseDraw.getgludraw(gl);
-    Notify.onenot.makearrownotification(2,gl,"message",sglucose,GLUCOSENOTIFICATION ,false);
- }
 
-static void test2() {
-    float gl=7.8f;
-    float rate=0.0f;
-    SuperGattCallback.dowithglucose("Serialnumber", (int)(gl*18f), gl,rate, 0,System.currentTimeMillis()) ;
-    } */
-
- public void  arrowplacelargenotification(int kind,float glvalue,String message,notGlucose glucose,String type,boolean once) {
-        hasvalue=true;
-    fornotify(makearrownotification(kind,glvalue,message,glucose,type,once));
-
-    }
- public void  lossofsensornotification(int draw,String message,String type,boolean once) {
-     {if(doLog) {Log.i(LOG_ID,"notify "+message);};};
-    fornotify(makenotification(draw,message,type,once));
-    }
- public void  arrowglucosenotification(int kind,float glvalue,String message,notGlucose glucose,String type,boolean once) {
-     {if(doLog) {Log.i(LOG_ID,"notify "+message);};};
-    fornotify(makearrownotification( kind,glvalue, message, glucose, type, once)) ;
+    Notification getforgroundnotification() {
+        final String mess = app
+                .getString(SensorBluetooth.blueone != null ? R.string.connectwithsensor : R.string.exchangedata);
+        Notification not = makenotification(R.drawable.novalue, mess, GLUCOSENOTIFICATION, true);
+        not.flags |= FLAG_ONGOING_EVENT;
+        return not;
     }
 
-final private     int numalarmid=81432;
+    static public void shownovalue() {
+        init(Applic.app);
+        onenot.novalue();
+    }
 
+    private void novalue() {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "novalue");
+            }
+            ;
+        }
+        ;
 
-static DateFormat timef = DateFormat.getTimeInstance(DateFormat.SHORT);
-public static void mkDateformat() {
-    timef = DateFormat.getTimeInstance(DateFormat.SHORT);
+        fornotify(getforgroundnotification());
+        // notificationManager.notify(glucosenotificationid,getforgroundnotification());
+    }
+
+    public void foregroundno(Service service) {
+        Notification not = getforgroundnotification();
+        if (Build.VERSION.SDK_INT >= 29) {
+            service.startForeground(glucosenotificationid, not,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
+        } else {
+            service.startForeground(glucosenotificationid, not);
+        }
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "startforeground");
+            }
+            ;
+        }
+        ;
+    }
+
+    static public void foregroundnot(Service service) {
+        // Application app=service.getApplication();
+        init(service);
+        onenot.foregroundno(service);
+    }
+
+    public void placelargenotification(int draw, String message, String type, boolean once) {
+        hasvalue = true;
+        fornotify(makenotification(draw, message, type, once));
+
+    }
+
+    static int testtimes = 1;
+    /*
+     * static void testnot() {
+     * float gl=11.4f;
+     * var timmsec= System.currentTimeMillis()-1000;
+     * float rate=(float)(1.6*Math.pow(-1,testtimes));
+     * --testtimes;
+     * boolean waiting=false;
+     * var sglucose=new notGlucose(timmsec,
+     * format(Applic.usedlocale,Notify.pureglucoseformat, gl) , rate);
+     * // Notify.onenot.normalglucose(sglucose,gl, rate,waiting);
+     * // var dr=GlucoseDraw.getgludraw(gl);
+     * Notify.onenot.makearrownotification(2,gl,"message",sglucose,
+     * GLUCOSENOTIFICATION ,false);
+     * }
+     * 
+     * static void test2() {
+     * float gl=7.8f;
+     * float rate=0.0f;
+     * SuperGattCallback.dowithglucose("Serialnumber", (int)(gl*18f), gl,rate,
+     * 0,System.currentTimeMillis()) ;
+     * }
+     */
+
+    public void arrowplacelargenotification(int kind, float glvalue, String message, notGlucose glucose, String type,
+            boolean once) {
+        hasvalue = true;
+        fornotify(makearrownotification(kind, glvalue, message, glucose, type, once));
+
+    }
+
+    public void lossofsensornotification(int draw, String message, String type, boolean once) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "notify " + message);
+            }
+            ;
+        }
+        ;
+        fornotify(makenotification(draw, message, type, once));
+    }
+
+    public void arrowglucosenotification(int kind, float glvalue, String message, notGlucose glucose, String type,
+            boolean once) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "notify " + message);
+            }
+            ;
+        }
+        ;
+        fornotify(makearrownotification(kind, glvalue, message, glucose, type, once));
+    }
+
+    final private int numalarmid = 81432;
+
+    static DateFormat timef = DateFormat.getTimeInstance(DateFormat.SHORT);
+
+    public static void mkDateformat() {
+        timef = DateFormat.getTimeInstance(DateFormat.SHORT);
     };
 
-Notification.Builder  NumNotBuilder=null;
+    Notification.Builder NumNotBuilder = null;
+
     @SuppressWarnings("deprecation")
-public void  notifyer(int draw,String message,String type,int notid) {
-     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-         NumNotBuilder = new Notification.Builder(Applic.app, type);
-     }
-     else
-         NumNotBuilder = new Notification.Builder(Applic.app);
+    public void notifyer(int draw, String message, String type, int notid) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NumNotBuilder = new Notification.Builder(Applic.app, type);
+        } else
+            NumNotBuilder = new Notification.Builder(Applic.app);
 
-//    notificationManager.cancel(glucosenotificationid);
+        // notificationManager.cancel(glucosenotificationid);
 
-
-    NumNotBuilder.setAutoCancel(true).setContentIntent(mkpending()).
-setDeleteIntent(DeleteReceiver.getDeleteIntent()) .setContentTitle(message);
+        NumNotBuilder.setAutoCancel(true).setContentIntent(mkpending())
+                .setDeleteIntent(DeleteReceiver.getDeleteIntent()).setContentTitle(message);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             NumNotBuilder.setVisibility(VISIBILITY_PUBLIC);
             NumNotBuilder.setCategory(Notification.CATEGORY_ALARM);
         }
-    var timemess=            timef.format(System.currentTimeMillis()) + ": " + message;
-    showpopupalarm(timemess,false);
-    if(!isWearable) {
-        RemoteViews NumRemoteViewss = new RemoteViews(Applic.app.getPackageName(), R.layout.numalarm);
-        NumRemoteViewss.setInt(R.id.text, "setBackgroundColor", WHITE);
-        NumRemoteViewss.setTextColor(R.id.text, BLACK);
-        NumRemoteViewss.setTextViewText(R.id.text, timemess);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            NumNotBuilder.setCustomContentView(NumRemoteViewss);
-        } else
-            NumNotBuilder.setContent(NumRemoteViewss);
+        var timemess = timef.format(System.currentTimeMillis()) + ": " + message;
+        showpopupalarm(timemess, false);
+        if (!isWearable) {
+            RemoteViews NumRemoteViewss = new RemoteViews(Applic.app.getPackageName(), R.layout.numalarm);
+            NumRemoteViewss.setInt(R.id.text, "setBackgroundColor", WHITE);
+            NumRemoteViewss.setTextColor(R.id.text, BLACK);
+            NumRemoteViewss.setTextViewText(R.id.text, timemess);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                NumNotBuilder.setCustomContentView(NumRemoteViewss);
+            } else
+                NumNotBuilder.setContent(NumRemoteViewss);
         }
 
-    NumNotBuilder.setSmallIcon(draw).setPriority(Notification.PRIORITY_MAX);
+        NumNotBuilder.setSmallIcon(draw).setPriority(Notification.PRIORITY_MAX);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NumNotBuilder.setTimeoutAfter(1000L*60*60*2);
+            NumNotBuilder.setTimeoutAfter(1000L * 60 * 60 * 2);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-        NumNotBuilder.setGroup("aa1");
-    }
-    notificationManager.notify(notid,NumNotBuilder.build());
-    }
- public void  amountalarm(String message) {
-     try {
-        mksound(3);
-        notifyer( R.drawable.numalarm ,message,NUMALARM,numalarmid);
+            NumNotBuilder.setGroup("aa1");
         }
-    catch(Throwable e) {
-        Log.stack(LOG_ID,e);
+        notificationManager.notify(notid, NumNotBuilder.build());
+    }
+
+    public void amountalarm(String message) {
+        try {
+            mksound(3);
+            notifyer(R.drawable.numalarm, message, NUMALARM, numalarmid);
+        } catch (Throwable e) {
+            Log.stack(LOG_ID, e);
         }
     }
-//final private     int lossalarmid=77332;
- public void  lossalarm(long time) {
-     {if(doLog) {Log.i(LOG_ID,"lossalarm");};};
-    final String tformat= timef.format(time);
-    final String message= "***  "+Applic.getContext().getString(R.string.nonewvalue)+tformat+" ***";
 
-//    oldfloatmessage(tformat, true) ;
-    lossofsignalalarm(4,R.drawable.loss ,message, GLUCOSENOTIFICATION ,true);
+    // final private int lossalarmid=77332;
+    public void lossalarm(long time) {
+        {
+            if (doLog) {
+                Log.i(LOG_ID, "lossalarm");
+            }
+            ;
+        }
+        ;
+        final String tformat = timef.format(time);
+        final String message = "***  " + Applic.getContext().getString(R.string.nonewvalue) + tformat + " ***";
+
+        // oldfloatmessage(tformat, true) ;
+        lossofsignalalarm(4, R.drawable.loss, message, GLUCOSENOTIFICATION, true);
     }
-    
-
-
 
 }

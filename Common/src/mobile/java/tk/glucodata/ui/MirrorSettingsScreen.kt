@@ -13,7 +13,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Visibility
@@ -411,6 +413,50 @@ fun MirrorEditScreen(navController: NavController, pos: Int) {
     var password by remember { mutableStateOf(if (!isNew) Natives.getbackuppassword(pos) ?: "" else "") }
     var passwordVisible by remember { mutableStateOf(false) }
 
+    var isDeleted by remember { mutableStateOf(false) }
+
+    // Auto-save logic
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!isDeleted) {
+                // Natives.changebackuphost expects a non-empty array if hashostname is true
+                // and blindly accesses index 0. We must safeguard against empty arrays.
+                val names = if (hostname.isNotEmpty()) arrayOf(hostname) else arrayOf("")
+                val activeOnly = mode == 1
+                val passiveOnly = mode == 0
+                val sideBool = iceSide == 1
+                
+                val finalStartTime = when(startMode) {
+                    0 -> Natives.getstarttime() 
+                    1 -> System.currentTimeMillis()
+                    else -> customDate
+                }
+
+                Natives.changebackuphost(
+                    if (isNew) -1 else pos,
+                    names,
+                    names.size,
+                    detect,
+                    port,
+                    sendAmounts,
+                    sendStream,
+                    sendScans,
+                    false, 
+                    receiveFrom,
+                    activeOnly,
+                    passiveOnly,
+                    password,
+                    finalStartTime,
+                    iceLabel,
+                    testIP,
+                    hasHostname, 
+                    iceLabel.takeIf { isICE },
+                    sideBool
+                )
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -421,44 +467,24 @@ fun MirrorEditScreen(navController: NavController, pos: Int) {
                     }
                 },
                 actions = {
-                    TextButton(onClick = {
-                        // Natives.changebackuphost expects a non-empty array if hashostname is true
-                        // and blindly accesses index 0. We must safeguard against empty arrays.
-                        val names = if (hostname.isNotEmpty()) arrayOf(hostname) else arrayOf("")
-                        val activeOnly = mode == 1
-                        val passiveOnly = mode == 0
-                        val sideBool = iceSide == 1
-                        
-                        val finalStartTime = when(startMode) {
-                            0 -> Natives.getstarttime() 
-                            1 -> System.currentTimeMillis()
-                            else -> customDate
+                    // Help
+                    IconButton(onClick = {
+                         tk.glucodata.help.help("Mirror connection settings.", context as android.app.Activity) 
+                    }) {
+                        Icon(Icons.Filled.Info, contentDescription = "Help")
+                    }
+                    
+                    // Delete (only if not new, or maybe allow deleting new? new hasn't been saved yet so deleting it just means popping)
+                    // Actually if it's new, "Delete" is effectively "Cancel". But usually Delete is for existing items.
+                    // If it is new, we can just pop without saving by setting isDeleted=true.
+                    IconButton(onClick = {
+                        if (!isNew) {
+                            Natives.deletebackuphost(pos) 
                         }
-
-                        Natives.changebackuphost(
-                            if (isNew) -1 else pos,
-                            names,
-                            names.size,
-                            detect,
-                            port,
-                            sendAmounts,
-                            sendStream,
-                            sendScans,
-                            false, 
-                            receiveFrom,
-                            activeOnly,
-                            passiveOnly,
-                            password,
-                            finalStartTime,
-                            iceLabel,
-                            testIP,
-                            isICE, 
-                            iceLabel.takeIf { isICE },
-                            sideBool
-                        )
+                        isDeleted = true
                         navController.popBackStack()
                     }) {
-                        Text("Save")
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
                     }
                 }
             )
@@ -636,65 +662,6 @@ fun MirrorEditScreen(navController: NavController, pos: Int) {
                 }
             )
 
-            // --- ROW 9: Bottom Actions ---
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Button(
-                    onClick = { 
-                        Natives.changebackuphost(pos, arrayOf(""), 0, false, "", false, false, false, false, false, false, false, "", 0, "", false, false, "", false)
-                        navController.popBackStack()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
-                ) {
-                    Text("Delete")
-                }
-                
-                Button(onClick = { navController.popBackStack() }) {
-                    Text("Cancel")
-                }
-                
-                Button(onClick = { 
-                     tk.glucodata.help.help("Mirror connection settings.", context as android.app.Activity) 
-                }) {
-                    Text("Help")
-                }
-                
-                Button(onClick = {
-                        val names = if (hostname.isNotEmpty()) arrayOf(hostname) else arrayOf("")
-                        val activeOnly = mode == 1
-                        val passiveOnly = mode == 0
-                        val sideBool = iceSide == 1
-                        val finalStartTime = when(startMode) {
-                            0 -> Natives.getstarttime()
-                            1 -> System.currentTimeMillis()
-                            else -> customDate
-                        }
-
-                        Natives.changebackuphost(
-                            if (isNew) -1 else pos,
-                            names,
-                            names.size,
-                            detect,
-                            port,
-                            sendAmounts,
-                            sendStream,
-                            sendScans,
-                            false, 
-                            receiveFrom,
-                            activeOnly,
-                            passiveOnly,
-                            password,
-                            finalStartTime,
-                            iceLabel,
-                            testIP,
-                            isICE,
-                            iceLabel.takeIf { isICE },
-                            sideBool
-                        )
-                        navController.popBackStack()
-                }) {
-                    Text("Save")
-                }
-            }
         }
     }
 }

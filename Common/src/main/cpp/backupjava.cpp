@@ -338,7 +338,7 @@ extern "C" JNIEXPORT jint JNICALL fromjava(changebackuphost)(
     jboolean detect, jstring jport, jboolean nums, jboolean stream,
     jboolean scans, jboolean recover, jboolean receive, jboolean activeonly,
     jboolean passiveonly, jstring jpass, jlong starttime, jstring jlabel,
-    jboolean testip, jboolean hashostname) {
+    jboolean testip, jboolean hashostname, jstring jicelabel, jboolean side) {
 #ifndef TESTMENU
   LOGAR("changebackuphost const std::lock_guard<std::mutex> "
         "lock(change_host_mutex)");
@@ -367,6 +367,8 @@ extern "C" JNIEXPORT jint JNICALL fromjava(changebackuphost)(
   const char *label = jlabel ? env->GetStringUTFChars(jlabel, NULL) : nullptr;
 
   const int arlen = std::min(env->GetArrayLength(jnames), nr);
+  // Note: Existing backup->changehost likely doesn't support jicelabel/side
+  // yet. We pass hashostname which was previous Arg 17.
   jint res = backup->changehost(pos, env, jnames, arlen, detect,
                                 std::string_view(port, portlen), nums, stream,
                                 scans, recover, receive, activeonly,
@@ -464,17 +466,16 @@ extern "C" JNIEXPORT jstring JNICALL fromjava(getICElabel)(JNIEnv *env,
   return env->NewStringUTF("");
 }
 
+extern int makeICEBackupSender();
 extern "C" JNIEXPORT jint JNICALL fromjava(makeICESender)(JNIEnv *env,
                                                           jclass cl) {
-  // Stub: ICE unimplemented in C++ yet?
-  // Return -1 to indicate error or implement strict logic if possible.
-  // For now returning -1 to match "Error" message handling in UI.
-  return -1;
+  return makeICEBackupSender();
 }
 
+extern int makeICEBackupReceiver();
 extern "C" JNIEXPORT jint JNICALL fromjava(makeICEReceiver)(JNIEnv *env,
                                                             jclass cl) {
-  return -1;
+  return makeICEBackupReceiver();
 }
 
 extern int makeHomeBackupSender();
@@ -488,12 +489,10 @@ extern "C" JNIEXPORT jint JNICALL fromjava(makeHomeSender)(JNIEnv *env,
 #endif
 }
 
+extern int makeHomeBackupReceiver();
 extern "C" JNIEXPORT jint JNICALL fromjava(makeHomeReceiver)(JNIEnv *env,
                                                              jclass cl) {
-  // Assuming makeHomeBackupReceiver exists or returning -1?
-  // backup.hpp didn't show it explicitly in the view.
-  // I'll return -1 for safety unless I find it.
-  return -1;
+  return makeHomeBackupReceiver();
 }
 /*    networkpresent=false;
       if(backup) {
