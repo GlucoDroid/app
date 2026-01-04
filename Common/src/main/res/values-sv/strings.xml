@@ -165,7 +165,6 @@
   <string name="installedlibrary">Installerat bibliotek</string>
   <string name="cantextract">Kan inte extrahera %s. Prova en annan apk.</string>
   <string name="connectwithsensor">För att ansluta till sensorn</string>
-  <string name="exchangedata">Utbyta data</string>
   <string name="nonewvalue">"Inget nytt värde sedan "</string>
   <string name="lowglucose">" Lågt glukosvärde!"</string>
   <string name="highglucose">" Högt glukosvärde!"</string>
@@ -314,7 +313,6 @@
   <string name="parseip">Felaktig ip-adress</string>
   <string name="toomanyhosts">Maximalt antal värdar har överskridits</string>
   <string name="senthosts">Juggluco skickar till maximalt 6 värdar</string>
-  <string name="hostname">värdnamn</string>
   <string name="clampnow">Lås nutid</string>
   <string name="sendfrom">"Skicka från: "</string>
   <string name="changestartbutton">Ändra start</string>
@@ -335,4 +333,67 @@
 <string name="watch">klocka</string>
 <string name="directsensor">Direktanslutning mellan sensor och</string>
 <string name="connectionl"></string>
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Visa diagram i meddelande</string>
+    <string name="notification_chart_desc">Visa glukosdiagram i statusfältet</string>
+    <string name="google_scan_desc">Använd Google Play Services för QR-skanning</string>
+    <string name="mirror_desc">Dela/Ta emot data via Internet/Hemnätverk</string>
+    <string name="nightscout_desc">Ladda upp till Nightscout</string>
+    <string name="glucose_alerts_title">Blodsockervarningar</string>
+    <string name="target_range_title">Målområde för glukos</string>
+    <string name="select_unit">Välj enhet</string>
+    <string name="select_theme">Välj tema</string>
+    <string name="select_language">Välj språk</string>
+    <string name="system_default">Systemstandard</string>
+
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Debuggloggar</string>
+    <string name="clear">Rensa</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Logg aktiverad. Väntar på poster...</string>
+    <string name="log_unchecked">Logg inaktiverad. Aktivera för att starta.</string>
+    <string name="error_reading_file">"Fel vid läsning av fil: "</string>
+    <string name="error_saving_file">"Fel vid sparning av fil: "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Spegelinställningar</string>
+    <string name="auto_qr">Auto QR</string>
+    <string name="home_net">Hemnätverk</string>
+    <string name="internet">Internet</string>
+    <string name="home_net_sender">Hemnätverkssändare</string>
+    <string name="internet_sender">Internetsändare</string>
+    <string name="home_net_receiver">Hemnätverksmottagare</string>
+    <string name="internet_receiver">Internetmottagare</string>
+    <string name="close">Stäng</string>
+    <string name="connection_label">Anslutning</string>
+    <string name="deactivated">Inaktiverad</string>
+    <string name="enable">Aktivera</string>
+    <string name="disable">Inaktivera</string>
+    <string name="hostname">Värdnamn</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">ICE-etikett</string>
+    <string name="hostname_ip">Värdnamn / IP</string>
+    <string name="test_ip">Test-IP</string>
+    <string name="test_label">Testetikett</string>
+    <string name="master">Master</string>
+    <string name="passive_only">Endast passiv</string>
+    <string name="active_only">Endast aktiv</string>
+    <string name="data_present_until">Data finns till:</string>
+    <string name="show_password">Visa lösenord</string>
+    <string name="hide_password">Dölj lösenord</string>
+
+    <string name="turn_server">Turn-server</string>
+    <string name="add_connection">Lägg till anslutning</string>
+    <string name="help">Hjälp</string>
+    <string name="send_to">Skicka till</string>
+    <string name="receive_from">Ta emot från</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Mängder</string>
+    <string name="scans">Skanningar</string>
+    <string name="stream">Ström</string>
+    
+    <string name="exchanges">Skicka/Ta emot</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
 </resources>

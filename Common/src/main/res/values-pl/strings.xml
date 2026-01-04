@@ -327,7 +327,6 @@
 <string name="parseip">Błąd parsowania adresu IP</string>
 <string name="toomanyhosts">Przekroczono maksymalną liczbę hostów</string>
 <string name="senthosts">Juggluco wysyła do maksymalnie 6 hostów</string>
-    <string name="hostname">nazwa hosta</string>
    <string name="clampnow">Zawsze teraz</string>
     <string name="sendfrom">&quot;Wysyłaj od: &quot;</string>
  <string name="changestartbutton">Zmień początek</string>
@@ -358,7 +357,6 @@
 <string name="libresetalllabels">Opcję &quot;Wysyłaj wartości&quot; można zaznaczyć dopiero po określeniu, co należy zrobić z każdą etykietą.</string>
    <string name="photo">Zeskanuj kod</string>
    <string name="photomessage">Zeskanuj kod QR sensora Dexcom G7 lub chińskiego sensora Sibionics.</string>
-   <string name="exchanges">Przesył danych</string>
    <string name="dexfuture">Przewidywanie (Dexcom)</string>
    <string name="initializing">Uruchomienie</string> 
    <string name="startjuggluco">Juggluco uruchomione na telefonie?\n\nWIFI i Bluetooth włączone?</string> 
@@ -410,4 +408,67 @@
   <string name="phone">telefon</string>
  <string name="directsensor">Bezpośrednie połączenie sensor-</string>
  <string name="connectionl"></string>
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Pokaż wykres w powiadomieniach</string>
+    <string name="notification_chart_desc">Wyświetl wykres glukozy w pasku stanu</string>
+    <string name="google_scan_desc">Użyj usług Google Play do skanowania QR</string>
+    <string name="mirror_desc">Udostępnij/Odbieraj dane przez Internet/Sieć domową</string>
+    <string name="nightscout_desc">Prześlij do Nightscout</string>
+    <string name="glucose_alerts_title">Alarmy stężenia glukozy</string>
+    <string name="target_range_title">Docelowy zakres glukozy</string>
+    <string name="select_unit">Wybierz jednostkę</string>
+    <string name="select_theme">Wybierz motyw</string>
+    <string name="select_language">Wybierz język</string>
+    <string name="system_default">Domyślne systemowe</string>
+
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Dzienniki debugowania</string>
+    <string name="clear">Wyczyść</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Log włączony. Oczekiwanie...</string>
+    <string name="log_unchecked">Log wyłączony. Włącz, aby rozpocząć.</string>
+    <string name="error_reading_file">"Błąd odczytu pliku: "</string>
+    <string name="error_saving_file">"Błąd zapisu pliku: "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Ustawienia kopii lustrzanej</string>
+    <string name="auto_qr">Auto QR</string>
+    <string name="home_net">Sieć domowa</string>
+    <string name="internet">Internet</string>
+    <string name="home_net_sender">Nadawca sieci domowej</string>
+    <string name="internet_sender">Nadawca internetowy</string>
+    <string name="home_net_receiver">Odbiorca sieci domowej</string>
+    <string name="internet_receiver">Odbiorca internetowy</string>
+    <string name="close">Zamknij</string>
+    <string name="connection_label">Połączenie</string>
+    <string name="deactivated">Dezaktywowano</string>
+    <string name="enable">Włącz</string>
+    <string name="disable">Wyłącz</string>
+    <string name="hostname">Nazwa hosta</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">Etykieta ICE</string>
+    <string name="hostname_ip">Nazwa hosta / IP</string>
+    <string name="test_ip">IP Testowe</string>
+    <string name="test_label">Etykieta Testowa</string>
+    <string name="master">Master</string>
+    <string name="passive_only">Tylko pasywne</string>
+    <string name="active_only">Tylko aktywne</string>
+    <string name="data_present_until">Dane dostępne do:</string>
+    <string name="show_password">Pokaż hasło</string>
+    <string name="hide_password">Ukryj hasło</string>
+
+    <string name="turn_server">Serwer Turn</string>
+    <string name="add_connection">Dodaj połączenie</string>
+    <string name="help">Pomoc</string>
+    <string name="send_to">Wyślij do</string>
+    <string name="receive_from">Odbierz od</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Ilości</string>
+    <string name="scans">Skany</string>
+    <string name="stream">Strumień</string>
+    
+    <string name="exchanges">Wyślij/Odbierz</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
 </resources>

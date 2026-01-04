@@ -207,4 +207,66 @@
 <string name="phone">telefono</string>
  <string name="directsensor">Connessione sensor-"</string>
  <string name="connectionl">diretta</string>
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Mostra grafico nella notifica</string>
+    <string name="notification_chart_desc">Visualizza il grafico del glucosio nella barra di stato</string>
+    <string name="google_scan_desc">Usa Google Play Services per la scansione QR</string>
+    <string name="mirror_desc">Condividi/Ricevi dati via Internet/Rete domestica</string>
+    <string name="nightscout_desc">Carica su Nightscout</string>
+    <string name="glucose_alerts_title">Avvisi glicemia</string>
+    <string name="target_range_title">Intervallo glicemico target</string>
+    <string name="select_unit">Seleziona unità</string>
+    <string name="select_theme">Seleziona tema</string>
+    <string name="select_language">Seleziona lingua</string>
+    <string name="system_default">Predefinito di sistema</string>
+
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Log di debug</string>
+    <string name="clear">Cancella</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Log abilitato. In attesa di voci...</string>
+    <string name="log_unchecked">Log disabilitato. Abilita per iniziare.</string>
+    <string name="error_reading_file">"Errore lettura file: "</string>
+    <string name="error_saving_file">"Errore salvataggio file: "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Impostazioni Specchio</string>
+    <string name="auto_qr">Auto QR</string>
+    <string name="home_net">Rete domestica</string>
+    <string name="internet">Internet</string>
+    <string name="home_net_sender">Mittente Rete Domestica</string>
+    <string name="internet_sender">Mittente Internet</string>
+    <string name="home_net_receiver">Ricevitore Rete Domestica</string>
+    <string name="internet_receiver">Ricevitore Internet</string>
+    <string name="close">Chiudi</string>
+    <string name="connection_label">Connessione</string>
+    <string name="deactivated">Disattivato</string>
+    <string name="enable">Abilita</string>
+    <string name="disable">Disabilita</string>
+    <string name="hostname">Nome host</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">Etichetta ICE</string>
+    <string name="hostname_ip">Nome host / IP</string>
+    <string name="test_ip">IP Test</string>
+    <string name="test_label">Etichetta Test</string>
+    <string name="master">Master</string>
+    <string name="passive_only">Solo passivo</string>
+    <string name="active_only">Solo attivo</string>
+    <string name="data_present_until">Dati presenti fino a:</string>
+    <string name="show_password">Mostra password</string>
+    <string name="hide_password">Nascondi password</string>
+
+    <string name="turn_server">Server Turn</string>
+    <string name="add_connection">Aggiungi connessione</string>
+    <string name="help">Aiuto</string>
+    <string name="send_to">Invia a</string>
+    <string name="receive_from">Ricevi da</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Importi</string>
+    <string name="scans">Scansioni</string>
+    <string name="stream">Flusso</string>
+    <string name="exchanges">Invia/Ricevi</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
 </resources>

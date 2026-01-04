@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
 import tk.glucodata.Natives
 import tk.glucodata.data.GlucoseRepository
+import tk.glucodata.data.HistorySync
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository()
@@ -57,6 +60,10 @@ class DashboardViewModel(
     private val _highAlarmThreshold = MutableStateFlow(0f)
     val highAlarmThreshold = _highAlarmThreshold.asStateFlow()
 
+    // New Setting: Notification Chart Toggle
+    private val _notificationChartEnabled = MutableStateFlow(true)
+    val notificationChartEnabled = _notificationChartEnabled.asStateFlow()
+
     private val _lowAlarmSoundMode = MutableStateFlow(0)
     val lowAlarmSoundMode = _lowAlarmSoundMode.asStateFlow()
 
@@ -69,9 +76,16 @@ class DashboardViewModel(
     }
     private fun startCollection() {
         viewModelScope.launch {
-            glucoseRepository.getCurrentReading().collect { point ->
+            combine(
+                glucoseRepository.getCurrentReading(),
+                viewMode,
+                _unit
+            ) { point, mode, unitStr ->
+                Triple(point, mode, unitStr)
+            }.collect { (point, mode, _) ->
                 if (point != null) {
-                    _currentGlucose.value = if (point.value < 30) String.format("%.1f", point.value) else point.value.toInt().toString()
+                    val valueToDisplay = if (mode == 1 || mode == 3) point.rawValue else point.value
+                    _currentGlucose.value = if (valueToDisplay < 30) String.format("%.1f", valueToDisplay) else valueToDisplay.toInt().toString()
                     _currentRate.value = point.rate
                     
                     // Efficiently update history by appending the new point instead of re-querying the DB
@@ -89,6 +103,11 @@ class DashboardViewModel(
             val unitVal = Natives.getunit()
             val isMmol = unitVal == 1
             _unit.value = if (isMmol) "mmol/L" else "mg/dL"
+            
+            // Load Notification Chart Setting
+            val context = tk.glucodata.Applic.app
+            val prefs = context.getSharedPreferences(context.packageName + "_preferences", android.content.Context.MODE_PRIVATE)
+            _notificationChartEnabled.value = prefs.getBoolean("notification_chart_enabled", true)
             
             _targetLow.value = Natives.targetlow()
             _targetHigh.value = Natives.targethigh()
@@ -129,19 +148,32 @@ class DashboardViewModel(
                         val oneDayMs = 86400000L
                         val oneHourMs = 3600000L
                         
-                        val usedStr = if (usedMs < oneDayMs) {
-                            "${usedMs / oneHourMs}h in use"
+                        val isSibionics2 = Natives.isSibionics2(dataptr)
+
+                        if (isSibionics2) {
+                            if (usedMs < oneDayMs) {
+                                val hours = usedMs / oneHourMs
+                                val hStr = context.getString(tk.glucodata.R.string.hours_short, hours)
+                                _daysRemaining.value = context.getString(tk.glucodata.R.string.in_use, hStr)
+                            } else {
+                                val days = usedMs / oneDayMs
+                                val dStr = "$days " + context.getString(tk.glucodata.R.string.duration_days)
+                                _daysRemaining.value = context.getString(tk.glucodata.R.string.in_use, dStr)
+                            }
                         } else {
-                            "${usedMs / oneDayMs}d in use"
+                            if (leftMs < oneDayMs) {
+                                if (leftMs < 0) _daysRemaining.value = context.getString(tk.glucodata.R.string.expired)
+                                else {
+                                    val hours = leftMs / oneHourMs
+                                    val hStr = context.getString(tk.glucodata.R.string.hours_short, hours)
+                                    _daysRemaining.value = context.getString(tk.glucodata.R.string.remaining, hStr)
+                                }
+                            } else {
+                                val days = leftMs / oneDayMs
+                                val dStr = "$days " + context.getString(tk.glucodata.R.string.duration_days)
+                                _daysRemaining.value = context.getString(tk.glucodata.R.string.remaining, dStr)
+                            }
                         }
-                        
-                        val leftStr = if (leftMs < oneDayMs) {
-                             if (leftMs < 0) "Expired" else "${leftMs / oneHourMs}h remaining"
-                        } else {
-                            "${leftMs / oneDayMs}d remaining"
-                        }
-                        
-                        _daysRemaining.value = "$usedStr · $leftStr"
                     } else {
                          _daysRemaining.value = ""
                     }
@@ -152,8 +184,11 @@ class DashboardViewModel(
                  _daysRemaining.value = ""
             }
 
-            // Initial load of history (or reload)
-            glucoseRepository.getHistory().let {
+            // Sync from native history to Room before fetching
+            HistorySync.syncFromNative()
+            
+            // Load ALL history from Room (no time limit)
+            glucoseRepository.getAllHistory().let {
                 _glucoseHistory.value = it
             }
         }
@@ -243,5 +278,15 @@ class DashboardViewModel(
              tk.glucodata.XInfuus.setlibrenames()
         }
         _patchedLibreBroadcastEnabled.value = Natives.getlibrelinkused()
+    }
+
+    fun toggleNotificationChart(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences(context.packageName + "_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("notification_chart_enabled", enabled).apply()
+        _notificationChartEnabled.value = enabled
+        
+        // Force update notification to reflect change immediately
+        tk.glucodata.Notify.showoldglucose()
     }
 }

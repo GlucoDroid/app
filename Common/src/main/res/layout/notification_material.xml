@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="4dp"
+    android:paddingTop="2dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="2dp">
+
+    <!-- Primary Value -->
+    <TextView
+        android:id="@+id/notification_glucose"
+        style="@style/TextAppearance.Compat.Notification.Title"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:includeFontPadding="false"
+        android:text="---"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <!-- Trend Column: Time above Arrow -->
+    <LinearLayout
+        android:id="@+id/trend_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp"
+        android:gravity="center_horizontal">
+
+
+        <ImageView
+            android:id="@+id/notification_arrow"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/novalue"
+            android:contentDescription="Trend" />
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text="" />
+
+    <!-- Status Text -->
+    <TextView
+        android:id="@+id/notification_status"
+        style="@style/TextAppearance.Compat.Notification.Info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Status"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <!-- Chart Placeholder (Hidden in Collapsed) -->
+    <ImageView
+        android:id="@+id/notification_chart"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+</LinearLayout>

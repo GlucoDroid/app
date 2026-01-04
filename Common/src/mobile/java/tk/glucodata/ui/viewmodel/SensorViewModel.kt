@@ -22,7 +22,9 @@ data class SensorInfo(
     val expectedEnd: String,
     val viewMode: Int,
     val autoResetDays: Int,
-    val isSibionics2: Boolean
+    val isSibionics2: Boolean,
+    val startMs: Long,
+    val officialEndMs: Long
 )
 
 class SensorViewModel : ViewModel() {
@@ -62,7 +64,9 @@ class SensorViewModel : ViewModel() {
                     expectedEnd = if(expectedEndMs > 0) tk.glucodata.bluediag.datestr(expectedEndMs) else "",
                     viewMode = currentViewMode,
                     autoResetDays = autoResetDays,
-                    isSibionics2 = isSi2
+                    isSibionics2 = isSi2,
+                    startMs = startMs,
+                    officialEndMs = officialEndMs
                 )
 
 
@@ -142,13 +146,16 @@ class SensorViewModel : ViewModel() {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         if (gatt != null) {
-            if (wipeData) {
-                Natives.siWipeDataOnly(gatt.dataptr)
+            viewModelScope.launch {
+                if (wipeData) {
+                    Natives.siWipeDataOnly(gatt.dataptr)
+                }
+                gatt.disconnect()
+                kotlinx.coroutines.delay(2000) // Ensure full disconnect
+                Natives.resetbluetooth(gatt.dataptr)
+                gatt.connectDevice(200)
+                refreshSensors()
             }
-            Natives.resetbluetooth(gatt.dataptr)
-            gatt.disconnect()
-            gatt.connectDevice(100)
-            refreshSensors()
         }
     }
 }

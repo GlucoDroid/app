@@ -346,4 +346,7 @@
  <string name="phone">тэлефон</string>
  <string name="connectionl"></string>
 
+    <string name="exchanges">Адправіць/Атрымаць</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
 </resources>

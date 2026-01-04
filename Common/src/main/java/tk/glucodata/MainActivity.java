@@ -490,8 +490,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 Class<?> clazz = Class.forName("tk.glucodata.ui.ComposeHostKt");
                 java.lang.reflect.Method method = clazz.getMethod("setComposeContent",
                         androidx.appcompat.app.AppCompatActivity.class, android.view.View.class);
-                method.invoke(null, this, null);
-                Log.i(LOG_ID, "Initialized Compose UI");
+                method.invoke(null, this, curve);
+                Log.i(LOG_ID, "Initialized Compose UI and hid legacy view");
             } catch (ClassNotFoundException e) {
                 Log.i(LOG_ID, "Compose UI not found (normal for Wear/Legacy)");
             } catch (Exception e) {
@@ -750,6 +750,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
             ;
         }
+        // Force notification update on resume/launch
+        Notify.showoldglucose();
         return;
     }
 

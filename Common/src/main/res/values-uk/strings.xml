@@ -170,7 +170,6 @@
  <string name="installedlibrary">Встановлена бібліотека</string>
  <string name="cantextract">Не вдається розпакувати %s, спробуйте інший apk</string>
  <string name="connectwithsensor">Для підключення до датчика</string>
- <string name="exchangedata">Для обміну даними</string>
  <string name="nonewvalue">"Відтоді немає нового значення "</string>
  <string name="lowglucose">" Низький рівень глюкози!"</string>
  <string name="highglucose">" Високий рівень глюкози!"</string>
@@ -326,7 +325,6 @@
  <string name="parseip">Помилка аналізу IP</string>
  <string name="toomanyhosts">Перевищено максимальну кількість хостів</string>
  <string name="senthosts">Juggluco надсилає максимум 6 хостам</string>
- <string name="hostname">hostname</string>
  <string name="clampnow">Тепер затискаємо</string>
  <string name="sendfrom">"Надіслати з: "</string>
  <string name="changestartbutton">Початок зміни</string>
@@ -349,4 +347,67 @@
 <string name="watch">годинника</string>
 <string name="directsensor">Пряме підкл. датчика до</string>
 <string name="connectionl"></string>
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Показати графік у сповіщеннях</string>
+    <string name="notification_chart_desc">Відобразити графік глюкози в рядку стану</string>
+    <string name="google_scan_desc">Використовувати сервіси Google Play для сканування QR</string>
+    <string name="mirror_desc">Ділитися/Отримувати дані через Інтернет/Домашню мережу</string>
+    <string name="nightscout_desc">Завантажити в Nightscout</string>
+    <string name="glucose_alerts_title">Сповіщення про рівень глюкози</string>
+    <string name="target_range_title">Цільовий діапазон глюкози</string>
+    <string name="select_unit">Виберіть одиницю</string>
+    <string name="select_theme">Виберіть тему</string>
+    <string name="select_language">Виберіть мову</string>
+    <string name="system_default">Системні налаштування</string>
+
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Журнали налагодження</string>
+    <string name="clear">Очистити</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Журнал увімкнено. Очікування записів...</string>
+    <string name="log_unchecked">Журнал вимкнено. Увімкніть для початку.</string>
+    <string name="error_reading_file">"Помилка читання файлу: "</string>
+    <string name="error_saving_file">"Помилка збереження файлу: "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Налаштування дзеркала</string>
+    <string name="auto_qr">Авто QR</string>
+    <string name="home_net">Домашня мережа</string>
+    <string name="internet">Інтернет</string>
+    <string name="home_net_sender">Відправник дом. мережі</string>
+    <string name="internet_sender">Відправник Інтернет</string>
+    <string name="home_net_receiver">Отримувач дом. мережі</string>
+    <string name="internet_receiver">Отримувач Інтернет</string>
+    <string name="close">Закрити</string>
+    <string name="connection_label">З\'єднання</string>
+    <string name="deactivated">Деактивовано</string>
+    <string name="enable">Увімкнути</string>
+    <string name="disable">Вимкнути</string>
+    <string name="hostname">Ім\'я хоста</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">Мітка ICE</string>
+    <string name="hostname_ip">Ім\'я хоста / IP</string>
+    <string name="test_ip">Тест IP</string>
+    <string name="test_label">Тест Мітка</string>
+    <string name="master">Майстер</string>
+    <string name="passive_only">Тільки пасив</string>
+    <string name="active_only">Тільки актив</string>
+    <string name="data_present_until">Дані доступні до:</string>
+    <string name="show_password">Показати пароль</string>
+    <string name="hide_password">Приховати пароль</string>
+
+    <string name="turn_server">Turn-сервер</string>
+    <string name="add_connection">Додати з\'єднання</string>
+    <string name="help">Допомога</string>
+    <string name="send_to">Надіслати</string>
+    <string name="receive_from">Отримати від</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Кількості</string>
+    <string name="scans">Скани</string>
+    <string name="stream">Потік</string>
+    
+    <string name="exchanges">Надіслати/Отримати</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
 </resources>

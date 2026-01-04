@@ -1,0 +1,374 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed module (file:/Users/ctqwa/.gradle/wrapper/dists/gradle-8.13-bin/5xuhj0ry160q40clulazy9h7d/gradle-8.13/lib/native-platform-0.22-milestone-28.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+Reusing configuration cache.
+> Task :Common:preBuild UP-TO-DATE
+> Task :Common:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :Common:preMobileLibre3SiDexGoogleReleaseBuild UP-TO-DATE
+> Task :Common:buildKotlinToolingMetadata UP-TO-DATE
+> Task :Common:generateMobileLibre3SiDexGoogleReleaseBuildConfig UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseJniLibFolders UP-TO-DATE
+> Task :Common:generateMobileLibre3SiDexGoogleReleaseResValues UP-TO-DATE
+> Task :Common:compileMobileLibre3SiDexGoogleReleaseAidl NO-SOURCE
+> Task :Common:createMobileLibre3SiDexGoogleReleaseCompatibleScreenManifests UP-TO-DATE
+> Task :Common:extractDeepLinksMobileLibre3SiDexGoogleRelease UP-TO-DATE
+> Task :Common:generateMobileLibre3SiDexGoogleReleaseResources UP-TO-DATE
+> Task :Common:mapMobileLibre3SiDexGoogleReleaseSourceSetPaths UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseResources UP-TO-DATE
+> Task :Common:javaPreCompileMobileLibre3SiDexGoogleRelease UP-TO-DATE
+> Task :Common:extractProguardFiles UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseStartupProfile UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseShaders UP-TO-DATE
+> Task :Common:extractMobileLibre3SiDexGoogleReleaseVersionControlInfo UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseArtProfile UP-TO-DATE
+> Task :Common:checkMobileLibre3SiDexGoogleReleaseDuplicateClasses UP-TO-DATE
+> Task :Common:checkMobileLibre3SiDexGoogleReleaseAarMetadata UP-TO-DATE
+> Task :Common:processMobileLibre3SiDexGoogleReleaseNavigationResources UP-TO-DATE
+> Task :Common:writeMobileLibre3SiDexGoogleReleaseAppMetadata UP-TO-DATE
+> Task :Common:compileMobileLibre3SiDexGoogleReleaseShaders NO-SOURCE
+> Task :Common:generateMobileLibre3SiDexGoogleReleaseAssets UP-TO-DATE
+> Task :Common:expandMobileLibre3SiDexGoogleReleaseL8ArtProfileWildcards UP-TO-DATE
+> Task :Common:writeMobileLibre3SiDexGoogleReleaseSigningConfigVersions UP-TO-DATE
+> Task :Common:compileMobileLibre3SiDexGoogleReleaseNavigationResources UP-TO-DATE
+> Task :Common:collectMobileLibre3SiDexGoogleReleaseDependencies UP-TO-DATE
+> Task :Common:validateSigningMobileLibre3SiDexGoogleRelease UP-TO-DATE
+> Task :Common:dataBindingMergeDependencyArtifactsMobileLibre3SiDexGoogleRelease UP-TO-DATE
+> Task :Common:sdkMobileLibre3SiDexGoogleReleaseDependencyData UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseAssets UP-TO-DATE
+> Task :Common:processMobileLibre3SiDexGoogleReleaseMainManifest UP-TO-DATE
+> Task :Common:compressMobileLibre3SiDexGoogleReleaseAssets UP-TO-DATE
+> Task :Common:processMobileLibre3SiDexGoogleReleaseManifest UP-TO-DATE
+> Task :Common:processMobileLibre3SiDexGoogleReleaseManifestForPackage UP-TO-DATE
+> Task :Common:dataBindingGenBaseClassesMobileLibre3SiDexGoogleRelease UP-TO-DATE
+> Task :Common:configureCMakeRelWithDebInfo[x86_64]-4
+> Task :Common:configureCMakeRelWithDebInfo[armeabi-v7a]-4
+> Task :Common:configureCMakeRelWithDebInfo[x86]-4
+> Task :Common:configureCMakeRelWithDebInfo[arm64-v8a]-4
+> Task :Common:processMobileLibre3SiDexGoogleReleaseResources UP-TO-DATE
+> Task :Common:buildCMakeRelWithDebInfo[arm64-v8a]-4
+> Task :Common:buildCMakeRelWithDebInfo[armeabi-v7a]-4
+> Task :Common:buildCMakeRelWithDebInfo[x86_64]-4
+> Task :Common:buildCMakeRelWithDebInfo[x86]-4
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseNativeLibs UP-TO-DATE
+> Task :Common:stripMobileLibre3SiDexGoogleReleaseDebugSymbols UP-TO-DATE
+> Task :Common:compileMobileLibre3SiDexGoogleReleaseKotlin UP-TO-DATE
+> Task :Common:extractMobileLibre3SiDexGoogleReleaseNativeSymbolTables UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseNativeDebugMetadata UP-TO-DATE
+> Task :Common:processMobileLibre3SiDexGoogleReleaseJavaRes UP-TO-DATE
+> Task :Common:mergeMobileLibre3SiDexGoogleReleaseJavaResource UP-TO-DATE
+
+> Task :Common:compileMobileLibre3SiDexGoogleReleaseJavaWithJavac FAILED
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/RingTones.java:178: warning: [deprecation] startActivityForResult(Intent,int) in ComponentActivity has been deprecated
+			    context.startActivityForResult(openInChooser, request);
+			           ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/NumberView.java:734: warning: [deprecation] setCalendarViewShown(boolean) in DatePicker has been deprecated
+    datepick.setCalendarViewShown(false);
+            ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Talker.java:221: warning: [deprecation] onError(String) in UtteranceProgressListener has been deprecated
+        public void onError(String utteranceId) {
+                    ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Talker.java:247: warning: [deprecation] speak(String,int,HashMap<String,String>) in TextToSpeech has been deprecated
+                            engine.speak(message, TextToSpeech.QUEUE_FLUSH, null)) ==TextToSpeech.SUCCESS)
+                                  ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:540: warning: [deprecation] VIBRATOR_SERVICE in Context has been deprecated
+            vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
+                                                           ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:543: warning: [deprecation] vibrate(long[],int) in Vibrator has been deprecated
+                vibrator.vibrate(new long[] { 0, 100, 10, 50, 50 }, 1);
+                        ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:545: warning: [deprecation] vibrate(long[],int) in Vibrator has been deprecated
+                vibrator.vibrate(new long[] { 0, 1000, 500, 100, 500, 500, 500, 100, 100 }, 1);
+                        ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:996: warning: [deprecation] PRIORITY_HIGH in Notification has been deprecated
+                GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                                                      ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:996: warning: [deprecation] setPriority(int) in Builder has been deprecated
+                GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                             ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1031: warning: [deprecation] Builder(Context) in Builder has been deprecated
+                GluNotBuilder = new Notification.Builder(Applic.app);
+                                ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1075: error: cannot find symbol
+                    if (targetTime > 0 && Math.abs(p.time - targetTime) > 60000)
+                                                    ^
+  symbol:   variable time
+  location: variable p of type GlucosePoint
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1091: error: cannot find symbol
+                        if (Math.abs(p.time - targetTime) < 2000) { // Very close match
+                                      ^
+  symbol:   variable time
+  location: variable p of type GlucosePoint
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1107: error: cannot find symbol
+                    if (targetTime > 0 && Math.abs(p.time - targetTime) > 60000)
+                                                    ^
+  symbol:   variable time
+  location: variable p of type GlucosePoint
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1124: error: cannot find symbol
+                        if (Math.abs(p.time - targetTime) < 2000) {
+                                      ^
+  symbol:   variable time
+  location: variable p of type GlucosePoint
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1251: warning: [deprecation] setContent(RemoteViews) in Builder has been deprecated
+            GluNotBuilder.setContent(remoteViews);
+                         ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1264: warning: [deprecation] PRIORITY_DEFAULT in Notification has been deprecated
+            GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+                                                  ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1264: warning: [deprecation] setPriority(int) in Builder has been deprecated
+            GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+                         ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1266: warning: [deprecation] PRIORITY_HIGH in Notification has been deprecated
+            GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                                                  ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1266: warning: [deprecation] setPriority(int) in Builder has been deprecated
+            GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                         ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1383: warning: [deprecation] setContent(RemoteViews) in Builder has been deprecated
+            GluNotBuilder.setContent(remoteViews);
+                         ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Floating.java:243: warning: [deprecation] TYPE_SYSTEM_ALERT in LayoutParams has been deprecated
+        final var type = (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)?WindowManager.LayoutParams.TYPE_SYSTEM_ALERT: WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                                                                                                   ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Floating.java:254: warning: [deprecation] TYPE_SYSTEM_ALERT in LayoutParams has been deprecated
+        final var type = (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)?WindowManager.LayoutParams.TYPE_SYSTEM_ALERT: WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                                                                                                   ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Floating.java:340: warning: [deprecation] TYPE_SYSTEM_ALERT in LayoutParams has been deprecated
+        var type = (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)?WindowManager.LayoutParams.TYPE_SYSTEM_ALERT: WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                                                                                             ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:429: warning: [deprecation] setStatusBarColor(int) in Window has been deprecated
+            getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+                       ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:430: warning: [deprecation] setNavigationBarColor(int) in Window has been deprecated
+            getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+                       ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:559: warning: [deprecation] <T>getParcelableExtra(String) in Intent has been deprecated
+                Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+                                ^
+  where T is a type-variable:
+    T extends Parcelable declared in method <T>getParcelableExtra(String)
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1595: warning: [deprecation] <T>getParcelableExtra(String) in Intent has been deprecated
+                    Uri uri = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+                                  ^
+  where T is a type-variable:
+    T extends Parcelable declared in method <T>getParcelableExtra(String)
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1787: warning: [deprecation] onBackPressed() in ComponentActivity has been deprecated
+    public void onBackPressed() {
+                ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1804: warning: [deprecation] onBackPressed() in ComponentActivity has been deprecated
+            super.onBackPressed();
+                 ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1818: warning: [deprecation] startActivityForResult(Intent,int) in ComponentActivity has been deprecated
+            startActivityForResult(intent, REQUEST_NOTIFICATION);
+            ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1910: warning: [deprecation] getColor(int) in Resources has been deprecated
+                    : getResources().getColor(colres);
+                                    ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1931: warning: [deprecation] LOCATION_MODE in Secure has been deprecated
+        return Settings.Secure.getInt(context.getContentResolver(), Settings.Secure.LOCATION_MODE,
+                                                                                   ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:841: warning: [deprecation] setValue(byte[]) in BluetoothGattDescriptor has been deprecated
+        if (!descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
+                       ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:845: warning: [deprecation] writeDescriptor(BluetoothGattDescriptor) in BluetoothGatt has been deprecated
+        return gatt.writeDescriptor(descriptor);
+                   ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:893: warning: [deprecation] setValue(byte[]) in BluetoothGattDescriptor has been deprecated
+            if (!descriptor.setValue(type)) {
+                           ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:899: warning: [deprecation] writeDescriptor(BluetoothGattDescriptor) in BluetoothGatt has been deprecated
+            var success = bluetoothGatt1.writeDescriptor(descriptor);
+                                        ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Applic.java:157: warning: [deprecation] getId() in Thread has been deprecated
+    if (Thread.currentThread().getId() != uiThreadId) {
+                              ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Applic.java:180: warning: [deprecation] getId() in Thread has been deprecated
+    uiThreadId=Thread.currentThread().getId();
+                                     ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/mobile/java/tk/glucodata/nums/AllData.java:446: warning: [unchecked] unchecked cast
+          List<Object> gegs = (List<Object>) li.get(4);
+                                                   ^
+  required: List<Object>
+  found:    CAP#1
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object from capture of ?
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/mobile/java/tk/glucodata/nums/AllData.java:453: warning: [unchecked] unchecked cast
+          ListIterator<List<Number>> iter = ((List<List<Number>>) li.get(4)).listIterator();
+                                                                        ^
+  required: List<List<Number>>
+  found:    CAP#1
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object from capture of ?
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/keeprunning.java:119: warning: [deprecation] stopForeground(boolean) in Service has been deprecated
+   stopForeground(true);
+   ^
+/Users/ctqwa/Dev/Android/JugglucoNG/Common/src/mobile/java/tk/glucodata/GlucoseWidget.java:80: warning: [deprecation] get(String) in BaseBundle has been deprecated
+        {if(doLog) {Log.d(LOG_ID, key + " = " + widgetInfo.get(key));};};
+                                                          ^
+4 errors
+38 warnings
+
+[Incubating] Problems report is available at: file:///Users/ctqwa/Dev/Android/JugglucoNG/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':Common:compileMobileLibre3SiDexGoogleReleaseJavaWithJavac'.
+> Compilation failed; see the compiler output below.
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/RingTones.java:178: warning: [deprecation] startActivityForResult(Intent,int) in ComponentActivity has been deprecated
+  			    context.startActivityForResult(openInChooser, request);
+  			           ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/NumberView.java:734: warning: [deprecation] setCalendarViewShown(boolean) in DatePicker has been deprecated
+      datepick.setCalendarViewShown(false);
+              ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Talker.java:221: warning: [deprecation] onError(String) in UtteranceProgressListener has been deprecated
+          public void onError(String utteranceId) {
+                      ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Talker.java:247: warning: [deprecation] speak(String,int,HashMap<String,String>) in TextToSpeech has been deprecated
+                              engine.speak(message, TextToSpeech.QUEUE_FLUSH, null)) ==TextToSpeech.SUCCESS)
+                                    ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:540: warning: [deprecation] VIBRATOR_SERVICE in Context has been deprecated
+              vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
+                                                             ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:543: warning: [deprecation] vibrate(long[],int) in Vibrator has been deprecated
+                  vibrator.vibrate(new long[] { 0, 100, 10, 50, 50 }, 1);
+                          ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:545: warning: [deprecation] vibrate(long[],int) in Vibrator has been deprecated
+                  vibrator.vibrate(new long[] { 0, 1000, 500, 100, 500, 500, 500, 100, 100 }, 1);
+                          ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:996: warning: [deprecation] PRIORITY_HIGH in Notification has been deprecated
+                  GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                                                        ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:996: warning: [deprecation] setPriority(int) in Builder has been deprecated
+                  GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                               ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1031: warning: [deprecation] Builder(Context) in Builder has been deprecated
+                  GluNotBuilder = new Notification.Builder(Applic.app);
+                                  ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1075: error: cannot find symbol
+                      if (targetTime > 0 && Math.abs(p.time - targetTime) > 60000)
+                                                      ^
+    symbol:   variable time
+    location: variable p of type GlucosePoint
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1091: error: cannot find symbol
+                          if (Math.abs(p.time - targetTime) < 2000) { // Very close match
+                                        ^
+    symbol:   variable time
+    location: variable p of type GlucosePoint
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1107: error: cannot find symbol
+                      if (targetTime > 0 && Math.abs(p.time - targetTime) > 60000)
+                                                      ^
+    symbol:   variable time
+    location: variable p of type GlucosePoint
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1124: error: cannot find symbol
+                          if (Math.abs(p.time - targetTime) < 2000) {
+                                        ^
+    symbol:   variable time
+    location: variable p of type GlucosePoint
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1251: warning: [deprecation] setContent(RemoteViews) in Builder has been deprecated
+              GluNotBuilder.setContent(remoteViews);
+                           ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1264: warning: [deprecation] PRIORITY_DEFAULT in Notification has been deprecated
+              GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+                                                    ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1264: warning: [deprecation] setPriority(int) in Builder has been deprecated
+              GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+                           ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1266: warning: [deprecation] PRIORITY_HIGH in Notification has been deprecated
+              GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                                                    ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1266: warning: [deprecation] setPriority(int) in Builder has been deprecated
+              GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+                           ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Notify.java:1383: warning: [deprecation] setContent(RemoteViews) in Builder has been deprecated
+              GluNotBuilder.setContent(remoteViews);
+                           ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Floating.java:243: warning: [deprecation] TYPE_SYSTEM_ALERT in LayoutParams has been deprecated
+          final var type = (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)?WindowManager.LayoutParams.TYPE_SYSTEM_ALERT: WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                                                                                                     ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Floating.java:254: warning: [deprecation] TYPE_SYSTEM_ALERT in LayoutParams has been deprecated
+          final var type = (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)?WindowManager.LayoutParams.TYPE_SYSTEM_ALERT: WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                                                                                                     ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Floating.java:340: warning: [deprecation] TYPE_SYSTEM_ALERT in LayoutParams has been deprecated
+          var type = (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)?WindowManager.LayoutParams.TYPE_SYSTEM_ALERT: WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                                                                                               ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:429: warning: [deprecation] setStatusBarColor(int) in Window has been deprecated
+              getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+                         ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:430: warning: [deprecation] setNavigationBarColor(int) in Window has been deprecated
+              getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+                         ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:559: warning: [deprecation] <T>getParcelableExtra(String) in Intent has been deprecated
+                  Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+                                  ^
+    where T is a type-variable:
+      T extends Parcelable declared in method <T>getParcelableExtra(String)
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1595: warning: [deprecation] <T>getParcelableExtra(String) in Intent has been deprecated
+                      Uri uri = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+                                    ^
+    where T is a type-variable:
+      T extends Parcelable declared in method <T>getParcelableExtra(String)
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1787: warning: [deprecation] onBackPressed() in ComponentActivity has been deprecated
+      public void onBackPressed() {
+                  ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1804: warning: [deprecation] onBackPressed() in ComponentActivity has been deprecated
+              super.onBackPressed();
+                   ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1818: warning: [deprecation] startActivityForResult(Intent,int) in ComponentActivity has been deprecated
+              startActivityForResult(intent, REQUEST_NOTIFICATION);
+              ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1910: warning: [deprecation] getColor(int) in Resources has been deprecated
+                      : getResources().getColor(colres);
+                                      ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/MainActivity.java:1931: warning: [deprecation] LOCATION_MODE in Secure has been deprecated
+          return Settings.Secure.getInt(context.getContentResolver(), Settings.Secure.LOCATION_MODE,
+                                                                                     ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:841: warning: [deprecation] setValue(byte[]) in BluetoothGattDescriptor has been deprecated
+          if (!descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
+                         ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:845: warning: [deprecation] writeDescriptor(BluetoothGattDescriptor) in BluetoothGatt has been deprecated
+          return gatt.writeDescriptor(descriptor);
+                     ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:893: warning: [deprecation] setValue(byte[]) in BluetoothGattDescriptor has been deprecated
+              if (!descriptor.setValue(type)) {
+                             ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/SuperGattCallback.java:899: warning: [deprecation] writeDescriptor(BluetoothGattDescriptor) in BluetoothGatt has been deprecated
+              var success = bluetoothGatt1.writeDescriptor(descriptor);
+                                          ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Applic.java:157: warning: [deprecation] getId() in Thread has been deprecated
+      if (Thread.currentThread().getId() != uiThreadId) {
+                                ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/Applic.java:180: warning: [deprecation] getId() in Thread has been deprecated
+      uiThreadId=Thread.currentThread().getId();
+                                       ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/mobile/java/tk/glucodata/nums/AllData.java:446: warning: [unchecked] unchecked cast
+            List<Object> gegs = (List<Object>) li.get(4);
+                                                     ^
+    required: List<Object>
+    found:    CAP#1
+    where CAP#1 is a fresh type-variable:
+      CAP#1 extends Object from capture of ?
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/mobile/java/tk/glucodata/nums/AllData.java:453: warning: [unchecked] unchecked cast
+            ListIterator<List<Number>> iter = ((List<List<Number>>) li.get(4)).listIterator();
+                                                                          ^
+    required: List<List<Number>>
+    found:    CAP#1
+    where CAP#1 is a fresh type-variable:
+      CAP#1 extends Object from capture of ?
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/main/java/tk/glucodata/keeprunning.java:119: warning: [deprecation] stopForeground(boolean) in Service has been deprecated
+     stopForeground(true);
+     ^
+  /Users/ctqwa/Dev/Android/JugglucoNG/Common/src/mobile/java/tk/glucodata/GlucoseWidget.java:80: warning: [deprecation] get(String) in BaseBundle has been deprecated
+          {if(doLog) {Log.d(LOG_ID, key + " = " + widgetInfo.get(key));};};
+                                                            ^
+  4 errors
+  38 warnings
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to get full insights.
+
+BUILD FAILED in 1s
+49 actionable tasks: 9 executed, 40 up-to-date
+Configuration cache entry reused.

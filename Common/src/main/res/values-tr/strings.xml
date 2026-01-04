@@ -328,7 +328,6 @@
 <string name="parseip">IP ayrıştırma hatası</string>
 <string name="toomanyhosts">Maksimum ana bilgisayar sayısı aşıldı.</string>
 <string name="senthosts">Juggluco en fazla 6 ana bilgisayara gönderir.</string>
-    <string name="hostname">Ana Bilgisayar Adı</string>
    <string name="clampnow">Ekranı Kilitle</string>
     <string name="sendfrom">"Gönderen: "</string>
  <string name="changestartbutton">Başlangıcı değiştir</string>
@@ -357,7 +356,6 @@
   <string name="libresetalllabels">Öncelikle her etiket için ne yapılması gerektiğini belirtin.</string>
    <string name="photo">Fotoğraf</string>
    <string name="photomessage">Dexcom G7 veya Sibionics (Çin) sensörünün veri matrisini (karekodunu) tarayın.</string>
-   <string name="exchanges">Veri Değişimi</string>
    <string name="dexfuture">Tahmin (Dexcom)</string>
    <string name="initializing">Başlatılıyor</string> 
    <string name="startjuggluco">Juggluco telefonda çalışıyor mu?\n\nWIFI ve Bluetooth etkin mi?</string> 
@@ -387,4 +385,67 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
  <string name="phone">telefon</string>
  <string name="directsensor">Doğrudan sensör-</string>
 <string name="connectionl">bağlantısı</string>
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Bildirimde grafiği göster</string>
+    <string name="notification_chart_desc">Durum çubuğunda glikoz grafiğini göster</string>
+    <string name="google_scan_desc">QR tarama için Google Play Hizmetlerini kullan</string>
+    <string name="mirror_desc">İnternet/Ev Ağı üzerinden veri paylaş/al</string>
+    <string name="nightscout_desc">Nightscout\'a yükle</string>
+    <string name="glucose_alerts_title">Kan Şekeri Uyarıları</string>
+    <string name="target_range_title">Hedef Glikoz Aralığı</string>
+    <string name="select_unit">Birim Seç</string>
+    <string name="select_theme">Tema Seç</string>
+    <string name="select_language">Dil Seç</string>
+    <string name="system_default">Sistem Varsayılanı</string>
+
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Hata Ayıklama Günlükleri</string>
+    <string name="clear">Temizle</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Günlük etkin. Girişler bekleniyor...</string>
+    <string name="log_unchecked">Günlük devre dışı. Başlatmak için etkinleştirin.</string>
+    <string name="error_reading_file">"Dosya okuma hatası: "</string>
+    <string name="error_saving_file">"Dosya kaydetme hatası: "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Yansıtma Ayarları</string>
+    <string name="auto_qr">Otomatik QR</string>
+    <string name="home_net">Ev Ağı</string>
+    <string name="internet">İnternet</string>
+    <string name="home_net_sender">Ev Ağı Göndericisi</string>
+    <string name="internet_sender">İnternet Göndericisi</string>
+    <string name="home_net_receiver">Ev Ağı Alıcısı</string>
+    <string name="internet_receiver">İnternet Alıcısı</string>
+    <string name="close">Kapat</string>
+    <string name="connection_label">Bağlantı</string>
+    <string name="deactivated">Devre Dışı</string>
+    <string name="enable">Etkinleştir</string>
+    <string name="disable">Devre Dışı Bırak</string>
+    <string name="hostname">Ana Bilgisayar Adı</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">ICE Etiketi</string>
+    <string name="hostname_ip">Ana Bilgisayar Adı / IP</string>
+    <string name="test_ip">Test IP</string>
+    <string name="test_label">Test Etiketi</string>
+    <string name="master">Master</string>
+    <string name="passive_only">Sadece Pasif</string>
+    <string name="active_only">Sadece Aktif</string>
+    <string name="data_present_until">Veri şu zamana kadar mevcut:</string>
+    <string name="show_password">Şifreyi Göster</string>
+    <string name="hide_password">Şifreyi Gizle</string>
+
+    <string name="turn_server">Turn Sunucusu</string>
+    <string name="add_connection">Bağlantı Ekle</string>
+    <string name="help">Yardım</string>
+    <string name="send_to">Gönder</string>
+    <string name="receive_from">Al</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Miktarlar</string>
+    <string name="scans">Taramalar</string>
+    <string name="stream">Akış</string>
+    
+    <string name="exchanges">Gönder/Al</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
 </resources>

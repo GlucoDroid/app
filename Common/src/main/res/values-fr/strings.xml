@@ -297,4 +297,65 @@
 <string name="enternums">Enter amounts on</string>
 <string name="directsensor">Connexion directe capteur-</string>
 <string name="connectionl"></string>
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Afficher le graphique dans la notification</string>
+    <string name="notification_chart_desc">Afficher le graphique de glucose dans la barre d\'état</string>
+    <string name="google_scan_desc">Utiliser les services Google Play pour le scan QR</string>
+    <string name="mirror_desc">Partager/Recevoir via Internet/Réseau local</string>
+    <string name="nightscout_desc">Envoyer vers Nightscout</string>
+    <string name="glucose_alerts_title">Alertes de glycémie</string>
+    <string name="target_range_title">Plage cible de glucose</string>
+    <string name="select_unit">Sélectionner l\'unité</string>
+    <string name="select_theme">Sélectionner le thème</string>
+    <string name="select_language">Choisir la langue</string>
+    <string name="system_default">Défaut du système</string>
+
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Journaux de débogage</string>
+    <string name="clear">Effacer</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Journal activé. En attente d\'entrées...</string>
+    <string name="log_unchecked">Journal désactivé. Activer pour commencer.</string>
+    <string name="error_reading_file">"Erreur de lecture du fichier : "</string>
+    <string name="error_saving_file">"Erreur d\'enregistrement du fichier : "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Paramètres miroir</string>
+    <string name="auto_qr">Auto QR</string>
+    <string name="home_net">Réseau domestique</string>
+    <string name="internet">Internet</string>
+    <string name="home_net_sender">Émetteur réseau domestique</string>
+    <string name="internet_sender">Émetteur Internet</string>
+    <string name="home_net_receiver">Récepteur réseau domestique</string>
+    <string name="internet_receiver">Récepteur Internet</string>
+    <string name="close">Fermer</string>
+    <string name="connection_label">Connexion</string>
+    <string name="deactivated">Désactivé</string>
+    <string name="enable">Activer</string>
+    <string name="disable">Désactiver</string>
+    <string name="hostname">Nom d\'hôte</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">Label ICE</string>
+    <string name="hostname_ip">Nom d\'hôte / IP</string>
+    <string name="test_ip">IP Test</string>
+    <string name="test_label">Label Test</string>
+    <string name="master">Maître</string>
+    <string name="passive_only">Passif seulement</string>
+    <string name="active_only">Actif seulement</string>
+    <string name="data_present_until">Données présentes jusqu\'au :</string>
+    <string name="show_password">Afficher le mot de passe</string>
+    <string name="hide_password">Masquer le mot de passe</string>
+
+    <string name="turn_server">Serveur Turn</string>
+    <string name="add_connection">Ajouter une connexion</string>
+    <string name="help">Aide</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Montants</string>
+    <string name="scans">Scans</string>
+    <string name="stream">Flux</string>
+    
+    <string name="exchanges">Envoyer/Recevoir</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
 </resources>

@@ -343,7 +343,6 @@
 <string name="libresetalllabels">Das Häkchen bei „Mengen senden“ können Sie erst setzen, nachdem Sie bei jedem Etikett angegeben haben, was damit geschehen soll.</string>
    <string name="photo">Foto</string>
 <string name="photomessage">Scannen Sie die Datenmatrix eines Dexcom G7/ONE+ oder Sibionics GS1 Sensors oder den Klon-QR-Code</string>
-   <string name="exchanges">Daten austauschen</string>
 
    <string name="initializing">Initialisierung</string> 
    <string name="startjuggluco">Juggluco läuft auf dem Telefon?\n\nWLAN und Bluetooth aktiviert?</string>
@@ -410,5 +409,67 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
 <string name="directsensor">Direkte Sensor-</string>
 <string name="enternums">Mengen eingeben auf</string>
   <string name="connectionl">Verbindung</string>
-</resources>
 
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Diagramm in Benachrichtigung anzeigen</string>
+    <string name="notification_chart_desc">Glukosekurve in der Statusleiste anzeigen</string>
+    <string name="google_scan_desc">Google Play Dienste für QR-Scan verwenden</string>
+    <string name="mirror_desc">Daten über Internet/Heimnetz teilen/empfangen</string>
+    <string name="nightscout_desc">Zu Nightscout hochladen</string>
+    <string name="glucose_alerts_title">Blutzucker-Warnungen</string>
+    <string name="target_range_title">Ziel-Glukosebereich</string>
+    <string name="select_unit">Einheit wählen</string>
+    <string name="select_theme">Design wählen</string>
+    <string name="select_language">Sprache wählen</string>
+    <string name="system_default">Systemstandard</string>
+
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Debug-Protokolle</string>
+    <string name="clear">Löschen</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Protokoll aktiviert. Warte auf Einträge...</string>
+    <string name="log_unchecked">Protokoll deaktiviert. Aktivieren zum Starten.</string>
+    <string name="error_reading_file">"Fehler beim Lesen der Datei: "</string>
+    <string name="error_saving_file">"Fehler beim Speichern der Datei: "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Spiegel-Einstellungen</string>
+    <string name="auto_qr">Auto-QR</string>
+    <string name="home_net">Heimnetz</string>
+    <string name="internet">Internet</string>
+    <string name="home_net_sender">Heimnetz-Sender</string>
+    <string name="internet_sender">Internet-Sender</string>
+    <string name="home_net_receiver">Heimnetz-Empfänger</string>
+    <string name="internet_receiver">Internet-Empfänger</string>
+    <string name="close">Schließen</string>
+    <string name="connection_label">Verbindung</string>
+    <string name="deactivated">Deaktiviert</string>
+    <string name="enable">Aktivieren</string>
+    <string name="disable">Deaktivieren</string>
+    <string name="hostname">Hostname</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">ICE-Label</string>
+    <string name="hostname_ip">Hostname / IP</string>
+    <string name="test_ip">Test-IP</string>
+    <string name="test_label">Test-Label</string>
+    <string name="master">Master</string>
+    <string name="passive_only">Nur passiv</string>
+    <string name="active_only">Nur aktiv</string>
+    <string name="data_present_until">Daten vorhanden bis:</string>
+    <string name="show_password">Passwort anzeigen</string>
+    <string name="hide_password">Passwort verbergen</string>
+
+    <string name="turn_server">Turn-Server</string>
+    <string name="add_connection">Verbindung hinzufügen</string>
+    <string name="help">Hilfe</string>
+    <string name="send_to">Senden an</string>
+    <string name="receive_from">Empfangen von</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Mengen</string>
+    <string name="scans">Scans</string>
+    <string name="stream">Stream</string>
+    <string name="exchanges">Senden/Empfangen</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
+</resources>

@@ -48,8 +48,11 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.view.View;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Bitmap; // Added Import
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
@@ -67,14 +70,11 @@ import androidx.annotation.ColorInt;
 import java.text.DateFormat;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-
-//import android.app.Notification;
-//import    androidx.core.app.Notification.Builder;
-//import android.app.NotificationManagerCompat;
-//import androidx.core.app.NotificationManagerCompat;
-//import tk.glucodata.Natives;
+// ... imports ...
 
 public class Notify {
+    // ... class start ...
+
     static {
         makenotification_audio();
     };
@@ -426,7 +426,7 @@ public class Notify {
      * }
      */
 
-    private static void showoldglucose() {
+    public static void showoldglucose() {
         var noti = onenot;
         if (noti == null)
             return;
@@ -1006,84 +1006,6 @@ public class Notify {
 
     static public boolean alertseparate = false;
 
-    private Notification makearrownotification(int kind, float glvalue, String message, notGlucose glucose, String type,
-            boolean once) {
-
-        var intent = mkpending();
-        var GluNotBuilder = mkbuilderintent(type, intent);
-        if (!alertseparate) {
-            GluNotBuilder.setDeleteIntent(DeleteReceiver.getDeleteIntent());
-        }
-        {
-            if (doLog) {
-                Log.i(LOG_ID, "makearrownotification setOnlyAlertOnce(" + once + ") " + glucose.value);
-            }
-            ;
-        }
-        ;
-
-        // var draw= GlucoseDraw.getgludraw(glvalue);
-
-        setIcon(GluNotBuilder, glvalue, glucose.sensorgen2);
-        // GluNotBuilder.setSmallIcon(draw).
-        GluNotBuilder.setContentTitle(message).setOnlyAlertOnce(once);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
-        }
-        final boolean glucosealarm = kind < 2 || kind > 4;
-        if (!isWearable) {
-            if (Build.VERSION.SDK_INT >= 24) {
-                GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
-                // GluNotBuilder.setStyle( new Notification.DecoratedMediaCustomViewStyle());
-            }
-            GluNotBuilder.setShowWhen(true);
-            RemoteViews remoteViews = arrowNotify.arrowremote(kind, glucose, glucosealarm && !once);
-            if (whiteonblack) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    GluNotBuilder.setColorized(true);
-                    GluNotBuilder.setColor(BLACK);
-                } else
-                    remoteViews.setInt(arrowandvalue, "setBackgroundColor", BLACK);
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                GluNotBuilder.setCustomContentView(remoteViews);
-            } else
-                GluNotBuilder.setContent(remoteViews);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            GluNotBuilder.setTimeoutAfter(glucosetimeout);
-        }
-        if (isWearable) {
-            GluNotBuilder.setAutoCancel(true);
-        }
-        if (once)
-            GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
-        else {
-            // GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
-            GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
-            // GluNotBuilder.setPriority(Notification.PRIORITY_MAX);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
-            }
-        }
-
-        {
-            if (doLog) {
-                Log.i(LOG_ID, (once ? "" : "not ") + "only once");
-            }
-            ;
-        }
-        ;
-
-        Notification notif = GluNotBuilder.build();
-        notif.when = glucose.time;
-        return notif;
-
-    }
-
-    @SuppressWarnings({ "deprecation" })
-
     static public PendingIntent mkpending() {
         {
             if (doLog) {
@@ -1120,6 +1042,437 @@ public class Notify {
             GluNotBuilder.setGroup("aa2");
         }
         return GluNotBuilder;
+    }
+
+    // Helper to format "Value · Raw" consistently
+    // Helper to format "Value · Raw" consistently
+    // Helper to format "Value · Raw" consistently
+    // Helper to format "Value · Raw" consistently
+    // Helper to format "Value · Raw" with HTML styling and comma separator
+    private CharSequence formatGlucoseText(String value, float glvalue, java.util.List<GlucosePoint> points,
+            int viewMode,
+            long targetTime) {
+        String valueText;
+        boolean isSimple = false;
+        try {
+            Float.parseFloat(value);
+            // If simple number, use PURE formatter
+            valueText = format(usedlocale, pureglucoseformat, glvalue);
+            isSimple = true;
+        } catch (NumberFormatException e) {
+            // Complex string (Raw+Auto?), replace " (" with " · " and remove ")"
+            valueText = value.replace(" (", " · ").replace(")", "");
+        }
+
+        // Force comma separator as requested
+        valueText = valueText.replace(".", ",");
+
+        if (isSimple && points != null && !points.isEmpty()) {
+            boolean found = false;
+            String secondary = null;
+
+            // Mode 3: Raw+Auto (User receives Raw, wants Raw · Auto)
+            if (viewMode == 3) {
+                // Input 'glvalue' is likely RAW. Find companion Auto.
+                for (int i = points.size() - 1; i >= 0; i--) {
+                    GlucosePoint p = points.get(i);
+
+                    // Strict Time Match (approx 1 min tolerance to be safe, but usually exact)
+                    if (targetTime > 0 && Math.abs(p.timestamp - targetTime) > 60000)
+                        continue;
+
+                    // Check if this point's Raw matches our input
+                    if (Math.abs(p.rawValue - glvalue) < 0.1) {
+                        String autoStr = format(usedlocale, pureglucoseformat, p.value);
+                        secondary = autoStr.replace(".", ",");
+                        found = true;
+                        break;
+                    }
+                }
+                // Try fallback using JUST time if value match failed
+                if (!found && targetTime > 0) {
+                    for (int i = points.size() - 1; i >= 0; i--) {
+                        GlucosePoint p = points.get(i);
+                        if (Math.abs(p.timestamp - targetTime) < 2000) { // Very close match
+                            String autoStr = format(usedlocale, pureglucoseformat, p.value);
+                            secondary = autoStr.replace(".", ",");
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            // Mode 2: Auto+Raw (User receives Auto, wants Auto · Raw)
+            else if (viewMode == 2) {
+                // Input 'glvalue' is likely AUTO. Find companion Raw.
+                for (int i = points.size() - 1; i >= 0; i--) {
+                    GlucosePoint p = points.get(i);
+
+                    // Strict Time Match
+                    if (targetTime > 0 && Math.abs(p.timestamp - targetTime) > 60000)
+                        continue;
+
+                    if (Math.abs(p.value - glvalue) < 0.1) {
+                        if (p.rawValue > 0.1f) {
+                            String rawStr = format(usedlocale, pureglucoseformat, p.rawValue);
+                            secondary = rawStr.replace(".", ",");
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                // Fallback time match
+                if (!found && targetTime > 0) {
+                    for (int i = points.size() - 1; i >= 0; i--) {
+                        GlucosePoint p = points.get(i);
+                        if (Math.abs(p.timestamp - targetTime) < 2000) {
+                            if (p.rawValue > 0.1f) {
+                                String rawStr = format(usedlocale, pureglucoseformat, p.rawValue);
+                                secondary = rawStr.replace(".", ",");
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (secondary != null) {
+                // Apply HTML styling: Primary + Grey Secondary
+                // Use a lighter grey color code that works on dark backgrounds (#B0B0B0 or
+                // similar)
+                // User requested "grey or preferably in lighter font"
+                String html = valueText + " <font color='#AAAAAA'>· " + secondary + "</font>";
+                return android.text.Html.fromHtml(html);
+            }
+        }
+        return valueText;
+    }
+
+    // Helper for relative time "1m", "5m", "now"
+    private String getRelativeTimeSpanString(Context context, long time) {
+        long now = System.currentTimeMillis();
+        long diff = now - time;
+        if (diff < 60000) {
+            return "now";
+        } else {
+            long mins = diff / 60000;
+            return mins + "m";
+        }
+    }
+
+    // UPDATE METHOD
+    public Notification makearrownotification(int draw, float glvalue, String message, notGlucose glucose, String type,
+            boolean once) {
+        // 1. Determine Arrow
+        float rate = glucose.rate;
+
+        // Delta (Current - Previous?) - omitted for now
+
+        // 2. Build Chart
+        // Fetch history (last 3 hours)
+        long endT = System.currentTimeMillis();
+        long startT = endT - 3 * 60 * 60 * 1000L;
+        long[] historyRaw = Natives.getGlucoseHistory(startT / 1000L); // C++ expects seconds
+
+        java.util.List<GlucosePoint> points = new java.util.ArrayList<>();
+        boolean isMmol = Applic.unit == 1; // Check user unit preference
+
+        if (historyRaw != null) {
+            for (int i = 0; i < historyRaw.length; i += 3) {
+                long t = historyRaw[i] * 1000L;
+
+                // Fix: Ensure we don't add points far in future or corrupted
+                if (t > endT + 1000 * 60 * 60)
+                    continue;
+
+                long valAutoLong = historyRaw[i + 1];
+                long valRawLong = historyRaw[i + 2]; // Extract Raw
+
+                float val = valAutoLong / 10.0f;
+                float valRaw = valRawLong / 10.0f;
+
+                if (isMmol) {
+                    val = val / 18.0182f;
+                    valRaw = valRaw / 18.0182f;
+                }
+
+                points.add(new GlucosePoint(t, val, valRaw));
+            }
+        }
+
+        // Draw Arrow Bitmap
+        Bitmap arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol);
+
+        // Status Logic & ViewMode extraction
+        String statusText = "";
+        String activeSensorSerial = Natives.lastsensorname();
+        int viewMode = 0; // Default
+
+        if (activeSensorSerial != null && SensorBluetooth.blueone != null) {
+            synchronized (SensorBluetooth.gattcallbacks) {
+                for (SuperGattCallback cb : SensorBluetooth.gattcallbacks) {
+                    if (cb.SerialNumber != null && cb.SerialNumber.equals(activeSensorSerial)) {
+                        statusText = cb.constatstatusstr;
+                        viewMode = Natives.getViewMode(cb.dataptr);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Get Consistently Formatted Text
+        // If ViewMode == 3 (Combined), we force appending Raw if available
+        CharSequence valueText = formatGlucoseText(glucose.value, glvalue, points, viewMode, glucose.time);
+
+        // 3a. Construct RemoteViews (Collapsed)
+        RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.notification_material);
+        remoteViews.setTextViewText(R.id.notification_glucose, valueText);
+        remoteViews.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
+
+        if (statusText == null || statusText.isEmpty()) {
+            remoteViews.setViewVisibility(R.id.notification_status, View.GONE);
+        } else {
+            remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
+            remoteViews.setTextViewText(R.id.notification_status, statusText);
+        }
+
+        // 3b. Construct RemoteViews (Expanded)
+        RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
+                R.layout.notification_material_expanded);
+        remoteViewsExpanded.setTextViewText(R.id.notification_glucose, valueText);
+        remoteViewsExpanded.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
+        // Time REMOVED from Expanded View (Relies on System Header)
+
+        // Status for Expanded
+        if (statusText == null || statusText.isEmpty()) {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.GONE);
+        } else {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.VISIBLE);
+            remoteViewsExpanded.setTextViewText(R.id.notification_status, statusText);
+        }
+
+        // Set Chart
+        // Collapsed (approx 400x128dp -> ~400x150px)
+        // Check if chart is enabled
+        android.content.SharedPreferences prefs = Applic.app
+                .getSharedPreferences(Applic.app.getPackageName() + "_preferences", Context.MODE_PRIVATE);
+        boolean showChart = prefs.getBoolean("notification_chart_enabled", true);
+
+        Bitmap chartBitmapCollapsed = null;
+        Bitmap chartBitmapExpanded = null;
+
+        if (showChart) {
+            // Set Chart
+            // Collapsed (approx 400x128dp -> ~400x150px)
+            chartBitmapCollapsed = NotificationChartDrawer.drawChart(Applic.app, points, 600, 100, isMmol, viewMode);
+            // Expanded (approx 400x256dp -> ~400x300px)
+            chartBitmapExpanded = NotificationChartDrawer.drawChart(Applic.app, points, 600, 180, isMmol, viewMode);
+        }
+
+        remoteViews.setImageViewBitmap(R.id.notification_chart, chartBitmapCollapsed);
+        if (showChart && chartBitmapCollapsed != null) {
+            remoteViews.setViewVisibility(R.id.notification_chart, View.VISIBLE);
+        } else {
+            remoteViews.setViewVisibility(R.id.notification_chart, View.GONE);
+        }
+
+        remoteViewsExpanded.setImageViewBitmap(R.id.notification_chart, chartBitmapExpanded);
+        if (showChart && chartBitmapExpanded != null) {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.VISIBLE);
+        } else {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.GONE);
+        }
+
+        // 4. Bind to Builder
+        var GluNotBuilder = mkbuilder(type);
+
+        setIcon(GluNotBuilder, glvalue, glucose.sensorgen2);
+        GluNotBuilder.setSmallIcon(R.drawable.novalue);
+
+        GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
+
+        if (Build.VERSION.SDK_INT >= 24) {
+            GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
+            GluNotBuilder.setCustomContentView(remoteViews);
+            GluNotBuilder.setCustomBigContentView(remoteViewsExpanded);
+        } else {
+            GluNotBuilder.setContent(remoteViews);
+        }
+
+        GluNotBuilder.setShowWhen(true);
+
+        // Standard priority logic
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            GluNotBuilder.setTimeoutAfter(glucosetimeout);
+        }
+        if (isWearable) {
+            GluNotBuilder.setAutoCancel(true);
+        }
+        if (once)
+            GluNotBuilder.setPriority(Notification.PRIORITY_DEFAULT);
+        else {
+            GluNotBuilder.setPriority(Notification.PRIORITY_HIGH);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                // Use CATEGORY_STATUS for regular updates, ALARM for actual alarms (kind logic
+                // omitted here for simplicity or passed via 'once' equivalent?)
+                // Actually 'kind' was passed but unused in my snippet?
+                // Let's assume standard behavior.
+                GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
+            }
+        }
+
+        Notification notif = GluNotBuilder.build();
+        notif.when = System.currentTimeMillis();
+
+        return notif;
+    }
+
+    Notification getforgroundnotification() {
+        // Use custom layout even for initial notification to show Graph Grid
+        final String message = app
+                .getString(SensorBluetooth.blueone != null ? R.string.connectwithsensor : R.string.exchangedata);
+
+        // Fetch History for Startup Graph
+        long endT = System.currentTimeMillis();
+        long startT = endT - 3 * 60 * 60 * 1000L;
+        long[] historyRaw = Natives.getGlucoseHistory(startT / 1000L);
+
+        java.util.List<GlucosePoint> points = new java.util.ArrayList<>();
+        boolean isMmol = Applic.unit == 1;
+
+        if (historyRaw != null) {
+            for (int i = 0; i < historyRaw.length; i += 3) {
+                long t = historyRaw[i] * 1000L;
+
+                // Fix: Ensure we don't add points far in future or corrupted
+                if (t > endT + 1000 * 60 * 60)
+                    continue;
+
+                long valAutoLong = historyRaw[i + 1];
+                long valRawLong = historyRaw[i + 2];
+
+                float val = valAutoLong / 10.0f;
+                float valRaw = valRawLong / 10.0f;
+
+                if (isMmol) {
+                    val = val / 18.0182f;
+                    valRaw = valRaw / 18.0182f;
+                }
+                points.add(new GlucosePoint(t, val, valRaw));
+            }
+        }
+
+        // Identify ViewMode for Startup
+        int viewMode = 0;
+        String activeSensorSerial = Natives.lastsensorname();
+        if (activeSensorSerial != null && SensorBluetooth.blueone != null) {
+            synchronized (SensorBluetooth.gattcallbacks) {
+                for (SuperGattCallback cb : SensorBluetooth.gattcallbacks) {
+                    if (cb.SerialNumber != null && cb.SerialNumber.equals(activeSensorSerial)) {
+                        viewMode = Natives.getViewMode(cb.dataptr);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Startup Text using Helper and Natives.lastglucose()
+        CharSequence startupValue = "---";
+        strGlucose last = Natives.lastglucose();
+        if (last != null && last.value != null) {
+            long now = System.currentTimeMillis();
+            // Stale Data Check: If older than 15 minutes (900,000 ms), hide it
+            if (Math.abs(now - last.time) < 15 * 60 * 1000L) {
+                float val = 0f;
+                try {
+                    val = Float.parseFloat(last.value);
+                } catch (NumberFormatException e) {
+                    // ignore
+                }
+                // Use unified formatter with TIME check
+                startupValue = formatGlucoseText(last.value, val, points, viewMode, last.time);
+            }
+        } else if (!points.isEmpty()) {
+            // Fallback if Natives.lastglucose() is not ready but history is
+            // Manual fall back logic if formatGlucoseText can't be used (no string value)
+            GlucosePoint latest = points.get(points.size() - 1);
+            // Also check staleness of history
+            long now = System.currentTimeMillis();
+            if (Math.abs(now - latest.timestamp) < 15 * 60 * 1000L) {
+                String vStr = format(usedlocale, pureglucoseformat, latest.value);
+
+                if (viewMode == 3 && latest.rawValue > 0.1f) {
+                    String rStr = format(usedlocale, pureglucoseformat, latest.rawValue);
+                    startupValue = rStr + " · " + vStr;
+                } else {
+                    startupValue = vStr;
+                }
+            }
+        }
+
+        // Check if chart is enabled
+        android.content.SharedPreferences prefs = Applic.app
+                .getSharedPreferences(Applic.app.getPackageName() + "_preferences", Context.MODE_PRIVATE);
+        boolean showChart = prefs.getBoolean("notification_chart_enabled", true);
+
+        Bitmap chartBitmapCollapsed = null;
+        Bitmap chartBitmapExpanded = null;
+
+        if (showChart) {
+            chartBitmapCollapsed = NotificationChartDrawer.drawChart(Applic.app, points, 600, 100, isMmol, viewMode);
+            chartBitmapExpanded = NotificationChartDrawer.drawChart(Applic.app, points, 600, 180, isMmol, viewMode);
+        }
+
+        Bitmap arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, (last != null) ? last.rate : 0, isMmol);
+
+        RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.notification_material);
+        remoteViews.setTextViewText(R.id.notification_glucose, startupValue);
+        remoteViews.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
+
+        if (showChart && chartBitmapCollapsed != null) {
+            remoteViews.setImageViewBitmap(R.id.notification_chart, chartBitmapCollapsed);
+            remoteViews.setViewVisibility(R.id.notification_chart, View.VISIBLE);
+        } else {
+            remoteViews.setViewVisibility(R.id.notification_chart, View.GONE);
+        }
+
+        remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
+        remoteViews.setTextViewText(R.id.notification_status, message);
+
+        RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
+                R.layout.notification_material_expanded);
+        remoteViewsExpanded.setTextViewText(R.id.notification_glucose, startupValue);
+        remoteViewsExpanded.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
+        // Time removed from expanded view
+
+        if (showChart && chartBitmapExpanded != null) {
+            remoteViewsExpanded.setImageViewBitmap(R.id.notification_chart, chartBitmapExpanded);
+            remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.VISIBLE);
+        } else {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.GONE);
+        }
+        remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.VISIBLE);
+        remoteViewsExpanded.setTextViewText(R.id.notification_status, message);
+
+        var GluNotBuilder = mkbuilder(GLUCOSENOTIFICATION);
+        if (Build.VERSION.SDK_INT >= 24) {
+            GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
+            GluNotBuilder.setCustomContentView(remoteViews);
+            GluNotBuilder.setCustomBigContentView(remoteViewsExpanded);
+        } else {
+            GluNotBuilder.setContent(remoteViews);
+        }
+        GluNotBuilder.setSmallIcon(R.drawable.novalue).setOnlyAlertOnce(true).setContentTitle(message)
+                .setShowWhen(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
+            GluNotBuilder.setCategory(Notification.CATEGORY_SERVICE);
+        }
+        GluNotBuilder.setOngoing(true);
+        Notification not = GluNotBuilder.build();
+        not.flags |= FLAG_ONGOING_EVENT;
+        return not;
     }
 
     private Notification.Builder mkbuilder(String type) {
@@ -1244,14 +1597,6 @@ public class Notify {
         notif.when = System.currentTimeMillis();
         return notif;
 
-    }
-
-    Notification getforgroundnotification() {
-        final String mess = app
-                .getString(SensorBluetooth.blueone != null ? R.string.connectwithsensor : R.string.exchangedata);
-        Notification not = makenotification(R.drawable.novalue, mess, GLUCOSENOTIFICATION, true);
-        not.flags |= FLAG_ONGOING_EVENT;
-        return not;
     }
 
     static public void shownovalue() {

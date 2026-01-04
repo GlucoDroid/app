@@ -338,7 +338,6 @@
 <string name="libresetalllabels">Je kunt ‘Zend hoeveelheden’ pas aanvinken nadat je voor elk label hebt aangegeven wat ermee moet gebeuren.</string>
    <string name="photo">Foto</string>
 <string name="photomessage">Scan data matrix van een Dexcom G7/ONE+ of Sibionics GS1 sensor of de kloon QR code</string>
-   <string name="exchanges">Deel gegevens</string>
    <string name="dexfuture">Voorspel (Dexcom)</string>
    <string name="initializing">Initialiseren</string>
 <string name="startjuggluco">Juggluco draait op telefoon?\n\nWIFI en Bluetooth ingeschakeld?</string>
@@ -404,5 +403,67 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
 <string name="directsensor">Directe sensor-</string>
 <string name="enternums">Voer hoeveelheden in op</string>
  <string name="connectionl">verbinding</string>
-</resources>
+    <!-- New Strings for Material UI & Language Support -->
+    <string name="notification_chart_title">Toon grafiek in melding</string>
+    <string name="notification_chart_desc">Glucosegrafiek weergeven in statusbalk</string>
+    <string name="google_scan_desc">Gebruik Google Play Services voor QR-scan</string>
+    <string name="mirror_desc">Delen/Ontvangen via internet/thuisnetwerk</string>
+    <string name="nightscout_desc">Uploaden naar Nightscout</string>
+    <string name="glucose_alerts_title">Bloedglucose-alarmen</string>
+    <string name="target_range_title">Doelbereik glucose</string>
+    <string name="select_unit">Selecteer eenheid</string>
+    <string name="select_theme">Selecteer thema</string>
+    <string name="select_language">Selecteer taal</string>
+    <string name="system_default">Systeemstandaard</string>
 
+    <!-- Debug Settings Strings -->
+    <string name="debug_logs_title">Debug-logboeken</string>
+    <string name="clear">Wissen</string>
+    <string name="trace_log">Trace.log</string>
+    <string name="logcat">Logcat</string>
+    <string name="log_enabled_waiting">Log ingeschakeld. Wachten op items...</string>
+    <string name="log_unchecked">Log uitgeschakeld. Inschakelen om te starten.</string>
+    <string name="error_reading_file">"Fout bij lezen bestand: "</string>
+    <string name="error_saving_file">"Fout bij opslaan bestand: "</string>
+
+    <!-- Mirror Settings Strings -->
+    <string name="mirror_settings_title">Spiegelinstellingen</string>
+    <string name="auto_qr">Auto-QR</string>
+    <string name="home_net">Thuisnetwerk</string>
+    <string name="internet">Internet</string>
+    <string name="home_net_sender">Thuisnetwerk-zender</string>
+    <string name="internet_sender">Internet-zender</string>
+    <string name="home_net_receiver">Thuisnetwerk-ontvanger</string>
+    <string name="internet_receiver">Internet-ontvanger</string>
+    <string name="close">Sluiten</string>
+    <string name="connection_label">Verbinding</string>
+    <string name="deactivated">Gedeactiveerd</string>
+    <string name="enable">Inschakelen</string>
+    <string name="disable">Uitschakelen</string>
+    <string name="hostname">Hostnaam</string>
+    <string name="ice">ICE</string>
+    <string name="ice_label">ICE-label</string>
+    <string name="hostname_ip">Hostnaam / IP</string>
+    <string name="test_ip">Test-IP</string>
+    <string name="test_label">Test-label</string>
+    <string name="master">Master</string>
+    <string name="passive_only">Alleen passief</string>
+    <string name="active_only">Alleen actief</string>
+    <string name="data_present_until">Gegevens aanwezig tot:</string>
+    <string name="show_password">Wachtwoord tonen</string>
+    <string name="hide_password">Wachtwoord verbergen</string>
+
+    <string name="turn_server">Turn-server</string>
+    <string name="add_connection">Verbinding toevoegen</string>
+    <string name="help">Help</string>
+    <string name="send_to">Verzenden naar</string>
+    <string name="receive_from">Ontvangen van</string>
+    <string name="qr">QR</string>
+    <string name="amounts">Hoeveelheden</string>
+    <string name="scans">Scans</string>
+    <string name="stream">Stream</string>
+    
+    <string name="exchanges">Verzenden/Ontvangen</string>
+    <string name="duration_days">days</string>
+    <string name="sensor_state">Status</string>
+</resources>
