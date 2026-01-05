@@ -603,4 +603,35 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="auto_reset_title">Auto reset</string>
     <string name="auto_reset_days">%1$d days</string>
     <string name="auto_reset_never">Never</string>
+    
+    <!-- Sensor Onboarding Strings -->
+    <string name="no_sensor_title">No Sensor Connected</string>
+    <string name="no_sensor_description">Connect a continuous glucose monitor to start tracking your glucose levels.</string>
+    <string name="select_sensor_type">Select Sensor Type</string>
+    <string name="sibionics_sensor">Sibionics</string>
+    <string name="sibionics_sensor_desc">Scan QR code from sensor package</string>
+    <string name="libre_sensor">Libre 2/3</string>
+    <string name="libre_sensor_desc">Tap sensor with phone NFC</string>
+    <string name="dexcom_sensor">Dexcom G7/ONE+</string>
+    <string name="dexcom_sensor_desc">Scan data matrix from sensor</string>
+    
+    <!-- Sibionics Setup Wizard -->
+    <string name="sibionics_setup_title">Sibionics Setup</string>
+    <string name="scan_sensor_qr">Scan Sensor QR Code</string>
+    <string name="scan_sensor_qr_desc">Scan the data matrix on the sensor packaging</string>
+    <string name="select_sibionics_type">Select Sensor Type</string>
+    <string name="scan_transmitter">Scan Transmitter</string>
+    <string name="scan_transmitter_desc">Scan the transmitter data matrix</string>
+    <string name="connecting">Connecting...</string>
+    <string name="setup_complete">Setup Complete</string>
+    
+    <!-- Libre Setup Wizard -->
+    <string name="libre_setup_title">Libre Setup</string>
+    <string name="libre_nfc_instruction">Hold your phone near the sensor to scan</string>
+    <string name="scan_libre_sensor">Scan Libre Sensor</string>
+    
+    <!-- Dexcom Setup Wizard -->
+    <string name="dexcom_setup_title">Dexcom Setup</string>
+    <string name="dexcom_scan_instruction">Scan the data matrix on your Dexcom sensor</string>
+    <string name="scan_dexcom">Scan Dexcom</string>
 </resources>

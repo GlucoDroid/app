@@ -32,3 +32,4 @@ Common/src/mobileSi/jniLibs/
 
 .gemini/
 gha-creds-*.json
+customcal-logs/

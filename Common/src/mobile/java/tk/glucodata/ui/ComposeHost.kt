@@ -562,13 +562,29 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val targetHigh by viewModel.targetHigh.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
 
+    // State for sensor picker (matches SensorScreen pattern)
+    var showSensorPicker by remember { mutableStateOf(false) }
+    
+    // Sensor Type Picker Bottom Sheet
+    if (showSensorPicker) {
+        tk.glucodata.ui.components.SensorTypePicker(
+            onDismiss = { showSensorPicker = false },
+            onSensorSelected = { type ->
+                // All types currently fall back to legacy QR scan
+                tk.glucodata.MainActivity.launchQrScan()
+                showSensorPicker = false
+            }
+        )
+    }
+    
     Scaffold(
         // Parent MainApp handles system insets, so we reset them here to avoid double-padding
         contentWindowInsets = WindowInsets(0.dp),
         floatingActionButton = {
+            // Show FAB only when no data, opens sensor picker
             if (glucoseHistory.isEmpty()) {
                 FloatingActionButton(onClick = {
-                    tk.glucodata.MainActivity.launchQrScan()
+                    showSensorPicker = true
                 }) {
                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_sensor))
                 }
@@ -3057,19 +3073,86 @@ private fun String.capitalize(): String {
 fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewModel()) {
     val context = LocalContext.current
     val sensors by viewModel.sensors.collectAsState()
+    
+    // State for sensor type picker and wizards
+    var showSensorPicker by remember { mutableStateOf(false) }
+    var showSibionicsWizard by remember { mutableStateOf(false) }
+    var showLibreWizard by remember { mutableStateOf(false) }
+    var showDexcomWizard by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshSensors()
+    }
+    
+    // Sensor Type Picker Bottom Sheet
+    if (showSensorPicker) {
+        tk.glucodata.ui.components.SensorTypePicker(
+            onDismiss = { showSensorPicker = false },
+            onSensorSelected = { type ->
+                when (type) {
+                    tk.glucodata.ui.components.SensorType.SIBIONICS -> showSibionicsWizard = true
+                    tk.glucodata.ui.components.SensorType.LIBRE -> showLibreWizard = true
+                    tk.glucodata.ui.components.SensorType.DEXCOM -> showDexcomWizard = true
+                }
+            }
+        )
+    }
+    
+    // Sibionics Setup Wizard (Full Screen)
+    if (showSibionicsWizard) {
+        tk.glucodata.ui.setup.SibionicsSetupWizard(
+            onDismiss = { showSibionicsWizard = false },
+            onScanQr = { onResult ->
+                // Launch the existing QR scanner, passing the result callback
+                // For now, fall back to legacy flow
+                tk.glucodata.MainActivity.launchQrScan()
+                showSibionicsWizard = false
+            },
+            onComplete = {
+                showSibionicsWizard = false
+                viewModel.refreshSensors()
+            }
+        )
+        return // Exit early to show wizard full screen
+    }
+    
+    // Libre Setup Wizard
+    if (showLibreWizard) {
+        tk.glucodata.ui.setup.LibreSetupWizard(
+            onDismiss = { showLibreWizard = false },
+            onScanNfc = {
+                // Launch existing NFC/Libre flow
+                tk.glucodata.MainActivity.launchQrScan()
+                showLibreWizard = false
+            }
+        )
+        return
+    }
+    
+    // Dexcom Setup Wizard
+    if (showDexcomWizard) {
+        tk.glucodata.ui.setup.DexcomSetupWizard(
+            onDismiss = { showDexcomWizard = false },
+            onScan = {
+                // Launch existing Dexcom/QR flow
+                tk.glucodata.MainActivity.launchQrScan()
+                showDexcomWizard = false
+            }
+        )
+        return
     }
 
     Scaffold(
         // FIX: Remove system bar insets
         contentWindowInsets = WindowInsets(0.dp),
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                tk.glucodata.MainActivity.launchQrScan()
-            }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Sensor")
+            // Only show FAB when sensors exist (NoSensorCard handles empty state)
+            if (sensors.isNotEmpty()) {
+                FloatingActionButton(onClick = {
+                    showSensorPicker = true
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Sensor")
+                }
             }
         }
     ) { padding ->
@@ -3082,9 +3165,10 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
             Spacer(modifier = Modifier.height(16.dp))
 
             if (sensors.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.no_sensors_found))
-                }
+                // Show modern empty state card
+                tk.glucodata.ui.components.NoSensorCard(
+                    onAddSensor = { showSensorPicker = true }
+                )
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
                     items(sensors) { sensor ->
