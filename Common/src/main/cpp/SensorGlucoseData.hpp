@@ -284,11 +284,10 @@ private:
     uint8_t customCalIndex; // 0=12H, 1=24H, 2=2D, 3=3D, 4=7D, 5=14D, 6=20D
 
     uint8_t reserved : 2;
-    // CRITICAL FIX: Made redoAll a full byte (bool) instead of bitfield (: 1).
-    // This prevents race conditions where adjacent bitfields (like reserved or
-    // newscan) are updated by other threads, clobbering redoAll. This breaks
-    // binary compatibility with old state files, but clean install handles it.
-    bool redoAll;
+    // CLEAN REFACTOR: Use timestamp instead of bool for reset mode.
+    // 0 = not in reset mode. Non-zero = timestamp when reset mode started.
+    // Auto-expires after 30 min or when gap closes.
+    uint32_t resetModeStartTime;
 
     bool streamHistoryDONtuse : 1;
 
@@ -1052,7 +1051,7 @@ static int getgeneration(const char *info) {
              .wearduration = wear,
              .pollcount = 0,
              .lockcount = 0,
-             .redoAll = false};
+             .resetModeStartTime = 0};
     inf.ident.len = 8;
     //        memcpy(&inf.ident.data,uid,8);
     memcpy(inf.ident.data, uid, 8);
@@ -1087,6 +1086,48 @@ static int getgeneration(const char *info) {
   bool isSibionics2() const {
     return isSibionics() && getinfo()->notchinese && siSubtype() == 3;
   }
+
+  // ===== RESET MODE API (Single Point of Control) =====
+  // Enter reset mode - call when starting custom cal reset
+  void enterResetMode() {
+    getinfo()->resetModeStartTime = (uint32_t)time(nullptr);
+    LOGSTRING("Reset mode entered\n");
+  }
+
+  // Exit reset mode - call on factory reset or explicit clear
+  void exitResetMode() {
+    getinfo()->resetModeStartTime = 0;
+    LOGSTRING("Reset mode exited\n");
+  }
+
+  // Check if in reset mode - auto-expires after 30 min or when gap closes
+  bool isInResetMode() const {
+    uint32_t start = getinfo()->resetModeStartTime;
+    if (!start)
+      return false;
+
+    time_t now = time(nullptr);
+    time_t elapsed = now - start;
+
+    // Auto-expire after 30 minutes
+    if (elapsed > 30 * 60) {
+      const_cast<Info *>(getinfo())->resetModeStartTime = 0;
+      LOGSTRING("Reset mode auto-expired (30 min timeout)\n");
+      return false;
+    }
+
+    // Also exit if gap is closed (lastused within 5 min of now)
+    uint32_t last = lastused();
+    if (last && (now - last) < 5 * 60) {
+      const_cast<Info *>(getinfo())->resetModeStartTime = 0;
+      LOGSTRING("Reset mode auto-cleared (gap closed)\n");
+      return false;
+    }
+
+    return true;
+  }
+  // ===== END RESET MODE API =====
+
   bool isDexcom() const { return getinfo()->dexcom; }
   bool isLibre3() const {
     return !isAccuChek() && !isSibionics() && !isDexcom() &&
@@ -1614,10 +1655,8 @@ uint32_t getlastpolltime() const {
 
   void savestream(time_t tim, int id, int glu, int trend, float change,
                   int raw = 0) {
-    if (getinfo()->redoAll) {
-      // FIX: Do NOT overwrite redoAll with the return value!
-      // saveStreamAgain returns false when appending new data, which would
-      // accidentally clear redoAll.
+    if (isInResetMode()) {
+      // In reset mode, use special insert logic that doesn't corrupt history
       saveStreamAgain(tim, id, glu, trend, change, raw);
       return;
     } else {

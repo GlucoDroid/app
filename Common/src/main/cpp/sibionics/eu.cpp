@@ -357,12 +357,12 @@ jlong SiContext::processData2(SensorGlucoseData *sens, time_t nowsecs,
             return 3LL;
           }
         } else {
-          // FIX: If we just reset (redoAll=true), this Gap is expected.
+          // If in reset mode, this Gap is expected.
           // 1. Request History (to fill the gap).
           // 2. JUMP the gap (update maxid) and Process this packet (for UI).
-          if (sens->getinfo()->redoAll) {
-            LOGSTRING("SIprocess Gap due to Reset (redoAll). Requesting "
-                      "History & Jumping Gap.\n");
+          if (sens->isInResetMode()) {
+            LOGSTRING("SIprocess Gap due to Reset. Requesting History & "
+                      "Jumping Gap.\n");
             backup->resendResetDevices(&updateone::sendstream);
 
             // Accept the new index, jumping over the missing history for now.

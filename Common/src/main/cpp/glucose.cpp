@@ -645,7 +645,7 @@ std::string_view getdeltaname(float rate) {
 
 */
 void SensorGlucoseData::resetSiIndex() {
-  getinfo()->redoAll = true;
+  enterResetMode();
 
   int currentIndex = getSiIndex();
 

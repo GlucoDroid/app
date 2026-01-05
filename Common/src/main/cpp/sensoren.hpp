@@ -897,7 +897,7 @@ public:
       sensorlist()[ind].present = 1;
       uint32_t maxtime = thishist->getmaxtime();
       if (maxtime < nu) {
-        if (thishist->getinfo()->redoAll)
+        if (thishist->isInResetMode())
           return true;
         // if(((thishist->isAccuChek()&&thishist->pollcount()<4000)||(thishist->isDexcom()&&thishist->pollcount()<maxdexcount))&&(nu-sensorlist()[ind].endtime)<
         // youngsensorsecs)
@@ -1012,20 +1012,13 @@ public:
           }
           const auto lasttime = hist->lastused();
           bool canuse = hist->canusestreaming();
-          LOGGER("%s: can %suse streaming, lasttime=%d redoAll=%d\n",
+          LOGGER("%s: can %suse streaming, lasttime=%d resetMode=%d\n",
                  showsensorname(i), canuse ? "" : "not ", lasttime,
-                 hist->getinfo()->redoAll);
-          // Auto-clear redoAll once gap is closed (lastused within 5 min of
-          // now)
-          if (hist->getinfo()->redoAll && lasttime &&
-              (nu - lasttime) < 5 * 60) {
-            const_cast<SensorGlucoseData *>(hist)->getinfo()->redoAll = false;
-            LOGSTRING("redoAll auto-cleared: gap closed\n");
-          }
-          // FIX: If redoAll is true (Reset), ignore gap timeout to allow
-          // backfill.
+                 hist->isInResetMode());
+          // If in reset mode, ignore gap timeout to allow backfill.
+          // isInResetMode() handles auto-clearing when gap closes.
           if (!canuse ||
-              (lasttime && lasttime < tim && !hist->getinfo()->redoAll)) {
+              (lasttime && lasttime < tim && !hist->isInResetMode())) {
             continue;
           }
         } else {

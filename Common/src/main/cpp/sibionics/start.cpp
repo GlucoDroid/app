@@ -748,11 +748,8 @@ void SiContext::reset(SensorGlucoseData *sens) {
          savedSiIndex, windowSize, newIndex);
   LOGGER("SiContext::reset() recreated algcontext. mNativeContext=%lld\n",
          algcontext ? algcontext->mNativeContext : 0LL);
-  // FIX: Signal Reset so checkinfo keeps sensor active and eu.cpp handles Gap.
-  info->redoAll = true;
-
-  // NOTE: Do NOT reset pollcount/scancount here. That destroys history data.
-  // The redoAll flag is sufficient to make eu.cpp accept the gap.
+  // Enter reset mode so checkinfo keeps sensor active and eu.cpp handles Gap.
+  sens->enterResetMode();
 
   LOGSTRING(
       "SiContext::reset() completed. Fresh algorithm, ready for new data.\n");
@@ -790,8 +787,8 @@ void SiContext::resetAll(SensorGlucoseData *sens) {
   } else {
     algcontext = initAlgorithm3(sens, binState);
   }
-  // Safety: Clear redoAll to restore standard gap checks after a Factory Reset.
-  info->redoAll = false;
+  // Exit reset mode to restore standard gap checks after Factory Reset.
+  sens->exitResetMode();
 
   LOGSTRING("SiContext::resetAll() COMPLETE FACTORY RESET performed.\n");
 }
