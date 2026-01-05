@@ -3326,26 +3326,28 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Calibration Mode
-            Text(stringResource(R.string.calibration_algorithm), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Calibration Mode (Sibionics Only)
+            if (sensor.isSibionics) {
+                Text(stringResource(R.string.calibration_algorithm), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 
-                val autoStr = stringResource(R.string.auto)
-                val rawStr = stringResource(R.string.raw)
-                val autoRawStr = stringResource(R.string.auto_raw)
-                val rawAutoStr = stringResource(R.string.raw_auto)
+                    val autoStr = stringResource(R.string.auto)
+                    val rawStr = stringResource(R.string.raw)
+                    val autoRawStr = stringResource(R.string.auto_raw)
+                    val rawAutoStr = stringResource(R.string.raw_auto)
 
-                val modes = listOf(autoStr, rawStr, autoRawStr, rawAutoStr)
-                modes.forEachIndexed { index, title ->
-                    FilterChip(
-                        selected = sensor.viewMode == index,
-                        onClick = { viewModel.setCalibrationMode(sensor.serial, index) },
-                        label = { Text(title) }
-                    )
+                    val modes = listOf(autoStr, rawStr, autoRawStr, rawAutoStr)
+                    modes.forEachIndexed { index, title ->
+                        FilterChip(
+                            selected = sensor.viewMode == index,
+                            onClick = { viewModel.setCalibrationMode(sensor.serial, index) },
+                            label = { Text(title) }
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
 
 
 
