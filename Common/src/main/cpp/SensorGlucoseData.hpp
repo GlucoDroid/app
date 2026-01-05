@@ -1100,29 +1100,32 @@ static int getgeneration(const char *info) {
     LOGSTRING("Reset mode exited\n");
   }
 
-  // Check if in reset mode - auto-expires after 30 min or when gap closes
+  // Check if in reset mode - exits only when gap closes (data flows again)
   bool isInResetMode() const {
     uint32_t start = getinfo()->resetModeStartTime;
     if (!start)
       return false;
 
+    // Exit when gap closes (lastused within 5 min of now)
     time_t now = time(nullptr);
-    time_t elapsed = now - start;
-
-    // Auto-expire after 30 minutes
-    if (elapsed > 30 * 60) {
-      const_cast<Info *>(getinfo())->resetModeStartTime = 0;
-      LOGSTRING("Reset mode auto-expired (30 min timeout)\n");
-      return false;
-    }
-
-    // Also exit if gap is closed (lastused within 5 min of now)
     uint32_t last = lastused();
     if (last && (now - last) < 5 * 60) {
       const_cast<Info *>(getinfo())->resetModeStartTime = 0;
       LOGSTRING("Reset mode auto-cleared (gap closed)\n");
       return false;
     }
+
+    // ALTERNATIVE: Timeout fallback (commented out)
+    // Risk: If backfill takes >30min, sensor gets killed mid-process.
+    // The "gap closes" condition above is sufficient and safer.
+    // Uncomment only if you need to detect truly dead sensors during reset:
+    //
+    // time_t elapsed = now - start;
+    // if (elapsed > 30 * 60) {
+    //   const_cast<Info *>(getinfo())->resetModeStartTime = 0;
+    //   LOGSTRING("Reset mode auto-expired (30 min timeout)\n");
+    //   return false;
+    // }
 
     return true;
   }
