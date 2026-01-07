@@ -14,10 +14,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface HistoryDao {
     
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(reading: HistoryReading)
     
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(readings: List<HistoryReading>)
     
     @Query("SELECT * FROM history_readings WHERE timestamp >= :startTime ORDER BY timestamp ASC")

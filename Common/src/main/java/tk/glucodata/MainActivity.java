@@ -295,7 +295,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     // static int initscreenwidth;
     // FragmentManager fragmentManager = getSupportFragmentManager();
     // public static boolean wearable=false;
-    static MainActivity thisone = null;
+    public static MainActivity thisone = null;
 
     @Keep
     public static void openSettingsPanel() {
@@ -317,6 +317,26 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             thisone.runOnUiThread(() -> PhotoScan.scan(thisone, REQUEST_BARCODE));
         }
     }
+
+    @Keep
+    public static void launchQrScan(int requestCode) {
+        if (thisone != null) {
+            thisone.runOnUiThread(() -> PhotoScan.scan(thisone, requestCode));
+        }
+    }
+
+    // Callbacks for Compose Wizard integration
+    public interface SensorScanCallback {
+        void onResult(String name, long sensorPtr, int libreType);
+    }
+
+    public interface TransmitterScanCallback {
+        void onResult(boolean success);
+    }
+
+    public static SensorScanCallback onSensorScanResult = null;
+    public static TransmitterScanCallback onTransmitterScanResult = null;
+    public static boolean useComposeWizard = true;
 
     static void alarmsExact(Context context) {
         if (TargetSDK > 30) {
@@ -1382,7 +1402,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     public static final int CHAIN_REQUEST = 0x81;
     private static final int REQUEST_NOTIFICATION = 0x50;
     public static final int REQUEST_BARCODE = 0x10;
-    static final int REQUEST_BARCODE_SIB2 = 0x11;
+    public static final int REQUEST_BARCODE_SIB2 = 0x11;
     public static final int REQUEST_EXPORT = 0x70;
     // public static final int REQUEST_EXPORT=0x54e806d0;
     public static final int REQUEST_RINGTONE = 0x60;

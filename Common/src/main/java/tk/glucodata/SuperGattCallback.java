@@ -136,6 +136,12 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         }
     }
 
+    public void setPause(boolean pause) {
+        this.stop = pause;
+        if (doLog)
+            Log.i(LOG_ID, "setPause " + pause);
+    }
+
     public boolean reconnect(long now) {
         final var old = now - showtime + 20;
         if (charcha[1] < old && connectTime < (now - 60 * 1000)) {

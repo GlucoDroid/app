@@ -182,7 +182,7 @@ public class PhotoScan {
 
     static long wasdataptr = 0L;
 
-    static void connectSensor(final String scantag, MainActivity act, int request, long sensorptr2) {
+    public static void connectSensor(final String scantag, MainActivity act, int request, long sensorptr2) {
         if (!isWearable) {
             switch (request) {
                 case REQUEST_BARCODE: {
@@ -193,7 +193,8 @@ public class PhotoScan {
                         int[] indexptr = { -1 };
                         String name = Natives.addSIscangetName(scantag, indexptr);
                         if (name != null && name.length() > 0) {
-                            MainActivity.tocalendarapp = true;
+                            // Skip calendar popup - legacy behavior disabled by default
+                            // MainActivity.tocalendarapp = true;
                             var sensorptr = Natives.str2sensorptr(name);
                             int type = Natives.getSensorptrLibreVersion(sensorptr);
                             {
@@ -204,7 +205,24 @@ public class PhotoScan {
                             }
                             ;
                             if (type == 0x10) {
-                                selectType(name, sensorptr, act);
+                                // Route to Compose wizard if enabled
+                                if (MainActivity.useComposeWizard && MainActivity.onSensorScanResult != null) {
+                                    final String sensorNameFinal = name;
+                                    final long ptrFinal = sensorptr;
+                                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                                        if (MainActivity.onSensorScanResult != null) {
+                                            MainActivity.onSensorScanResult.onResult(sensorNameFinal, ptrFinal, type);
+                                        }
+                                    });
+                                    // Handled by Compose wizard - skip legacy dialog
+                                    // return; // We still need the bottom part? No, bottom part sets up bluetooth,
+                                    // which should happen AFTER wizard complete.
+                                    // Actually, wizard calls finishSetup which calls SensorBluetooth.updateDevices.
+                                    // So we SHOULD return here to avoid double initialization or legacy callbacks.
+                                    return;
+                                } else {
+                                    selectType(name, sensorptr, act);
+                                }
                             }
                             if (Natives.getusebluetooth()) {
                                 var res = SensorBluetooth.updateDevices();
@@ -233,8 +251,15 @@ public class PhotoScan {
                     break;
                 case REQUEST_BARCODE_SIB2: {
                     if (Natives.siSensorptrTransmitterScan(sensorptr2, scantag)) {
+                        // Route to Compose wizard if enabled
+                        if (MainActivity.useComposeWizard && MainActivity.onTransmitterScanResult != null) {
+                            MainActivity.onTransmitterScanResult.onResult(true);
+                        }
                         return;
                     } else {
+                        if (MainActivity.useComposeWizard && MainActivity.onTransmitterScanResult != null) {
+                            MainActivity.onTransmitterScanResult.onResult(false);
+                        }
                         transmitterScanCancelled(sensorptr2);
                     }
 

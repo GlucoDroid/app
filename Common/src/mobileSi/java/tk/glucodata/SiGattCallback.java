@@ -100,6 +100,10 @@ public class SiGattCallback extends SuperGattCallback {
    @Override
    public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
       if (stop) {
+         if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            bluetoothGatt.close();
+            mBluetoothGatt = null;
+         }
          {
             if (doLog) {
                Log.i(LOG_ID, "onConnectionStateChange stop==true");
@@ -128,6 +132,7 @@ public class SiGattCallback extends SuperGattCallback {
             disconnect();
          }
          connected = true;
+         constatstatusstr = "";
          Natives.EverSenseClear(dataptr);
       } else {
          connected = false;

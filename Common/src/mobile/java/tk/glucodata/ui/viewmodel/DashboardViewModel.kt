@@ -23,6 +23,9 @@ class DashboardViewModel(
     private val _sensorName = MutableStateFlow("")
     val sensorName = _sensorName.asStateFlow()
 
+    private val _sensorStatus = MutableStateFlow("")
+    val sensorStatus = _sensorStatus.asStateFlow()
+
     private val _daysRemaining = MutableStateFlow("")
     val daysRemaining = _daysRemaining.asStateFlow()
 
@@ -139,10 +142,13 @@ class DashboardViewModel(
             
             // Get view mode from active sensor.
             val sName = Natives.lastsensorname()
-            if (sName != null) {
+            if (!sName.isNullOrBlank()) {
                 _sensorName.value = sName
                 val dataptr = Natives.getdataptr(sName)
                 if (dataptr != 0L) {
+                    val status = Natives.getsensortext(dataptr)
+                    _sensorStatus.value = status ?: ""
+
                     val vm = Natives.getViewMode(dataptr)
                     _viewMode.value = vm
                     
@@ -190,6 +196,7 @@ class DashboardViewModel(
                      _daysRemaining.value = ""
                 }
             } else {
+                 _sensorName.value = ""
                  _daysRemaining.value = ""
             }
 

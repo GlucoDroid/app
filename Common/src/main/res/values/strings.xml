@@ -634,4 +634,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dexcom_setup_title">Dexcom Setup</string>
     <string name="dexcom_scan_instruction">Scan the data matrix on your Dexcom sensor</string>
     <string name="scan_dexcom">Scan Dexcom</string>
+
+    <!-- Delete Sensor Strings -->
+    <string name="delete_sensor">Delete Sensor</string>
+    <string name="delete_sensor_desc">This will remove the sensor and all its data. This cannot be undone.</string>
+    <string name="delete_confirm">Delete</string>
 </resources>

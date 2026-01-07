@@ -2,6 +2,7 @@ package tk.glucodata.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -28,15 +29,44 @@ data class SensorInfo(
     val officialEndMs: Long,
     val customCalEnabled: Boolean,
     val customCalIndex: Int,
-    val customCalAutoReset: Boolean
+    val customCalAutoReset: Boolean,
+    val detailedStatus: String = ""
 )
 
 class SensorViewModel : ViewModel() {
     private val _sensors = MutableStateFlow<List<SensorInfo>>(emptyList())
     val sensors = _sensors.asStateFlow()
 
+    // Polling job - only active when screen is visible
+    private var pollingJob: Job? = null
+
     init {
+        // Initial refresh only - no constant polling from init!
         refreshSensors()
+    }
+
+    /**
+     * Start real-time polling when Sensors screen becomes visible.
+     * Call this from LaunchedEffect in SensorScreen.
+     */
+    fun startPolling() {
+        // Cancel any existing job first
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                refreshSensors()
+                kotlinx.coroutines.delay(2000) // 2 second refresh for real-time feel
+            }
+        }
+    }
+
+    /**
+     * Stop polling when leaving Sensors screen.
+     * Call this from DisposableEffect onDispose in SensorScreen.
+     */
+    fun stopPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
     }
 
     fun refreshSensors() {
@@ -63,12 +93,19 @@ class SensorViewModel : ViewModel() {
                 val customAutoReset = (customSettings and 2L) != 0L
                 val customIndex = ((customSettings ushr 8) and 0xFF).toInt()
 
+                // Get detailed status from native code which has accurate logic
+                val nativeStatus = Natives.getsensortext(gatt.dataptr) ?: ""
+                // Consider "receiving" or "Receiving" in status as streaming
+                val isActivelyReceiving = nativeStatus.contains("Receiving", ignoreCase = true) ||
+                    nativeStatus.contains("eceiv", ignoreCase = true) ||
+                    gatt.streamingEnabled()
+
                 SensorInfo(
                     serial = gatt.SerialNumber ?: "Unknown",
                     deviceAddress = gatt.mActiveDeviceAddress ?: "Unknown",
                     connectionStatus = gatt.constatstatusstr ?: "Disconnected",
                     starttime = if (startMs > 0) tk.glucodata.bluediag.datestr(startMs) else "",
-                    streaming = gatt.streamingEnabled(),
+                    streaming = isActivelyReceiving,
                     rssi = gatt.readrssi,
                     dataptr = gatt.dataptr,
                     officialEnd = if(officialEndMs > 0) tk.glucodata.bluediag.datestr(officialEndMs) else "",
@@ -81,7 +118,10 @@ class SensorViewModel : ViewModel() {
                     officialEndMs = officialEndMs,
                     customCalEnabled = customEnabled,
                     customCalIndex = customIndex,
-                    customCalAutoReset = customAutoReset
+                    customCalAutoReset = customAutoReset,
+                    detailedStatus = nativeStatus.ifEmpty { 
+                        gatt.constatstatusstr ?: "Disconnected"
+                    }
                 )
 
 
@@ -174,36 +214,42 @@ class SensorViewModel : ViewModel() {
                 if (wipeData) {
                     Natives.siWipeDataOnly(gatt.dataptr)
                 }
+                gatt.setPause(true)
                 gatt.disconnect()
                 kotlinx.coroutines.delay(2000) // Ensure full disconnect
                 Natives.resetbluetooth(gatt.dataptr)
+                gatt.setPause(false)
                 gatt.connectDevice(200)
                 refreshSensors()
             }
         }
     }
-}
 
-//fun reconnectrestartSensor(serial: String, wipeData: Boolean = false, context: Context) {
-//    val gatts = SensorBluetooth.mygatts()
-//    val gatt = gatts.find { it.SerialNumber == serial }
-//    if (gatt != null) {
-//        if (wipeData) {
-//            Natives.siWipeDataOnly(gatt.dataptr)
-//        }
-//        Natives.resetbluetooth(gatt.dataptr)
-//        gatt.disconnect()
-//        gatt.connectDevice(100)
-//        refreshSensors()
-//
-//        // --- Restart the app ---
-//        val pm = context.packageManager
-//        val intent = pm.getLaunchIntentForPackage(context.packageName)
-//        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-//
-//        context.startActivity(intent)
-//
-//        // Needed for a real full restart
-//        exitProcess(0)
-//    }
-//}
+    fun wipeSensorData(serial: String) {
+        val gatts = SensorBluetooth.mygatts()
+        val gatt = gatts.find { it.SerialNumber == serial }
+        if (gatt != null) {
+            Natives.siWipeDataOnly(gatt.dataptr)
+            refreshSensors()
+        }
+    }
+
+    fun disconnectSensor(serial: String) {
+        android.util.Log.d("SensorViewModel", "disconnectSensor called for: $serial")
+        val gatts = SensorBluetooth.mygatts()
+        val gatt = gatts.find { it.SerialNumber == serial }
+        if (gatt != null) {
+            viewModelScope.launch {
+                android.util.Log.d("SensorViewModel", "Found gatt, using reconnect's proven sequence")
+                gatt.setPause(true)
+                gatt.disconnect()
+                kotlinx.coroutines.delay(2000) // Ensure full disconnect
+                Natives.resetbluetooth(gatt.dataptr)
+                // DON'T reconnect - just refresh to show disconnected state
+                refreshSensors()
+            }
+        } else {
+            android.util.Log.d("SensorViewModel", "Gatt not found for serial: $serial")
+        }
+    }
+}

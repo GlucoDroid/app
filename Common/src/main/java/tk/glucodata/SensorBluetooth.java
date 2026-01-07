@@ -589,6 +589,12 @@ public class SensorBluetooth {
             Applic.Toaster(R.string.bluetooth_is_turned_off);
             return false;
         }
+        for (SuperGattCallback cb : gattcallbacks) {
+            if (cb.mBluetoothGatt == null) {
+                cb.constatstatusstr = "Start search for sensors";
+            }
+        }
+        Applic.updatescreen();
         scanstart = true;
 
         if (scanOnUI) {

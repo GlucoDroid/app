@@ -21,30 +21,48 @@ object HistorySync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val historyRepository = HistoryRepository(Applic.app)
     
+    // Track if we've done the initial full sync this session
+    @Volatile
+    private var initialSyncDone = false
+    
     /**
-     * Sync ALL available data from native layer to Room.
-     * Uses deduplication (IGNORE on conflict) so duplicates are ignored.
+     * Sync data from native layer to Room.
+     * 
+     * Strategy:
+     * - First call per session: Full sync (fetch ALL data from time 0) to catch old sensor history
+     * - Subsequent calls: Incremental sync (only fetch new data) for performance
+     * 
+     * The DAO uses OnConflictStrategy.IGNORE so duplicates are handled efficiently.
      */
     @JvmOverloads
     fun syncFromNative(forceFull: Boolean = false) {
         scope.launch {
             try {
-                // INCREMENTAL SYNC OPTIMIZATION
-                var startSec = 0L
+                // Determine start time for fetch
+                val startSec: Long
+                val isFullSync: Boolean
                 
-                if (!forceFull) {
-                    // 1. Get the latest timestamp we already have stored
+                if (forceFull || !initialSyncDone) {
+                    // First sync of session OR forced: get ALL data
+                    startSec = 0L
+                    isFullSync = true
+                } else {
+                    // ROBUST SYNC: Always fetch overlap to catch backfilled data
+                    // Instead of just > lastTimestamp, we go back 24 hours from the last known reading.
+                    // This ensures that if the sensor backfilled a gap in the last day, we pick it up.
+                    // Room's OnConflictStrategy.REPLACE handles the duplicates efficiently.
                     val lastTimestamp = historyRepository.getLatestTimestamp()
-                    // 2. Fetch only NEW readings from native 
-                    // If lastTimestamp is 0, we fetch everything (0L)
-                    // Otherwise we fetch from (lastTimestamp / 1000) + 1 to avoid re-fetching the last point
-                    startSec = if (lastTimestamp > 0) (lastTimestamp / 1000L) + 1 else 0L
+                    val oneDayMs = 24 * 60 * 60 * 1000L
+                    
+                    val startMs = if (lastTimestamp > oneDayMs) lastTimestamp - oneDayMs else 0L
+                    startSec = startMs / 1000L
+                    isFullSync = false
                 }
                 
                 val rawHistory = Natives.getGlucoseHistory(startSec)
                 if (rawHistory == null) {
-                    // No new data is a valid state for incremental sync
-                    // Log.v(TAG, "No new data from native") 
+                    // No data available, but mark initial sync as done
+                    if (isFullSync) initialSyncDone = true
                     return@launch
                 }
                 
@@ -55,15 +73,6 @@ object HistorySync {
                     
                     val timeSec = rawHistory[i]
                     val timeMs = timeSec * 1000L
-                    
-                    // Sanity check: Ensure we really are newer if doing incremental
-                    // (Native logic should handle this, but double-check)
-                    // Only check if we are NOT forcing full (if forcing full, we want everything)
-                    if (!forceFull && startSec > 0) {
-                         // We can also check against repository, but startSec > 0 implies we had a timestamp
-                         // The query startSec is inclusive, but let's be safe against duplicates (DAO handles them anyway)
-                         // We just need to make sure we don't process OLD data if native returned it by mistake
-                    }
                     
                     val valueAutoRaw = rawHistory[i + 1]
                     val valueRawRaw = rawHistory[i + 2]
@@ -87,11 +96,12 @@ object HistorySync {
                 
                 if (readings.isNotEmpty()) {
                     historyRepository.storeReadings(readings)
-                    val type = if (forceFull) "Full" else "Incremental"
-                    Log.d(TAG, "Synced ${readings.size} readings ($type from $startSec)")
-                } else {
-                    // Log.d(TAG, "Up to date")
+                    Log.d(TAG, "Synced ${readings.size} readings (${if (isFullSync) "full" else "incremental"})")
                 }
+                
+                // Mark initial sync as complete
+                if (isFullSync) initialSyncDone = true
+                
             } catch (e: Exception) {
                 Log.e(TAG, "Error syncing from native", e)
             }
