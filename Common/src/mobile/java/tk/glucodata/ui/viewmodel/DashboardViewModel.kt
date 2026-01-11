@@ -17,6 +17,9 @@ class DashboardViewModel(
     private val _currentGlucose = MutableStateFlow("---")
     val currentGlucose = _currentGlucose.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading = _isLoading.asStateFlow()
+
     private val _currentRate = MutableStateFlow(0f)
     val currentRate = _currentRate.asStateFlow()
 
@@ -28,6 +31,9 @@ class DashboardViewModel(
 
     private val _daysRemaining = MutableStateFlow("")
     val daysRemaining = _daysRemaining.asStateFlow()
+
+    private val _sensorProgress = MutableStateFlow(0f)
+    val sensorProgress = _sensorProgress.asStateFlow()
 
     private val _xDripBroadcastEnabled = MutableStateFlow(false)
     val xDripBroadcastEnabled = _xDripBroadcastEnabled.asStateFlow()
@@ -88,19 +94,12 @@ class DashboardViewModel(
     }
     private fun startCollection() {
         viewModelScope.launch {
-            combine(
-                glucoseRepository.getCurrentReading(),
-                viewMode,
-                _unit
-            ) { point, mode, unitStr ->
-                Triple(point, mode, unitStr)
-            }.collect { (point, mode, _) ->
+            glucoseRepository.getCurrentReading().collect { point ->
                 if (point != null) {
-                    val valueToDisplay = if (mode == 1 || mode == 3) point.rawValue else point.value
+                    val valueToDisplay = if (viewMode.value == 1 || viewMode.value == 3) point.rawValue else point.value
                     _currentGlucose.value = if (valueToDisplay < 30) String.format("%.1f", valueToDisplay) else valueToDisplay.toInt().toString()
-                    _currentRate.value = point.rate ?: 0f  // Default to 0 if rate is null
+                    _currentRate.value = point.rate ?: 0f
                     
-                    // Efficiently update history by appending the new point instead of re-querying the DB
                     val currentHistory = _glucoseHistory.value
                     if (currentHistory.isEmpty() || currentHistory.last().timestamp != point.timestamp) {
                         _glucoseHistory.value = currentHistory + point
@@ -158,8 +157,22 @@ class DashboardViewModel(
                     _viewMode.value = vm
                     
                     val expectedEnd = Natives.getSensorEndTime(dataptr, false)
+                    val officialEnd = Natives.getSensorEndTime(dataptr, true)
                     val startMsec = Natives.getSensorStartmsec(dataptr)
                     
+                    if (startMsec > 0) {
+                         val now = System.currentTimeMillis()
+                         // Progress Calculation for Dynamic UI
+                         val endMs = if (expectedEnd > 0) expectedEnd 
+                                     else if (officialEnd > 0) officialEnd 
+                                     else startMsec + (14L * 24 * 3600 * 1000)
+                         val totalDur = (endMs - startMsec).coerceAtLeast(1)
+                         val usedDur = (now - startMsec).coerceAtLeast(0)
+                         _sensorProgress.value = (usedDur.toFloat() / totalDur).coerceIn(0f, 1f)
+                    } else {
+                        _sensorProgress.value = 0f
+                    }
+
                     if (expectedEnd > 0 && startMsec > 0) {
                         val now = System.currentTimeMillis()
                         val usedMs = now - startMsec
@@ -229,6 +242,7 @@ class DashboardViewModel(
                 var isFirstLoad = true
                 glucoseRepository.getHistoryFlow(oneDayAgo, isMmol).collect { history ->
                     _glucoseHistory.value = history
+                    _isLoading.value = false
                     
                     // Stage 2: After first render, switch to full history (background)
                     if (isFirstLoad) {
@@ -283,7 +297,11 @@ class DashboardViewModel(
     }
 
     fun setUnit(mode: Int) {
-        Natives.setunit(mode)
+        val app = tk.glucodata.Applic.app
+        app.setunit(mode)
+        
+        // Force immediate state update to trigger UI flow instantly
+        _unit.value = if (mode == 1) "mmol/L" else "mg/dL"
         refreshData()
     }
     

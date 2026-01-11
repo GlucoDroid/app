@@ -64,7 +64,6 @@ fun DexcomSetupWizard(
             Text(
                 text = stringResource(R.string.scan_dexcom),
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             

@@ -118,11 +118,11 @@ fun ManualSensorEntryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Enter Sensor Codes") },
+        title = { Text(stringResource(R.string.enter_sensor_codes)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    "Enter the codes printed on the sensor label",
+                    stringResource(R.string.enter_sensor_label_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -133,9 +133,9 @@ fun ManualSensorEntryDialog(
                         batch = it.uppercase().filter { c -> c.isLetterOrDigit() }
                         batchValid = batch.length in 8..16
                     },
-                    label = { Text("Batch Code (10)") },
+                    label = { Text(stringResource(R.string.batch_code_label)) },
                     placeholder = { Text(batchExample, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                    supportingText = { Text("First code on label (8-16 chars), e.g. $batchExample") },
+                    supportingText = { Text(stringResource(R.string.batch_code_supporting, batchExample)) },
                     singleLine = true,
                     isError = batch.isNotEmpty() && !batchValid,
                     modifier = Modifier.fillMaxWidth()
@@ -147,9 +147,9 @@ fun ManualSensorEntryDialog(
                         serial = it.uppercase().filter { c -> c.isLetterOrDigit() }
                         serialValid = serial.length in 10..20
                     },
-                    label = { Text("Serial Number") },
+                    label = { Text(stringResource(R.string.serial_number_label)) },
                     placeholder = { Text(serialExample, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                    supportingText = { Text("Second code (10-20 chars), e.g. $serialExample") },
+                    supportingText = { Text(stringResource(R.string.serial_number_supporting, serialExample)) },
                     singleLine = true,
                     isError = serial.isNotEmpty() && !serialValid,
                     modifier = Modifier.fillMaxWidth()
@@ -161,12 +161,12 @@ fun ManualSensorEntryDialog(
                 onClick = { onConfirm(batch + serial) },
                 enabled = batchValid && serialValid
             ) {
-                Text("Confirm")
+                Text(stringResource(R.string.confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -186,11 +186,11 @@ fun ManualTransmitterEntryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Enter Transmitter Code") },
+        title = { Text(stringResource(R.string.enter_transmitter_code)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    "Enter the transmitter ID from the label",
+                    stringResource(R.string.enter_transmitter_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -198,9 +198,9 @@ fun ManualTransmitterEntryDialog(
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it.uppercase().filter { c -> c.isLetterOrDigit() } },
-                    label = { Text("Transmitter ID") },
+                    label = { Text(stringResource(R.string.transmitter_id_label)) },
                     placeholder = { Text("TW6CCWHS9L7D", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                    supportingText = { Text("8-12 characters from transmitter label") },
+                    supportingText = { Text(stringResource(R.string.transmitter_id_supporting)) },
                     singleLine = true,
                     isError = code.isNotEmpty() && !isValid,
                     modifier = Modifier.fillMaxWidth()
@@ -212,12 +212,12 @@ fun ManualTransmitterEntryDialog(
                 onClick = { onConfirm(code) },
                 enabled = isValid
             ) {
-                Text("Confirm")
+                Text(stringResource(R.string.confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -325,13 +325,14 @@ fun SibionicsSetupWizard(
     var sensorPtr by remember { mutableStateOf(0L) }
     var sensorName by remember { mutableStateOf("") }
     var resetTransmitter by remember { mutableStateOf(false) } // Default false as requested
+    val scope = rememberCoroutineScope()
 
     // Register callbacks with MainActivity
     DisposableEffect(Unit) {
         val sensorCallback = object : tk.glucodata.MainActivity.SensorScanCallback {
             override fun onResult(name: String?, ptr: Long, libreType: Int) {
                 if (name == null || ptr == 0L) {
-                    tk.glucodata.Applic.Toaster("Sensor initialization failed")
+                    tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_init_failed))
                     return
                 }
 
@@ -352,7 +353,11 @@ fun SibionicsSetupWizard(
             override fun onResult(success: Boolean) {
                 if (success) {
                     currentStep = SibionicsSetupStep.CONNECTING
-                    finishSetup(onComplete, sensorPtr, resetTransmitter)
+                    finishSetup(sensorPtr, resetTransmitter)
+                    scope.launch {
+                        kotlinx.coroutines.delay(4000)
+                        onComplete()
+                    }
                 }
             }
         }
@@ -372,7 +377,7 @@ fun SibionicsSetupWizard(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { Text("Sibionics Setup") },
+                title = { Text(stringResource(R.string.sibionics_setup_title)) },
                 windowInsets = TopAppBarDefaults.windowInsets, // Ensure status bar padding
                 navigationIcon = {
                     IconButton(onClick = {
@@ -428,7 +433,7 @@ fun SibionicsSetupWizard(
                     onManualEntry = { code ->
                         val fakeQr = constructFakeSibionicsQr(code, targetLength = 70)
                         if (fakeQr == null) {
-                            tk.glucodata.Applic.Toaster("Invalid code format. Please try again.")
+                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.invalid_code_format))
                             return@ScanSensorStep
                         }
 
@@ -448,7 +453,7 @@ fun SibionicsSetupWizard(
                     onResetChanged = { resetTransmitter = it },
                     onScanClick = {
                         if (sensorPtr == 0L) {
-                            tk.glucodata.Applic.Toaster("Sensor not initialized. Use 'Scan Sensor' first.")
+                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_not_init))
                             currentStep = SibionicsSetupStep.SCAN_SENSOR
                             return@ScanTransmitterStep
                         }
@@ -465,14 +470,14 @@ fun SibionicsSetupWizard(
                     onBack = { currentStep = SibionicsSetupStep.SELECT_TYPE },
                     onDeviceFound = { name ->
                         if (sensorPtr == 0L) {
-                             tk.glucodata.Applic.Toaster("Error: Sensor lost. Please restart setup.")
+                             tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_lost_restart))
                              currentStep = SibionicsSetupStep.SCAN_SENSOR
                              return@ScanTransmitterStep
                         }
                         
                         val fakeQr = constructFakeSibionicsQr(name, targetLength = 59)
                         if (fakeQr == null) {
-                            tk.glucodata.Applic.Toaster("Invalid device name: $name")
+                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.invalid_device_name) + name)
                             return@ScanTransmitterStep
                         }
 
@@ -480,21 +485,25 @@ fun SibionicsSetupWizard(
                         val success = Natives.siSensorptrTransmitterScan(sensorPtr, fakeQr)
                         if (success) {
                             currentStep = SibionicsSetupStep.CONNECTING
-                            finishSetup(onComplete, sensorPtr, resetTransmitter)
+                            finishSetup(sensorPtr, resetTransmitter)
+                            scope.launch {
+                                kotlinx.coroutines.delay(4000)
+                                onComplete()
+                            }
                         } else {
-                            tk.glucodata.Applic.Toaster("Failed to connect to $name")
+                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.failed_to_connect) + name)
                         }
                     },
                     onManualEntry = { code ->
                         if (sensorPtr == 0L) {
-                             tk.glucodata.Applic.Toaster("Sensor not initialized. Use 'Scan Sensor' first.")
+                             tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_not_init))
                              currentStep = SibionicsSetupStep.SCAN_SENSOR
                              return@ScanTransmitterStep
                         }
                         
                         val fakeQr = constructFakeSibionicsQr(code, targetLength = 59)
                         if (fakeQr == null) {
-                            tk.glucodata.Applic.Toaster("Invalid code format. Please try again.")
+                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.invalid_code_format))
                             return@ScanTransmitterStep
                         }
 
@@ -502,9 +511,13 @@ fun SibionicsSetupWizard(
                         val success = Natives.siSensorptrTransmitterScan(sensorPtr, fakeQr)
                         if (success) {
                             currentStep = SibionicsSetupStep.CONNECTING
-                            finishSetup(onComplete, sensorPtr, resetTransmitter)
+                            finishSetup(sensorPtr, resetTransmitter)
+                            scope.launch {
+                                kotlinx.coroutines.delay(4000)
+                                onComplete()
+                            }
                         } else {
-                            tk.glucodata.Applic.Toaster("Failed to connect to $code")
+                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.failed_to_connect) + code)
                         }
                     }
                 )
@@ -535,7 +548,7 @@ fun ScanSensorStep(
                 if (decoded != null) {
                     onManualEntry(decoded)
                 } else {
-                    tk.glucodata.Applic.Toaster("No QR code found in image")
+                    tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.no_qr_found))
                 }
             }
         }
@@ -576,14 +589,14 @@ fun ScanSensorStep(
 
         item {
             Text(
-                text = "Scan QR Code",
+                text = stringResource(R.string.scan_sensor_title),
                 style = MaterialTheme.typography.headlineLarge,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
             Text(
-                text = "Scan the QR code on your generic Sibionics sensor box.",
+                text = stringResource(R.string.scan_sensor_instruction),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -598,7 +611,7 @@ fun ScanSensorStep(
             ) {
                 Icon(Icons.Default.QrCodeScanner, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Scan QR Code")
+                Text(stringResource(R.string.scan_qr_button))
             }
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -614,7 +627,7 @@ fun ScanSensorStep(
             ) {
                 Icon(Icons.Default.Image, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Select from Gallery")
+                Text(stringResource(R.string.select_gallery_button))
             }
 
             // Skip Button for Sibionics 2 - allows bypassing sensor scan since it uses Bluetooth connection
@@ -632,7 +645,7 @@ fun ScanSensorStep(
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp)
                 ) {
-                   Text("Skip (Use Fake Sensor)") 
+                   Text(stringResource(R.string.skip_fake_sensor)) 
                 }
             }
 
@@ -641,7 +654,7 @@ fun ScanSensorStep(
             TextButton(
                 onClick = { showManualEntry = true }
             ) {
-                Text("Enter Code Manually")
+                Text(stringResource(R.string.enter_code_manually))
             }
         }
     }
@@ -664,13 +677,12 @@ fun SelectTypeStep(
         // Header with generous spacing
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Select Sensor Type",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            text = stringResource(R.string.select_sibionics_type),
+            style = MaterialTheme.typography.headlineMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Choose your Sibionics sensor variant",
+            text = stringResource(R.string.choose_sibionics_variant),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -770,7 +782,7 @@ fun SelectTypeStep(
             shape = MaterialTheme.shapes.large
         ) {
             Text(
-                text = "Continue",
+                text = stringResource(R.string.continue_action),
                 style = MaterialTheme.typography.labelLarge
             )
         }
@@ -865,13 +877,13 @@ fun ScanTransmitterStep(
             }
             
             Text(
-                text = "Scan Transmitter",
+                text = stringResource(R.string.scan_transmitter_title),
                 style = MaterialTheme.typography.headlineLarge,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
              Text(
-                text = "Select a nearby device or scan the QR code.",
+                text = stringResource(R.string.scan_transmitter_desc),
                 style = MaterialTheme.typography.bodyLarge,
                  textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -898,7 +910,7 @@ fun ScanTransmitterStep(
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
-                        text = "Clear previous state",
+                        text = stringResource(R.string.clear_previous_state),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -924,11 +936,11 @@ fun ScanTransmitterStep(
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Scanning for devices...")
+                    Text(stringResource(R.string.scanning_devices))
                 } else {
                     Icon(Icons.Default.BluetoothSearching, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Search Bluetooth")
+                    Text(stringResource(R.string.search_bluetooth))
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -937,7 +949,7 @@ fun ScanTransmitterStep(
         if (foundDevices.isNotEmpty()) {
             item {
                 Text(
-                    "Found Devices:", 
+                    stringResource(R.string.found_devices_title), 
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Start
@@ -961,7 +973,7 @@ fun ScanTransmitterStep(
         } else if (isScanning) {
              item {
                 Text(
-                    "Looking for nearby transmitters...",
+                    stringResource(R.string.looking_for_transmitters),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -971,7 +983,7 @@ fun ScanTransmitterStep(
 
         item {
             Text(
-               text = "Or scan QR code",
+               text = stringResource(R.string.or_scan_qr),
                style = MaterialTheme.typography.labelLarge,
                color = MaterialTheme.colorScheme.primary,
                modifier = Modifier.fillMaxWidth(),
@@ -985,7 +997,7 @@ fun ScanTransmitterStep(
             ) {
                 Icon(Icons.Default.QrCodeScanner, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Scan Transmitter")
+                Text(stringResource(R.string.scan_transmitter_button))
             }
             
             Spacer(Modifier.height(8.dp))
@@ -1043,7 +1055,7 @@ fun ConnectingStep() {
     }
 }
 
-private fun finishSetup(onComplete: () -> Unit, sensorPtr: Long, reset: Boolean) {
+private fun finishSetup(sensorPtr: Long, reset: Boolean) {
     if (sensorPtr != 0L && reset) {
          // This might be redundant if already called in onScanClick, but safe
          Natives.setSensorptrResetSibionics2(sensorPtr, true)
@@ -1058,5 +1070,4 @@ private fun finishSetup(onComplete: () -> Unit, sensorPtr: Long, reset: Boolean)
     tk.glucodata.Applic.wakemirrors()
     tk.glucodata.MainActivity.onSensorScanResult = null
     tk.glucodata.MainActivity.onTransmitterScanResult = null
-    onComplete()
 }

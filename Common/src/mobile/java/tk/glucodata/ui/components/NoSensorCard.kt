@@ -74,7 +74,6 @@ fun NoSensorCard(
                 Text(
                     text = stringResource(R.string.no_sensor_title),
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurface
                 )

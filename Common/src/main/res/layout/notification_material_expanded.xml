@@ -16,15 +16,13 @@
         android:gravity="center_vertical"
         android:paddingBottom="4dp">
 
-        <TextView
+        <ImageView
             android:id="@+id/notification_glucose"
-            style="@style/TextAppearance.Compat.Notification.Title"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="---"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:includeFontPadding="false" />
+            android:layout_height="32dp"
+            android:adjustViewBounds="true"
+            android:scaleType="fitStart"
+            android:contentDescription="Glucose Value" />
 
         <!-- Trend Column (Identical ID and Nesting) -->
         <LinearLayout

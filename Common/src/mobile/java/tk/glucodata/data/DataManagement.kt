@@ -38,23 +38,29 @@ object DataManagement {
     }
     
     /**
-     * Clear app data (history + cache) but preserve settings.
-     * SharedPreferences are kept.
+     * Clear app data (cache + native data) but preserve settings AND Room database.
+     * SharedPreferences and glucose history are kept.
      */
     suspend fun clearAppData(context: Context = Applic.app): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                // 1. Clear Room database
-                val db = HistoryDatabase.getInstance(context)
-                db.clearAllTables()
+                // NOTE: Room database is intentionally NOT cleared here
+                // User wants to preserve glucose history in this mode
                 
-                // 2. Clear cache directory
+                // 1. Clear cache directory
                 context.cacheDir.deleteRecursively()
                 
-                // 3. Clear code cache
+                // 2. Clear code cache
                 context.codeCacheDir?.deleteRecursively()
                 
-                Log.d(TAG, "Cleared app data (preserved settings)")
+                // 3. Clear ALL native data files in filesDir
+                // This is where C++ stores sensor readings, calibrations, etc.
+                context.filesDir.listFiles()?.forEach { file ->
+                    file.deleteRecursively()
+                    Log.d(TAG, "Deleted: ${file.name}")
+                }
+                
+                Log.d(TAG, "Cleared app data (preserved settings and Room DB)")
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Error clearing app data", e)
@@ -97,24 +103,22 @@ object DataManagement {
     }
     
     /**
-     * Helper to clear native C++ data files.
-     * Calls native method to wipe sensor data, calibrations, etc.
+     * Helper to clear ALL native C++ data files.
+     * Deletes everything in filesDir to fully wipe sensor data, calibrations, etc.
      */
     private fun clearNativeDataFiles(context: Context) {
         try {
-            // Call native methods to clear data
-            // Note: You may need to add these native methods if they don't exist
-            // Natives.clearAllData()
+            // Delete ALL files in filesDir (not just specific extensions)
+            // This is where C++ stores sensor data, calibrations, etc.
+            context.filesDir.listFiles()?.forEach { file ->
+                val deleted = file.deleteRecursively()
+                Log.d(TAG, "Deleted ${file.name}: $deleted")
+            }
             
-            // Alternatively, delete the native data directory
-            val nativeDataDir = context.filesDir
-            nativeDataDir.listFiles()?.forEach { file ->
-                if (file.name.endsWith(".dat") || 
-                    file.name.endsWith(".state") ||
-                    file.name.endsWith(".binstate")) {
-                    file.delete()
-                    Log.d(TAG, "Deleted native file: ${file.name}")
-                }
+            // Also clear databases directory
+            context.databaseList()?.forEach { dbName ->
+                context.deleteDatabase(dbName)
+                Log.d(TAG, "Deleted database: $dbName")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing native files", e)

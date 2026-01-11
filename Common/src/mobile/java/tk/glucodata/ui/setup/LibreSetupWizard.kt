@@ -64,7 +64,6 @@ fun LibreSetupWizard(
             Text(
                 text = stringResource(R.string.scan_libre_sensor),
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             

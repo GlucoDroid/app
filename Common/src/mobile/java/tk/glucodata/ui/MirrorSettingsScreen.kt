@@ -285,7 +285,6 @@ fun MirrorItemRow(mirror: MirrorItemData, navController: NavController, onRefres
                 Text(
                     text = if (!mirror.label.isNullOrEmpty()) mirror.label else mirror.names?.firstOrNull() ?: "Connection ${mirror.index}",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
                     color = if (mirror.isDeactivated) Color.Gray else Color.Unspecified
                 )
                 Spacer(Modifier.weight(1f))

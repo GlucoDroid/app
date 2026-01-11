@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.appcompat.app.AppCompatActivity
 import androidx.annotation.Keep
+import androidx.core.content.res.ResourcesCompat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -22,7 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-//import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -57,7 +58,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
 import androidx.compose.ui.viewinterop.AndroidView
@@ -68,7 +74,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.zIndex
+import tk.glucodata.ui.util.findActivity
+import tk.glucodata.ui.util.hardRestart
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
@@ -123,6 +130,7 @@ import tk.glucodata.R
 import tk.glucodata.MainActivity
 import android.widget.Toast
 import tk.glucodata.ui.viewmodel.DashboardViewModel
+import tk.glucodata.ui.theme.displayLargeExpressive
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.compose.ui.res.stringResource
@@ -181,6 +189,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.changedToUp
@@ -407,6 +416,7 @@ fun JugglucoTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = tk.glucodata.ui.theme.AppTypography,
         content = content
     )
 }
@@ -565,7 +575,9 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val targetLow by viewModel.targetLow.collectAsState()
     val targetHigh by viewModel.targetHigh.collectAsState()
     val sensorStatus by viewModel.sensorStatus.collectAsState()
+    val sensorProgress by viewModel.sensorProgress.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     // State for wizards (matching SensorScreen pattern)
     var showSibionicsWizard by remember { mutableStateOf(false) }
@@ -642,10 +654,15 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
             glucoseHistory.takeLast(10).reversed().distinctBy { it.timestamp }
         }
 
+        // Dashboard State
+        var timeRange by rememberSaveable { mutableStateOf(TimeRange.H3) } // Default to 3 Hours
+
         // --- LAYOUT LOGIC ---
         
         // Empty state check
-        if (glucoseHistory.isEmpty()) {
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+        } else if (glucoseHistory.isEmpty()) {
             tk.glucodata.ui.components.DashboardEmptyState(
                 onSensorSelected = { type ->
                     when (type) {
@@ -671,36 +688,62 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                 // Left Pane: Status + Info + History (Scrollable)
                 LazyColumn(
                     modifier = Modifier.weight(0.25f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(28.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp), // Gap between Header and History?
                     contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
                 ) {
-                    item { DashboardStatusSection(currentGlucose, currentRate, viewMode, latestPoint) }
-                    item { DashboardMetaInfoSection(sensorName, daysRemaining, sensorStatus) }
-                    itemsIndexed(recentReadings, key = { index, item -> "${item.timestamp}_$index" }) { _, item ->
-                        ReadingRow(
-                            point = item,
-                            unit = unit,
+                     item {
+                        DashboardCombinedHeader(
+                            currentGlucose = currentGlucose,
+                            currentRate = currentRate,
                             viewMode = viewMode,
-                            modifier = Modifier.animateItem()
+                            latestPoint = latestPoint,
+                            sensorName = sensorName,
+                            daysRemaining = daysRemaining,
+                            sensorStatus = sensorStatus,
+                            sensorProgress = sensorProgress,
+                            history = glucoseHistory // Advanced Trend
                         )
+                    }
+                    
+                    item {
+                        RecentReadingsCard(
+                            recentReadings = recentReadings,
+                            unit = unit,
+                            viewMode = viewMode
+                        ) { index, item ->
+                            ReadingRow(
+                                point = item,
+                                unit = unit,
+                                viewMode = viewMode,
+                                    index = index,
+                                    totalCount = recentReadings.size,
+                                    history = recentReadings,
+                                modifier = Modifier.animateItem()
+                            )
+                        }
                     }
                 }
 
                 // Right Pane: Big Chart (Full Height)
-                Box(
+                Column(
                     modifier = Modifier
                         .weight(0.75f)
                         .fillMaxHeight()
                         .padding(vertical = 16.dp)
                 ) {
                     DashboardChartSection(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.weight(1f).fillMaxSize(),
                         glucoseHistory = glucoseHistory,
                         targetLow = targetLow,
                         targetHigh = targetHigh,
                         unit = unit,
-                        viewMode = viewMode
+                        viewMode = viewMode,
+                        onTimeRangeSelected = { timeRange = it },
+                        selectedTimeRange = timeRange
                     )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+
                 }
             }
         } else {
@@ -710,31 +753,54 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                     .fillMaxSize()
                     .padding(padding)
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(top = 0.dp, bottom = 16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp), // Gap between Header, Chart, History
+                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
             ) {
-                item { DashboardStatusSection(currentGlucose, currentRate, viewMode, latestPoint) }
-                item { DashboardMetaInfoSection(sensorName, daysRemaining, sensorStatus) }
+                 item {
+                    DashboardCombinedHeader(
+                        currentGlucose = currentGlucose,
+                        currentRate = currentRate,
+                        viewMode = viewMode,
+                        latestPoint = latestPoint,
+                        sensorName = sensorName,
+                        daysRemaining = daysRemaining,
+                        sensorStatus = sensorStatus,
+                        sensorProgress = sensorProgress,
+                        history = glucoseHistory // Advanced Trend
+                    )
+                }
 
                 item {
                     // Portrait Chart: Flexible height
                     DashboardChartSection(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 520.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 560.dp),
                         glucoseHistory = glucoseHistory,
                         targetLow = targetLow,
                         targetHigh = targetHigh,
                         unit = unit,
-                        viewMode = viewMode
+                        viewMode = viewMode,
+                        onTimeRangeSelected = { timeRange = it },
+                        selectedTimeRange = timeRange
                     )
                 }
 
-                itemsIndexed(recentReadings, key = { index, item -> "${item.timestamp}_$index" }) { _, item ->
-                    ReadingRow(
-                        point = item,
+
+                item {
+                    RecentReadingsCard(
+                        recentReadings = recentReadings,
                         unit = unit,
-                        viewMode = viewMode,
-                        modifier = Modifier.animateItem()
-                    )
+                        viewMode = viewMode
+                    ) { index, item ->
+                        ReadingRow(
+                            point = item,
+                            unit = unit,
+                            viewMode = viewMode,
+                            index = index,
+                            totalCount = recentReadings.size,
+                            history = recentReadings, // Fix: Pass history for trend calc
+                            modifier = Modifier.animateItem()
+                        )
+                    }
                 }
             }
         }
@@ -743,142 +809,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 
 // --- EXTRACTED COMPONENTS (Performance Optimization) ---
 
-@Composable
-fun DashboardStatusSection(
-    currentGlucose: String,
-    currentRate: Float,
-    viewMode: Int,
-    latestPoint: GlucosePoint?
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(28.dp) // Status Values: 28dp
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(horizontalAlignment = Alignment.End) {
-                    val primaryColor = MaterialTheme.colorScheme.onSurface
-                    val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    val unitColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-                    val finalDisplayGlucose = remember(currentGlucose, viewMode, latestPoint, primaryColor, secondaryColor) {
-                        if (latestPoint != null) {
-                            val dvs = getDisplayValues(latestPoint, viewMode, "")
-                            buildGlucoseString(dvs, primaryColor, secondaryColor, unitColor, includeUnit = false)
-                        } else {
-                            androidx.compose.ui.text.AnnotatedString(currentGlucose)
-                        }
-                    }
-
-                    // M3 Expressive: Animated value change (slide up with fade)
-                    AnimatedContent(
-                        targetState = finalDisplayGlucose,
-                        transitionSpec = {
-                            (slideInVertically(
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            ) { -it / 2 } + fadeIn(animationSpec = tween(200)))
-                                .togetherWith(
-                                    slideOutVertically(
-                                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
-                                    ) { it / 2 } + fadeOut(animationSpec = tween(100))
-                                )
-                        },
-                        label = "GlucoseValueAnimation"
-                    ) { glucoseValue ->
-                        Text(
-                            glucoseValue,
-                            style = MaterialTheme.typography.displayLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // M3 Expressive: Animated trend icon
-                AnimatedContent(
-                    targetState = currentRate,
-                    transitionSpec = {
-                        (fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
-                                slideInVertically(
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
-                                ) { if (targetState > initialState) -it / 3 else it / 3 })
-                            .togetherWith(
-                                fadeOut(animationSpec = tween(100)) +
-                                        slideOutVertically() { if (targetState > initialState) it / 3 else -it / 3 }
-                            )
-                    },
-                    label = "TrendIconAnimation"
-                ) { rate ->
-                    Icon(
-                        imageVector = getTrendIcon(rate),
-                        contentDescription = getTrendDescription(rate),
-                        modifier = Modifier.size(48.dp).padding(4.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DashboardMetaInfoSection(
-    sensorName: String,
-    daysRemaining: String,
-    sensorStatus: String = ""
-) {
-    if (sensorName.isNotEmpty()) {
-         Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            shape = RoundedCornerShape(8.dp), // Sensor Name (Lower): 16dp (User Request)
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = sensorName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (sensorStatus.isNotEmpty()) {
-                        Text(
-                            text = sensorStatus,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                }
-                
-                if (daysRemaining.isNotEmpty()) {
-                     Text(
-                        text = daysRemaining,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun DashboardChartSection(
@@ -887,26 +818,32 @@ fun DashboardChartSection(
     targetLow: Float,
     targetHigh: Float,
     unit: String,
-    viewMode: Int
+    viewMode: Int,
+    // Control callback
+    onTimeRangeSelected: (TimeRange) -> Unit,
+    selectedTimeRange: TimeRange
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(28.dp) // Chart: 28dp (User Request)
+        shape = RoundedCornerShape(16.dp) // Chart: 16dp (User Request)
     ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            if (glucoseHistory.isNotEmpty()) {
-                InteractiveGlucoseChart(
-                    fullData = glucoseHistory,
-                    targetLow = targetLow,
-                    targetHigh = targetHigh,
-                    unit = unit,
-                    viewMode = viewMode
-                )
-            } else {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_data_available)) }
-            }
-        }
+        Column(modifier = Modifier.padding(bottom = 0.dp)) { // Edge-to-edge
+             Box(modifier = Modifier.weight(1f)) {
+                if (glucoseHistory.isNotEmpty()) {
+                    InteractiveGlucoseChart(
+                        fullData = glucoseHistory,
+                        targetLow = targetLow,
+                        targetHigh = targetHigh,
+                        unit = unit,
+                        viewMode = viewMode,
+                        selectedTimeRange = selectedTimeRange
+                    )
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_data_available)) }
+                }
+                }
     }
+}
 }
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
@@ -917,7 +854,8 @@ fun InteractiveGlucoseChart(
     targetHigh: Float,
     unit: String,
     viewMode: Int = 0,
-    onDateSelected: (Long) -> Unit = {}  // Callback when user picks a date to jump to
+    onDateSelected: (Long) -> Unit = {},  // Callback when user picks a date to jump to
+    selectedTimeRange: TimeRange? = null // Optional control
 ) {
     // --- THEME & PAINTS ---
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -933,21 +871,31 @@ fun InteractiveGlucoseChart(
     val hoverLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     val minMaxLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
 
-    val density = LocalContext.current.resources.displayMetrics.density
+    val context = LocalContext.current
+    val density = context.resources.displayMetrics.density
+    
+    val graphFont = remember(context) {
+        ResourcesCompat.getFont(context, R.font.ibm_plex_sans_var)
+    }
+    val graphFontBold = remember(graphFont) {
+        if (graphFont != null) android.graphics.Typeface.create(graphFont, android.graphics.Typeface.BOLD) else android.graphics.Typeface.DEFAULT_BOLD
+    }
 
     // Paints
-    val axisTextPaint = remember {
+    val axisTextPaint = remember(graphFont) {
         android.graphics.Paint().apply {
             color = android.graphics.Color.GRAY
             textSize = 10f * density
             textAlign = android.graphics.Paint.Align.LEFT
+            typeface = graphFont
         }
     }
-    val xTextPaint = remember {
+    val xTextPaint = remember(graphFont) {
         android.graphics.Paint().apply {
             color = android.graphics.Color.GRAY
             textSize = 10f * density
             textAlign = android.graphics.Paint.Align.CENTER
+            typeface = graphFont
         }
     }
 
@@ -1058,6 +1006,23 @@ fun InteractiveGlucoseChart(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // React to Time Range Selection (User Request)
+    // If external time range changes, we snap visibleDuration to it and center on latest.
+    LaunchedEffect(selectedTimeRange) {
+        selectedTimeRange?.let { range ->
+            val newDuration = range.hours * 60 * 60 * 1000L
+            if (visibleDuration != newDuration) {
+                visibleDuration = newDuration
+                // Snap to latest data when changing range for immediate feedback
+                if (latestDataTimestamp > 0) {
+                     centerTime = latestDataTimestamp - visibleDuration / 2
+                }
+            }
+        }
     }
 
     LaunchedEffect(latestDataTimestamp, isResumed) {
@@ -1429,10 +1394,14 @@ fun InteractiveGlucoseChart(
                     val y = valToY(yVal.toFloat())
                     if (y in 0f..chartHeight) {
                         drawLine(gridColor, Offset(0f, y), Offset(width, y), 1f)
-                        // Text
-                        val textY = y.coerceIn(20f, chartHeight - 5f)
-                         drawContext.canvas.nativeCanvas.drawText(
-                            yVal.toString(), 10f, textY - 6f, axisTextPaint
+                        // Text - Vertically centered with grid line, 4dp left padding
+                        val labelText = yVal.toString()
+                        val textBounds = android.graphics.Rect()
+                        axisTextPaint.getTextBounds(labelText, 0, labelText.length, textBounds)
+                        val centeredY = y + (textBounds.height() / 2f)
+                        val labelPadding = 16f * density
+                        drawContext.canvas.nativeCanvas.drawText(
+                            labelText, labelPadding, centeredY, axisTextPaint
                         )
                     }
                     yVal += yStep.toInt()
@@ -1480,9 +1449,9 @@ fun InteractiveGlucoseChart(
                                 }
                                 drawContext.canvas.nativeCanvas.drawText(
                                     dateLabel, x, height - 25f, 
-                                    xTextPaint.apply { typeface = android.graphics.Typeface.DEFAULT_BOLD }
+                                    xTextPaint.apply { typeface = graphFontBold }
                                 )
-                                xTextPaint.typeface = android.graphics.Typeface.DEFAULT
+                                xTextPaint.typeface = graphFont
                             } else {
                                 // Time Line
                                 drawLine(gridColor, Offset(x, 0f), Offset(x, chartHeight), 1f)
@@ -1490,7 +1459,7 @@ fun InteractiveGlucoseChart(
                                     reusableDate.time = tGrid
                                     formatTime.format(reusableDate)
                                 }
-                                drawContext.canvas.nativeCanvas.drawText(timeLabel, x, height - 10f, xTextPaint)
+                                drawContext.canvas.nativeCanvas.drawText(timeLabel, x, height - 28f, xTextPaint)
                             }
                         }
                         tGrid += gridInterval
@@ -1608,20 +1577,27 @@ fun InteractiveGlucoseChart(
                         if (y.isFinite() && x.isFinite() && y in 0f..chartHeight && x in 0f..width) {
                             val label = String.format("%.1f", valToDraw)
                             
-                            // Text
+                            // Text - Vertically centered with guide line, 4dp left padding
+                            val indicatorBounds = android.graphics.Rect()
+                            axisTextPaint.getTextBounds(label, 0, label.length, indicatorBounds)
+                            val centeredY = y + (indicatorBounds.height() / 2f)
+                            val indicatorPadding = 16f * density
+                            val textWidth = axisTextPaint.measureText(label)
+                            
                             drawContext.canvas.nativeCanvas.drawText(
-                                label, 35f, y - 5f, 
+                                label, indicatorPadding, centeredY, 
                                 axisTextPaint.apply { color = android.graphics.Color.DKGRAY } // Dark Gray for visibility
                             )
-                            // Guide line
+                            // Guide line - starts after text
+                            val lineStartX = indicatorPadding + textWidth + 8f * density
                             drawLine(
                                 color = minMaxLineColor,
-                                start = Offset(80f, y),
+                                start = Offset(lineStartX, y),
                                 end = Offset(x, y),
                                 strokeWidth = 1f,
                                 pathEffect = dashEffect
                             )
-                            // Restore paint color? (axisTextPaint is shared)
+                            // Restore paint color (axisTextPaint is shared)
                             axisTextPaint.color = android.graphics.Color.GRAY 
                         }
                     }
@@ -1746,31 +1722,30 @@ fun InteractiveGlucoseChart(
                     }
                 }
 
-                // --- 2. TIME BUBBLE (Bottom) ---
-
-                Surface(
+                // --- 2. TIME CHIP (Bottom) - Text centered on same line as X-axis labels ---
+                // Height: 32dp, Corner: 8dp, Padding: horizontal 8dp
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        // Move to Cursor X, Offset flush with bottom axis text
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
                                 x = cardXOffset.toInt(),
-                                y = (5).dp.roundToPx()
+                                y = (2).dp.roundToPx() // Center text on same line as X-axis labels
                             )
                         }
-                        // Center
                         .graphicsLayer { translationX = -size.width / 2f }
-                        .wrapContentWidth(),
-                    shape = cardShape,
-                    color = statusCardColor.copy(alpha = 1f),
-                    contentColor = statusContentColor.copy(alpha = 1f),
-                    shadowElevation = 0.dp
+                        .height(32.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = point.time,
-                        fontSize = axisFontSize, // Match Axis (10.sp)
-                        // "make the bubble bigger" -> Increase padding
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1795,17 +1770,23 @@ fun InteractiveGlucoseChart(
             ) {
                 val headerDate = java.text.SimpleDateFormat("EEEE, d MMMM", java.util.Locale.getDefault()).format(java.util.Date(centerTime))
 
-                Text(
-                    text = headerDate,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Same style as bottom Time Chip
+                Box(
                     modifier = Modifier
+                        .height(32.dp)
                         .background(
-                            MaterialTheme.colorScheme.surface,
-                            RoundedCornerShape(4.dp)
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            RoundedCornerShape(8.dp)
                         )
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+                        .padding(horizontal = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = headerDate,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             /*
@@ -1872,10 +1853,11 @@ fun InteractiveGlucoseChart(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+//                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .horizontalScroll(rememberScrollState())
-                .padding(top = 16.dp, bottom = 4.dp, start = 0.dp, end = 0.dp), // Reduced padding
-            horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterHorizontally), // Tighter spacing
-            verticalAlignment = Alignment.CenterVertically // Center vertical
+                .padding(vertical = 12.dp, horizontal = 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             val items = TimeRange.values()
             val configuration = LocalConfiguration.current
@@ -1912,9 +1894,9 @@ fun InteractiveGlucoseChart(
                 )
                 val colorSpec = spring<Color>(stiffness = Spring.StiffnessMediumLow)
 
-                // Animated values
                 val containerColor by animateColorAsState(
-                    targetValue = if (isSel) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    // Fix: Interpolate alpha of the SAME color to avoid "dark/gray" ghosting during transition
+                    targetValue = if (isSel) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0f),
                     animationSpec = colorSpec,
                     label = "ButtonContainerColor"
                 )
@@ -1994,7 +1976,6 @@ fun InteractiveGlucoseChart(
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier
                             .padding(horizontal = 8.dp)
-                            .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                     ) {
                         if (isSel) {
                             Icon(
@@ -2051,7 +2032,7 @@ fun InteractiveGlucoseChart(
                         }
                     },
                     shape = RoundedCornerShape(28.dp),
-                    // "Similar background when its active" -> SecondaryContainer
+                    // Subtle surface color for visibility
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier
@@ -2085,12 +2066,12 @@ fun InteractiveGlucoseChart(
                         showDatePicker = false
                     }
                 ) {
-                    Text("Go")
+                    Text(stringResource(R.string.go))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         ) {
@@ -2142,24 +2123,189 @@ fun ReadingRow(
     point: GlucosePoint,
     unit: String,
     viewMode: Int = 0,
+    index: Int = 0,
+    totalCount: Int = 1,
+    history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
     modifier: Modifier = Modifier
 ) {
-    // M3 Expressive: Local smooth fade-out
-    val highlightAlpha = remember(point.timestamp) { Animatable(0f) }
+    // --- DYNAMIC COLOR LOGIC ---
+    // User Request: 
+    // 1. Fresh (0-60s): Active Color -> Stock Color.
+    // 2. Normal (60-90s): Stock Color.
+    // 3. Stale (>90s): Stock Color -> Darker Shade.
+    
+    val isActive = index == 0
+    val isHistoryStart = index == 1
+    val isHistoryEnd = index == totalCount - 1
+    
+    val activeColor = MaterialTheme.colorScheme.secondaryContainer
+    val stockColor = MaterialTheme.colorScheme.surfaceContainerLow
+    val staleColor = MaterialTheme.colorScheme.surfaceContainerHighest // Slightly darker/different
 
-    LaunchedEffect(point.timestamp) {
-        val age = System.currentTimeMillis() - point.timestamp
-        if (age < 60_000) {
-            val remaining = 60_000 - age
-            val startAlpha = 0.4f * (remaining.toFloat() / 60_000f)
-            highlightAlpha.snapTo(startAlpha)
-            highlightAlpha.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(durationMillis = remaining.toInt(), easing = LinearEasing)
-            )
+    val ageState = remember(point.timestamp) { mutableStateOf(System.currentTimeMillis() - point.timestamp) }
+    
+    // Timer to update age for the active item
+    if (isActive) {
+        LaunchedEffect(point.timestamp) {
+            while (true) {
+                ageState.value = System.currentTimeMillis() - point.timestamp
+                delay(1000) // Update every second
+            }
         }
     }
 
+    val containerColor = if (isActive) {
+        val age = ageState.value
+        when {
+            age < 60_000 -> {
+                // Phase 1: Fade to Stock
+                val progress = age / 60_000f
+                androidx.compose.ui.graphics.Color(
+                    androidx.core.graphics.ColorUtils.blendARGB(
+                        activeColor.toArgb(),
+                        stockColor.toArgb(),
+                        progress.coerceIn(0f, 1f)
+                    )
+                )
+            }
+            age < 90_000 -> {
+                // Phase 2: Stock (Stable)
+                stockColor
+            }
+            else -> {
+                 // Phase 3: Stale (Darken slowly)
+                 // "slowly start getting different darker shade"
+                 // Let's cap the darkening at 100% after another 60s (just to have a bound)
+                 val staleProgress = ((age - 90_000) / 60_000f).coerceIn(0f, 1f)
+                 androidx.compose.ui.graphics.Color(
+                    androidx.core.graphics.ColorUtils.blendARGB(
+                        stockColor.toArgb(),
+                        staleColor.toArgb(),
+                        staleProgress
+                    )
+                )
+            }
+        }
+    } else {
+        // History: Always Stock
+        stockColor
+    }
+
+    // Shape: 
+    // Active (Hero): "4dp bottom radius" to imply continuity. Top matches parent (16dp).
+    // History: Rectangle (relies on parent clipping for its 4dp bottom).
+    val shape = if (isActive) {
+        RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+    } else {
+        RectangleShape
+    }
+
+    // Divider Alpha Logic
+    val baseDividerAlpha = 0.1f // User Request: "perhaps make it 0.1f"
+    val dividerAlpha = if (isActive) {
+        val age = ageState.value
+        when {
+            age < 60_000 -> {
+                // Fresh: Color is Distinct -> Stock. Divider: Hidden -> Visible.
+                val progress = age / 60_000f
+                baseDividerAlpha * progress.coerceIn(0f, 1f)
+            }
+            age < 90_000 -> {
+                // Normal: Color is Stock. Divider: Visible.
+                baseDividerAlpha
+            }
+            else -> {
+                // Stale: Color is Stock -> Distinct. Divider: Visible -> Hidden.
+                val staleProgress = ((age - 90_000) / 60_000f).coerceIn(0f, 1f)
+                baseDividerAlpha * (1f - staleProgress)
+            }
+        }
+    } else {
+        baseDividerAlpha
+    }
+    
+    // --- ADVANCED TREND ENGINE ---
+    // Calculate on the fly using the passed history subset
+    val trendResult = remember(history, index) {
+        val relevantHistory = if (history.isNotEmpty()) history.drop(index) else listOf(point)
+        val nativeList = relevantHistory.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }
+        tk.glucodata.logic.TrendEngine.calculateTrend(nativeList, useRaw = (viewMode == 1 || viewMode == 3))
+    }
+    
+    // Wrap in Column to place Divider below the Surface
+    Column(modifier = modifier.fillMaxWidth()) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = shape,
+            color = containerColor,
+            // User Request: Kill shadows (0dp)
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp), // Restored "stock-ish" padding (was 8)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Time (Left)
+                // Active: Bold/Medium. History: Small.
+                // User Request: "first one same size as others" -> All Body Small
+                val timeStyle = MaterialTheme.typography.bodySmall
+                val timeColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                val timeWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
+                
+                Text(
+                    text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(point.timestamp)),
+                    style = timeStyle,
+                    fontWeight = timeWeight,
+                    color = timeColor
+                )
+
+                // Value (Right)
+                val dvs = getDisplayValues(point, viewMode, unit)
+                // Colors
+                val primaryColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha=0.8f)
+                val secondaryColor = if (isActive)  MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha=0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.8f)
+                val unitColor = secondaryColor.copy(alpha = 0.6f)
+                val tertiaryColor = if (isActive) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f)
+
+
+                // Text Style: "first one same size as others" -> All Title Medium
+                val valueStyle = MaterialTheme.typography.titleMedium
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                     Text(
+                        text = buildGlucoseString(dvs, primaryColor, secondaryColor, unitColor, true),
+                        style = valueStyle.copy(fontFeatureSettings = "tnum"),
+                        modifier = Modifier
+                    )
+                    
+                    // Advanced Trend Indicator
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    tk.glucodata.ui.components.TrendIndicator(
+                        trendResult = trendResult,
+                        color = tertiaryColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+        
+        // Render Divider
+        if (index < totalCount - 1) {
+             HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = dividerAlpha), 
+                thickness = 1.dp
+            )
+        }
+    }
+}
+/*
+    // --- PREVIOUS IMPLEMENTATION (Commented as requested) ---
     val backgroundColor = lerp(
         start = MaterialTheme.colorScheme.surfaceVariant,
         stop = MaterialTheme.colorScheme.primaryContainer,
@@ -2191,39 +2337,44 @@ fun ReadingRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(backgroundColor, shape = RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .heightIn(min = 56.dp) // Minimum touch target / visual rhythm
+            .padding(horizontal = 16.dp, vertical = 16.dp), // Increased vertical padding to 16dp for "Editorial" feel
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically // Center content vertically
     ) {
-        // Time Column (with optional date for old data)
+        // Time Column (Secondary Hierarchy)
         Text(
             text = timeDisplay,
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodySmall, // Receded (12sp)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
 
-        // Value Column
+        // Value Column (Primary Hierarchy)
         val dvs = getDisplayValues(point, viewMode, unit)
         val primaryColor = MaterialTheme.colorScheme.onSurface
-        val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 1.0f) // More visible
-        val unitColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) // Least visible
+        val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 1.0f)
+        val unitColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
 
+        // Bold & Prominent
         Text(
             text = buildGlucoseString(dvs, primaryColor, secondaryColor, unitColor, true, unit),
-            fontWeight = FontWeight.Bold
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = primaryColor
         )
     }
-}
+*/
 
 
 @Composable
 fun SearchScreen() {
     Column(modifier = Modifier.padding(16.dp)) {
-        Text("Search", style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.search), style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = "",
             onValueChange = {},
-            label = { Text("Filter by date") },
+            label = { Text(stringResource(R.string.filter_by_date)) },
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -2303,6 +2454,7 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
                                     .clickable {
                                         viewModel.setUnit(value)
                                         showUnitDialog = false
+                                        context.findActivity()?.hardRestart()
                                     }
                                     .padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -2326,7 +2478,6 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
             )
         }
 
-        // --- THEME ---
         // --- THEME ---
         val themeLabel = when(themeMode) {
             ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
@@ -2606,8 +2757,8 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
 
         // Turbo (High Priority)
         ListItem(
-            headlineContent = { Text("Turbo (high priority)") },
-            supportingContent = { Text("Requests high connection priority") },
+            headlineContent = { Text(stringResource(R.string.turbo_title)) },
+            supportingContent = { Text(stringResource(R.string.turbo_desc)) },
             trailingContent = {
                 var turbo by remember { mutableStateOf(Natives.getpriority()) }
                 StyledSwitch(
@@ -2622,8 +2773,8 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
 
         // Android (AutoConnect)
         ListItem(
-            headlineContent = { Text("Android (autoConnect)") },
-            supportingContent = { Text("Uses passive background connection") },
+            headlineContent = { Text(stringResource(R.string.autoconnect_title)) },
+            supportingContent = { Text(stringResource(R.string.autoconnect_desc)) },
             trailingContent = {
                 var autoConnect by remember { mutableStateOf(Natives.getAndroid13()) }
                 StyledSwitch(
@@ -2637,8 +2788,8 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
         )
 
         ListItem(
-            headlineContent = { Text(stringResource(R.string.debug_logs)) },
-            supportingContent = { Text("View trace.log and logcat") },
+            headlineContent = { Text(stringResource(R.string.debug_logs_title)) },
+            supportingContent = { Text(stringResource(R.string.debug_logs_desc)) },
             modifier = Modifier.clickable { navController.navigate("settings/debug") }
         )
 
@@ -2713,8 +2864,8 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
                         ) {
                             RadioButton(selected = exportType == "csv", onClick = null)
                             Column(Modifier.padding(start = 8.dp)) {
-                                Text("CSV File (.csv)", fontWeight = FontWeight.Bold)
-                                Text("Best for Excel/Analysis", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.csv_file))
+                                Text(stringResource(R.string.csv_desc), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         Row(
@@ -2726,8 +2877,21 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
                         ) {
                             RadioButton(selected = exportType == "readable", onClick = null)
                             Column(Modifier.padding(start = 8.dp)) {
-                                Text("Readable Text (.txt)", fontWeight = FontWeight.Bold)
-                                Text("Best for sharing/printing", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.csv_file))
+                                Text(stringResource(R.string.csv_desc), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { exportType = "readable" }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = exportType == "readable", onClick = null)
+                            Column(Modifier.padding(start = 8.dp)) {
+                                Text(stringResource(R.string.text_file))
+                                Text(stringResource(R.string.text_desc), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -2738,16 +2902,16 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
                         val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
                         val ext = if (exportType == "csv") "csv" else "txt"
                         exportLauncher.launch("juggluco_history_$date.$ext")
-                    }) { Text("Export") }
+                    }) { Text(stringResource(R.string.export_button)) }
                 },
-                dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } }
+                dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text(stringResource(R.string.cancel)) } }
             )
         }
 
         // Export History - M3 ListItem pattern (fully clickable)
         ListItem(
-            headlineContent = { Text("Export History") },
-            supportingContent = { Text("Save glucose readings to CSV or text file") },
+            headlineContent = { Text(stringResource(R.string.export_history_title)) },
+            supportingContent = { Text(stringResource(R.string.export_history_sub)) },
             modifier = Modifier.clickable { showExportDialog = true },
             leadingContent = {
                 Icon(
@@ -2760,8 +2924,8 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
 
         // Import History - M3 ListItem pattern (fully clickable)
         ListItem(
-            headlineContent = { Text("Import History") },
-            supportingContent = { Text("Restore glucose readings from CSV file") },
+            headlineContent = { Text(stringResource(R.string.import_history_title)) },
+            supportingContent = { Text(stringResource(R.string.import_history_sub)) },
             modifier = Modifier.clickable { importLauncher.launch(arrayOf("text/csv", "text/plain", "*/*")) },
             leadingContent = {
                 Icon(
@@ -2916,8 +3080,8 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
             AlertDialog(
                 onDismissRequest = { showClearHistoryDialog = false },
                 icon = { Icon(Icons.Default.History, contentDescription = null) },
-                title = { Text("Clear History?") },
-                text = { Text("This will remove all glucose readings from the database. This action cannot be undone.") },
+                title = { Text(stringResource(R.string.clear_history_title)) },
+                text = { Text(stringResource(R.string.clear_history_confirmation)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -2928,9 +3092,9 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
                                 showClearHistoryDialog = false
                             }
                         }
-                    ) { Text("Clear") }
+                    ) { Text(stringResource(R.string.clear_button)) }
                 },
-                dismissButton = { TextButton(onClick = { showClearHistoryDialog = false }) { Text("Cancel") } }
+                dismissButton = { TextButton(onClick = { showClearHistoryDialog = false }) { Text(stringResource(R.string.cancel)) } }
             )
         }
 
@@ -2938,16 +3102,16 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
             AlertDialog(
                 onDismissRequest = { showClearDataDialog = false },
                 icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                title = { Text("Clear App Data?") },
+                title = { Text(stringResource(R.string.clear_app_data_title)) },
                 text = {
                     Column {
-                        Text("This will remove:")
-                        Text("• All glucose readings")
-                        Text("• Cache files")
+                        Text(stringResource(R.string.clear_app_data_intro))
+                        Text(stringResource(R.string.all_glucose_readings))
+                        Text(stringResource(R.string.cache_files))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Settings will be preserved.")
+                        Text(stringResource(R.string.settings_preserved))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("This action cannot be undone.", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.cannot_be_undone_warning))
                     }
                 },
                 confirmButton = {
@@ -2958,12 +3122,13 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
                                 tk.glucodata.data.DataManagement.clearAppData()
                                 isClearing = false
                                 showClearDataDialog = false
+                                (context as? Activity)?.finishAffinity()
                             }
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Clear Data") }
+                    ) { Text(stringResource(R.string.clear_data_button)) }
                 },
-                dismissButton = { TextButton(onClick = { showClearDataDialog = false }) { Text("Cancel") } }
+                dismissButton = { TextButton(onClick = { showClearDataDialog = false }) { Text(stringResource(R.string.cancel)) } }
             )
         }
 
@@ -2971,18 +3136,18 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
             AlertDialog(
                 onDismissRequest = { showFactoryResetDialog = false },
                 icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                title = { Text("⚠️ Factory Reset?") },
+                title = { Text(stringResource(R.string.factory_reset_title)) },
                 text = {
                     Column {
-                        Text("This will REMOVE EVERYTHING:", fontWeight = FontWeight.Bold)
-                        Text("• All glucose readings")
-                        Text("• All settings")
-                        Text("• Cache files")
-                        Text("• Sensor data")
+                        Text(stringResource(R.string.factory_reset_intro))
+                        Text(stringResource(R.string.all_glucose_readings))
+                        Text(stringResource(R.string.all_settings))
+                        Text(stringResource(R.string.cache_files))
+                        Text(stringResource(R.string.sensor_data))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("The app will return to first-run state.", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.factory_reset_outcome), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("THIS CANNOT BE UNDONE!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.cannot_be_undone_critical), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 confirmButton = {
@@ -2996,9 +3161,9 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
                             }
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("RESET EVERYTHING") }
+                    ) { Text(stringResource(R.string.reset_everything_button)) }
                 },
-                dismissButton = { TextButton(onClick = { showFactoryResetDialog = false }) { Text("Cancel") } }
+                dismissButton = { TextButton(onClick = { showFactoryResetDialog = false }) { Text(stringResource(R.string.cancel)) } }
             )
         }
 
@@ -3153,17 +3318,17 @@ fun AlarmCard(
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Alert Sound", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.alert_sound), style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = soundMode == 0,
                         onClick = { onSoundChange(0) },
-                        label = { Text("Vibrate") }
+                        label = { Text(stringResource(R.string.vibrate_only)) }
                     )
                     FilterChip(
                         selected = soundMode == 1,
                         onClick = { onSoundChange(1) },
-                        label = { Text("Sound & Vibrate") }
+                        label = { Text(stringResource(R.string.sound_vibrate)) }
                     )
                 }
             }
@@ -3255,8 +3420,8 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = stringResource(R.string.sensors_title),
-                    style = MaterialTheme.typography.headlineLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    style = MaterialTheme.typography.displaySmall,
+                    modifier = Modifier.padding(start = 28.dp, end = 16.dp)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 tk.glucodata.ui.components.SensorsEmptyState(
@@ -3280,8 +3445,8 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                 item {
                     Text(
                         text = stringResource(R.string.sensors_title),
-                        style = MaterialTheme.typography.headlineLarge,
-                        modifier = Modifier.padding(bottom = 24.dp)
+                    style = MaterialTheme.typography.displaySmall,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 24.dp)
                     )
                 }
                 items(sensors) { sensor ->
@@ -3550,11 +3715,42 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 0.dp, vertical = 2.dp), // Remove horizontal padding (handled by parent list content padding)
+            .padding(horizontal = 0.dp, vertical = 4.dp), 
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = RoundedCornerShape(28.dp) // M3 Expressive Preferred (Extra Large)
+        shape = RoundedCornerShape(28.dp) 
     ) {
-        Column(modifier = Modifier.padding(16.dp).alpha(contentAlpha)) {
+        // --- Dynamic Background Logic ---
+        val now = System.currentTimeMillis()
+        val start = sensor.startMs
+        val end = if (sensor.expectedEndMs > 0) sensor.expectedEndMs 
+                  else if (sensor.officialEndMs > 0) sensor.officialEndMs 
+                  else start + (14L * 24 * 3600 * 1000)
+        
+        val totalDuration = (end - start).coerceAtLeast(1) // Avoid div/0
+        val usedDuration = (now - start).coerceAtLeast(0)
+        val progress = (usedDuration.toFloat() / totalDuration).coerceIn(0f, 1f)
+        
+        // Color Shift: Safe -> Warning (80%) -> Critical (95%)
+        val fillColor = when {
+            progress > 0.95f -> MaterialTheme.colorScheme.error
+            progress > 0.80f -> MaterialTheme.colorScheme.tertiary 
+            else -> MaterialTheme.colorScheme.primary
+        }
+        val fillAlpha = 0.12f // Light tint
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 1. Dynamic Fill Layer
+            if (sensor.startMs > 0) {
+                 Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(progress)
+                        .background(fillColor.copy(alpha = fillAlpha))
+                )
+            }
+
+            // 2. Content Layer
+            Column(modifier = Modifier.padding(16.dp).alpha(contentAlpha)) {
 //            val titleText = sensor.serial
             val statusText = if (isStreaming) stringResource(R.string.enabled_status) else stringResource(R.string.disabled_status)
             val titleText = "${sensor.serial} • $statusText"
@@ -3565,8 +3761,10 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(titleText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(titleText, style = MaterialTheme.typography.titleLarge)
                     // Feature: Detailed Sensor Status
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     if (sensor.detailedStatus.isNotEmpty()) {
                         Text(
                             text = sensor.detailedStatus,
@@ -3584,7 +3782,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 
                 // Logic: Show Pause if running, Play if stopped (to resume)
                 IconButton(
-                    onClick = { 
+                    onClick = {
                         if (isStreaming) {
                             android.util.Log.d("SensorCard", "Pause button clicked for: ${sensor.serial}")
                             viewModel.disconnectSensor(sensor.serial)
@@ -3592,49 +3790,121 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                             android.util.Log.d("SensorCard", "Play button clicked for: ${sensor.serial}")
                             viewModel.reconnectSensor(sensor.serial, false)
                         }
-                    }
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(MaterialTheme.colorScheme.surfaceDim.copy(alpha=0.5f), CircleShape)
                 ) {
                     Icon(
-                        imageVector = if (isStreaming) 
-                            androidx.compose.material.icons.Icons.Default.Pause 
-                        else 
-                            androidx.compose.material.icons.Icons.Default.PlayArrow,
-                        contentDescription = if (isStreaming) "Pause Sensor" else "Resume Sensor",
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        imageVector = if (isStreaming) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Toggle Sensor",
+                        modifier = Modifier.size(26.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(8.dp))
+//            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer // Tonal separation
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Clean Label-Value rows
+                    val labelStyle = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val valueStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface)
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val DataRow = @Composable { label: String, value: String ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(label, style = labelStyle)
+                            Text(value, style = valueStyle)
+                        }
+                    }
 
-                if (sensor.connectionStatus.isNotEmpty()) {
-                    InfoRow(stringResource(R.string.last_ble_status), sensor.connectionStatus)
+                    if (sensor.connectionStatus.isNotEmpty()) {
+                        DataRow(stringResource(R.string.last_ble_status), sensor.connectionStatus)
+                    }
+                    DataRow(stringResource(R.string.sensor_address), sensor.deviceAddress)
+                    DataRow(stringResource(R.string.sensor_started), formatSensorTime(sensor.starttime))
+
+                    if (sensor.officialEnd.isNotEmpty()) {
+                        DataRow(stringResource(R.string.sensor_ends_officially), formatSensorTime(sensor.officialEnd))
+                    }
+                    if (sensor.expectedEnd.isNotEmpty()) {
+                       DataRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEnd))
+                     }
+
                 }
-                InfoRow(stringResource(R.string.sensor_address), sensor.deviceAddress)
-
-                InfoRow(stringResource(R.string.sensor_started), formatSensorTime(sensor.starttime))
-                if (sensor.officialEnd.isNotEmpty()) {
-                    InfoRow(stringResource(R.string.sensor_ends_officially), formatSensorTime(sensor.officialEnd))
-                }
-                if (sensor.expectedEnd.isNotEmpty()) {
-                    InfoRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEnd))
-                }
-//                InfoRow("Streaming", if (sensor.streaming) "Enabled" else "Disabled")
-
             }
+//
+//            Card(
+//                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), // Secondary Container
+//                shape = RoundedCornerShape(12.dp),
+//                modifier = Modifier.fillMaxWidth()
+//            ) {
+//                Column(
+//                    modifier = Modifier.padding(12.dp),
+//                    verticalArrangement = Arrangement.spacedBy(4.dp)
+//                ) {
+//                    if (sensor.connectionStatus.isNotEmpty()) {
+//                        InfoRow(stringResource(R.string.last_ble_status), sensor.connectionStatus)
+//                    }
+//                    InfoRow(stringResource(R.string.sensor_address), sensor.deviceAddress)
+//
+//                    InfoRow(stringResource(R.string.sensor_started), formatSensorTime(sensor.starttime))
+//                    if (sensor.officialEnd.isNotEmpty()) {
+//                        InfoRow(stringResource(R.string.sensor_ends_officially), formatSensorTime(sensor.officialEnd))
+//                    }
+//                    if (sensor.expectedEnd.isNotEmpty()) {
+//                        InfoRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEnd))
+//                    }
+//                    // InfoRow("Streaming", if (sensor.streaming) "Enabled" else "Disabled")
+//                }
+//            }
 
             Spacer(modifier = Modifier.height(16.dp)) // More breathing room (M3 Expressive)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(16.dp))
+//            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+//            Spacer(modifier = Modifier.height(16.dp))
 
             // Calibration Mode (Sibionics Only) - M3 Expressive Connected Button Group
             if (sensor.isSibionics) {
 
-                Text(stringResource(R.string.calibration_algorithm), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.calibration_algorithm),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    // M3 Expressive Trailing Action (Compact)
+                    FilledTonalButton(
+                        onClick = { showClearDialog = true },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.restart), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 
@@ -3725,21 +3995,9 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
 
 
 
-            // --- CUSTOM AUTO-CALIBRATION (Sibionics Only) ---
             if (sensor.isSibionics && sensor.viewMode != 1) {
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-
-                    FilledTonalButton(
-                        onClick = { showClearDialog = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.reset_autocal_button), maxLines = 1)
-                    }
-                }
+                // Button moved to Calibration Algorithm header
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -3749,7 +4007,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
 
                 // Helper for slider labels
                 val labels = listOf("12 hours", "24 hours", "2 days", "3 days", "7 days", "14 days", "20 days")
-                
+
                 // Calculate max allowed index based on sensor age
                 val sensorAge = System.currentTimeMillis() - sensor.startMs
                 val maxAllowedIndex = if (sensor.startMs > 0) {
@@ -3777,19 +4035,19 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("Auto-calibration mode", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.auto_calibration_mode), style = MaterialTheme.typography.titleMedium)
 //                             if (!customEnabled) {
 //                                 Text("Juggluco native", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 //                             }
                         if (customEnabled) {
                             Text(
-                                text = "$currentLabel window",
+                                text = "$currentLabel ${stringResource(R.string.window_label)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             Text(
-                                text = "Juggluco native",
+                                text = stringResource(R.string.juggluco_native),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -3840,7 +4098,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                                     viewModel.updateCustomCalibration(sensor.serial, true, customIndex.toInt(), checked)
                                 }
                             )
-                            Text("Auto restart algorithm", style = MaterialTheme.typography.labelLarge)
+                            Text(stringResource(R.string.auto_restart_algorithm), style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -4044,6 +4302,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
             }
         }
     }
+}
 
 
 

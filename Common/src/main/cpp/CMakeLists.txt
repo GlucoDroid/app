@@ -30,9 +30,9 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  ${MYCFLAGS}" )
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}   ${MYCFLAGS} -Wno-vla-cxx-extension -fno-rtti -fexceptions  -DALWAYSPATH=1  ")
 
 if(JUGGLUCO_APP)
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}   -std=gnu++2b   ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}   -std=gnu++2b   ")
 else()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=gnu++26 ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=gnu++2b ")
 endif()
 
 include(CheckIncludeFileCXX)

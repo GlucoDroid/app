@@ -88,7 +88,7 @@ android {
         //compileSdk 36
         applicationId "tk.glucodata.ng"
 
-         versionName '0.2.0-Alpha'
+         versionName '0.3.0-Alpha'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -282,13 +282,13 @@ buildTypes {
 
             buildConfigField 'int', 'isRelease', '1'
         buildConfigField 'int', 'isReleaseID', '1'
-        buildConfigField 'int', 'doLog', '0'
+        buildConfigField 'int', 'doLog', '1'
 
             jniDebuggable false
             debuggable false
             externalNativeBuild.cmake {
-                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
-                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1" 
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1" 
 
 
                 }
@@ -326,12 +326,12 @@ buildTypes {
             debuggable false
 
 
-        buildConfigField 'int', 'doLog', '0'
+        buildConfigField 'int', 'doLog', '1'
             buildConfigField 'int', 'isRelease', '1'
         buildConfigField 'int', 'isReleaseID', '1'
             externalNativeBuild.cmake {
-                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           //, "-DSCANLOG=1" , "-DNOLOG=1"
-                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           //, "-DSCANLOG=1" , "-DNOLOG=1"
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           
 //                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1"         //, "-DSCANLOG=1" , "-DNOLOG=1"
 
 
@@ -430,12 +430,12 @@ buildTypes {
             minifyEnabled true 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
             jniDebuggable false
-        buildConfigField 'int', 'doLog', '0'
+        buildConfigField 'int', 'doLog', '1'
             buildConfigField 'int', 'isRelease', '1'
         buildConfigField 'int', 'isReleaseID', '0'
             externalNativeBuild.cmake {
-                cppFlags "$CPPSTD","-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
-                cFlags "-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0", "-DNOLOG=1" //, "-DSCANLOG=1" , "-DNOLOG=1"
+                cppFlags "$CPPSTD","-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0" 
+                cFlags "-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0" 
 
 //         cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1" //, "-DNOLOG=1"
 //             cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1", "-DNOLOG=1"
@@ -607,6 +607,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.material:material-icons-core:1.7.5")
     implementation("androidx.compose.material:material-icons-extended:1.7.5")
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.7.5")
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.startup:startup-runtime:1.2.0'
     implementation 'androidx.core:core-ktx:1.17.0'

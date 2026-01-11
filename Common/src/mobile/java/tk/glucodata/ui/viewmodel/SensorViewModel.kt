@@ -27,6 +27,7 @@ data class SensorInfo(
     val isSibionics2: Boolean,
     val startMs: Long,
     val officialEndMs: Long,
+    val expectedEndMs: Long,
     val customCalEnabled: Boolean,
     val customCalIndex: Int,
     val customCalAutoReset: Boolean,
@@ -98,16 +99,14 @@ class SensorViewModel : ViewModel() {
                 val bleStatus = gatt.constatstatusstr ?: ""
                 
                 // Calculate streaming status first - needed for status resolution
-                // Consider "receiving" or "Receiving" in status as streaming
-                val isActivelyReceiving = nativeStatus.contains("Receiving", ignoreCase = true) ||
-                    nativeStatus.contains("eceiv", ignoreCase = true) ||
-                    gatt.streamingEnabled()
+                val isActivelyReceiving = nativeStatus.isNotEmpty() // If native status returns text, we are likely properly connected/receiving
+                                            || gatt.streamingEnabled()
                 
                 
                 // Map common BLE status codes to user-friendly messages
                 fun mapBleStatus(status: String): String = when {
-                    status == "Status=22" -> "Bluetooth off"
-                    status == "Status=133" -> "Connection failed"
+                    status == "Status=22" -> tk.glucodata.Applic.app.getString(tk.glucodata.R.string.status_bluetooth_off)
+                    status == "Status=133" -> tk.glucodata.Applic.app.getString(tk.glucodata.R.string.status_connection_failed)
                     status.startsWith("Status=") -> status // Keep other Status= codes as-is
                     else -> status
                 }
@@ -115,11 +114,8 @@ class SensorViewModel : ViewModel() {
                 // Determine final display status with smart priority
                 val finalStatus = when {
                     // Priority 1: Meaningful native sensor states (errors, warming up, receiving history)
-                    nativeStatus.isNotEmpty() && 
-                    (nativeStatus.contains("Error", ignoreCase = true) ||
-                     nativeStatus.contains("Ended", ignoreCase = true) ||
-                     nativeStatus.contains("Warming", ignoreCase = true) ||
-                     nativeStatus.contains("Receiving", ignoreCase = true)) -> nativeStatus
+                    // TRUST THE NATIVE CODE: If it returns a string, it's important context.
+                    nativeStatus.isNotEmpty() -> nativeStatus
                     
                     // Priority 2: ANY BLE status issues (Status=X codes, BT off, searching, loss of signal)
                     // These indicate real connection problems that should always show
@@ -132,10 +128,10 @@ class SensorViewModel : ViewModel() {
                     // Priority 3: Show "Connected" when actively receiving AND no BLE problems
                     // Only trust streaming flag if BLE status is normal (empty or just "Disconnected")
                     isActivelyReceiving && 
-                    (bleStatus.isEmpty() || bleStatus == "Disconnected") -> "Connected"
+                    (bleStatus.isEmpty() || bleStatus == "Disconnected") -> tk.glucodata.Applic.app.getString(tk.glucodata.R.string.status_connected)
                     
                     // Fallback: Show disconnected
-                    else -> "Disconnected"
+                    else -> tk.glucodata.Applic.app.getString(tk.glucodata.R.string.status_disconnected)
                 }
                 
                 // Apply user-friendly mapping to final status
@@ -159,6 +155,7 @@ class SensorViewModel : ViewModel() {
                     isSibionics2 = isSi2,
                     startMs = startMs,
                     officialEndMs = officialEndMs,
+                    expectedEndMs = expectedEndMs,
                     customCalEnabled = customEnabled,
                     customCalIndex = customIndex,
                     customCalAutoReset = customAutoReset,

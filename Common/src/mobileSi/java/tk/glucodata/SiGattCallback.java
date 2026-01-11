@@ -490,6 +490,9 @@ public class SiGattCallback extends SuperGattCallback {
    public void onCharacteristicChanged(BluetoothGatt bluetoothGatt,
          BluetoothGattCharacteristic bluetoothGattCharacteristic) {
       byte[] value = bluetoothGattCharacteristic.getValue();
+      if (doLog) {
+         Log.showbytes("SiGattCallback RX", value);
+      }
       showCharacter("onCharacteristicChanged", bluetoothGattCharacteristic);
       processchanged(value);
    }

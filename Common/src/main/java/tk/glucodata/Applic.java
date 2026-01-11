@@ -534,7 +534,7 @@ public class Applic extends Application {
                 Application app = Applic.app;
                 PackageManager manage = app.getPackageManager();
                 ComponentName scan = new ComponentName(app, "tk.glucodata.MessageReceiver");
-                return manage.getComponentEnabledSetting(scan) != COMPONENT_ENABLED_STATE_DISABLED;
+                return manage.getComponentEnabledSetting(scan) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
             } catch (Throwable e) {
 
                 Log.stack(LOG_ID, e);

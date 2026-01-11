@@ -464,6 +464,132 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stream">Stream</string>
     
     <string name="exchanges">Verzenden/Ontvangen</string>
-    <string name="duration_days">days</string>
+    <string name="duration_days">dagen</string>
     <string name="sensor_state">Status</string>
+
+    <!-- Nieuwe vertalingen -->
+    <string name="import_history">Geschiedenis importeren</string>
+    <string name="import_history_desc">Importeer glucosegegevens uit een CSV-bestand</string>
+    <string name="get_started_desc">Ga aan de slag door je sensor toe te voegen</string>
+    <string name="select_sensor">Selecteer sensortype</string>
+    <string name="select_sibionics_type">Selecteer sensortype</string>
+    <string name="or_divider">"  of  "</string>
+    <string name="no_sensors_connected">Geen sensoren verbonden</string>
+    
+    <string name="enter_sensor_codes">Sensorcodes invoeren</string>
+    <string name="enter_sensor_label_desc">Voer de codes in die op het sensorlabel staan</string>
+    <string name="batch_code_label">Batchcode (10)</string>
+    <string name="batch_code_supporting">Eerste code op label (8-16 tekens), bijv. %1$s</string>
+    <string name="serial_number_label">Serienummer</string>
+    <string name="serial_number_supporting">Tweede code (10-20 tekens), bijv. %1$s</string>
+    <string name="confirm">Bevestigen</string>
+    
+    <string name="enter_transmitter_code">Zendercode invoeren</string>
+    <string name="enter_transmitter_desc">Voer de zender-ID in van het label</string>
+    <string name="transmitter_id_label">Zender-ID</string>
+    <string name="transmitter_id_supporting">8-12 tekens van zenderlabel</string>
+    
+    <string name="scan_sensor_title">Scan QR-code</string>
+    <string name="scan_sensor_instruction">Scan de QR-code op je generieke Sibionics-sensordoos.</string>
+    <string name="scan_qr_button">QR-code scannen</string>
+    <string name="select_gallery_button">Selecteer uit galerij</string>
+    <string name="skip_fake_sensor">Overslaan (Gebruik nepsensor)</string>
+    <string name="enter_code_manually">Code handmatig invoeren</string>
+    <string name="choose_sibionics_variant">Kies je Sibionics-sensorvariant</string>
+    <string name="continue_action">Doorgaan</string>
+    
+    <string name="sensor_init_failed">Sensorinitialisatie mislukt</string>
+    <string name="sensor_lost_restart">Fout: Sensor verloren. Start installatie opnieuw.</string>
+    <string name="invalid_device_name">"Ongeldige apparaatnaam: "</string>
+    <string name="failed_to_connect">"Verbinding mislukt met "</string>
+    <string name="sensor_not_init">Sensor niet geïnitialiseerd. Gebruik eerst \'Scan Sensor\'.</string>
+    <string name="invalid_code_format">Ongeldige code-indeling. Probeer het opnieuw.</string>
+    <string name="no_qr_found">Geen QR-code gevonden in afbeelding</string>
+    
+    <string name="go">Ga</string>
+    <string name="filter_by_date">Filter op datum</string>
+    <string name="select_export_format">Selecteer exportformaat</string>
+    <string name="csv_file">CSV-bestand (.csv)</string>
+    <string name="csv_desc">Beste voor Excel/Analyse</string>
+    <string name="text_file">Leesbare tekst (.txt)</string>
+    <string name="text_desc">Beste voor delen/afdrukken</string>
+    <string name="export_button">Exporteren</string>
+    <string name="export_history_title">Geschiedenis exporteren</string>
+    <string name="export_history_sub">Glucosemetingen opslaan in CSV- of tekstbestand</string>
+    <string name="import_history_title">Geschiedenis importeren</string>
+    <string name="import_history_sub">Herstel glucosemetingen uit CSV-bestand</string>
+    
+    <string name="clear_history_title">Geschiedenis wissen?</string>
+    <string name="clear_history_confirmation">Hiermee worden alle glucosemetingen uit de database verwijderd. Dit kan niet ongedaan worden gemaakt.</string>
+    <string name="clear_button">Wissen</string>
+    
+    <string name="clear_app_data_title">App-gegevens wissen?</string>
+    <string name="clear_app_data_intro">Dit verwijdert:</string>
+    <string name="all_glucose_readings">• Alle glucosemetingen</string>
+    <string name="cache_files">• Cachebestanden</string>
+    <string name="sensor_data">• Sensorgegevens</string>
+    <string name="all_settings">• Alle instellingen</string>
+    <string name="settings_preserved">Instellingen blijven behouden.</string>
+    <string name="cannot_be_undone_warning">Dit kan niet ongedaan worden gemaakt.</string>
+    <string name="clear_data_button">Gegevens wissen</string>
+    
+    <string name="factory_reset_title">⚠️ Fabrieksinstellingen herstellen?</string>
+    <string name="factory_reset_intro">Dit VERWIJDERT ALLES:</string>
+    <string name="factory_reset_outcome">De app keert terug naar de eerste staat.</string>
+    <string name="cannot_be_undone_critical">DIT KAN NIET ONGEDAAN WORDEN GEMAAKT!</string>
+    <string name="reset_everything_button">ALLES RESETTEN</string>
+    
+    <string name="alert_sound">Melding geluid</string>
+    <string name="vibrate_only">Trillen</string>
+    <string name="sound_vibrate">Geluid &amp; Trillen</string>
+    <string name="turbo_title">Turbo (Hoge prioriteit)</string>
+    <string name="turbo_desc">Vraagt hoge verbindingsprioriteit</string>
+    <string name="autoconnect_title">Android (AutoConnect)</string>
+    <string name="autoconnect_desc">Gebruikt passieve achtergrondverbinding</string>
+    <string name="debug_logs_desc">Bekijk trace.log en logcat</string>
+    <string name="data_management">Gegevensbeheer</string>
+    <string name="export_data">Geschiedenis exporteren</string>
+    <string name="export_data_desc">Sla glucosemetingen op als CSV of tekstbestand</string>
+    <string name="import_data">Geschiedenis importeren</string>
+    <string name="import_data_desc">Herstel glucosemetingen uit CSV-bestand</string>
+    <string name="danger_zone">Gevarenzone</string>
+    <string name="clear_history">Geschiedenis wissen</string>
+    <string name="clear_history_desc_short">Verwijder alle glucosemetingen</string>
+    <string name="clear_app_data">App-gegevens wissen</string>
+    <string name="clear_app_data_desc">Verwijder geschiedenis en cache, behoud instellingen</string>
+    <string name="factory_reset">Fabrieksinstellingen herstellen</string>
+    <string name="factory_reset_desc">Verwijder alles, terug naar eerste staat</string>
+    <string name="sibionics_setup_title">Sibionics Installatie</string>
+    <string name="dexcom_setup_title">Dexcom Installatie</string>
+    <string name="scan_dexcom">Scan Dexcom</string>
+    <string name="dexcom_scan_instruction">Scan de datamatrix op je Dexcom-sensor</string>
+    <string name="libre_setup_title">Libre Installatie</string>
+    <string name="scan_libre_sensor">Scan Libre Sensor</string>
+    <string name="libre_nfc_instruction">Houd je telefoon bij de sensor om te scannen</string>
+    <!-- New Code Translations -->
+    <string name="auto_calibration_mode">Auto-kalisbratiemodus</string>
+    <string name="juggluco_native">Juggluco natief</string>
+    <string name="window_label">venster</string>
+    <string name="auto_restart_algorithm">Algoritme herstarten</string>
+    <string name="status_bluetooth_off">Bluetooth uit</string>
+    <string name="status_connection_failed">Verbinding mislukt</string>
+    <string name="status_connected">Verbonden</string>
+    <string name="status_disconnected">Verbroken</string>
+    <string name="select_sensor_type">Selecteer sensortype</string>
+    <string name="choose_theme">Thema kiezen</string>
+    <string name="sibionics_sensor">Sibionics</string>
+    <string name="sibionics_sensor_desc">Scan QR-code</string>
+    <string name="libre_sensor">Libre 2/3</string>
+    <string name="libre_sensor_desc">Via NFC</string>
+    <string name="dexcom_sensor">Dexcom</string>
+    <string name="dexcom_sensor_desc">G6/G7/One</string>
+    <string name="scan_transmitter_title">Scan zender</string>
+    <string name="scan_transmitter_desc">Selecteer apparaat in de buurt of scan QR.</string>
+    <string name="clear_previous_state">Wis vorige status</string>
+    <string name="scanning_devices">Scannen naar apparaten...</string>
+    <string name="search_bluetooth">Zoek Bluetooth</string>
+    <string name="found_devices_title">Gevonden apparaten:</string>
+    <string name="looking_for_transmitters">Zoeken naar zenders in de buurt...</string>
+    <string name="or_scan_qr">Of scan QR-code</string>
+    <string name="scan_transmitter_button">Scan zender</string>
 </resources>

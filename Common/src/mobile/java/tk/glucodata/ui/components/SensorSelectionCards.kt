@@ -73,8 +73,8 @@ fun SensorSelectionCards(
                 icon = Icons.Default.Bluetooth,
                 title = stringResource(R.string.dexcom_sensor),
                 subtitle = stringResource(R.string.dexcom_sensor_desc),
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 onClick = { onSensorSelected(SensorType.DEXCOM) }
             )
         }
@@ -198,12 +198,12 @@ fun ImportHistoryCard(
             
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Import History",
+                    text = stringResource(R.string.import_history),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "Import glucose data from a CSV file",
+                    text = stringResource(R.string.import_history_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -229,30 +229,30 @@ fun DashboardEmptyState(
     ) {
         Spacer(modifier = Modifier.height(32.dp))
         
-        // Welcome header
+            // Welcome header
         Text(
-            text = "JugglucoNG",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.displayMedium,
+//            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Left
         )
         
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "Get started by adding your sensor",
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        
+//        Spacer(modifier = Modifier.height(8.dp))
+//
+//        Text(
+//            text = stringResource(R.string.get_started_desc),
+//            style = MaterialTheme.typography.displaySmall,
+//            color = MaterialTheme.colorScheme.onSurfaceVariant,
+//            textAlign = TextAlign.Center
+//        )
+//
         Spacer(modifier = Modifier.height(32.dp))
         
         // Sensor selection cards
         Text(
-            text = "Select Sensor Type",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
+            text = stringResource(R.string.select_sensor),
+            style = MaterialTheme.typography.titleLarge,
+//            fontWeight = FontWeight.SemiBold,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
@@ -275,7 +275,7 @@ fun DashboardEmptyState(
         ) {
             HorizontalDivider(modifier = Modifier.weight(1f))
             Text(
-                text = "  or  ",
+                text = stringResource(R.string.or_divider),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -309,7 +309,7 @@ fun SensorsEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "No sensors connected",
+            text = stringResource(R.string.no_sensors_connected),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 16.dp)

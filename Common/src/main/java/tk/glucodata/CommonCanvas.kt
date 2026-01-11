@@ -40,19 +40,129 @@ public class CommonCanvas {
 		private const val LOG_ID = "CommonCanvas"
 
 		@JvmStatic
+        @JvmOverloads
 		public fun drawarrow(
 			canvas: Canvas,
 			paint: Paint,
 			density: Float,
 			ratein: Float,
 			getx: Float,
-			gety: Float
+			gety: Float,
+            extraScale: Float = 1.0f
 		): Boolean {
 			if (!ratein.isNaN()) {
-				val rate = Natives.thresholdchange(ratein);
-				val x1: Double = (getx - density * 40.0)
-				val y1: Double = (gety + rate * density * 30.0)
-				paintArrow(canvas, paint, density, rate, x1, y1, getx.toDouble(), gety.toDouble());
+				// Optical Stroke Arrow (Notification Version)
+				// Matches TrendIndicator.kt logic (Detached Chevrons)
+				
+				// 0. Normalize Rate
+                val unit = Natives.getunit()
+                val normalizedRate = if (unit == 1) ratein * 18.0182f else ratein
+
+				// 1. Rotation (User Tuned 25f)
+				val rotation = (-normalizedRate * 25f).coerceIn(-90f, 90f)
+
+				// 2. Scale
+				val speed = kotlin.math.abs(normalizedRate)
+				val scale = (1.0f + (speed * 0.12f).coerceAtMost(0.5f)) * extraScale
+
+				// 3. Specs (User Tuned + Visible Shaft)
+				val baseSize = density * 24f
+				val strokeWidth = baseSize * 0.12f // 12%
+                
+                val showDouble = speed > 2.0f
+                
+                // Dynamic Length: Longer for Double Heads
+                // Fast: Shortened Arrow (~0.35w) + Gap + HeadDepth
+                val lenFactor = if (showDouble) 0.35f else 0.6f
+                val len = baseSize * lenFactor * scale 
+                
+                val headSpan = baseSize * 0.55f // Wide Head
+                val headDepth = headSpan / 2
+                val opticalShift = headDepth * 0.2f
+                
+                canvas.save()
+                canvas.translate(getx, gety) // Center
+                canvas.rotate(rotation)
+                
+                // Style
+                val originalStyle = paint.style
+                val originalWidth = paint.strokeWidth
+                val originalCap = paint.strokeCap
+                val originalJoin = paint.strokeJoin
+                
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = strokeWidth
+                paint.strokeCap = Paint.Cap.ROUND
+                paint.strokeJoin = Paint.Join.ROUND
+                
+                if (showDouble) {
+                    // FAST: Shaft + Gap + Double Floating Chevrons (---- >>)
+                    val gap = headDepth * 0.6f
+                    val shaftGap = headDepth * 0.6f
+                    
+                    val tipX = len/2 - opticalShift
+                    
+                    // Front Head
+                    val frontHeadTip = tipX
+                    val frontHeadWing = tipX - headDepth
+                    
+                    // Back Head 
+                    val backHeadTip = frontHeadWing - gap
+                    val backHeadWing = backHeadTip - headDepth
+                    
+                    // Shaft
+                    val shaftEnd = backHeadWing - shaftGap
+                    val shaftStart = -len/2 - opticalShift
+                    
+                    // 1. Shaft (Only if room)
+                    if (shaftEnd > shaftStart) {
+                        canvas.drawLine(shaftStart, 0f, shaftEnd, 0f, paint)
+                    }
+                    
+                    // 2. Back Head
+                    val pBack = Path().apply {
+                        moveTo(backHeadWing, -headSpan/2)
+                        lineTo(backHeadTip, 0f)
+                        lineTo(backHeadWing, headSpan/2)
+                    }
+                    
+                    // 3. Front Head
+                    val pFront = Path().apply {
+                        moveTo(frontHeadWing, -headSpan/2)
+                        lineTo(frontHeadTip, 0f)
+                        lineTo(frontHeadWing, headSpan/2)
+                    }
+                    
+                    canvas.drawPath(pBack, paint)
+                    canvas.drawPath(pFront, paint)
+                    
+                } else {
+                    // NORMAL STATE: Arrow with Shaft (->)
+                    val pMain = Path().apply {
+                        val tipX = len/2 - opticalShift
+                        val baseX = -len/2 - opticalShift
+                        val wingX = tipX - headDepth
+                        
+                        // Wings
+                        moveTo(wingX, -headSpan/2)
+                        lineTo(tipX, 0f)
+                        lineTo(wingX, headSpan/2)
+                        
+                        // Shaft
+                        moveTo(baseX, 0f)
+                        lineTo(tipX, 0f)
+                    }
+                    canvas.drawPath(pMain, paint)
+                }
+                
+                // Restore
+                paint.style = originalStyle
+                paint.strokeWidth = originalWidth
+                paint.strokeCap = originalCap
+                paint.strokeJoin = originalJoin
+                
+                canvas.restore()
+                
 				return true
 			}
 			return false

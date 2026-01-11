@@ -1193,12 +1193,13 @@ public class Notify {
             }
 
             if (secondary != null) {
-                // Apply HTML styling: Primary + Grey Secondary
-                // Use a lighter grey color code that works on dark backgrounds (#B0B0B0 or
-                // similar)
-                // User requested "grey or preferably in lighter font"
-                String html = valueText + " <font color='#AAAAAA'>· " + secondary + "</font>";
-                return android.text.Html.fromHtml(html);
+                // Ensure "Main · Raw" ordering
+                // ViewMode 3: valueText is Raw, secondary is Main -> Swap
+                if (viewMode == 3) {
+                    return secondary + " · " + valueText;
+                }
+                // ViewMode 2: valueText is Main, secondary is Raw -> Keep
+                return valueText + " · " + secondary;
             }
         }
         return valueText;
@@ -1265,9 +1266,6 @@ public class Notify {
             nativePoints = chartPoints;
         }
 
-        // Draw Arrow Bitmap
-        Bitmap arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol);
-
         // Status Logic & ViewMode extraction
         String statusText = "";
         String activeSensorSerial = Natives.lastsensorname();
@@ -1286,12 +1284,31 @@ public class Notify {
         }
 
         // Get Consistently Formatted Text using NATIVE points (fresh data)
+        // Recalculate rate using shared TrendEngine for consistency
+        try {
+            boolean useRaw = (viewMode == 1 || viewMode == 3);
+            tk.glucodata.logic.TrendEngine.TrendResult res = tk.glucodata.logic.TrendEngine.INSTANCE
+                    .calculateTrend(nativePoints, useRaw);
+            rate = res.getVelocity();
+        } catch (Throwable t) {
+            // keep original rate if fails
+        }
+
         // If ViewMode == 3 (Combined), we force appending Raw if available
         CharSequence valueText = formatGlucoseText(glucose.value, glvalue, nativePoints, viewMode, glucose.time);
 
+        // Semantic Color
+        int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, glvalue, isMmol);
+
+        // Render Text to Bitmap (Custom Font + Multi-Color)
+        Bitmap textBitmap = NotificationChartDrawer.drawGlucoseText(Applic.app, valueText.toString(), glucoseColor);
+
+        // Render Arrow (Color + Smaller Size)
+        Bitmap arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, glucoseColor);
+
         // 3a. Construct RemoteViews (Collapsed)
         RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.notification_material);
-        remoteViews.setTextViewText(R.id.notification_glucose, valueText);
+        remoteViews.setImageViewBitmap(R.id.notification_glucose, textBitmap);
         remoteViews.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
 
         if (statusText == null || statusText.isEmpty()) {
@@ -1304,7 +1321,7 @@ public class Notify {
         // 3b. Construct RemoteViews (Expanded)
         RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
                 R.layout.notification_material_expanded);
-        remoteViewsExpanded.setTextViewText(R.id.notification_glucose, valueText);
+        remoteViewsExpanded.setImageViewBitmap(R.id.notification_glucose, textBitmap);
         remoteViewsExpanded.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
         // Time REMOVED from Expanded View (Relies on System Header)
 
@@ -1495,10 +1512,29 @@ public class Notify {
                     viewMode);
         }
 
-        Bitmap arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, (last != null) ? last.rate : 0, isMmol);
+        Bitmap arrowBitmap;
+
+        // Semantic Color Logic for Startup
+        float colorVal = 0f;
+        if (last != null && last.value != null) {
+            try {
+                colorVal = Float.parseFloat(last.value);
+            } catch (Exception e) {
+            }
+        } else if (!chartPoints.isEmpty()) {
+            colorVal = chartPoints.get(chartPoints.size() - 1).value;
+        }
+        int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, colorVal, isMmol);
+
+        arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, (last != null) ? last.rate : 0, isMmol,
+                glucoseColor);
+
+        // Render Startup Text to Bitmap
+        Bitmap startupBitmap = NotificationChartDrawer.drawGlucoseText(Applic.app, startupValue.toString(),
+                glucoseColor);
 
         RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.notification_material);
-        remoteViews.setTextViewText(R.id.notification_glucose, startupValue);
+        remoteViews.setImageViewBitmap(R.id.notification_glucose, startupBitmap);
         remoteViews.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
 
         if (showChart && chartBitmapCollapsed != null) {
@@ -1513,7 +1549,7 @@ public class Notify {
 
         RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
                 R.layout.notification_material_expanded);
-        remoteViewsExpanded.setTextViewText(R.id.notification_glucose, startupValue);
+        remoteViewsExpanded.setImageViewBitmap(R.id.notification_glucose, startupBitmap);
         remoteViewsExpanded.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
         // Time removed from expanded view
 

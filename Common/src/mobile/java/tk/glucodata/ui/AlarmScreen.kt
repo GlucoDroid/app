@@ -64,8 +64,7 @@ fun AlarmScreen(
                 text = message.uppercase(),
                 style = MaterialTheme.typography.titleMedium,
                 color = accentColor.copy(alpha = 0.9f),
-                letterSpacing = 2.sp,
-                fontWeight = FontWeight.SemiBold
+                letterSpacing = 2.sp
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -78,7 +77,6 @@ fun AlarmScreen(
                     text = glucoseValue,
                     style = MaterialTheme.typography.displayLarge.copy(
                         fontSize = 120.sp,
-                        fontWeight = FontWeight.Light,
                         letterSpacing = (-2).sp
                     ),
                     color = Color.White
@@ -156,7 +154,7 @@ fun AlarmScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Dismiss",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.titleMedium
                 )
             }
         }
