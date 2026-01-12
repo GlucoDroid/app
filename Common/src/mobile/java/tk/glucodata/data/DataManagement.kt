@@ -38,32 +38,61 @@ object DataManagement {
     }
     
     /**
-     * Clear app data (cache + native data) but preserve settings AND Room database.
-     * SharedPreferences and glucose history are kept.
+     * Clear sensor connections and data while preserving settings.
+     * This deletes sensor directories and sensors.dat, but keeps:
+     * - SharedPreferences (settings)
+     * - Room database (glucose history)
+     * - Other app configuration
      */
     suspend fun clearAppData(context: Context = Applic.app): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                // NOTE: Room database is intentionally NOT cleared here
-                // User wants to preserve glucose history in this mode
-                
-                // 1. Clear cache directory
-                context.cacheDir.deleteRecursively()
-                
-                // 2. Clear code cache
-                context.codeCacheDir?.deleteRecursively()
-                
-                // 3. Clear ALL native data files in filesDir
-                // This is where C++ stores sensor readings, calibrations, etc.
-                context.filesDir.listFiles()?.forEach { file ->
-                    file.deleteRecursively()
-                    Log.d(TAG, "Deleted: ${file.name}")
+                // 1. Disconnect all active sensors first
+                try {
+                    tk.glucodata.SensorBluetooth.mygatts()?.forEach { gatt ->
+                        gatt.close()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error disconnecting sensors", e)
                 }
                 
-                Log.d(TAG, "Cleared app data (preserved settings and Room DB)")
+                // 2. Clear cache directories (safe, no settings here)
+                context.cacheDir.deleteRecursively()
+                context.codeCacheDir?.deleteRecursively()
+                
+                // 3. Selectively delete sensor data files only
+                // Native code stores sensors in:
+                // - sensors.dat (sensor list)
+                // - Directories named after sensor serial (e.g., "E07A-XX...")
+                // Settings are kept in a separate settings file
+                val sensorPatterns = listOf(
+                    "sensors.dat",
+                    "logs",  // Log directory
+                )
+                val sensorDirPrefixes = listOf(
+                    "E07A-",  // Libre 3
+                    "E007-",  // Libre 2
+                    "E00A-",  // Libre sensor
+                    "LT",     // Sibionics
+                )
+                
+                context.filesDir.listFiles()?.forEach { file ->
+                    val shouldDelete = sensorPatterns.contains(file.name) ||
+                        sensorDirPrefixes.any { file.name.startsWith(it) } ||
+                        file.name.length == 16 && file.isDirectory  // Sensor dir (16-char serial)
+                    
+                    if (shouldDelete) {
+                        val deleted = file.deleteRecursively()
+                        Log.d(TAG, "Deleted sensor data: ${file.name} = $deleted")
+                    } else {
+                        Log.d(TAG, "Preserved: ${file.name}")
+                    }
+                }
+                
+                Log.d(TAG, "Cleared sensor data (preserved settings)")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Error clearing app data", e)
+                Log.e(TAG, "Error clearing sensor data", e)
                 false
             }
         }

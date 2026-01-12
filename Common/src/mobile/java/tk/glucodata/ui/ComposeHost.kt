@@ -59,8 +59,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.surfaceColorAtElevation
@@ -578,6 +581,9 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val sensorProgress by viewModel.sensorProgress.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val activeSensorList by viewModel.activeSensorList.collectAsState()
+    val sensorHoursRemaining by viewModel.sensorHoursRemaining.collectAsState()
+    val currentDay by viewModel.currentDay.collectAsState()
 
     // State for wizards (matching SensorScreen pattern)
     var showSibionicsWizard by remember { mutableStateOf(false) }
@@ -699,8 +705,11 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                             latestPoint = latestPoint,
                             sensorName = sensorName,
                             daysRemaining = daysRemaining,
+                            activeSensors = activeSensorList,
                             sensorStatus = sensorStatus,
                             sensorProgress = sensorProgress,
+                            sensorHoursRemaining = sensorHoursRemaining,
+                            currentDay = currentDay,
                             history = glucoseHistory // Advanced Trend
                         )
                     }
@@ -764,8 +773,11 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                         latestPoint = latestPoint,
                         sensorName = sensorName,
                         daysRemaining = daysRemaining,
+                        activeSensors = activeSensorList,
                         sensorStatus = sensorStatus,
                         sensorProgress = sensorProgress,
+                        sensorHoursRemaining = sensorHoursRemaining,
+                        currentDay = currentDay,
                         history = glucoseHistory // Advanced Trend
                     )
                 }
@@ -2195,7 +2207,7 @@ fun ReadingRow(
     // Active (Hero): "4dp bottom radius" to imply continuity. Top matches parent (16dp).
     // History: Rectangle (relies on parent clipping for its 4dp bottom).
     val shape = if (isActive) {
-        RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+        RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 8.dp, bottomEnd = 8.dp)
     } else {
         RectangleShape
     }
@@ -3740,7 +3752,9 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
 
         Box(modifier = Modifier.fillMaxSize()) {
             // 1. Dynamic Fill Layer
-            if (sensor.startMs > 0) {
+            // FIX: Only show fill if start date is valid (> Jan 1 2020)
+            // Prevents "100% Red Fill" bug when startMs is 0 or invalid (1970).
+            if (sensor.startMs > 1577836800000L) {
                  Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -3749,21 +3763,65 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 )
             }
 
-            // 2. Content Layer
-            Column(modifier = Modifier.padding(16.dp).alpha(contentAlpha)) {
-//            val titleText = sensor.serial
-            val statusText = if (isStreaming) stringResource(R.string.enabled_status) else stringResource(R.string.disabled_status)
-            val titleText = "${sensor.serial} • $statusText"
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(titleText, style = MaterialTheme.typography.titleLarge)
-                    // Feature: Detailed Sensor Status
-                    Spacer(modifier = Modifier.height(8.dp))
+            // 2. Content Layer with Color Indicator
+            Row(modifier = Modifier.fillMaxWidth().padding(0.dp).alpha(contentAlpha)) {
+                // Color indicator bar - shows sensor's assigned color
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(
+                            sensor.color.copy(alpha = if (sensor.isActive) 1f else 0.4f),
+                            RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp)
+                        )
+                )
+                
+                Column(modifier = Modifier.padding(16.dp).weight(1f)) {
+                    val statusText = if (isStreaming) stringResource(R.string.enabled_status) else stringResource(R.string.disabled_status)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            // Title with optional "Active" badge
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("${sensor.serial} • $statusText", style = MaterialTheme.typography.titleLarge)
+                                // Toggle Main Sensor Badge
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val isMain = sensor.isActive
+                                
+                                val badgeColor = if(isMain) sensor.color else sensor.color.copy(alpha=0.6f)
+                                val badgeBg = if(isMain) sensor.color.copy(alpha = 0.15f) else Color.Transparent
+                                val badgeBorder = if(isMain) null else androidx.compose.foundation.BorderStroke(1.dp, sensor.color.copy(alpha=0.3f))
+
+                                // Touch Target Wrapper (48dp minimum)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .clickable { if(!isMain) viewModel.setMain(sensor.serial) }
+                                        .defaultMinSize(minWidth = 28.dp, minHeight = 28.dp), // Check imports
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Surface(
+                                        color = badgeBg,
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        border = badgeBorder
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isMain) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                                            contentDescription = if (isMain) "Active" else "Set Main",
+                                            tint = badgeColor,
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                .size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            // Feature: Detailed Sensor Status
+                            Spacer(modifier = Modifier.height(8.dp)) 
 
                     if (sensor.detailedStatus.isNotEmpty()) {
                         Text(
@@ -3778,31 +3836,34 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                
-                // Logic: Show Pause if running, Play if stopped (to resume)
-                IconButton(
-                    onClick = {
-                        if (isStreaming) {
-                            android.util.Log.d("SensorCard", "Pause button clicked for: ${sensor.serial}")
-                            viewModel.disconnectSensor(sensor.serial)
-                        } else {
-                            android.util.Log.d("SensorCard", "Play button clicked for: ${sensor.serial}")
-                            viewModel.reconnectSensor(sensor.serial, false)
                         }
-                    },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(MaterialTheme.colorScheme.surfaceDim.copy(alpha=0.5f), CircleShape)
-                ) {
-                    Icon(
-                        imageVector = if (isStreaming) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Toggle Sensor",
-                        modifier = Modifier.size(26.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
+                        
+                        // Logic: Show Pause if running, Play if stopped (to resume)
+                        IconButton(
+                            onClick = {
+                                if (isStreaming) {
+                                    android.util.Log.d("SensorCard", "Pause button clicked for: ${sensor.serial}")
+                                    viewModel.disconnectSensor(sensor.serial)
+                                } else {
+                                    android.util.Log.d("SensorCard", "Play button clicked for: ${sensor.serial}")
+                                    viewModel.reconnectSensor(sensor.serial, false)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceDim.copy(alpha=0.5f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isStreaming) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = "Toggle Sensor",
+                                modifier = Modifier.size(26.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+//                } // Close Column (content)
+//                } // Close Column (content)
+//            } // Close Row (color indicator wrapper)
 //            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(16.dp))
             Surface(
@@ -3834,14 +3895,25 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         DataRow(stringResource(R.string.last_ble_status), sensor.connectionStatus)
                     }
                     DataRow(stringResource(R.string.sensor_address), sensor.deviceAddress)
-                    DataRow(stringResource(R.string.sensor_started), formatSensorTime(sensor.starttime))
+                    
+                    // FIX: Use Long timestamp directly to avoid String Parsing Locale bugs in formatSensorTime
+                    // User reported "100% Fill / Red Color" bug in English Locale, likely due to startMs being 0 or parse fail.
+                    // We also ensure we only show valid dates.
+                    if (sensor.startMs > 1577836800000L) { // > Jan 1 2020
+                        DataRow(stringResource(R.string.sensor_started), formatSensorTime(sensor.startMs.toString()))
+                    }
 
-                    if (sensor.officialEnd.isNotEmpty()) {
+                    if (sensor.officialEndMs > 0) {
+                        DataRow(stringResource(R.string.sensor_ends_officially), formatSensorTime(sensor.officialEndMs.toString()))
+                    } else if (sensor.officialEnd.isNotEmpty()) {
                         DataRow(stringResource(R.string.sensor_ends_officially), formatSensorTime(sensor.officialEnd))
                     }
-                    if (sensor.expectedEnd.isNotEmpty()) {
+
+                    if (sensor.expectedEndMs > 0) {
+                        DataRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEndMs.toString()))
+                    } else if (sensor.expectedEnd.isNotEmpty()) {
                        DataRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEnd))
-                     }
+                    }
 
                 }
             }
@@ -4303,6 +4375,8 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
         }
     }
 }
+}
+
 
 
 

@@ -26,6 +26,9 @@ class DashboardViewModel(
     private val _sensorName = MutableStateFlow("")
     val sensorName = _sensorName.asStateFlow()
 
+    private val _activeSensorList = MutableStateFlow<List<String>>(emptyList())
+    val activeSensorList = _activeSensorList.asStateFlow()
+
     private val _sensorStatus = MutableStateFlow("")
     val sensorStatus = _sensorStatus.asStateFlow()
 
@@ -55,6 +58,12 @@ class DashboardViewModel(
 
     private val _viewMode = MutableStateFlow(0)
     val viewMode = _viewMode.asStateFlow()
+
+    private val _sensorHoursRemaining = MutableStateFlow(999L)
+    val sensorHoursRemaining = _sensorHoursRemaining.asStateFlow()
+
+    private val _currentDay = MutableStateFlow(0)
+    val currentDay = _currentDay.asStateFlow()
 
     // Alarm States
     private val _hasLowAlarm = MutableStateFlow(false)
@@ -117,7 +126,7 @@ class DashboardViewModel(
             
             // Load Notification Chart Setting
             val context = tk.glucodata.Applic.app
-            val prefs = context.getSharedPreferences(context.packageName + "_preferences", android.content.Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
             _notificationChartEnabled.value = prefs.getBoolean("notification_chart_enabled", true)
             
             _targetLow.value = Natives.targetlow()
@@ -140,7 +149,23 @@ class DashboardViewModel(
             _highAlarmSoundMode.value = if (highSound) 1 else 0
             
             // Get view mode from active sensor.
-            val sName = Natives.lastsensorname()
+            var sName = Natives.lastsensorname()
+            val activeSensors = Natives.activeSensors()
+
+            // Conflict Resolution: Validate sName against active sensors
+            // If the "last used" sensor is gone (expired/removed) but we have other active sensors,
+            // we must switch focus to the valid one to prevent "split brain" state.
+            if (activeSensors != null && activeSensors.isNotEmpty()) {
+                _activeSensorList.value = activeSensors.toList()
+                if (sName.isNullOrEmpty() || !activeSensors.contains(sName)) {
+                     val valid = activeSensors[0]
+                     android.util.Log.w("DashboardVM", "Stale sensor check: '$sName' is invalid. Switching to '$valid'")
+                     sName = valid
+                }
+            } else {
+                _activeSensorList.value = emptyList()
+            }
+
             if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
                 _sensorName.value = sName
                 val dataptr = try {
@@ -169,47 +194,31 @@ class DashboardViewModel(
                          val totalDur = (endMs - startMsec).coerceAtLeast(1)
                          val usedDur = (now - startMsec).coerceAtLeast(0)
                          _sensorProgress.value = (usedDur.toFloat() / totalDur).coerceIn(0f, 1f)
+                         
+                         // Calculate Days Info "1 / 14"
+                         if (endMs > startMsec) {
+                             val oneDayMs = 86400000L
+                             val totalMs = endMs - startMsec
+                             // Calculate Current Day (1-based) and Total Days
+                             val currentDay = (usedDur / oneDayMs) + 1
+                             val totalDays = (totalMs / oneDayMs)
+                             _daysRemaining.value = "$currentDay / $totalDays"
+                             _currentDay.value = currentDay.toInt()
+                             
+                             // Expose raw hours for UI Logic (Calendar vs Hourglass)
+                             val hoursLeft = (totalMs - usedDur) / 3600000L
+                             _sensorHoursRemaining.value = hoursLeft
+                         } else {
+                             _daysRemaining.value = ""
+                             _sensorHoursRemaining.value = 999L // Default safe value
+                         }
                     } else {
                         _sensorProgress.value = 0f
+                        _daysRemaining.value = ""
                     }
-
-                    if (expectedEnd > 0 && startMsec > 0) {
-                        val now = System.currentTimeMillis()
-                        val usedMs = now - startMsec
-                        val leftMs = expectedEnd - now
-                        
-                        val oneDayMs = 86400000L
-                        val oneHourMs = 3600000L
-                        
-                        val isSibionics2 = Natives.isSibionics2(dataptr)
-
-                        if (isSibionics2) {
-                            if (usedMs < oneDayMs) {
-                                val hours = usedMs / oneHourMs
-                                val hStr = context.getString(tk.glucodata.R.string.hours_short, hours)
-                                _daysRemaining.value = context.getString(tk.glucodata.R.string.in_use, hStr)
-                            } else {
-                                val days = usedMs / oneDayMs
-                                val dStr = "$days " + context.getString(tk.glucodata.R.string.duration_days)
-                                _daysRemaining.value = context.getString(tk.glucodata.R.string.in_use, dStr)
-                            }
-                        } else {
-                            if (leftMs < oneDayMs) {
-                                if (leftMs < 0) _daysRemaining.value = context.getString(tk.glucodata.R.string.expired)
-                                else {
-                                    val hours = leftMs / oneHourMs
-                                    val hStr = context.getString(tk.glucodata.R.string.hours_short, hours)
-                                    _daysRemaining.value = context.getString(tk.glucodata.R.string.remaining, hStr)
-                                }
-                            } else {
-                                val days = leftMs / oneDayMs
-                                val dStr = "$days " + context.getString(tk.glucodata.R.string.duration_days)
-                                _daysRemaining.value = context.getString(tk.glucodata.R.string.remaining, dStr)
-                            }
-                        }
-                    } else {
-                         _daysRemaining.value = ""
-                    }
+                    
+                    // Removed separate block that caused scope errors.
+                    // All logic is now consolidated above.
                 } else {
                      _daysRemaining.value = ""
                 }
@@ -351,7 +360,7 @@ class DashboardViewModel(
 
     fun toggleNotificationChart(enabled: Boolean) {
         val context = tk.glucodata.Applic.app
-        val prefs = context.getSharedPreferences(context.packageName + "_preferences", android.content.Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("notification_chart_enabled", enabled).apply()
         _notificationChartEnabled.value = enabled
         

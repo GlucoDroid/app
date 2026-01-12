@@ -39,7 +39,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.sp
 import tk.glucodata.ui.theme.displayLargeExpressive
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.HourglassEmpty
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.ui.draw.scale
+
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.draw.rotate as modifierRotate
+import androidx.compose.runtime.getValue
 
 @Composable
 fun DashboardCombinedHeader(
@@ -50,7 +67,10 @@ fun DashboardCombinedHeader(
     sensorName: String,
     daysRemaining: String,
     sensorStatus: String,
+    activeSensors: List<String> = emptyList(),
     sensorProgress: Float = 0f, // Dynamic Fill Progress
+    sensorHoursRemaining: Long = 999L, // Logic Switch
+    currentDay: Int = 0, // Animation Trigger
     history: List<GlucosePoint> = emptyList() // Advanced Trend
 ) {
     // Determine Colors based on logic
@@ -59,9 +79,13 @@ fun DashboardCombinedHeader(
     val glucoseContentColor = MaterialTheme.colorScheme.onPrimaryContainer
 
     // Sensor: Surface Variant (Tonal) vs Tertiary Container (Expiring)
-    val isExpiring = daysRemaining.contains("1 day") || daysRemaining.contains("0 day")
-    val sensorContainerColor = if (isExpiring) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val sensorContentColor = if (isExpiring) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    // FIX: Replaced fragile string matching (failed in Dutch, false positive in English for "1 days in use") 
+    // with robust progress-based logic. >90% progress (approx <1.4 days left) triggers Expiring state.
+    val isExpiring = sensorProgress > 0.90f
+    // FIX: User reported "Silly" contrast in Dark Mode with surfaceVariant (too bright/green).
+    // Switched to primaryContainer to match the Glucose Card (Left) for a cohesive dark look.
+    val sensorContainerColor = if (isExpiring) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) // Darker variant
+    val sensorContentColor = if (isExpiring) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
 
     // Advanced Trend
     val trendResult = remember(history, latestPoint) {
@@ -74,7 +98,7 @@ fun DashboardCombinedHeader(
              val nativeList = listOf(tk.glucodata.GlucosePoint(latestPoint.timestamp, latestPoint.value, latestPoint.rawValue))
              tk.glucodata.logic.TrendEngine.calculateTrend(nativeList, useRaw = (viewMode == 1 || viewMode == 3))
         } else {
-            tk.glucodata.logic.TrendEngine.TrendResult(tk.glucodata.logic.TrendEngine.TrendState.Unknown, 0f, 0f, 0f)
+            tk.glucodata.logic.TrendEngine.TrendResult(tk.glucodata.logic.TrendEngine.TrendState.Unknown, 0f, 0f, 0f, 0f)
         }
     }
 
@@ -98,9 +122,10 @@ fun DashboardCombinedHeader(
 
         val primaryText = dvs?.primaryStr ?: currentGlucose
         
-        // 2. Secondary Value Priority: Raw Value (from user view settings) > Delta
-        val deltaString = if (currentRate != 0f) String.format(java.util.Locale.getDefault(), "%+.1f", currentRate) else null
-        val secondaryText = dvs?.secondaryStr ?: deltaString
+        // 2. Secondary Value: Strictly follow ViewMode (dvs.secondaryStr).
+        // Only show Delta if we are in a mode that supports it or if we explicitly want it.
+        // The user reported "phantom negative values" in Auto/Raw modes, so we MUST NOT fallback to deltaString here.
+        val secondaryText = dvs?.secondaryStr
         
         // 3. Adaptive Layout Params
         // "More compensation" -> Increased start padding to be substantial
@@ -108,7 +133,7 @@ fun DashboardCombinedHeader(
 
         Card(
             modifier = Modifier
-                .weight(0.66f)
+                .weight(0.7f)
                 .fillMaxHeight(),
             colors = CardDefaults.cardColors(
                 containerColor = glucoseContainerColor, // Restored: primaryContainer
@@ -169,7 +194,7 @@ fun DashboardCombinedHeader(
         // --- RIGHT CARD: SENSOR (1/3) ---
         Card(
             modifier = Modifier
-                .weight(0.33f)
+                .weight(0.3f)
                 .fillMaxHeight(),
              colors = CardDefaults.cardColors(
                 containerColor = sensorContainerColor,
@@ -183,13 +208,13 @@ fun DashboardCombinedHeader(
                     val fillColor = when {
                         sensorProgress > 0.95f -> MaterialTheme.colorScheme.error
                         sensorProgress > 0.80f -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.primary
+                        else -> androidx.compose.ui.graphics.Color(0xFF66BB6A) // Muted Green (400) - "Make it Green"
                     }
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(sensorProgress)
-                            .background(fillColor.copy(alpha = 0.2f)) 
+                            .background(fillColor.copy(alpha = 0.25f)) // Slightly increased opacity for visibility
                     )
                 }
 
@@ -200,44 +225,233 @@ fun DashboardCombinedHeader(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.Start
                 ) {
+                    // 0. Signal Quality Indicator (above sensor name)
+                    if (trendResult.noiseLevel > 0f) {
+                        SignalQualityIndicator(
+                            noiseLevel = trendResult.noiseLevel,
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
+                    
                     // 1. Sensor Name (Top Label)
                     if (sensorName.isNotEmpty()) {
-                        Text(
-                            text = sensorName,
-                            style = MaterialTheme.typography.labelMedium, // M3 Standard
-                            color = sensorContentColor.copy(alpha = 0.7f),
-                            maxLines = 1
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = sensorName,
+                                style = MaterialTheme.typography.labelMedium, // M3 Standard
+                                color = sensorContentColor.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f, fill = false) // Allow shrinking for dots
+                            )
+                            
+                            // Active Indicators (Dots) - Right of Name
+                            // Hidden if only 1 active sensor
+                            if (activeSensors.size > 1) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                activeSensors.forEach { serial ->
+                                     Box(
+                                         modifier = Modifier
+                                             .size(6.dp)
+                                             .background(tk.glucodata.ui.viewmodel.SensorColors.getColor(serial), androidx.compose.foundation.shape.CircleShape)
+                                     )
+                                     Spacer(modifier = Modifier.width(4.dp))
+                                }
+                            }
+                        }
                     }
 
-                    // 2. Main Status / Days (Hero Value if possible, or clear text)
-                    // Priority: Status if critical, else Days Remaining
-                    val mainText = if (sensorStatus.isNotEmpty() && sensorStatus != "Ready") sensorStatus else daysRemaining
-                    
+
+                    // 2. Main Status / Days (Hero Value)
+                    // Priority: Status if critical, else Days "1 / 14"
+                    val mainText = if (sensorStatus.isNotEmpty() && sensorStatus != "Ready") sensorStatus 
+                                   else {
+                                       if (sensorHoursRemaining <= 24) "$sensorHoursRemaining" + "h"
+                                       else daysRemaining
+                                   }
                     if (mainText.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = mainText,
-                            style = MaterialTheme.typography.labelLarge, // Removed SemiBold
-                            color = sensorContentColor,
-                             maxLines = 2,
-                             lineHeight = 16.sp
-                        )
-                    }
-                    
-                    // 3. Secondary info if replaced
-                    if (mainText == sensorStatus && daysRemaining.isNotEmpty()) {
-                         Text(
-                            text = daysRemaining,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = sensorContentColor.copy(alpha = 0.7f)
-                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                             // Text First
+                             Text(
+                                text = mainText,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = sensorContentColor,
+                                maxLines = 1
+                            )
+
+                             // Icon: Always show for Main sensor, regardless of count
+                             Spacer(modifier = Modifier.width(6.dp))
+                             
+                             if (sensorHoursRemaining <= 24) {
+                                  // Urgent: Hourglass with Dynamic Speed
+                                  val duration = (500 + (1500 * (sensorHoursRemaining / 24f))).toInt().coerceAtLeast(500)
+                                  AnimatedHourglassIcon(
+                                      color = sensorContentColor.copy(alpha = 0.8f),
+                                      modifier = Modifier.size(14.dp),
+                                      cycleDuration = duration
+                                  )
+                             } else {
+                                  // Normal: Custom Calendar with Page Flip
+                                  CustomCalendarIcon(
+                                      color = sensorContentColor.copy(alpha = 0.6f),
+                                      modifier = Modifier.size(13.dp),
+                                      currentDay = currentDay
+                                  )
+                             }
+                        }
                     }
                 }
             }
         }
+    }
 }
+
+@Composable
+private fun CustomCalendarIcon(
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    currentDay: Int = 0
+) {
+    // 1. Subtle Idle "Breathing" Flip (0 -> -6 -> 0)
+    val infiniteTransition = rememberInfiniteTransition(label = "CalendarFlip")
+    val subtleFlip by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = androidx.compose.animation.core.keyframes {
+                durationMillis = 8000 // Occasional flip
+                0f at 0
+                -8f at 200 using androidx.compose.animation.core.EaseOut // Flip up
+                0f at 500 using androidx.compose.animation.core.EaseIn   // Settle
+                0f at 8000
+            }
+        ),
+        label = "CalendarPageFlip"
+    )
+
+    // 2. Prominent "Day Change" Flip (Triggered by currentDay)
+    // 0 -> -25 -> 0 (Big Nod)
+    val prominentFlip = remember { androidx.compose.animation.core.Animatable(0f) }
+    
+    androidx.compose.runtime.LaunchedEffect(currentDay) {
+        if (currentDay > 0) { // Don't animate on initial 0
+             prominentFlip.animateTo(
+                 targetValue = -25f,
+                 animationSpec = tween(300, easing = androidx.compose.animation.core.EaseOutBack)
+             )
+             prominentFlip.animateTo(
+                 targetValue = 0f,
+                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+             )
+        }
+    }
+
+    val totalRotation = subtleFlip + prominentFlip.value
+
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        // Refine stroke: 1.5dp might be too thick for 13dp size. Let's try 1.25dp visual weight equivalence.
+        // Actually, user said minimalist style. 1.2dp is fine.
+        
+        // 1. Body
+        val cornerRadius = 2.dp.toPx()
+        
+        drawRoundRect(
+            color = color,
+            topLeft = androidx.compose.ui.geometry.Offset(0f, h * 0.25f),
+            size = androidx.compose.ui.geometry.Size(w, h * 0.75f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2.dp.toPx())
+        )
+        
+        // "Substance in the middle": Draw 2 small horizontal lines (rows)
+        // Positioned in the center of the body area.
+        val bodyTop = h * 0.25f
+        val bodyHeight = h * 0.75f
+        val row1Y = bodyTop + (bodyHeight * 0.4f)
+        val row2Y = bodyTop + (bodyHeight * 0.7f)
+        val margin = w * 0.25f
+        val lineWidth = w * 0.5f // Centered line
+        
+        drawLine(
+            color = color.copy(alpha = 0.5f), // Fainter lines
+            start = androidx.compose.ui.geometry.Offset(margin, row1Y),
+            end = androidx.compose.ui.geometry.Offset(margin + lineWidth, row1Y),
+            strokeWidth = 1.dp.toPx()
+        )
+        drawLine(
+             color = color.copy(alpha = 0.5f),
+             start = androidx.compose.ui.geometry.Offset(margin, row2Y),
+             end = androidx.compose.ui.geometry.Offset(margin + lineWidth, row2Y),
+             strokeWidth = 1.dp.toPx()
+        )
+
+        // 2. Header (Top Binding Bar) with "Page Flip" Rotation
+        rotate(degrees = totalRotation, pivot = androidx.compose.ui.geometry.Offset(w / 2, 0f)) {
+            // Filled Header
+            drawRoundRect(
+                color = color,
+                topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                size = androidx.compose.ui.geometry.Size(w, h * 0.25f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius),
+                style = androidx.compose.ui.graphics.drawscope.Fill
+            )
+            
+            // Rings (Cutouts)
+            val ringX1 = w * 0.25f
+            val ringX2 = w * 0.75f
+            val ringH = h * 0.3f
+            
+            drawLine(
+                color = androidx.compose.ui.graphics.Color.Transparent,
+                start = androidx.compose.ui.geometry.Offset(ringX1, 0f),
+                end = androidx.compose.ui.geometry.Offset(ringX1, ringH),
+                strokeWidth = 1.dp.toPx(),
+                blendMode = androidx.compose.ui.graphics.BlendMode.Clear 
+            )
+             drawLine(
+                color = androidx.compose.ui.graphics.Color.Transparent, 
+                start = androidx.compose.ui.geometry.Offset(ringX2, 0f),
+                end = androidx.compose.ui.geometry.Offset(ringX2, ringH),
+                strokeWidth = 1.dp.toPx(),
+                blendMode = androidx.compose.ui.graphics.BlendMode.Clear
+            )
+        }
+    }
 }
+
+@Composable
+private fun AnimatedHourglassIcon(
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    cycleDuration: Int = 10000
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "HourglassFlip")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 180f,
+        animationSpec = infiniteRepeatable(
+            animation = androidx.compose.animation.core.keyframes {
+                durationMillis = cycleDuration
+                0f at 0
+                180f at (cycleDuration * 0.4f).toInt() using androidx.compose.animation.core.EaseInOut
+                180f at cycleDuration
+            }
+        ),
+        label = "HourglassRotation"
+    )
+
+    Icon(
+        imageVector = Icons.Rounded.HourglassEmpty,
+        contentDescription = null,
+        tint = color,
+        modifier = modifier.modifierRotate(rotation)
+    )
+}
+
+
+
 
 @Composable
 fun RecentReadingsCard(
@@ -264,3 +478,76 @@ fun RecentReadingsCard(
         }
     }
 }
+
+/**
+ * Animated Signal Quality Indicator using xDrip-style noise (Poly Fit Error Variance).
+ * Shows actual noise value - calculated via 2nd-degree polynomial regression.
+ */
+@Composable
+fun SignalQualityIndicator(
+    noiseLevel: Float, // Error Variance from Poly Fit
+    modifier: Modifier = Modifier
+) {
+    // Color thresholds (Standard xDrip 0-200+ scale)
+    // <10: Clean (Green), 10-25: Light (Lt Green), 25-60: Medium (Amber), >60: Heavy (Red)
+    val color = when {
+        noiseLevel < 10f -> androidx.compose.ui.graphics.Color(0xFF4CAF50)  // Green
+        noiseLevel < 25f -> androidx.compose.ui.graphics.Color(0xFF8BC34A)  // Light Green
+        noiseLevel < 60f -> androidx.compose.ui.graphics.Color(0xFFFFC107)  // Amber
+        else -> androidx.compose.ui.graphics.Color(0xFFF44336)               // Red
+    }
+    
+    // Animation: Pulse for medium+, Shake for heavy
+    val infiniteTransition = rememberInfiniteTransition(label = "signalPulse")
+    
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (noiseLevel >= 25f) 1.15f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = if (noiseLevel >= 60f) 300 else 600,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+    
+    val shakeRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (noiseLevel >= 60f) 8f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 100, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shakeRotation"
+    )
+    
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start
+    ) {
+        // Animated Icon
+        Icon(
+            imageVector = Icons.Filled.GraphicEq,
+            contentDescription = "Noise: $noiseLevel",
+            tint = color,
+            modifier = Modifier
+                .size(14.dp)
+                .scale(pulseScale)
+                .modifierRotate(shakeRotation)
+        )
+        
+        Spacer(modifier = Modifier.width(4.dp))
+        
+        // Raw noise value (xDrip-style, 1 decimal)
+        Text(
+            text = String.format(java.util.Locale.US, "%.1f", noiseLevel),
+            style = MaterialTheme.typography.labelSmall,
+            color = color.copy(alpha = 0.9f)
+        )
+    }
+}
+
+

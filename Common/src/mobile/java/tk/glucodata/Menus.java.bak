@@ -141,6 +141,11 @@ public class Menus {
 			removeContentView(view);
 			Settings.set(act);
 		});
+		var aodview = view.findViewById(R.id.aod_settings);
+		aodview.setOnClickListener(v -> {
+			removeContentView(view);
+			tk.glucodata.accessibility.AODSettings.openAccessibilitySettings(act);
+		});
 		Button aboutview = view.findViewById(R.id.about);
 		if (tk.glucodata.BuildConfig.SiBionics == 1) {
 			aboutview.setText(R.string.photo);

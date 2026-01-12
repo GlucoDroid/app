@@ -91,8 +91,8 @@ public class Notify {
         }
     }
 
-    static String glucoseformat = null;
-    static String pureglucoseformat = null;
+    public static String glucoseformat = null;
+    public static String pureglucoseformat = null;
     static public String unitlabel = "mg/dL";
 
     // public static int unit=0;
@@ -917,7 +917,7 @@ public class Notify {
             : 0;
 
     private final boolean makeicon = !isWearable && android.os.Build.VERSION.SDK_INT >= 23;
-    private final StatusIcon icons = makeicon ? new StatusIcon() : null;
+    private final StatusIcon icons = makeicon ? new StatusIcon(Applic.app) : null;
 
     static int getMaxGlucose(int sensorgen) {
         if (sensorgen == 0x40 || sensorgen == 0x20)
@@ -935,8 +935,9 @@ public class Notify {
                 return "27.8<";
             }
             var glstr = format(util.getlocale(), Notify.pureglucoseformat, glvalue);
-            if (glstr.charAt(glstr.length() - 1) == '0')
-                glstr = glstr.substring(0, glstr.length() - 2);
+            // User requested to KEEP ",0" - Removed trimming logic
+            // if (glstr.charAt(glstr.length() - 1) == '0')
+            // glstr = glstr.substring(0, glstr.length() - 2);
             return glstr;
         } else {
             int intval = (int) glvalue;
@@ -1085,7 +1086,8 @@ public class Notify {
     // Helper to format "Value · Raw" consistently
     // Helper to format "Value · Raw" consistently
     // Helper to format "Value · Raw" with HTML styling and comma separator
-    private CharSequence formatGlucoseText(String value, float glvalue, java.util.List<GlucosePoint> points,
+    // Helper to format "Value · Raw" with HTML styling and comma separator
+    public static CharSequence formatGlucoseText(String value, float glvalue, java.util.List<GlucosePoint> points,
             int viewMode,
             long targetTime) {
         String valueText;
@@ -1097,7 +1099,8 @@ public class Notify {
             isSimple = true;
         } catch (NumberFormatException e) {
             // Complex string (Raw+Auto?), replace " (" with " · " and remove ")"
-            valueText = value.replace(" (", " · ").replace(")", "");
+            // valueText = value.replace(" (", " · ").replace(")", "");
+            valueText = value.replace(" (", " / ").replace(")", "");
         }
 
         // Force comma separator as requested
@@ -1193,13 +1196,22 @@ public class Notify {
             }
 
             if (secondary != null) {
-                // Ensure "Main · Raw" ordering
-                // ViewMode 3: valueText is Raw, secondary is Main -> Swap
-                if (viewMode == 3) {
-                    return secondary + " · " + valueText;
-                }
-                // ViewMode 2: valueText is Main, secondary is Raw -> Keep
-                return valueText + " · " + secondary;
+                // Return SpannableStringBuilder with Color Span for secondary text
+                android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder();
+                ssb.append(valueText);
+                ssb.append(" / ");
+                int startColor = ssb.length();
+                ssb.append(secondary);
+
+                // Set Gray Color for Secondary Text
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(0xFF888888), startColor - 3, ssb.length(),
+                        android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+
+                // Optional: Make secondary smaller
+                ssb.setSpan(new android.text.style.RelativeSizeSpan(0.85f), startColor, ssb.length(),
+                        android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+
+                return ssb;
             }
         }
         return valueText;
@@ -1300,63 +1312,167 @@ public class Notify {
         // Semantic Color
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, glvalue, isMmol);
 
-        // Render Text to Bitmap (Custom Font + Multi-Color)
-        Bitmap textBitmap = NotificationChartDrawer.drawGlucoseText(Applic.app, valueText.toString(), glucoseColor);
+        // ========== READ NOTIFICATION PREFERENCES ==========
+        android.content.SharedPreferences prefs = Applic.app
+                .getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE);
 
-        // Render Arrow (Color + Smaller Size)
-        Bitmap arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, glucoseColor);
+        float fontSize = prefs.getFloat("notification_font_size", 1.0f);
+        int fontWeight = prefs.getInt("notification_font_weight", 400);
+        boolean showArrow = prefs.getBoolean("notification_show_arrow", true);
+        float arrowSize = prefs.getFloat("notification_arrow_size", 1.0f);
+        boolean showStatus = prefs.getBoolean("notification_show_status", true);
+        boolean showChart = prefs.getBoolean("notification_chart_enabled", true);
+        boolean showChartCollapsed = prefs.getBoolean("notification_chart_collapsed", false);
+        boolean showTargetRange = prefs.getBoolean("notification_chart_target_range", true);
+
+        // Render Arrow (Color + Size from Preferences) - still bitmap for colored
+        // vector
+        Bitmap arrowBitmap = showArrow
+                ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, glucoseColor, arrowSize)
+                : null;
 
         // 3a. Construct RemoteViews (Collapsed)
         RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.notification_material);
-        remoteViews.setImageViewBitmap(R.id.notification_glucose, textBitmap);
-        remoteViews.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
 
-        if (statusText == null || statusText.isEmpty()) {
-            remoteViews.setViewVisibility(R.id.notification_status, View.GONE);
+        // Apply System Font Weight Mapping (Pixel-friendly)
+        android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder(valueText);
+        String family = "sans-serif";
+        boolean isBold = false;
+
+        // Simplified Mapping based on User Feedback:
+        // Ignore 300/600/700 as requested.
+        // 400 -> google-sans
+        // 500+ -> google-sans-medium
+        if (fontWeight >= 500) {
+            family = "google-sans-medium";
         } else {
+            family = "google-sans";
+        }
+
+        // Apply Font Family
+        ssb.setSpan(new android.text.style.TypefaceSpan(family), 0, ssb.length(),
+                android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+
+        // Apply Bold if needed
+        if (isBold) {
+            ssb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, ssb.length(),
+                    android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+        }
+
+        // Apply Relative Size (Scale) based on preference
+        if (fontSize != 1.0f) {
+            ssb.setSpan(new android.text.style.RelativeSizeSpan(fontSize), 0, ssb.length(),
+                    android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+        }
+
+        CharSequence finalText = ssb;
+
+        // Fetch Status from Natives (Line under sensor name logic)
+        String newStatusText = statusText;
+        try {
+            // Priority: Main sensor (lastsensorname) or first active
+            String mainName = Natives.lastsensorname();
+            long ptr = 0;
+            if (mainName != null && !mainName.isEmpty()) {
+                ptr = Natives.getdataptr(mainName);
+            }
+            if (ptr == 0) {
+                long[] ptrs = Natives.activeSensorPtrs();
+                if (ptrs != null && ptrs.length > 0)
+                    ptr = ptrs[0];
+            }
+
+            if (ptr != 0) {
+                String nativeStatus = Natives.getsensortext(ptr);
+                if (nativeStatus != null && !nativeStatus.isEmpty()) {
+                    newStatusText = nativeStatus;
+                }
+            }
+        } catch (Throwable t) {
+            // Fallback to passed statusText
+        }
+
+        // Apply Style to Status Text too
+        CharSequence styledStatus = newStatusText;
+        if (newStatusText != null && !newStatusText.isEmpty()) {
+            android.text.SpannableStringBuilder ssbStatus = new android.text.SpannableStringBuilder(newStatusText);
+            ssbStatus.setSpan(new android.text.style.TypefaceSpan(family), 0, ssbStatus.length(),
+                    android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+            if (isBold) {
+                ssbStatus.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0,
+                        ssbStatus.length(), android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+            }
+            styledStatus = ssbStatus;
+        }
+
+        // Glucose Value - native TextView with custom font from XML + size from prefs
+        remoteViews.setTextViewText(R.id.notification_glucose, finalText);
+        remoteViews.setTextColor(R.id.notification_glucose, glucoseColor);
+        remoteViews.setTextViewTextSize(R.id.notification_glucose, android.util.TypedValue.COMPLEX_UNIT_SP,
+                24 * fontSize);
+
+        if (showArrow && arrowBitmap != null) {
+            remoteViews.setViewVisibility(R.id.notification_arrow, View.VISIBLE);
+            remoteViews.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
+        } else {
+            remoteViews.setViewVisibility(R.id.notification_arrow, View.GONE);
+        }
+
+        // Status - native TextView
+        if (showStatus && newStatusText != null && !newStatusText.isEmpty()) {
             remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
-            remoteViews.setTextViewText(R.id.notification_status, statusText);
+            remoteViews.setTextViewText(R.id.notification_status, styledStatus);
+        } else {
+            remoteViews.setViewVisibility(R.id.notification_status, View.GONE);
         }
 
         // 3b. Construct RemoteViews (Expanded)
         RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
                 R.layout.notification_material_expanded);
-        remoteViewsExpanded.setImageViewBitmap(R.id.notification_glucose, textBitmap);
-        remoteViewsExpanded.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
-        // Time REMOVED from Expanded View (Relies on System Header)
 
-        // Status for Expanded
-        if (statusText == null || statusText.isEmpty()) {
-            remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.GONE);
+        // Glucose Value - native TextView + size from prefs
+        remoteViewsExpanded.setTextViewText(R.id.notification_glucose, finalText);
+        remoteViewsExpanded.setTextColor(R.id.notification_glucose, glucoseColor);
+        remoteViewsExpanded.setTextViewTextSize(R.id.notification_glucose, android.util.TypedValue.COMPLEX_UNIT_SP,
+                28 * fontSize);
+
+        if (showArrow && arrowBitmap != null) {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_arrow, View.VISIBLE);
+            remoteViewsExpanded.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
         } else {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_arrow, View.GONE);
+        }
+
+        // Status for Expanded - native TextView
+        if (showStatus && newStatusText != null && !newStatusText.isEmpty()) {
             remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.VISIBLE);
-            remoteViewsExpanded.setTextViewText(R.id.notification_status, statusText);
+            remoteViewsExpanded.setTextViewText(R.id.notification_status, styledStatus);
+        } else {
+            remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.GONE);
         }
 
         // Set Chart
-        // Collapsed (approx 400x128dp -> ~400x150px)
-        // Check if chart is enabled
-        android.content.SharedPreferences prefs = Applic.app
-                .getSharedPreferences(Applic.app.getPackageName() + "_preferences", Context.MODE_PRIVATE);
-        boolean showChart = prefs.getBoolean("notification_chart_enabled", true);
-
         Bitmap chartBitmapCollapsed = null;
         Bitmap chartBitmapExpanded = null;
 
+        if (showChartCollapsed) {
+            // Collapsed chart: Sparkline format (wide - 800x48)
+            chartBitmapCollapsed = NotificationChartDrawer.drawChart(Applic.app, chartPoints, 800, 48, isMmol,
+                    viewMode, showTargetRange);
+        }
+
         if (showChart) {
-            // Set Chart
-            // Collapsed (approx 400x128dp -> ~400x150px)
-            chartBitmapCollapsed = NotificationChartDrawer.drawChart(Applic.app, chartPoints, 600, 100, isMmol,
-                    viewMode);
-            // Expanded (approx 400x256dp -> ~400x300px)
+            // Expanded chart (larger, for expanded notification)
             chartBitmapExpanded = NotificationChartDrawer.drawChart(Applic.app, chartPoints, 600, 180, isMmol,
-                    viewMode);
+                    viewMode, showTargetRange);
         }
 
         remoteViews.setImageViewBitmap(R.id.notification_chart, chartBitmapCollapsed);
-        if (showChart && chartBitmapCollapsed != null) {
+        if (showChartCollapsed && chartBitmapCollapsed != null) {
+            remoteViews.setViewVisibility(R.id.chart_container, View.VISIBLE);
             remoteViews.setViewVisibility(R.id.notification_chart, View.VISIBLE);
         } else {
+            remoteViews.setViewVisibility(R.id.chart_container, View.GONE);
             remoteViews.setViewVisibility(R.id.notification_chart, View.GONE);
         }
 
@@ -1490,7 +1606,8 @@ public class Notify {
 
                 if (viewMode == 3 && latest.rawValue > 0.1f) {
                     String rStr = format(usedlocale, pureglucoseformat, latest.rawValue);
-                    startupValue = rStr + " · " + vStr;
+                    // startupValue = rStr + " · " + vStr;
+                    startupValue = rStr + "/ " + vStr;
                 } else {
                     startupValue = vStr;
                 }
@@ -1498,9 +1615,12 @@ public class Notify {
         }
 
         // Check if chart is enabled
+        // Check if chart is enabled
         android.content.SharedPreferences prefs = Applic.app
-                .getSharedPreferences(Applic.app.getPackageName() + "_preferences", Context.MODE_PRIVATE);
+                .getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE);
         boolean showChart = prefs.getBoolean("notification_chart_enabled", true);
+        float fontSize = prefs.getFloat("notification_font_size", 1.0f);
+        int fontWeight = prefs.getInt("notification_font_weight", 400);
 
         Bitmap chartBitmapCollapsed = null;
         Bitmap chartBitmapExpanded = null;
@@ -1529,29 +1649,87 @@ public class Notify {
         arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, (last != null) ? last.rate : 0, isMmol,
                 glucoseColor);
 
-        // Render Startup Text to Bitmap
-        Bitmap startupBitmap = NotificationChartDrawer.drawGlucoseText(Applic.app, startupValue.toString(),
-                glucoseColor);
-
+        // Use native TextView for startup value
         RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.notification_material);
-        remoteViews.setImageViewBitmap(R.id.notification_glucose, startupBitmap);
+
+        // Apply System Font Weight Mapping (Pixel-friendly)
+        android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder(startupValue);
+        String family = "sans-serif";
+        boolean isBold = false;
+
+        // Simplified Mapping based on User Feedback
+        if (fontWeight >= 500) {
+            family = "google-sans-medium";
+        } else {
+            family = "google-sans";
+        }
+
+        // Apply Font Family
+        ssb.setSpan(new android.text.style.TypefaceSpan(family), 0, ssb.length(),
+                android.text.Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+
+        // Apply Bold if needed
+        if (isBold) {
+            ssb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, ssb.length(),
+                    android.text.Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+        }
+
+        // Apply Relative Size (Scale) based on preference
+        if (fontSize != 1.0f) {
+            ssb.setSpan(new android.text.style.RelativeSizeSpan(fontSize), 0, ssb.length(),
+                    android.text.Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+        }
+
+        CharSequence finalText = ssb;
+        remoteViews.setTextViewText(R.id.notification_glucose, finalText);
+        remoteViews.setTextColor(R.id.notification_glucose, glucoseColor);
+        // Apply size and weight to startup notification too
+        remoteViews.setTextViewTextSize(R.id.notification_glucose, android.util.TypedValue.COMPLEX_UNIT_SP,
+                24 * fontSize);
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            remoteViews.setString(R.id.notification_glucose, "setFontVariationSettings", "'wght' " + fontWeight);
+        }
+
         remoteViews.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
 
         if (showChart && chartBitmapCollapsed != null) {
+            remoteViews.setViewVisibility(R.id.chart_container, View.VISIBLE);
             remoteViews.setImageViewBitmap(R.id.notification_chart, chartBitmapCollapsed);
             remoteViews.setViewVisibility(R.id.notification_chart, View.VISIBLE);
         } else {
+            remoteViews.setViewVisibility(R.id.chart_container, View.GONE);
             remoteViews.setViewVisibility(R.id.notification_chart, View.GONE);
         }
 
+        // Apply Style to Status Text (message)
+        CharSequence styledMessage = message;
+        if (message != null && !message.isEmpty()) {
+            android.text.SpannableStringBuilder ssbMsg = new android.text.SpannableStringBuilder(message);
+            ssbMsg.setSpan(new android.text.style.TypefaceSpan(family), 0, ssbMsg.length(),
+                    android.text.Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+            if (isBold) {
+                ssbMsg.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0,
+                        ssbMsg.length(), android.text.Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+            }
+            styledMessage = ssbMsg;
+        }
+
         remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
-        remoteViews.setTextViewText(R.id.notification_status, message);
+        remoteViews.setTextViewText(R.id.notification_status, styledMessage);
 
         RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
                 R.layout.notification_material_expanded);
-        remoteViewsExpanded.setImageViewBitmap(R.id.notification_glucose, startupBitmap);
+        remoteViewsExpanded.setTextViewText(R.id.notification_glucose, finalText);
+        remoteViewsExpanded.setTextColor(R.id.notification_glucose, glucoseColor);
+        // Apply size and weight to expanded startup notification
+        remoteViewsExpanded.setTextViewTextSize(R.id.notification_glucose, android.util.TypedValue.COMPLEX_UNIT_SP,
+                28 * fontSize);
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            remoteViewsExpanded.setString(R.id.notification_glucose, "setFontVariationSettings",
+                    "'wght' " + fontWeight);
+        }
+
         remoteViewsExpanded.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
-        // Time removed from expanded view
 
         if (showChart && chartBitmapExpanded != null) {
             remoteViewsExpanded.setImageViewBitmap(R.id.notification_chart, chartBitmapExpanded);
@@ -1560,7 +1738,7 @@ public class Notify {
             remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.GONE);
         }
         remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.VISIBLE);
-        remoteViewsExpanded.setTextViewText(R.id.notification_status, message);
+        remoteViewsExpanded.setTextViewText(R.id.notification_status, styledMessage);
 
         var GluNotBuilder = mkbuilder(GLUCOSENOTIFICATION);
         if (Build.VERSION.SDK_INT >= 24) {

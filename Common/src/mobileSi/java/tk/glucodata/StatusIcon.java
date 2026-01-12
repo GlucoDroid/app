@@ -14,7 +14,10 @@ public class StatusIcon {
     final private static String LOG_ID = "StatusIcon";
     final static int size = 96; // High res
 
-    StatusIcon() {
+    private android.content.Context mContext;
+
+    StatusIcon(android.content.Context context) {
+        mContext = context;
     }
 
     Icon getIcon(String value) {
@@ -26,8 +29,18 @@ public class StatusIcon {
         paint.setColor(Color.WHITE);
         paint.setTextAlign(Paint.Align.LEFT);
 
-        Typeface font = Typeface.create("sans-serif-condensed", Typeface.BOLD);
-        paint.setTypeface(font);
+        // Standard Width / Regular Weight for Status Bar
+        try {
+            Typeface tf = androidx.core.content.res.ResourcesCompat.getFont(mContext, R.font.ibm_plex_sans_var);
+            paint.setTypeface(tf);
+            if (Build.VERSION.SDK_INT >= 26) {
+                paint.setFontVariationSettings("'wght' 400, 'wdth' 100");
+            }
+        } catch (Throwable t) {
+            // Fallback
+            Typeface font = Typeface.create("sans-serif", Typeface.BOLD);
+            paint.setTypeface(font);
+        }
 
         // 1. Measure at test size
         float testSize = 100f;
@@ -39,9 +52,9 @@ public class StatusIcon {
         float textW = bounds.width();
         float textH = bounds.height();
 
-        // Target: Fill 95% of width (minimal padding) and 96% of height
-        float targetW = size * 0.95f;
-        float targetH = size * 0.96f;
+        // Target: Fill 100% of width/height (Maximizing size as requested)
+        float targetW = size * 1.0f;
+        float targetH = size * 1.0f;
 
         float scaleW = targetW / textW;
         float scaleH = targetH / textH;
@@ -64,7 +77,10 @@ public class StatusIcon {
         // Center X
         float x = (size - bounds.width()) / 2f - bounds.left;
 
-        // Center Y
+        // Center Y with Offset for Status Bar alignment
+        // Push down by ~10% of size to align with clock baseline
+        // float yOffset = size * 0.10f;
+        // float y = (size - bounds.height()) / 2f - bounds.top + yOffset;
         float y = (size - bounds.height()) / 2f - bounds.top;
 
         canvas.drawText(value, x, y, paint);

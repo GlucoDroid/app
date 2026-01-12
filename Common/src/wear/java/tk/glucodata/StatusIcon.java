@@ -1,12 +1,13 @@
 package tk.glucodata;
 
-
 import android.graphics.drawable.Icon;
 
 public class StatusIcon {
-StatusIcon() { }
-Icon getIcon(String value) {
-        return null;
+        StatusIcon(android.content.Context context) {
+        }
+
+        Icon getIcon(String value) {
+                return null;
         }
 
 }

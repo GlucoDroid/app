@@ -160,6 +160,8 @@ public class Natives {
 
         // public static native boolean iswaiting(long dataptr);
         // public static native void setwaiting(long dataptr,boolean val);
+        public static native void setcurrentsensor(String name);
+
         public static native String lastsensorname();
 
         public static native long laststarttime();

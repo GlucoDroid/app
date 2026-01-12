@@ -113,6 +113,9 @@ public:
   infoblock *infoblockptr() {
     return reinterpret_cast<infoblock *>(map.data());
   }
+  const infoblock *infoblockptr() const {
+    return reinterpret_cast<const infoblock *>(map.data());
+  }
 
   Sensoren(string_view basedirin)
       : inbasedir(basedirin), mapfile{inbasedir, "sensors.dat"},
@@ -669,6 +672,16 @@ public:
     return nullptr;
   }
 
+  void setCurrentSensor(const char *name) {
+    if (int ind = sensorindex(name); ind >= 0) {
+      infoblockptr()->current = ind;
+    } else {
+      if (int ind = sensorindexshort(name); ind >= 0) {
+        infoblockptr()->current = ind;
+      }
+    }
+  }
+
   //   static constexpr const uint32_t sensorageseconds = 15 * 24 * 60 * 60u;
   static constexpr const uint32_t maxageseconds = 24 * 24 * 60 * 60u;
   template <typename F>
@@ -949,6 +962,11 @@ public:
   }
 
   const sensorname_t *shortsensorname() const {
+    // Use current() (the user-selected main sensor) instead of last() (the most
+    // recently added) This enables the "Main Sensor Toggle" feature
+    if (int l = infoblockptr()->current; l >= 0)
+      return shortsensorname(l);
+    // Fallback to last() if current is invalid (though expected to be synced)
     if (int l = last(); l >= 0)
       return shortsensorname(l);
     return nullptr;
@@ -1004,11 +1022,15 @@ public:
           }
           const auto sensmax = hist->getmaxtime();
           if (sensmax <= nu) {
-            LOGGER("blueactive %s old sensmax=%u\n", showsensorname(i),
-                   sensmax);
-            if (sensmax < oldsecs)
-              break;
-            continue;
+            // PER USER REQUEST: Never expire sensors automatically.
+            // "all i want it so that sensors never suddenly dissapear from my
+            // list regardless of its state/age/date/etc" We just log that it's
+            // technically expired, but we DO NOT skip it.
+            LOGGER("blueactive %s expired (sensmax=%u) but KEEPING ACTIVE per "
+                   "user preference\n",
+                   showsensorname(i), sensmax);
+            // if (sensmax < oldsecs) break; // Disable optimization to ensure
+            // we see all sensors continue; // Disable skipping
           }
           const auto lasttime = hist->lastused();
           bool canuse = hist->canusestreaming();
@@ -1108,13 +1130,13 @@ public:
   }
 
   /*
-void converttrends() {
+  void converttrends() {
   for(int i=0;i<=last();i++) {
      SensorGlucoseData *hist=getSensorData(i);
      hist->converttrends();
      }
   }
-void convertlast() {
+  void convertlast() {
   SensorGlucoseData *hist=getSensorData(last());
   hist->converttrends();
   }
@@ -1505,15 +1527,15 @@ private:
     return first;
   }
   /*
-sensor *getprev(const sensor *sens)  {
-if(sens->prev==LISTEND)
+  sensor *getprev(const sensor *sens)  {
+  if(sens->prev==LISTEND)
   return nullptr;
-return getsensor(sens->prev);
-}
-int getprevindex(int index)  {
-const sensor *sens=getsensor(index);
-return sens->prev;
-} */
+  return getsensor(sens->prev);
+  }
+  int getprevindex(int index)  {
+  const sensor *sens=getsensor(index);
+  return sens->prev;
+  } */
   template <typename F> void intersens(F func) {
     if (last() < 0)
       return;

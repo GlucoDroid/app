@@ -40,13 +40,17 @@ public class NotificationChartDrawer {
     }
 
     public static Bitmap drawArrow(Context context, float rate, boolean isMmol, int color) {
-        float density = context.getResources().getDisplayMetrics().density;
-        // Match TrendIndicator.kt visual size: 24.dp
-        int size = (int) (24 * density);
+        // Default: 100% scale
+        return drawArrow(context, rate, isMmol, color, 1.0f);
+    }
 
-        // High-res rendering scale
-        float scaleParams = 4.0f;
-        int bitmapSize = (int) (size * scaleParams);
+    public static Bitmap drawArrow(Context context, float rate, boolean isMmol, int color, float arrowScale) {
+        float density = context.getResources().getDisplayMetrics().density;
+        // Arrow size: 20dp * scale (slightly smaller than 24dp for notifications)
+        int size = (int) (20 * density * arrowScale);
+
+        // Render at actual size (no upscaling since ImageView is wrap_content)
+        int bitmapSize = size;
 
         Bitmap bitmap = Bitmap.createBitmap(bitmapSize, bitmapSize, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
@@ -76,7 +80,7 @@ public class NotificationChartDrawer {
         // Base Dimensions from TrendIndicator.kt
         float headSpan = drawSize * 0.5f;
         float headDepth = headSpan / 2;
-        float gap = headDepth * 0.4f;
+        float gap = headDepth * 0.3f;
 
         boolean showDouble = Math.abs(rate) > 2.0f;
 
@@ -139,51 +143,92 @@ public class NotificationChartDrawer {
     }
 
     public static Bitmap drawGlucoseText(Context context, String text, int color) {
+        // Default: 100% size, weight 400, App Font
+        return drawGlucoseText(context, text, color, 1.0f, 400, false);
+    }
+
+    public static Bitmap drawGlucoseText(Context context, String text, int color, float fontSizeScale, int fontWeight) {
+        return drawGlucoseText(context, text, color, fontSizeScale, fontWeight, false);
+    }
+
+    public static Bitmap drawGlucoseText(Context context, String text, int color, float fontSizeScale, int fontWeight,
+            boolean useSystemFont) {
         float density = context.getResources().getDisplayMetrics().density;
-        float textSize = 26f * density;
+        float textSize = 24f * density * fontSizeScale;
 
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setTextSize(textSize);
         paint.setTextAlign(Paint.Align.LEFT);
 
-        // Font: IBM Plex Sans SemiBold
-        try {
-            android.graphics.Typeface tf = androidx.core.content.res.ResourcesCompat.getFont(context,
-                    R.font.ibm_plex_sans_var);
-            if (android.os.Build.VERSION.SDK_INT >= 28) {
-                paint.setTypeface(android.graphics.Typeface.create(tf, 600, false));
-            } else {
-                paint.setTypeface(tf);
-                paint.setFakeBoldText(true);
+        if (useSystemFont) {
+            // System Font Logic (Google Sans) behavior matching Notify.java
+            String familyName = "google-sans";
+            // Pre-API 28, we might need "google-sans-medium" for 500+
+            // For Light < 400, on older devices, standard "google-sans" might just look
+            // regular.
+            // But on API 28+, we can force weight.
+            if (fontWeight >= 500) {
+                familyName = "google-sans-medium";
+            } else if (fontWeight < 400) {
+                familyName = "sans-serif-light";
             }
-        } catch (Throwable t) {
-            paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+
+            try {
+                android.graphics.Typeface tf = android.graphics.Typeface.create(familyName,
+                        android.graphics.Typeface.NORMAL);
+
+                // API 28+ (Pie): Precise weight creation
+                // This allows fetching "Light" (300) from "google-sans" family correctly
+                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    tf = android.graphics.Typeface.create(tf, fontWeight, false);
+                }
+
+                paint.setTypeface(tf);
+            } catch (Throwable t) {
+                paint.setTypeface(android.graphics.Typeface.DEFAULT);
+            }
+        } else {
+            // App Font Logic (IBM Plex Sans Variable)
+            try {
+                android.graphics.Typeface tf = androidx.core.content.res.ResourcesCompat.getFont(context,
+                        R.font.ibm_plex_sans_var);
+                paint.setTypeface(tf);
+
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    // Apply font weight from preferences
+                    paint.setFontVariationSettings("'wght' " + fontWeight + ", 'wdth' 100");
+                }
+            } catch (Throwable t) {
+                paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            }
         }
 
-        // Multi-Color Logic: "Main · Raw"
-        // Part 1 (Main) = Semantic Color
-        // Part 2 (Raw) = Gray
+        // Multi-Color Logic: "Main / Raw"
         String part1 = text;
         String part2 = "";
-        String separator = " · ";
+        String separator = " / ";
 
         if (text.contains(separator)) {
             String[] parts = text.split(separator);
             if (parts.length >= 2) {
-                part1 = parts[0] + separator;
-                part2 = parts[1];
+                part1 = parts[0];
+                part2 = separator + parts[1];
             }
         }
 
-        // Measure
+        // Measure Part 1
         float width1 = paint.measureText(part1);
+
+        // Measure Part 2 (Scaled 0.7x)
         float width2 = 0;
+        Paint paint2 = new Paint(paint); // Clone paint
         if (!part2.isEmpty()) {
-            width2 = paint.measureText(part2);
+            paint2.setTextSize(textSize * 0.7f); // Scale down
+            width2 = paint2.measureText(part2);
         }
 
         int totalWidth = (int) (width1 + width2 + 1);
-        int height = (int) (32 * density);
+        int height = (int) (28 * density * fontSizeScale);
 
         if (totalWidth <= 0)
             totalWidth = 1;
@@ -202,17 +247,76 @@ public class NotificationChartDrawer {
 
         // Draw Part 2 (Raw) - Gray/Secondary
         if (!part2.isEmpty()) {
-            paint.setColor(Color.GRAY); // Or semantic secondary
-            canvas.drawText(part2, width1, y, paint);
+            paint2.setColor(Color.GRAY);
+            // Baseline alignment: use same 'y' because drawText is baseline-based
+            canvas.drawText(part2, width1, y, paint2);
         }
+
+        return bitmap;
+    }
+
+    /**
+     * Render status text (e.g., "Connecting to sensor") as a bitmap with custom
+     * font.
+     */
+    public static Bitmap drawStatusText(Context context, String text) {
+        float density = context.getResources().getDisplayMetrics().density;
+        float textSize = 11f * density;
+
+        // Theme detection
+        int uiMode = context.getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        boolean isDark = uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        int textColor = isDark ? 0xAAFFFFFF : 0xAA000000; // Info-style gray
+
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(textSize);
+        paint.setTextAlign(Paint.Align.LEFT);
+        paint.setColor(textColor);
+
+        // Font: IBM Plex Sans Variable
+        try {
+            android.graphics.Typeface tf = androidx.core.content.res.ResourcesCompat.getFont(context,
+                    R.font.ibm_plex_sans_var);
+            paint.setTypeface(tf);
+
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                paint.setFontVariationSettings("'wght' 400, 'wdth' 100");
+            }
+        } catch (Throwable t) {
+            paint.setTypeface(android.graphics.Typeface.DEFAULT);
+        }
+
+        float textWidth = paint.measureText(text);
+        int width = (int) (textWidth + 1);
+        int height = (int) (14 * density);
+
+        if (width <= 0)
+            width = 1;
+        if (height <= 0)
+            height = 1;
+
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+
+        Paint.FontMetrics fm = paint.getFontMetrics();
+        float y = height / 2.0f - (fm.ascent + fm.descent) / 2.0f;
+
+        canvas.drawText(text, 0, y, paint);
 
         return bitmap;
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode) {
+        // Default: show target range
+        return drawChart(context, data, widthHint, heightHint, isMmol, viewMode, true);
+    }
+
+    public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange) {
         try {
-            return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode);
+            return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange);
         } catch (Exception e) {
             // If chart drawing fails, return empty transparent bitmap
             DisplayMetrics dm = context.getResources().getDisplayMetrics();
@@ -223,7 +327,7 @@ public class NotificationChartDrawer {
     }
 
     private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
-            boolean isMmol, int viewMode) {
+            boolean isMmol, int viewMode, boolean showTargetRange) {
         // Get display metrics for proper sizing - 256dp height works best with
         // fitCenter
         DisplayMetrics dm = context.getResources().getDisplayMetrics();
@@ -244,10 +348,12 @@ public class NotificationChartDrawer {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
-        // Zero left margin - chart starts at edge
+        // Zero/Small margins - chart fills the bitmap edge to edge
         float leftMargin = 0;
-        float bottomMargin = 0;
-        float topMargin = 2 * dm.density;
+        float bottomMargin = (height < 120) ? 6.0f * dm.density : 2.0f * dm.density; // Add margin for collapsed
+        float topMargin = (height < 120) ? 12.0f * dm.density : 3.0f * dm.density; // Much larger margin for collapsed
+                                                                                   // to avoid clip
+
         float rightMargin = 2 * dm.density;
 
         float chartLeft = leftMargin;
@@ -314,7 +420,7 @@ public class NotificationChartDrawer {
         // Calculate Y range
         // Standard Strategy: Expand to fit Data, BUT ensure we cover Target Range +
         // 1mmol (18mg/dl) buffer
-        float bufferVal = valueIsMmol ? 0.1f : 2.0f;
+        float bufferVal = valueIsMmol ? 0.1f : 2.0f; // Increased buffer for safety (was 0.1/2.0)
 
         float minY = targetLow - bufferVal;
         float maxY = targetHigh + bufferVal;
@@ -330,8 +436,10 @@ public class NotificationChartDrawer {
             }
         }
 
-        // Add small extra cosmetic buffer (5%) so lines don't touch edges exact
+        // Add robust extra cosmetic buffer (10%) so lines don't touch edges exact
         float range = maxY - minY;
+        if (range == 0)
+            range = 1; // avoid div by zero
         minY -= range * 0.05f;
         maxY += range * 0.05f;
 
@@ -342,12 +450,12 @@ public class NotificationChartDrawer {
         gridPaint.setStyle(Paint.Style.STROKE);
 
         // Target Range Shade Paint
-        // Very light shade.
-        // If Dark Mode: 0x1A4CAF50 (Green 10%)
-        // If Light Mode: 0x1A4CAF50
+        // Very subtle shade (5% opacity)
+        // If Dark Mode: 0x0D4CAF50 (Green ~5%)
+        // If Light Mode: 0x0D4CAF50
         Paint targetPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         targetPaint.setStyle(Paint.Style.FILL);
-        targetPaint.setColor(0x184CAF50); // ~9-10% Green
+        targetPaint.setColor(0x0D4CAF50); // ~5% Green
 
         Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setColor(textColor);
@@ -366,8 +474,8 @@ public class NotificationChartDrawer {
 
         float yRange = maxY - minY;
 
-        // DRAW TARGET RANGE SHADING
-        if (yRange > 0) {
+        // DRAW TARGET RANGE SHADING (if enabled)
+        if (showTargetRange && yRange > 0) {
             float yHigh = chartBottom - ((targetHigh - minY) / yRange) * chartHeight;
             float yLow = chartBottom - ((targetLow - minY) / yRange) * chartHeight;
 
@@ -384,7 +492,11 @@ public class NotificationChartDrawer {
             }
         }
 
-        // Draw grid lines (3 horizontal) with labels centered to line
+        // Check if collapsed (from Notify.java: passed 100 for collapsed, 180 for
+        // expanded)
+        boolean isCollapsed = heightHint < 150;
+
+        // Draw grid lines (3 horizontal)
         // yRange already calculated above
         float textHeight = textPaint.getTextSize();
         // Generous offset (e.g. 8dp)
@@ -397,27 +509,31 @@ public class NotificationChartDrawer {
             float yVal = minY + yRange * (i / 4.0f);
             float y = chartBottom - ((yVal - minY) / yRange) * chartHeight;
 
-            // Y label
-            String label = String.valueOf(Math.round(yVal));
-            textPaint.setTextAlign(Paint.Align.LEFT);
-            float labelWidth = textPaint.measureText(label);
+            // Y label - Only if NOT collapsed
+            float lineStart = chartLeft; // Default start
 
-            // Text position
-            float textX = chartLeft + 4 * dm.density;
-            canvas.drawText(label, textX, y + textHeight / 3, textPaint);
+            if (!isCollapsed) {
+                String label = String.valueOf(Math.round(yVal));
+                textPaint.setTextAlign(Paint.Align.LEFT);
+                float labelWidth = textPaint.measureText(label);
 
-            // Capture bounds (with padding) for line breaking
-            // Top: y - 2/3 height, Bottom: y + 1/3 height. Add 4dp padding.
-            float pad = 4 * dm.density;
-            android.graphics.RectF rect = new android.graphics.RectF(
-                    textX - pad,
-                    y - textHeight * 0.8f - pad,
-                    textX + labelWidth + pad,
-                    y + textHeight * 0.4f + pad);
-            yLabelRects.add(rect);
+                // Text position
+                float textX = chartLeft + 4 * dm.density;
+                canvas.drawText(label, textX, y + textHeight / 3, textPaint);
 
-            // Line starts after label + offset
-            float lineStart = textX + labelWidth + gridLabelOffset;
+                // Capture bounds (with padding) for line breaking
+                float pad = 4 * dm.density;
+                android.graphics.RectF rect = new android.graphics.RectF(
+                        textX - pad,
+                        y - textHeight * 0.8f - pad,
+                        textX + labelWidth + pad,
+                        y + textHeight * 0.4f + pad);
+                yLabelRects.add(rect);
+
+                // Line starts after label + offset
+                lineStart = textX + labelWidth + gridLabelOffset;
+            }
+
             if (lineStart < chartRight) {
                 canvas.drawLine(lineStart, y, chartRight, y, gridPaint);
             }
@@ -441,17 +557,23 @@ public class NotificationChartDrawer {
 
             // Label Y position
             float labelY = chartBottom - 3 * dm.density;
-            canvas.drawText(label, x, labelY, textPaint);
 
-            // Line ends before label (above it)
-            float lineEnd = labelY - textHeight - gridLabelOffset;
+            float lineEnd = chartBottom; // Default end
+
+            if (!isCollapsed) {
+                canvas.drawText(label, x, labelY, textPaint);
+                // Line ends before label (above it)
+                lineEnd = labelY - textHeight - gridLabelOffset;
+            }
 
             if (lineEnd > chartTop) {
-                // Check for intersections with Y-labels
+                // Check for intersections with Y-labels (only if we have labels)
                 List<float[]> gaps = new ArrayList<>();
-                for (android.graphics.RectF r : yLabelRects) {
-                    if (x >= r.left && x <= r.right) {
-                        gaps.add(new float[] { r.top, r.bottom });
+                if (!yLabelRects.isEmpty()) {
+                    for (android.graphics.RectF r : yLabelRects) {
+                        if (x >= r.left && x <= r.right) {
+                            gaps.add(new float[] { r.top, r.bottom });
+                        }
                     }
                 }
 

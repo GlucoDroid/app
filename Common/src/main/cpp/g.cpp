@@ -300,7 +300,7 @@ extern "C" JNIEXPORT jint JNICALL fromjava(nfcdata)(JNIEnv *env, jclass thiz,
     if (alg) {
       destruct _desalg(
           [alg = alg] { delete alg; }); //[alg] also works with g++ 13.1.1 , but
-                                        //not with clang++ version 14.0.7
+                                        // not with clang++ version 14.0.7
       LOGAR("alg!=null");
       if (scanda) {
         LOGSTRING("scanda\n");
@@ -1152,6 +1152,19 @@ cl,jlong dataptr) { streamdata *sdata=reinterpret_cast<streamdata *>(dataptr);
 backup->updatestream(sdata->hist);
 }
 */
+
+extern "C" JNIEXPORT void JNICALL fromjava(setcurrentsensor)(JNIEnv *envin,
+                                                             jclass cl,
+                                                             jstring name) {
+  if (!name)
+    return;
+  const char *str = envin->GetStringUTFChars(name, NULL);
+  if (str) {
+    sensors->setCurrentSensor(str);
+    envin->ReleaseStringUTFChars(name, str);
+  }
+}
+
 extern "C" JNIEXPORT jstring JNICALL fromjava(lastsensorname)(JNIEnv *envin,
                                                               jclass cl) {
   if (const auto *name = sensors->shortsensorname()->data()) {
