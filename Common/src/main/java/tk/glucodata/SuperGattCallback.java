@@ -48,6 +48,7 @@ import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Log.showbytes;
 import static tk.glucodata.Natives.thresholdchange;
 import static tk.glucodata.SensorBluetooth.blueone;
+import tk.glucodata.data.calibration.CalibrationManager;
 
 public abstract class SuperGattCallback extends BluetoothGattCallback {
     volatile protected boolean stop = false;
@@ -535,6 +536,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     return;
                 }
             }
+
+            // Apply Kotlin calibration if enabled
+            boolean isRawMode = (viewMode == 1 || viewMode == 3);
+            glucoseToUse = CalibrationManager.INSTANCE.getCalibratedValue(glucoseToUse, timmsec, isRawMode);
+            mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
 
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
                     sensorgen);

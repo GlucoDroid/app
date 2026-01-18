@@ -38,6 +38,10 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.BluetoothConnected
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material3.*
 import androidx.compose.material3.Slider
 import tk.glucodata.ui.components.StyledSwitch
@@ -45,7 +49,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.geometry.Offset
@@ -60,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -69,6 +73,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
+import android.text.Layout
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -195,6 +200,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
@@ -286,15 +292,66 @@ fun getTrendDescription(rate: Float): String {
 data class DisplayValues(
     val primaryValue: Float,
     val secondaryValue: Float? = null,
+    val tertiaryValue: Float? = null,
     val primaryStr: String,
     val secondaryStr: String? = null,
+    val tertiaryStr: String? = null,
     val fullFormatted: String
 )
 
-fun getDisplayValues(point: GlucosePoint, viewMode: Int, unit: String): DisplayValues {
+/**
+ * Get display values based on view mode and optional calibration.
+ * When calibration is active, calibrated value becomes primary and others shift down.
+ */
+fun getDisplayValues(
+    point: GlucosePoint, 
+    viewMode: Int, 
+    unit: String,
+    calibratedValue: Float? = null
+): DisplayValues {
     val rawStr = if (point.rawValue < 30) String.format("%.1f", point.rawValue) else point.rawValue.toInt().toString()
     val valStr = if (point.value < 30) String.format("%.1f", point.value) else point.value.toInt().toString()
-
+    val calStr = calibratedValue?.let { if (it < 30) String.format("%.1f", it) else it.toInt().toString() }
+    
+    // If calibration is active, it becomes primary and everything shifts down
+    if (calibratedValue != null && calStr != null) {
+        return when (viewMode) {
+            1 -> DisplayValues( // Raw → Calibrated primary, Raw secondary
+                primaryValue = calibratedValue,
+                secondaryValue = point.rawValue,
+                primaryStr = calStr,
+                secondaryStr = rawStr,
+                fullFormatted = "$calStr · $rawStr $unit"
+            )
+            2 -> DisplayValues( // Auto + Raw → Calibrated primary, Auto secondary, Raw tertiary
+                primaryValue = calibratedValue,
+                secondaryValue = point.value,
+                tertiaryValue = point.rawValue,
+                primaryStr = calStr,
+                secondaryStr = valStr,
+                tertiaryStr = rawStr,
+                fullFormatted = "$calStr · $valStr · $rawStr $unit"
+            )
+            3 -> DisplayValues( // Raw + Auto → Calibrated primary, Raw secondary, Auto tertiary
+                primaryValue = calibratedValue,
+                secondaryValue = point.rawValue,
+                tertiaryValue = point.value,
+                primaryStr = calStr,
+                secondaryStr = rawStr,
+                tertiaryStr = valStr,
+                fullFormatted = "$calStr · $rawStr · $valStr $unit"
+            )
+            else -> DisplayValues( // Auto → Calibrated primary, Auto secondary
+                primaryValue = calibratedValue,
+                secondaryValue = point.value,
+                primaryStr = calStr,
+                secondaryStr = valStr,
+                fullFormatted = "$calStr · $valStr $unit"
+            )
+        }
+    }
+    
+    // No calibration - original logic
     return when (viewMode) {
         1 -> DisplayValues( // Raw
             primaryValue = point.rawValue,
@@ -424,10 +481,35 @@ fun JugglucoTheme(
     )
 }
 
+
+sealed class CalibrationSheetState {
+    object Hidden : CalibrationSheetState()
+    data class New(val auto: Float, val raw: Float, val timestamp: Long) : CalibrationSheetState()
+    data class Edit(val entity: tk.glucodata.data.calibration.CalibrationEntity) : CalibrationSheetState()
+}
+
 @Composable
 fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     val navController = rememberNavController()
     val dashboardViewModel: DashboardViewModel = viewModel()
+    
+    // Hoisted Calibration Sheet State
+    var calibrationSheetState by remember { mutableStateOf<CalibrationSheetState>(CalibrationSheetState.Hidden) }
+    
+    // Shared Data for Sheet
+    val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsState()
+    val unit by dashboardViewModel.unit.collectAsState()
+    val viewMode by dashboardViewModel.viewMode.collectAsState()
+    val currentGlucose by dashboardViewModel.currentGlucose.collectAsState()
+    
+    // Reactive Calibration State
+    val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsState()
+    val isRawEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForRaw.collectAsState()
+    val isAutoEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForAuto.collectAsState()
+    
+    val onTriggerCalibration: (CalibrationSheetState) -> Unit = { state ->
+        calibrationSheetState = state
+    }
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -447,11 +529,32 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     }
 
     // Navigation Items Logic (Shared)
+    // Top-level routes that appear in the navbar
+    val topLevelRoutes = setOf("dashboard", "sensors", "settings")
+    
+    // Map subpages to their parent top-level destination
+    fun getParentRoute(route: String?): String? = when {
+        route == null -> null
+        route.startsWith("settings/") -> "settings"
+        route.startsWith("sensors/") -> "sensors"
+        route == "calibrations" -> "dashboard"  // calibrations is a dashboard subpage
+        else -> null
+    }
+    
     val onNavigate = { route: String ->
-        navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
+        val parentOfCurrent = getParentRoute(currentRoute)
+        val isOnSubpageOf = parentOfCurrent == route
+        
+        when {
+            // If we're on a subpage of the clicked nav item, pop back to it
+            isOnSubpageOf -> navController.popBackStack(route, inclusive = false)
+            // If we're on a different top-level or subpage, navigate normally
+            currentRoute != route -> navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+            // Already on the destination, do nothing
         }
     }
 
@@ -471,7 +574,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 // Let's center them vertically for likely better ergonomics in landscape phone
 
                 navItems.forEach { item ->
-                    val isSelected = currentRoute == item.route
+                    val isSelected = currentRoute == item.route || getParentRoute(currentRoute) == item.route
                     NavigationRailItem(
                         icon = {
                             TabIcon(
@@ -496,7 +599,14 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     startDestination = "dashboard",
                     modifier = Modifier.padding(innerPadding)
                 ) {
-                    composable("dashboard") { DashboardScreen(dashboardViewModel) }
+                    composable("dashboard") { 
+                        DashboardScreen(
+                            viewModel = dashboardViewModel,
+                            calibrations = calibrations,
+                            onNavigateToCalibrations = { navController.navigate("calibrations") },
+                            onTriggerCalibration = onTriggerCalibration
+                        ) 
+                    }
                     composable("sensors") { SensorScreen() }
                     composable("settings") { ExpressiveSettingsScreen(navController, themeMode, onThemeChanged, dashboardViewModel) }
                     composable("settings/nightscout") { NightscoutSettingsScreen(navController) }
@@ -506,6 +616,26 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                         MirrorEditScreen(navController, pos)
                     }
                     composable("settings/debug") { DebugSettingsScreen(navController) }
+                    composable("calibrations") { 
+                        val isMmol = dashboardViewModel.unit.value.contains("mmol", ignoreCase = true)
+                        val viewMode by dashboardViewModel.viewMode.collectAsState()
+                        tk.glucodata.ui.calibration.CalibrationListScreen(
+                            navController = navController, 
+                            isMmol = isMmol, 
+                            viewMode = viewMode,
+                            onAdd = {
+                                // Logic to get current value for "Add"
+                                // We can use history.firstOrNull() as latest point
+                                val latest = glucoseHistory.firstOrNull()
+                                val autoVal = latest?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
+                                val rawVal = latest?.rawValue ?: autoVal
+                                onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                            },
+                            onEdit = { entity ->
+                                onTriggerCalibration(CalibrationSheetState.Edit(entity))
+                            }
+                        ) 
+                    }
                 }
             }
         }
@@ -516,7 +646,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
             bottomBar = {
                 NavigationBar {
                     navItems.forEach { item ->
-                        val isSelected = currentRoute == item.route
+                        val isSelected = currentRoute == item.route || getParentRoute(currentRoute) == item.route
                         NavigationBarItem(
                             icon = {
                                 TabIcon(
@@ -544,7 +674,13 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 popEnterTransition = { fadeIn(animationSpec = tween(200)) },
                 popExitTransition = { fadeOut(animationSpec = tween(200)) }
             ) {
-                composable("dashboard") { DashboardScreen(dashboardViewModel) }
+                composable("dashboard") { 
+                    DashboardScreen(
+                        viewModel = dashboardViewModel, 
+                        onNavigateToCalibrations = { navController.navigate("calibrations") },
+                        onTriggerCalibration = onTriggerCalibration
+                    ) 
+                }
                 composable("sensors") { SensorScreen() }
                 composable("settings") { ExpressiveSettingsScreen(navController, themeMode, onThemeChanged, dashboardViewModel) }
                 composable("settings/nightscout") { NightscoutSettingsScreen(navController) }
@@ -554,13 +690,61 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     MirrorEditScreen(navController, pos)
                 }
                 composable("settings/debug") { DebugSettingsScreen(navController) }
+                composable("calibrations") { 
+                    val isMmol = dashboardViewModel.unit.value.contains("mmol", ignoreCase = true)
+                    val viewMode by dashboardViewModel.viewMode.collectAsState()
+                    tk.glucodata.ui.calibration.CalibrationListScreen(
+                        navController = navController, 
+                        isMmol = isMmol, 
+                        viewMode = viewMode,
+                        onAdd = {
+                            val latest = glucoseHistory.firstOrNull()
+                            val autoVal = latest?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
+                            val rawVal = latest?.rawValue ?: autoVal
+                            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                        },
+                        onEdit = { entity ->
+                            onTriggerCalibration(CalibrationSheetState.Edit(entity))
+                        }
+                    ) 
+                }
             }
         }
+    }
+    
+    // --- CALIBRATION BOTTOM SHEET (Global) ---
+    val sheetState = calibrationSheetState
+    if (sheetState !is CalibrationSheetState.Hidden) {
+        // Resolve initial values
+        val (initAuto, initRaw, initTime) = when(sheetState) {
+            is CalibrationSheetState.New -> Triple(sheetState.auto, sheetState.raw, sheetState.timestamp)
+            is CalibrationSheetState.Edit -> Triple(sheetState.entity.sensorValue, sheetState.entity.sensorValueRaw, sheetState.entity.timestamp)
+            else -> Triple(0f, 0f, 0L) // Should not happen
+        }
+    
+        tk.glucodata.ui.calibration.CalibrationBottomSheet(
+            onDismiss = { calibrationSheetState = CalibrationSheetState.Hidden },
+            initialValueAuto = initAuto,
+            initialValueRaw = initRaw,
+            initialTimestamp = initTime,
+            glucoseHistory = glucoseHistory.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) },
+            isMmol = unit.contains("mmol", ignoreCase = true),
+            viewMode = viewMode,
+            onNavigateToHistory = {
+                calibrationSheetState = CalibrationSheetState.Hidden
+                navController.navigate("calibrations")
+            }
+        )
     }
 }
 
 @Composable
-fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
+fun DashboardScreen(
+    viewModel: DashboardViewModel = viewModel(),
+    calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
+    onNavigateToCalibrations: () -> Unit = {},
+    onTriggerCalibration: (CalibrationSheetState) -> Unit = {}
+) {
     val context = LocalContext.current
 
     // This runs every time the Activity/Fragment/Screen hits the ON_RESUME state
@@ -584,6 +768,12 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val activeSensorList by viewModel.activeSensorList.collectAsState()
     val sensorHoursRemaining by viewModel.sensorHoursRemaining.collectAsState()
     val currentDay by viewModel.currentDay.collectAsState()
+
+    // Initialize Calibration Manager
+    LaunchedEffect(Unit) {
+        tk.glucodata.data.calibration.CalibrationManager.init(context)
+        tk.glucodata.data.calibration.CalibrationManager.loadCalibrations()
+    }
 
     // State for wizards (matching SensorScreen pattern)
     var showSibionicsWizard by remember { mutableStateOf(false) }
@@ -645,8 +835,12 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
         return
     }
     
+    // Snackbar state for undo actions
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    
     Scaffold(
-        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top),
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) }
         // FAB removed - empty state now has inline cards
     ) { padding ->
         val latestPoint = remember(glucoseHistory) { glucoseHistory.maxByOrNull { it.timestamp } }
@@ -658,6 +852,15 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 
         val recentReadings = remember(glucoseHistory) {
             glucoseHistory.takeLast(10).reversed().distinctBy { it.timestamp }
+        }
+
+        // Compute calibrated value for current reading (respects viewMode)
+        val isRawModeHero = viewMode == 1 || viewMode == 3
+        val calibratedValue = remember(latestPoint, viewMode) {
+            if (latestPoint != null && tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeHero)) {
+                val baseValue = if (isRawModeHero) latestPoint.rawValue else latestPoint.value
+                tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, latestPoint.timestamp, isRawModeHero)
+            } else null
         }
 
         // Dashboard State
@@ -710,7 +913,13 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                             sensorProgress = sensorProgress,
                             sensorHoursRemaining = sensorHoursRemaining,
                             currentDay = currentDay,
-                            history = glucoseHistory // Advanced Trend
+                            history = glucoseHistory, // Advanced Trend
+                            calibratedValue = calibratedValue,
+                            onHeroClick = {
+                                val autoVal = latestPoint?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
+                                val rawVal = latestPoint?.rawValue ?: autoVal
+                                onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                            }
                         )
                     }
                     
@@ -727,6 +936,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                                     index = index,
                                     totalCount = recentReadings.size,
                                     history = recentReadings,
+                                    calibrations = calibrations,
                                 modifier = Modifier.animateItem()
                             )
                         }
@@ -746,9 +956,16 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                         targetLow = targetLow,
                         targetHigh = targetHigh,
                         unit = unit,
+                        calibrations = calibrations,
                         viewMode = viewMode,
                         onTimeRangeSelected = { timeRange = it },
-                        selectedTimeRange = timeRange
+                        selectedTimeRange = timeRange,
+                        onPointClick = { point -> 
+                            onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                        },
+                        onCalibrationClick = { cal ->
+                            onTriggerCalibration(CalibrationSheetState.Edit(cal))
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -778,7 +995,13 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                         sensorProgress = sensorProgress,
                         sensorHoursRemaining = sensorHoursRemaining,
                         currentDay = currentDay,
-                        history = glucoseHistory // Advanced Trend
+                        history = glucoseHistory, // Advanced Trend
+                        calibratedValue = calibratedValue,
+                        onHeroClick = {
+                            val autoVal = latestPoint?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
+                            val rawVal = latestPoint?.rawValue ?: autoVal
+                            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                        }
                     )
                 }
 
@@ -790,9 +1013,16 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                         targetLow = targetLow,
                         targetHigh = targetHigh,
                         unit = unit,
+                        calibrations = calibrations,
                         viewMode = viewMode,
                         onTimeRangeSelected = { timeRange = it },
-                        selectedTimeRange = timeRange
+                        selectedTimeRange = timeRange,
+                        onPointClick = { point -> 
+                            onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                        },
+                        onCalibrationClick = { cal ->
+                            onTriggerCalibration(CalibrationSheetState.Edit(cal))
+                        }
                     )
                 }
 
@@ -809,14 +1039,38 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                             viewMode = viewMode,
                             index = index,
                             totalCount = recentReadings.size,
-                            history = recentReadings, // Fix: Pass history for trend calc
-                            modifier = Modifier.animateItem()
+                            history = recentReadings,
+                            calibrations = calibrations,
+                            modifier = Modifier
+                                .animateItem()
+                                .clickable { 
+                                    onTriggerCalibration(CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)) 
+                                }
                         )
                     }
+                }
+
+                // Calibrations Card
+                item {
+                    CalibrationsCard(
+                        viewMode = viewMode,
+                        isMmol = unit.contains("mmol", ignoreCase = true),
+                        onAddCalibration = {
+                            val autoVal = latestPoint?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
+                            val rawVal = latestPoint?.rawValue ?: autoVal
+                            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                        },
+                        onEditCalibration = { cal ->
+                            onTriggerCalibration(CalibrationSheetState.Edit(cal))
+                        },
+                        onViewHistory = onNavigateToCalibrations,
+                        snackbarHostState = snackbarHostState
+                    )
                 }
             }
         }
     }
+    
 }
 
 // --- EXTRACTED COMPONENTS (Performance Optimization) ---
@@ -831,15 +1085,20 @@ fun DashboardChartSection(
     targetHigh: Float,
     unit: String,
     viewMode: Int,
-    // Control callback
     onTimeRangeSelected: (TimeRange) -> Unit,
-    selectedTimeRange: TimeRange
+    selectedTimeRange: TimeRange,
+    calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
+    onPointClick: ((GlucosePoint) -> Unit)? = null,
+    onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp) // Chart: 16dp (User Request)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
-        Column(modifier = Modifier.padding(bottom = 0.dp)) { // Edge-to-edge
+        Column(modifier = Modifier.padding(bottom = 0.dp)) {
              Box(modifier = Modifier.weight(1f)) {
                 if (glucoseHistory.isNotEmpty()) {
                     InteractiveGlucoseChart(
@@ -848,7 +1107,10 @@ fun DashboardChartSection(
                         targetHigh = targetHigh,
                         unit = unit,
                         viewMode = viewMode,
-                        selectedTimeRange = selectedTimeRange
+                        calibrations = calibrations,
+                        selectedTimeRange = selectedTimeRange,
+                        onPointClick = onPointClick,
+                        onCalibrationClick = onCalibrationClick
                     )
                 } else {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_data_available)) }
@@ -866,12 +1128,16 @@ fun InteractiveGlucoseChart(
     targetHigh: Float,
     unit: String,
     viewMode: Int = 0,
-    onDateSelected: (Long) -> Unit = {},  // Callback when user picks a date to jump to
-    selectedTimeRange: TimeRange? = null // Optional control
+    calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
+    onDateSelected: (Long) -> Unit = {},
+    selectedTimeRange: TimeRange? = null,
+    onPointClick: ((GlucosePoint) -> Unit)? = null,
+    onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null
 ) {
     // --- THEME & PAINTS ---
     val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+    val tertiaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f) // Lighter shade for 3rd line
     val pointColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
     // 1. Select the correct Material Green shade (300 for Dark, 700 for Light)
@@ -1201,7 +1467,17 @@ fun InteractiveGlucoseChart(
                         isScrubbing = if (pointAtTouch != null && !isOneFingerZoom) {
                             val timeDiff = timeAtTouch - pointAtTouch.timestamp
                             if (timeDiff > 15 * 60 * 1000) false else {
-                                val v = if (currentViewMode == 1 || currentViewMode == 3) pointAtTouch.rawValue else pointAtTouch.value
+                                // When calibration is on and is primary, use calibrated value for touch target
+                                val isRawMode = currentViewMode == 1 || currentViewMode == 3
+                                val hasCalibration = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawMode)
+                                val v = if (hasCalibration) {
+                                    val baseV = if (isRawMode) pointAtTouch.rawValue else pointAtTouch.value
+                                    tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseV, pointAtTouch.timestamp, isRawMode)
+                                } else if (isRawMode) {
+                                    pointAtTouch.rawValue
+                                } else {
+                                    pointAtTouch.value
+                                }
                                 val dataY = chartHeight - ((v - curYMin) / (curYMax - curYMin)) * chartHeight
                                 abs(down.position.y - dataY) < touchThreshold
                             }
@@ -1545,18 +1821,75 @@ fun InteractiveGlucoseChart(
                     // ViewMode logic simplified
                     val drawRaw = viewMode == 1 || viewMode == 2 || viewMode == 3
                     val drawAuto = viewMode == 0 || viewMode == 2 || viewMode == 3
+                    val isRawModeChart = viewMode == 1 || viewMode == 3
+                    val hasCalibration = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeChart)
                     
                     if (drawRaw) {
-                         // Raw color logic: Mode 2(Both) -> Secondary
-                         val color = if (viewMode == 2) secondaryColor else primaryColor
-                         val width = if (viewMode == 2) 2.dp.toPx() else 3.dp.toPx()
+                         // Raw line: Demote based on mode and calibration
+                         // In mode 2 (Auto+Raw) with calibration: Raw is tertiary (3rd)
+                         val color = when {
+                             hasCalibration && viewMode == 2 -> tertiaryColor  // 3rd line (raw is least important)
+                             hasCalibration || viewMode == 2 -> secondaryColor
+                             else -> primaryColor
+                         }
+                         val width = if (hasCalibration || viewMode == 2) 2.dp.toPx() else 3.dp.toPx()
                          drawOptimized(true, color, width)
                     }
                     
                     if (drawAuto) {
-                        val color = if (viewMode == 3) secondaryColor else primaryColor
-                        val width = if (viewMode == 3) 2.dp.toPx() else 3.dp.toPx()
+                        // Auto line: Demote based on mode and calibration 
+                        // In mode 3 (Raw+Auto) with calibration: Auto is tertiary (3rd)
+                        val color = when {
+                            hasCalibration && viewMode == 3 -> tertiaryColor  // 3rd line (auto is least important)
+                            hasCalibration || viewMode == 3 -> secondaryColor
+                            else -> primaryColor
+                        }
+                        val width = if (hasCalibration || viewMode == 3) 2.dp.toPx() else 3.dp.toPx()
                         drawOptimized(false, color, width)
+                    }
+                    
+                    // Draw calibrated line ON TOP (primary when active)
+                    if (hasCalibration) {
+                        reusablePath.rewind()
+                        var first = true
+                        var lastX = -10000f
+                        var lastTimestamp = 0L
+                        
+                        for (i in startIdx until endIdx) {
+                            val p = safeData[i]
+                            val baseValue = if (viewMode == 1 || viewMode == 3) p.rawValue else p.value
+                            val calibratedV = tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, p.timestamp, isRawModeChart)
+                            
+                            if (calibratedV.isNaN() || calibratedV < 0.1f) {
+                                first = true
+                                continue
+                            }
+                            
+                            val px = timeToX(p.timestamp)
+                            if (!first && kotlin.math.abs(px - lastX) < 0.7f) continue
+                            
+                            val py = valToY(calibratedV)
+                            if (!px.isFinite() || !py.isFinite()) {
+                                first = true
+                                continue
+                            }
+                            
+                            if (!first && (p.timestamp - lastTimestamp) > gapThreshold) {
+                                first = true
+                            }
+                            
+                            if (first) { 
+                                reusablePath.moveTo(px, py)
+                                first = false
+                            } else {
+                                reusablePath.lineTo(px, py)
+                            }
+                            
+                            lastX = px
+                            lastTimestamp = p.timestamp
+                        }
+                        
+                        drawPath(reusablePath, primaryColor, style = Stroke(width = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
                     }
                 }
 
@@ -1626,24 +1959,53 @@ fun InteractiveGlucoseChart(
                     drawRect(targetBandColor, topLeft = Offset(0f, yHigh), size = Size(width, yLow - yHigh))
                 }
 
-                // --- 5. CURSOR ---
+                // --- 6. CALIBRATION MARKERS ---
+                // Draw permanent vertical lines for calibration points in visible range (respects mode)
+                val isRawModeMarkers = viewMode == 1 || viewMode == 3
+                val calibrations = tk.glucodata.data.calibration.CalibrationManager.getVisibleCalibrations(isRawModeMarkers)
+                val visibleCalibrations = calibrations.filter { it.timestamp in viewportStart..viewportEnd }
+                
+                visibleCalibrations.forEach { cal ->
+                    val calX = timeToX(cal.timestamp)
+                    if (calX in 0f..width) {
+                        // Draw vertical line with opacity
+                        drawLine(
+                            color = primaryColor.copy(alpha = 0.4f),
+                            start = Offset(calX, 0f),
+                            end = Offset(calX, chartHeight),
+                            strokeWidth = 1.5.dp.toPx()
+                        )
+                    }
+                }
+
+                // --- 7. CURSOR ---
                 val cursorX = selectedPoint?.let { timeToX(it.timestamp) }
                 if (cursorX != null && cursorX in 0f..width) {
                     drawLine(hoverLineColor, Offset(cursorX, 0f), Offset(cursorX, chartHeight), 2.dp.toPx())
 
                     selectedPoint?.let { p ->
                         val dotRadius = 5.dp.toPx()
+                        val isRawModeDot = viewMode == 1 || viewMode == 3
+                        val hasCalibrationDot = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeDot)
                         
-                        // Draw dots for active lines
+                        // Draw dots for active lines (demoted when calibration active)
                          if (viewMode == 1 || viewMode == 2 || viewMode == 3) {
-                             val color = if (viewMode == 1 || viewMode == 3) primaryColor else secondaryColor
+                             val color = if (hasCalibrationDot) secondaryColor else if (viewMode == 1 || viewMode == 3) primaryColor else secondaryColor
                              val py = valToY(p.rawValue)
                              if (py.isFinite()) drawCircle(color, dotRadius, Offset(cursorX, py))
                          }
                          if (viewMode == 0 || viewMode == 2 || viewMode == 3) {
-                             val color = if (viewMode == 0 || viewMode == 2) primaryColor else secondaryColor
+                             val color = if (hasCalibrationDot) secondaryColor else if (viewMode == 0 || viewMode == 2) primaryColor else secondaryColor
                              val py = valToY(p.value)
                              if (py.isFinite()) drawCircle(color, dotRadius, Offset(cursorX, py))
+                         }
+                         
+                         // Draw calibrated dot on top (primary when active)
+                         if (hasCalibrationDot) {
+                             val baseValue = if (viewMode == 1 || viewMode == 3) p.rawValue else p.value
+                             val calibratedV = tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, p.timestamp, isRawModeDot)
+                             val py = valToY(calibratedV)
+                             if (py.isFinite()) drawCircle(primaryColor, dotRadius, Offset(cursorX, py))
                          }
                     }
                 }
@@ -1677,18 +2039,26 @@ fun InteractiveGlucoseChart(
 
                 val statusCardColor = MaterialTheme.colorScheme.primaryContainer
                 val statusContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                val cardShape = RoundedCornerShape(28.dp) // Match likely default Card shape
+                val cardShape = RoundedCornerShape(12.dp) // M3 standard card corner radius
 
                 // AXIS TEXT MATCHING
                 val axisFontSize = 12.sp
 
-                val dvs = getDisplayValues(point, viewMode, unit)
+                // Compute calibrated value for tooltip
+                val isRawModeTT = viewMode == 1 || viewMode == 3
+                val hasCalibrationTT = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeTT)
+                val calibratedValueTT = if (hasCalibrationTT) {
+                    val baseValue = if (isRawModeTT) point.rawValue else point.value
+                    tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeTT)
+                } else null
+                val dvs = getDisplayValues(point, viewMode, unit, calibratedValueTT)
 
                 // --- 1. INFO CARD (Top) ---
                 // "Current Status Card styling" -> primaryContainer
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopStart)
+                        .zIndex(2f) // Above calibration tooltips
                         // 1. Move to Cursor X, Fixed Y
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
@@ -1698,7 +2068,9 @@ fun InteractiveGlucoseChart(
                         }
                         // 2. Center
                         .graphicsLayer { translationX = -size.width / 2f }
-                        .widthIn(min = 48.dp),
+                        .widthIn(min = 48.dp)
+                        .clip(cardShape) // Clip ripple to match rounded corners
+                        .clickable { onPointClick?.invoke(point) },
                     shape = cardShape,
                     color = statusCardColor.copy(alpha = 1f),
                     contentColor = statusContentColor.copy(alpha = 1f),
@@ -1725,6 +2097,16 @@ fun InteractiveGlucoseChart(
                                     append(sec)
                                 }
                             }
+                            
+                            // Tertiary (when 3 values exist)
+                            dvs.tertiaryStr?.let { ter ->
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                                    append(" · ")
+                                }
+                                withStyle(androidx.compose.ui.text.SpanStyle(color = LocalContentColor.current.copy(alpha = 0.4f))) {
+                                    append(ter)
+                                }
+                            }
                         }
 
                         Text(
@@ -1739,6 +2121,7 @@ fun InteractiveGlucoseChart(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
+                        .zIndex(2f) // Above calibration tooltips
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
                                 x = cardXOffset.toInt(),
@@ -1763,6 +2146,88 @@ fun InteractiveGlucoseChart(
             }
             // Brace removed here to keep subsequent elements inside BoxWithConstraints
 
+            // --- CALIBRATION TOOLTIPS ---
+            // Show permanent tooltips for calibration points in visible range (respects mode)
+            val isRawModeTooltip = viewMode == 1 || viewMode == 3
+            val calibrationsTooltip = tk.glucodata.data.calibration.CalibrationManager.getVisibleCalibrations(isRawModeTooltip)
+            val viewportStartTooltip = centerTime - visibleDuration / 2
+            val viewportEndTooltip = centerTime + visibleDuration / 2
+            val visibleCalibrationsTooltip = calibrationsTooltip.filter { it.timestamp in viewportStartTooltip..viewportEndTooltip }
+            
+            visibleCalibrationsTooltip.forEach { cal ->
+                val calXFraction = (cal.timestamp - viewportStartTooltip).toFloat() / visibleDuration.toFloat()
+                val calXOffset = (constraints.maxWidth * calXFraction).coerceIn(0f, constraints.maxWidth.toFloat())
+                val calTimeFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                val calTimeStr = calTimeFormat.format(java.util.Date(cal.timestamp))
+                
+                // Top: Value chip with waterdrop icon (clickable to edit)
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .zIndex(1f) // Below scrubbing tooltip
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                x = calXOffset.toInt(),
+                                y = 8.dp.roundToPx()
+                            )
+                        }
+                        .graphicsLayer { translationX = -size.width / 2f }
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { 
+                            // Open CalibrationBottomSheet to edit this calibration
+                            onCalibrationClick?.invoke(cal)
+                        },
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shadowElevation = 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.WaterDrop,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = String.format(java.util.Locale.getDefault(), if (unit.contains("mmol", true)) "%.1f" else "%.0f", cal.userValue),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                
+                // Bottom: Time chip
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .zIndex(1f) // Below scrubbing tooltip
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                x = calXOffset.toInt(),
+                                y = 2.dp.roundToPx()
+                            )
+                        }
+                        .graphicsLayer { translationX = -size.width / 2f }
+                        .height(24.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
+                            RoundedCornerShape(6.dp)
+                        )
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = calTimeStr,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
 
             // --- DATE HEADER OVERLAY ---
@@ -2101,7 +2566,8 @@ fun buildGlucoseString(
     secondaryColor: Color,
     unitColor: Color,
     includeUnit: Boolean = false,
-    unit: String = ""
+    unit: String = "",
+    tertiaryColor: Color? = null
 ): androidx.compose.ui.text.AnnotatedString {
     return androidx.compose.ui.text.buildAnnotatedString {
         withStyle(androidx.compose.ui.text.SpanStyle(color = primaryColor)) {
@@ -2119,12 +2585,13 @@ fun buildGlucoseString(
             append(" · ")
             withStyle(androidx.compose.ui.text.SpanStyle(color = secondaryColor)) {
                 append(dvs.secondaryStr)
-                if (includeUnit) {
-                    append(" ")
-                    withStyle(androidx.compose.ui.text.SpanStyle(color = unitColor)) {
-//                        append(unit)
-                    }
-                }
+            }
+        }
+        // Tertiary value (when 3 values exist)
+        if (dvs.tertiaryStr != null) {
+            append(" · ")
+            withStyle(androidx.compose.ui.text.SpanStyle(color = tertiaryColor ?: secondaryColor.copy(alpha = 0.5f))) {
+                append(dvs.tertiaryStr)
             }
         }
     }
@@ -2138,6 +2605,7 @@ fun ReadingRow(
     index: Int = 0,
     totalCount: Int = 1,
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
+    calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     // --- DYNAMIC COLOR LOGIC ---
@@ -2276,7 +2744,13 @@ fun ReadingRow(
                 )
 
                 // Value (Right)
-                val dvs = getDisplayValues(point, viewMode, unit)
+                val isRawModeRR = viewMode == 1 || viewMode == 3
+                val hasCalibrationRR = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeRR)
+                val calibratedValueRR = if (hasCalibrationRR) {
+                    val baseValue = if (isRawModeRR) point.rawValue else point.value
+                    tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeRR)
+                } else null
+                val dvs = getDisplayValues(point, viewMode, unit, calibratedValueRR)
                 // Colors
                 val primaryColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha=0.8f)
                 val secondaryColor = if (isActive)  MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha=0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.8f)
@@ -2288,8 +2762,19 @@ fun ReadingRow(
                 val valueStyle = MaterialTheme.typography.titleMedium
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                     Text(
-                        text = buildGlucoseString(dvs, primaryColor, secondaryColor, unitColor, true),
+                    // Calibration indicator - shows on reading where calibration was added (respects mode)
+                    if (tk.glucodata.data.calibration.CalibrationManager.hasCalibrationAt(point.timestamp, isRawModeRR)) {
+                        Icon(
+                            imageVector = Icons.Filled.WaterDrop,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    
+                    Text(
+                        text = buildGlucoseString(dvs, primaryColor, secondaryColor, unitColor, true, "", tertiaryColor),
                         style = valueStyle.copy(fontFeatureSettings = "tnum"),
                         modifier = Modifier
                     )
@@ -3547,6 +4032,8 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
     var showResetDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showClearAllDialog by remember { mutableStateOf(false) }
+    var showUnifiedResetDialog by remember { mutableStateOf(false) }
+    var keepAutoCalChecked by remember { mutableStateOf(false) }
     var showReconnectDialog by remember { mutableStateOf(false) }
     var showWipeDialog by remember { mutableStateOf(false) }
     var wipeDataChecked by remember { mutableStateOf(false) }
@@ -3679,19 +4166,45 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
         )
     }
 
-    if (showClearAllDialog) {
+    if (showUnifiedResetDialog) {
         AlertDialog(
-            onDismissRequest = { showClearAllDialog = false },
-            title = { Text(stringResource(R.string.reset_all_title)) },
-            text = { Text(stringResource(R.string.reset_all_desc)) },
+            onDismissRequest = { 
+                showUnifiedResetDialog = false
+                keepAutoCalChecked = false 
+            },
+            title = { Text(stringResource(R.string.reset_sensor_title)) },
+            text = { 
+                Column {
+                    Text(stringResource(R.string.unified_reset_desc))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { keepAutoCalChecked = !keepAutoCalChecked }
+                    ) {
+                        Checkbox(
+                            checked = keepAutoCalChecked,
+                            onCheckedChange = { keepAutoCalChecked = it }
+                        )
+                        Text(stringResource(R.string.keep_auto_calibration))
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.clearAll(sensor.serial)
-                    showClearAllDialog = false
-                }) { Text(stringResource(R.string.reset_all)) }
+                    if (keepAutoCalChecked) {
+                        viewModel.resetSensor(sensor.serial)  // Hardware reset only
+                    } else {
+                        viewModel.clearAll(sensor.serial)     // Full reset
+                    }
+                    showUnifiedResetDialog = false
+                    keepAutoCalChecked = false
+                }) { Text(stringResource(R.string.reset_sensor)) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearAllDialog = false }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { 
+                    showUnifiedResetDialog = false 
+                    keepAutoCalChecked = false
+                }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -3720,7 +4233,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
 
     val isStreaming = sensor.streaming
     // Visual Feedback: Darken card when disconnected/paused
-    val containerColor = if (isStreaming) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val containerColor = if (isStreaming) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     val contentAlpha = if (isStreaming) 1f else 0.9f
 
 
@@ -3961,23 +4474,27 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     // M3 Expressive Trailing Action (Compact)
-                    FilledTonalButton(
+                    if (sensor.viewMode != 1) {
+                        FilledTonalButton(
                         onClick = { showClearDialog = true },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                        modifier = Modifier.height(28.dp)
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+//                        modifier = Modifier.height(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.restart), style = MaterialTheme.typography.labelLarge)
+//                        Spacer(Modifier.width(4.dp))
+//                        Text(stringResource(R.string.restart), style = MaterialTheme.typography.labelLarge)
                     }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
+                } else {
+                        Spacer(modifier = Modifier.height(48.dp))
+                    }
+                    }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 
                     val autoStr = stringResource(R.string.auto)
@@ -4320,55 +4837,82 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
             } // End isSibionics2 block
 
             // --- ACTION BUTTONS (Always Visible) ---
-            Spacer(modifier = Modifier.height(24.dp)) // More space above actions (M3 Expressive)
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Row 1: Reset Actions (Sibionics 2 Only)
-            if (sensor.isSibionics2) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilledTonalButton(
-                        onClick = { showResetDialog = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.reset_sensor), maxLines = 1)
-                    }
-                    FilledTonalButton(
-                        onClick = { showClearAllDialog = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.reset_all), maxLines = 1)
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // Row 2: Main Actions (Visible for ALL sensors)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-
-                OutlinedButton(
-                    onClick = { showReconnectDialog = true },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(stringResource(R.string.reconnect))
-                }
-                // Destructive action: Error color (M3 Expressive)
-                OutlinedButton(
-                    onClick = { showTerminateDialog = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+            // Row 1: Unified Reset Button (Sibionics only - full width, styled like "Previous calibrations")
+            if (sensor.isSibionics) {
+                FilledTonalButton(
+                    onClick = { showUnifiedResetDialog = true },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 ) {
-                    Text(stringResource(R.string.disconnect))
+                    Icon(
+                        imageVector = Icons.Default.SettingsBackupRestore,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.reset_sensor))
+                }
+            }
+
+            // Row 2: Reconnect | Disconnect (styled like "Clear all" / "Calibrate" - connected button group)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)  // No gap for connected look
+            ) {
+                // Reconnect - Left side (tonal, like "Clear all")
+                FilledTonalButton(
+                    onClick = { showReconnectDialog = true },
+//                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(
+                        topStart = 12.dp,
+                        bottomStart = 12.dp,
+                        topEnd = 4.dp,
+                        bottomEnd = 4.dp
+                    ),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BluetoothConnected,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.reconnect), maxLines = 1)
+                }
+                
+//                Spacer(modifier = Modifier.width(4.dp))
+                
+                // Disconnect - Right side (error container)
+                FilledTonalButton(
+                    onClick = { showTerminateDialog = true },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(
+                        topStart = 4.dp,
+                        bottomStart = 4.dp,
+                        topEnd = 12.dp,
+                        bottomEnd = 12.dp
+                    ),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteForever,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.disconnect), maxLines = 1)
                 }
             }
             }

@@ -383,10 +383,10 @@
     <string name="humaninsulin">Human Insulin/Humulin R/Novolin R</string>
     <string name="afrezza">Afrezza</string>
     <string name="not">Not</string>
-    <string name="eusibionics">EU Sibionics - com.sisensing.sijoy</string>
-    <string name="chsibionics">Chinese Sibionics - com.sisensing.sisensingcgm</string>
-    <string name="hematonix">Hematonix - com.sisensing.rusibionics</string>
-    <string name="sibionics2">Sibionics 2/Split - com.sisensing.eco</string>
+    <string name="eusibionics">Sibionics EU</string>
+    <string name="chsibionics">Sibionics Chinese</string>
+    <string name="hematonix">Hematonix</string>
+    <string name="sibionics2">Sibionics 2 Split</string>
     <string name="datapresent">"Data present: "</string>
     <string name="overwrite">Overwrite?</string>
     <string name="autoqr">Auto QR</string>

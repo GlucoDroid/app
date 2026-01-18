@@ -1098,118 +1098,126 @@ public class Notify {
             valueText = format(usedlocale, pureglucoseformat, glvalue);
             isSimple = true;
         } catch (NumberFormatException e) {
-            // Complex string (Raw+Auto?), replace " (" with " · " and remove ")"
-            // valueText = value.replace(" (", " · ").replace(")", "");
+            // Complex string already? Just keep it but fix separators
             valueText = value.replace(" (", " / ").replace(")", "");
         }
 
-        // Force comma separator as requested
+        // Force comma separator
         valueText = valueText.replace(".", ",");
 
         if (isSimple && points != null && !points.isEmpty()) {
+            boolean isRawMode = (viewMode == 1 || viewMode == 3);
+            boolean hasCalibration = tk.glucodata.data.calibration.CalibrationManager.INSTANCE
+                    .hasActiveCalibration(isRawMode);
+
+            // If calibration is active, 'glvalue' passed in IS the calibrated value.
+            // We need to find the Base values (Raw & Auto) from the points.
+
+            float rawVal = 0f;
+            float autoVal = 0f;
             boolean found = false;
-            String secondary = null;
 
-            // Mode 3: Raw+Auto (User receives Raw, wants Raw · Auto)
-            if (viewMode == 3) {
-                // Input 'glvalue' is likely RAW. Find companion Auto.
-                for (int i = points.size() - 1; i >= 0; i--) {
-                    GlucosePoint p = points.get(i);
+            // Find matching point
+            for (int i = points.size() - 1; i >= 0; i--) {
+                GlucosePoint p = points.get(i);
+                if (targetTime > 0 && Math.abs(p.timestamp - targetTime) > 60000)
+                    continue;
 
-                    // Strict Time Match (approx 1 min tolerance to be safe, but usually exact)
-                    if (targetTime > 0 && Math.abs(p.timestamp - targetTime) > 60000)
-                        continue;
+                // Match logic:
+                // If hasCalibration: we can't easily match value to p.value/p.rawValue because
+                // glvalue is calibrated.
+                // Trust the TIME match.
+                if (targetTime > 0 && Math.abs(p.timestamp - targetTime) < 2000) {
+                    rawVal = p.rawValue;
+                    autoVal = p.value;
+                    found = true;
+                    break;
+                }
 
-                    // Check if this point's Raw matches our input
-                    if (Math.abs(p.rawValue - glvalue) < 0.1) {
-                        String autoStr = format(usedlocale, pureglucoseformat, p.value);
-                        secondary = autoStr.replace(".", ",");
+                // If no time, try value match ONLY if NO calibration (fallback)
+                if (!hasCalibration) {
+                    if (viewMode == 3 && Math.abs(p.rawValue - glvalue) < 0.1) {
+                        rawVal = p.rawValue;
+                        autoVal = p.value;
+                        found = true;
+                        break;
+                    }
+                    if (viewMode == 2 && Math.abs(p.value - glvalue) < 0.1) {
+                        rawVal = p.rawValue;
+                        autoVal = p.value;
                         found = true;
                         break;
                     }
                 }
-                // Try fallback using JUST time if value match failed (60s tolerance)
-                if (!found && targetTime > 0) {
-                    for (int i = points.size() - 1; i >= 0; i--) {
-                        GlucosePoint p = points.get(i);
-                        if (Math.abs(p.timestamp - targetTime) < 60000) {
-                            String autoStr = format(usedlocale, pureglucoseformat, p.value);
-                            secondary = autoStr.replace(".", ",");
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-                // Ultimate fallback: use latest point's value
-                if (!found && !points.isEmpty()) {
-                    GlucosePoint latest = points.get(points.size() - 1);
-                    if (latest.value > 0.1f) {
-                        String autoStr = format(usedlocale, pureglucoseformat, latest.value);
-                        secondary = autoStr.replace(".", ",");
-                        found = true;
-                    }
-                }
             }
-            // Mode 2: Auto+Raw (User receives Auto, wants Auto · Raw)
-            else if (viewMode == 2) {
-                // Input 'glvalue' is likely AUTO. Find companion Raw.
-                for (int i = points.size() - 1; i >= 0; i--) {
-                    GlucosePoint p = points.get(i);
 
-                    // Strict Time Match
-                    if (targetTime > 0 && Math.abs(p.timestamp - targetTime) > 60000)
-                        continue;
+            // Fallback: Use latest if not found
+            if (!found && !points.isEmpty()) {
+                GlucosePoint latest = points.get(points.size() - 1);
+                rawVal = latest.rawValue;
+                autoVal = latest.value;
+            }
 
-                    if (Math.abs(p.value - glvalue) < 0.1) {
-                        if (p.rawValue > 0.1f) {
-                            String rawStr = format(usedlocale, pureglucoseformat, p.rawValue);
-                            secondary = rawStr.replace(".", ",");
-                            found = true;
-                            break;
-                        }
-                    }
+            // Build Strings
+            String secondary = null;
+            String tertiary = null;
+
+            // Helper to format float
+            // We can't use local func in Java, so standard code
+
+            if (hasCalibration) {
+                if (viewMode == 2 || viewMode == 3) {
+                    // 3 Values: Calibrated / Sec · Ter
+                    // Mode 2 (Auto+Raw): Sec=Auto, Ter=Raw
+                    // Mode 3 (Raw+Auto): Sec=Raw, Ter=Auto
+                    float secVal = (viewMode == 3) ? rawVal : autoVal;
+                    float terVal = (viewMode == 3) ? autoVal : rawVal;
+
+                    if (secVal > 0.1f)
+                        secondary = format(usedlocale, pureglucoseformat, secVal).replace(".", ",");
+                    if (terVal > 0.1f)
+                        tertiary = format(usedlocale, pureglucoseformat, terVal).replace(".", ",");
+                } else {
+                    // 2 Values: Calibrated / Base
+                    float baseVal = isRawMode ? rawVal : autoVal;
+                    if (baseVal > 0.1f)
+                        secondary = format(usedlocale, pureglucoseformat, baseVal).replace(".", ",");
                 }
-                // Fallback time match (60s tolerance to handle Room DB vs Native timing
-                // differences)
-                if (!found && targetTime > 0) {
-                    for (int i = points.size() - 1; i >= 0; i--) {
-                        GlucosePoint p = points.get(i);
-                        if (Math.abs(p.timestamp - targetTime) < 60000) {
-                            if (p.rawValue > 0.1f) {
-                                String rawStr = format(usedlocale, pureglucoseformat, p.rawValue);
-                                secondary = rawStr.replace(".", ",");
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // Ultimate fallback: use latest point if it has rawValue
-                if (!found && !points.isEmpty()) {
-                    GlucosePoint latest = points.get(points.size() - 1);
-                    if (latest.rawValue > 0.1f) {
-                        String rawStr = format(usedlocale, pureglucoseformat, latest.rawValue);
-                        secondary = rawStr.replace(".", ",");
-                        found = true;
-                    }
+            } else {
+                // No Calibration - Original Logic
+                if (viewMode == 2 || viewMode == 3) {
+                    float secVal = (viewMode == 3) ? autoVal : rawVal;
+                    if (secVal > 0.1f)
+                        secondary = format(usedlocale, pureglucoseformat, secVal).replace(".", ",");
                 }
             }
 
+            // Build Spannable
             if (secondary != null) {
-                // Return SpannableStringBuilder with Color Span for secondary text
                 android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder();
                 ssb.append(valueText);
+
+                int secStart = ssb.length(); // Include separator in span
                 ssb.append(" / ");
-                int startColor = ssb.length();
                 ssb.append(secondary);
 
-                // Set Gray Color for Secondary Text
-                ssb.setSpan(new android.text.style.ForegroundColorSpan(0xFF888888), startColor - 3, ssb.length(),
+                // Secondary Style: Gray, 0.85x
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(0xFF888888), secStart, ssb.length(),
+                        android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+                ssb.setSpan(new android.text.style.RelativeSizeSpan(0.85f), secStart, ssb.length(),
                         android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
 
-                // Optional: Make secondary smaller
-                ssb.setSpan(new android.text.style.RelativeSizeSpan(0.85f), startColor, ssb.length(),
-                        android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+                if (tertiary != null) {
+                    int terStart = ssb.length(); // Include separator in span
+                    ssb.append(" · ");
+                    ssb.append(tertiary);
+
+                    // Tertiary Style: Lighter Gray, 0.7x
+                    ssb.setSpan(new android.text.style.ForegroundColorSpan(0xFFAAAAAA), terStart, ssb.length(),
+                            android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+                    ssb.setSpan(new android.text.style.RelativeSizeSpan(0.7f), terStart, ssb.length(),
+                            android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+                }
 
                 return ssb;
             }
@@ -1307,6 +1315,10 @@ public class Notify {
         }
 
         // If ViewMode == 3 (Combined), we force appending Raw if available
+        boolean isRawMode = (viewMode == 1 || viewMode == 3);
+        boolean hasCalibration = tk.glucodata.data.calibration.CalibrationManager.INSTANCE
+                .hasActiveCalibration(isRawMode);
+
         CharSequence valueText = formatGlucoseText(glucose.value, glvalue, nativePoints, viewMode, glucose.time);
 
         // Semantic Color
@@ -1458,13 +1470,13 @@ public class Notify {
         if (showChartCollapsed) {
             // Collapsed chart: Sparkline format (wide - 800x48)
             chartBitmapCollapsed = NotificationChartDrawer.drawChart(Applic.app, chartPoints, 800, 48, isMmol,
-                    viewMode, showTargetRange);
+                    viewMode, showTargetRange, hasCalibration);
         }
 
         if (showChart) {
             // Expanded chart (larger, for expanded notification)
             chartBitmapExpanded = NotificationChartDrawer.drawChart(Applic.app, chartPoints, 600, 180, isMmol,
-                    viewMode, showTargetRange);
+                    viewMode, showTargetRange, hasCalibration);
         }
 
         remoteViews.setImageViewBitmap(R.id.notification_chart, chartBitmapCollapsed);
@@ -1686,7 +1698,7 @@ public class Notify {
         // Apply size and weight to startup notification too
         remoteViews.setTextViewTextSize(R.id.notification_glucose, android.util.TypedValue.COMPLEX_UNIT_SP,
                 24 * fontSize);
-        if (android.os.Build.VERSION.SDK_INT >= 26) {
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
             remoteViews.setString(R.id.notification_glucose, "setFontVariationSettings", "'wght' " + fontWeight);
         }
 
@@ -1724,7 +1736,7 @@ public class Notify {
         // Apply size and weight to expanded startup notification
         remoteViewsExpanded.setTextViewTextSize(R.id.notification_glucose, android.util.TypedValue.COMPLEX_UNIT_SP,
                 28 * fontSize);
-        if (android.os.Build.VERSION.SDK_INT >= 26) {
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
             remoteViewsExpanded.setString(R.id.notification_glucose, "setFontVariationSettings",
                     "'wght' " + fontWeight);
         }
@@ -1773,6 +1785,9 @@ public class Notify {
             if (doLog) {
                 Log.i(LOG_ID, "fornotify ");
             }
+            // Notify AOD/Widgets of update immediately
+            Applic.app.sendBroadcast(new Intent("tk.glucodata.action.GLUCOSE_UPDATE"));
+
             ;
         }
         ;

@@ -80,7 +80,7 @@ fun LibreSetupWizard(
             
             Button(
                 onClick = onScanNfc,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                 Icon(Icons.Default.Nfc, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))

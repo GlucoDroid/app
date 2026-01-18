@@ -126,7 +126,7 @@ fun ExpressiveSettingsScreen(
             Text(
                 text = stringResource(R.string.settings),
                 style = MaterialTheme.typography.displaySmall,
-                modifier = Modifier.padding(start = 12.dp, bottom = 24.dp)
+                modifier = Modifier.padding(start = 16.dp, bottom = 24.dp)
             )
         }     // === GENERAL SECTION ===
 //        item(key = "general_label") { SectionLabel(stringResource(R.string.general_settings), topPadding = 0.dp) }
@@ -543,22 +543,25 @@ fun NotificationSettingsSheet(
                 range = 0.6f..1.5f
             )
 
-            Text("Font Weight", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                 // Simplified Options: Regular (400) and Medium (500)
-                 FilterChip(
-                     selected = fontWeight == 400,
-                     onClick = { fontWeight = 400; save() },
-                     label = { Text("Regular") }
-                 )
-                 FilterChip(
-                     selected = fontWeight == 500,
-                     onClick = { fontWeight = 500; save() },
-                     label = { Text("Medium") }
-                 )
+            // Font Weight - only on Android 12+ (API 31) where RemoteViews supports setFontVariationSettings
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                Text("Font Weight", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                     // Simplified Options: Regular (400) and Medium (500)
+                     FilterChip(
+                         selected = fontWeight == 400,
+                         onClick = { fontWeight = 400; save() },
+                         label = { Text("Regular") }
+                     )
+                     FilterChip(
+                         selected = fontWeight == 500,
+                         onClick = { fontWeight = 500; save() },
+                         label = { Text("Medium") }
+                     )
+                }
             }
 
             // === ARROW SECTION ===

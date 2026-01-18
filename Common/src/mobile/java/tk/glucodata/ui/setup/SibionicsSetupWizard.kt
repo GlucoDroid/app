@@ -607,7 +607,7 @@ fun ScanSensorStep(
         item {
             Button(
                 onClick = onScanClick,
-                modifier = Modifier.fillMaxWidth().height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                 Icon(Icons.Default.QrCodeScanner, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -623,7 +623,7 @@ fun ScanSensorStep(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     ) 
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                 Icon(Icons.Default.Image, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -643,7 +643,7 @@ fun ScanSensorStep(
                         val randomCode = "FAKEBATCH$" + randomSerial + "X" 
                         onManualEntry(randomCode)
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) {
                    Text(stringResource(R.string.skip_fake_sensor)) 
                 }
@@ -652,7 +652,9 @@ fun ScanSensorStep(
             Spacer(modifier = Modifier.height(16.dp))
 
             TextButton(
-                onClick = { showManualEntry = true }
+                onClick = { showManualEntry = true },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+
             ) {
                 Text(stringResource(R.string.enter_code_manually))
             }
@@ -778,7 +780,7 @@ fun SelectTypeStep(
             onClick = onNext,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .height(48.dp),
             shape = MaterialTheme.shapes.large
         ) {
             Text(
@@ -792,8 +794,9 @@ fun SelectTypeStep(
         // Secondary cancel action
         TextButton(
             onClick = onBack,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+
+            ) {
             Text(stringResource(R.string.cancel))
         }
     }
@@ -927,7 +930,7 @@ fun ScanTransmitterStep(
             // Bluetooth Scanning Section (Moved to Top)
             OutlinedButton(
                 onClick = { isScanning = !isScanning },
-                modifier = Modifier.fillMaxWidth().height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                 if (isScanning) {
                     CircularProgressIndicator(
@@ -993,7 +996,7 @@ fun ScanTransmitterStep(
     
             Button(
                 onClick = onScanClick,
-                modifier = Modifier.fillMaxWidth().height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                 Icon(Icons.Default.QrCodeScanner, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -1009,7 +1012,7 @@ fun ScanTransmitterStep(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     ) 
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                 Icon(Icons.Default.Image, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -1020,7 +1023,7 @@ fun ScanTransmitterStep(
             
             TextButton(
                 onClick = { showManualEntry = true },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                  Text("Enter Code Manually")
             }

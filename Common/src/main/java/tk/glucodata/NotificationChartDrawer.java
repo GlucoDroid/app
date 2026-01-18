@@ -161,12 +161,7 @@ public class NotificationChartDrawer {
         paint.setTextAlign(Paint.Align.LEFT);
 
         if (useSystemFont) {
-            // System Font Logic (Google Sans) behavior matching Notify.java
             String familyName = "google-sans";
-            // Pre-API 28, we might need "google-sans-medium" for 500+
-            // For Light < 400, on older devices, standard "google-sans" might just look
-            // regular.
-            // But on API 28+, we can force weight.
             if (fontWeight >= 500) {
                 familyName = "google-sans-medium";
             } else if (fontWeight < 400) {
@@ -176,26 +171,20 @@ public class NotificationChartDrawer {
             try {
                 android.graphics.Typeface tf = android.graphics.Typeface.create(familyName,
                         android.graphics.Typeface.NORMAL);
-
-                // API 28+ (Pie): Precise weight creation
-                // This allows fetching "Light" (300) from "google-sans" family correctly
                 if (android.os.Build.VERSION.SDK_INT >= 28) {
                     tf = android.graphics.Typeface.create(tf, fontWeight, false);
                 }
-
                 paint.setTypeface(tf);
             } catch (Throwable t) {
                 paint.setTypeface(android.graphics.Typeface.DEFAULT);
             }
         } else {
-            // App Font Logic (IBM Plex Sans Variable)
             try {
                 android.graphics.Typeface tf = androidx.core.content.res.ResourcesCompat.getFont(context,
                         R.font.ibm_plex_sans_var);
                 paint.setTypeface(tf);
 
                 if (android.os.Build.VERSION.SDK_INT >= 26) {
-                    // Apply font weight from preferences
                     paint.setFontVariationSettings("'wght' " + fontWeight + ", 'wdth' 100");
                 }
             } catch (Throwable t) {
@@ -203,31 +192,47 @@ public class NotificationChartDrawer {
             }
         }
 
-        // Multi-Color Logic: "Main / Raw"
+        // Parse up to 3 parts: "Primary / Secondary · Tertiary" (hero card format)
         String part1 = text;
         String part2 = "";
-        String separator = " / ";
+        String part3 = "";
 
-        if (text.contains(separator)) {
-            String[] parts = text.split(separator);
-            if (parts.length >= 2) {
-                part1 = parts[0];
-                part2 = separator + parts[1];
+        // First split by " / " for primary vs rest
+        if (text.contains(" / ")) {
+            String[] mainSplit = text.split(" / ", 2);
+            part1 = mainSplit[0];
+            String rest = mainSplit.length > 1 ? mainSplit[1] : "";
+
+            // Then split rest by " · " for secondary vs tertiary
+            if (rest.contains(" · ")) {
+                String[] subSplit = rest.split(" · ", 2);
+                part2 = " / " + subSplit[0];
+                part3 = " · " + subSplit[1];
+            } else {
+                part2 = " / " + rest;
             }
         }
 
-        // Measure Part 1
+        // Measure Part 1 (Primary - full size)
         float width1 = paint.measureText(part1);
 
-        // Measure Part 2 (Scaled 0.7x)
+        // Part 2 (Secondary - 0.7x size, gray)
+        Paint paint2 = new Paint(paint);
         float width2 = 0;
-        Paint paint2 = new Paint(paint); // Clone paint
         if (!part2.isEmpty()) {
-            paint2.setTextSize(textSize * 0.7f); // Scale down
+            paint2.setTextSize(textSize * 0.7f);
             width2 = paint2.measureText(part2);
         }
 
-        int totalWidth = (int) (width1 + width2 + 1);
+        // Part 3 (Tertiary - 0.6x size, lighter gray)
+        Paint paint3 = new Paint(paint);
+        float width3 = 0;
+        if (!part3.isEmpty()) {
+            paint3.setTextSize(textSize * 0.6f);
+            width3 = paint3.measureText(part3);
+        }
+
+        int totalWidth = (int) (width1 + width2 + width3 + 1);
         int height = (int) (28 * density * fontSizeScale);
 
         if (totalWidth <= 0)
@@ -241,15 +246,34 @@ public class NotificationChartDrawer {
         Paint.FontMetrics fm = paint.getFontMetrics();
         float y = height / 2.0f - (fm.ascent + fm.descent) / 2.0f;
 
-        // Draw Part 1 (Main) - Semantic Color
-        paint.setColor(color);
-        canvas.drawText(part1, 0, y, paint);
+        float currentX = 0;
 
-        // Draw Part 2 (Raw) - Gray/Secondary
+        // Draw Part 1 (Primary) - Semantic Color
+        paint.setColor(color);
+        canvas.drawText(part1, currentX, y, paint);
+        currentX += width1;
+
+        // Draw Part 2 (Secondary) - 0.7 alpha gray
         if (!part2.isEmpty()) {
-            paint2.setColor(Color.GRAY);
-            // Baseline alignment: use same 'y' because drawText is baseline-based
-            canvas.drawText(part2, width1, y, paint2);
+            paint2.setColor(0xB3FFFFFF); // ~70% white (for dark mode)
+            int uiMode = context.getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            if (uiMode != android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+                paint2.setColor(0xB3000000); // ~70% black (for light mode)
+            }
+            canvas.drawText(part2, currentX, y, paint2);
+            currentX += width2;
+        }
+
+        // Draw Part 3 (Tertiary) - 0.5 alpha gray
+        if (!part3.isEmpty()) {
+            paint3.setColor(0x80FFFFFF); // ~50% white
+            int uiMode = context.getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            if (uiMode != android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+                paint3.setColor(0x80000000); // ~50% black
+            }
+            canvas.drawText(part3, currentX, y, paint3);
         }
 
         return bitmap;
@@ -315,19 +339,17 @@ public class NotificationChartDrawer {
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange) {
-        try {
-            return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange);
-        } catch (Exception e) {
-            // If chart drawing fails, return empty transparent bitmap
-            DisplayMetrics dm = context.getResources().getDisplayMetrics();
-            int width = dm.widthPixels;
-            int height = (int) (256 * dm.density);
-            return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        }
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange, false);
+    }
+
+    public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration) {
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
+                hasCalibration);
     }
 
     private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
-            boolean isMmol, int viewMode, boolean showTargetRange) {
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration) {
         // Get display metrics for proper sizing - 256dp height works best with
         // fitCenter
         DisplayMetrics dm = context.getResources().getDisplayMetrics();
@@ -341,6 +363,11 @@ public class NotificationChartDrawer {
 
         int lineColor = isDark ? Color.WHITE : Color.BLACK;
         int lineColorSecondary = isDark ? 0xFF9E9E9E : 0xFF757575;
+        // Tertiary: Lighter Gray (match ComposeHost tertiaryColor: alpha 0.45 of
+        // content)
+        // Light: 0x73000000 (45%), Dark: 0x73FFFFFF (45%)
+        int lineColorTertiary = isDark ? 0x73FFFFFF : 0x73000000;
+
         int gridColor = isDark ? 0x33FFFFFF : 0x22000000;
         int textColor = isDark ? 0x88FFFFFF : 0x88000000; // Lighter shade (53% opacity)
 
@@ -382,8 +409,47 @@ public class NotificationChartDrawer {
         boolean showAuto = (viewMode == 0 || viewMode == 2 || viewMode == 3);
         boolean showRaw = (viewMode == 1 || viewMode == 2 || viewMode == 3);
 
-        int autoColor = (viewMode == 3) ? lineColorSecondary : lineColor;
-        int rawColor = (viewMode == 3) ? lineColor : lineColorSecondary;
+        // Determine line colors based on ViewMode and Calibration
+        int autoColor = lineColor; // Default Primary
+        int rawColor = lineColor; // Default Primary
+
+        if (viewMode == 2) { // Auto+Raw
+            if (hasCalibration) {
+                autoColor = lineColorSecondary;
+                rawColor = lineColorTertiary;
+            } else {
+                autoColor = lineColor;
+                rawColor = lineColorSecondary;
+            }
+        } else if (viewMode == 3) { // Raw+Auto
+            if (hasCalibration) {
+                rawColor = lineColorSecondary;
+                autoColor = lineColorTertiary;
+            } else {
+                rawColor = lineColor;
+                autoColor = lineColorSecondary;
+            }
+        } else {
+            // Single Modes (0 or 1)
+            if (hasCalibration) {
+                // If calibrated, the base line becomes Secondary (Calibrated line is Primary)
+                // Whether it's Auto or Raw mode, the uncalibrated line is demoted
+                autoColor = lineColorSecondary;
+                rawColor = lineColorSecondary;
+            } else {
+                // No calibration:
+                // Auto Mode (0): autoColor=Primary (default)
+                // Raw Mode (1): rawColor=Primary (default)
+                // But wait, if ViewMode=1 (Raw Only), autoColor doesn't matter, rawColor is
+                // Primary.
+                // My default above sets BOTH to Primary, which is correct for singular modes.
+                // But for combined modes without calibration?
+                // ViewMode 2 (Auto+Raw): Auto=Primary, Raw=Secondary
+                // ViewMode 3 (Raw+Auto): Raw=Primary, Auto=Secondary
+                // Handled in the if/else blocks above.
+                // So defaults are safe for singular.
+            }
+        }
 
         // Target Range (Get from Natives or Defaults)
         float targetLow = 70.0f;
@@ -648,6 +714,36 @@ public class NotificationChartDrawer {
                         first = false;
                     } else {
                         path.lineTo(x, y);
+                    }
+                }
+            }
+            if (!first) {
+                canvas.drawPath(path, linePaint);
+            }
+        }
+
+        // Draw Calibrated Line (Primary)
+        if (hasCalibration && !visiblePoints.isEmpty()) {
+            linePaint.setColor(lineColor); // Always Primary
+            Path path = new Path();
+            boolean first = true;
+            boolean isRawModeforCal = (viewMode == 1 || viewMode == 3);
+
+            for (GlucosePoint p : visiblePoints) {
+                float baseVal = isRawModeforCal ? p.rawValue : p.value;
+                if (baseVal > 0) {
+                    float val = tk.glucodata.data.calibration.CalibrationManager.INSTANCE.getCalibratedValue(baseVal,
+                            p.timestamp, isRawModeforCal);
+
+                    if (val > 0.1f) {
+                        float x = chartLeft + ((p.timestamp - startTime) / (float) duration) * chartWidth;
+                        float y = chartBottom - ((val - minY) / yRange) * chartHeight;
+                        if (first) {
+                            path.moveTo(x, y);
+                            first = false;
+                        } else {
+                            path.lineTo(x, y);
+                        }
                     }
                 }
             }

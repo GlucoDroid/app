@@ -9,6 +9,10 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -28,12 +32,16 @@ import tk.glucodata.strGlucose
 import java.util.Locale
 import kotlin.random.Random
 
-class AODOverlayService : AccessibilityService() {
+class AODOverlayService : AccessibilityService(), SensorEventListener {
 
     private var windowManager: WindowManager? = null
+    private var sensorManager: SensorManager? = null
+    private var lightSensor: Sensor? = null
     private var overlayView: View? = null
     private var params: WindowManager.LayoutParams? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var currentLuxAlpha = 1.0f // Default to full brightness
+    private var cachedBaseOpacity = 1.0f // Cached from preferences
 
     // State for AOD behavior
     private var isScreenOn = true
@@ -46,25 +54,69 @@ class AODOverlayService : AccessibilityService() {
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                "tk.glucodata.action.GLUCOSE_UPDATE" -> {
+                    if (isLocked && overlayView?.visibility == View.VISIBLE) {
+                        updateOverlayContent()
+                    }
+                }
                 Intent.ACTION_SCREEN_OFF -> {
                     isScreenOn = false
                     updateVisibility()
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     isScreenOn = true
-                    updateVisibility()
+                    // Immediately check keyguard state - faster than waiting for USER_PRESENT
+                    checkAndUpdateLockState()
+                    // Also schedule quick rechecks to catch unlock faster
+                    scheduleQuickLockCheck()
                 }
                 Intent.ACTION_USER_PRESENT -> {
+                    // User fully unlocked - guaranteed hide
                     isLocked = false
                     updateVisibility()
+                    cancelQuickLockCheck()
                 }
             }
+        }
+    }
+    
+    private val quickLockCheckRunnable = object : Runnable {
+        private var checkCount = 0
+        override fun run() {
+            checkAndUpdateLockState()
+            checkCount++
+            // Keep checking for up to 2 seconds after screen on (20 checks @ 100ms)
+            if (isLocked && checkCount < 20) {
+                handler.postDelayed(this, 100L)
+            } else {
+                checkCount = 0
+            }
+        }
+        fun reset() { checkCount = 0 }
+    }
+    
+    private fun scheduleQuickLockCheck() {
+        quickLockCheckRunnable.reset()
+        handler.removeCallbacks(quickLockCheckRunnable)
+        handler.postDelayed(quickLockCheckRunnable, 100L)
+    }
+    
+    private fun cancelQuickLockCheck() {
+        handler.removeCallbacks(quickLockCheckRunnable)
+    }
+    
+    private fun checkAndUpdateLockState() {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        val wasLocked = isLocked
+        isLocked = keyguardManager.isKeyguardLocked
+        if (wasLocked != isLocked) {
+            updateVisibility()
         }
     }
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            if (overlayView?.visibility == View.VISIBLE) {
+            if (overlayView != null) {
                 updateOverlayContent()
                 applyBurnInProtection()
             }
@@ -81,8 +133,12 @@ class AODOverlayService : AccessibilityService() {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction("tk.glucodata.action.GLUCOSE_UPDATE")
         }
-        registerReceiver(screenStateReceiver, filter)
+        androidx.core.content.ContextCompat.registerReceiver(this, screenStateReceiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        lightSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_LIGHT)
         
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
         isLocked = keyguardManager.isKeyguardLocked
@@ -90,49 +146,115 @@ class AODOverlayService : AccessibilityService() {
     }
 
     private fun createOverlay() {
-        if (overlayView != null) return
-
-        val inflater = LayoutInflater.from(this)
-        overlayView = inflater.inflate(R.layout.aod_overlay, null)
-        
-        // Transparent background to show system AOD/Wallpaper
-        overlayView?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-
-        params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT, // Only wrap content to allow positioning
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED,
-            PixelFormat.TRANSLUCENT
-        )
-
-        // Default to TOP based on typical xDrip usage, but user requested positioning.
-        // Ideally we read this from SharedPreferences. For now, default to CENTER for visibility.
-        // User asked to "copy placement settings" from xDrip (Top/Center/Bottom).
-        // Let's implement a rudimentary check if we had settings.
-        // Since we are refactoring, let's stick to gravity control.
-        params?.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        params?.y = 100 // Initial top margin
-
-        windowManager?.addView(overlayView, params)
+        // View creation is now handled by showOverlay() when needed
+        // Just start the periodic update runnable
         handler.post(updateRunnable)
     }
 
     private fun updateVisibility() {
-        val shouldShow = isLocked
+        // Show if locked OR screen is off (e.g. timeout grace period before lock)
+        val shouldShow = isLocked || !isScreenOn
         
         if (shouldShow) {
-            if (overlayView?.visibility != View.VISIBLE) {
-                overlayView?.visibility = View.VISIBLE
-                updateOverlayContent()
-                applyBurnInProtection()
-            }
+            showOverlay()
         } else {
-            overlayView?.visibility = View.GONE
+            hideOverlay()
         }
     }
+    
+
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_LIGHT) {
+            val lux = event.values[0]
+            
+            // Logarithmic curve for natural brightness perception
+            // Similar to how Android system AOD handles it
+            // log10(1) = 0, log10(100) = 2, log10(1000) = 3
+            val minLux = 1f
+            val maxLux = 200f
+            val minAlpha = 0.3f
+            val maxAlpha = 1.0f
+            
+            val clampedLux = lux.coerceIn(minLux, maxLux)
+            // Logarithmic mapping: more sensitive at low light
+            val logMin = Math.log(minLux.toDouble())
+            val logMax = Math.log(maxLux.toDouble())
+            val logLux = Math.log(clampedLux.toDouble())
+            val normalized = ((logLux - logMin) / (logMax - logMin)).toFloat()
+            
+            val targetLuxAlpha = minAlpha + normalized * (maxAlpha - minAlpha)
+            
+            // Smoothing factor (0.15 = ~2-3 seconds to reach target)
+            val smoothingFactor = 0.15f
+            currentLuxAlpha = (currentLuxAlpha * (1 - smoothingFactor)) + (targetLuxAlpha * smoothingFactor)
+            
+            // Only update view if alpha changed significantly (> 3%)
+            val newAlpha = cachedBaseOpacity * currentLuxAlpha
+            val currentViewAlpha = overlayView?.alpha ?: -1f
+            
+            if (kotlin.math.abs(newAlpha - currentViewAlpha) > 0.03f) {
+                updateAlpha()
+            }
+        }
+    }
+    
+    private fun showOverlay() {
+        if (overlayView == null) {
+            val inflater = LayoutInflater.from(this)
+            overlayView = inflater.inflate(R.layout.aod_overlay, null)
+            overlayView?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            
+            params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED,
+                PixelFormat.TRANSLUCENT
+            )
+            params?.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            params?.y = 100
+            
+            try {
+                windowManager?.addView(overlayView, params)
+            } catch (e: Exception) {}
+        }
+        updateOverlayContent()
+        applyBurnInProtection()
+        
+        // Cache opacity preference (avoid reading SharedPrefs in sensor callback)
+        val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+        cachedBaseOpacity = prefs.getFloat("aod_opacity", 1.0f)
+        
+        // Register light sensor with batching (reduces wakeups)
+        lightSensor?.let {
+            if (android.os.Build.VERSION.SDK_INT >= 19) {
+                // Batch events for up to 1 second to reduce CPU wakeups
+                sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 1000000)
+            } else {
+                sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            }
+        }
+    }
+    
+    private fun hideOverlay() {
+        // Unregister light sensor
+        sensorManager?.unregisterListener(this)
+        
+        // Remove the view entirely - instant disappearance like xDrip
+        val view = overlayView
+        if (view != null) {
+            try {
+                windowManager?.removeView(view)
+            } catch (e: Exception) {}
+            overlayView = null
+            params = null
+        }
+    }
+    
+    // Polling removed as requested
     
     private fun applyBurnInProtection() {
         val view = overlayView ?: return
@@ -160,8 +282,8 @@ class AODOverlayService : AccessibilityService() {
         // Alignment logic
         val alignment = prefs.getString("aod_alignment", "CENTER") ?: "CENTER"
         
-        // Apply Opacity
-        view.alpha = opacity
+        // Apply Opacity (combined with light sensor)
+        updateAlpha()
         
         // Apply Scaling
         val glucoseImg = view.findViewById<ImageView>(R.id.notification_glucose)
@@ -246,6 +368,9 @@ class AODOverlayService : AccessibilityService() {
                 }
             }
         }
+        
+        val isRawMode = (viewMode == 1 || viewMode == 3)
+        val hasCalibration = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawMode)
 
         // Current Value
         val last: strGlucose? = Natives.lastglucose()
@@ -261,13 +386,68 @@ class AODOverlayService : AccessibilityService() {
             rate = last.rate
             time = last.time
 
-            val formatted = Notify.formatGlucoseText(last.value, glvalue, chartPoints, viewMode, time)
-            valStr = formatted.toString()
+            // Build hero-card-style string with all values
+            // isRawMode and hasCalibration are defined above
+            
+            // Find matching point from history for raw/auto values
+            var rawVal = 0f
+            var autoVal = 0f
+            if (chartPoints.isNotEmpty()) {
+                for (i in chartPoints.size - 1 downTo 0) {
+                    val p = chartPoints[i]
+                    if (kotlin.math.abs(p.timestamp - time) < 60000) {
+                        rawVal = p.rawValue
+                        autoVal = p.value
+                        break
+                    }
+                }
+                // Fallback to latest point
+                if (rawVal < 0.1f && autoVal < 0.1f) {
+                    val latest = chartPoints[chartPoints.size - 1]
+                    rawVal = latest.rawValue
+                    autoVal = latest.value
+                }
+            }
+            
+            // Format based on viewMode and calibration (matching hero card logic)
+            val calibratedVal = if (hasCalibration) {
+                val baseVal = if (isRawMode) rawVal else autoVal
+                tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseVal, time, isRawMode)
+            } else 0f
+            
+            fun fmt(v: Float): String = String.format(Locale.US, "%.1f", v).replace(".", ",")
+            
+            valStr = when {
+                hasCalibration && (viewMode == 2 || viewMode == 3) -> {
+                    // 3 values: Calibrated / Secondary · Tertiary
+                    val secondary = if (viewMode == 3) fmt(rawVal) else fmt(autoVal)
+                    val tertiary = if (viewMode == 3) fmt(autoVal) else fmt(rawVal)
+                    "${fmt(calibratedVal)} / $secondary · $tertiary"
+                }
+                hasCalibration -> {
+                    // 2 values: Calibrated / Base
+                    val base = if (isRawMode) fmt(rawVal) else fmt(autoVal)
+                    "${fmt(calibratedVal)} / $base"
+                }
+                viewMode == 2 || viewMode == 3 -> {
+                    // 2 values: Primary / Secondary
+                    val primary = if (viewMode == 3) fmt(rawVal) else fmt(autoVal)
+                    val secondary = if (viewMode == 3) fmt(autoVal) else fmt(rawVal)
+                    "$primary / $secondary"
+                }
+                else -> {
+                    // Single value
+                    fmt(if (isRawMode) rawVal else autoVal)
+                }
+            }
+            
+            // Update glvalue for color calculation
+            glvalue = if (hasCalibration) calibratedVal else if (isRawMode) rawVal else autoVal
         } else if (chartPoints.isNotEmpty()) {
             val p = chartPoints[chartPoints.size - 1]
             glvalue = p.value
             try {
-                valStr = String.format(Locale.US, "%.1f", glvalue)
+                valStr = String.format(Locale.US, "%.1f", glvalue).replace(".", ",")
             } catch (e: Exception) {}
         }
 
@@ -312,7 +492,7 @@ class AODOverlayService : AccessibilityService() {
             // Base height 200dp
             val h = (200 * dm.density).toInt()
 
-            val chartBitmap = NotificationChartDrawer.drawChart(this, chartPoints, w, h, isMmol, viewMode)
+            val chartBitmap = NotificationChartDrawer.drawChart(this, chartPoints, w, h, isMmol, viewMode, true, hasCalibration)
             if (chartImg != null) {
                 chartImg.setImageBitmap(chartBitmap)
                 chartImg.visibility = View.VISIBLE
@@ -337,12 +517,7 @@ class AODOverlayService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-             val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-             val wasLocked = isLocked
-             isLocked = keyguardManager.isKeyguardLocked
-             if (wasLocked != isLocked) {
-                 updateVisibility()
-             }
+            checkAndUpdateLockState()
         }
     }
 
@@ -355,7 +530,17 @@ class AODOverlayService : AccessibilityService() {
         }
         try {
             unregisterReceiver(screenStateReceiver)
+            sensorManager?.unregisterListener(this)
         } catch (e: Exception) {}
         handler.removeCallbacks(updateRunnable)
     }
+    
+    private fun updateAlpha() {
+        val view = overlayView ?: return
+        view.alpha = cachedBaseOpacity * currentLuxAlpha
+    }
+    
+
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 }

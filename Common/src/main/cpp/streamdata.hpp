@@ -9,8 +9,10 @@ struct streamdata {
   SensorGlucoseData *hist;
   streamdata(int libreversion, int sensorindex, SensorGlucoseData *sens)
       : libreversion(libreversion), sensorindex(sensorindex), hist(sens) {
-    // MEMORY LEAK FIX: Uncomment to enable reference counting
-    // if (hist) hist->incUsage();
+    // Reference counting: prevents removeunused() from deleting sensors with
+    // active streams
+    if (hist)
+      hist->incUsage();
   }
   streamdata(int libreversion, int sensorindex)
       : streamdata(libreversion, sensorindex,
@@ -19,8 +21,9 @@ struct streamdata {
       : streamdata(libreversion, sensors->sensorindex(sensorname)) {}
   virtual bool good() const { return true; };
   virtual ~streamdata() {
-    // MEMORY LEAK FIX: Uncomment to enable reference counting
-    // if (hist) hist->decUsage();
+    // Reference counting: decrements when stream is destroyed
+    if (hist)
+      hist->decUsage();
   };
 };
 struct libre3stream : streamdata {

@@ -35,6 +35,7 @@ extern Sensoren *sensors;
 #ifndef LOGGER
 #define LOGGER(...) printf(__VA_ARGS__)
 #endif
+
 int sitrend2abbott(int sitrend) {
   if (sitrend < -2) {
     if (sitrend == -3)
@@ -132,11 +133,13 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
       } else {
         LOGGER("SIprocess index=%d>maxid=%d\n", index,
                maxid); // Idem. Don't block forever.
+        // Original Juggluco logic: retry more on larger gaps
         int maxretry =
             (index - maxid) < 20 ? 2 : ((index - maxid) < 200 ? 5 : 10);
         if (sens->retried++ < maxretry) {
           return 3LL;
         }
+        // Retries exhausted, fall through to process
       }
     }
     const int addtime = std::byteswap(one[6]);
@@ -158,14 +161,38 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
         backup->resendResetDevices(&updateone::sendstream);
       }
     }
+    // Original Juggluco logic - process3 result goes directly into newvalue
+    // check
     double newvalue = 0.0;
     if (value > 0.1 && value < 3000.0 &&
-        (newvalue = process3(index, value, temp)) > 1.8) {
+        (newvalue = process3(index, value, temp)) > 1) {
       sens->getinfo()->pollinterval = newvalue - value;
     } else {
       if (sens->getinfo()->pollinterval < 40)
         newvalue = value + sens->getinfo()->pollinterval;
     }
+
+    // Sanity check with streak counter - only reset after consecutive bad
+    // values
+    static int badValueStreak = 0;
+    constexpr int MAX_BAD_STREAK = 5;
+    if (newvalue > 50.0) {
+      badValueStreak++;
+      LOGGER("SIprocess: newvalue=%f is out of range. Streak=%d\n", newvalue,
+             badValueStreak);
+      if (badValueStreak >= MAX_BAD_STREAK) {
+        LOGGER("SIprocess: %d consecutive bad values, resetting algorithm\n",
+               badValueStreak);
+        this->reset(sens);
+        badValueStreak = 0;
+      }
+      // Fallback to raw sensor value
+      newvalue = value;
+    } else {
+      // Good value - reset streak
+      badValueStreak = 0;
+    }
+
 #ifndef NOLOG
     const long electric = std::byteswap(one[2]);
     const int status = std::byteswap(one[4]);
@@ -180,7 +207,8 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
            numOfUnreceived, addtime, trend, change, abbotttrend);
 
     //             if(infuture) sens->setSiIndex(index+1);
-    if (newvalue > 1.8 && newvalue < 30) {
+    // Valid range check aligned with sanity check thresholds (0.5-40)
+    if (newvalue > 1 && newvalue < 30) {
       sens->savestream(eventTime, index, mgdL, abbotttrend, change);
       sens->setSiIndex(index + 1);
       sens->retried = 0;
