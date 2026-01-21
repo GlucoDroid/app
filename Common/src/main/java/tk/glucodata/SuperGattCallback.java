@@ -544,7 +544,12 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
                     sensorgen);
+            // Hook for Custom Alerts
+            tk.glucodata.logic.CustomAlertManager.INSTANCE.checkAndTrigger(tk.glucodata.Applic.app, glucoseToUse,
+                    timmsec);
+
             charcha[0] = timmsec;
+
             if (!isWearable) {
                 if (Natives.gethealthConnect()) {
                     if (Build.VERSION.SDK_INT >= 28) {

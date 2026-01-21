@@ -886,6 +886,10 @@ public class Notify {
         final boolean dist = isWearable || getalarmdisturb(kind); // DND might need Prefs too, but keeping Natives for
                                                                   // now
 
+        // DEBUG LOGGING
+        Log.i(LOG_ID, "mksound DEBUG: kind=" + kind + " ring=" + (ring != null ? ring.getTitle(app) : "NULL")
+                + " duration=" + duration + " sound=" + sound + " flash=" + flash + " vibration=" + vibration);
+
         playringhier(ring, duration, sound, flash, vibration, dist, kind);
     }
 
@@ -924,6 +928,12 @@ public class Notify {
             }
 
             if (onenot != null) {
+                // Reset state so test always plays sound
+                AlertType alertType = AlertType.Companion.fromId(kind);
+                if (alertType != null) {
+                    AlertStateTracker.INSTANCE.resetState(alertType);
+                }
+
                 if (kind == 4) {
                     onenot.lossofsignalalarm(kind, R.drawable.loss, message, typeStr, true);
                 } else {
@@ -931,6 +941,57 @@ public class Notify {
                             0);
                     onenot.arrowglucosealarm(kind, dummyValue, message, dummyGlucose, typeStr, true);
                 }
+            }
+        });
+    }
+
+    /**
+     * Trigger a Custom Alert. Called from CustomAlertManager when a custom
+     * threshold is crossed.
+     * Uses the existing alarm flow - just calls arrowglucosealarm with appropriate
+     * parameters.
+     */
+    public static void triggerCustomAlert(String soundUri, boolean sound, boolean vibrate, boolean flash,
+            boolean isHigh, float glucoseValue, String deliveryMode, String volumeProfile, boolean overrideDnd) {
+        triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, glucoseValue, false);
+    }
+
+    /**
+     * Test a Custom Alert from UI.
+     */
+    public static void testCustomTrigger(String soundUri, boolean sound, boolean vibrate, boolean flash,
+            boolean isHigh, String deliveryMode, String volumeProfile, boolean overrideDnd) {
+        boolean isMmol = tk.glucodata.Applic.unit == 1;
+        float dummyValue = isHigh ? (isMmol ? 12.0f : 216f) : (isMmol ? 3.5f : 63f);
+        triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, dummyValue, true);
+    }
+
+    private static void triggerCustomAlertInternal(String soundUri, boolean sound, boolean vibrate, boolean flash,
+            boolean isHigh, float glucoseValue, boolean isTest) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (onenot != null) {
+                int kind = isHigh ? 1 : 0;
+                boolean isMmol = tk.glucodata.Applic.unit == 1;
+
+                // For test scenarios, reset tracker state so sound always plays
+                if (isTest) {
+                    AlertType alertType = AlertType.Companion.fromId(kind);
+                    if (alertType != null) {
+                        AlertStateTracker.INSTANCE.resetState(alertType);
+                    }
+                }
+
+                String message = isTest
+                        ? ("Test Custom " + (isHigh ? "High" : "Low"))
+                        : (isHigh ? "Custom High " : "Custom Low ")
+                                + format(util.getlocale(), glucoseformat, glucoseValue);
+
+                String typeStr = "glucoseNotification";
+                notGlucose glucoseStr = new notGlucose(System.currentTimeMillis(), String.valueOf(glucoseValue), 0f, 0);
+
+                // Simply call the existing alarm method - it handles everything including
+                // sound/flash/vibration
+                onenot.arrowglucosealarm(kind, glucoseValue, message, glucoseStr, typeStr, true);
             }
         });
     }
