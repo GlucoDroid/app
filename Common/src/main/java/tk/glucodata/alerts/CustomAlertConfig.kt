@@ -28,11 +28,13 @@ data class CustomAlertConfig(
     val style: String = "notification", // notification, alarm, both
     val intensity: String = "medium", // low, medium, high, ascending
     val overrideDnd: Boolean = false,
-    val retryInterval: Int = 0,
+    val retryEnabled: Boolean = false,
+    val retryIntervalMinutes: Int = 0,
     val retryCount: Int = 0,
     
     val snoozedUntil: Long = 0L,
-    val soundUri: String? = null
+    val soundUri: String? = null,
+    val durationSeconds: Int = 60
 ) {
     fun isActiveTime(currentMinutes: Int): Boolean {
         if (!timeRangeEnabled) return true // Always active if time range disabled
@@ -63,11 +65,14 @@ data class CustomAlertConfig(
             put("style", style)
             put("intensity", intensity)
             put("overrideDnd", overrideDnd)
-            put("retryInterval", retryInterval)
+            
+            put("retryEnabled", retryEnabled)
+            put("retryInterval", retryIntervalMinutes) // Keep JSON key simple or match property? preserving legacy 'retryInterval' key if any, but mapping to new prop
             put("retryCount", retryCount)
             
             put("snoozedUntil", snoozedUntil)
             put("soundUri", soundUri)
+            put("durationSeconds", durationSeconds)
         }
     }
 
@@ -90,7 +95,10 @@ data class CustomAlertConfig(
                 style = json.optString("style", "notification"),
                 intensity = json.optString("intensity", "medium"),
                 overrideDnd = json.optBoolean("overrideDnd", false),
-                retryInterval = json.optInt("retryInterval", 0),
+                durationSeconds = json.optInt("durationSeconds", 60),
+                
+                retryEnabled = json.optBoolean("retryEnabled", false),
+                retryIntervalMinutes = json.optInt("retryInterval", 0),
                 retryCount = json.optInt("retryCount", 0),
                 
                 snoozedUntil = json.optLong("snoozedUntil", 0L),

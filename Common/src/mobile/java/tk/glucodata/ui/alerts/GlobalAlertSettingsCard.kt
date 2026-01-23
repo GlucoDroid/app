@@ -114,7 +114,7 @@ fun GlobalAlertSettingsCard(
                  Divider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f))
                  
                  Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                  ) {
                      // === Shared Settings Component ===
@@ -132,7 +132,7 @@ fun GlobalAlertSettingsCard(
                     // === Apply Button ===
                     Button(
                         onClick = { onApplyToAll(draftConfig) },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary

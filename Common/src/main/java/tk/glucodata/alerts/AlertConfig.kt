@@ -79,9 +79,11 @@ data class AlertConfig(
     val alarmDurationSeconds: Int = 60,
     
     // === NEW: Time range settings ===
-    // Alert only active between these hours (24h format). null = always active
+    // Alert only active between these times. null = always active
     val activeStartHour: Int? = null,       // e.g., 22 for 10 PM
+    val activeStartMinute: Int? = null,     // e.g., 30 for 10:30 PM
     val activeEndHour: Int? = null,         // e.g., 8 for 8 AM (next day if start > end)
+    val activeEndMinute: Int? = null,       // e.g., 15 for 8:15 AM
     val timeRangeEnabled: Boolean = false,  // Master toggle for time range
     
     // === NEW: Retry settings ("try again if no reaction") ===
@@ -105,13 +107,19 @@ data class AlertConfig(
         
         val now = java.util.Calendar.getInstance()
         val currentHour = now.get(java.util.Calendar.HOUR_OF_DAY)
+        val currentMinute = now.get(java.util.Calendar.MINUTE)
         
-        return if (activeStartHour <= activeEndHour) {
-            // Same day range: e.g., 9 AM to 5 PM
-            currentHour in activeStartHour until activeEndHour
+        // Convert to minutes from midnight for easier comparison
+        val currentMins = currentHour * 60 + currentMinute
+        val startMins = activeStartHour * 60 + (activeStartMinute ?: 0)
+        val endMins = activeEndHour * 60 + (activeEndMinute ?: 0)
+        
+        return if (startMins <= endMins) {
+            // Same day range: e.g., 9:00 AM to 5:00 PM
+            currentMins in startMins until endMins
         } else {
-            // Overnight range: e.g., 10 PM to 8 AM
-            currentHour >= activeStartHour || currentHour < activeEndHour
+            // Overnight range: e.g., 10:30 PM to 8:15 AM
+            currentMins >= startMins || currentMins < endMins
         }
     }
 }

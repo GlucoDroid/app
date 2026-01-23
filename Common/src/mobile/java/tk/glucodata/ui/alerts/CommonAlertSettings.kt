@@ -50,7 +50,7 @@ fun CommonAlertSettings(
          // === Test Button ===
          FilledTonalButton(
              onClick = onTest,
-             modifier = Modifier.fillMaxWidth(),
+             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
              contentPadding = PaddingValues(8.dp)
          ) {
              Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -63,7 +63,10 @@ fun CommonAlertSettings(
 
          // === Feedback Modes (Sound, Vibrate, Flash) ===
          // Source: GlobalAlertSettingsCard.kt
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
             Text("Modes")
             val modes = listOf("Sound", "Vibrate", "Flash")
             val selectedModes = mutableListOf<String>().apply {
@@ -103,7 +106,10 @@ fun CommonAlertSettings(
         }
 
         // === Alert Style ===
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
             Text("Alert Style")
             ConnectedButtonGroup(
                 options = AlertDeliveryMode.entries,
@@ -119,7 +125,10 @@ fun CommonAlertSettings(
         }
         
         // === Intensity ===
-         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+         Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
             Text("Intensity")
             ConnectedButtonGroup(
                 options = listOf(VolumeProfile.HIGH, VolumeProfile.MEDIUM, VolumeProfile.ASCENDING),
@@ -136,68 +145,67 @@ fun CommonAlertSettings(
 
         Spacer(Modifier.height(2.dp))
 
-        // === Sound (Conditional) ===
+        // === Sound Settings (Conditional) ===
         AnimatedVisibility(visible = config.soundEnabled) {
-            OutlinedCard(
-                onClick = { onPickSound(config) },
-                colors = CardDefaults.outlinedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f), // Slight background for contrast
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Alert Sound Picker
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .clickable { onPickSound(config) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.MusicNote, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Alert Sound", style = MaterialTheme.typography.labelMedium)
                         Text(
-                            if (config.customSoundUri == null) "Default System Sound" else "Custom Sound Selected",
+                            "Alert Sound",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold 
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            getSoundDisplayText(config.customSoundUri, config.type.id),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Icon(Icons.Default.ChevronRight, null)
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+                
+                // Override Silent Mode toggle (inside Sound section)
+                ClickableToggleRow(
+                    icon = Icons.Default.VolumeOff,
+                    title = "Override Silent Mode",
+                    subtitle = "Play sound even when phone is on silent",
+                    checked = config.overrideDND,
+                    onCheckedChange = { onConfigChange(config.copy(overrideDND = it)) }
+                )
             }
-        }
-
-        // === Override DND ===
-         Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.DoNotDisturb,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.width(16.dp))
-            Text(
-                "Override Do Not Disturb",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            StyledSwitch(
-                checked = config.overrideDND,
-                onCheckedChange = { onConfigChange(config.copy(overrideDND = it)) }
-            )
         }
 
         // === Time Range ===
         TimeRangeSettings(
             enabled = config.timeRangeEnabled,
             startHour = config.activeStartHour,
+            startMinute = config.activeStartMinute,
             endHour = config.activeEndHour,
+            endMinute = config.activeEndMinute,
             onEnabledChange = { onConfigChange(config.copy(timeRangeEnabled = it)) },
-            onStartChange = { onConfigChange(config.copy(activeStartHour = it)) },
-            onEndChange = { onConfigChange(config.copy(activeEndHour = it)) }
+            onStartChange = { hour, minute -> onConfigChange(config.copy(activeStartHour = hour, activeStartMinute = minute)) },
+            onEndChange = { hour, minute -> onConfigChange(config.copy(activeEndHour = hour, activeEndMinute = minute)) }
         )
 
         // === Retry ===
@@ -216,7 +224,8 @@ fun CommonAlertSettings(
             value = config.defaultSnoozeMinutes,
             range = 5..60,
             stepSize = 5,
-            onValueChange = { onConfigChange(config.copy(defaultSnoozeMinutes = it)) }
+            onValueChange = { onConfigChange(config.copy(defaultSnoozeMinutes = it)) },
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
     }
 }

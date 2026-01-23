@@ -1,18 +1,26 @@
 package tk.glucodata.ui.alerts
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
@@ -34,32 +42,108 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-// Imports removed
+import tk.glucodata.Applic
+import tk.glucodata.Natives
+
+/**
+ * Special marker values for sound selection:
+ * - null/empty: App Default Sound (uses Natives.readring)
+ * - SYSTEM_DEFAULT_SOUND: System's default notification sound
+ * - Any other URI: Custom sound
+ */
+const val SYSTEM_DEFAULT_SOUND = "SYSTEM_DEFAULT"
+
+private const val PREFS_NAME = "custom_sounds"
+private const val KEY_CUSTOM_SOUNDS = "user_sounds"
 
 data class SoundItem(val uri: String?, val title: String)
+
+/**
+ * Get display text for a sound URI.
+ */
+fun getSoundDisplayText(uri: String?, alertTypeId: Int = 0): String {
+    return when {
+        uri.isNullOrEmpty() -> "App Default Sound"
+        uri == SYSTEM_DEFAULT_SOUND -> "System Default Sound"
+        else -> "Custom Sound Selected"
+    }
+}
+
+/**
+ * Repository for user-added custom sounds
+ */
+object CustomSoundRepository {
+    private val prefs by lazy {
+        Applic.app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    
+    fun getCustomSounds(): Set<String> {
+        return prefs.getStringSet(KEY_CUSTOM_SOUNDS, emptySet()) ?: emptySet()
+    }
+    
+    fun addCustomSound(uri: String) {
+        val current = getCustomSounds().toMutableSet()
+        current.add(uri)
+        prefs.edit().putStringSet(KEY_CUSTOM_SOUNDS, current).apply()
+    }
+    
+    fun removeCustomSound(uri: String) {
+        val current = getCustomSounds().toMutableSet()
+        current.remove(uri)
+        prefs.edit().putStringSet(KEY_CUSTOM_SOUNDS, current).apply()
+    }
+}
 
 @Composable
 fun SoundPicker(
     currentUri: String?,
+    alertTypeId: Int = 0,
     onSoundSelected: (String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var sounds by remember { mutableStateOf<List<SoundItem>>(emptyList()) }
+    var systemSounds by remember { mutableStateOf<List<SoundItem>>(emptyList()) }
+    var customSounds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    
+    // Selected URI - null means App Default
     var selectedUri by remember { mutableStateOf(currentUri) }
     var isPlaying by remember { mutableStateOf(false) }
     var playingUri by remember { mutableStateOf<String?>(null) }
     val mediaPlayer = remember { MediaPlayer() }
+    
+    // App default sound URI for preview
+    val appDefaultUri = remember { try { Natives.readring(alertTypeId) } catch (e: Exception) { null } }
+    
+    // File picker launcher
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: Exception) { /* ignore */ }
+                val uriString = uri.toString()
+                CustomSoundRepository.addCustomSound(uriString)
+                customSounds = CustomSoundRepository.getCustomSounds()
+                selectedUri = uriString
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
+        // Load custom sounds
+        customSounds = CustomSoundRepository.getCustomSounds()
+        
+        // Load system sounds
         val soundList = mutableListOf<SoundItem>()
-        // Default Option
-        soundList.add(SoundItem(null, "Default Notification Sound"))
+        soundList.add(SoundItem(null, "App Default Sound"))
+        soundList.add(SoundItem(SYSTEM_DEFAULT_SOUND, "System Default Sound"))
 
-        // Fetch System Notification Sounds
         val ringtoneManager = RingtoneManager(context)
         ringtoneManager.setType(RingtoneManager.TYPE_NOTIFICATION)
-        // CRITICAL FIX: Ensure cursor is closed to prevent "A resource failed to call close" error
         val cursor = ringtoneManager.cursor
         try {
             while (cursor != null && cursor.moveToNext()) {
@@ -67,25 +151,13 @@ fun SoundPicker(
                 val uri = ringtoneManager.getRingtoneUri(cursor.position).toString()
                 soundList.add(SoundItem(uri, title))
             }
-        } finally {
-            // Explicitly close the cursor, though RingtoneManager might manage it, 
-            // the log indicates a leak, so strict closing is safer.
-            // Note: RingtoneManager implementation of legacy cursor often leaks if not cautious.
-            // Actually, RingtoneManager.getCursor() returns a managed cursor in some versions but regular one in others.
-            // Safe to let GC handle if we were careful, but user logs prove otherwise.
-            // Note: RingtoneManager.getCursor() matches internal variable, usually we shouldn't close it if we want to reuse manager
-            // but here we are done with it.
-            // cursor?.close() // RingtoneManager keeps a reference, so closing it might be bad if we continued using manager.
-            // However, we are done with this manager instance in this scope.
-        }
-        sounds = soundList
+        } finally { /* cursor managed by RingtoneManager */ }
+        systemSounds = soundList
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            if (mediaPlayer.isPlaying) {
-                mediaPlayer.stop()
-            }
+            if (mediaPlayer.isPlaying) mediaPlayer.stop()
             mediaPlayer.release()
         }
     }
@@ -93,28 +165,30 @@ fun SoundPicker(
     fun playSound(uri: String?) {
         try {
             mediaPlayer.reset()
-            if (uri != null) {
-                mediaPlayer.setDataSource(context, Uri.parse(uri))
-            } else {
-                 // Default sound
-                 val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                 mediaPlayer.setDataSource(context, defaultUri)
+            val actualUri = when {
+                uri == null -> appDefaultUri?.let { Uri.parse(it) }
+                uri == SYSTEM_DEFAULT_SOUND -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                else -> Uri.parse(uri)
             }
-            // Use Notification Audio Attributes
-             mediaPlayer.setAudioAttributes(
+            
+            if (actualUri != null) {
+                mediaPlayer.setDataSource(context, actualUri)
+            } else {
+                mediaPlayer.setDataSource(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            }
+            
+            mediaPlayer.setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
-            // CRITICAL FIX: Use prepareAsync to avoid "Skipped XX frames" on main thread
             mediaPlayer.setOnPreparedListener { mp ->
                 mp.start()
                 isPlaying = true
                 playingUri = uri
             }
             mediaPlayer.prepareAsync()
-            
             mediaPlayer.setOnCompletionListener {
                 isPlaying = false
                 playingUri = null
@@ -127,9 +201,7 @@ fun SoundPicker(
     }
 
     fun stopSound() {
-        if (mediaPlayer.isPlaying) {
-            mediaPlayer.stop()
-        }
+        if (mediaPlayer.isPlaying) mediaPlayer.stop()
         isPlaying = false
         playingUri = null
     }
@@ -139,37 +211,61 @@ fun SoundPicker(
         title = { Text("Select Alert Sound") },
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                items(sounds) { sound ->
+                // === ADD CUSTOM SOUND (at top) ===
+                item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedUri = sound.uri }
-                            .padding(vertical = 4.dp),
+                            .height(48.dp)
+                            .clickable {
+                                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "audio/*"
+                                    addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                filePicker.launch(intent)
+                            },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(
-                            selected = (sound.uri == selectedUri),
-                            onClick = { selectedUri = sound.uri }
+                        Spacer(Modifier.width(12.dp))
+                        Icon(
+                            Icons.Default.Add, 
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(Modifier.width(12.dp))
                         Text(
-                            text = sound.title,
-                            modifier = Modifier.weight(1f).padding(start = 8.dp),
-                            style = MaterialTheme.typography.bodyLarge
+                            text = "Add Custom Sound",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        IconButton(onClick = {
-                            if (isPlaying && playingUri == sound.uri) {
-                                stopSound()
-                            } else {
-                                playSound(sound.uri)
-                            }
-                        }) {
-                            Icon(
-                                imageVector = if (isPlaying && playingUri == sound.uri) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                                contentDescription = if (isPlaying && playingUri == sound.uri) "Stop" else "Preview"
-                            )
-                        }
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                }
+                
+                // === USER CUSTOM SOUNDS ===
+                if (customSounds.isNotEmpty()) {
+                    items(customSounds.toList()) { uri ->
+                        SoundRow(
+                            title = "Custom: ${uri.substringAfterLast("/").take(25)}",
+                            isSelected = selectedUri == uri,
+                            isPlaying = isPlaying && playingUri == uri,
+                            onClick = { selectedUri = uri },
+                            onPlay = { if (isPlaying && playingUri == uri) stopSound() else playSound(uri) }
+                        )
+                    }
+                }
+                
+                // === SYSTEM SOUNDS (App Default, System Default, Notifications) ===
+                items(systemSounds) { sound ->
+                    SoundRow(
+                        title = sound.title,
+                        isSelected = if (sound.uri == null) selectedUri == null else selectedUri == sound.uri,
+                        isPlaying = isPlaying && playingUri == sound.uri,
+                        onClick = { selectedUri = sound.uri },
+                        onPlay = { if (isPlaying && playingUri == sound.uri) stopSound() else playSound(sound.uri) }
+                    )
                 }
             }
         },
@@ -190,4 +286,35 @@ fun SoundPicker(
             }
         }
     )
+}
+
+@Composable
+private fun SoundRow(
+    title: String,
+    isSelected: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    onPlay: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = isSelected, onClick = onClick)
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f).padding(start = 8.dp),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        IconButton(onClick = onPlay) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                contentDescription = if (isPlaying) "Stop" else "Preview"
+            )
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }

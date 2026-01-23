@@ -11,7 +11,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -31,12 +35,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import tk.glucodata.Applic
 import tk.glucodata.Notify
@@ -128,8 +137,8 @@ fun AlertSettingsScreen(
 
     // Track expanded states
     var expandedType by remember { mutableStateOf<AlertType?>(null) }
-    // Track sound picker state (Generic: Current URI + Callback)
-    var soundPickerRequest by remember { mutableStateOf<Pair<String?, (String?) -> Unit>?>(null) }
+    // Track sound picker state (Generic: Current URI + AlertTypeId + Callback)
+    var soundPickerRequest by remember { mutableStateOf<Triple<String?, Int, (String?) -> Unit>?>(null) }
 
     Scaffold(
         topBar = {
@@ -211,7 +220,8 @@ fun AlertSettingsScreen(
                                     else -> "high"
                                 },
                                 overrideDnd = draft.overrideDND,
-                                retryInterval = if(draft.retryEnabled) draft.retryIntervalMinutes else 0,
+                                retryEnabled = draft.retryEnabled,
+                                retryIntervalMinutes = draft.retryIntervalMinutes,
                                 retryCount = draft.retryCount,
                                 timeRangeEnabled = draft.timeRangeEnabled,
                                 startTimeMinutes = (draft.activeStartHour ?: 0) * 60,
@@ -223,14 +233,34 @@ fun AlertSettingsScreen(
                         refreshCustomAlerts()
                     },
                     onPickSound = { draft, updateDraft ->
-                        soundPickerRequest = draft.customSoundUri to { uri ->
+                        soundPickerRequest = Triple(draft.customSoundUri, draft.type.id) { uri ->
                             updateDraft(draft.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
                     },
-                    onTest = { _ ->
+                    onTest = { draft ->
                         AlertStateTracker.resetState(AlertType.LOW)
-                        Notify.testTrigger(AlertType.LOW.id)
+                        // Use draft config settings for the test
+                        Notify.testCustomTrigger(
+                            draft.customSoundUri,
+                            draft.soundEnabled,
+                            draft.vibrationEnabled,
+                            draft.flashEnabled,
+                            false, // isHigh = false (testing as Low)
+                            when (draft.deliveryMode) {
+                                AlertDeliveryMode.NOTIFICATION_ONLY -> "notification"
+                                AlertDeliveryMode.SYSTEM_ALARM -> "alarm"
+                                AlertDeliveryMode.BOTH -> "both"
+                            },
+                            when (draft.volumeProfile) {
+                                VolumeProfile.HIGH -> "high"
+                                VolumeProfile.MEDIUM -> "medium"
+                                VolumeProfile.ASCENDING -> "ascending"
+                                else -> "medium"
+                            },
+                            30, // durationSeconds
+                            draft.overrideDND
+                        )
                     }
                 )
             }
@@ -269,7 +299,7 @@ fun AlertSettingsScreen(
                         AlertRepository.saveConfig(updated)
                     },
                     onPickSound = {
-                        soundPickerRequest = config.customSoundUri to { uri ->
+                        soundPickerRequest = Triple(config.customSoundUri, config.type.id) { uri ->
                             val updated = config.copy(customSoundUri = uri)
                             configs[type] = updated
                             AlertRepository.saveConfig(updated)
@@ -313,7 +343,7 @@ fun AlertSettingsScreen(
                             refreshCustomAlerts()
                         },
                         onPickSound = { config ->
-                            soundPickerRequest = config.soundUri to { uri ->
+                            soundPickerRequest = Triple(config.soundUri, if (config.type == CustomAlertType.HIGH) 1 else 0) { uri ->
                                 val updated = config.copy(soundUri = uri)
                                 CustomAlertRepository.update(updated)
                                 refreshCustomAlerts()
@@ -334,7 +364,7 @@ fun AlertSettingsScreen(
 
             // === LOW ALERTS SECTION ===
             item {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
                 SectionHeader(
                     title = "Low Alerts",
                     icon = Icons.AutoMirrored.Filled.TrendingDown // Using TrendingDown for Lows
@@ -367,7 +397,7 @@ fun AlertSettingsScreen(
                         AlertRepository.saveConfig(updated)
                     },
                     onPickSound = {
-                        soundPickerRequest = config.customSoundUri to { uri ->
+                        soundPickerRequest = Triple(config.customSoundUri, config.type.id) { uri ->
                             val updated = config.copy(customSoundUri = uri)
                             configs[type] = updated
                             AlertRepository.saveConfig(updated)
@@ -411,7 +441,7 @@ fun AlertSettingsScreen(
                             refreshCustomAlerts()
                         },
                         onPickSound = { config ->
-                            soundPickerRequest = config.soundUri to { uri ->
+                            soundPickerRequest = Triple(config.soundUri, if (config.type == CustomAlertType.LOW) 0 else 1) { uri ->
                                 val updated = config.copy(soundUri = uri)
                                 CustomAlertRepository.update(updated)
                                 refreshCustomAlerts()
@@ -432,7 +462,7 @@ fun AlertSettingsScreen(
 
             // === PREDICTIVE ALERTS SECTION ===
             item {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
                 SectionHeader(
                     title = "Predictive Alerts",
                     icon = Icons.AutoMirrored.Filled.TrendingDown
@@ -457,7 +487,7 @@ fun AlertSettingsScreen(
                         AlertRepository.saveConfig(updated)
                     },
                     onPickSound = {
-                        soundPickerRequest = config.customSoundUri to { uri ->
+                        soundPickerRequest = Triple(config.customSoundUri, config.type.id) { uri ->
                             val updated = config.copy(customSoundUri = uri)
                             configs[type] = updated
                             AlertRepository.saveConfig(updated)
@@ -494,7 +524,7 @@ fun AlertSettingsScreen(
                         AlertRepository.saveConfig(updated)
                     },
                     onPickSound = {
-                        soundPickerRequest = config.customSoundUri to { uri ->
+                        soundPickerRequest = Triple(config.customSoundUri, config.type.id) { uri ->
                             val updated = config.copy(customSoundUri = uri)
                             configs[type] = updated
                             AlertRepository.saveConfig(updated)
@@ -530,9 +560,10 @@ fun AlertSettingsScreen(
 
         // Sound Picker Dialog
         if (soundPickerRequest != null) {
-            val (current, callback) = soundPickerRequest!!
+            val (current, alertTypeId, callback) = soundPickerRequest!!
             SoundPicker(
                 currentUri = current,
+                alertTypeId = alertTypeId,
                 onSoundSelected = callback,
                 onDismiss = { soundPickerRequest = null }
             )
@@ -576,8 +607,17 @@ fun CustomAlertCard(
     // For Title/Subtitle
     val title = alert.name.ifEmpty { if (alert.type == CustomAlertType.HIGH) "High Alert" else "Low Alert" }
     val subtitle = buildString {
-        append(if (alert.type == CustomAlertType.HIGH) "> " else "< ")
         append(formatThreshold(alert.threshold, isMmol))
+        
+        // Add time range if enabled
+        if (alert.timeRangeEnabled) {
+            append(" • ")
+            val startHour = alert.startTimeMinutes / 60
+            val startMin = alert.startTimeMinutes % 60
+            val endHour = alert.endTimeMinutes / 60
+            val endMin = alert.endTimeMinutes % 60
+            append(String.format("%02d:%02d-%02d:%02d", startHour, startMin, endHour, endMin))
+        }
         
         if (!alert.enabled) {
             append(" • Disabled")
@@ -587,9 +627,7 @@ fun CustomAlertCard(
     Surface(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
         shape = cardShape(position),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = if (alert.enabled) 1.dp else 0.dp,
-        shadowElevation = 0.dp
+        color = if (alert.enabled) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainer
     ) {
         Column {
             // Main row (always visible)
@@ -657,8 +695,8 @@ fun CustomAlertCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                        .padding(16.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(vertical = 16.dp)
                 ) {
                     // Map to AlertConfig for shared UI component
                     val genericConfig = AlertConfig(
@@ -676,10 +714,28 @@ fun CustomAlertCard(
                             else -> AlertDeliveryMode.NOTIFICATION_ONLY // Default for "notification" or unknown
                         },
                         overrideDND = alert.overrideDnd,
+                        retryEnabled = alert.retryEnabled,
+                        retryIntervalMinutes = alert.retryIntervalMinutes,
+                        retryCount = alert.retryCount,
                         timeRangeEnabled = alert.timeRangeEnabled,
                         activeStartHour = alert.startTimeMinutes / 60,
-                        activeEndHour = alert.endTimeMinutes / 60
+                        activeStartMinute = alert.startTimeMinutes % 60,
+                        activeEndHour = alert.endTimeMinutes / 60,
+                        activeEndMinute = alert.endTimeMinutes % 60
                     )
+                    // Delete Button
+                    OutlinedButton(
+                        onClick = onDelete,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Custom Alert")
+                    }
+                    Spacer(Modifier.height(8.dp))
 
                     // Render common settings
                     CommonAlertSettings(
@@ -699,9 +755,12 @@ fun CustomAlertCard(
                                 },
                                 intensity = newConfig.volumeProfile.name,
                                 overrideDnd = newConfig.overrideDND,
+                                retryEnabled = newConfig.retryEnabled,
+                                retryIntervalMinutes = newConfig.retryIntervalMinutes,
+                                retryCount = newConfig.retryCount,
                                 timeRangeEnabled = newConfig.timeRangeEnabled,
-                                startTimeMinutes = (newConfig.activeStartHour ?: 0) * 60,
-                                endTimeMinutes = (newConfig.activeEndHour ?: 0) * 60
+                                startTimeMinutes = (newConfig.activeStartHour ?: 0) * 60 + (newConfig.activeStartMinute ?: 0),
+                                endTimeMinutes = (newConfig.activeEndHour ?: 0) * 60 + (newConfig.activeEndMinute ?: 0)
                             )
                             onUpdate(updated)
                         },
@@ -715,6 +774,7 @@ fun CustomAlertCard(
                                 alert.type == CustomAlertType.HIGH,
                                 alert.style,
                                 alert.intensity,
+                                alert.durationSeconds,
                                 alert.overrideDnd
                             )
                         },
@@ -744,20 +804,8 @@ fun CustomAlertCard(
                         }
                     )
                     
-                    Spacer(Modifier.height(16.dp))
-                    
-                    // Delete Button
-                    OutlinedButton(
-                        onClick = onDelete,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Custom Alert")
-                    }
+
+
                 }
             }
         }
@@ -777,7 +825,7 @@ private fun SectionHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, top = 16.dp, bottom = 8.dp),
+            .padding(start = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -835,9 +883,7 @@ private fun AlertCard(
     Surface(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
         shape = cardShape(position),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = if (config.enabled) 1.dp else 0.dp,
-        shadowElevation = 0.dp
+        color = if (config.enabled) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainer
     ) {
         Column {
             // Main row (always visible) - minimum 72dp touch target
@@ -882,6 +928,15 @@ private fun AlertCard(
                         config.durationMinutes?.let {
                             if (isNotEmpty()) append(" • ")
                             append("$it min")
+                        }
+                        // Add time range if enabled
+                        if (config.timeRangeEnabled) {
+                            if (isNotEmpty()) append(" • ")
+                            val startH = config.activeStartHour ?: 0
+                            val startM = config.activeStartMinute ?: 0
+                            val endH = config.activeEndHour ?: 0
+                            val endM = config.activeEndMinute ?: 0
+                            append(String.format("%02d:%02d-%02d:%02d", startH, startM, endH, endM))
                         }
                         if (!config.enabled) {
                             if (isNotEmpty()) append(" • ")
@@ -956,7 +1011,7 @@ private fun AlertSettingsExpanded(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(16.dp)
     ) {
         CommonAlertSettings(
@@ -1072,11 +1127,12 @@ internal fun DurationSlider(
     value: Int,
     range: IntRange,
     stepSize: Int = 5,
-    onValueChange: (Int) -> Unit
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val steps = ((range.last - range.first) / stepSize) - 1
 
-    Column {
+    Column(modifier = modifier) {
         var sliderValue by remember { mutableStateOf(value.toFloat()) }
         LaunchedEffect(value) {
             sliderValue = value.toFloat()
@@ -1358,62 +1414,96 @@ private fun PreemptiveSnoozeDialog(
 internal fun TimeRangeSettings(
     enabled: Boolean,
     startHour: Int?,
+    startMinute: Int?,
     endHour: Int?,
+    endMinute: Int?,
     onEnabledChange: (Boolean) -> Unit,
-    onStartChange: (Int) -> Unit,
-    onEndChange: (Int) -> Unit
+    onStartChange: (Int, Int) -> Unit,  // (hour, minute)
+    onEndChange: (Int, Int) -> Unit      // (hour, minute)
 ) {
+    val startH = startHour ?: 22
+    val startM = startMinute ?: 0
+    val endH = endHour ?: 8
+    val endM = endMinute ?: 0
+    
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Schedule,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-//                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Text(
-                "Active time range",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            StyledSwitch(
-                checked = enabled,
-                onCheckedChange = onEnabledChange
-            )
-
-        }
+        ExpressiveExpandableHeader(
+            icon = Icons.Default.Schedule,
+            title = "Active time range",
+            subtitle = if (enabled) "${formatTime(startH, startM)} – ${formatTime(endH, endM)}" else "Only alert during specific hours",
+            enabled = enabled,
+            onEnabledChange = onEnabledChange,
+            iconTint = MaterialTheme.colorScheme.tertiary
+        )
         
         AnimatedVisibility(
             visible = enabled,
-            enter = expandVertically(animationSpec = tween(durationMillis = 200)),
-            exit = shrinkVertically(animationSpec = tween(durationMillis = 200))
+            enter = expandVertically(animationSpec = tween(durationMillis = 200)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = tween(durationMillis = 200)) + fadeOut()
         ) {
-            Column(modifier = Modifier.padding(top = 12.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 16.dp)) {
+                // === VISUAL TIMELINE ===
+                TimelineVisualization(
+                    startHour = startH,
+                    startMinute = startM,
+                    endHour = endH,
+                    endMinute = endM
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                // === RANGE SLIDER (hours only) ===
+                TimeRangeSlider(
+                    startHour = startH,
+                    endHour = endH,
+                    onStartChange = { hour -> onStartChange(hour, startM) },
+                    onEndChange = { hour -> onEndChange(hour, endM) }
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                // === TIME CHIPS (precise time with minutes) ===
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("From", style = MaterialTheme.typography.bodySmall)
-                    HourPicker(
-                        value = startHour ?: 22,
-                        onValueChange = onStartChange
+                    TimeChip(
+                        label = "Start",
+                        hour = startH,
+                        minute = startM,
+                        onTimeChange = onStartChange
                     )
-                    Text("to", style = MaterialTheme.typography.bodySmall)
-                    HourPicker(
-                        value = endHour ?: 8,
-                        onValueChange = onEndChange
+                    
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    
+                    TimeChip(
+                        label = "End",
+                        hour = endH,
+                        minute = endM,
+                        onTimeChange = onEndChange
                     )
                 }
+                
+                // === DESCRIPTION ===
+                Spacer(Modifier.height(8.dp))
+                val startMins = startH * 60 + startM
+                val endMins = endH * 60 + endM
                 Text(
-                    text = formatTimeRange(startHour ?: 22, endHour ?: 8),
+                    text = if (startMins < endMins) {
+                        "Alert active from ${formatTime(startH, startM)} to ${formatTime(endH, endM)}"
+                    } else {
+                        "Alert active from ${formatTime(startH, startM)} to ${formatTime(endH, endM)} (next day)"
+                    },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -1421,59 +1511,189 @@ internal fun TimeRangeSettings(
 }
 
 @Composable
-internal fun HourPicker(
-    value: Int,
-    onValueChange: (Int) -> Unit
+private fun TimelineVisualization(
+    startHour: Int,
+    startMinute: Int = 0,
+    endHour: Int,
+    endMinute: Int = 0
 ) {
-    var showDropdown by remember { mutableStateOf(false) }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHighest
     
-    Surface(
-        onClick = { showDropdown = true },
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    // Convert to fraction of day (0-1)
+    val startFraction = (startHour * 60 + startMinute) / 1440f
+    val endFraction = (endHour * 60 + endMinute) / 1440f
+    
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(32.dp)
+            .clip(RoundedCornerShape(16.dp))
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = String.format("%02d:00", value),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
+        val width = size.width
+        val height = size.height
+        
+        // Background track
+        drawRoundRect(
+            color = surfaceColor,
+            cornerRadius = CornerRadius(height / 2, height / 2)
+        )
+        
+        if (startFraction < endFraction) {
+            // Normal range (e.g., 8:00 to 22:00)
+            drawRoundRect(
+                color = primaryColor,
+                topLeft = Offset(width * startFraction, 0f),
+                size = Size(width * (endFraction - startFraction), height),
+                cornerRadius = CornerRadius(height / 2, height / 2)
             )
-            Icon(
-                Icons.Default.ExpandMore,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp)
+        } else {
+            // Overnight range (e.g., 22:00 to 8:00)
+            drawRoundRect(
+                color = primaryColor,
+                topLeft = Offset(width * startFraction, 0f),
+                size = Size(width * (1f - startFraction), height),
+                cornerRadius = CornerRadius(height / 2, height / 2)
+            )
+            drawRoundRect(
+                color = primaryColor,
+                topLeft = Offset(0f, 0f),
+                size = Size(width * endFraction, height),
+                cornerRadius = CornerRadius(height / 2, height / 2)
+            )
+        }
+        
+        // Hour markers
+        for (h in listOf(0, 6, 12, 18)) {
+            val x = width * (h / 24f)
+            drawLine(
+                color = surfaceColor.copy(alpha = 0.5f),
+                start = Offset(x, 0f),
+                end = Offset(x, height),
+                strokeWidth = 2f
             )
         }
     }
     
-    DropdownMenu(
-        expanded = showDropdown,
-        onDismissRequest = { showDropdown = false }
+    // Hour labels
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        (0..23).forEach { hour ->
-            DropdownMenuItem(
-                text = { Text(String.format("%02d:00", hour)) },
-                onClick = {
-                    onValueChange(hour)
-                    showDropdown = false
-                }
+        listOf("00:00", "06:00", "12:00", "18:00", "24:00").forEach { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                fontSize = 9.sp
             )
         }
     }
 }
 
-internal fun formatTimeRange(start: Int, end: Int): String {
-    fun fmt(minutes: Int): String {
-        val h = minutes / 60
-        val m = minutes % 60
-        // Handle 24:00 as 00:00 (next day) if preferred, or just 00:00
-        val hDisplay = h % 24 
-        return String.format("%02d:%02d", hDisplay, m)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeRangeSlider(
+    startHour: Int,
+    endHour: Int,
+    onStartChange: (Int) -> Unit,
+    onEndChange: (Int) -> Unit
+) {
+    var sliderValues by remember(startHour, endHour) { 
+        mutableStateOf(startHour.toFloat()..endHour.toFloat()) 
     }
-    return "${fmt(start)}–${fmt(end)}"
+    
+    RangeSlider(
+        value = sliderValues,
+        onValueChange = { range ->
+            sliderValues = range
+            val newStart = range.start.toInt().coerceIn(0, 23)
+            val newEnd = range.endInclusive.toInt().coerceIn(0, 23)
+            if (newStart != startHour) onStartChange(newStart)
+            if (newEnd != endHour) onEndChange(newEnd)
+        },
+        valueRange = 0f..23f,
+        steps = 22, // 24 hours - 1 for steps
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeChip(
+    label: String,
+    hour: Int,
+    minute: Int = 0,
+    onTimeChange: (Int, Int) -> Unit
+) {
+    // Ensure values are in valid range to prevent crashes
+    val safeHour = hour.coerceIn(0, 23)
+    val safeMinute = minute.coerceIn(0, 59)
+    
+    var showTimePicker by remember { mutableStateOf(false) }
+    val timePickerState = rememberTimePickerState(
+        initialHour = safeHour,
+        initialMinute = safeMinute,
+        is24Hour = true
+    )
+    
+    // Time chip button
+    Surface(
+        onClick = { showTimePicker = true },
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall
+            )
+            Text(
+                text = formatTime(hour, minute),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+    
+    // Time picker dialog
+    if (showTimePicker) {
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("Select $label Time") },
+            text = {
+                TimePicker(
+                    state = timePickerState,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onTimeChange(timePickerState.hour, timePickerState.minute)
+                    showTimePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+private fun formatTime(hour: Int, minute: Int): String = String.format("%02d:%02d", hour, minute)
+private fun formatHour(hour: Int): String = String.format("%02d:00", hour)
+
+// Keep for backward compatibility
+internal fun formatTimeRange(start: Int, end: Int): String {
+    return "${formatHour(start)}–${formatHour(end)}"
 }
 
 // === NEW: Retry Settings ===
@@ -1488,41 +1708,21 @@ internal fun RetrySettings(
     onCountChange: (Int) -> Unit
 ) {
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Refresh,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-//                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "Retry if no reaction",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-//                Text(
-//                    "Re-alert if not dismissed",
-//                    style = MaterialTheme.typography.labelSmall,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
-//                )
-            }
-            StyledSwitch(
-                checked = enabled,
-                onCheckedChange = onEnabledChange
-            )
-        }
+        ExpressiveExpandableHeader(
+            icon = Icons.Default.Refresh,
+            title = "Retry if no reaction",
+            subtitle = if (enabled) "Every ${intervalMinutes}min, up to $retryCount times" else "Re-alert if not dismissed",
+            enabled = enabled,
+            onEnabledChange = onEnabledChange,
+            iconTint = MaterialTheme.colorScheme.error
+        )
         
         AnimatedVisibility(
             visible = enabled,
             enter = expandVertically(animationSpec = tween(durationMillis = 200)),
             exit = shrinkVertically(animationSpec = tween(durationMillis = 200))
         ) {
-            Column(modifier = Modifier.padding(top = 12.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 12.dp)) {
                 Text("Retry every", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(4.dp))
                 FlowRow(
@@ -1622,7 +1822,11 @@ internal fun SoundSelector(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                    Text(
-                        text = if (currentUri.isNullOrEmpty()) "Default Notification Sound" else "Custom Sound Selected",
+                        text = when {
+                            currentUri.isNullOrEmpty() -> "App Default Sound"
+                            currentUri == SYSTEM_DEFAULT_SOUND -> "System Default Sound"
+                            else -> "Custom Sound Selected"
+                        },
                         style = MaterialTheme.typography.bodyLarge
                    )
                    if (!currentUri.isNullOrEmpty()) {
@@ -1635,5 +1839,202 @@ internal fun SoundSelector(
                 }
             }
         }
+    }
+}
+
+// === M3 EXPRESSIVE TOGGLE COMPONENTS ===
+
+/**
+ * M3 Expressive styled toggle card for simple on/off settings.
+ * Features: tinted icon background, title, optional subtitle, and switch.
+ */
+@Composable
+internal fun ExpressiveToggleCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MaterialTheme.colorScheme.primary
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = if (checked) 
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
+        else 
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = if (checked) 2.dp else 0.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 72.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon with tinted background
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = iconTint.copy(alpha = if (checked) 0.2f else 0.1f),
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = if (checked) iconTint else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            
+            Spacer(Modifier.width(16.dp))
+            
+            // Text content
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (subtitle != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            Spacer(Modifier.width(12.dp))
+            
+            // Switch
+            StyledSwitch(
+                checked = checked,
+                onCheckedChange = onCheckedChange
+            )
+        }
+    }
+}
+/**
+ * M3 styled header for expandable settings sections.
+ * Full-width clickable row following M3 list item guidelines.
+ */
+@Composable
+internal fun ExpressiveExpandableHeader(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MaterialTheme.colorScheme.primary
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable { onEnabledChange(!enabled) }
+            .padding(horizontal = 16.dp, vertical = 8.dp),  // Touch reaches edges, content padded
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Simple icon with tint
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (enabled) iconTint else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp)
+        )
+        
+        Spacer(Modifier.width(16.dp))
+        
+        // Text content
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        Spacer(Modifier.width(8.dp))
+        
+        // Switch
+        StyledSwitch(
+            checked = enabled,
+            onCheckedChange = onEnabledChange
+        )
+    }
+}
+
+/**
+ * Simple clickable toggle row for settings.
+ * Full-width clickable row following M3 list item guidelines.
+ */
+@Composable
+internal fun ClickableToggleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MaterialTheme.colorScheme.primary
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 8.dp),  // Touch reaches edges, content padded
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Simple icon with tint
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (checked) iconTint else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp)
+        )
+        
+        Spacer(Modifier.width(16.dp))
+        
+        // Text content
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        Spacer(Modifier.width(8.dp))
+        
+        // Switch
+        StyledSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
     }
 }

@@ -37,7 +37,9 @@ object AlertRepository {
     // NEW: Time range and retry keys
     private fun keyTimeRangeEnabled(type: AlertType) = "alert_${type.id}_timeRange"
     private fun keyActiveStartHour(type: AlertType) = "alert_${type.id}_startHour"
+    private fun keyActiveStartMinute(type: AlertType) = "alert_${type.id}_startMin"
     private fun keyActiveEndHour(type: AlertType) = "alert_${type.id}_endHour"
+    private fun keyActiveEndMinute(type: AlertType) = "alert_${type.id}_endMin"
     private fun keyRetryEnabled(type: AlertType) = "alert_${type.id}_retryOn"
     private fun keyRetryInterval(type: AlertType) = "alert_${type.id}_retryInt"
     private fun keyRetryCount(type: AlertType) = "alert_${type.id}_retryCnt"
@@ -114,13 +116,15 @@ object AlertRepository {
             soundEnabled = prefs.getBoolean(keySoundEnabled(type), Natives.alarmhassound(type.id)),
             vibrationEnabled = prefs.getBoolean(keyVibration(type), Natives.alarmhasvibration(type.id)),
             flashEnabled = prefs.getBoolean(keyFlash(type), Natives.alarmhasflash(type.id)),
-            customSoundUri = prefs.getString(keyCustomSound(type), Natives.readring(type.id)),
+            customSoundUri = prefs.getString(keyCustomSound(type), null),
             defaultSnoozeMinutes = prefs.getInt(keySnooze(type), base.defaultSnoozeMinutes),
             alarmDurationSeconds = prefs.getInt(keyAlarmDuration(type), Natives.readalarmduration(type.id)),
             // NEW: Time range and retry
             timeRangeEnabled = prefs.getBoolean(keyTimeRangeEnabled(type), false),
             activeStartHour = prefs.getInt(keyActiveStartHour(type), -1).takeIf { it >= 0 },
+            activeStartMinute = prefs.getInt(keyActiveStartMinute(type), -1).takeIf { it >= 0 },
             activeEndHour = prefs.getInt(keyActiveEndHour(type), -1).takeIf { it >= 0 },
+            activeEndMinute = prefs.getInt(keyActiveEndMinute(type), -1).takeIf { it >= 0 },
             retryEnabled = prefs.getBoolean(keyRetryEnabled(type), false),
             retryIntervalMinutes = prefs.getInt(keyRetryInterval(type), 5),
             retryCount = prefs.getInt(keyRetryCount(type), 3)
@@ -154,7 +158,9 @@ object AlertRepository {
             // NEW: Time range and retry
             timeRangeEnabled = prefs.getBoolean(keyTimeRangeEnabled(type), false),
             activeStartHour = prefs.getInt(keyActiveStartHour(type), -1).takeIf { it >= 0 },
+            activeStartMinute = prefs.getInt(keyActiveStartMinute(type), -1).takeIf { it >= 0 },
             activeEndHour = prefs.getInt(keyActiveEndHour(type), -1).takeIf { it >= 0 },
+            activeEndMinute = prefs.getInt(keyActiveEndMinute(type), -1).takeIf { it >= 0 },
             retryEnabled = prefs.getBoolean(keyRetryEnabled(type), false),
             retryIntervalMinutes = prefs.getInt(keyRetryInterval(type), 5),
             retryCount = prefs.getInt(keyRetryCount(type), 3)
@@ -186,7 +192,12 @@ object AlertRepository {
             putString(keyVolumeProfile(config.type), config.volumeProfile.name)
             putBoolean(keyOverrideDND(config.type), config.overrideDND)
             putBoolean(keySoundEnabled(config.type), config.soundEnabled)
-            config.customSoundUri?.let { putString(keyCustomSound(config.type), it) }
+            // Save customSoundUri - if null, remove the key so it defaults to app default
+            if (config.customSoundUri != null) {
+                putString(keyCustomSound(config.type), config.customSoundUri)
+            } else {
+                remove(keyCustomSound(config.type))
+            }
             putBoolean(keyVibration(config.type), config.vibrationEnabled)
             putBoolean(keyFlash(config.type), config.flashEnabled)
             putInt(keySnooze(config.type), config.defaultSnoozeMinutes)
@@ -194,7 +205,9 @@ object AlertRepository {
             // NEW: Time range and retry
             putBoolean(keyTimeRangeEnabled(config.type), config.timeRangeEnabled)
             config.activeStartHour?.let { putInt(keyActiveStartHour(config.type), it) }
+            config.activeStartMinute?.let { putInt(keyActiveStartMinute(config.type), it) }
             config.activeEndHour?.let { putInt(keyActiveEndHour(config.type), it) }
+            config.activeEndMinute?.let { putInt(keyActiveEndMinute(config.type), it) }
             putBoolean(keyRetryEnabled(config.type), config.retryEnabled)
             putInt(keyRetryInterval(config.type), config.retryIntervalMinutes)
             putInt(keyRetryCount(config.type), config.retryCount)

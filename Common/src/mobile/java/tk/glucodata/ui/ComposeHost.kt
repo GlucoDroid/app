@@ -4843,7 +4843,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
             Spacer(modifier = Modifier.height(24.dp))
 
             // Row 1: Unified Reset Button (Sibionics only - full width, styled like "Previous calibrations")
-            if (sensor.isSibionics) {
+            if (sensor.isSibionics2) {
                 FilledTonalButton(
                     onClick = { showUnifiedResetDialog = true },
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

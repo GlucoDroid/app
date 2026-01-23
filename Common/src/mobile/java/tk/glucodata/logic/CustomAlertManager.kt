@@ -6,10 +6,13 @@ import tk.glucodata.alerts.CustomAlertConfig
 import tk.glucodata.alerts.CustomAlertRepository
 import tk.glucodata.alerts.CustomAlertType
 import tk.glucodata.Notify
+import java.util.concurrent.TimeUnit
 import java.util.Calendar
 
 object CustomAlertManager {
     private const val TAG = "CustomAlertManager"
+
+    private val lastTriggerMap = mutableMapOf<String, Long>()
 
     fun checkAndTrigger(context: Context, glucose: Float, timestamp: Long) {
         val allAlerts = CustomAlertRepository.getAll()
@@ -17,30 +20,66 @@ object CustomAlertManager {
 
         val now = Calendar.getInstance()
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        val nowMs = System.currentTimeMillis()
 
         // 1. Filter active alerts (Enabled + Time Range + Not Snoozed)
-        val activeCandidates = allAlerts.filter { config ->
+        // We do trigger check later, first identify who has the CONDITION met.
+        val validConfigs = allAlerts.filter { config ->
             if (!config.enabled) return@filter false
             if (!config.isActiveTime(currentMinutes)) return@filter false
-            if (System.currentTimeMillis() < config.snoozedUntil) return@filter false
+            if (nowMs < config.snoozedUntil) return@filter false
             true
         }
 
-        // 2. Check Thresholds
-        val triggeredHighs = activeCandidates
-            .filter { it.type == CustomAlertType.HIGH && glucose >= it.threshold }
-            .sortedByDescending { it.threshold } // Highest threshold first (Severity)
+        // 2. triggeredCandidates: Alerts whose GLUCOSE THRESHOLD is met
+        val triggeredCandidates = validConfigs.filter { config ->
+            if (config.type == CustomAlertType.HIGH) glucose >= config.threshold
+            else glucose <= config.threshold
+        }
 
-        val triggeredLows = activeCandidates
-            .filter { it.type == CustomAlertType.LOW && glucose <= it.threshold }
-            .sortedBy { it.threshold } // Lowest threshold first (Severity)
+        // 3. Clean up stale state for alerts that are no longer valid (condition cleared)
+        // This resets "One-Shot" alerts so they can fire again next episode.
+        val activeIds = triggeredCandidates.map { it.id }.toSet()
+        val staleIds = lastTriggerMap.keys.minus(activeIds)
+        staleIds.forEach { lastTriggerMap.remove(it) }
 
-        // 3. Determine Priority (Low > High usually for safety, but here we pick the most severe of each?)
-        // If we have a Low, that's urgent.
-        val alertToTrigger = triggeredLows.firstOrNull() ?: triggeredHighs.firstOrNull()
+        if (triggeredCandidates.isEmpty()) return
 
-        if (alertToTrigger != null) {
-            triggerAlert(context, alertToTrigger, glucose)
+        // 4. Prioritize: Lows > Highs, then by severity (diff from threshold?)
+        // Simple priority: Lows first (sorted by threshold ascending), then Highs (descending)
+        val sortedCandidates = triggeredCandidates.sortedWith(
+            compareBy<CustomAlertConfig> { it.type == CustomAlertType.HIGH } // Low (false) comes before High (true)
+                .thenBy { if (it.type == CustomAlertType.LOW) it.threshold else -it.threshold }
+        )
+
+        val candidate = sortedCandidates.firstOrNull() ?: return
+
+        // 5. Retry / Suppression Logic
+        val lastTime = lastTriggerMap[candidate.id] ?: 0L
+        var shouldFire = false
+
+        if (lastTime == 0L) {
+            // First time this episode
+            shouldFire = true
+        } else {
+            // Recurring in same episode
+            if (candidate.retryEnabled) {
+                // Check interval
+                // Check interval, enforcing a safe minimum (5 minutes) if 0 to prevent loops
+                // (Unless user explicitly wants rapid re-trigger? Usually 0 means "Constant", which is bad for alarms)
+                val intervalMs = TimeUnit.MINUTES.toMillis(candidate.retryIntervalMinutes.toLong())
+                if (nowMs - lastTime >= intervalMs) {
+                    shouldFire = true // Retry time!
+                }
+            } else {
+                // One-shot enabled, already fired -> Suppress
+                shouldFire = false
+            }
+        }
+
+        if (shouldFire) {
+            lastTriggerMap[candidate.id] = nowMs
+            triggerAlert(context, candidate, glucose)
         }
     }
 
@@ -56,6 +95,7 @@ object CustomAlertManager {
             glucose,
             config.style,
             config.intensity,
+            config.durationSeconds,
             config.overrideDnd
         )
     }

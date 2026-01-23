@@ -24,6 +24,7 @@ import static android.app.Notification.FLAG_ONGOING_EVENT;
 import static android.app.Notification.VISIBILITY_PUBLIC;
 import static android.content.Context.NOTIFICATION_SERVICE;
 import static android.content.Context.VIBRATOR_SERVICE;
+import android.media.MediaPlayer;
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.WHITE;
 import static android.media.AudioAttributes.USAGE_NOTIFICATION;
@@ -84,7 +85,6 @@ import java.util.List;
 
 public class Notify {
     // ... class start ...
-
     static {
         makenotification_audio();
     };
@@ -137,12 +137,10 @@ public class Notify {
             uri = Uri.parse(uristr);
             ring = RingtoneManager.getRingtone(Applic.app, uri);
         }
-        try {
-            if (Build.VERSION.SDK_INT >= 23)
-                ring.setLooping(true);
-        } catch (Throwable e) {
-            Log.stack(LOG_ID, "setring", e);
-        }
+        // NOTE: Do NOT set looping here - the scheduled stop via runstopalarm handles
+        // duration.
+        // setLooping(true) causes the ringtone to loop forever and prevents proper
+        // stopping.
         return ring;
     }
 
@@ -243,9 +241,14 @@ public class Notify {
     }
 
     Ringtone mkring(String uristr, int kind) {
+        // For global alerts, use getalarmdisturb to determine audio stream
+        return mkring(uristr, kind, getalarmdisturb(kind));
+    }
+
+    Ringtone mkring(String uristr, int kind, boolean disturb) {
         {
             if (doLog) {
-                Log.i(LOG_ID, "ringtone " + kind + " " + uristr);
+                Log.i(LOG_ID, "ringtone " + kind + " " + uristr + " disturb=" + disturb);
             }
             ;
         }
@@ -253,7 +256,9 @@ public class Notify {
         var ring = setring(uristr, defaults[kind]);
         if (android.os.Build.VERSION.SDK_INT >= 21) {
             try {
-                ring.setAudioAttributes((kind != 2 && getUSEALARM()) ? ScanNfcV.audioattributes : notification_audio);
+                // Use ALARM stream only if disturb=true AND USEALARM is enabled
+                boolean useAlarmStream = (kind != 2 && getUSEALARM() && disturb);
+                ring.setAudioAttributes(useAlarmStream ? ScanNfcV.audioattributes : notification_audio);
             } catch (Throwable e) {
                 Log.stack(LOG_ID, "mkring", e);
             }
@@ -573,14 +578,7 @@ public class Notify {
     }
 
     private void vibratealarm(int kind) {
-        var context = Applic.app;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            vibrator = ((VibratorManager) (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)))
-                    .getDefaultVibrator();
-        } else
-            vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
-
-        // Get Volume Profile from prefs (AlertRepository convention)
+        // Lookup profile from SharedPreferences for global alerts
         String profileName = "HIGH";
         try {
             android.content.SharedPreferences prefs = Applic.app.getSharedPreferences("tk.glucodata.alerts",
@@ -588,6 +586,19 @@ public class Notify {
             profileName = prefs.getString("alert_" + kind + "_volume", "HIGH");
         } catch (Exception e) {
         }
+        vibratealarm(kind, profileName);
+    }
+
+    private void vibratealarm(int kind, String profileName) {
+        var context = Applic.app;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            vibrator = ((VibratorManager) (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)))
+                    .getDefaultVibrator();
+        } else
+            vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
+
+        if (profileName == null)
+            profileName = "HIGH";
 
         float scale = 1.0f;
         boolean ascending = false;
@@ -684,6 +695,19 @@ public class Notify {
 
     private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
             boolean disturb, int kind) {
+        // Default: use global profile from SharedPrefs
+        playringhier(ring, duration, sound, flash, vibrate, disturb, kind, null);
+    }
+
+    private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
+            boolean disturb, int kind, String intensityProfile) {
+        // CAP DURATION to prevent infinite loops (max 120 seconds)
+        if (duration <= 0 || duration > 120) {
+            duration = 60; // Default to 60 seconds if invalid
+            if (doLog)
+                Log.i(LOG_ID, "Duration capped to 60s (was invalid or >120)");
+        }
+
         notifyfocus = true;
         doTurnFocuson();
         stopalarm();
@@ -703,49 +727,38 @@ public class Notify {
         }
         final boolean[] doplaysound = { true };
         if (sound) {
-            if (disturb) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    int filt = notificationManager.getCurrentInterruptionFilter();
-                    {
-                        if (doLog) {
-                            Log.i(LOG_ID, "getCurrentInterruptionFilter()=" + filt);
-                        }
-                        ;
-                    }
-                    ;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                int filt = notificationManager.getCurrentInterruptionFilter();
+                if (doLog) {
+                    Log.i(LOG_ID, "getCurrentInterruptionFilter()=" + filt + " disturb=" + disturb);
+                }
 
-                    if (filt != NotificationManager.INTERRUPTION_FILTER_ALL) {
+                if (filt != NotificationManager.INTERRUPTION_FILTER_ALL) {
+                    // Phone is in some DND mode
+                    if (disturb) {
+                        // Override DND if we have permission
                         if (notificationManager.isNotificationPolicyAccessGranted()) {
-                            // curfilter[0]=filt;
                             notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
                         }
+                    } else {
+                        // Don't disturb - skip sound
+                        doplaysound[0] = false;
+                        if (doLog) {
+                            Log.i(LOG_ID, "Skipping sound due to DND and disturb=false");
+                        }
                     }
                 }
             }
-            if (doLog) {
-                {
-                    if (doLog) {
-                        Log.d(LOG_ID, "play " + ring.getTitle(app));
-                    }
-                    ;
-                }
-                ;
+            if (doLog && doplaysound[0]) {
+                Log.d(LOG_ID, "play " + ring.getTitle(app));
             }
-            if (doplaysound[0]) {
-                ring.play();
-            }
-        }
-        if (!isWearable) {
-            if (flash)
-                Flash.start(app);
-        }
-        if (vibrate) {
-            vibratealarm(kind);
         }
         runstopalarm = () -> {
-            notifyfocus = false;
-            lastalarm = -1;
-            if (getisalarm()) {
+            boolean wasAlarm = getisalarm(); // Check state BEFORE resetting it
+            if (wasAlarm) {
+                notifyfocus = false;
+                lastalarm = -1; // Now safe to reset
+
                 {
                     if (doLog) {
                         Log.d(LOG_ID, "runstopalarm  isalarm");
@@ -820,6 +833,72 @@ public class Notify {
             ;
         }
         ;
+
+        // MOVED EFFECTS START HERE - SAFER
+        // Get intensity profile: use passed value or look up from global settings
+        final String profile = (intensityProfile != null) ? intensityProfile : getVolumeProfile(kind);
+        int repeatCount = 1;
+        switch (profile.toUpperCase()) {
+            case "HIGH":
+                repeatCount = 3;
+                break;
+            case "MEDIUM":
+                repeatCount = 2;
+                break;
+            case "ASCENDING":
+            default:
+                repeatCount = 1;
+                break;
+        }
+        final int finalRepeatCount = repeatCount;
+        final int finalKind = kind;
+        final boolean finalDisturb = disturb;
+
+        if (sound) {
+            if (doplaysound[0]) {
+                ring.play();
+
+                // Schedule additional plays for repeats > 1
+                if (finalRepeatCount > 1) {
+                    String ringUri = Natives.readring(kind);
+                    for (int i = 1; i < finalRepeatCount; i++) {
+                        final int delay = i * 2; // 2 seconds between each play
+                        Applic.scheduler.schedule(() -> {
+                            if (getisalarm()) {
+                                Ringtone repeatRing = mkring(ringUri, finalKind, finalDisturb);
+                                if (repeatRing != null) {
+                                    repeatRing.play();
+                                }
+                            }
+                        }, delay, TimeUnit.SECONDS);
+                    }
+                }
+            }
+        }
+        if (!isWearable) {
+            if (flash) {
+                // Flash count based on intensity: Ascending=2, Medium=4, High=6
+                int flashCount;
+                switch (profile.toUpperCase()) {
+                    case "HIGH":
+                        flashCount = 6;
+                        break;
+                    case "MEDIUM":
+                        flashCount = 4;
+                        break;
+                    case "ASCENDING":
+                    default:
+                        flashCount = 2;
+                        break;
+                }
+                long flashPeriod = 200; // Fixed 200ms period for all intensities
+                Flash.start(app, flashPeriod, flashCount);
+            }
+        }
+        if (vibrate) {
+            vibratealarm(kind, profile);
+        }
+
         stopschedule = Applic.scheduler.schedule(runstopalarm, duration, TimeUnit.SECONDS);
 
     }
@@ -836,6 +915,46 @@ public class Notify {
             return mode;
         } catch (Exception e) {
             return "SYSTEM_ALARM";
+        }
+    }
+
+    private String getVolumeProfile(int kind) {
+        try {
+            android.content.SharedPreferences prefs = Applic.app.getSharedPreferences("tk.glucodata.alerts",
+                    android.content.Context.MODE_PRIVATE);
+            return prefs.getString("alert_" + kind + "_volume", "HIGH");
+        } catch (Exception e) {
+            return "HIGH";
+        }
+    }
+
+    private long getFlashPeriodFromProfile(String profile) {
+        if (profile == null)
+            return 150L;
+        switch (profile.toUpperCase()) {
+            case "LOW":
+                return 1000L;
+            case "MEDIUM":
+                return 500L;
+            case "HIGH":
+            case "ASCENDING":
+            default:
+                return 150L;
+        }
+    }
+
+    private float getVolumeFromProfile(String profile) {
+        if (profile == null)
+            return 1.0f;
+        switch (profile.toUpperCase()) {
+            case "LOW":
+                return 0.4f;
+            case "MEDIUM":
+                return 0.7f;
+            case "HIGH":
+            case "ASCENDING":
+            default:
+                return 1.0f;
         }
     }
 
@@ -896,7 +1015,14 @@ public class Notify {
     /**
      * Test an alarm type by triggering the full alarm flow with dummy data.
      */
+    private static long lastTestTime = 0;
+
     public static void testTrigger(int kind) {
+        long now = System.currentTimeMillis();
+        if (now - lastTestTime < 2000)
+            return; // Debounce 2s
+        lastTestTime = now;
+
         // Run on main thread to be safe with UI/Toasts
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             boolean isMmol = tk.glucodata.Applic.unit == 1;
@@ -948,30 +1074,41 @@ public class Notify {
     /**
      * Trigger a Custom Alert. Called from CustomAlertManager when a custom
      * threshold is crossed.
-     * Uses the existing alarm flow - just calls arrowglucosealarm with appropriate
-     * parameters.
+     * Uses the existing alarm flow via playringhier for guaranteed stop.
      */
+
     public static void triggerCustomAlert(String soundUri, boolean sound, boolean vibrate, boolean flash,
-            boolean isHigh, float glucoseValue, String deliveryMode, String volumeProfile, boolean overrideDnd) {
-        triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, glucoseValue, false);
+            boolean isHigh, float glucoseValue, String deliveryMode, String volumeProfile, int durationSeconds,
+            boolean overrideDnd) {
+        triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, glucoseValue, false, deliveryMode,
+                volumeProfile, durationSeconds, overrideDnd);
     }
 
-    /**
-     * Test a Custom Alert from UI.
-     */
     public static void testCustomTrigger(String soundUri, boolean sound, boolean vibrate, boolean flash,
-            boolean isHigh, String deliveryMode, String volumeProfile, boolean overrideDnd) {
+            boolean isHigh, String deliveryMode, String volumeProfile, int durationSeconds, boolean overrideDnd) {
         boolean isMmol = tk.glucodata.Applic.unit == 1;
         float dummyValue = isHigh ? (isMmol ? 12.0f : 216f) : (isMmol ? 3.5f : 63f);
-        triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, dummyValue, true);
+        triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, dummyValue, true, deliveryMode,
+                volumeProfile, durationSeconds, overrideDnd);
     }
 
+    private static long lastCustomTriggerTime = 0;
+
     private static void triggerCustomAlertInternal(String soundUri, boolean sound, boolean vibrate, boolean flash,
-            boolean isHigh, float glucoseValue, boolean isTest) {
+            boolean isHigh, float glucoseValue, boolean isTest, String deliveryMode,
+            String volumeProfile, int durationSeconds, boolean overrideDnd) {
+
+        long now = System.currentTimeMillis();
+        // Debounce only for test mode to prevent accidental double-clicks
+        if (isTest) {
+            if (now - lastCustomTriggerTime < 2000)
+                return;
+        }
+        lastCustomTriggerTime = now;
+
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             if (onenot != null) {
                 int kind = isHigh ? 1 : 0;
-                boolean isMmol = tk.glucodata.Applic.unit == 1;
 
                 // For test scenarios, reset tracker state so sound always plays
                 if (isTest) {
@@ -989,9 +1126,77 @@ public class Notify {
                 String typeStr = "glucoseNotification";
                 notGlucose glucoseStr = new notGlucose(System.currentTimeMillis(), String.valueOf(glucoseValue), 0f, 0);
 
-                // Simply call the existing alarm method - it handles everything including
-                // sound/flash/vibration
-                onenot.arrowglucosealarm(kind, glucoseValue, message, glucoseStr, typeStr, true);
+                // Delivery Mode Logic
+                String mode = (deliveryMode != null) ? deliveryMode.toUpperCase() : "NOTIFICATION";
+                boolean isAlarmMode = mode.equals("ALARM") || mode.equals("SYSTEM_ALARM");
+                boolean isBothMode = mode.equals("BOTH");
+                boolean isNotificationMode = mode.equals("NOTIFICATION") || mode.equals("NOTIFICATION_ONLY");
+
+                boolean activityLaunched = false;
+
+                // 1. Launch Alarm Activity (if ALARM or BOTH)
+                if (isAlarmMode || isBothMode) {
+                    // Custom alerts don't have rate info typically, pass 0f
+                    activityLaunched = showpopupalarm(message, true, 0f);
+                }
+
+                boolean skipBanner = false;
+                // If Alarm Activity launched successfully and NOT in Both mode, try to skip
+                // banner
+                if (activityLaunched && isAlarmMode && !isBothMode) {
+                    boolean hasOverlayPerm = Build.VERSION.SDK_INT < 23
+                            || android.provider.Settings.canDrawOverlays(Applic.app);
+                    boolean isForeground = (MainActivity.thisone != null);
+                    if (hasOverlayPerm || isForeground) {
+                        skipBanner = true;
+                    }
+                }
+
+                // 2. Heads-Up Notification (Separate) - This is what standard alerts do!
+                // Only if we shouldn't skip the banner (Notification mode, Both mode, or Alarm
+                // mode failure)
+                if (!skipBanner) {
+                    onenot.makeseparatenotification(glucoseValue, message, glucoseStr, typeStr, kind);
+                }
+
+                // 3. Sound/Flash/Vibrate - Use standard playringhier (handles repeats, stop,
+                // etc.)
+                if (sound || flash || vibrate) {
+                    String actualUri;
+                    if (soundUri == null || soundUri.isEmpty()) {
+                        actualUri = Natives.readring(kind);
+                    } else if ("SYSTEM_DEFAULT".equals(soundUri)) {
+                        // Use Android's system default notification sound
+                        actualUri = android.media.RingtoneManager
+                                .getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION).toString();
+                    } else {
+                        actualUri = soundUri;
+                    }
+
+                    // Duration from config (default 10s for test, 30s for real)
+                    int finalDuration = (durationSeconds > 0) ? durationSeconds : (isTest ? 10 : 30);
+                    boolean disturb = isWearable || overrideDnd;
+
+                    Log.i(LOG_ID, "Custom Alert DND check: overrideDnd=" + overrideDnd + " isWearable=" + isWearable
+                            + " disturb=" + disturb + " intensity=" + volumeProfile);
+
+                    // Pass disturb to mkring so it uses the correct audio stream
+                    Ringtone ring = onenot.mkring(actualUri, kind, disturb);
+
+                    // playringhier with intensity profile - uses custom alert's intensity not
+                    // global
+                    onenot.playringhier(ring, finalDuration, sound, flash, vibrate, disturb, kind, volumeProfile);
+
+                    if (doLog)
+                        Log.i(LOG_ID, "Custom Alert: sound=" + sound + " flash=" + flash + " vibrate=" + vibrate
+                                + " duration=" + finalDuration + " disturb=" + disturb + " intensity=" + volumeProfile);
+                }
+
+                // 4. Update Persistent Notification (Silent)
+                // Use 'true' for 'once' to ensure it's a silent update to the persistent
+                // channel
+                // This keeps the persistent notification in sync without double-alerting
+                onenot.arrowplacelargenotification(kind, glucoseValue, message, glucoseStr, typeStr, true);
             }
         });
     }
