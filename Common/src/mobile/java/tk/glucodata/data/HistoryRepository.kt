@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 import tk.glucodata.Applic
 import tk.glucodata.Natives
 import tk.glucodata.ui.GlucosePoint
@@ -46,6 +48,30 @@ class HistoryRepository(context: Context = Applic.app) {
             }
         }
         
+        const val HISTORY_SOURCE_NATIVE = 1
+        const val GLUCODATA_SOURCE_AIDEX = 4
+        
+        @JvmStatic
+        fun storeReadingAsync(timestamp: Long, valueMmol: Float, source: Int) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val valueMgDl = valueMmol * 18.0182f
+                    // Basic duplicate check is handled by DAO on conflict replacement or we can query
+                    // For now, fast fire-and-forget
+                    val reading = HistoryReading(
+                        timestamp = timestamp,
+                        value = valueMgDl,
+                        rawValue = valueMgDl, // Assuming already calibrated/final for now
+                        rate = 0f
+                    )
+                    HistoryDatabase.getInstance(Applic.app).historyDao().insert(reading)
+                    Log.d(TAG, "Stored reading: $valueMgDl mg/dL from source $source")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to store reading", e)
+                }
+            }
+        }
+        
         /**
          * Blocking version for Notify.java that returns tk.glucodata.GlucosePoint.
          * This converts from the UI GlucosePoint to the simpler main GlucosePoint.
@@ -72,6 +98,17 @@ class HistoryRepository(context: Context = Applic.app) {
                 uiPoints.map { p ->
                     tk.glucodata.GlucosePoint(p.timestamp, p.value, p.rawValue)
                 }
+            }
+        }
+
+        /**
+         * Async helper for Java callers (e.g. AiDexProbe) to store readings without blocking.
+         * Launches a coroutine in IO scope.
+         */
+        @JvmStatic
+        fun storeReadingAsync(timestamp: Long, value: Float, rawValue: Float, rate: Float) {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                HistoryRepository().storeReading(timestamp, value, rawValue, rate)
             }
         }
     }
