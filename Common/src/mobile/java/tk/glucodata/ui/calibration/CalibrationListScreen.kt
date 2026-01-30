@@ -145,6 +145,11 @@ fun CalibrationListScreen(
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
+                    },
+                    actions = {
+                        TextButton(onClick = { tk.glucodata.aidex.AiDexProbe.getInstance().startProbe() }) {
+                            Text("Probe")
+                        }
                     }
                 )
             }
