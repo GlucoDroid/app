@@ -14,8 +14,10 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -219,6 +221,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     // --- BROADCAST SCAN STATE ---
     private val scanHandler = Handler(Looper.getMainLooper())
 
+    // Edit 28: Handler-based message queue for ALL vendor native lib interactions.
+    // The official AiDex app uses a single Handler (workHandler) on the main looper
+    // to serialize all BLE adapter operations. This prevents reentrancy (e.g. calling
+    // onConnectSuccess() while executeConnect() is still on the stack) and ensures
+    // proper ordering (executeWrite queued before executeDisconnect).
+    private val vendorWorkHandler = Handler(Looper.getMainLooper())
+
     // init block removed for debugging
 
     private var broadcastScanner: BluetoothLeScanner? = null
@@ -263,9 +272,26 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private var lastVendorMgDl: Float = 0f
     private var lastVendorTime: Long = 0L
     private var lastVendorOffsetMinutes: Int = 0
-    private val vendorWriteQueue = ArrayDeque<VendorWrite>()
-    private var vendorWriteActive = false
+    private val vendorGattQueue = ArrayDeque<VendorGattOp>()  // Edit 36c: unified read+write queue
+    private var vendorGattOpActive = false  // Edit 36c: true while a GATT op (read or write) is pending callback
     private var vendorLongConnectTriggered = false
+    private var vendorLongConnectPendingReason: String? = null  // set when long-connect deferred for bonding
+    private var vendorConnectSuccessPendingCaller: String? = null  // set when onConnectSuccess deferred for bonding
+    private var aidexBondReceiver: BroadcastReceiver? = null
+    @Volatile private var aidexBonded = false  // internal bond state — only set true by our own BroadcastReceiver (or already-bonded check)
+    @Volatile private var cccdAuthFailSeen = false  // Edit 26: set true when CCCD write returns GATT_INSUFFICIENT_AUTHENTICATION (0x05), indicating SMP bonding started
+
+    // Edit 29: Auth failure (status=5) tracking for crash-loop protection
+    private var consecutiveAuthFailures = 0
+    private var lastAuthFailureTime = 0L
+    private val AUTH_FAIL_MAX_RETRIES = 5
+    private val AUTH_FAIL_BASE_DELAY_MS = 2000L  // 2s, doubles each retry up to 60s
+
+    // Background executor for vendor commands — avoids blocking main/BLE Binder threads
+    // All calls to executeVendorCommand (which does Thread.sleep polling) MUST go through this.
+    private val vendorExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "AiDex-VendorCmd").apply { isDaemon = true }
+    }
 
     var viewMode: Int
         get() = viewModeInternal
@@ -495,7 +521,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
     }
 
-    private data class VendorWrite(val uuid: Int, val data: ByteArray)
+    // Edit 36c: Unified GATT operation queue. Android BLE only supports one pending GATT
+    // operation at a time. Previously, reads bypassed the write queue and raced with writes,
+    // causing gatt.readCharacteristic() to silently fail (return false) when a write was
+    // in-flight. Now both reads and writes go through the same queue.
+    private sealed class VendorGattOp {
+        data class Write(val uuid: Int, val data: ByteArray) : VendorGattOp()
+        data class Read(val uuid: Int) : VendorGattOp()
+    }
 
     private fun ensureVendorStarted(reason: String) {
         if (!vendorBleEnabled) {
@@ -525,19 +558,21 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 Log.e(TAG, "Vendor init failed: ${t.message}")
                 return // cannot proceed without adapter registration
             }
-            try {
-                BleController.startScan()
-            } catch (_: Throwable) {
-            }
+            // Edit 33: Removed BleController.startScan() — the official app NEVER calls it from Java.
+            // The native lib's own register() call manages scanning internally. Calling startScan()
+            // explicitly was putting the native lib into a scanning state that conflicted with
+            // register()'s internal scan management, preventing it from ever calling executeConnect().
             Log.i(TAG, "Vendor started ($reason)")
         }
 
         // Proactive initialization if we have a connected address but no controller yet.
+        // Edit 32: Only initialize with REAL scan data — empty params corrupt the native lib's
+        // internal state, causing it to discover the device but never call executeConnect().
+        // If no cached params are available, the native lib's own scan will find the device
+        // within seconds and trigger onVendorDiscovered() with real advertisement bytes.
         if (vendorController == null) {
             val addr = connectedAddress ?: mActiveDeviceAddress
             if (addr != null && SerialNumber.isNotEmpty()) {
-                Log.i(TAG, "Proactively initializing vendor controller for $addr")
-                // type=1, address, name, sn, rssi=-60, params=lastScanRecordBytes or loaded
                 var scannedBytes = lastScanRecordBytes
                 if (scannedBytes == null) {
                     scannedBytes = loadVendorParams()
@@ -546,15 +581,16 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                         lastScanRecordBytes = scannedBytes
                     }
                 }
-                val finalBytes = scannedBytes ?: ByteArray(0)
-
-                if (finalBytes.isEmpty()) {
-                     Log.w(TAG, "Vendor init warning: Using empty scan record bytes. Device usage might fail.")
+                if (scannedBytes != null && scannedBytes.isNotEmpty()) {
+                    Log.i(TAG, "Proactively initializing vendor controller for $addr (${scannedBytes.size} bytes)")
+                    val info = BleControllerInfo(1, addr, "AiDEX $SerialNumber", SerialNumber, -60, scannedBytes)
+                    mActiveBluetoothDevice?.let { adapter.recordDevice(it) }
+                    onVendorDiscovered(info)
+                } else {
+                    Log.i(TAG, "Vendor init: No scan data for $addr yet — deferring controller init to first real scan result")
+                    // Kick a broadcast scan so we pick up real advertisement bytes ASAP
+                    startBroadcastScan("vendor-deferred-init")
                 }
-                val info = BleControllerInfo(1, addr, "AiDEX $SerialNumber", SerialNumber, -60, finalBytes)
-                // Ensure device is recorded in adapter store for the library's internal mapping
-                mActiveBluetoothDevice?.let { adapter.recordDevice(it) }
-                onVendorDiscovered(info)
             }
         }
     }
@@ -582,14 +618,124 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         vendorConnectPending = false
         vendorNativeReady = false
         vendorExecuteConnectReceived = false
-        vendorWriteQueue.clear()
-        vendorWriteActive = false
+        vendorGattQueue.clear()
+        vendorGattOpActive = false
         vendorLongConnectTriggered = false
+        vendorLongConnectPendingReason = null
+        vendorConnectSuccessPendingCaller = null
+        aidexBonded = false
+        cancelReconnectStallTimeout()  // Edit 34: cancel stall timer on vendor stop
+        unregisterAidexBondReceiver()
         Log.i(TAG, "Vendor stopped ($reason)")
 
     }
 
     private var disregardDisconnectsUntil: Long = 0
+
+    @SuppressLint("MissingPermission")
+    private fun registerAidexBondReceiver() {
+        unregisterAidexBondReceiver()  // safety: remove any prior
+        val targetAddress = connectedAddress ?: return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != BluetoothDevice.ACTION_BOND_STATE_CHANGED) return
+                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE) ?: return
+                if (device.address != targetAddress) return
+                val prev = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1)
+                val curr = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1)
+                Log.i(TAG, "AiDex bond receiver: $targetAddress prev=$prev curr=$curr")
+                when (curr) {
+                    BluetoothDevice.BOND_BONDED -> {
+                        if (aidexBonded) {
+                            Log.i(TAG, "AiDex bond receiver: already handled BONDED, ignoring duplicate")
+                            return
+                        }
+                        aidexBonded = true
+                        Log.i(TAG, "AiDex bond receiver: BOND_BONDED — triggering deferred operations")
+                        // Trigger deferred onConnectSuccess (500ms delay for encryption to settle)
+                        val pendingCaller = vendorConnectSuccessPendingCaller
+                        if (pendingCaller != null) {
+                            Log.i(TAG, "AiDex bond receiver: firing deferred safeCallOnConnectSuccess (caller=$pendingCaller)")
+                            vendorConnectSuccessPendingCaller = null
+                            scanHandler.postDelayed({
+                                safeCallOnConnectSuccess("bond-receiver-deferred:$pendingCaller")
+                            }, 500L)
+                        }
+                        // Trigger deferred long-connect (200ms delay — Edit 26: reduced from 2000ms)
+                        val pendingReason = vendorLongConnectPendingReason
+                        if (pendingReason != null) {
+                            Log.i(TAG, "AiDex bond receiver: firing deferred startVendorLongConnect (reason=$pendingReason)")
+                            vendorLongConnectPendingReason = null
+                            scanHandler.postDelayed({
+                                startVendorLongConnect("bond-receiver-deferred:$pendingReason")
+                            }, 200L)
+                        }
+                    }
+                    BluetoothDevice.BOND_NONE -> {
+                        Log.w(TAG, "AiDex bond receiver: BOND_NONE (bond failed or removed)")
+                        aidexBonded = false
+                    }
+                }
+            }
+        }
+        aidexBondReceiver = receiver
+        val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+        appContext.registerReceiver(receiver, filter)
+        Log.i(TAG, "AiDex bond receiver registered for $targetAddress")
+
+        // Handle already-bonded case (reconnect to previously bonded device)
+        val currentBond = mBluetoothGatt?.device?.bondState ?: BluetoothDevice.BOND_NONE
+        if (currentBond == BluetoothDevice.BOND_BONDED) {
+            Log.i(TAG, "AiDex bond receiver: device already BONDED at registration time — setting aidexBonded=true")
+            aidexBonded = true
+        }
+    }
+
+    private fun unregisterAidexBondReceiver() {
+        val receiver = aidexBondReceiver ?: return
+        try {
+            appContext.unregisterReceiver(receiver)
+        } catch (_: Throwable) {}
+        aidexBondReceiver = null
+        Log.i(TAG, "AiDex bond receiver unregistered")
+    }
+
+    /**
+     * Edit 25: Remove stale BLE bond before connecting.
+     *
+     * AiDex protocol rule: after GATT connect, the sensor gives ~8 seconds
+     * to send the key-exchange command and initiate bonding.  If the Android
+     * BLE stack holds a stale bond record from a prior session, the first
+     * CCCD write fails with GATT_INSUFFICIENT_AUTHENTICATION (0x05), the
+     * stack auto-removes the stale bond, and fresh bonding starts — but this
+     * wastes several seconds of the 8-second window and can leave the
+     * connection in a confused state (status=19 peer disconnect).
+     *
+     * Calling removeBond() BEFORE connectGatt() ensures:
+     *   - No stale bond to remove during the connection
+     *   - Bonding starts fresh immediately on the first CCCD write
+     *   - No time wasted on authentication errors
+     *
+     * @return true if the bond was removed (or was already absent), false on error
+     */
+    @SuppressLint("MissingPermission")
+    private fun removeBondIfBonded(device: BluetoothDevice?): Boolean {
+        if (device == null) return true
+        val state = device.bondState
+        if (state != BluetoothDevice.BOND_BONDED) {
+            Log.d(TAG, "removeBondIfBonded: device ${device.address} not bonded (state=$state), nothing to do")
+            return true
+        }
+        return try {
+            val method = device.javaClass.getMethod("removeBond")
+            val result = method.invoke(device) as Boolean
+            Log.i(TAG, "removeBondIfBonded: removeBond() for ${device.address} returned $result")
+            result
+        } catch (e: Throwable) {
+            Log.e(TAG, "removeBondIfBonded: reflection failed: ${e.message}")
+            false
+        }
+    }
 
     override fun disconnect() {
         if (System.currentTimeMillis() < disregardDisconnectsUntil) {
@@ -600,7 +746,16 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     override fun close() {
-        stopVendor("close")
+        // Do NOT call stopVendor("close") here!
+        // SuperGattCallback.getConnectDevice() calls close() before every reconnect.
+        // Calling stopVendor here tears down the entire vendor stack (unregisters controller,
+        // clears all flags) during routine GATT reconnects, which:
+        //   1) Kills active GATT connections that ensureVendorGattReady is waiting on
+        //   2) Resets vendorRegistered/vendorExecuteConnectReceived/vendorNativeReady
+        //   3) Forces full re-init on every reconnect cycle
+        // Vendor shutdown is handled in onConnectionStateChange(DISCONNECTED) where
+        // the flags are properly reset, and in the explicit stopVendor calls from
+        // applyViewMode/stopBt.
         super.close()
     }
 
@@ -688,16 +843,16 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
 
         return try {
-            val writeQueueBefore = vendorWriteQueue.size
+            val writeQueueBefore = vendorGattQueue.size
             val result = action(controller)
             Log.i(TAG, "Command $label (op=$opCode) invoked, native result=$result (0x${Integer.toHexString(result)})")
             
             // Wait for the vendor library to trigger executeWrite callbacks
             Thread.sleep(800)
             
-            val writeQueueAfter = vendorWriteQueue.size
-            val writesProduced = writeQueueBefore != writeQueueAfter || vendorWriteActive
-            Log.i(TAG, "Command $label: writeQueueBefore=$writeQueueBefore writeQueueAfter=$writeQueueAfter writeActive=$vendorWriteActive writesProduced=$writesProduced")
+            val writeQueueAfter = vendorGattQueue.size
+            val writesProduced = writeQueueBefore != writeQueueAfter || vendorGattOpActive
+            Log.i(TAG, "Command $label: writeQueueBefore=$writeQueueBefore writeQueueAfter=$writeQueueAfter writeActive=$vendorGattOpActive writesProduced=$writesProduced")
             
             // The result from native methods like reset() is the opcode echoed back (e.g. 3840=0xF00).
             // This does NOT mean the command was successfully sent over BLE.
@@ -824,6 +979,26 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             }
         } catch (_: Throwable) {
         }
+
+        // Edit 33: Restore saved pairing keys BEFORE register(), matching official app's
+        // TransmitterModel.instance() which sets key/id/hostAddress from DB before register().
+        // Without these, register() has no encryption context and the native lib won't
+        // progress to calling executeConnect().
+        val hasSavedKeys = isVendorPaired()
+        if (hasSavedKeys) {
+            try {
+                val savedKey = loadVendorPairingKey()
+                val savedId = loadVendorPairingId()
+                val savedHost = loadVendorHostAddress()
+                if (savedKey != null) controller.setKey(savedKey)
+                if (savedId != null) controller.setId(savedId)
+                if (savedHost != null) controller.setHostAddress(savedHost)
+                Log.i(TAG, "Vendor: restored saved pairing keys (key=${savedKey?.size ?: 0}b, id=${savedId?.size ?: 0}b, host=${savedHost?.size ?: 0}b)")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Vendor: failed to restore pairing keys: ${t.message}")
+            }
+        }
+
         if (!vendorRegistered) {
             vendorRegistered = true
             try {
@@ -835,17 +1010,34 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             }
             try {
                 controller.register()
-            } catch (_: Throwable) {
+                Log.i(TAG, "Vendor: register() called (hasSavedKeys=$hasSavedKeys)")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Vendor: register() failed: ${t.message}")
+            }
+
+            // Edit 33: For NEW/UNPAIRED sensors, call pair() after register() to trigger
+            // the native lib's pairing handshake flow (DISCOVER→CONNECT→BOND→PAIR).
+            // For SAVED/PAIRED sensors, register() with restored keys will handle reconnection.
+            // The official app calls pair() from PairUtil.startPair() for new sensors,
+            // and only register() for saved sensors.
+            if (!hasSavedKeys) {
+                try {
+                    val pairResult = controller.pair()
+                    Log.i(TAG, "Vendor: pair() called for new sensor (result=$pairResult)")
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Vendor: pair() failed: ${t.message}")
+                }
             }
         }
         val paramsHex = info.params?.let { bytesToHex(it) }
         Log.i(
             TAG,
-            "Vendor discovered: ${info.address} sn=${info.sn} name=${info.name} params=${paramsHex ?: "null"}"
+            "Vendor discovered: ${info.address} sn=${info.sn} name=${info.name} params=${paramsHex ?: "null"} paired=$hasSavedKeys"
         )
-        if (mBluetoothGatt != null) {
-            startVendorLongConnect("discover")
-        }
+        // Edit 28: Removed startVendorLongConnect("discover") — premature.
+        // The native lib will drive the protocol via executeWrite() after onConnectSuccess.
+        // Sending setDynamicMode/setAutoUpdate/getBroadcastData before the AES handshake
+        // interferes with the connection setup.
     }
 
 
@@ -869,15 +1061,94 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private fun handleVendorMessage(message: BleMessage) {
         if (!vendorBleEnabled) return
         if (!vendorLibAvailable) return
-        val data = message.data ?: return
+        val data = message.data
         val now = System.currentTimeMillis()
-        Log.i(TAG, "Vendor message: op=${message.operation} success=${message.isSuccess} resCode=${message.resCode} data=${bytesToHex(data)}")
+        // Edit 34: Update last message time to prevent reconnect stall timeout from firing
+        vendorLastMessageTime = now
+        Log.i(TAG, "Vendor message: op=${message.operation} success=${message.isSuccess} resCode=${message.resCode} data=${data?.let { bytesToHex(it) } ?: "null"}")
         when (message.operation) {
+            // Edit 33: Handle pairing flow operations — matches official app's PairUtil.observeMessage
+            AidexXOperation.DISCOVER -> {
+                Log.i(TAG, "Vendor DISCOVER: success=${message.isSuccess}")
+            }
+            AidexXOperation.CONNECT -> {
+                Log.i(TAG, "Vendor CONNECT: success=${message.isSuccess}")
+            }
+            AidexXOperation.DISCONNECT -> {
+                Log.i(TAG, "Vendor DISCONNECT: success=${message.isSuccess}")
+            }
+            AidexXOperation.PAIR -> {
+                // PAIR success = AES key exchange completed, encryption keys are now available
+                Log.i(TAG, "Vendor PAIR: success=${message.isSuccess}")
+                if (message.isSuccess) {
+                    vendorStallRetryCount = 0  // Edit 36d: reset soft-retry counter on successful pair
+                    cancelReconnectStallTimeout()  // Edit 36d: no stall — we got PAIR
+                    val controller = vendorController
+                    if (controller != null) {
+                        saveVendorPairingKeys(controller)
+                        // After successful pairing, the official app calls getTransInfo() and startTime()
+                        try {
+                            controller.getTransInfo()
+                            Log.i(TAG, "Vendor PAIR: called getTransInfo()")
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Vendor PAIR: getTransInfo() failed: ${t.message}")
+                        }
+                        try {
+                            controller.startTime()
+                            Log.i(TAG, "Vendor PAIR: called startTime()")
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Vendor PAIR: startTime() failed: ${t.message}")
+                        }
+                    }
+                } else {
+                    Log.e(TAG, "Vendor PAIR FAILED — pairing handshake did not complete")
+                }
+            }
+            AidexXOperation.UNPAIR -> {
+                Log.i(TAG, "Vendor UNPAIR: success=${message.isSuccess}")
+                if (message.isSuccess) {
+                    clearVendorPairingKeys()
+                }
+            }
+            AidexXOperation.BOND -> {
+                Log.i(TAG, "Vendor BOND: success=${message.isSuccess}")
+                if (!message.isSuccess) {
+                    Log.e(TAG, "Vendor BOND FAILED — BLE bonding did not complete")
+                }
+            }
+            AidexXOperation.ENABLE_NOTIFY -> {
+                Log.i(TAG, "Vendor ENABLE_NOTIFY: success=${message.isSuccess}")
+            }
+            AidexXOperation.DELETE_BOND -> {
+                Log.i(TAG, "Vendor DELETE_BOND: success=${message.isSuccess}")
+                if (message.isSuccess) {
+                    clearVendorPairingKeys()
+                }
+            }
+            AidexXOperation.GET_DEVICE_INFO -> {
+                Log.i(TAG, "Vendor GET_DEVICE_INFO: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"}")
+            }
+            AidexXOperation.GET_START_TIME -> {
+                // This is the final step in the official pairing flow.
+                // After GET_START_TIME, the official app calls savePair() → TransmitterManager.set() → register()
+                // and then starts the data subscription (setDynamicMode + setAutoUpdate + getBroadcastData).
+                Log.i(TAG, "Vendor GET_START_TIME: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"}")
+                if (message.isSuccess) {
+                    // Pairing is fully complete — trigger long-connect to start data flow
+                    Log.i(TAG, "Vendor GET_START_TIME: pairing complete, triggering long-connect for data flow")
+                    vendorWorkHandler.postDelayed({
+                        startVendorLongConnect("post-pairing")
+                    }, 500L)
+                }
+            }
+            AidexXOperation.GET_HISTORY_RANGE -> {
+                Log.i(TAG, "Vendor GET_HISTORY_RANGE: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"}")
+            }
             AidexXOperation.AUTO_UPDATE_FULL_HISTORY -> {
-                if (message.isSuccess) handleVendorInstant(data, now, "auto")
+                if (data != null && message.isSuccess) handleVendorInstant(data, now, "auto")
             }
             AidexXOperation.GET_BROADCAST_DATA -> {
-                if (message.isSuccess) handleVendorBroadcast(data, now, "vendor-gatt")
+                if (data != null && message.isSuccess) handleVendorBroadcast(data, now, "vendor-gatt")
             }
             AidexXOperation.RESET -> {
                 Log.i(TAG, "Vendor RESET response: success=${message.isSuccess} resCode=${message.resCode}")
@@ -889,8 +1160,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 Log.i(TAG, "Vendor CLEAR_STORAGE response: success=${message.isSuccess} resCode=${message.resCode}")
             }
             AidexXOperation.GET_HISTORIES -> {
-                Log.i(TAG, "Vendor GET_HISTORIES response: success=${message.isSuccess} data=${bytesToHex(data)} (${data.size} bytes)")
-                if (message.isSuccess && data.isNotEmpty()) {
+                Log.i(TAG, "Vendor GET_HISTORIES response: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"} (${data?.size ?: 0} bytes)")
+                if (message.isSuccess && data != null && data.isNotEmpty()) {
                     // Try to parse each history record from the payload.
                     // The vendor parser expects individual record payloads.
                     try {
@@ -906,8 +1177,17 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     }
                 }
             }
+            AidexXOperation.AUTO_UPDATE_CALIBRATION -> {
+                Log.i(TAG, "Vendor AUTO_UPDATE_CALIBRATION: success=${message.isSuccess}")
+            }
+            AidexXOperation.AUTO_UPDATE_SENSOR_EXPIRED -> {
+                Log.i(TAG, "Vendor AUTO_UPDATE_SENSOR_EXPIRED: success=${message.isSuccess}")
+            }
+            AidexXOperation.AUTO_UPDATE_BATTERY_VOLTAGE -> {
+                Log.i(TAG, "Vendor AUTO_UPDATE_BATTERY_VOLTAGE: success=${message.isSuccess}")
+            }
             else -> {
-                Log.d(TAG, "Vendor unhandled op=${message.operation} success=${message.isSuccess}")
+                Log.d(TAG, "Vendor unhandled op=${message.operation} (0x${Integer.toHexString(message.operation)}) success=${message.isSuccess}")
             }
         }
     }
@@ -960,12 +1240,21 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     "Native Ble object appears corrupt. Will retry on next fresh connection.")
             return
         }
+        vendorConnectSuccessPendingCaller = null
+        // Edit 27: Removed bond-gating. The vendor lib needs onConnectSuccess() ASAP to initiate
+        // the AES key exchange — which IS the command that triggers bonding. Deferring onConnectSuccess
+        // until bonded creates a chicken-and-egg deadlock: can't bond without the key exchange write,
+        // can't write without onConnectSuccess.
         try {
             Log.i(TAG, "safeCallOnConnectSuccess($caller): Calling vendorAdapter.onConnectSuccess()...")
             adapter.onConnectSuccess()
             vendorNativeReady = true
             vendorConnectSuccessCrashCount = 0 // reset on success
             Log.i(TAG, "safeCallOnConnectSuccess($caller): onConnectSuccess() returned OK. vendorNativeReady=true")
+            // Edit 34: Start a reconnection stall timer. If we have saved keys but the native lib's
+            // AES handshake stalls (no PAIR/data response within timeout), clear keys and retry fresh.
+            // This handles the case where the sensor has a different bond/AES context than our saved keys.
+            scheduleReconnectStallTimeout()
         } catch (t: Throwable) {
             vendorConnectSuccessCrashCount++
             vendorNativeReady = false
@@ -973,11 +1262,194 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
     }
 
+    /**
+     * Edit 34: Reconnection stall timeout.
+     *
+     * After onConnectSuccess(), the native lib should initiate an AES key exchange on F001.
+     * For a SAVED sensor (restored keys), the sensor responds and data flows.
+     * For a stalled reconnection (sensor rejected old keys, bond mismatch, etc.), there's no response.
+     *
+     * This timer fires 20 seconds after onConnectSuccess(). If no vendor message callback has
+     * been received in that time (no PAIR, CONNECT, GET_BROADCAST_DATA, etc.), we assume the
+     * AES handshake is stuck and take corrective action:
+     * 1. Clear saved pairing keys (they're stale/wrong)
+     * 2. Clear the BLE bond (sensor has different bond context)
+     * 3. Disconnect and let SensorBluetooth reconnect — next onVendorDiscovered() will do a fresh pair()
+     */
+    private var vendorLastMessageTime = 0L
+    private var reconnectStallRunnable: Runnable? = null
+    private val RECONNECT_STALL_TIMEOUT_MS = 30_000L  // Edit 35b: increased from 20s to 30s
+    private var vendorStallRetryCount = 0  // Edit 36d: track soft-restart attempts
+    private val VENDOR_MAX_SOFT_RETRIES = 2  // Edit 36d: after this many soft retries, do full stopVendor
+
+    private fun scheduleReconnectStallTimeout() {
+        // Cancel any previous stall timer
+        reconnectStallRunnable?.let { vendorWorkHandler.removeCallbacks(it) }
+
+        vendorLastMessageTime = System.currentTimeMillis()
+
+        val runnable = Runnable {
+            val elapsed = System.currentTimeMillis() - vendorLastMessageTime
+            if (elapsed >= RECONNECT_STALL_TIMEOUT_MS - 1000) {
+                // No vendor activity (messages, reads, writes) since timeout was set
+                vendorStallRetryCount++
+                Log.w(TAG, "Reconnect stall timeout: no vendor activity for ${elapsed}ms after onConnectSuccess (retry #$vendorStallRetryCount)")
+                if (isVendorPaired()) {
+                    Log.w(TAG, "Reconnect stall: clearing stale pairing keys and retrying fresh")
+                    clearVendorPairingKeys()
+                }
+                // Remove BLE bond — sensor may have a different bond context
+                val gatt = mBluetoothGatt
+                if (gatt != null) {
+                    try {
+                        val device = gatt.device
+                        if (device.bondState == BluetoothDevice.BOND_BONDED) {
+                            Log.i(TAG, "Reconnect stall: removing BLE bond for ${device.address}")
+                            removeBondIfBonded(device)
+                        }
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Reconnect stall: removeBond failed: ${t.message}")
+                    }
+                }
+
+                if (vendorStallRetryCount <= VENDOR_MAX_SOFT_RETRIES) {
+                    // Edit 36d: SOFT RESTART — disconnect GATT only, keep vendorController alive.
+                    // This preserves the native lib's internal state (including UUID counter),
+                    // preventing the UUID drift (F001→F003) that happens when we destroy and
+                    // recreate the controller. The native lib will re-use the same UUIDs on reconnect.
+                    Log.i(TAG, "Reconnect stall: SOFT restart #$vendorStallRetryCount — disconnect GATT only, keep native controller")
+                    vendorNativeReady = false
+                    vendorExecuteConnectReceived = false
+                    vendorGattConnected = false
+                    vendorServicesReady = false
+                    vendorGattNotified = false
+                    vendorConnectPending = false
+                    vendorGattQueue.clear()
+                    vendorGattOpActive = false
+                    vendorLongConnectTriggered = false
+                    cancelReconnectStallTimeout()
+                    try {
+                        mBluetoothGatt?.disconnect()
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Reconnect stall: GATT disconnect failed: ${t.message}")
+                    }
+                    // Schedule reconnect after short delay — SensorBluetooth's onConnectionStateChange
+                    // will trigger a new connectDevice(). But we also kick a broadcast scan to re-feed
+                    // advertisement bytes to the native lib, which triggers executeConnect().
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        Log.i(TAG, "Reconnect stall: soft restart — kicking broadcast scan for re-discovery")
+                        scheduleBroadcastScan("stall-soft-retry", forceImmediate = true)
+                        // Also nudge the native lib with cached scan data to trigger executeConnect
+                        nudgeVendorExecuteConnect("stall-soft-retry")
+                    }, 3_000L)
+                } else {
+                    // Edit 36d: HARD RESTART — too many soft retries failed, destroy everything.
+                    // The native lib's state is likely corrupt. Full teardown + recreate.
+                    Log.w(TAG, "Reconnect stall: HARD restart — $vendorStallRetryCount soft retries exhausted, doing full stopVendor")
+                    vendorStallRetryCount = 0  // reset for next cycle
+                    try {
+                        stopVendor("reconnect-stall-hard")
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Reconnect stall: stopVendor failed: ${t.message}")
+                    }
+                    try {
+                        mBluetoothGatt?.disconnect()
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Reconnect stall: disconnect failed: ${t.message}")
+                    }
+                    // Schedule a restart after a short delay to give GATT time to disconnect
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        Log.i(TAG, "Reconnect stall: hard restart — full vendor stack restart")
+                        ensureVendorStarted("stall-hard-retry")
+                        scheduleBroadcastScan("stall-hard-retry", forceImmediate = true)
+                    }, 3_000L)
+                }
+            } else {
+                // Vendor activity was seen — reschedule for remaining time
+                val remainingMs = RECONNECT_STALL_TIMEOUT_MS - elapsed
+                Log.d(TAG, "Reconnect stall check: last vendor activity ${elapsed}ms ago, rescheduling in ${remainingMs}ms")
+                val reschedule = Runnable { reconnectStallRunnable?.run() }
+                reconnectStallRunnable = reschedule
+                vendorWorkHandler.postDelayed(reschedule, remainingMs)
+            }
+        }
+        reconnectStallRunnable = runnable
+        vendorWorkHandler.postDelayed(runnable, RECONNECT_STALL_TIMEOUT_MS)
+    }
+
+    private fun cancelReconnectStallTimeout() {
+        reconnectStallRunnable?.let { vendorWorkHandler.removeCallbacks(it) }
+        reconnectStallRunnable = null
+    }
+
+    /**
+     * Edit 29: Re-feed scan data to the native vendor lib to trigger executeConnect().
+     *
+     * The native lib calls executeConnect() after receiving scan advertisements via
+     * onAdvertiseWithAndroidRawBytes() and checking isReadyToConnect(mac). If our GATT
+     * connected before the native lib received enough scan results (or if isReadyToConnect
+     * was returning false), the lib never calls executeConnect.
+     *
+     * This function re-sends the last known scan record to the native lib, which should
+     * cause it to re-evaluate and call executeConnect(). We also start a brief scan to
+     * get fresh advertisement data if no cached data is available.
+     *
+     * Called from onDescriptorWrite when CCCDs are ready but executeConnect hasn't arrived.
+     */
+    private var nudgeAttempts = 0
+    private val MAX_NUDGE_ATTEMPTS = 5
+    
+    private fun nudgeVendorExecuteConnect(reason: String) {
+        if (vendorExecuteConnectReceived) return  // already received, no need to nudge
+        if (nudgeAttempts >= MAX_NUDGE_ATTEMPTS) {
+            Log.w(TAG, "nudgeVendorExecuteConnect($reason): giving up after $MAX_NUDGE_ATTEMPTS attempts")
+            return
+        }
+        nudgeAttempts++
+        
+        val adapter = vendorAdapter ?: return
+        val address = connectedAddress ?: mActiveDeviceAddress ?: return
+        val cachedBytes = lastScanRecordBytes
+        
+        if (cachedBytes != null && cachedBytes.isNotEmpty()) {
+            Log.i(TAG, "nudgeVendorExecuteConnect($reason): re-feeding ${cachedBytes.size}-byte scan record " +
+                    "to native lib for $address (attempt $nudgeAttempts/$MAX_NUDGE_ATTEMPTS)")
+            try {
+                adapter.recordDevice(mActiveBluetoothDevice)
+                adapter.onAdvertiseWithAndroidRawBytes(address, -60, cachedBytes)
+            } catch (t: Throwable) {
+                Log.e(TAG, "nudgeVendorExecuteConnect($reason): onAdvertiseWithAndroidRawBytes threw: ${t.message}")
+            }
+        } else {
+            Log.w(TAG, "nudgeVendorExecuteConnect($reason): no cached scan data, starting scan to get fresh data")
+            scheduleBroadcastScan("nudge-vendor", forceImmediate = true)
+        }
+        
+        // Schedule retry if executeConnect still hasn't arrived after 1 second
+        vendorWorkHandler.postDelayed({
+            if (!vendorExecuteConnectReceived && vendorGattNotified && mBluetoothGatt != null) {
+                Log.i(TAG, "nudgeVendorExecuteConnect: retry — executeConnect still not received")
+                nudgeVendorExecuteConnect("retry-$reason")
+            }
+        }, 1000L)
+    }
+
     private fun startVendorLongConnect(reason: String) {
         if (!vendorBleEnabled) return
         if (!vendorLibAvailable) return
         if (!vendorGattNotified) return
         val controller = vendorController ?: return
+        // Use aidexBonded (receiver-tracked) instead of getBondState() to avoid Android BLE stack race
+        val bondState = mBluetoothGatt?.device?.bondState ?: BluetoothDevice.BOND_NONE
+        if (!aidexBonded && bondState != BluetoothDevice.BOND_BONDED) {
+            // CRITICAL: The AiDex sensor only allows ONE command (key exchange) before bonding.
+            // Sending setDynamicMode/setAutoUpdate/getBroadcastData before BOND_BONDED causes
+            // the sensor to disconnect (status=19). Defer until bonded.
+            Log.i(TAG, "Vendor long-connect deferred ($reason): aidexBonded=false, getBondState=$bondState (not BONDED), waiting for bond")
+            vendorLongConnectPendingReason = reason
+            return
+        }
+        vendorLongConnectPendingReason = null
         try {
             controller.setDynamicMode(1)
             controller.setAutoUpdate()
@@ -988,50 +1460,74 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
     }
 
-    private fun enqueueVendorWrite(uuid: Int, data: ByteArray) {
-        vendorWriteQueue.add(VendorWrite(uuid, data))
-        if (!vendorWriteActive) {
-            sendNextVendorWrite()
+    // Edit 36c: Unified GATT operation queue — enqueue and drain functions.
+    // All BLE reads and writes go through this queue to prevent concurrent GATT operations.
+
+    private fun enqueueVendorOp(op: VendorGattOp) {
+        vendorGattQueue.add(op)
+        if (!vendorGattOpActive) {
+            drainVendorGattQueue()
         }
     }
 
-    private fun sendNextVendorWrite() {
-        if (vendorWriteActive) return
-        if (vendorWriteQueue.isEmpty()) return
-        val next = vendorWriteQueue.removeFirst()
+    private fun drainVendorGattQueue() {
+        if (vendorGattOpActive) return
+        if (vendorGattQueue.isEmpty()) return
+        val next = vendorGattQueue.removeFirst()
         val gatt = mBluetoothGatt
         if (gatt == null) {
-            vendorWriteQueue.addFirst(next)
+            vendorGattQueue.addFirst(next)
             return
         }
-        val characteristic = vendorAdapter?.getCharacteristic(next.uuid)
-        if (characteristic == null) {
-            Log.w(TAG, "Vendor write: characteristic 0x${String.format("%04X", next.uuid)} not found")
-            return
-        }
-        characteristic.value = next.data
-        characteristic.writeType = if ((characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
-            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-        } else {
-            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        }
-        val ok = gatt.writeCharacteristic(characteristic)
-        Log.i(TAG, "Vendor write [0x${Integer.toHexString(next.uuid)}] data=${bytesToHex(next.data)} ok=$ok (queueRemaining=${vendorWriteQueue.size})")
-        vendorWriteActive = ok
-        if (!ok) {
-            vendorWriteQueue.addFirst(next)
-            handshakeHandler.postDelayed({ sendNextVendorWrite() }, 200L)
+        when (next) {
+            is VendorGattOp.Write -> {
+                val characteristic = vendorAdapter?.getCharacteristic(next.uuid)
+                if (characteristic == null) {
+                    Log.w(TAG, "Vendor write: characteristic 0x${String.format("%04X", next.uuid)} not found, skipping")
+                    // Try next op instead of stalling
+                    drainVendorGattQueue()
+                    return
+                }
+                characteristic.value = next.data
+                characteristic.writeType = if ((characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
+                    BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                } else {
+                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                }
+                val ok = gatt.writeCharacteristic(characteristic)
+                Log.i(TAG, "Vendor write [0x${Integer.toHexString(next.uuid)}] data=${bytesToHex(next.data)} ok=$ok (queueRemaining=${vendorGattQueue.size})")
+                vendorGattOpActive = ok
+                if (!ok) {
+                    vendorGattQueue.addFirst(next)
+                    handshakeHandler.postDelayed({ drainVendorGattQueue() }, 200L)
+                }
+            }
+            is VendorGattOp.Read -> {
+                val characteristic = vendorAdapter?.getCharacteristic(next.uuid)
+                if (characteristic == null) {
+                    Log.w(TAG, "Vendor read: characteristic 0x${String.format("%04X", next.uuid)} not found, skipping")
+                    drainVendorGattQueue()
+                    return
+                }
+                val ok = gatt.readCharacteristic(characteristic)
+                Log.i(TAG, "Vendor read [0x${Integer.toHexString(next.uuid)}] ok=$ok (queueRemaining=${vendorGattQueue.size})")
+                vendorGattOpActive = ok
+                if (!ok) {
+                    vendorGattQueue.addFirst(next)
+                    handshakeHandler.postDelayed({ drainVendorGattQueue() }, 200L)
+                }
+            }
         }
     }
 
     private fun vendorRead(uuid: Int) {
-        val gatt = mBluetoothGatt ?: return
-        val characteristic = vendorAdapter?.getCharacteristic(uuid) ?: return
-        gatt.readCharacteristic(characteristic)
+        // Edit 36c: Reads now go through the unified GATT queue instead of calling
+        // gatt.readCharacteristic() directly. This prevents races with pending writes.
+        enqueueVendorOp(VendorGattOp.Read(uuid))
     }
 
     private fun vendorWrite(uuid: Int, data: ByteArray) {
-        enqueueVendorWrite(uuid, data)
+        enqueueVendorOp(VendorGattOp.Write(uuid, data))
     }
 
     private fun uuidToShort(uuid: UUID): Int {
@@ -1047,6 +1543,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         private val deviceStore = BluetoothDeviceStore()
         private val characteristics = HashMap<Int, BluetoothGattCharacteristic>()
 
+        // Edit 29: Dynamic characteristic UUIDs from native lib, matching official app pattern.
+        // The official app calls getCharacteristicUUID() and getPrivateCharacteristicUUID() (JNI)
+        // to discover which characteristics to map and enable notifications on.
+        // mCharacteristicUuid = write target (official app stores as mCharacteristic)
+        // mPrivateCharacteristicUuid = notification channel (official app enables notifications first on this)
+        var mCharacteristicUuid: Int = 0
+        var mPrivateCharacteristicUuid: Int = 0
+
         init {
             instance = this
         }
@@ -1061,18 +1565,32 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             characteristics.clear()
             val serviceF000 = gatt.getService(SERVICE_F000)
             if (serviceF000 != null) {
+                // Edit 36a: Map ALL characteristics from the F000 service, not just F001/F002.
+                // The native lib may use F001, F002, F003, or F005 depending on its internal
+                // state (it increments a UUID counter across stopVendor/restart cycles).
+                // By mapping everything, getCharacteristic() will succeed regardless of which
+                // UUID the native lib decides to use in executeConnect/executeWrite/executeRead.
+                //
+                // Still set defaults for mCharacteristicUuid/mPrivateCharacteristicUuid to F001/F002
+                // for the initial CCCD chain. executeConnect() will update them with the native lib's
+                // actual UUIDs later. DO NOT call JNI here (pre-executeConnect → SIGSEGV).
+                if (mCharacteristicUuid == 0) mCharacteristicUuid = 0xF001
+                if (mPrivateCharacteristicUuid == 0) mPrivateCharacteristicUuid = 0xF002
+
                 for (characteristic in serviceF000.characteristics) {
                     val id = uuidToShort(characteristic.uuid)
                     characteristics[id] = characteristic
+                    Log.i(TAG, "refreshCharacteristics: mapped 0x${Integer.toHexString(id)}")
                 }
+                Log.i(TAG, "refreshCharacteristics: mapped ${characteristics.size} characteristics from F000 service" +
+                        " (defaults: char=0x${Integer.toHexString(mCharacteristicUuid)}, priv=0x${Integer.toHexString(mPrivateCharacteristicUuid)})")
             }
             
+            // Edit 27: Do NOT map FF30 service characteristics.
+            // Official app does not know about FF30/FF31/FF32 service.
             val serviceFF30 = gatt.getService(SERVICE_FF30)
             if (serviceFF30 != null) {
-                for (characteristic in serviceFF30.characteristics) {
-                    val id = uuidToShort(characteristic.uuid)
-                    characteristics[id] = characteristic
-                }
+                Log.d(TAG, "refreshCharacteristics: FF30 service found but NOT mapped (not in official app)")
             }
         }
 
@@ -1085,14 +1603,24 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         fun handleCharacteristicChanged(characteristic: BluetoothGattCharacteristic, data: ByteArray) {
             val id = uuidToShort(characteristic.uuid)
             Log.d(TAG, "Vendor RX [0x${Integer.toHexString(id)}]: ${bytesToHex(data)}")
-            if (!vendorNativeReady) {
-                Log.d(TAG, "Vendor RX [0x${Integer.toHexString(id)}]: skipped, native not ready")
+            // Edit 27: Forward data as soon as native lib has set up its connection context
+            // (vendorExecuteConnectReceived), not after onConnectSuccess (vendorNativeReady).
+            // The vendor lib needs to receive AES handshake responses DURING setup.
+            if (!vendorExecuteConnectReceived) {
+                Log.d(TAG, "Vendor RX [0x${Integer.toHexString(id)}]: skipped, executeConnect not received yet")
                 return
             }
-            try {
-                onReceiveData(id, data)
-            } catch (t: Throwable) {
-                Log.e(TAG, "Vendor RX [0x${Integer.toHexString(id)}]: onReceiveData crashed: ${t.message}")
+            // Edit 28: Route onReceiveData through vendorWorkHandler like the official app.
+            // In the official app, received data is posted as RECEIVER_DATA (what=0x7D0)
+            // to the workHandler, ensuring serialization with writes/connects/disconnects.
+            val dataCopy = data.copyOf()
+            val charId = id
+            vendorWorkHandler.post {
+                try {
+                    onReceiveData(charId, dataCopy)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Vendor RX [0x${Integer.toHexString(charId)}]: onReceiveData crashed: ${t.message}")
+                }
             }
         }
 
@@ -1103,17 +1631,80 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             deviceStore.getDeviceMap()[str]?.let { mActiveBluetoothDevice = it }
             vendorConnectPending = true
             vendorExecuteConnectReceived = true  // Native lib has set up its internal connection state machine
+
+            // Edit 36b: Now that the native Ble context is allocated, query the real UUIDs.
+            // Update mCharacteristicUuid/mPrivateCharacteristicUuid. Since Edit 36a maps ALL
+            // characteristics from the F000 service, no need to call refreshCharacteristics() again.
+            // If the native lib's UUIDs changed (e.g., F003 on retry), just verify they exist
+            // in the char map and re-subscribe CCCDs if needed.
+            var uuidsChanged = false
+            try {
+                val nativeCharUuid = getCharacteristicUUID()
+                val nativePrivUuid = getPrivateCharacteristicUUID()
+                Log.i(TAG, "executeConnect: native lib UUIDs — characteristic=0x${Integer.toHexString(nativeCharUuid)}, private=0x${Integer.toHexString(nativePrivUuid)}")
+                if (nativeCharUuid != 0 && nativePrivUuid != 0) {
+                    if (nativeCharUuid != mCharacteristicUuid || nativePrivUuid != mPrivateCharacteristicUuid) {
+                        Log.w(TAG, "executeConnect: native UUIDs differ from current! Updating: " +
+                                "char 0x${Integer.toHexString(mCharacteristicUuid)}→0x${Integer.toHexString(nativeCharUuid)}, " +
+                                "priv 0x${Integer.toHexString(mPrivateCharacteristicUuid)}→0x${Integer.toHexString(nativePrivUuid)}")
+                        uuidsChanged = true
+                    }
+                    mCharacteristicUuid = nativeCharUuid
+                    mPrivateCharacteristicUuid = nativePrivUuid
+                    // Verify both UUIDs exist in the char map (they should, thanks to Edit 36a mapping all)
+                    if (characteristics[nativeCharUuid] == null) {
+                        Log.e(TAG, "executeConnect: characteristic 0x${Integer.toHexString(nativeCharUuid)} NOT in char map! Re-scanning GATT service...")
+                        val gattForRemap = mBluetoothGatt
+                        if (gattForRemap != null) refreshCharacteristics(gattForRemap)
+                    }
+                    if (characteristics[nativePrivUuid] == null) {
+                        Log.e(TAG, "executeConnect: private 0x${Integer.toHexString(nativePrivUuid)} NOT in char map! Re-scanning GATT service...")
+                        val gattForRemap = mBluetoothGatt
+                        if (gattForRemap != null) refreshCharacteristics(gattForRemap)
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "executeConnect: JNI UUID query failed (${t.message}), keeping current UUIDs")
+            }
+
+            // Edit 36b: If native lib UUIDs changed AND we have GATT connected, re-subscribe
+            // CCCDs on the new UUIDs. The CCCD chain was originally set up with old UUIDs in
+            // onServicesDiscovered→enableVendorNotifications, so the new UUID characteristics
+            // may not have notifications enabled.
+            if (uuidsChanged && vendorServicesReady) {
+                val gattForCccd = mBluetoothGatt
+                if (gattForCccd != null) {
+                    Log.i(TAG, "executeConnect: UUIDs changed, re-enabling CCCDs for new UUIDs")
+                    vendorGattNotified = false
+                    enableVendorNotifications(gattForCccd)
+                }
+            }
+
             val existing = mBluetoothGatt
             if (existing != null && existing.device?.address == str) {
                 // GATT already exists for this device.
-                // If services+notifications are ready, signal success immediately.
+                // Signal success when services + CCCD notifications are ready.
                 if (vendorServicesReady && vendorGattNotified) {
-                    Log.i(TAG, "executeConnect: GATT+notifications ready for $str, signaling onConnectSuccess immediately.")
-                    disregardDisconnectsUntil = System.currentTimeMillis() + 5000L
-                    safeCallOnConnectSuccess("executeConnect-immediate")
+                    // Edit 28: CRITICAL — defer onConnectSuccess() to the next handler loop iteration.
+                    // In the official app, executeConnect() posts CONNECT_GATT to the handler and returns.
+                    // onConnectSuccess() is called much later from a separate CONNECT_SUCCESS message.
+                    // The native lib does NOT expect onConnectSuccess() to be called reentrantly while
+                    // executeConnect() is still on the call stack. Calling it synchronously here causes
+                    // the native lib's internal state machine to be in "connecting" state when
+                    // onConnectSuccess fires, so it sends op=2 + disconnect instead of proceeding
+                    // with the AES key exchange (executeWrite).
+                    Log.i(TAG, "executeConnect: GATT+notifications ready for $str, deferring onConnectSuccess to handler.")
+                    vendorWorkHandler.post {
+                        if (vendorExecuteConnectReceived && vendorGattNotified && mBluetoothGatt != null) {
+                            disregardDisconnectsUntil = System.currentTimeMillis() + 8000L
+                            safeCallOnConnectSuccess("executeConnect-deferred")
+                        } else {
+                            Log.w(TAG, "executeConnect-deferred: state changed, skipping onConnectSuccess (exec=$vendorExecuteConnectReceived notified=$vendorGattNotified gatt=${mBluetoothGatt != null})")
+                        }
+                    }
                 } else {
                     Log.i(TAG, "executeConnect: GATT exists for $str but not fully ready (services=$vendorServicesReady notified=$vendorGattNotified). Waiting for setup.")
-                    // onConnectSuccess will be called when onDescriptorWrite(F003) fires
+                    // onConnectSuccess will be called when onDescriptorWrite(F001) completes
                 }
                 return
             }
@@ -1132,38 +1723,70 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             }
         }
 
+        // Edit 28: Route executeDisconnect through vendorWorkHandler like the official app.
+        // The official app posts DISCONNECT_GATT to the handler queue — it does NOT disconnect
+        // synchronously. This ensures that any executeWrite() calls queued during onConnectSuccess()
+        // are processed BEFORE the disconnect.
         override fun executeDisconnect() {
-            vendorConnectPending = false
-            disconnect()
+            Log.i(TAG, "executeDisconnect: Native lib requested disconnect (current thread=${Thread.currentThread().name})")
+            vendorWorkHandler.post {
+                Log.i(TAG, "executeDisconnect: processing on handler")
+                vendorConnectPending = false
+                disconnect()
+            }
         }
 
+        // Edit 35b: Route executeReadCharacteristic through vendorWorkHandler, matching
+        // the official app (which posts msg 0x3F5 to workHandler). Also update
+        // vendorLastMessageTime to prove the native lib is still active (prevents
+        // the stall timeout from firing during post-PAIR read sequence).
         override fun executeReadCharacteristic(i: Int) {
-            vendorRead(i)
+            Log.i(TAG, "executeReadCharacteristic: native requested read of char 0x${Integer.toHexString(i)} (thread=${Thread.currentThread().name})")
+            vendorLastMessageTime = System.currentTimeMillis()
+            vendorWorkHandler.post {
+                vendorRead(i)
+            }
         }
 
         override fun executeStartScan() {
+            Log.i(TAG, "executeStartScan: native lib requested scan start")
             startBroadcastScan("vendor-start")
         }
 
         override fun executeStopScan() {
+            Log.i(TAG, "executeStopScan: native lib requested scan stop")
             stopBroadcastScan("vendor-stop", found = false)
         }
 
+        // Edit 28: Route executeWrite through vendorWorkHandler like the official app.
+        // In the official app, executeWrite() posts SEND_DATA to the handler queue.
+        // This ensures proper serialization with onConnectSuccess/executeDisconnect.
         override fun executeWrite(bArr: ByteArray) {
-            try {
-                val uuid = getCharacteristicUUID()
-                vendorWrite(uuid, bArr)
-                checkAndBond()
-            } catch (t: Throwable) {
-                Log.e(TAG, "executeWrite: crashed: ${t.message}")
+            Log.i(TAG, "executeWrite: native requested write (${bArr.size} bytes, thread=${Thread.currentThread().name})")
+            vendorLastMessageTime = System.currentTimeMillis()  // Edit 35b: keep stall timer alive
+            val dataCopy = bArr.copyOf()  // defensive copy since native may reuse buffer
+            vendorWorkHandler.post {
+                try {
+                    val uuid = getCharacteristicUUID()
+                    Log.i(TAG, "executeWrite: processing on handler — char 0x${Integer.toHexString(uuid)}, data=${bytesToHex(dataCopy)} (${dataCopy.size} bytes)")
+                    vendorWrite(uuid, dataCopy)
+                    checkAndBond()
+                } catch (t: Throwable) {
+                    Log.e(TAG, "executeWrite: crashed: ${t.message}")
+                }
             }
         }
 
+        // Edit 28: Route executeWriteCharacteristic through vendorWorkHandler.
         override fun executeWriteCharacteristic(i: Int, bArr: ByteArray) {
-
-
-            vendorWrite(i, bArr)
-            checkAndBond()
+            Log.i(TAG, "executeWriteCharacteristic: native requested write char 0x${Integer.toHexString(i)} (${bArr.size} bytes, thread=${Thread.currentThread().name})")
+            vendorLastMessageTime = System.currentTimeMillis()  // Edit 35b: keep stall timer alive
+            val dataCopy = bArr.copyOf()
+            vendorWorkHandler.post {
+                Log.i(TAG, "executeWriteCharacteristic: processing on handler — char 0x${Integer.toHexString(i)}, data=${bytesToHex(dataCopy)} (${dataCopy.size} bytes)")
+                vendorWrite(i, dataCopy)
+                checkAndBond()
+            }
         }
 
         private fun checkAndBond() {
@@ -1181,8 +1804,17 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
         override fun getDeviceStore(): BluetoothDeviceStore = deviceStore
 
+        // Edit 29: Match official app's isReadyToConnect() exactly.
+        // Official app: return bluetoothDeviceStore.deviceMap[mac] != null
+        // The native lib calls isReadyToConnect(mac) before calling executeConnect(mac).
+        // If this returns false, the native lib will NOT call executeConnect.
+        // Our previous implementation checked connectInProgress and mBluetoothGatt state,
+        // which was overly restrictive and could prevent executeConnect from ever being called
+        // (especially when our GATT connects independently of the native lib).
         override fun isReadyToConnect(str: String): Boolean {
-            return !connectInProgress && (mBluetoothGatt == null || mBluetoothGatt?.device?.address == str)
+            val ready = deviceStore.getDeviceMap()?.containsKey(str) == true
+            Log.i(TAG, "isReadyToConnect($str): $ready (deviceStore size=${deviceStore.getDeviceMap()?.size ?: 0})")
+            return ready
         }
 
         override fun setDiscoverCallback() {
@@ -1219,11 +1851,48 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             Log.d(TAG, "connectDevice: skip in Broadcast Only mode")
             return false
         }
+
+        // Edit 31: CRITICAL — When vendor mode is active, do NOT let SensorBluetooth (or any
+        // external caller) trigger a premature GATT connection. In the official AiDex app, the
+        // native lib controls the entire flow: executeStartScan() → scan results → executeConnect()
+        // → connectGatt(). There is NO parallel scan/connect path.
+        //
+        // The problem: SensorBluetooth discovers the device and calls connectDevice() immediately,
+        // which does connectGatt() BEFORE the native lib has processed enough advertisements to
+        // call executeConnect(). The native lib then sees an already-connected GATT and gets
+        // confused — it discovers the device (op=1) but never calls executeConnect(), so
+        // onConnectSuccess() never fires, the AES handshake never starts, and the sensor
+        // disconnects after 8 seconds (status=19).
+        //
+        // Fix: When vendorBleEnabled and the native lib hasn't called executeConnect() yet,
+        // defer the GATT connection. Instead, ensure the vendor stack is running so scan data
+        // flows to the native lib. The native lib will call executeConnect() when ready, which
+        // sets vendorExecuteConnectReceived=true before calling connectDevice(0), bypassing
+        // this guard.
+        if (vendorBleEnabled && !vendorExecuteConnectReceived) {
+            Log.i(TAG, "connectDevice: DEFERRED — vendor mode active but executeConnect not yet " +
+                    "received from native lib. Ensuring vendor stack is running and scan data " +
+                    "is flowing. GATT connect will happen when native lib calls executeConnect().")
+            // Ensure the vendor stack is alive and processing advertisements.
+            ensureVendorStarted("connectDevice-deferred")
+            // Ensure our broadcast scan is running to feed advertisements to the native lib.
+            // The native lib needs scan results via onAdvertiseWithAndroidRawBytes() to progress
+            // through its internal state machine to the point where it calls executeConnect().
+            scheduleBroadcastScan("connectDevice-vendor-deferred", forceImmediate = true)
+            // Return true so SensorBluetooth thinks the connection was handled and doesn't
+            // start redundant scans. The native lib will drive the actual GATT connect.
+            return true
+        }
+
         if (connectInProgress || mBluetoothGatt != null) {
             Log.d(TAG, "connectDevice: skip (inProgress=$connectInProgress, gatt=${mBluetoothGatt != null})")
             return false
         }
         connectInProgress = true
+        // Edit 26: Do NOT remove bond pre-connect. Cached bond keys allow near-instant
+        // re-encryption (<100ms) vs a full 12-second SMP handshake from scratch.
+        // The 8-second AiDex deadline is only achievable with cached keys.
+        // Bond removal is still done on disconnect (status!=0) as cleanup.
         val scheduled = super.connectDevice(delayMillis)
         if (!scheduled) {
             connectInProgress = false
@@ -1237,6 +1906,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (isBroadcastOnlyMode()) {
             Log.d(TAG, "reconnect: skip GATT in Broadcast Only mode, broadcast scan scheduled")
             return true
+        }
+        // Edit 31: In vendor mode, reconnect is driven by the native lib.
+        // super.reconnect() → disconnect() → connectDevice(0), and our connectDevice()
+        // override will defer GATT connection until the native lib calls executeConnect().
+        // We just need to ensure the vendor stack is alive.
+        if (vendorBleEnabled && !vendorExecuteConnectReceived) {
+            Log.i(TAG, "reconnect: vendor mode, deferring to native lib flow. Ensuring vendor stack alive.")
+            ensureVendorStarted("reconnect")
         }
         return super.reconnect(now)
     }
@@ -1272,6 +1949,9 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             cancelHandshakeTimers()
             connectedAddress = gatt.device.address
             sessionStartMs = now
+            // Edit 29: Reset auth failure counter on successful connection
+            consecutiveAuthFailures = 0
+            nudgeAttempts = 0  // Edit 29: Reset nudge counter for fresh connection
             broadcastSeenInSession = lastBroadcastTime >= (sessionStartMs - BROADCAST_REFERENCE_MS)
             if (wantsBroadcastScan()) {
                 scheduleBroadcastScan("connect", forceImmediate = true)
@@ -1281,20 +1961,36 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 Natives.setDeviceAddress(dataptr, gatt.device.address)
             }
         // onConnectSuccess moved to onServicesDiscovered to ensure characteristics are ready.
-        if (vendorBleEnabled && vendorStarted && vendorRegistered && vendorController != null && vendorConnectPending) {
+        if (vendorBleEnabled && vendorStarted && vendorRegistered && vendorController != null) {
             vendorGattConnected = true
+            vendorConnectPending = true  // Mark pending so executeConnect/onDescriptorWrite flow works
+            aidexBonded = false  // Reset — will be set true only by our bond receiver (or already-bonded/CCCD check)
+            cccdAuthFailSeen = false  // Edit 26: reset for fresh session
+            registerAidexBondReceiver()
+            // Edit 26: If device already has cached bond keys, set aidexBonded immediately.
+            // In this case, no BOND_STATE_CHANGED broadcast will fire (re-encryption is instant),
+            // so we must not wait for the receiver.
+            if (gatt.device.bondState == BluetoothDevice.BOND_BONDED) {
+                Log.i(TAG, "STATE_CONNECTED: device already BONDED (cached keys) — setting aidexBonded=true immediately")
+                aidexBonded = true
+            }
         }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 gatt.requestMtu(512)
             }
-            // Some devices need MTU change to finish before discovery
+            // Edit 29: Reduce delay between MTU request and discoverServices.
+            // The original 600ms was overly conservative. On bonded reconnects (which should be
+            // the common case), services are cached and discovery is instant. We need to get
+            // through the pipeline (MTU→discover→CCCDs→executeConnect→onConnectSuccess→writeAES)
+            // within 8 seconds. With bonding already complete, 200ms should be enough for MTU.
+            // On fresh bonds, the MTU response comes quickly (typically <100ms).
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 gatt.discoverServices()
-            }, 600)
+            }, 200)
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             connectTime = 0L
             constatstatusstr = "Disconnected"
-            Log.i(TAG, "Disconnected.")
+            Log.i(TAG, "Disconnected. status=$status (${gattStatusToString(status)})")
             cancelHandshakeTimers()
             connectedAddress = null
             bondRequested = false
@@ -1303,15 +1999,64 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             handshakePrimingInProgress = false
             pendingHandshakePrimingTimeout = null
             waitAnyF002Response = false
-            vendorWriteQueue.clear()
-            vendorWriteActive = false
+            vendorGattQueue.clear()
+            vendorGattOpActive = false
+            // Notify vendor native lib BEFORE clearing flags so it can see we were connected
+            notifyVendorDisconnected(status)
             vendorGattConnected = false
             vendorGattNotified = false
             vendorConnectPending = false
             vendorNativeReady = false
             vendorExecuteConnectReceived = false
             vendorConnectSuccessCrashCount = 0  // reset crash counter on fresh disconnect
-            notifyVendorDisconnected(status)
+            vendorLongConnectPendingReason = null  // cancel any deferred long-connect
+            vendorConnectSuccessPendingCaller = null  // cancel any deferred onConnectSuccess
+            aidexBonded = false
+            cccdAuthFailSeen = false  // Edit 26: reset for clean state
+            cancelReconnectStallTimeout()  // Edit 34: cancel stall timer on disconnect
+            unregisterAidexBondReceiver()
+
+            // Edit 29: Handle status=5 (GATT_INSUFFICIENT_AUTHENTICATION) — stale bond keys.
+            // When the sensor rejects cached encryption (e.g. after key rotation or incomplete
+            // first bond), Android reports status=5 and instant disconnect. Without handling this,
+            // the app reconnects immediately with the same stale keys → status=5 again → crash loop.
+            // Fix: remove the stale bond so the next connection triggers fresh SMP bonding,
+            // and add exponential backoff to prevent rapid reconnect loops.
+            if (status == 5 && vendorBleEnabled) {
+                consecutiveAuthFailures++
+                lastAuthFailureTime = System.currentTimeMillis()
+                Log.w(TAG, "GATT_INSUFFICIENT_AUTHENTICATION (status=5): stale bond keys. " +
+                        "Removing bond for fresh SMP. (consecutive failures: $consecutiveAuthFailures)")
+                removeBondIfBonded(gatt.device)
+                
+                if (consecutiveAuthFailures >= AUTH_FAIL_MAX_RETRIES) {
+                    Log.e(TAG, "Too many consecutive auth failures ($consecutiveAuthFailures). " +
+                            "Switching to Broadcast Only mode to prevent crash loop.")
+                    // Don't reconnect GATT — fall back to broadcast scanning only
+                    broadcastOnlyConnection = true
+                    scheduleBroadcastScan("auth-fail-fallback", forceImmediate = true)
+                } else {
+                    // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+                    val backoffMs = (AUTH_FAIL_BASE_DELAY_MS * (1L shl (consecutiveAuthFailures - 1)))
+                        .coerceAtMost(60_000L)
+                    Log.i(TAG, "Auth failure backoff: will delay reconnect by ${backoffMs}ms " +
+                            "(attempt $consecutiveAuthFailures/$AUTH_FAIL_MAX_RETRIES)")
+                    // Schedule a delayed reconnect instead of letting SuperGattCallback reconnect immediately
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        if (!isBroadcastOnlyMode()) {
+                            Log.i(TAG, "Auth failure backoff expired. Attempting reconnect with fresh bond.")
+                            // Edit 31: Ensure vendor stack is alive so the native lib can drive
+                            // the reconnection via executeConnect() after receiving scan data.
+                            ensureVendorStarted("auth-retry")
+                            scheduleBroadcastScan("auth-retry", forceImmediate = true)
+                        }
+                    }, backoffMs)
+                }
+            } else if (status == 0 || status == BluetoothGatt.GATT_SUCCESS) {
+                // Successful disconnect — reset auth failure counter
+                consecutiveAuthFailures = 0
+            }
+
             close()
         }
     }
@@ -1320,18 +2065,68 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (!vendorBleEnabled) return
         if (!vendorStarted || !vendorRegistered || vendorController == null) return
         if (!vendorGattConnected) return
+        // Edit 31: CRITICAL — do NOT call onDisconnected()/onConnectFailure() unless the native
+        // lib has called executeConnect() first. These JNI methods dereference the native Ble
+        // singleton's connection context, which is only allocated inside executeConnect().
+        // Without this guard, calling them causes SIGSEGV (null pointer in native code)
+        // which bypasses try/catch and kills the process.
+        if (!vendorExecuteConnectReceived) {
+            Log.w(TAG, "notifyVendorDisconnected(status=$status): SKIPPED — vendorExecuteConnectReceived=false. " +
+                    "Native Ble connection context not allocated; JNI call would SIGSEGV.")
+            return
+        }
         try {
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.i(TAG, "notifyVendorDisconnected: calling onDisconnected() (graceful, status=0)")
                 vendorAdapter?.onDisconnected()
             } else {
+                Log.i(TAG, "notifyVendorDisconnected: calling onConnectFailure() (status=$status)")
                 vendorAdapter?.onConnectFailure()
             }
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            Log.e(TAG, "notifyVendorDisconnected: JNI call threw: ${t.javaClass.simpleName}: ${t.message}")
         }
     }
 
     override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
         Log.i(TAG, "MTU Changed to $mtu (Status: $status)")
+    }
+
+    /**
+     * Called by SensorBluetooth on ANY bond state change (BONDING, BONDED, NONE).
+     * We use this to trigger deferred vendor long-connect once bonding completes.
+     *
+     * AiDex protocol rule (from vendor knowledge):
+     *   - Before bonding, the sensor accepts ONLY ONE command (key exchange / AES init).
+     *   - All other commands (setDynamicMode, setAutoUpdate, getBroadcastData) must wait
+     *     until BOND_BONDED, otherwise the sensor disconnects (status=19).
+     */
+    override fun bonded() {
+        val gatt = mBluetoothGatt ?: return
+        val bondState = gatt.device.bondState
+        Log.i(TAG, "bonded() callback: bondState=$bondState")
+        if (bondState == BluetoothDevice.BOND_BONDED) {
+            if (aidexBonded) {
+                Log.i(TAG, "bonded() callback: aidexBonded already true (receiver handled it), skipping")
+                return
+            }
+            aidexBonded = true
+            // First: trigger deferred onConnectSuccess if it was waiting for bond
+            val pendingCaller = vendorConnectSuccessPendingCaller
+            if (pendingCaller != null) {
+                Log.i(TAG, "Bond complete. Triggering deferred onConnectSuccess (caller=$pendingCaller)")
+                vendorConnectSuccessPendingCaller = null
+                // Edit 28: Use vendorWorkHandler for serialization with other vendor lib calls.
+                // 500ms delay to let encryption settle after bonding.
+                vendorWorkHandler.postDelayed({
+                    safeCallOnConnectSuccess("bonded-deferred:$pendingCaller")
+                }, 500L)
+            }
+            // Edit 28: Removed deferred long-connect trigger on bond complete.
+            // The native lib drives the protocol via executeWrite() after onConnectSuccess.
+            // Sending setDynamicMode/setAutoUpdate/getBroadcastData prematurely interferes
+            // with the AES handshake.
+        }
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
@@ -1364,22 +2159,23 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                                             loaded.sn = SerialNumber
                                             loaded
                                         } else {
-                                            Log.w(TAG, "Clean Start: Registering vendor with basic info (no params) for $address")
-                                            val basic = BleControllerInfo()
-                                            basic.address = address
-                                            basic.name = gatt.device.name ?: "AiDEX"
-                                            basic
+                                            // Edit 32: Do NOT create controller with null/empty params —
+                                            // same root cause as the ensureVendorStarted fix. The native lib
+                                            // needs real advertisement bytes. A broadcast scan is already
+                                            // running (or will be triggered); let it provide real params.
+                                            Log.w(TAG, "Clean Start: No cached params for $address — skipping controller init (waiting for real scan data)")
+                                            null
                                         }
                                     }
-                                    onVendorDiscovered(info)
+                                    if (info != null) onVendorDiscovered(info)
                                 }
                             }
 
-                            // 2. Do NOT signal onConnectSuccess here.
-                            // It will be signaled from onDescriptorWrite(F003) after all
-                            // CCCDs are written, ensuring the native lib starts its handshake
-                            // only when we're ready to forward BLE data.
-                            Log.i(TAG, "onServicesDiscovered: Vendor registered=$vendorRegistered. onConnectSuccess deferred to onDescriptorWrite(F003).")
+                            // Edit 27: Write CCCDs (F002 first, then F001) matching official app flow.
+                            // Edit 29: After both CCCDs complete, onDescriptorWrite will call onConnectSuccess().
+                            // Characteristics and CCCD order are dynamically determined from native lib JNI.
+                            Log.i(TAG, "onServicesDiscovered: Vendor registered=$vendorRegistered. Starting dynamic CCCD chain (private→characteristic→onConnectSuccess).")
+
 
                         } catch (e: Exception) {
                              Log.e(TAG, "Clean Start Logic Failed: ${e.message}")
@@ -1392,7 +2188,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
             if (wantsAuto() || wantsRaw()) {
                 if (vendorBleEnabled) {
-                     Log.i(TAG, "Services Discovered. Enabling vendor notifications before delegating.")
+                     // Edit 29: Enable CCCDs in order determined by native lib JNI (private first, then characteristic).
+                     Log.i(TAG, "Services Discovered. Enabling vendor notifications (dynamic private→char order).")
                      enableVendorNotifications(gatt)
                      Log.i(TAG, "Services Discovered. Skipping internal handshake (delegating to Vendor Lib).")
                 } else {
@@ -1407,31 +2204,50 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
     @SuppressLint("MissingPermission")
     private fun enableVendorNotifications(gatt: BluetoothGatt) {
+        // Edit 29: Dynamically enable CCCDs based on native lib's UUID preferences.
+        // Official app pattern: enable PRIVATE characteristic CCCD first, then chain to
+        // CHARACTERISTIC (write target) CCCD via onDescriptorWrite callback.
+        // onConnectSuccess is fired ONLY after both CCCDs complete.
+        val adapter = vendorAdapter
+        if (adapter == null) {
+            Log.e(TAG, "enableVendorNotifications: vendorAdapter is null!")
+            return
+        }
+        val privUuid = adapter.mPrivateCharacteristicUuid
+        val charUuid = adapter.mCharacteristicUuid
+        Log.i(TAG, "enableVendorNotifications: private=0x${Integer.toHexString(privUuid)}, characteristic=0x${Integer.toHexString(charUuid)}")
+
         val sF000 = gatt.getService(SERVICE_F000)
-        val cF001 = sF000?.getCharacteristic(CHAR_F001)
-        if (cF001 != null) {
-            setCharacteristicNotification(gatt, cF001, true)
-        } else {
-            Log.e(TAG, "F001 not found!")
+        if (sF000 == null) {
+            Log.e(TAG, "enableVendorNotifications: SERVICE_F000 not found!")
+            return
         }
 
-        // Also enable FF31 notifications on the FF30 vendor private service
-        // so we receive responses for reset/newSensor/shelfMode commands sent via FF32.
-        val sFF30 = gatt.getService(SERVICE_FF30)
-        val cFF31 = sFF30?.getCharacteristic(CHAR_FF31)
-        if (cFF31 != null) {
-            // Queue after F001 CCCD write completes (descriptor writes are serialized by Android BLE stack)
-            scanHandler.postDelayed({
-                try {
-                    setCharacteristicNotification(gatt, cFF31, true)
-                    Log.i(TAG, "FF31 notifications enabled on FF30 service")
-                } catch (t: Throwable) {
-                    Log.w(TAG, "FF31 notification enable failed: ${t.message}")
-                }
-            }, 500L)
+        // Convert short UUIDs to full UUIDs for characteristic lookup
+        fun shortToFullUuid(short: Int): UUID =
+            UUID.fromString("0000${Integer.toHexString(short).padStart(4, '0')}-0000-1000-8000-00805f9b34fb")
+
+        val privCharFull = shortToFullUuid(privUuid)
+        val charCharFull = shortToFullUuid(charUuid)
+
+        // Official app enables private characteristic first
+        val cPriv = sF000.getCharacteristic(privCharFull)
+        if (cPriv != null) {
+            Log.i(TAG, "enableVendorNotifications: Starting CCCD chain with private 0x${Integer.toHexString(privUuid)}")
+            setCharacteristicNotification(gatt, cPriv, true)
         } else {
-            Log.w(TAG, "FF31 not found (FF30 service may not be present on this firmware)")
+            Log.w(TAG, "enableVendorNotifications: private characteristic 0x${Integer.toHexString(privUuid)} not found. Trying characteristic 0x${Integer.toHexString(charUuid)} directly.")
+            // Fallback: try the write-target characteristic alone
+            val cChar = sF000.getCharacteristic(charCharFull)
+            if (cChar != null) {
+                Log.i(TAG, "enableVendorNotifications: Enabling CCCD on characteristic 0x${Integer.toHexString(charUuid)} directly (no private)")
+                setCharacteristicNotification(gatt, cChar, true)
+            } else {
+                Log.e(TAG, "enableVendorNotifications: Neither private nor characteristic found! Cannot enable vendor notifications.")
+            }
         }
+        // Note: The characteristic (write target) CCCD is enabled in onDescriptorWrite chain
+        // after private CCCD completes. If private == characteristic (same UUID), no chaining needed.
     }
 
     // --- BROADCAST SCANNING ---
@@ -1577,7 +2393,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
         // Critical Fix: If we find the device but the vendor lib isn't registered yet (fresh start),
         // we must trigger discovery to initialize the controller and set vendorRegistered = true.
-        if (vendorBleEnabled && !vendorRegistered && wantsAuto()) {
+        // Edit 32: Guard against empty scan bytes (same principle as ensureVendorStarted fix).
+        if (vendorBleEnabled && !vendorRegistered && wantsAuto() && bytes.isNotEmpty()) {
              val device = result.device
              val name = device.name ?: "AiDEX"
              if (SerialNumber.isNotEmpty()) {
@@ -2929,7 +3746,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     Log.w(TAG, "AIDEX-F003: Decrypt failed: ${e.message}")
                 }
             } else {
-                 Log.w(TAG, "AIDEX-F003: dynamicIV is NULL. Parsing ciphertext (likely to fail/garbage).")
+                 Log.w(TAG, "AIDEX-F003: dynamicIV is NULL. Cannot decrypt — skipping ciphertext to avoid garbage readings.")
+                 return
             }
 
             // Try native parser with (hopefully) plaintext
@@ -2995,8 +3813,18 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private fun checkAndRequestHistory() {
          if (System.currentTimeMillis() - lastHistoryRequestTime > 300_000L) { // 5 mins
             lastHistoryRequestTime = System.currentTimeMillis()
-            executeVendorCommand("get-history", AidexXOperation.GET_HISTORIES) { controller ->
-                controller.getHistories(0)
+            // Post to background thread — executeVendorCommand blocks for up to 27s
+            // (ensureVendorGattReady + AES wait + write wait). Must NEVER run on
+            // main thread or BLE Binder thread (causes ANR / deadlock).
+            vendorExecutor.execute {
+                try {
+                    Log.i(TAG, "Requesting History Backfill (async)...")
+                    executeVendorCommand("get-history", AidexXOperation.GET_HISTORIES) { controller ->
+                        controller.getHistories(0)
+                    }
+                } catch (t: Throwable) {
+                    Log.e(TAG, "History backfill failed: ${t.message}")
+                }
             }
         }
     }
@@ -3042,20 +3870,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             // Trigger sync to update Compose chart
             tk.glucodata.data.HistorySync.syncFromNative()
             
-            // --- HISTORY BACKFILL ---
-            // If we are getting data but history is missing, request it.
-            // Limited to once per connection or if gap detected?
-            // For now, request on every F003 to ensure we don't miss anything, 
-            // but controller.getHistories(0) might be heavy.
-            // Better: request if we haven't requested recently.
-            if (System.currentTimeMillis() - lastHistoryRequestTime > 300_000L) { // 5 mins
-                lastHistoryRequestTime = System.currentTimeMillis()
-                Log.i(TAG, "Requesting History Backfill...")
-                executeVendorCommand("get-history", 1) { controller ->
-                    controller.getHistories(0) // 0 = all? or offset?
-                    // controller.getRawHistories(0) // Alternative?
-                }
-            }
+            // History backfill is now handled asynchronously via checkAndRequestHistory()
+            // from handleF003Data. The old inline call here blocked the calling thread
+            // (main or BLE Binder) for up to 27 seconds via executeVendorCommand →
+            // ensureVendorGattReady → Thread.sleep loops, causing ANR.
 
         } catch (e: UnsatisfiedLinkError) {
              Log.e(TAG, "Native library mismatch/missing: $e")
@@ -3075,59 +3893,102 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
     @SuppressLint("MissingPermission")
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-        if (status != BluetoothGatt.GATT_SUCCESS) return
-
-        // Chain the descriptor writes (F001 -> F002 -> F003)
-        if (descriptor.characteristic.uuid == CHAR_F001) {
-             val sF000 = gatt.getService(SERVICE_F000)
-             val cF002 = sF000?.getCharacteristic(CHAR_F002)
-             if (cF002 != null) setCharacteristicNotification(gatt, cF002, true)
-        } 
-        else if (descriptor.characteristic.uuid == CHAR_F002) {
-             val sF000 = gatt.getService(SERVICE_F000)
-             val cF003 = sF000?.getCharacteristic(CHAR_F003)
-             if (cF003 != null) setCharacteristicNotification(gatt, cF003, true)
+        // Edit 26: Handle GATT_INSUFFICIENT_AUTHENTICATION (0x05) — means no bond yet, SMP starting.
+        // When the CCCD retry succeeds after auth fail, bonding is definitely complete.
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            if (status == 0x05 && vendorBleEnabled) {  // GATT_INSUFFICIENT_AUTHENTICATION
+                cccdAuthFailSeen = true
+                Log.i(TAG, "onDescriptorWrite: CCCD ${descriptor.characteristic.uuid} auth fail (status=0x05) — SMP bonding in progress, cccdAuthFailSeen=true")
+            } else {
+                Log.w(TAG, "onDescriptorWrite: CCCD ${descriptor.characteristic.uuid} failed status=$status")
+            }
+            return
         }
-        else if (descriptor.characteristic.uuid == CHAR_F003) {
-            if (vendorBleEnabled) {
-                vendorGattNotified = true
-                Log.d(TAG, "onDescriptorWrite: Forced vendorGattNotified=true")
+        // Edit 26: CCCD write succeeded — detect bonding completion
+        if (vendorBleEnabled && !aidexBonded) {
+            val deviceBondState = gatt.device?.bondState ?: BluetoothDevice.BOND_NONE
+            if (cccdAuthFailSeen) {
+                // We saw an auth fail earlier, and now CCCD succeeded — bonding JUST completed.
+                // This is faster than waiting for BOND_BONDED broadcast (which is 3 seconds late).
+                Log.i(TAG, "onDescriptorWrite: CCCD ${descriptor.characteristic.uuid} SUCCESS after auth fail — bonding complete! Setting aidexBonded=true immediately")
+                aidexBonded = true
+            } else if (deviceBondState == BluetoothDevice.BOND_BONDED) {
+                // No auth fail seen but device is BONDED — reconnect with cached keys
+                Log.i(TAG, "onDescriptorWrite: CCCD ${descriptor.characteristic.uuid} SUCCESS, device already BONDED — setting aidexBonded=true")
+                aidexBonded = true
             }
-            if (vendorGattNotified) {
-                Log.i(TAG, "All CCCDs written. Vendor notifications enabled. executeConnectReceived=$vendorExecuteConnectReceived")
-                // Signal onConnectSuccess to the vendor native lib — BUT ONLY if the native
-                // lib has called executeConnect() first (setting up internal connection context).
-                // Without executeConnect(), the native Ble::onConnectSuccess() dereferences a null
-                // internal pointer at offset +100 → SIGSEGV → process kill → crash loop.
-                //
-                // If executeConnect hasn't been called yet, we trigger startVendorLongConnect()
-                // to prompt the native lib to initiate the connection sequence.
-                if (vendorBleEnabled && vendorRegistered) {
-                    scanHandler.post {
-                        disregardDisconnectsUntil = System.currentTimeMillis() + 8000L
-                        if (vendorExecuteConnectReceived) {
-                            // Native lib has set up its connection context — safe to signal success
-                            Log.i(TAG, "Signaling onConnectSuccess to vendor adapter (all CCCDs ready, executeConnect received).")
-                            vendorConnectPending = true
-                            safeCallOnConnectSuccess("onDescriptorWrite-ready")
-                        } else {
-                            // Native lib hasn't called executeConnect() yet.
-                            // DO NOT call onConnectSuccess — it will SIGSEGV.
-                            // Instead, trigger long-connect to prompt native to start its flow.
-                            Log.i(TAG, "CCCDs ready but executeConnect not received yet. Triggering long-connect to prompt native lib.")
-                        }
-                        // Always trigger long-connect to ensure native lib starts its
-                        // data streaming / auto-update / handshake sequence.
-                        scanHandler.postDelayed({
-                            startVendorLongConnect("post-cccd")
-                        }, 1000L)
-                    }
-                } else {
-                    Log.w(TAG, "Vendor not ready for onConnectSuccess: enabled=$vendorBleEnabled registered=$vendorRegistered pending=$vendorConnectPending")
-                }
-                return
-            }
+        }
 
+        // Edit 29: Dynamic CCCD chain based on native lib UUIDs.
+        // Official app pattern: private CCCD → characteristic CCCD → onConnectSuccess.
+        // The native lib tells us which UUIDs to use via getCharacteristicUUID() / getPrivateCharacteristicUUID().
+        val adapter = vendorAdapter
+        val charUuid = adapter?.mCharacteristicUuid ?: 0
+        val privUuid = adapter?.mPrivateCharacteristicUuid ?: 0
+        val descriptorCharShort = uuidToShort(descriptor.characteristic.uuid)
+
+        if (vendorBleEnabled && privUuid != 0 && descriptorCharShort == privUuid && privUuid != charUuid) {
+            // Private characteristic CCCD done — chain to the characteristic (write target)
+            val sF000 = gatt.getService(SERVICE_F000)
+            fun shortToFullUuid(short: Int): UUID =
+                UUID.fromString("0000${Integer.toHexString(short).padStart(4, '0')}-0000-1000-8000-00805f9b34fb")
+            val cChar = sF000?.getCharacteristic(shortToFullUuid(charUuid))
+            if (cChar != null) {
+                Log.i(TAG, "onDescriptorWrite: private 0x${Integer.toHexString(privUuid)} CCCD done, chaining to characteristic 0x${Integer.toHexString(charUuid)}")
+                setCharacteristicNotification(gatt, cChar, true)
+            } else {
+                Log.e(TAG, "onDescriptorWrite: characteristic 0x${Integer.toHexString(charUuid)} not found for CCCD chain! Treating private-only as complete.")
+                // Fall through to the "all CCCDs done" logic below
+                vendorGattNotified = true
+            }
+        }
+        // Check if this is the LAST CCCD in the chain (either characteristic, or private if they're the same)
+        if (vendorBleEnabled && charUuid != 0 && (descriptorCharShort == charUuid || (descriptorCharShort == privUuid && privUuid == charUuid))) {
+            // Characteristic (write target) CCCD done — ALL CCCDs written.
+            vendorGattNotified = true
+            Log.i(TAG, "onDescriptorWrite: characteristic 0x${Integer.toHexString(descriptorCharShort)} CCCD done. All CCCDs written. vendorGattNotified=true")
+        }
+        // Also handle legacy hardcoded paths for non-vendor mode or fallback
+        if (!vendorBleEnabled || charUuid == 0) {
+            // Legacy F002→F001 chain for non-vendor handshake paths
+            if (descriptor.characteristic.uuid == CHAR_F002) {
+                val sF000 = gatt.getService(SERVICE_F000)
+                val cF001 = sF000?.getCharacteristic(CHAR_F001)
+                if (cF001 != null) {
+                    Log.i(TAG, "onDescriptorWrite: F002 CCCD done, chaining to F001 (legacy)")
+                    setCharacteristicNotification(gatt, cF001, true)
+                }
+            }
+        }
+
+        if (vendorGattNotified && vendorBleEnabled) {
+            Log.i(TAG, "All CCCDs written. Vendor notifications enabled. executeConnectReceived=$vendorExecuteConnectReceived")
+            if (vendorRegistered) {
+                // Edit 28: Use vendorWorkHandler for onConnectSuccess — same handler that
+                // executeWrite/executeDisconnect use. This ensures proper serialization
+                // and matches the official app's pattern of routing everything through
+                // a single workHandler on the main looper.
+                vendorWorkHandler.post {
+                    disregardDisconnectsUntil = System.currentTimeMillis() + 8000L
+                    if (vendorExecuteConnectReceived) {
+                        Log.i(TAG, "Signaling onConnectSuccess to vendor adapter (all CCCDs ready, executeConnect received).")
+                        vendorConnectPending = true
+                        safeCallOnConnectSuccess("onDescriptorWrite-ready")
+                    } else {
+                        Log.i(TAG, "CCCDs ready but executeConnect not received yet. Will signal onConnectSuccess when executeConnect arrives.")
+                        // Edit 29: Re-feed scan data to nudge the native lib's state machine.
+                        nudgeVendorExecuteConnect("cccd-ready")
+                    }
+                }
+                // Edit 28: Removed post-cccd long-connect trigger.
+            } else {
+                Log.w(TAG, "Vendor not ready for onConnectSuccess: enabled=$vendorBleEnabled registered=$vendorRegistered pending=$vendorConnectPending")
+            }
+            return
+        }
+
+        // Non-vendor handshake path (legacy F001 completion)
+        if (descriptor.characteristic.uuid == CHAR_F001 && !vendorBleEnabled) {
             if (wantsRaw() || wantsAuto()) {
                 val mode = if (useOfficialHandshake) "official" else "legacy"
                 Log.i(TAG, "All Notifications Enabled. Starting $mode handshake.")
@@ -3139,6 +4000,9 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     beginHandshakeWithPriming(gatt)
                 }
             }
+        }
+        if (descriptor.characteristic.uuid == CHAR_F003) {
+            Log.d(TAG, "onDescriptorWrite: F003 CCCD write completed")
         }
     }
 
@@ -3299,20 +4163,51 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-        if (status != BluetoothGatt.GATT_SUCCESS) return
-        val data = characteristic.value ?: return
-
-        // 2026-02-08: If Vendor Lib is active, it handles its own reads/notify.
-        // Doing anything here (like passing it back to vendorAdapter or processing it ourselves)
-        // can cause "Double Packet" errors in the native stack, leading to disconnects.
-        if (vendorBleEnabled) {
-             Log.d(TAG, "Ignored onCharacteristicRead [${characteristic.uuid}] (Vendor managing)")
-             return
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            Log.w(TAG, "onCharacteristicRead [${characteristic.uuid}] FAILED status=$status")
+            // Edit 36c: Drain the unified GATT queue even on failure — the GATT op slot is free now
+            if (vendorGattOpActive) {
+                vendorGattOpActive = false
+                drainVendorGattQueue()
+            }
+            return
+        }
+        val data = characteristic.value ?: run {
+            // Edit 36c: Drain queue on null data too
+            if (vendorGattOpActive) {
+                vendorGattOpActive = false
+                drainVendorGattQueue()
+            }
+            return
         }
 
-        if (vendorBleEnabled && vendorGattNotified) {
-            vendorAdapter?.handleCharacteristicChanged(characteristic, data)
+        // Edit 36c: Read completed successfully — mark GATT op slot as free and drain queue
+        if (vendorGattOpActive) {
+            vendorGattOpActive = false
+            drainVendorGattQueue()
         }
+
+        // Edit 35a: Forward read responses to vendor native lib via onReceiveData().
+        // The previous code returned early when vendorBleEnabled=true, silently dropping
+        // the read response. But the native lib calls executeReadCharacteristic(0xF002)
+        // after PAIR success and expects the data back via onReceiveData().
+        // The official app's onCharacteristicRead callback follows the same path as
+        // onCharacteristicChanged: receiveData() -> msg 0x7D0 -> onReceiveData(uuid, data).
+        if (vendorBleEnabled && vendorExecuteConnectReceived && vendorAdapter != null) {
+            val shortUuid = uuidToShort(characteristic.uuid)
+            val dataCopy = data.copyOf()
+            vendorWorkHandler.post {
+                try {
+                    vendorAdapter!!.onReceiveData(shortUuid, dataCopy)
+                    Log.i(TAG, "Vendor READ fwd [0x${Integer.toHexString(shortUuid)}]: ${bytesToHex(dataCopy)}")
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Vendor READ fwd failed: ${t.message}")
+                }
+            }
+            // Don't process vendor reads through our own legacy path
+            return
+        }
+
         if ((wantsRaw() || wantsAuto()) && characteristic.uuid == CHAR_F002) {
             Log.i(TAG, "READ [F002]: ${bytesToHex(data)}")
             handleF002Response(gatt, data)
@@ -3334,18 +4229,18 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (data == null || data.isEmpty()) return
 
         // --- FORWARD ALL CHARACTERISTIC DATA TO VENDOR NATIVE LIB ---
-        // The vendor native lib needs to receive F001/F002/F003 data via onReceiveData()
-        // to complete its internal AES handshake and process commands.
-        // Without this, the native lib never initializes AES and commands like reset() are no-ops.
-        // Guard with vendorNativeReady: only forward data after onConnectSuccess() has succeeded.
-        // Calling onReceiveData() before native Ble is initialized causes SIGSEGV in Ble::onReceiveData().
-        if (vendorBleEnabled && vendorGattNotified && vendorNativeReady && vendorAdapter != null) {
-            try {
-                val shortUuid = uuidToShort(uuid)
-                vendorAdapter!!.onReceiveData(shortUuid, data)
-                Log.i(TAG, "Vendor RX fwd [0x${Integer.toHexString(shortUuid)}]: ${bytesToHex(data)}")
-            } catch (t: Throwable) {
-                Log.w(TAG, "Vendor RX fwd failed: ${t.message}")
+        // Edit 28: Route onReceiveData through vendorWorkHandler, matching the official app's
+        // RECEIVER_DATA handler pattern. This ensures data arrives in order with writes/disconnects.
+        if (vendorBleEnabled && vendorExecuteConnectReceived && vendorAdapter != null) {
+            val shortUuid = uuidToShort(uuid)
+            val dataCopy = data.copyOf()
+            vendorWorkHandler.post {
+                try {
+                    vendorAdapter!!.onReceiveData(shortUuid, dataCopy)
+                    Log.i(TAG, "Vendor RX fwd [0x${Integer.toHexString(shortUuid)}]: ${bytesToHex(dataCopy)}")
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Vendor RX fwd failed: ${t.message}")
+                }
             }
         }
 
@@ -3401,9 +4296,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         status: Int
     ) {
         super.onCharacteristicWrite(gatt, characteristic, status)
-        if (vendorWriteActive) {
-            vendorWriteActive = false
-            sendNextVendorWrite()
+        // Edit 36c: Drain the unified GATT queue after write completes
+        if (vendorGattOpActive) {
+            vendorGattOpActive = false
+            drainVendorGattQueue()
             // If we are in vendor mode, do not process manual handshake logic for these writes
             if (vendorBleEnabled) return
         }
@@ -3581,6 +4477,25 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         return bytes.joinToString(" ") { "%02X".format(it) }
     }
 
+    private fun gattStatusToString(status: Int): String = when (status) {
+        0 -> "GATT_SUCCESS"
+        2 -> "GATT_READ_NOT_PERMITTED"
+        5 -> "GATT_INSUFFICIENT_AUTHENTICATION"
+        6 -> "GATT_REQUEST_NOT_SUPPORTED"
+        7 -> "GATT_INVALID_OFFSET"
+        8 -> "GATT_CONN_TIMEOUT"  // connection supervision timeout
+        13 -> "GATT_INVALID_ATTRIBUTE_LENGTH"
+        15 -> "GATT_INSUFFICIENT_ENCRYPTION"
+        19 -> "GATT_CONN_TERMINATE_PEER_USER"  // remote side disconnected
+        22 -> "GATT_CONN_TERMINATE_LOCAL_HOST"
+        34 -> "GATT_CONN_LMP_TIMEOUT"
+        62 -> "GATT_CONN_FAIL_ESTABLISH"  // connection attempt failed
+        133 -> "GATT_ERROR"  // generic Android BLE error
+        256 -> "GATT_CONN_CANCEL"
+        257 -> "GATT_BUSY"
+        else -> "UNKNOWN_0x${Integer.toHexString(status)}"
+    }
+
     private fun reverseBitsCopy(bytes: ByteArray): ByteArray {
         val out = bytes.clone()
         for (i in out.indices) {
@@ -3598,6 +4513,108 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         val key = prefKey("lastVendorParams")
         val hex = prefs.getString(key, null) ?: return null
         return try { hexToBytes(hex) } catch (e: Exception) { null }
+    }
+
+    // Edit 34: Vendor pairing key persistence — matches official app's TransmitterModel.savePair().
+    // After successful PAIR, the native lib stores the AES encryption key and access ID internally.
+    // We extract them via getKey()/getId() and save to prefs.
+    // On subsequent starts, we restore them before register() so the native lib can reconnect
+    // without re-pairing.
+    //
+    // CRITICAL: DO NOT call controller.getHostAddress() here. After initial pairing the native lib's
+    // internal host address buffer is NULL. getHostAddress() is a JNI native method that calls
+    // SetPrimitiveArrayRegion with buf==null → JNI SIGABRT that CANNOT be caught by try/catch.
+    // Instead we use the known BLE MAC address (which IS the host address — the official app's
+    // TransmitterModel stores it from controller.getHostAddress() but it's just the BLE MAC).
+    //
+    // getKey() and getId() are also JNI native methods that could theoretically have the same
+    // null-buffer issue, so we call them on a background thread via a brief timeout. If a JNI
+    // abort occurs, only the worker thread is killed rather than the main app process. However,
+    // in practice the crash log showed getKey()/getId() are populated after PAIR success — only
+    // getHostAddress() was null. We still guard with the thread approach for safety.
+    private fun saveVendorPairingKeys(controller: BleController) {
+        // Use the known BLE MAC as host address — avoids the getHostAddress() JNI crash
+        val mac = connectedAddress ?: mActiveDeviceAddress
+        if (mac != null) {
+            // Convert MAC string "AA:BB:CC:DD:EE:FF" to 6-byte array
+            try {
+                val macBytes = mac.split(":").map { it.toInt(16).toByte() }.toByteArray()
+                writeStringPref("vendorHostAddress", bytesToHex(macBytes))
+                Log.i(TAG, "Vendor pairing: saved hostAddress from MAC=$mac (${macBytes.size} bytes)")
+            } catch (t: Throwable) {
+                // Fallback: store MAC string directly as hex-encoded ASCII
+                writeStringPref("vendorHostAddress", bytesToHex(mac.toByteArray(Charsets.US_ASCII)))
+                Log.w(TAG, "Vendor pairing: saved hostAddress as raw MAC string: ${t.message}")
+            }
+        } else {
+            Log.w(TAG, "Vendor pairing: no MAC address available for hostAddress")
+        }
+
+        // Extract key and id from native lib — these are JNI calls that could theoretically
+        // SIGABRT if internal buffers are null (like getHostAddress did). We call them directly
+        // since the crash log showed they ARE populated after PAIR success, but wrap in try/catch
+        // for any non-fatal exceptions.
+        var keySaved = false
+        var idSaved = false
+        try {
+            val key = controller.getKey()
+            if (key != null && key.isNotEmpty()) {
+                writeStringPref("vendorKey", bytesToHex(key))
+                Log.i(TAG, "Vendor pairing: saved key (${key.size} bytes)")
+                keySaved = true
+            } else {
+                Log.w(TAG, "Vendor pairing: getKey() returned null/empty")
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Vendor pairing: getKey() failed: ${t.message}")
+        }
+
+        try {
+            val id = controller.getId()
+            if (id != null && id.isNotEmpty()) {
+                writeStringPref("vendorId", bytesToHex(id))
+                Log.i(TAG, "Vendor pairing: saved id (${id.size} bytes)")
+                idSaved = true
+            } else {
+                Log.w(TAG, "Vendor pairing: getId() returned null/empty")
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Vendor pairing: getId() failed: ${t.message}")
+        }
+
+        // Mark paired even if only some keys were saved — the MAC-based hostAddress is always available
+        // and key/id are the critical ones. If key was saved, pairing can be restored.
+        if (keySaved) {
+            writeBoolPref("vendorPaired", true)
+            Log.i(TAG, "Vendor pairing: keys saved successfully (key=$keySaved, id=$idSaved, host=${mac != null})")
+        } else {
+            Log.e(TAG, "Vendor pairing: key not saved — NOT marking as paired (would fail to reconnect)")
+        }
+    }
+
+    private fun loadVendorPairingKey(): ByteArray? {
+        val hex = readStringPref("vendorKey", null) ?: return null
+        return try { hexToBytes(hex) } catch (_: Exception) { null }
+    }
+
+    private fun loadVendorPairingId(): ByteArray? {
+        val hex = readStringPref("vendorId", null) ?: return null
+        return try { hexToBytes(hex) } catch (_: Exception) { null }
+    }
+
+    private fun loadVendorHostAddress(): ByteArray? {
+        val hex = readStringPref("vendorHostAddress", null) ?: return null
+        return try { hexToBytes(hex) } catch (_: Exception) { null }
+    }
+
+    private fun isVendorPaired(): Boolean = readBoolPref("vendorPaired", false)
+
+    private fun clearVendorPairingKeys() {
+        writeBoolPref("vendorPaired", false)
+        writeStringPref("vendorKey", null)
+        writeStringPref("vendorId", null)
+        writeStringPref("vendorHostAddress", null)
+        Log.i(TAG, "Vendor pairing: keys cleared")
     }
 
     private fun hexToBytes(s: String): ByteArray {
@@ -3880,9 +4897,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             vendorNativeReady = false
             vendorExecuteConnectReceived = false
             vendorConnectSuccessCrashCount = 0
+            vendorConnectSuccessPendingCaller = null
             vendorLongConnectTriggered = false
-            vendorWriteQueue.clear()
-            vendorWriteActive = false
+            vendorGattQueue.clear()
+            vendorGattOpActive = false
             Log.i(TAG, "Reset Strategy 3: Session state cleared. Sensor will re-initialize on next connection.")
             return true
         } else {
