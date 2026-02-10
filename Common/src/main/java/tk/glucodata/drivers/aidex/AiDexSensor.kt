@@ -27,6 +27,7 @@ import tk.glucodata.Log
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.Natives
 import com.microtechmd.blecomm.parser.AidexXParser
+import com.microtechmd.blecomm.parser.AidexXHistoryEntity
 import com.microtechmd.blecomm.BleAdapter
 import com.microtechmd.blecomm.BlecommLoader
 import com.microtechmd.blecomm.BluetoothDeviceStore
@@ -273,9 +274,126 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private var lastVendorTime: Long = 0L
     private var lastVendorOffsetMinutes: Int = 0
     private val vendorGattQueue = ArrayDeque<VendorGattOp>()  // Edit 36c: unified read+write queue
-    private var vendorGattOpActive = false  // Edit 36c: true while a GATT op (read or write) is pending callback
+    @Volatile private var vendorGattOpActive = false  // Edit 36c/40: true while a GATT op (read or write) is pending callback. @Volatile for cross-thread visibility (binder thread sets, vendorWorkHandler reads).
     private var vendorLongConnectTriggered = false
     private var vendorLongConnectPendingReason: String? = null  // set when long-connect deferred for bonding
+
+    // Edit 40: Reconnect timeout fallback — if register() with saved keys doesn't produce
+    // executeConnect within 10s, fall back to pair() (accepts key-overwrite risk; alternative
+    // is permanent deadlock where the vendor lib DISCOVERs forever).
+    private var vendorReconnectFallbackRunnable: Runnable? = null
+    private val VENDOR_RECONNECT_FALLBACK_MS = 10_000L
+    // Edit 49c: Track fallback attempts — first attempt preserves keys, second clears them.
+    private var vendorReconnectFallbackAttempt = 0
+
+    // Edit 40: Guard against double-fire of DISCONNECT handler's postDelayed restart.
+    // The vendor lib can send DISCONNECT with success=false then success=true in quick succession.
+    private var vendorDisconnectRestartRunnable: Runnable? = null
+
+    // Edit 41b: Pause GATT queue while SMP bonding is in progress.
+    // When gatt.writeCharacteristic() returns false AND the device is BOND_BONDING, the BLE
+    // stack is busy with SMP. Retrying every 200ms exhausts 10 retries in 2 seconds, but
+    // bonding takes 3-6 seconds. Instead, pause the queue and resume on BOND_BONDED.
+    @Volatile private var vendorQueuePausedForBonding = false
+    private val VENDOR_BONDING_PAUSE_TIMEOUT_MS = 15_000L  // safety: resume after 15s even if BOND_BONDED never arrives
+
+    // Edit 41c: Track reconnect-with-saved-keys attempts across discover-spam restarts.
+    // After N consecutive spam restarts where executeConnect never arrives, clear keys and
+    // force pair() on next discover — breaking the deadlock.
+    private var vendorReconnectSpamRestarts = 0
+    private val VENDOR_MAX_SPAM_RESTARTS_BEFORE_REPAIR = 2
+    // Edit 49b: Extracted constant for DISCOVER spam threshold (was hardcoded 5, reduced to 3).
+    // With Edit 49a's proactive GATT connect at DISCOVER #2, this is a safety net that fires
+    // faster if the proactive connect failed (e.g. device went back out of range).
+    private val VENDOR_DISCOVER_SPAM_THRESHOLD = 3
+
+    // Edit 37a: getBroadcastData 2-second polling loop (matches official app behavior)
+    // Edit 38b: Add max poll count + stop-after-store. The vendor lib disconnects after ~80s
+    // of continuous polling. Limit to 30 polls (60s) and stop once we store a valid glucose.
+    // Edit 44b: After first glucose, transition to slow periodic poll (~55s) instead of stopping.
+    // This ensures glucose readings continue arriving even when AUTO_UPDATE pushes don't arrive
+    // (e.g. on the F001 path). The slow interval is well under the vendor lib's ~80s timeout.
+    // Edit 45b: Changed from 55s to 62s to avoid phase drift with the sensor's 60s update cycle.
+    // Edit 45c: Slow poll is now a WATCHDOG backup only — AUTO_UPDATE pushes are the primary source.
+    //   When AUTO_UPDATE is actively delivering glucose, slow poll is suppressed.
+    //   If AUTO_UPDATE goes silent for 90s, slow poll re-engages as fallback.
+    private var vendorPollActive = false
+    private var vendorPollCount = 0
+    private var vendorConsecutiveDiscoverCount = 0  // Edit 37e: track DISCOVER spam
+    private val VENDOR_POLL_INTERVAL_MS = 2000L
+    private val VENDOR_SLOW_POLL_INTERVAL_MS = 62_000L  // Edit 45b: slightly over sensor's 60s cycle to avoid phase drift
+    private val VENDOR_MAX_POLL_COUNT = 30  // 30 polls × 2s = 60s max for initial fast polling
+    private var vendorGotGlucoseThisCycle = false  // true once we store a value this connection
+    private var vendorSlowPollActive = false  // Edit 44b: tracks whether we've transitioned to slow polling
+    // Edit 45c: AUTO_UPDATE watchdog — track when last AUTO_UPDATE push arrived
+    private var vendorLastAutoUpdateTime = 0L  // timestamp of last AUTO_UPDATE_FULL_HISTORY glucose
+    private val VENDOR_AUTO_UPDATE_WATCHDOG_MS = 90_000L  // re-enable slow poll if no AUTO_UPDATE for 90s
+    private val broadcastPollRunnable = Runnable {
+        if (vendorBleEnabled && vendorGattConnected && vendorGattNotified && vendorPollActive) {
+            // Edit 44b: If we're in slow-poll mode, just request and reschedule at slow interval.
+            if (vendorSlowPollActive) {
+                // Edit 45c: Check if AUTO_UPDATE is actively delivering glucose.
+                // If so, suppress the poll — AUTO_UPDATE is the primary, more reliable source.
+                // Only re-engage polling if AUTO_UPDATE has gone silent for VENDOR_AUTO_UPDATE_WATCHDOG_MS.
+                val now = System.currentTimeMillis()
+                if (vendorLastAutoUpdateTime > 0L && (now - vendorLastAutoUpdateTime) < VENDOR_AUTO_UPDATE_WATCHDOG_MS) {
+                    Log.d(TAG, "Vendor slow poll: suppressed — AUTO_UPDATE active (last ${(now - vendorLastAutoUpdateTime) / 1000}s ago), rescheduling watchdog")
+                    scheduleNextBroadcastPoll()  // reschedule to check again later
+                    return@Runnable
+                }
+                // AUTO_UPDATE not active (never received or timed out) — fall back to polling
+                try {
+                    vendorController?.getBroadcastDataWithLog()
+                    vendorPollCount++
+                    Log.d(TAG, "Vendor slow poll #$vendorPollCount: getBroadcastData requested (${VENDOR_SLOW_POLL_INTERVAL_MS/1000}s interval, AUTO_UPDATE watchdog fallback)")
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Vendor slow poll failed: ${t.message}")
+                }
+                scheduleNextBroadcastPoll()
+                return@Runnable
+            }
+            // Edit 38b: During fast polling, stop if we already got a glucose — transition to slow poll
+            if (vendorGotGlucoseThisCycle) {
+                Log.i(TAG, "Vendor poll: stored glucose this cycle, transitioning to slow poll (${VENDOR_SLOW_POLL_INTERVAL_MS/1000}s interval)")
+                vendorSlowPollActive = true
+                scheduleNextBroadcastPoll()
+                return@Runnable
+            }
+            if (vendorPollCount >= VENDOR_MAX_POLL_COUNT) {
+                Log.w(TAG, "Vendor poll: reached max fast poll count ($VENDOR_MAX_POLL_COUNT) without glucose, transitioning to slow poll")
+                vendorSlowPollActive = true
+                scheduleNextBroadcastPoll()
+                return@Runnable
+            }
+            try {
+                vendorController?.getBroadcastDataWithLog()
+                vendorPollCount++
+                Log.d(TAG, "Vendor poll #$vendorPollCount/$VENDOR_MAX_POLL_COUNT: getBroadcastData requested")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Vendor poll failed: ${t.message}")
+            }
+        } else {
+            Log.d(TAG, "Vendor poll skipped: enabled=$vendorBleEnabled connected=$vendorGattConnected notified=$vendorGattNotified active=$vendorPollActive")
+            vendorPollActive = false
+        }
+    }
+
+    private fun scheduleNextBroadcastPoll() {
+        vendorWorkHandler.removeCallbacks(broadcastPollRunnable)
+        vendorPollActive = true
+        // Edit 44b: Use slow interval after first glucose, fast interval during initial polling
+        val interval = if (vendorSlowPollActive) VENDOR_SLOW_POLL_INTERVAL_MS else VENDOR_POLL_INTERVAL_MS
+        vendorWorkHandler.postDelayed(broadcastPollRunnable, interval)
+    }
+
+    private fun cancelBroadcastPoll() {
+        vendorPollActive = false
+        vendorPollCount = 0
+        vendorGotGlucoseThisCycle = false  // Edit 38b: reset for next connection cycle
+        vendorSlowPollActive = false  // Edit 44b: reset slow poll flag
+        vendorLastAutoUpdateTime = 0L  // Edit 45c: reset AUTO_UPDATE watchdog for next connection
+        vendorWorkHandler.removeCallbacks(broadcastPollRunnable)
+    }
     private var vendorConnectSuccessPendingCaller: String? = null  // set when onConnectSuccess deferred for bonding
     private var aidexBondReceiver: BroadcastReceiver? = null
     @Volatile private var aidexBonded = false  // internal bond state — only set true by our own BroadcastReceiver (or already-bonded check)
@@ -462,6 +580,17 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (!broadcastEnabled) return false
         if (!(wantsAuto() || (wantsRaw() && rawBroadcastFallbackEnabled))) return false
 
+        // Edit 45a: Suppress broadcast scanning while vendor GATT is actively connected and
+        // past the initial handshake. The sensor stops BLE advertising when a GATT connection
+        // is active, so every scan times out — wasting battery and radio time.
+        // We still allow scanning during the initial connect phase (before executeConnect arrives)
+        // because the vendor lib needs scan record bytes to trigger executeConnect().
+        // Once the long-connect data flow is running (vendorLongConnectTriggered), scanning is pure waste.
+        if (vendorGattConnected && vendorLongConnectTriggered) {
+            Log.d(TAG, "wantsBroadcastScan: suppressed — vendor GATT active with long-connect running")
+            return false
+        }
+
         val now = System.currentTimeMillis()
         if (dynamicIV == null) return true
         if (lastRawTime == 0L) return true
@@ -525,10 +654,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     // operation at a time. Previously, reads bypassed the write queue and raced with writes,
     // causing gatt.readCharacteristic() to silently fail (return false) when a write was
     // in-flight. Now both reads and writes go through the same queue.
+    // Edit 38c: Added retryCount to prevent infinite retry loops when writes fail (e.g. F003).
     private sealed class VendorGattOp {
+        var retryCount: Int = 0
         data class Write(val uuid: Int, val data: ByteArray) : VendorGattOp()
         data class Read(val uuid: Int) : VendorGattOp()
     }
+    private val VENDOR_GATT_OP_MAX_RETRIES = 10
 
     private fun ensureVendorStarted(reason: String) {
         if (!vendorBleEnabled) {
@@ -618,13 +750,31 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         vendorConnectPending = false
         vendorNativeReady = false
         vendorExecuteConnectReceived = false
-        vendorGattQueue.clear()
-        vendorGattOpActive = false
+            vendorGattQueue.clear()
+            // Edit 40: Clear vendorGattOpActive on the handler thread for consistency,
+            // but also set it false here immediately since disconnect is a full reset anyway.
+            vendorGattOpActive = false
+            vendorWorkHandler.post {
+                vendorGattOpActive = false  // redundant but ensures handler-thread visibility
+            }
         vendorLongConnectTriggered = false
         vendorLongConnectPendingReason = null
         vendorConnectSuccessPendingCaller = null
         aidexBonded = false
+        cancelBroadcastPoll()  // Edit 37a: stop polling loop
+        vendorConsecutiveDiscoverCount = 0  // Edit 37e: reset discover counter
+        vendorReconnectFallbackAttempt = 0  // Edit 49c: reset fallback attempt counter
+        vendorQueuePausedForBonding = false  // Edit 41b: clear bonding pause on stop
+        // Note: vendorReconnectSpamRestarts is intentionally NOT reset in stopVendor() —
+        // it must persist across stop/start cycles to count consecutive spam restarts.
+        // It IS reset on executeConnect (success) and in forgetVendor().
         cancelReconnectStallTimeout()  // Edit 34: cancel stall timer on vendor stop
+        // Edit 40: Cancel reconnect fallback timer on vendor stop
+        vendorReconnectFallbackRunnable?.let { vendorWorkHandler.removeCallbacks(it) }
+        vendorReconnectFallbackRunnable = null
+        // Edit 40: Cancel disconnect restart timer on vendor stop
+        vendorDisconnectRestartRunnable?.let { vendorWorkHandler.removeCallbacks(it) }
+        vendorDisconnectRestartRunnable = null
         unregisterAidexBondReceiver()
         Log.i(TAG, "Vendor stopped ($reason)")
 
@@ -652,6 +802,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                         }
                         aidexBonded = true
                         Log.i(TAG, "AiDex bond receiver: BOND_BONDED — triggering deferred operations")
+
+                        // Edit 41b: Resume GATT queue if paused for bonding
+                        if (vendorQueuePausedForBonding) {
+                            Log.i(TAG, "Edit 41b: BOND_BONDED arrived — resuming paused GATT queue")
+                            vendorQueuePausedForBonding = false
+                            // Short delay to let encryption settle before retrying writes
+                            vendorWorkHandler.postDelayed({ drainVendorGattQueue() }, 300L)
+                        }
                         // Trigger deferred onConnectSuccess (500ms delay for encryption to settle)
                         val pendingCaller = vendorConnectSuccessPendingCaller
                         if (pendingCaller != null) {
@@ -836,7 +994,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (vendorGattNotified && !vendorLongConnectTriggered) {
             try {
                 startVendorLongConnect(label)
-                vendorLongConnectTriggered = true
+                // vendorLongConnectTriggered is set inside startVendorLongConnect
             } catch (t: Throwable) {
                 Log.e(TAG, "Failed to start vendor long-connect: ${t.message}")
             }
@@ -1027,6 +1185,54 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 } catch (t: Throwable) {
                     Log.e(TAG, "Vendor: pair() failed: ${t.message}")
                 }
+            } else {
+                // Edit 40: Reconnect with saved keys — if the vendor lib doesn't call
+                // executeConnect within 10s, its internal state machine is stuck (Bug 1).
+                // Fall back to pair() which forces the lib to restart the connection flow.
+                // Edit 49c: First attempt preserves keys (pair() without clearing) to avoid
+                // unnecessary key destruction. Only clear keys on 2nd attempt if first fails.
+                // In the DISCOVER spam scenario, the keys aren't stale — the vendor lib's
+                // state machine is just stuck. pair() without key-clear may unstick it.
+                vendorReconnectFallbackAttempt = 0
+                fun scheduleReconnectFallback() {
+                    vendorReconnectFallbackRunnable?.let { vendorWorkHandler.removeCallbacks(it) }
+                    vendorReconnectFallbackRunnable = Runnable {
+                        if (!vendorExecuteConnectReceived && vendorRegistered && vendorBleEnabled) {
+                            val ctrl = vendorController ?: return@Runnable
+                            vendorReconnectFallbackAttempt++
+                            if (vendorReconnectFallbackAttempt <= 1 && isVendorPaired()) {
+                                // Edit 49c: First attempt — try pair() WITHOUT clearing keys
+                                Log.w(TAG, "Edit 49c: executeConnect not received within ${VENDOR_RECONNECT_FALLBACK_MS}ms — " +
+                                        "trying pair() with keys PRESERVED (attempt $vendorReconnectFallbackAttempt)")
+                                try {
+                                    ctrl.pair()
+                                    Log.i(TAG, "Edit 49c: fallback pair() called (keys preserved)")
+                                } catch (t: Throwable) {
+                                    Log.e(TAG, "Edit 49c: fallback pair() failed: ${t.message}")
+                                }
+                                // Re-arm fallback for 2nd attempt
+                                scheduleReconnectFallback()
+                            } else {
+                                // Edit 49c: 2nd attempt (or no saved keys) — clear keys and pair()
+                                Log.w(TAG, "Edit 49c: 2nd fallback (attempt $vendorReconnectFallbackAttempt) — " +
+                                        "clearing keys and falling back to pair()")
+                                try {
+                                    clearVendorPairingKeys()
+                                    ctrl.pair()
+                                    Log.i(TAG, "Vendor: fallback pair() called (keys cleared)")
+                                } catch (t: Throwable) {
+                                    Log.e(TAG, "Vendor: fallback pair() failed: ${t.message}")
+                                }
+                            }
+                        } else {
+                            Log.d(TAG, "Vendor: reconnect fallback cancelled (executeConnect=${vendorExecuteConnectReceived} registered=$vendorRegistered enabled=$vendorBleEnabled)")
+                        }
+                        vendorReconnectFallbackRunnable = null
+                    }
+                    vendorWorkHandler.postDelayed(vendorReconnectFallbackRunnable!!, VENDOR_RECONNECT_FALLBACK_MS)
+                    Log.i(TAG, "Vendor: scheduled reconnect fallback in ${VENDOR_RECONNECT_FALLBACK_MS}ms (attempt ${vendorReconnectFallbackAttempt + 1})")
+                }
+                scheduleReconnectFallback()
             }
         }
         val paramsHex = info.params?.let { bytesToHex(it) }
@@ -1069,13 +1275,102 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         when (message.operation) {
             // Edit 33: Handle pairing flow operations — matches official app's PairUtil.observeMessage
             AidexXOperation.DISCOVER -> {
-                Log.i(TAG, "Vendor DISCOVER: success=${message.isSuccess}")
+                // Edit 37e: Track consecutive DISCOVER without executeConnect.
+                // After a reset or disconnect, the native lib may spam DISCOVER without
+                // ever calling executeConnect — meaning its internal state is stuck.
+                // Edit 38a: Do NOT clear pairing keys on DISCOVER spam. The keys are still
+                // valid after a vendor-initiated disconnect. Clearing them causes F003
+                // characteristic selection (NOTIFY-only, not writable) and an infinite
+                // write-fail loop that crashes the app. Instead, just restart the vendor
+                // stack with keys preserved so it can reconnect normally.
+                vendorConsecutiveDiscoverCount++
+                Log.i(TAG, "Vendor DISCOVER: success=${message.isSuccess} (consecutive=$vendorConsecutiveDiscoverCount)")
+
+                // Edit 49a: On the 2nd consecutive DISCOVER with saved keys and no GATT,
+                // proactively initiate a GATT connection. This breaks the deadlock where:
+                //   - The vendor lib won't call executeConnect() until GATT is connected
+                //   - connectDevice() blocks GATT until executeConnect() is called
+                // By setting vendorExecuteConnectReceived=true ourselves, we bypass the
+                // connectDevice() guard. When GATT connects → services discovered → CCCDs
+                // written → onDescriptorWrite fires safeCallOnConnectSuccess(), telling the
+                // vendor lib that GATT is ready. The vendor lib then drives the AES handshake.
+                // This reduces reconnection from ~6 minutes (5 DISCOVERs + spam restart) to ~2s.
+                if (vendorConsecutiveDiscoverCount == 2 && isVendorPaired() &&
+                    !vendorGattConnected && !connectInProgress && mBluetoothGatt == null) {
+                    Log.i(TAG, "Edit 49a: 2nd DISCOVER with saved keys — proactive GATT connect to break deadlock")
+                    vendorExecuteConnectReceived = true
+                    vendorConnectPending = true
+                    if (mActiveDeviceAddress != null) {
+                        connectedAddress = mActiveDeviceAddress
+                    }
+                    vendorWorkHandler.post {
+                        val scheduled = connectDevice(0)
+                        if (!scheduled) {
+                            Log.w(TAG, "Edit 49a: proactive GATT connect failed to schedule — reverting flags")
+                            vendorConnectPending = false
+                            vendorExecuteConnectReceived = false
+                        }
+                    }
+                }
+
+                if (vendorConsecutiveDiscoverCount >= VENDOR_DISCOVER_SPAM_THRESHOLD) {
+                    vendorConsecutiveDiscoverCount = 0
+                    vendorReconnectSpamRestarts++
+                    // Edit 41c: After N consecutive spam restarts with saved keys and no
+                    // executeConnect, clear keys and force pair() on the next cycle.
+                    // This breaks the deadlock where register() with stale keys causes
+                    // infinite DISCOVER spam (the vendor lib DISCOVERs with paired=true
+                    // but never calls executeConnect).
+                    if (vendorReconnectSpamRestarts >= VENDOR_MAX_SPAM_RESTARTS_BEFORE_REPAIR && isVendorPaired()) {
+                        Log.w(TAG, "Edit 41c: $vendorReconnectSpamRestarts consecutive DISCOVER spam restarts " +
+                                "with saved keys — clearing keys and forcing pair() on next cycle")
+                        clearVendorPairingKeys()
+                        vendorReconnectSpamRestarts = 0
+                    } else {
+                        Log.w(TAG, "Vendor DISCOVER spam: restart #$vendorReconnectSpamRestarts " +
+                                "(max=$VENDOR_MAX_SPAM_RESTARTS_BEFORE_REPAIR). Restarting vendor stack (keys preserved).")
+                    }
+                    // DO NOT clearVendorPairingKeys() here unless escalation threshold reached (above)
+                    vendorWorkHandler.post {
+                        stopVendor("discover-spam-restart")
+                        ensureVendorStarted("discover-spam-restart")
+                    }
+                }
             }
             AidexXOperation.CONNECT -> {
                 Log.i(TAG, "Vendor CONNECT: success=${message.isSuccess}")
             }
             AidexXOperation.DISCONNECT -> {
+                // Edit 38d + 39e + 40: Proper reconnection after vendor-initiated disconnect.
+                // The vendor lib disconnects after ~80s of polling (or on its own schedule).
+                // We need to: cancel polling, reset state for next cycle, and schedule a
+                // delayed restart so the vendor lib can reconnect cleanly.
+                // Edit 40: Guard against double-fire — the vendor lib can send DISCONNECT with
+                // success=false then success=true in quick succession. Use removeCallbacks
+                // before postDelayed to ensure only one restart fires.
                 Log.i(TAG, "Vendor DISCONNECT: success=${message.isSuccess}")
+                cancelBroadcastPoll()
+                vendorGotGlucoseThisCycle = false  // reset for next connection cycle
+                vendorLongConnectTriggered = false  // allow long-connect on next connection
+                vendorStallRetryCount = 0  // Edit 39e: reset stall counter for fresh reconnect cycle
+                cancelReconnectStallTimeout()  // Edit 39e: cancel stall timer — we know the disconnect is intentional
+                vendorConsecutiveDiscoverCount = 0  // Edit 39e: reset discover counter
+                // Cancel any previously scheduled restart before posting a new one
+                vendorDisconnectRestartRunnable?.let { vendorWorkHandler.removeCallbacks(it) }
+                // Schedule a delayed restart — gives the vendor lib time to clean up
+                // its internal state before we re-trigger the scan→connect flow.
+                val restartRunnable = Runnable {
+                    vendorDisconnectRestartRunnable = null
+                    if (vendorBleEnabled && !vendorGattConnected) {
+                        Log.i(TAG, "Vendor DISCONNECT: post-disconnect restart — restarting vendor stack for reconnection")
+                        stopVendor("post-disconnect-reconnect")
+                        ensureVendorStarted("post-disconnect-reconnect")
+                        // Also kick a broadcast scan so the native lib gets fresh advertisement data
+                        scheduleBroadcastScan("post-disconnect-reconnect", forceImmediate = true)
+                    }
+                }
+                vendorDisconnectRestartRunnable = restartRunnable
+                vendorWorkHandler.postDelayed(restartRunnable, 5000L)
             }
             AidexXOperation.PAIR -> {
                 // PAIR success = AES key exchange completed, encryption keys are now available
@@ -1112,7 +1407,26 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             }
             AidexXOperation.BOND -> {
                 Log.i(TAG, "Vendor BOND: success=${message.isSuccess}")
-                if (!message.isSuccess) {
+                if (message.isSuccess) {
+                    // Edit 49d: Retry getId() — it often returns null during PAIR but succeeds
+                    // after BOND completes (the vendor lib populates the ID buffer later).
+                    // Evidence: lostc.txt line 2849 shows "getId() returned null/empty" at PAIR
+                    // time but the ID would have been available after BOND.
+                    val ctrl = vendorController
+                    if (ctrl != null && readStringPref("vendorId", null) == null) {
+                        try {
+                            val id = ctrl.getId()
+                            if (id != null && id.isNotEmpty()) {
+                                writeStringPref("vendorId", bytesToHex(id))
+                                Log.i(TAG, "Edit 49d: Vendor BOND: getId() succeeded on retry (${id.size} bytes)")
+                            } else {
+                                Log.d(TAG, "Edit 49d: Vendor BOND: getId() still null/empty after BOND")
+                            }
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Edit 49d: getId() retry after BOND failed: ${t.message}")
+                        }
+                    }
+                } else {
                     Log.e(TAG, "Vendor BOND FAILED — BLE bonding did not complete")
                 }
             }
@@ -1142,13 +1456,106 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 }
             }
             AidexXOperation.GET_HISTORY_RANGE -> {
-                Log.i(TAG, "Vendor GET_HISTORY_RANGE: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"}")
+                // Edit 45d: Parse 6-byte range response and trigger paginated history download.
+                // Official app pattern: getHistoryRange() → parse range → getHistories(nextEventIndex)
+                Log.i(TAG, "Vendor GET_HISTORY_RANGE: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"} (${data?.size ?: 0} bytes)")
+                if (message.isSuccess && data != null && data.size >= 6) {
+                    val briefStart = (data[0].toInt() and 0xFF) or ((data[1].toInt() and 0xFF) shl 8)
+                    val rawStart = (data[2].toInt() and 0xFF) or ((data[3].toInt() and 0xFF) shl 8)
+                    val newest = (data[4].toInt() and 0xFF) or ((data[5].toInt() and 0xFF) shl 8)
+                    vendorHistoryBriefStart = briefStart
+                    vendorHistoryNewestIndex = newest
+                    Log.i(TAG, "GET_HISTORY_RANGE: briefStart=$briefStart rawStart=$rawStart newest=$newest, our nextIndex=$vendorHistoryNextIndex")
+                    // Clamp nextIndex to at least briefStart (can't request before sensor's earliest)
+                    if (vendorHistoryNextIndex < briefStart) {
+                        Log.i(TAG, "GET_HISTORY_RANGE: clamping nextIndex from $vendorHistoryNextIndex to briefStart=$briefStart")
+                        vendorHistoryNextIndex = briefStart
+                    }
+                    // If there are records to fetch, start paginated download
+                    if (vendorHistoryNextIndex < newest) {
+                        val recordsAvailable = newest - vendorHistoryNextIndex
+                        Log.i(TAG, "GET_HISTORY_RANGE: $recordsAvailable history records available, starting download from index=$vendorHistoryNextIndex")
+                        vendorHistoryDownloading = true
+                        vendorHistoryRecordsStored = 0
+                        // Edit 48: Snapshot current AUTO_UPDATE offset so storeHistoryRecord()
+                        // can skip records already covered by real-time data.
+                        vendorHistoryAutoUpdateCutoff = lastVendorOffsetMinutes
+                        Log.i(TAG, "GET_HISTORY_RANGE: autoUpdateCutoff=$vendorHistoryAutoUpdateCutoff (records at or beyond this offset will be skipped)")
+                        vendorExecutor.execute {
+                            try {
+                                val controller = vendorController ?: return@execute
+                                Log.i(TAG, "GET_HISTORY_RANGE: calling getHistories($vendorHistoryNextIndex)")
+                                val result = controller.getHistories(vendorHistoryNextIndex)
+                                Log.i(TAG, "GET_HISTORY_RANGE: getHistories($vendorHistoryNextIndex) returned $result")
+                            } catch (t: Throwable) {
+                                Log.e(TAG, "GET_HISTORY_RANGE: getHistories failed: ${t.message}")
+                                vendorHistoryDownloading = false
+                            }
+                        }
+                    } else {
+                        Log.i(TAG, "GET_HISTORY_RANGE: no new history (nextIndex=$vendorHistoryNextIndex >= newest=$newest)")
+                        vendorHistoryDownloading = false
+                    }
+                } else if (message.isSuccess && data != null && data.size < 6) {
+                    Log.w(TAG, "GET_HISTORY_RANGE: unexpected data size ${data.size} (expected 6)")
+                }
             }
             AidexXOperation.AUTO_UPDATE_FULL_HISTORY -> {
-                if (data != null && message.isSuccess) handleVendorInstant(data, now, "auto")
+                // Edit 43b: This is the primary real-time glucose push mechanism in long-connect
+                // mode. The sensor sends these continuously (~1/min) after SET_AUTO_UPDATE.
+                // The vendor lib decrypts the F003 notification and delivers parsed data here.
+                // Data is 14 bytes (vendor-parsed), not 17 (raw F003). Edit 43a fixes the parser.
+                // Edit 45c: This is now the PRIMARY data source. When active, slow poll is suppressed.
+                Log.i(TAG, "Vendor AUTO_UPDATE_FULL_HISTORY: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"} (${data?.size ?: 0} bytes)")
+                if (data != null && message.isSuccess) {
+                    val entity = parseVendorInstantPayload(data, now)
+                    if (entity != null) {
+                        storeAutoFromSource(entity.glucoseMgDl, entity.timeOffsetMinutes, now, "vendor-auto", fromVendor = true)
+                        Log.i(TAG, "Vendor AUTO_UPDATE: glucose=${entity.glucoseMgDl} offset=${entity.timeOffsetMinutes}min trend=${entity.trend} — stored")
+                        vendorGotGlucoseThisCycle = true
+                        vendorLastMessageTime = now
+                        // Edit 45c: Mark AUTO_UPDATE as active — this suppresses slow poll in the watchdog
+                        vendorLastAutoUpdateTime = now
+                        // Trigger history backfill on first auto-update glucose (deduped by 5min interval)
+                        requestHistoryBackfill("post-auto-update")
+                    } else {
+                        Log.w(TAG, "Vendor AUTO_UPDATE: parseVendorInstantPayload returned null for ${data.size}-byte payload")
+                    }
+                }
             }
             AidexXOperation.GET_BROADCAST_DATA -> {
-                if (data != null && message.isSuccess) handleVendorBroadcast(data, now, "vendor-gatt")
+                // Edit 37a: Process the broadcast data and schedule the next poll.
+                // Edit 37b: Detect warmup state — the vendor parser returns null when
+                // isValid=0 or glucose is out of 30..500 range (e.g. 0xFF=255 during warmup).
+                // Edit 38b: Stop fast polling once we store a valid glucose value. The vendor lib
+                // disconnects after ~80s of continuous 2s polling.
+                // Edit 44b: Instead of stopping entirely, transition to slow periodic poll (~62s).
+                // This keeps glucose readings flowing even without AUTO_UPDATE pushes.
+                if (data != null && message.isSuccess) {
+                    val result = parseVendorBroadcastPayload(data, now)
+                    if (result != null) {
+                        storeAutoFromSource(result.glucoseMgDl, result.timeOffsetMinutes, now, "vendor-gatt", fromVendor = true)
+                        Log.i(TAG, "Vendor GET_BROADCAST_DATA: glucose=${result.glucoseMgDl} offset=${result.timeOffsetMinutes}min — stored, transitioning to slow poll")
+                        vendorGotGlucoseThisCycle = true
+                        // Edit 44b: Transition to slow poll — don't cancel, just let the
+                        // broadcastPollRunnable detect vendorGotGlucoseThisCycle and switch
+                        if (!vendorSlowPollActive) {
+                            vendorSlowPollActive = true
+                            scheduleNextBroadcastPoll()  // reschedule at slow interval
+                        }
+                        // Edit 42c: Connection is fully alive — request history backfill
+                        requestHistoryBackfill("post-glucose")
+                        return  // Don't schedule another fast poll
+                    } else {
+                        Log.i(TAG, "Vendor GET_BROADCAST_DATA: no valid glucose (warmup or invalid data)")
+                    }
+                } else if (!message.isSuccess) {
+                    Log.w(TAG, "Vendor GET_BROADCAST_DATA: failed (resCode=${message.resCode})")
+                }
+                // Schedule next poll only if we haven't stored a value yet — sensor may transition out of warmup
+                if (!vendorGotGlucoseThisCycle) {
+                    scheduleNextBroadcastPoll()
+                }
             }
             AidexXOperation.RESET -> {
                 Log.i(TAG, "Vendor RESET response: success=${message.isSuccess} resCode=${message.resCode}")
@@ -1160,20 +1567,93 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 Log.i(TAG, "Vendor CLEAR_STORAGE response: success=${message.isSuccess} resCode=${message.resCode}")
             }
             AidexXOperation.GET_HISTORIES -> {
-                Log.i(TAG, "Vendor GET_HISTORIES response: success=${message.isSuccess} data=${data?.let { bytesToHex(it) } ?: "null"} (${data?.size ?: 0} bytes)")
+                // Edit 45d+46+46b: Batch history parsing + lightweight native-only store.
+                // Each record is stored via Natives.aidexProcessData ONLY — no notifications,
+                // alarms, xDrip, HistorySync, or UI updates per record.
+                // A single HistorySync.syncFromNative() fires when the entire download completes.
+                // This reduces 1,070 records from 68 seconds (3 ANRs) to ~1 second.
+                Log.i(TAG, "Vendor GET_HISTORIES response: success=${message.isSuccess} (${data?.size ?: 0} bytes)")
                 if (message.isSuccess && data != null && data.isNotEmpty()) {
-                    // Try to parse each history record from the payload.
-                    // The vendor parser expects individual record payloads.
                     try {
-                        val entity = parseVendorInstantPayload(data, now)
-                        if (entity != null) {
-                            Log.i(TAG, "GET_HISTORIES: parsed glucose=${entity.glucoseMgDl} mg/dL offset=${entity.timeOffsetMinutes}min")
-                            storeAutoFromSource(entity.glucoseMgDl, entity.timeOffsetMinutes, now, "vendor-history", fromVendor = true)
+                        val entities: List<AidexXHistoryEntity>? = AidexXParser.getHistories(data)
+                        if (entities != null && entities.isNotEmpty()) {
+                            var stored = 0
+                            var skipped = 0
+                            var maxOffset = vendorHistoryNextIndex
+                            var newestStoredGlucose = 0
+                            var newestStoredOffset = 0
+                            for (entity in entities) {
+                                val glucose = entity.glucose
+                                val offset = entity.timeOffset
+                                val didStore = storeHistoryRecord(glucose, offset, entity.status, entity.quality, entity.isValid)
+                                if (didStore) {
+                                    stored++
+                                    if (offset > newestStoredOffset) {
+                                        newestStoredOffset = offset
+                                        newestStoredGlucose = glucose
+                                    }
+                                } else {
+                                    skipped++
+                                }
+                                if (offset > maxOffset) maxOffset = offset
+                            }
+                            // Advance nextIndex past what we've received
+                            vendorHistoryNextIndex = maxOffset + 1
+                            // Edit 47: Persist nextIndex so reconnects only download new records
+                            writeIntPref("vendorHistoryNextIndex", vendorHistoryNextIndex)
+                            vendorHistoryRecordsStored += stored
+                            Log.i(TAG, "GET_HISTORIES: page ${entities.size} records, stored=$stored skipped=$skipped, nextIndex=$vendorHistoryNextIndex (newest=$vendorHistoryNewestIndex, total stored=$vendorHistoryRecordsStored)")
+                            // Request next page if more records remain
+                            if (vendorHistoryDownloading && vendorHistoryNextIndex < vendorHistoryNewestIndex) {
+                                vendorExecutor.execute {
+                                    try {
+                                        val controller = vendorController ?: return@execute
+                                        if (!vendorGattConnected || !vendorNativeReady) {
+                                            Log.w(TAG, "GET_HISTORIES: pagination aborted — GATT disconnected")
+                                            vendorHistoryDownloading = false
+                                            // Still sync what we have so far
+                                            if (vendorHistoryRecordsStored > 0) {
+                                                try { tk.glucodata.data.HistorySync.syncFromNative() } catch (_: Throwable) {}
+                                            }
+                                            return@execute
+                                        }
+                                        Log.i(TAG, "GET_HISTORIES: requesting next page from index=$vendorHistoryNextIndex")
+                                        val result = controller.getHistories(vendorHistoryNextIndex)
+                                        Log.i(TAG, "GET_HISTORIES: getHistories($vendorHistoryNextIndex) returned $result")
+                                    } catch (t: Throwable) {
+                                        Log.e(TAG, "GET_HISTORIES: pagination failed: ${t.message}")
+                                        vendorHistoryDownloading = false
+                                        if (vendorHistoryRecordsStored > 0) {
+                                            try { tk.glucodata.data.HistorySync.syncFromNative() } catch (_: Throwable) {}
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Download complete — do a SINGLE sync to update Compose chart
+                                Log.i(TAG, "GET_HISTORIES: download complete — $vendorHistoryRecordsStored records stored total")
+                                vendorHistoryDownloading = false
+                                if (vendorHistoryRecordsStored > 0) {
+                                    try { tk.glucodata.data.HistorySync.syncFromNative() } catch (_: Throwable) {}
+                                    Log.i(TAG, "GET_HISTORIES: HistorySync triggered after $vendorHistoryRecordsStored records")
+                                }
+                            }
                         } else {
-                            Log.d(TAG, "GET_HISTORIES: native parser returned null for payload")
+                            Log.d(TAG, "GET_HISTORIES: parser returned null/empty list for ${data.size}-byte payload")
+                            vendorHistoryDownloading = false
                         }
                     } catch (t: Throwable) {
                         Log.w(TAG, "GET_HISTORIES: parse failed: ${t.message}")
+                        vendorHistoryDownloading = false
+                        if (vendorHistoryRecordsStored > 0) {
+                            try { tk.glucodata.data.HistorySync.syncFromNative() } catch (_: Throwable) {}
+                        }
+                    }
+                } else {
+                    // resCode=4 with empty data means no more records at this index
+                    Log.i(TAG, "GET_HISTORIES: empty/failed response (resCode=${message.resCode}) — download complete ($vendorHistoryRecordsStored records stored)")
+                    vendorHistoryDownloading = false
+                    if (vendorHistoryRecordsStored > 0) {
+                        try { tk.glucodata.data.HistorySync.syncFromNative() } catch (_: Throwable) {}
                     }
                 }
             }
@@ -1185,6 +1665,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             }
             AidexXOperation.AUTO_UPDATE_BATTERY_VOLTAGE -> {
                 Log.i(TAG, "Vendor AUTO_UPDATE_BATTERY_VOLTAGE: success=${message.isSuccess}")
+            }
+            // Edit 37c: Handle long-connect setup responses properly
+            AidexXOperation.SET_DYNAMIC_ADV_MODE -> {
+                Log.i(TAG, "Vendor SET_DYNAMIC_ADV_MODE: success=${message.isSuccess}")
+            }
+            AidexXOperation.SET_AUTO_UPDATE_STATUS -> {
+                Log.i(TAG, "Vendor SET_AUTO_UPDATE_STATUS: success=${message.isSuccess}")
             }
             else -> {
                 Log.d(TAG, "Vendor unhandled op=${message.operation} (0x${Integer.toHexString(message.operation)}) success=${message.isSuccess}")
@@ -1280,7 +1767,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private var reconnectStallRunnable: Runnable? = null
     private val RECONNECT_STALL_TIMEOUT_MS = 30_000L  // Edit 35b: increased from 20s to 30s
     private var vendorStallRetryCount = 0  // Edit 36d: track soft-restart attempts
-    private val VENDOR_MAX_SOFT_RETRIES = 2  // Edit 36d: after this many soft retries, do full stopVendor
+    private val VENDOR_MAX_SOFT_RETRIES = 3  // Edit 39b: increased from 2 → 3 (soft restarts are safer now, no bond removal)
 
     private fun scheduleReconnectStallTimeout() {
         // Cancel any previous stall timer
@@ -1294,22 +1781,31 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 // No vendor activity (messages, reads, writes) since timeout was set
                 vendorStallRetryCount++
                 Log.w(TAG, "Reconnect stall timeout: no vendor activity for ${elapsed}ms after onConnectSuccess (retry #$vendorStallRetryCount)")
-                if (isVendorPaired()) {
-                    Log.w(TAG, "Reconnect stall: clearing stale pairing keys and retrying fresh")
-                    clearVendorPairingKeys()
-                }
-                // Remove BLE bond — sensor may have a different bond context
-                val gatt = mBluetoothGatt
-                if (gatt != null) {
-                    try {
-                        val device = gatt.device
-                        if (device.bondState == BluetoothDevice.BOND_BONDED) {
-                            Log.i(TAG, "Reconnect stall: removing BLE bond for ${device.address}")
-                            removeBondIfBonded(device)
-                        }
-                    } catch (t: Throwable) {
-                        Log.e(TAG, "Reconnect stall: removeBond failed: ${t.message}")
+                // Edit 39b: Do NOT clear pairing keys or remove BLE bond when vendor mode is active.
+                // The vendor lib (libblecomm-lib.so) relies on the BLE bond to transition from
+                // DISCOVER → executeConnect. Removing the bond puts the vendor lib into "unpaired"
+                // mode where it only DISCOVERs but never connects. Keys are valid unless the sensor
+                // itself has been reset/re-paired with another device.
+                // Only clear keys/bond in non-vendor (raw handshake) mode.
+                if (!vendorBleEnabled) {
+                    if (isVendorPaired()) {
+                        Log.w(TAG, "Reconnect stall: clearing stale pairing keys and retrying fresh (non-vendor mode)")
+                        clearVendorPairingKeys()
                     }
+                    val gatt = mBluetoothGatt
+                    if (gatt != null) {
+                        try {
+                            val device = gatt.device
+                            if (device.bondState == BluetoothDevice.BOND_BONDED) {
+                                Log.i(TAG, "Reconnect stall: removing BLE bond for ${device.address}")
+                                removeBondIfBonded(device)
+                            }
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Reconnect stall: removeBond failed: ${t.message}")
+                        }
+                    }
+                } else {
+                    Log.i(TAG, "Reconnect stall: vendor mode active — preserving bond + keys (vendor lib needs them)")
                 }
 
                 if (vendorStallRetryCount <= VENDOR_MAX_SOFT_RETRIES) {
@@ -1365,12 +1861,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     }, 3_000L)
                 }
             } else {
-                // Vendor activity was seen — reschedule for remaining time
+                // Edit 39a: Vendor activity was seen — reschedule for remaining time.
+                // FIX: The old code created a Runnable that called reconnectStallRunnable?.run()
+                // synchronously, but reconnectStallRunnable pointed to that same Runnable
+                // → infinite recursion → StackOverflowError.
+                // Fix: just re-post the SAME runnable with the remaining delay. No new wrapper needed.
                 val remainingMs = RECONNECT_STALL_TIMEOUT_MS - elapsed
                 Log.d(TAG, "Reconnect stall check: last vendor activity ${elapsed}ms ago, rescheduling in ${remainingMs}ms")
-                val reschedule = Runnable { reconnectStallRunnable?.run() }
-                reconnectStallRunnable = reschedule
-                vendorWorkHandler.postDelayed(reschedule, remainingMs)
+                vendorWorkHandler.postDelayed(reconnectStallRunnable ?: return@Runnable, remainingMs)
             }
         }
         reconnectStallRunnable = runnable
@@ -1438,6 +1936,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (!vendorBleEnabled) return
         if (!vendorLibAvailable) return
         if (!vendorGattNotified) return
+        if (vendorLongConnectTriggered) {
+            Log.d(TAG, "Vendor long-connect: already triggered, skipping ($reason)")
+            return
+        }
         val controller = vendorController ?: return
         // Use aidexBonded (receiver-tracked) instead of getBondState() to avoid Android BLE stack race
         val bondState = mBluetoothGatt?.device?.bondState ?: BluetoothDevice.BOND_NONE
@@ -1450,13 +1952,27 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             return
         }
         vendorLongConnectPendingReason = null
+        vendorLongConnectTriggered = true  // Edit 39e: prevent double-trigger
         try {
             controller.setDynamicMode(1)
             controller.setAutoUpdate()
             controller.getBroadcastDataWithLog()
-            Log.i(TAG, "Vendor long-connect started ($reason)")
+            Log.i(TAG, "Vendor long-connect started ($reason) — starting 2s polling loop")
+            // Edit 39e: Explicitly start the polling loop. The GET_BROADCAST_DATA handler
+            // schedules the next poll, but we need to kick the first one here.
+            vendorPollCount = 1  // count this initial getBroadcastData
+            vendorGotGlucoseThisCycle = false
+            scheduleNextBroadcastPoll()
+            // Edit 45e: Request history immediately after long-connect commands.
+            // Official app downloads ALL history right after connecting, before anything else.
+            // We call getHistoryRange() which triggers paginated getHistories() in its handler.
+            // No delay — the vendor lib can handle concurrent commands.
+            if (vendorBleEnabled && vendorGattConnected && vendorNativeReady) {
+                requestHistoryBackfill("long-connect")
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "Vendor long-connect failed: ${t.message}")
+            vendorLongConnectTriggered = false  // allow retry on failure
         }
     }
 
@@ -1472,6 +1988,11 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
     private fun drainVendorGattQueue() {
         if (vendorGattOpActive) return
+        // Edit 41b: Don't drain while paused for bonding
+        if (vendorQueuePausedForBonding) {
+            Log.d(TAG, "drainVendorGattQueue: paused for bonding, will resume on BOND_BONDED")
+            return
+        }
         if (vendorGattQueue.isEmpty()) return
         val next = vendorGattQueue.removeFirst()
         val gatt = mBluetoothGatt
@@ -1495,11 +2016,42 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
                 }
                 val ok = gatt.writeCharacteristic(characteristic)
-                Log.i(TAG, "Vendor write [0x${Integer.toHexString(next.uuid)}] data=${bytesToHex(next.data)} ok=$ok (queueRemaining=${vendorGattQueue.size})")
+                Log.i(TAG, "Vendor write [0x${Integer.toHexString(next.uuid)}] data=${bytesToHex(next.data)} ok=$ok (queueRemaining=${vendorGattQueue.size} retry=${next.retryCount})")
                 vendorGattOpActive = ok
                 if (!ok) {
-                    vendorGattQueue.addFirst(next)
-                    handshakeHandler.postDelayed({ drainVendorGattQueue() }, 200L)
+                    // Edit 41b: If bonding is in progress, pause the queue instead of burning retries.
+                    // SMP bonding takes 3-6 seconds but the 200ms retry loop exhausts 10 retries in 2s.
+                    val bondState = gatt.device?.bondState ?: BluetoothDevice.BOND_NONE
+                    if (bondState == BluetoothDevice.BOND_BONDING) {
+                        Log.i(TAG, "Vendor write [0x${Integer.toHexString(next.uuid)}] ok=false during BOND_BONDING — " +
+                                "pausing queue (retry count NOT incremented, will resume on BOND_BONDED)")
+                        vendorQueuePausedForBonding = true
+                        vendorGattQueue.addFirst(next)  // re-queue WITHOUT incrementing retryCount
+                        // Safety timeout: if BOND_BONDED never arrives, resume after 15s
+                        vendorWorkHandler.postDelayed({
+                            if (vendorQueuePausedForBonding) {
+                                Log.w(TAG, "Edit 41b: Bonding pause timeout (${VENDOR_BONDING_PAUSE_TIMEOUT_MS}ms) — " +
+                                        "resuming queue regardless")
+                                vendorQueuePausedForBonding = false
+                                drainVendorGattQueue()
+                            }
+                        }, VENDOR_BONDING_PAUSE_TIMEOUT_MS)
+                        return
+                    }
+                    // Edit 38c: Enforce retry limit to prevent infinite write-fail loops
+                    next.retryCount++
+                    if (next.retryCount >= VENDOR_GATT_OP_MAX_RETRIES) {
+                        Log.e(TAG, "Vendor write [0x${Integer.toHexString(next.uuid)}] FAILED after ${next.retryCount} retries — dropping op and restarting")
+                        vendorGattQueue.clear()
+                        vendorGattOpActive = false
+                        vendorWorkHandler.post {
+                            stopVendor("write-retry-exhausted")
+                            ensureVendorStarted("write-retry-exhausted")
+                        }
+                    } else {
+                        vendorGattQueue.addFirst(next)
+                        handshakeHandler.postDelayed({ drainVendorGattQueue() }, 200L)
+                    }
                 }
             }
             is VendorGattOp.Read -> {
@@ -1510,11 +2062,23 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     return
                 }
                 val ok = gatt.readCharacteristic(characteristic)
-                Log.i(TAG, "Vendor read [0x${Integer.toHexString(next.uuid)}] ok=$ok (queueRemaining=${vendorGattQueue.size})")
+                Log.i(TAG, "Vendor read [0x${Integer.toHexString(next.uuid)}] ok=$ok (queueRemaining=${vendorGattQueue.size} retry=${next.retryCount})")
                 vendorGattOpActive = ok
                 if (!ok) {
-                    vendorGattQueue.addFirst(next)
-                    handshakeHandler.postDelayed({ drainVendorGattQueue() }, 200L)
+                    // Edit 38c: Enforce retry limit for reads too
+                    next.retryCount++
+                    if (next.retryCount >= VENDOR_GATT_OP_MAX_RETRIES) {
+                        Log.e(TAG, "Vendor read [0x${Integer.toHexString(next.uuid)}] FAILED after ${next.retryCount} retries — dropping op and restarting")
+                        vendorGattQueue.clear()
+                        vendorGattOpActive = false
+                        vendorWorkHandler.post {
+                            stopVendor("read-retry-exhausted")
+                            ensureVendorStarted("read-retry-exhausted")
+                        }
+                    } else {
+                        vendorGattQueue.addFirst(next)
+                        handshakeHandler.postDelayed({ drainVendorGattQueue() }, 200L)
+                    }
                 }
             }
         }
@@ -1601,7 +2165,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
 
         fun handleCharacteristicChanged(characteristic: BluetoothGattCharacteristic, data: ByteArray) {
-            val id = uuidToShort(characteristic.uuid)
+            var id = uuidToShort(characteristic.uuid)
             Log.d(TAG, "Vendor RX [0x${Integer.toHexString(id)}]: ${bytesToHex(data)}")
             // Edit 27: Forward data as soon as native lib has set up its connection context
             // (vendorExecuteConnectReceived), not after onConnectSuccess (vendorNativeReady).
@@ -1609,6 +2173,16 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             if (!vendorExecuteConnectReceived) {
                 Log.d(TAG, "Vendor RX [0x${Integer.toHexString(id)}]: skipped, executeConnect not received yet")
                 return
+            }
+            // Edit 42a: When Fix 41a redirected a write from F003 (NOTIFY-only) to F001
+            // (writable), the sensor sends its response on F001. But the vendor lib
+            // registered F003 as its privateCharacteristicUuid and only listens for
+            // data on that UUID. Remap F001 notifications → F003 so the vendor lib
+            // recognizes them. This completes the write-redirect chain:
+            //   vendor wants F003 → we write to F001 → sensor responds on F001 → we tell vendor it came from F003.
+            if (id == 0xF001 && mPrivateCharacteristicUuid == 0xF003) {
+                Log.i(TAG, "Edit 42a: Remapping RX from 0xF001→0xF003 (vendor lib expects F003 as private)")
+                id = 0xF003
             }
             // Edit 28: Route onReceiveData through vendorWorkHandler like the official app.
             // In the official app, received data is posted as RECEIVER_DATA (what=0x7D0)
@@ -1631,6 +2205,15 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             deviceStore.getDeviceMap()[str]?.let { mActiveBluetoothDevice = it }
             vendorConnectPending = true
             vendorExecuteConnectReceived = true  // Native lib has set up its internal connection state machine
+            vendorConsecutiveDiscoverCount = 0  // Edit 37e: reset — native lib is progressing normally
+            vendorReconnectSpamRestarts = 0  // Edit 41c: reset — executeConnect arrived, no more spam
+            vendorReconnectFallbackAttempt = 0  // Edit 49c: reset — executeConnect arrived, no more fallback needed
+            // Edit 40: Cancel the reconnect fallback timer — executeConnect arrived successfully
+            vendorReconnectFallbackRunnable?.let {
+                vendorWorkHandler.removeCallbacks(it)
+                vendorReconnectFallbackRunnable = null
+                Log.d(TAG, "Vendor: reconnect fallback cancelled — executeConnect received")
+            }
 
             // Edit 36b: Now that the native Ble context is allocated, query the real UUIDs.
             // Update mCharacteristicUuid/mPrivateCharacteristicUuid. Since Edit 36a maps ALL
@@ -1778,15 +2361,71 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
 
         // Edit 28: Route executeWriteCharacteristic through vendorWorkHandler.
+        // Edit 41a: Redirect writes to non-writable characteristics (e.g. F003, NOTIFY-only)
+        // to the first writable F00x characteristic. The vendor lib non-deterministically
+        // picks F003 as the "private" char for PAIR writes, but F003 has props=0x10 (NOTIFY
+        // only) and writeCharacteristic() always returns false. F001 (props=0x18,
+        // WRITE_NO_RESPONSE + NOTIFY) is the correct PAIR target.
         override fun executeWriteCharacteristic(i: Int, bArr: ByteArray) {
             Log.i(TAG, "executeWriteCharacteristic: native requested write char 0x${Integer.toHexString(i)} (${bArr.size} bytes, thread=${Thread.currentThread().name})")
             vendorLastMessageTime = System.currentTimeMillis()  // Edit 35b: keep stall timer alive
             val dataCopy = bArr.copyOf()
+
+            // Edit 41a: Check if target characteristic is writable; if not, redirect.
+            var targetUuid = i
+            val targetChar = getCharacteristic(targetUuid)
+            if (targetChar != null) {
+                val props = targetChar.properties
+                val writable = (props and (BluetoothGattCharacteristic.PROPERTY_WRITE or
+                        BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) != 0
+                if (!writable) {
+                    val fallback = findFirstWritableCharacteristic(exclude = targetUuid)
+                    if (fallback != null) {
+                        Log.w(TAG, "Edit 41a: Redirecting write from 0x${Integer.toHexString(targetUuid)} " +
+                                "(props=0x${Integer.toHexString(props)}, NOT writable) " +
+                                "to 0x${Integer.toHexString(fallback)}")
+                        targetUuid = fallback
+                    } else {
+                        Log.e(TAG, "Edit 41a: Target 0x${Integer.toHexString(targetUuid)} is NOT writable " +
+                                "and no writable fallback found! Write will likely fail.")
+                    }
+                }
+            }
+
+            val finalUuid = targetUuid
             vendorWorkHandler.post {
-                Log.i(TAG, "executeWriteCharacteristic: processing on handler — char 0x${Integer.toHexString(i)}, data=${bytesToHex(dataCopy)} (${dataCopy.size} bytes)")
-                vendorWrite(i, dataCopy)
+                Log.i(TAG, "executeWriteCharacteristic: processing on handler — char 0x${Integer.toHexString(finalUuid)}, data=${bytesToHex(dataCopy)} (${dataCopy.size} bytes)")
+                vendorWrite(finalUuid, dataCopy)
                 checkAndBond()
             }
+        }
+
+        /**
+         * Edit 41a: Find the first writable characteristic in the F000 service map.
+         * Prefers F001 (the known PAIR target), falls back to any other writable char.
+         * Returns the short UUID (e.g., 0xF001) or null if none found.
+         */
+        private fun findFirstWritableCharacteristic(exclude: Int = 0): Int? {
+            val writeMask = BluetoothGattCharacteristic.PROPERTY_WRITE or
+                    BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+            // Prefer F001 explicitly — it's the known working PAIR characteristic
+            val f001 = characteristics[0xF001]
+            if (f001 != null && (f001.properties and writeMask) != 0 && 0xF001 != exclude) {
+                return 0xF001
+            }
+            // Fallback: any writable characteristic except the excluded one and F002
+            // (F002 is the main command channel, not the PAIR channel)
+            for ((uuid, char) in characteristics) {
+                if (uuid == exclude) continue
+                if (uuid == 0xF002) continue  // don't redirect PAIR writes to command channel
+                if ((char.properties and writeMask) != 0) return uuid
+            }
+            // Last resort: F002 is writable too
+            val f002 = characteristics[0xF002]
+            if (f002 != null && (f002.properties and writeMask) != 0 && 0xF002 != exclude) {
+                return 0xF002
+            }
+            return null
         }
 
         private fun checkAndBond() {
@@ -2009,10 +2648,15 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             vendorNativeReady = false
             vendorExecuteConnectReceived = false
             vendorConnectSuccessCrashCount = 0  // reset crash counter on fresh disconnect
+            vendorReconnectFallbackAttempt = 0  // Edit 49c: reset fallback attempt counter for next reconnect cycle
             vendorLongConnectPendingReason = null  // cancel any deferred long-connect
+            vendorLongConnectTriggered = false  // Edit 45a: reset so wantsBroadcastScan() allows scanning post-disconnect
             vendorConnectSuccessPendingCaller = null  // cancel any deferred onConnectSuccess
             aidexBonded = false
             cccdAuthFailSeen = false  // Edit 26: reset for clean state
+            cancelBroadcastPoll()  // Edit 37a: stop polling on disconnect
+            vendorHistoryDownloading = false  // Edit 45d: abort any in-progress history download
+            lastHistoryRequestTime = 0L  // Edit 48: reset cooldown so history resumes immediately after reconnect
             cancelReconnectStallTimeout()  // Edit 34: cancel stall timer on disconnect
             unregisterAidexBondReceiver()
 
@@ -2055,6 +2699,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             } else if (status == 0 || status == BluetoothGatt.GATT_SUCCESS) {
                 // Successful disconnect — reset auth failure counter
                 consecutiveAuthFailures = 0
+            }
+
+            // Edit 45a: Resume broadcast scanning after GATT disconnect.
+            // vendorLongConnectTriggered is now false, so wantsBroadcastScan() will allow scans.
+            // This ensures we catch advertisements while waiting for reconnect.
+            if (status != 5 && wantsBroadcastScan()) {
+                scheduleBroadcastScan("gatt-disconnect", forceImmediate = true)
             }
 
             close()
@@ -2227,6 +2878,49 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         fun shortToFullUuid(short: Int): UUID =
             UUID.fromString("0000${Integer.toHexString(short).padStart(4, '0')}-0000-1000-8000-00805f9b34fb")
 
+        // Edit 42b: When Fix 41a redirects writes from a non-writable private UUID (e.g. F003)
+        // to F001, the sensor responds on F001. We need F001's CCCD enabled to receive those
+        // notifications. Enable F001 first (supplemenary), then proceed with normal chain.
+        // This is safe because setCharacteristicNotification + writeDescriptor for F001 will
+        // complete quickly, and the onDescriptorWrite chain handles the rest.
+        if (privUuid != 0xF001 && charUuid != 0xF001) {
+            val cF001 = sF000.getCharacteristic(shortToFullUuid(0xF001))
+            if (cF001 != null) {
+                Log.i(TAG, "Edit 42b: Enabling supplementary CCCD on F001 (write-redirect target)")
+                gatt.setCharacteristicNotification(cF001, true)
+                val descriptor = cF001.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG)
+                if (descriptor != null) {
+                    descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    gatt.writeDescriptor(descriptor)
+                    // Note: This CCCD write will complete before the main chain starts below.
+                    // The onDescriptorWrite handler will see F001 and not match privUuid/charUuid,
+                    // so it won't interfere with the chain logic.
+                }
+            }
+        }
+
+        // Edit 44a: When native lib picks priv=F001 (first connection, no saved keys), the
+        // sensor pushes AUTO_UPDATE data on F003 — but F003's CCCD is never enabled on that path.
+        // Result: the connection goes silent after the first GET_BROADCAST_DATA.
+        // Fix: Always enable F003 CCCD as supplementary when not already in the chain.
+        // This is the symmetric counterpart of Edit 42b (which enables F001 when on the F003 path).
+        if (privUuid != 0xF003 && charUuid != 0xF003) {
+            val cF003 = sF000.getCharacteristic(shortToFullUuid(0xF003))
+            if (cF003 != null) {
+                Log.i(TAG, "Edit 44a: Enabling supplementary CCCD on F003 (auto-update push target)")
+                gatt.setCharacteristicNotification(cF003, true)
+                val descriptorF003 = cF003.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG)
+                if (descriptorF003 != null) {
+                    descriptorF003.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    gatt.writeDescriptor(descriptorF003)
+                    // Note: Same safety as Edit 42b — this completes before the main chain,
+                    // and onDescriptorWrite won't match privUuid/charUuid so it won't interfere.
+                }
+            } else {
+                Log.w(TAG, "Edit 44a: F003 characteristic not found in SERVICE_F000")
+            }
+        }
+
         val privCharFull = shortToFullUuid(privUuid)
         val charCharFull = shortToFullUuid(charUuid)
 
@@ -2234,7 +2928,15 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         val cPriv = sF000.getCharacteristic(privCharFull)
         if (cPriv != null) {
             Log.i(TAG, "enableVendorNotifications: Starting CCCD chain with private 0x${Integer.toHexString(privUuid)}")
-            setCharacteristicNotification(gatt, cPriv, true)
+            // Edit 42b / 44a: We always write at least one supplementary CCCD above (F001 and/or
+            // F003), so delay the main chain's CCCD write to avoid GATT operation collision
+            // (Android BLE stack does one op at a time).
+            vendorWorkHandler.postDelayed({
+                val gattNow = mBluetoothGatt
+                if (gattNow != null) {
+                    setCharacteristicNotification(gattNow, cPriv, true)
+                }
+            }, 300L)
         } else {
             Log.w(TAG, "enableVendorNotifications: private characteristic 0x${Integer.toHexString(privUuid)} not found. Trying characteristic 0x${Integer.toHexString(charUuid)} directly.")
             // Fallback: try the write-target characteristic alone
@@ -3143,10 +3845,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (payload.isEmpty()) return null
         if (!vendorLibAvailable) return null
 
-        // 17-byte packets are standard data frames
-        if (payload.size != 17) {
-             // 5-byte packets are likely status/keepalive
-             return null 
+        // Edit 43a: Accept both 14-byte (vendor message callback) and 17-byte (raw F003
+        // notification) payloads. The vendor AUTO_UPDATE_FULL_HISTORY (op=65025) delivers
+        // 14-byte data arrays after resCode stripping. The native AidexXParser handles both
+        // sizes internally. Previous 17-byte hard-check silently dropped all vendor push data.
+        if (payload.size < 14) {
+             // Short packets (e.g. 5-byte status/keepalive) are not glucose data
+             Log.d(TAG, "parseVendorInstantPayload: payload too short (${payload.size} bytes), skipping")
+             return null
         }
 
         val loaded = try {
@@ -3169,18 +3875,23 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         val entity = try {
             AidexXParser.getAidexXInstantHistory(payload) as? com.microtechmd.blecomm.parser.AidexXInstantHistoryEntity
         } catch (t: Throwable) {
-            Log.e(TAG, "AidexXParser failed: ${t.message}")
+            Log.e(TAG, "AidexXParser.getAidexXInstantHistory failed for ${payload.size}-byte payload: ${t.message}")
             return null
-        } ?: return null
+        }
+        if (entity == null) {
+            Log.d(TAG, "parseVendorInstantPayload: native parser returned null for ${payload.size}-byte payload")
+            return null
+        }
 
-        val history = entity.history ?: return null
+        val history = entity.history
+        if (history == null) {
+            Log.d(TAG, "parseVendorInstantPayload: entity.history is null (entity=$entity)")
+            return null
+        }
         val glucose = history.glucose
         
-        // Removed incorrect Sanitizer. 
-        // If the parser returns a value, we trust it for now as per correct protocol handling.
-        
-        // Debug logging 
-        // Log.i(TAG, "Vendor entity: valid=${history.isValid} glucose=$glucose timeOffset=${history.timeOffset}")
+        // Edit 43a: Log parser results for diagnostics — critical for verifying auto-update decoding
+        Log.i(TAG, "parseVendorInstantPayload(${payload.size}B): valid=${history.isValid} glucose=$glucose timeOffset=${history.timeOffset} entity=$entity")
         
         if (history.isValid == 0) return null
         if (glucose !in 30..500) return null
@@ -3811,20 +4522,58 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     private fun checkAndRequestHistory() {
-         if (System.currentTimeMillis() - lastHistoryRequestTime > 300_000L) { // 5 mins
-            lastHistoryRequestTime = System.currentTimeMillis()
-            // Post to background thread — executeVendorCommand blocks for up to 27s
-            // (ensureVendorGattReady + AES wait + write wait). Must NEVER run on
-            // main thread or BLE Binder thread (causes ANR / deadlock).
-            vendorExecutor.execute {
-                try {
-                    Log.i(TAG, "Requesting History Backfill (async)...")
-                    executeVendorCommand("get-history", AidexXOperation.GET_HISTORIES) { controller ->
-                        controller.getHistories(0)
-                    }
-                } catch (t: Throwable) {
-                    Log.e(TAG, "History backfill failed: ${t.message}")
+        requestHistoryBackfill("auto")
+    }
+
+    /**
+     * Edit 45d: Rewritten to match official app pattern:
+     * 1. Call getHistoryRange() — response arrives at GET_HISTORY_RANGE handler
+     * 2. GET_HISTORY_RANGE handler parses the 6-byte range, calls getHistories(nextIndex)
+     * 3. GET_HISTORIES handler processes each batch and requests next page
+     *
+     * Deduplicates by enforcing a 5-minute minimum interval between requests.
+     * Runs on vendorExecutor (background thread) because the native call blocks.
+     */
+    private fun requestHistoryBackfill(reason: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastHistoryRequestTime < 60_000L) { // Edit 48: reduced from 300s to 60s — history is fast/lightweight now
+            Log.d(TAG, "requestHistoryBackfill($reason): skipped, last request was ${(now - lastHistoryRequestTime) / 1000}s ago")
+            return
+        }
+        if (vendorHistoryDownloading) {
+            Log.d(TAG, "requestHistoryBackfill($reason): skipped, download already in progress")
+            return
+        }
+        lastHistoryRequestTime = now
+        vendorExecutor.execute {
+            try {
+                Log.i(TAG, "Requesting History Backfill ($reason, async) via getHistoryRange()...")
+                val controller = vendorController
+                if (controller == null) {
+                    Log.w(TAG, "requestHistoryBackfill($reason): vendorController is null")
+                    return@execute
                 }
+                if (!vendorBleEnabled) {
+                    Log.w(TAG, "requestHistoryBackfill($reason): vendorBleEnabled=false")
+                    return@execute
+                }
+                if (!vendorGattConnected || !vendorNativeReady) {
+                    Log.w(TAG, "requestHistoryBackfill($reason): GATT not connected or native not ready, deferring")
+                    lastHistoryRequestTime = 0L // Reset so next auto-update can retry
+                    return@execute
+                }
+                // Edit 45d: Call getHistoryRange() first — the response handler (GET_HISTORY_RANGE)
+                // will parse the range and trigger getHistories(nextEventIndex) automatically.
+                val result = try {
+                    controller.getHistoryRange()
+                } catch (t: Throwable) {
+                    Log.e(TAG, "requestHistoryBackfill($reason): getHistoryRange() threw: ${t.message}")
+                    lastHistoryRequestTime = 0L // Reset for retry
+                    return@execute
+                }
+                Log.i(TAG, "requestHistoryBackfill($reason): getHistoryRange() returned $result (0x${Integer.toHexString(result)})")
+            } catch (t: Throwable) {
+                Log.e(TAG, "History backfill failed ($reason): ${t.message}")
             }
         }
     }
@@ -3883,6 +4632,105 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     private var lastHistoryRequestTime = 0L
+
+    // Edit 45d: History range + pagination tracking.
+    // The official app calls getHistoryRange() first, which returns 6 bytes:
+    //   [0..1] = briefRangeStartIndex (earliest valid brief history index on sensor)
+    //   [2..3] = rawRangeStartIndex (earliest valid raw history index on sensor)
+    //   [4..5] = newestEventIndex (newest history index on sensor)
+    // Then calls getHistories(nextEventIndex) with the correct starting index.
+    // Each response contains a batch of AidexXHistoryEntity records parsed by AidexXParser.getHistories().
+    // If nextEventIndex < newestEventIndex after a batch, request the next page.
+    private var vendorHistoryBriefStart: Int = 0    // briefRangeStartIndex from GET_HISTORY_RANGE
+    private var vendorHistoryNewestIndex: Int = 0   // newestEventIndex from GET_HISTORY_RANGE
+    // Edit 47: Persisted to SharedPreferences so reconnects only download new records.
+    // Loaded from prefs at declaration; saved after each history batch and reset on new sensor.
+    private var vendorHistoryNextIndex: Int = readIntPref("vendorHistoryNextIndex", 0).also {
+        Log.i(TAG, "Edit 47: Loaded vendorHistoryNextIndex=$it from SharedPreferences")
+    }
+    private var vendorHistoryDownloading: Boolean = false  // true while paginated download is in progress
+    private var vendorHistoryRecordsStored: Int = 0 // count of records stored in current download session
+    // Edit 48: Snapshot of lastVendorOffsetMinutes when history download starts.
+    // Records at or beyond this offset are already covered by AUTO_UPDATE real-time data,
+    // so storeHistoryRecord() skips them to avoid duplicates.
+    private var vendorHistoryAutoUpdateCutoff: Int = 0
+
+    /**
+     * Edit 46: Store a historical glucose record at its correct past timestamp.
+     * Edit 46b: LIGHTWEIGHT path — calls Natives.aidexProcessData ONLY.
+     *
+     * Unlike storeAidexReading() which triggers the full real-time pipeline
+     * (handleGlucoseResult → notifications, alarms, xDrip, CustomAlerts, HealthConnect,
+     * HistorySync.syncFromNative → 14+ Compose recomposition threads), this function
+     * ONLY writes to the native data store. No notifications, no alarms, no UI updates.
+     *
+     * The caller (GET_HISTORIES handler) does a single HistorySync.syncFromNative()
+     * after each batch page, and a single handleGlucoseResult for the newest record
+     * after the entire download completes.
+     *
+     * This reduces per-record cost from ~64ms (20 operations) to <1ms (1 JNI call).
+     * 1,070 records: 68 seconds → ~1 second.
+     *
+     * Filtering:
+     *   - glucose=1023 (ADC saturation sentinel at offset 1) → skipped
+     *   - glucose<=0, isValid!=1, offset<=0 → skipped
+     *   - Warmup data (status=1) → STORED (real sensor wetting curve, not placeholder)
+     *
+     * @return true if the record was stored, false if filtered/skipped
+     */
+    private fun storeHistoryRecord(
+        glucoseInt: Int,
+        offsetMinutes: Int,
+        status: Int,
+        quality: Int,
+        isValid: Int
+    ): Boolean {
+        // Filter invalid records
+        if (offsetMinutes <= 0 || offsetMinutes > 14 * 24 * 60) return false
+        if (isValid != 1) return false
+        // ADC saturation sentinel — not a real reading (offset 1 always returns 1023 = 0x3FF)
+        if (glucoseInt >= 1023) return false
+        // Negative or zero glucose is garbage
+        if (glucoseInt <= 0) return false
+        // Edit 48: Skip records already covered by AUTO_UPDATE real-time data.
+        // AUTO_UPDATE stores a fresher value for these offsets, so history would be a duplicate
+        // (and may even differ slightly due to sensor averaging).
+        if (vendorHistoryAutoUpdateCutoff > 0 && offsetMinutes >= vendorHistoryAutoUpdateCutoff) return false
+
+        // Need sensorstartmsec to compute historical timestamp
+        if (sensorstartmsec == 0L) {
+            Log.w(TAG, "storeHistoryRecord: sensorstartmsec=0, cannot compute timestamp for offset=$offsetMinutes")
+            return false
+        }
+        if (dataptr == 0L) {
+            Log.w(TAG, "storeHistoryRecord: dataptr=0, skipping offset=$offsetMinutes")
+            return false
+        }
+
+        val glucoseMgDl = glucoseInt.toFloat()
+
+        // Compute the correct historical timestamp for this record
+        val historicalTimeMs = sensorstartmsec + (offsetMinutes.toLong() * 60_000L)
+
+        // Sanity: don't store readings from the future (clock skew protection)
+        val now = System.currentTimeMillis()
+        if (historicalTimeMs > now + 120_000L) {  // 2-minute tolerance
+            Log.w(TAG, "storeHistoryRecord: offset=$offsetMinutes timestamp=${historicalTimeMs} is in the future (now=$now), skipping")
+            return false
+        }
+
+        // Edit 46b: LIGHTWEIGHT store — Natives.aidexProcessData ONLY.
+        // NO handleGlucoseResult (notifications, alarms, xDrip, CustomAlerts, HealthConnect)
+        // NO HistorySync.syncFromNative (Compose recomposition)
+        // The caller batches sync after each page.
+        try {
+            Natives.aidexProcessData(dataptr, byteArrayOf(0), historicalTimeMs, glucoseMgDl, 0f, 1.0f)
+            return true
+        } catch (t: Throwable) {
+            Log.e(TAG, "storeHistoryRecord: native store failed for offset=$offsetMinutes: ${t.message}")
+            return false
+        }
+    }
 
 
 
@@ -4165,26 +5013,34 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "onCharacteristicRead [${characteristic.uuid}] FAILED status=$status")
-            // Edit 36c: Drain the unified GATT queue even on failure — the GATT op slot is free now
+            // Edit 36c/40: Drain the unified GATT queue even on failure — the GATT op slot is free now.
+            // Post to vendorWorkHandler to avoid cross-thread race on vendorGattOpActive (binder thread vs handler thread).
             if (vendorGattOpActive) {
-                vendorGattOpActive = false
-                drainVendorGattQueue()
+                vendorWorkHandler.post {
+                    vendorGattOpActive = false
+                    drainVendorGattQueue()
+                }
             }
             return
         }
         val data = characteristic.value ?: run {
-            // Edit 36c: Drain queue on null data too
+            // Edit 36c/40: Drain queue on null data too — route through vendorWorkHandler
             if (vendorGattOpActive) {
-                vendorGattOpActive = false
-                drainVendorGattQueue()
+                vendorWorkHandler.post {
+                    vendorGattOpActive = false
+                    drainVendorGattQueue()
+                }
             }
             return
         }
 
-        // Edit 36c: Read completed successfully — mark GATT op slot as free and drain queue
+        // Edit 36c/40: Read completed successfully — mark GATT op slot as free and drain queue.
+        // Route through vendorWorkHandler so vendorGattOpActive is only cleared on the handler thread.
         if (vendorGattOpActive) {
-            vendorGattOpActive = false
-            drainVendorGattQueue()
+            vendorWorkHandler.post {
+                vendorGattOpActive = false
+                drainVendorGattQueue()
+            }
         }
 
         // Edit 35a: Forward read responses to vendor native lib via onReceiveData().
@@ -4296,10 +5152,15 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         status: Int
     ) {
         super.onCharacteristicWrite(gatt, characteristic, status)
-        // Edit 36c: Drain the unified GATT queue after write completes
+        // Edit 36c/40: Drain the unified GATT queue after write completes.
+        // Route through vendorWorkHandler to avoid cross-thread race on vendorGattOpActive
+        // (this callback runs on the GATT binder thread, but vendorGattOpActive and the queue
+        // should only be modified on vendorWorkHandler's thread).
         if (vendorGattOpActive) {
-            vendorGattOpActive = false
-            drainVendorGattQueue()
+            vendorWorkHandler.post {
+                vendorGattOpActive = false
+                drainVendorGattQueue()
+            }
             // If we are in vendor mode, do not process manual handshake logic for these writes
             if (vendorBleEnabled) return
         }
@@ -4617,6 +5478,37 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         Log.i(TAG, "Vendor pairing: keys cleared")
     }
 
+    /**
+     * Public cleanup for "Forget Sensor" — stops vendor stack, removes BLE bond,
+     * and wipes saved AES pairing keys so re-adding starts completely fresh.
+     * Edit 38e: Each step is independent with its own try/catch so a failure in one
+     * (e.g. native lib already torn down) doesn't prevent the others from running.
+     */
+    fun forgetVendor() {
+        Log.i(TAG, "forgetVendor: full vendor cleanup for sensor removal")
+        vendorReconnectSpamRestarts = 0  // Edit 41c: reset spam counter on full forget
+        try {
+            cancelBroadcastPoll()
+        } catch (t: Throwable) {
+            Log.e(TAG, "forgetVendor: cancelBroadcastPoll failed: ${t.message}")
+        }
+        try {
+            stopVendor("forgetVendor")
+        } catch (t: Throwable) {
+            Log.e(TAG, "forgetVendor: stopVendor failed: ${t.message}")
+        }
+        try {
+            removeSensorBond()
+        } catch (t: Throwable) {
+            Log.e(TAG, "forgetVendor: removeSensorBond failed: ${t.message}")
+        }
+        try {
+            clearVendorPairingKeys()
+        } catch (t: Throwable) {
+            Log.e(TAG, "forgetVendor: clearVendorPairingKeys failed: ${t.message}")
+        }
+    }
+
     private fun hexToBytes(s: String): ByteArray {
         val clean = s.replace(" ", "")
         val len = clean.length
@@ -4814,6 +5706,9 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
      */
     fun resetSensor(): Boolean {
         Log.i(TAG, "=== RESET SENSOR: Multi-Strategy Reset ===")
+        // Edit 47: Reset history position — new sensor means history starts from scratch
+        vendorHistoryNextIndex = 0
+        writeIntPref("vendorHistoryNextIndex", 0)
         
         // --- Strategy 1: Vendor Native Lib ---
         // executeVendorCommand now properly waits for GATT + AES initialization
@@ -4921,6 +5816,9 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
      */
     fun startNewSensor(): Boolean {
         Log.i(TAG, "=== START NEW SENSOR: Multi-Strategy ===")
+        // Edit 47: Reset history position — new sensor means history starts from scratch
+        vendorHistoryNextIndex = 0
+        writeIntPref("vendorHistoryNextIndex", 0)
         
         // --- Strategy 1: Vendor Native Lib ---
         // executeVendorCommand now properly waits for GATT + AES initialization

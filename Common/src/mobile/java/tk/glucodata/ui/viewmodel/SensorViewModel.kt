@@ -299,19 +299,33 @@ class SensorViewModel : ViewModel() {
     }
 
     // "Disconnect" in UI now maps to "Terminate" (finishSensor) as requested.
+    // Edit 39c: Guard ALL JNI calls with dataptr != 0 check. For AiDex sensors,
+    // route through forgetVendor() which handles vendor stack, BLE bond, and key cleanup
+    // without touching libg.so native code (which crashes with SIGSEGV on null dataptr).
     fun terminateSensor(serial: String, wipeData: Boolean = false) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         if (gatt != null) {
             try {
-                if (wipeData && gatt.dataptr != 0L) {
-                    Natives.siWipeDataOnly(gatt.dataptr)
-                }
                 if (gatt is tk.glucodata.drivers.aidex.AiDexSensor) {
-                    // AiDex native finishSensor path is unstable; close GATT instead.
-                    gatt.close()
+                    // AiDex: wipe data only if dataptr is valid, then stop vendor + close GATT
+                    if (wipeData && gatt.dataptr != 0L) {
+                        try { Natives.siWipeDataOnly(gatt.dataptr) } catch (t: Throwable) {
+                            android.util.Log.e("SensorVM", "terminateSensor AiDex wipeData failed: ${t.message}")
+                        }
+                    }
+                    try { gatt.forgetVendor() } catch (t: Throwable) {
+                        android.util.Log.e("SensorVM", "terminateSensor AiDex forgetVendor failed: ${t.message}")
+                    }
+                    try { gatt.close() } catch (t: Throwable) {
+                        android.util.Log.e("SensorVM", "terminateSensor AiDex close failed: ${t.message}")
+                    }
                     SensorBluetooth.sensorEnded(serial)
                 } else {
+                    // Legacy sensors: native finishSensor path
+                    if (wipeData && gatt.dataptr != 0L) {
+                        Natives.siWipeDataOnly(gatt.dataptr)
+                    }
                     gatt.finishSensor()
                     SensorBluetooth.sensorEnded(serial)
                 }
@@ -328,10 +342,25 @@ class SensorViewModel : ViewModel() {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         if (gatt != null) {
-            gatt.close()
+            // Edit 38e: Wrap in try/catch to prevent crashes when GATT or vendor state
+            // is already torn down. The forgetVendor→stopVendor→close chain can crash if
+            // called from the UI thread while native lib is mid-operation.
+            try {
+                // AiDex: stop vendor stack, remove BLE bond, wipe saved AES keys
+                if (gatt is tk.glucodata.drivers.aidex.AiDexSensor) {
+                    gatt.forgetVendor()
+                }
+            } catch (t: Throwable) {
+                android.util.Log.e("SensorViewModel", "forgetSensor($serial) forgetVendor crashed: ${t.message}", t)
+            }
+            try {
+                gatt.close()
+            } catch (t: Throwable) {
+                android.util.Log.e("SensorViewModel", "forgetSensor($serial) close crashed: ${t.message}", t)
+            }
         }
         // Properly notify system that sensor is ended/removed from list
-        SensorBluetooth.sensorEnded(serial)
+        try { SensorBluetooth.sensorEnded(serial) } catch (_: Throwable) {}
         refreshSensors()
     }
 
@@ -351,16 +380,16 @@ class SensorViewModel : ViewModel() {
     fun clearCalibration(serial: String) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
-        if (gatt != null) {
-            Natives.siClearCalibration(gatt.dataptr)
+        if (gatt != null && gatt.dataptr != 0L) {
+            try { Natives.siClearCalibration(gatt.dataptr) } catch (_: Throwable) {}
         }
     }
 
     fun clearAll(serial: String) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
-        if (gatt != null) {
-            Natives.siClearAll(gatt.dataptr)
+        if (gatt != null && gatt.dataptr != 0L) {
+            try { Natives.siClearAll(gatt.dataptr) } catch (_: Throwable) {}
         }
     }
 
@@ -394,20 +423,38 @@ class SensorViewModel : ViewModel() {
         }
     }
 
+    // Edit 39d: AiDex-safe reconnect. For AiDex, restart vendor stack instead of
+    // calling native resetbluetooth (SIGSEGV risk). For legacy sensors, use proven sequence.
     fun reconnectSensor(serial: String, wipeData: Boolean = false) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         if (gatt != null) {
             viewModelScope.launch {
-                if (wipeData) {
-                    Natives.siWipeDataOnly(gatt.dataptr)
+                if (gatt is tk.glucodata.drivers.aidex.AiDexSensor) {
+                    if (wipeData && gatt.dataptr != 0L) {
+                        try { Natives.siWipeDataOnly(gatt.dataptr) } catch (t: Throwable) {
+                            android.util.Log.e("SensorVM", "reconnectSensor AiDex wipeData: ${t.message}")
+                        }
+                    }
+                    // Stop vendor stack and GATT, then restart from scratch
+                    try { gatt.forgetVendor() } catch (_: Throwable) {}
+                    try { gatt.close() } catch (_: Throwable) {}
+                    kotlinx.coroutines.delay(2000)
+                    // Reconnect: connectDevice will defer to vendor stack flow
+                    gatt.connectDevice(200)
+                } else {
+                    if (wipeData && gatt.dataptr != 0L) {
+                        Natives.siWipeDataOnly(gatt.dataptr)
+                    }
+                    gatt.setPause(true)
+                    gatt.disconnect()
+                    kotlinx.coroutines.delay(2000) // Ensure full disconnect
+                    if (gatt.dataptr != 0L) {
+                        try { Natives.resetbluetooth(gatt.dataptr) } catch (_: Throwable) {}
+                    }
+                    gatt.setPause(false)
+                    gatt.connectDevice(200)
                 }
-                gatt.setPause(true)
-                gatt.disconnect()
-                kotlinx.coroutines.delay(2000) // Ensure full disconnect
-                Natives.resetbluetooth(gatt.dataptr)
-                gatt.setPause(false)
-                gatt.connectDevice(200)
                 refreshSensors()
             }
         }
@@ -416,23 +463,45 @@ class SensorViewModel : ViewModel() {
     fun wipeSensorData(serial: String) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
-        if (gatt != null) {
-            Natives.siWipeDataOnly(gatt.dataptr)
+        if (gatt != null && gatt.dataptr != 0L) {
+            try {
+                Natives.siWipeDataOnly(gatt.dataptr)
+            } catch (t: Throwable) {
+                android.util.Log.e("SensorVM", "wipeSensorData: ${t.message}")
+            }
             refreshSensors()
         }
     }
 
+    // Edit 39d: AiDex-safe disconnect. For AiDex, stop vendor stack and disconnect GATT
+    // without calling Natives.resetbluetooth (which causes SIGSEGV). Preserve bond + keys
+    // so reconnect can work later. For legacy sensors, use the proven disconnect sequence.
     fun disconnectSensor(serial: String) {
         android.util.Log.d("SensorViewModel", "disconnectSensor called for: $serial")
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         if (gatt != null) {
             viewModelScope.launch {
-                android.util.Log.d("SensorViewModel", "Found gatt, using reconnect's proven sequence")
-                gatt.setPause(true)
-                gatt.disconnect()
-                kotlinx.coroutines.delay(2000) // Ensure full disconnect
-                Natives.resetbluetooth(gatt.dataptr)
+                if (gatt is tk.glucodata.drivers.aidex.AiDexSensor) {
+                    android.util.Log.d("SensorViewModel", "AiDex disconnect: stopping vendor stack + GATT")
+                    try { gatt.forgetVendor() } catch (t: Throwable) {
+                        android.util.Log.e("SensorVM", "disconnectSensor AiDex forgetVendor: ${t.message}")
+                    }
+                    try { gatt.close() } catch (t: Throwable) {
+                        android.util.Log.e("SensorVM", "disconnectSensor AiDex close: ${t.message}")
+                    }
+                    try { SensorBluetooth.sensorEnded(serial) } catch (_: Throwable) {}
+                } else {
+                    android.util.Log.d("SensorViewModel", "Found gatt, using reconnect's proven sequence")
+                    gatt.setPause(true)
+                    gatt.disconnect()
+                    kotlinx.coroutines.delay(2000) // Ensure full disconnect
+                    if (gatt.dataptr != 0L) {
+                        try { Natives.resetbluetooth(gatt.dataptr) } catch (t: Throwable) {
+                            android.util.Log.e("SensorVM", "disconnectSensor resetbluetooth: ${t.message}")
+                        }
+                    }
+                }
                 // DON'T reconnect - just refresh to show disconnected state
                 refreshSensors()
             }
