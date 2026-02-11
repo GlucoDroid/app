@@ -339,8 +339,10 @@ public:
     sensorlist()[lastpos].endtime = 0;
     sensorlist()[lastpos].finished = 0;
     sensorlist()[lastpos].initialized = false;
-    infoblockptr()->current = lastpos;
-    makelinks(lastpos, endindex);
+      infoblockptr()->current = lastpos;
+      if (infoblockptr()->current < 0) {
+          infoblockptr()->current = lastpos;
+      }    makelinks(lastpos, endindex);
 #ifndef NOLOG
     time_t tim = sensorlist()[lastpos].starttime;
     LOGGER("add sensor %.16s starttime=%d %s", name.data(), tim, ctime(&tim));

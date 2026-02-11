@@ -25,6 +25,16 @@ object HistorySync {
     @Volatile
     private var initialSyncDone = false
     
+    // Throttle: don't re-sync more often than every 30 seconds
+    @Volatile
+    private var lastSyncTimeMs = 0L
+    private const val MIN_SYNC_INTERVAL_MS = 30_000L
+    
+    // Incremental overlap: 5 minutes catches any very-recent backfill without
+    // re-processing thousands of readings every call.  The full 24-hour sweep
+    // only happens on forceFullSync() (called after vendor history download).
+    private const val INCREMENTAL_OVERLAP_MS = 5 * 60 * 1000L
+    
     /**
      * Sync data from native layer to Room.
      * 
@@ -36,6 +46,12 @@ object HistorySync {
      */
     @JvmOverloads
     fun syncFromNative(forceFull: Boolean = false) {
+        // Throttle: skip if called too frequently (unless it's the first sync or forced)
+        val now = System.currentTimeMillis()
+        if (!forceFull && initialSyncDone && (now - lastSyncTimeMs) < MIN_SYNC_INTERVAL_MS) {
+            return  // too soon, skip
+        }
+        
         scope.launch {
             try {
                 // Determine start time for fetch
@@ -47,14 +63,11 @@ object HistorySync {
                     startSec = 0L
                     isFullSync = true
                 } else {
-                    // ROBUST SYNC: Always fetch overlap to catch backfilled data
-                    // Instead of just > lastTimestamp, we go back 24 hours from the last known reading.
-                    // This ensures that if the sensor backfilled a gap in the last day, we pick it up.
-                    // Room's OnConflictStrategy.REPLACE handles the duplicates efficiently.
+                    // Incremental: only overlap by 5 minutes to pick up very-recent writes.
+                    // Room's OnConflictStrategy.IGNORE handles duplicates; this avoids
+                    // re-fetching and re-inserting thousands of readings on every call.
                     val lastTimestamp = historyRepository.getLatestTimestamp()
-                    val oneDayMs = 24 * 60 * 60 * 1000L
-                    
-                    val startMs = if (lastTimestamp > oneDayMs) lastTimestamp - oneDayMs else 0L
+                    val startMs = if (lastTimestamp > INCREMENTAL_OVERLAP_MS) lastTimestamp - INCREMENTAL_OVERLAP_MS else 0L
                     startSec = startMs / 1000L
                     isFullSync = false
                 }
@@ -96,8 +109,14 @@ object HistorySync {
                 
                 if (readings.isNotEmpty()) {
                     historyRepository.storeReadings(readings)
-                    Log.d(TAG, "Synced ${readings.size} readings (${if (isFullSync) "full" else "incremental"})")
+                    if (isFullSync) {
+                        Log.d(TAG, "Synced ${readings.size} readings (full)")
+                    }
+                    // Incremental syncs are silent — only log when there's actually new data,
+                    // and that happens inside HistoryRepository/DAO via IGNORE conflict detection.
                 }
+                
+                lastSyncTimeMs = System.currentTimeMillis()
                 
                 // Mark initial sync as complete
                 if (isFullSync) initialSyncDone = true

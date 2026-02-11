@@ -30,6 +30,7 @@ import androidx.compose.material3.Slider
 import tk.glucodata.ui.components.StyledSwitch
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -42,6 +43,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.rotate
@@ -462,8 +465,22 @@ fun JugglucoTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = tk.glucodata.ui.theme.AppTypography,
-        content = content
-    )
+    ) {
+        // Edit 52b (v3): Allow Display Size scaling up to 20% above hardware native.
+        // This lets users who want larger UI (accessibility) get a meaningful boost,
+        // while preventing extreme Display Size settings from breaking M3 layouts.
+        // fontScale capped at 1.15 — "slightly larger" text is fine, "huge" breaks cards.
+        val currentDensity = LocalDensity.current
+        val nativeDensity = android.util.DisplayMetrics.DENSITY_DEVICE_STABLE / 160f
+        val maxDensity = nativeDensity * 1.1f
+        val clampedDensity = Density(
+            density = currentDensity.density.coerceAtMost(maxDensity),
+            fontScale = currentDensity.fontScale.coerceAtMost(1.1f)
+        )
+        CompositionLocalProvider(LocalDensity provides clampedDensity) {
+            content()
+        }
+    }
 }
 
 
@@ -4049,12 +4066,12 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
     var keepDataChecked by remember { mutableStateOf(false) }
 
     // AiDex Maintenance Dialogs
-    var showAiDexResetDialog by remember { mutableStateOf(false) }
-    var showAiDexShelfDialog by remember { mutableStateOf(false) }
-    var showAiDexBondDialog by remember { mutableStateOf(false) }
     var showAiDexClearDialog by remember { mutableStateOf(false) }
-    var showAiDexForceDeleteDialog by remember { mutableStateOf(false) }
-    var showAiDexNewSensorDialog by remember { mutableStateOf(false) }
+    var showAiDexCalibrateDialog by remember { mutableStateOf(false) }
+    var showAiDexUnpairDialog by remember { mutableStateOf(false) }
+    var calibrationInputText by remember { mutableStateOf("") }
+    // Edit 59c: Initialization bias compensation checkbox state
+    var resetBiasChecked by remember { mutableStateOf(true) }  // Default ON — most users want this after reset
 
     val scope = rememberCoroutineScope() // Fix: Add missing scope
 
@@ -4249,113 +4266,155 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
         )
     }
 
-    if (showAiDexResetDialog) {
-        AlertDialog(
-            onDismissRequest = { showAiDexResetDialog = false },
-            title = { Text("Reset AiDex Sensor?") },
-            text = { Text("Perform a multi-strategy hardware reset. Tries vendor native lib, direct BLE command, then bond removal as fallback. The sensor will restart and re-initialize.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.resetAiDexSensor(sensor.serial)
-                    showAiDexResetDialog = false
-                }) { Text("Reset") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAiDexResetDialog = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-
-    if (showAiDexShelfDialog) {
-        AlertDialog(
-            onDismissRequest = { showAiDexShelfDialog = false },
-            title = { Text("Enter Shelf Mode?") },
-            text = { Text("CAUTION: This puts the sensor into deep sleep for storage. You may need to re-insert or use a specific trigger to wake it up.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.sendAiDexMaintenanceCommand(sensor.serial, 2)
-                        showAiDexShelfDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Enter Shelf Mode") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAiDexShelfDialog = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-
-    if (showAiDexBondDialog) {
-        AlertDialog(
-            onDismissRequest = { showAiDexBondDialog = false },
-            title = { Text("Delete Bluetooth Bond?") },
-            text = { Text("Remove the pairing information from the sensor. You will need to re-pair it manually.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.sendAiDexMaintenanceCommand(sensor.serial, 3)
-                    showAiDexBondDialog = false
-                }) { Text("Delete Bond") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAiDexBondDialog = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-
+    // Edit 59c: Upgraded AiDex Reset Dialog — combines hardware reset + clear storage + bias compensation
     if (showAiDexClearDialog) {
         AlertDialog(
-            onDismissRequest = { showAiDexClearDialog = false },
-            title = { Text("Clear Sensor Storage?") },
-            text = { Text("CAUTION: This clears ALL history data stored inside the physical sensor. This cannot be undone.") },
+            onDismissRequest = {
+                showAiDexClearDialog = false
+                resetBiasChecked = true
+            },
+            title = { Text("Reset Sensor") },
+            text = {
+                Column {
+                    Text("This performs a hardware reset on the AiDex sensor. The sensor will clear its internal storage and restart its session counter.")
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "After reset, readings may be low for up to 48 hours due to the sensor's initialization calibration.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { resetBiasChecked = !resetBiasChecked }
+                    ) {
+                        Checkbox(
+                            checked = resetBiasChecked,
+                            onCheckedChange = { resetBiasChecked = it }
+                        )
+                        Column {
+                            Text("Apply initialization bias correction")
+                            Text(
+                                "Compensates for low readings during the first 48h after reset",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    // Show current compensation status if already active
+                    if (sensor.resetCompensationActive && sensor.resetCompensationStatus.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Current: ${sensor.resetCompensationStatus}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.sendAiDexMaintenanceCommand(sensor.serial, 4)
+                        viewModel.resetAiDexSensor(sensor.serial, enableBiasCompensation = resetBiasChecked)
                         showAiDexClearDialog = false
+                        resetBiasChecked = true
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Clear Storage") }
+                ) { Text("Reset") }
             },
             dismissButton = {
-                TextButton(onClick = { showAiDexClearDialog = false }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = {
+                    showAiDexClearDialog = false
+                    resetBiasChecked = true
+                }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
 
-    if (showAiDexForceDeleteDialog) {
+    if (showAiDexCalibrateDialog) {
         AlertDialog(
-            onDismissRequest = { showAiDexForceDeleteDialog = false },
-            title = { Text("Force Delete?") },
-            text = { Text("In case of device loss or damage, perform this operation. Locally removes the sensor from the app. NOTE: The physical sensor will remain locked if it cannot be reached to delete the bond.") },
+            onDismissRequest = {
+                showAiDexCalibrateDialog = false
+                calibrationInputText = ""
+            },
+            title = { Text("Calibrate Sensor") },
+            text = {
+                val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
+                val unitLabel = if (isMmol) "mmol/L" else "mg/dL"
+                Column {
+                    Text("Enter your blood glucose meter reading in $unitLabel to calibrate the sensor.")
+                    Spacer(modifier = Modifier.height(12.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = calibrationInputText,
+                        onValueChange = { newVal ->
+                            calibrationInputText = if (isMmol) {
+                                // Allow digits and one decimal point
+                                newVal.filter { c -> c.isDigit() || c == '.' }
+                                    .let { s ->
+                                        val dotIndex = s.indexOf('.')
+                                        if (dotIndex >= 0) s.substring(0, dotIndex + 1) + s.substring(dotIndex + 1).replace(".", "")
+                                        else s
+                                    }
+                            } else {
+                                newVal.filter { c -> c.isDigit() }
+                            }
+                        },
+                        label = { Text("Glucose ($unitLabel)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = if (isMmol)
+                                androidx.compose.ui.text.input.KeyboardType.Decimal
+                            else
+                                androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
+                val inputValue = calibrationInputText.toFloatOrNull()
+                val glucoseMgDl = if (inputValue != null) {
+                    if (isMmol) (inputValue * 18.0182f).toInt()
+                    else inputValue.toInt()
+                } else null
+                val isValid = glucoseMgDl != null && glucoseMgDl in 30..500
+                TextButton(
+                    onClick = {
+                        if (glucoseMgDl != null && isValid) {
+                            viewModel.calibrateAiDexSensor(sensor.serial, glucoseMgDl)
+                            showAiDexCalibrateDialog = false
+                            calibrationInputText = ""
+                        }
+                    },
+                    enabled = isValid
+                ) { Text("Calibrate") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAiDexCalibrateDialog = false
+                    calibrationInputText = ""
+                }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showAiDexUnpairDialog) {
+        AlertDialog(
+            onDismissRequest = { showAiDexUnpairDialog = false },
+            title = { Text("Unpair Sensor?") },
+            text = { Text("Delete the pairing bond on the sensor and clear saved keys. The sensor will be free to pair with another device. The sensor entry will remain in the app but will no longer connect.") },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.forgetSensor(sensor.serial)
-                        showAiDexForceDeleteDialog = false
+                        viewModel.unpairAiDexSensor(sensor.serial)
+                        showAiDexUnpairDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Force Delete") }
+                ) { Text("Unpair") }
             },
             dismissButton = {
-                TextButton(onClick = { showAiDexForceDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-
-    if (showAiDexNewSensorDialog) {
-        AlertDialog(
-            onDismissRequest = { showAiDexNewSensorDialog = false },
-            title = { Text("Start New Sensor?") },
-            text = { Text("Register a new sensor session with the current date/time. Tries vendor native lib, then direct BLE command, then full reset as fallback. Use this when inserting a fresh sensor.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.startNewAiDexSensor(sensor.serial)
-                    showAiDexNewSensorDialog = false
-                }) { Text("Start New") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAiDexNewSensorDialog = false }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { showAiDexUnpairDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -4562,6 +4621,99 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                        DataRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEnd))
                     }
 
+                    // AiDex: Battery voltage (from AUTO_UPDATE_BATTERY_VOLTAGE)
+                    if (sensor.isAidex && sensor.batteryMillivolts > 0) {
+                        DataRow("Battery", String.format(java.util.Locale.getDefault(), "%.3f V", sensor.batteryMillivolts / 1000.0))
+                    }
+
+                    // Edit 58b: AiDex sensor remaining life
+                    if (sensor.isAidex && sensor.sensorRemainingHours >= 0) {
+                        val remainText = when {
+                            sensor.isSensorExpired -> "Expired"
+                            sensor.sensorRemainingHours <= 0 -> "Expired"
+                            sensor.sensorRemainingHours <= 24 -> "${sensor.sensorRemainingHours}h remaining"
+                            else -> {
+                                val days = sensor.sensorRemainingHours / 24
+                                val hours = sensor.sensorRemainingHours % 24
+                                "${days}d ${hours}h remaining"
+                            }
+                        }
+                        val remainColor = when {
+                            sensor.isSensorExpired || sensor.sensorRemainingHours <= 0 -> MaterialTheme.colorScheme.error
+                            sensor.sensorRemainingHours <= 24 -> MaterialTheme.colorScheme.error
+                            sensor.sensorRemainingHours <= 48 -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Sensor Life", style = labelStyle)
+                            Text(
+                                remainText,
+                                style = valueStyle.copy(color = remainColor),
+                                fontWeight = if (sensor.sensorRemainingHours <= 24) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+
+                    // Edit 58b: AiDex sensor age
+                    if (sensor.isAidex && sensor.sensorAgeHours >= 0) {
+                        val ageText = if (sensor.sensorAgeHours < 24) "${sensor.sensorAgeHours}h"
+                                      else "${sensor.sensorAgeHours / 24}d ${sensor.sensorAgeHours % 24}h"
+                        DataRow("Sensor Age", ageText)
+                    }
+
+                    // Edit 58c: AiDex device metadata (firmware, hardware, model)
+                    if (sensor.isAidex && sensor.vendorModel.isNotEmpty()) {
+                        DataRow("Model", sensor.vendorModel)
+                    }
+                    if (sensor.isAidex && sensor.vendorFirmware.isNotEmpty()) {
+                        DataRow("Firmware", "v${sensor.vendorFirmware}")
+                    }
+
+                    // Edit 59c: Initialization bias compensation status indicator
+                    if (sensor.isAidex && sensor.resetCompensationActive && sensor.resetCompensationStatus.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Bias Correction", style = labelStyle)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    sensor.resetCompensationStatus,
+                                    style = valueStyle.copy(color = MaterialTheme.colorScheme.tertiary),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                // Small disable button
+                                TextButton(
+                                    onClick = { viewModel.disableAiDexBiasCompensation(sensor.serial) },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(24.dp)
+                                ) {
+                                    Text("Off", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+
+                    // AiDex: Sensor expired warning
+                    if (sensor.isAidex && sensor.isSensorExpired) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Status", style = labelStyle)
+                            Text(
+                                "Sensor Expired",
+                                style = valueStyle.copy(color = MaterialTheme.colorScheme.error),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
                 }
             }
 //
@@ -4594,8 +4746,8 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
 //            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 //            Spacer(modifier = Modifier.height(16.dp))
 
-            // Calibration Mode (Sibionics + AiDex) - M3 Expressive Connected Button Group
-            if (sensor.isSibionics || sensor.isAidex) {
+            // Calibration Mode (Sibionics only) - M3 Expressive Connected Button Group
+            if (sensor.isSibionics) {
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -4745,51 +4897,6 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Maintenance",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    AssistChip(
-                        onClick = { showAiDexResetDialog = true },
-                        label = { Text("Reset") },
-                        leadingIcon = { Icon(Icons.Default.RestartAlt, null, modifier = Modifier.size(18.dp)) }
-                    )
-                    AssistChip(
-                        onClick = { showAiDexShelfDialog = true },
-                        label = { Text("Shelf") },
-                        leadingIcon = { Icon(Icons.Default.PowerSettingsNew, null, modifier = Modifier.size(18.dp)) }
-                    )
-                    AssistChip(
-                        onClick = { showAiDexBondDialog = true },
-                        label = { Text("Bond") },
-                        leadingIcon = { Icon(Icons.Default.LinkOff, null, modifier = Modifier.size(18.dp)) }
-                    )
-                    AssistChip(
-                        onClick = { showAiDexClearDialog = true },
-                        label = { Text("Storage") },
-                        leadingIcon = { Icon(Icons.Default.DeleteSweep, null, modifier = Modifier.size(18.dp)) }
-                    )
-                    AssistChip(
-                        onClick = { showAiDexForceDeleteDialog = true },
-                        label = { Text("Force Delete") },
-                        leadingIcon = { Icon(Icons.Default.DeleteForever, null, modifier = Modifier.size(18.dp)) }
-                    )
-                    AssistChip(
-                        onClick = { showAiDexNewSensorDialog = true },
-                        label = { Text("New Sensor") },
-                        leadingIcon = { Icon(Icons.Default.FiberNew, null, modifier = Modifier.size(18.dp)) }
-                    )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -5051,6 +5158,158 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
             // --- ACTION BUTTONS (Always Visible) ---
             Spacer(modifier = Modifier.height(24.dp))
 
+            // AiDex: Calibration history list, then Calibrate button, then Reset | Pair/Unpair row
+            if (sensor.isAidex) {
+                // Calibration history — show previous calibrations from the sensor
+                if (sensor.vendorCalibrations.isNotEmpty()) {
+                    val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
+                    val unitLabel = if (isMmol) "mmol/L" else "mg/dL"
+                    val calDateFormat = java.text.SimpleDateFormat("dd MMM HH:mm", java.util.Locale.getDefault())
+
+                    Text(
+                        text = "Previous Calibrations",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 1.dp
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            sensor.vendorCalibrations.forEachIndexed { idx, cal ->
+                                if (idx > 0) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Glucose value
+                                    val displayGlucose = if (isMmol) {
+                                        String.format(java.util.Locale.getDefault(), "%.1f", cal.referenceGlucoseMgDl / 18.0182f)
+                                    } else {
+                                        cal.referenceGlucoseMgDl.toString()
+                                    }
+                                    Text(
+                                        text = "$displayGlucose $unitLabel",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    // Timestamp or offset
+                                    val timeText = if (cal.timestampMs > 0) {
+                                        calDateFormat.format(java.util.Date(cal.timestampMs))
+                                    } else {
+                                        "${cal.timeOffsetMinutes}m"
+                                    }
+                                    Text(
+                                        text = timeText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Full-width Calibrate button — disabled when vendor BLE is not connected
+                val canCalibrate = sensor.isVendorConnected && !sensor.broadcastOnlyConnection
+                FilledTonalButton(
+                    onClick = { showAiDexCalibrateDialog = true },
+                    enabled = canCalibrate,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bloodtype,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (canCalibrate) "Calibrate" else "Calibrate (connect first)",
+                        maxLines = 1
+                    )
+                }
+
+                // Reset | Pair/Unpair row
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Reset (clear storage) — left
+                    FilledTonalButton(
+                        onClick = { showAiDexClearDialog = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RestartAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Reset", maxLines = 1)
+                    }
+                    // Pair / Unpair toggle — right, moderate warning tone (not destructive)
+                    if (sensor.isVendorPaired) {
+                        FilledTonalButton(
+                            onClick = { showAiDexUnpairDialog = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LinkOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Unpair", maxLines = 1)
+                        }
+                    } else {
+                        FilledTonalButton(
+                            onClick = { viewModel.rePairAiDexSensor(sensor.serial) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Pair", maxLines = 1)
+                        }
+                    }
+                }
+            }
+
             // Row 1: Unified Reset Button (Sibionics only - full width, styled like "Previous calibrations")
             if (sensor.isSibionics2) {
                 FilledTonalButton(
@@ -5072,12 +5331,12 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 }
             }
 
-            // Row 2: Reconnect | Disconnect (styled like "Clear all" / "Calibrate" - connected button group)
+            // Row 2: Reconnect | Disconnect
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)  // No gap for connected look
             ) {
-                // Reconnect - Left side (tonal, like "Clear all")
+                // Reconnect - Left side
                 FilledTonalButton(
                     onClick = { showReconnectDialog = true },
 //                    modifier = Modifier.fillMaxWidth(),
@@ -5102,7 +5361,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 }
                 
 //                Spacer(modifier = Modifier.width(4.dp))
-                
+
                 // Disconnect - Right side (error container)
                 FilledTonalButton(
                     onClick = { showTerminateDialog = true },

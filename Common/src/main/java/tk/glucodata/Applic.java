@@ -762,6 +762,33 @@ public class Applic extends Application {
             SuperGattCallback.initAlarmTalk();
             initialize();
 
+            // Edit 57a: Startup cleanup — if lastsensorname() points to a finished sensor,
+            // switch to the first active sensor (or clear it). This prevents Notify.java from
+            // calling getdataptr() on dead sensors, which triggers useless algorithm context
+            // re-initialization on every notification cycle.
+            try {
+                String currentSensor = Natives.lastsensorname();
+                String[] active = Natives.activeSensors();
+                if (currentSensor != null && !currentSensor.isEmpty()) {
+                    boolean isActive = false;
+                    if (active != null) {
+                        for (String s : active) {
+                            if (currentSensor.equals(s)) {
+                                isActive = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!isActive) {
+                        String next = (active != null && active.length > 0) ? active[0] : "";
+                        Natives.setcurrentsensor(next);
+                        Log.i("Applic", "Edit 57a: Corrected stale lastsensorname '" + currentSensor + "' -> '" + next + "'");
+                    }
+                }
+            } catch (Throwable t) {
+                Log.i("Applic", "Edit 57a: startup sensor cleanup failed: " + t.getMessage());
+            }
+
             // Check if FloatingService should be started
             if (getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
                     .getBoolean("floating_glucose_enabled", false)) {

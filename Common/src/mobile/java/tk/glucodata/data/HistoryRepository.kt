@@ -145,7 +145,10 @@ class HistoryRepository(context: Context = Applic.app) {
         withContext(Dispatchers.IO) {
             try {
                 dao.insertAll(readings)
-                Log.d(TAG, "Stored ${readings.size} readings")
+                // Only log small batches (likely genuine new data, not re-syncs)
+                if (readings.size <= 10) {
+                    Log.d(TAG, "Stored ${readings.size} readings")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error storing readings batch", e)
             }
