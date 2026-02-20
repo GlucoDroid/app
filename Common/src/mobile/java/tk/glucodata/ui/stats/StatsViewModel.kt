@@ -1,0 +1,768 @@
+package tk.glucodata.ui.stats
+
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import tk.glucodata.Applic
+import tk.glucodata.Natives
+import tk.glucodata.R
+import tk.glucodata.data.HistoryRepository
+import tk.glucodata.ui.GlucosePoint
+import java.time.Instant
+import java.time.ZoneId
+import kotlin.math.abs
+import kotlin.math.sign
+import kotlin.math.sqrt
+
+class StatsViewModel : ViewModel() {
+    private val tag = "StatsViewModel"
+    private val historyRepository = HistoryRepository()
+
+    private val _selectedRange = MutableStateFlow(StatsTimeRange.DAY_1)
+    val selectedRange: StateFlow<StatsTimeRange> = _selectedRange.asStateFlow()
+
+    private val _unit = MutableStateFlow(GlucoseUnit.MGDL)
+    private val _targets = MutableStateFlow(StatsTargets())
+    private val _isLoading = MutableStateFlow(true)
+    private val _hasSensor = MutableStateFlow(true)
+    private val _historyMgDl = MutableStateFlow<List<GlucosePoint>>(emptyList())
+    private val _temperaturePoints = MutableStateFlow<List<TemperaturePoint>>(emptyList())
+
+    private var historyJob: Job? = null
+    private var activeSerial: String? = null
+    private var historyWindowStartMs: Long = Long.MAX_VALUE
+    private var cachedTemperatureSerial: String? = null
+    private var cachedTemperaturePoints: List<TemperaturePoint> = emptyList()
+    private var lastTemperatureRefreshMs: Long = 0L
+
+    private val baseState = combine(
+        _selectedRange,
+        _unit,
+        _targets,
+        _isLoading,
+        _hasSensor
+    ) { range, unit, targets, isLoading, hasSensor ->
+        BaseInput(
+            range = range,
+            unit = unit,
+            targets = targets,
+            isLoading = isLoading,
+            hasSensor = hasSensor
+        )
+    }
+
+    val uiState: StateFlow<StatsUiState> = combine(
+        baseState,
+        _historyMgDl,
+        _temperaturePoints
+    ) { base, history, temperature ->
+        UiInput(
+            range = base.range,
+            unit = base.unit,
+            targets = base.targets,
+            isLoading = base.isLoading,
+            hasSensor = base.hasSensor,
+            historyMgDl = history,
+            temperaturePoints = temperature
+        )
+    }.map { input ->
+        withContext(Dispatchers.Default) {
+            buildUiState(input)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = StatsUiState()
+    )
+
+    init {
+        refreshFromNative()
+    }
+
+    fun setTimeRange(range: StatsTimeRange) {
+        if (_selectedRange.value != range) {
+            _selectedRange.value = range
+            if (range == StatsTimeRange.DAY_ALL && historyWindowStartMs > 0L) {
+                activeSerial?.let { serial ->
+                    subscribeToHistory(serial, startTime = 0L)
+                }
+            }
+        }
+    }
+
+    suspend fun buildReportUiState(reportDays: Int): StatsUiState = withContext(Dispatchers.Default) {
+        val clampedDays = reportDays.coerceIn(1, MAX_REPORT_DAYS)
+        val cutoff = System.currentTimeMillis() - (clampedDays.toLong() * DAY_MS)
+        val filteredHistory = _historyMgDl.value.filter {
+            it.timestamp >= cutoff && isStatsValueValid(it.value)
+        }
+        val filteredTemperature = _temperaturePoints.value.filter { it.timestamp >= cutoff }
+
+        StatsUiState(
+            selectedRange = _selectedRange.value,
+            unit = _unit.value,
+            targets = _targets.value,
+            isLoading = _isLoading.value,
+            hasSensor = _hasSensor.value,
+            summary = calculateSummary(filteredHistory, _targets.value),
+            temperaturePoints = filteredTemperature,
+            readings = filteredHistory
+        )
+    }
+
+    fun refreshFromNative() {
+        viewModelScope.launch {
+            val unit = resolveUnit()
+            _unit.value = unit
+            _targets.value = resolveTargets(unit)
+
+            val serial = Natives.lastsensorname().orEmpty()
+            if (serial.isBlank()) {
+                _hasSensor.value = false
+                _isLoading.value = false
+                _historyMgDl.value = emptyList()
+                _temperaturePoints.value = emptyList()
+                activeSerial = null
+                historyWindowStartMs = Long.MAX_VALUE
+                historyJob?.cancel()
+                return@launch
+            }
+
+            _hasSensor.value = true
+            val startTime = if (_selectedRange.value == StatsTimeRange.DAY_ALL) {
+                0L
+            } else {
+                System.currentTimeMillis() - (STATS_HISTORY_CACHE_DAYS * DAY_MS)
+            }
+            subscribeToHistory(serial, startTime)
+        }
+    }
+
+    private fun subscribeToHistory(serial: String, startTime: Long) {
+        historyJob?.cancel()
+        _isLoading.value = true
+        activeSerial = serial
+        historyWindowStartMs = startTime
+
+        historyJob = viewModelScope.launch {
+            historyRepository.getHistoryFlowForStatsSensor(serial, startTime)
+                .distinctUntilChangedBy { points ->
+                    points.size to (points.lastOrNull()?.timestamp ?: 0L)
+                }
+                .collect { points ->
+                    _historyMgDl.value = points
+                    _isLoading.value = false
+                    _temperaturePoints.value = maybeRefreshTemperaturePoints(serial, points)
+
+                    // Keep unit/targets in sync if user changed unit while this screen is open.
+                    val latestUnit = resolveUnit()
+                    if (latestUnit != _unit.value) {
+                        _unit.value = latestUnit
+                        _targets.value = resolveTargets(latestUnit)
+                    }
+                }
+        }
+    }
+
+    private fun maybeRefreshTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
+        val now = System.currentTimeMillis()
+        val shouldRefresh = serial != cachedTemperatureSerial ||
+            now - lastTemperatureRefreshMs > TEMPERATURE_REFRESH_INTERVAL_MS
+
+        if (!shouldRefresh) {
+            return cachedTemperaturePoints
+        }
+
+        val refreshed = readTemperaturePoints(serial, history)
+        cachedTemperatureSerial = serial
+        cachedTemperaturePoints = refreshed
+        lastTemperatureRefreshMs = now
+        return refreshed
+    }
+
+    private fun resolveUnit(): GlucoseUnit {
+        val unitInt = Natives.getunit()
+        return if (unitInt == 1 || Applic.unit == 1) GlucoseUnit.MMOL else GlucoseUnit.MGDL
+    }
+
+    private fun resolveTargets(unit: GlucoseUnit): StatsTargets {
+        return try {
+            val lowMg = toMgDl(Natives.targetlow(), unit)
+            val highMg = toMgDl(Natives.targethigh(), unit)
+            val veryLowMg = toMgDl(Natives.alarmverylow(), unit)
+            val veryHighMg = toMgDl(Natives.alarmveryhigh(), unit)
+
+            val resolvedLow = (if (lowMg > 0f) lowMg else 70f).coerceAtLeast(40f)
+            val resolvedHigh = (if (highMg > 0f) highMg else 180f).coerceAtLeast(resolvedLow + 1f)
+            val veryLowCandidate = if (veryLowMg > 0f) veryLowMg else 54f
+            val veryHighCandidate = if (veryHighMg > 0f) veryHighMg else 250f
+            val resolvedVeryLow = veryLowCandidate.coerceAtLeast(35f).coerceAtMost(resolvedLow - 1f)
+            val resolvedVeryHigh = veryHighCandidate.coerceAtLeast(resolvedHigh + 1f)
+
+            StatsTargets(
+                lowMgDl = resolvedLow,
+                highMgDl = resolvedHigh,
+                veryLowMgDl = resolvedVeryLow,
+                veryHighMgDl = resolvedVeryHigh
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "resolveTargets failed", e)
+            StatsTargets()
+        }
+    }
+
+    private fun toMgDl(rawValue: Float, unit: GlucoseUnit): Float {
+        return if (unit == GlucoseUnit.MMOL && rawValue > 0f) rawValue * MGDL_PER_MMOL else rawValue
+    }
+
+    private fun readTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
+        return try {
+            val dataPtr = Natives.getdataptr(serial)
+            if (dataPtr == 0L) return emptyList()
+
+            try {
+                val sensorPtr = Natives.getsensorptr(dataPtr)
+                if (sensorPtr == 0L) return emptyList()
+
+                val tempRaw = Natives.getTemperatureData(sensorPtr)
+                if (tempRaw == null || tempRaw.isEmpty()) return emptyList()
+
+                val firstTs = history.firstOrNull()?.timestamp
+                val lastTs = history.lastOrNull()?.timestamp
+                val endTs = lastTs ?: System.currentTimeMillis()
+                val startTs = firstTs ?: (endTs - tempRaw.size * 5L * 60L * 1000L)
+                val step = ((endTs - startTs) / tempRaw.size.coerceAtLeast(1)).coerceAtLeast(60_000L)
+
+                buildList(tempRaw.size) {
+                    tempRaw.forEachIndexed { index, value ->
+                        if (value > 0) {
+                            add(
+                                TemperaturePoint(
+                                    timestamp = startTs + index * step,
+                                    temperatureCelsius = value / 10f
+                                )
+                            )
+                        }
+                    }
+                }
+            } finally {
+                Natives.freedataptr(dataPtr)
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "readTemperaturePoints failed", e)
+            emptyList()
+        }
+    }
+
+    private fun buildUiState(input: UiInput): StatsUiState {
+        val cutoff = if (input.range == StatsTimeRange.DAY_ALL) {
+            Long.MIN_VALUE
+        } else {
+            System.currentTimeMillis() - (input.range.days.toLong() * DAY_MS)
+        }
+        val filteredHistory = input.historyMgDl.filter {
+            it.timestamp >= cutoff && isStatsValueValid(it.value)
+        }
+        val filteredTemperature = input.temperaturePoints.filter { it.timestamp >= cutoff }
+
+        return StatsUiState(
+            selectedRange = input.range,
+            unit = input.unit,
+            targets = input.targets,
+            isLoading = input.isLoading,
+            hasSensor = input.hasSensor,
+            summary = calculateSummary(filteredHistory, input.targets),
+            temperaturePoints = filteredTemperature,
+            readings = filteredHistory
+        )
+    }
+
+    private fun isStatsValueValid(valueMgDl: Float): Boolean {
+        return valueMgDl.isFinite() &&
+            valueMgDl in MIN_STATS_GLUCOSE_MGDL..MAX_STATS_GLUCOSE_MGDL
+    }
+
+    private fun calculateSummary(history: List<GlucosePoint>, targets: StatsTargets): StatsSummary {
+        if (history.isEmpty()) {
+            return StatsSummary()
+        }
+
+        val values = history.map { it.value }
+        val sortedValues = values.sorted()
+        val count = sortedValues.size
+
+        val avg = (sortedValues.sum() / count.toFloat())
+        val median = if (count % 2 == 0) {
+            (sortedValues[count / 2 - 1] + sortedValues[count / 2]) / 2f
+        } else {
+            sortedValues[count / 2]
+        }
+
+        val min = sortedValues.first()
+        val max = sortedValues.last()
+
+        val variance = sortedValues.fold(0.0) { acc, value ->
+            val diff = value - avg
+            acc + diff * diff
+        } / count.toDouble()
+        val stdDev = sqrt(variance).toFloat()
+        val cv = if (avg > 0f) (stdDev / avg) * 100f else 0f
+        val gmi = (3.31f + (0.02392f * avg)).coerceAtLeast(0f)
+
+        // Use a sensor-neutral, noise-robust series for variability scores.
+        val variabilityHistory = toVariabilitySeries(history)
+        val variabilityValues = variabilityHistory.map { it.value }
+        val variabilityAvg = if (variabilityValues.isNotEmpty()) {
+            variabilityValues.average().toFloat()
+        } else {
+            avg
+        }
+        val variabilityVariance = if (variabilityValues.isNotEmpty()) {
+            variabilityValues.fold(0.0) { acc, value ->
+                val diff = value - variabilityAvg
+                acc + diff * diff
+            } / variabilityValues.size.toDouble()
+        } else {
+            variance
+        }
+        val variabilityStdDev = sqrt(variabilityVariance).toFloat()
+        val variabilityCv = if (variabilityAvg > 0f) {
+            (variabilityStdDev / variabilityAvg) * 100f
+        } else {
+            cv
+        }
+
+        val veryLowThreshold = targets.veryLowMgDl.coerceAtLeast(35f)
+        val targetLow = targets.lowMgDl.coerceAtLeast(veryLowThreshold + 1f)
+        val targetHigh = targets.highMgDl.coerceAtLeast(targetLow + 1f)
+        val veryHighThreshold = targets.veryHighMgDl.coerceAtLeast(targetHigh + 1f)
+
+        val veryLowCount = values.count { it < veryLowThreshold }
+        val lowCount = values.count { it >= veryLowThreshold && it < targetLow }
+        val inRangeCount = values.count { it in targetLow..targetHigh }
+        val highCount = values.count { it > targetHigh && it < veryHighThreshold }
+        val veryHighCount = values.count { it >= veryHighThreshold }
+
+        fun percent(part: Int): Float = (part.toFloat() / count.toFloat()) * 100f
+
+        val tir = TimeInRangeBreakdown(
+            veryLowPercent = percent(veryLowCount),
+            lowPercent = percent(lowCount),
+            inRangePercent = percent(inRangeCount),
+            highPercent = percent(highCount),
+            veryHighPercent = percent(veryHighCount)
+        )
+
+        val agp = calculateAgpByHour(history)
+        val daily = calculateDailyStats(history, targetLow, targetHigh)
+        val gvi = calculateGvi(
+            history = variabilityHistory,
+            averageMgDl = variabilityAvg,
+            stdDevMgDl = variabilityStdDev
+        )
+        val psg = calculatePsg(
+            history = variabilityHistory,
+            averageMgDl = avg,
+            cvPercent = variabilityCv,
+            targets = targets
+        )
+        val insights = buildInsights(tir = tir, cv = cv, gmi = gmi, dailyStats = daily, agp = agp)
+
+        return StatsSummary(
+            readingCount = count,
+            avgMgDl = avg,
+            medianMgDl = median,
+            stdDevMgDl = stdDev,
+            cvPercent = cv,
+            gmiPercent = gmi,
+            gvi = gvi,
+            psg = psg,
+            minMgDl = min,
+            maxMgDl = max,
+            firstTimestamp = history.first().timestamp,
+            lastTimestamp = history.last().timestamp,
+            tir = tir,
+            agpByHour = agp,
+            dailyStats = daily,
+            insights = insights
+        )
+    }
+
+    private fun calculateAgpByHour(history: List<GlucosePoint>): List<AgpHourBin> {
+        val zone = ZoneId.systemDefault()
+        val valuesByHour = Array(24) { mutableListOf<Float>() }
+
+        history.forEach { point ->
+            val hour = Instant.ofEpochMilli(point.timestamp).atZone(zone).hour
+            valuesByHour[hour].add(point.value)
+        }
+
+        return (0..23).map { hour ->
+            val values = valuesByHour[hour]
+            if (values.isEmpty()) {
+                AgpHourBin(hour = hour)
+            } else {
+                val sorted = values.sorted()
+                AgpHourBin(
+                    hour = hour,
+                    p10MgDl = percentile(sorted, 0.10f),
+                    p25MgDl = percentile(sorted, 0.25f),
+                    medianMgDl = percentile(sorted, 0.50f),
+                    p75MgDl = percentile(sorted, 0.75f),
+                    p90MgDl = percentile(sorted, 0.90f),
+                    sampleCount = sorted.size
+                )
+            }
+        }
+    }
+
+    private fun calculateDailyStats(
+        history: List<GlucosePoint>,
+        targetLow: Float,
+        targetHigh: Float
+    ): List<DailyStats> {
+        val zone = ZoneId.systemDefault()
+
+        return history.groupBy { point ->
+            Instant.ofEpochMilli(point.timestamp).atZone(zone).toLocalDate()
+        }.entries
+            .sortedBy { it.key }
+            .map { (date, points) ->
+                val values = points.map { it.value }
+                val inRangeCount = values.count { it in targetLow..targetHigh }
+                DailyStats(
+                    date = date,
+                    averageMgDl = values.average().toFloat(),
+                    inRangePercent = (inRangeCount.toFloat() / values.size.toFloat()) * 100f,
+                    readingCount = values.size
+                )
+            }
+    }
+
+    private fun calculateGvi(
+        history: List<GlucosePoint>,
+        averageMgDl: Float,
+        stdDevMgDl: Float
+    ): GviScore {
+        if (history.size < 2) return GviScore()
+
+        val sorted = history.sortedBy { it.timestamp }
+        var totalDelta = 0f
+        var rateOfChangeAccum = 0f
+        var rateOfChangeSamples = 0
+
+        for (index in 1..sorted.lastIndex) {
+            val previous = sorted[index - 1]
+            val current = sorted[index]
+            val delta = abs(current.value - previous.value)
+            val elapsedMinutes = (current.timestamp - previous.timestamp).toFloat() / 60_000f
+            totalDelta += delta
+            if (elapsedMinutes > 0f && elapsedMinutes < 30f) {
+                rateOfChangeAccum += delta / elapsedMinutes
+                rateOfChangeSamples++
+            }
+        }
+
+        val meanDelta = totalDelta / sorted.lastIndex.coerceAtLeast(1)
+        val cvFactor = if (averageMgDl > 0f) (stdDevMgDl / averageMgDl).coerceAtLeast(0f) else 0f
+        val rateOfChange = if (rateOfChangeSamples > 0) {
+            rateOfChangeAccum / rateOfChangeSamples
+        } else {
+            0f
+        }
+
+        // Normalize components so GVI doesn't collapse stability to 0% in common profiles.
+        val normalizedDelta = if (averageMgDl > 0f) {
+            (meanDelta / averageMgDl).coerceIn(0f, 1.2f)
+        } else {
+            0f
+        }
+        val normalizedRoc = (rateOfChange / 3.5f).coerceIn(0f, 1f)
+
+        val gviValue = (
+            1f +
+                (cvFactor * 1.1f) +
+                (normalizedDelta * 0.9f) +
+                (normalizedRoc * 0.6f)
+            ).coerceIn(0.8f, 3f)
+        val stability = (((2.4f - gviValue) / 1.6f) * 100f).coerceIn(0f, 100f)
+
+        val labelResId = when {
+            gviValue < 1.25f -> R.string.gvi_excellent
+            gviValue < 1.55f -> R.string.gvi_good
+            gviValue < 1.90f -> R.string.gvi_moderate
+            else -> R.string.gvi_poor
+        }
+
+        return GviScore(
+            value = gviValue,
+            labelResId = labelResId,
+            stability = stability,
+            rateOfChange = rateOfChange
+        )
+    }
+
+    private fun calculatePsg(
+        history: List<GlucosePoint>,
+        averageMgDl: Float,
+        cvPercent: Float,
+        targets: StatsTargets
+    ): PsgScore {
+        if (history.isEmpty()) return PsgScore()
+
+        val sorted = history.sortedBy { it.timestamp }
+        val halfSize = sorted.size / 2
+        val firstHalfAvg = if (halfSize > 0) {
+            sorted.take(halfSize).map { it.value }.average().toFloat()
+        } else {
+            averageMgDl
+        }
+        val secondHalfAvg = if (halfSize < sorted.size) {
+            sorted.drop(halfSize).map { it.value }.average().toFloat()
+        } else {
+            averageMgDl
+        }
+
+        val trend = if (secondHalfAvg > 0f) {
+            ((firstHalfAvg - secondHalfAvg) / secondHalfAvg).coerceIn(-1f, 1f)
+        } else {
+            0f
+        }
+        val confidence = ((sorted.size.coerceIn(0, MAX_PSG_CONFIDENCE_SAMPLES).toFloat() /
+            MAX_PSG_CONFIDENCE_SAMPLES.toFloat()) * (100f - cvPercent).coerceIn(0f, 100f))
+            .coerceIn(0f, 100f)
+
+        val labelResId = when {
+            averageMgDl < targets.lowMgDl -> R.string.psg_low
+            averageMgDl > targets.highMgDl -> R.string.psg_elevated
+            cvPercent > 36f -> R.string.psg_unstable
+            else -> R.string.psg_stable
+        }
+
+        return PsgScore(
+            baselineMgDl = averageMgDl,
+            labelResId = labelResId,
+            trend = trend,
+            confidence = confidence
+        )
+    }
+
+    private fun toVariabilitySeries(history: List<GlucosePoint>): List<GlucosePoint> {
+        if (history.size <= 8) return history.sortedBy { it.timestamp }
+
+        val sorted = history.sortedBy { it.timestamp }
+        val bucketed = sorted
+            .groupBy { it.timestamp / VARIABILITY_BUCKET_MS }
+            .toSortedMap()
+            .map { (_, points) ->
+                val centerPoint = points[points.size / 2]
+                val median = percentile(points.map { it.value }.sorted(), 0.5f)
+                centerPoint.copy(value = median, rawValue = median)
+            }
+
+        if (bucketed.size <= 2) return bucketed
+
+        val stabilized = bucketed.toMutableList()
+
+        // Remove single-point spikes that are likely sensor noise.
+        for (index in 1 until stabilized.lastIndex) {
+            val previous = stabilized[index - 1].value
+            val current = stabilized[index].value
+            val next = stabilized[index + 1].value
+
+            val neighborhoodMid = (previous + next) / 2f
+            val spikeDistance = abs(current - neighborhoodMid)
+            val neighborDistance = abs(previous - next)
+
+            if (
+                spikeDistance >= NOISE_SPIKE_THRESHOLD_MGDL &&
+                neighborDistance <= NOISE_NEIGHBOR_DISTANCE_MGDL
+            ) {
+                stabilized[index] = stabilized[index].copy(
+                    value = neighborhoodMid,
+                    rawValue = neighborhoodMid
+                )
+            }
+        }
+
+        // Cap physiologically implausible jump rates to reduce aged-sensor jitter impact.
+        for (index in 1 until stabilized.size) {
+            val previous = stabilized[index - 1]
+            val current = stabilized[index]
+            val elapsedMinutes = ((current.timestamp - previous.timestamp).toFloat() / 60_000f)
+                .coerceAtLeast(1f)
+            val maxDelta = MAX_PHYS_ROC_MGDL_PER_MIN * elapsedMinutes
+            val delta = current.value - previous.value
+
+            if (abs(delta) > maxDelta) {
+                val clippedValue = previous.value + (delta.sign * maxDelta)
+                stabilized[index] = current.copy(value = clippedValue, rawValue = clippedValue)
+            }
+        }
+
+        return stabilized
+    }
+
+    private fun buildInsights(
+        tir: TimeInRangeBreakdown,
+        cv: Float,
+        gmi: Float,
+        dailyStats: List<DailyStats>,
+        agp: List<AgpHourBin>
+    ): List<StatsInsight> {
+        val insights = mutableListOf<StatsInsight>()
+
+        when {
+            tir.inRangePercent >= 70f -> insights += StatsInsight(
+                title = "Target Time in Range",
+                message = "${tir.inRangePercent.toInt()}% in range. This is aligned with AGP goals.",
+                severity = InsightSeverity.POSITIVE
+            )
+
+            tir.inRangePercent >= 55f -> insights += StatsInsight(
+                title = "Time in Range Can Improve",
+                message = "${tir.inRangePercent.toInt()}% in range. Pushing toward 70% will reduce risk.",
+                severity = InsightSeverity.ATTENTION
+            )
+
+            else -> insights += StatsInsight(
+                title = "Low Time in Range",
+                message = "${tir.inRangePercent.toInt()}% in range. Review basal/meal periods with your care plan.",
+                severity = InsightSeverity.CAUTION
+            )
+        }
+
+        when {
+            cv <= 36f -> insights += StatsInsight(
+                title = "Glucose Variability Controlled",
+                message = "CV ${String.format("%.1f", cv)}% is within the recommended stability target.",
+                severity = InsightSeverity.POSITIVE
+            )
+
+            cv <= 45f -> insights += StatsInsight(
+                title = "Variability Rising",
+                message = "CV ${String.format("%.1f", cv)}% indicates wider swings.",
+                severity = InsightSeverity.ATTENTION
+            )
+
+            else -> insights += StatsInsight(
+                title = "High Variability",
+                message = "CV ${String.format("%.1f", cv)}% is high and may increase hypo/hyper risk.",
+                severity = InsightSeverity.CAUTION
+            )
+        }
+
+        if (tir.veryLowPercent >= 1f) {
+            insights += StatsInsight(
+                title = "Hypoglycemia Exposure",
+                message = "${String.format("%.1f", tir.veryLowPercent)}% in the severe low range needs urgent reduction.",
+                severity = InsightSeverity.CAUTION
+            )
+        }
+
+        if (tir.veryHighPercent >= 5f) {
+            insights += StatsInsight(
+                title = "Prolonged Hyperglycemia",
+                message = "${String.format("%.1f", tir.veryHighPercent)}% in the severe high range suggests missed correction windows.",
+                severity = InsightSeverity.ATTENTION
+            )
+        }
+
+        val overnightMedian = agp
+            .filter { it.hour in 0..5 }
+            .mapNotNull { it.medianMgDl }
+            .average()
+            .toFloat()
+        val daytimeMedian = agp
+            .filter { it.hour in 10..18 }
+            .mapNotNull { it.medianMgDl }
+            .average()
+            .toFloat()
+
+        if (overnightMedian > 0f && daytimeMedian > 0f && overnightMedian - daytimeMedian > 20f) {
+            insights += StatsInsight(
+                title = "Overnight Drift Detected",
+                message = "Median overnight glucose is elevated vs daytime. Check evening insulin/carbohydrate timing.",
+                severity = InsightSeverity.ATTENTION
+            )
+        }
+
+        val unstableDays = dailyStats.count { it.inRangePercent < 50f }
+        if (unstableDays >= 3 && dailyStats.size >= 7) {
+            insights += StatsInsight(
+                title = "Frequent Unstable Days",
+                message = "$unstableDays days in this window had <50% time in range.",
+                severity = InsightSeverity.CAUTION
+            )
+        }
+
+        if (gmi >= 7.5f && tir.inRangePercent < 60f) {
+            insights += StatsInsight(
+                title = "High Estimated A1C Pressure",
+                message = "GMI ${String.format("%.1f", gmi)}% with low TIR suggests persistent exposure above target.",
+                severity = InsightSeverity.ATTENTION
+            )
+        }
+
+        return insights.distinctBy { it.title }.take(MAX_INSIGHTS)
+    }
+
+    private fun percentile(sorted: List<Float>, percentile: Float): Float {
+        if (sorted.isEmpty()) return 0f
+        if (sorted.size == 1) return sorted.first()
+
+        val clamped = percentile.coerceIn(0f, 1f)
+        val position = clamped * (sorted.size - 1)
+        val lowerIndex = position.toInt()
+        val upperIndex = (lowerIndex + 1).coerceAtMost(sorted.lastIndex)
+        val weight = position - lowerIndex
+
+        return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * weight
+    }
+
+    private data class UiInput(
+        val range: StatsTimeRange,
+        val unit: GlucoseUnit,
+        val targets: StatsTargets,
+        val isLoading: Boolean,
+        val hasSensor: Boolean,
+        val historyMgDl: List<GlucosePoint>,
+        val temperaturePoints: List<TemperaturePoint>
+    )
+
+    private data class BaseInput(
+        val range: StatsTimeRange,
+        val unit: GlucoseUnit,
+        val targets: StatsTargets,
+        val isLoading: Boolean,
+        val hasSensor: Boolean
+    )
+
+    companion object {
+        private const val MGDL_PER_MMOL = 18.0182f
+        private const val DAY_MS = 24L * 60L * 60L * 1000L
+        private const val MAX_INSIGHTS = 5
+        private const val TEMPERATURE_REFRESH_INTERVAL_MS = 15L * 60L * 1000L
+        private const val MAX_PSG_CONFIDENCE_SAMPLES = 288
+        private const val VARIABILITY_BUCKET_MS = 5L * 60L * 1000L
+        private const val NOISE_SPIKE_THRESHOLD_MGDL = 18f
+        private const val NOISE_NEIGHBOR_DISTANCE_MGDL = 9f
+        private const val MAX_PHYS_ROC_MGDL_PER_MIN = 3.5f
+        private const val MIN_STATS_GLUCOSE_MGDL = 30f
+        private const val MAX_STATS_GLUCOSE_MGDL = 500f
+        private const val STATS_HISTORY_CACHE_DAYS = 365L
+        private const val MAX_REPORT_DAYS = 365
+    }
+}
