@@ -162,8 +162,7 @@
 
         <provider
             android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            tools:node="remove" />
+            android:authorities="${applicationId}.androidx-startup" />
 
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"

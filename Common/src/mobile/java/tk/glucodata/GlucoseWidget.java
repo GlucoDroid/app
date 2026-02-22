@@ -143,7 +143,6 @@ final    private static String LOG_ID="GlucoseWidget";
    used=false;
     }
 public static void oldvalue(long time) {
-   tk.glucodata.widget.ExpressiveWidgetReceiver.updateAll(Applic.app);
    final var cl= GlucoseWidget.class;
    final var manage= AppWidgetManager.getInstance(Applic.app);
    int ids[] = manage.getAppWidgetIds(new ComponentName(Applic.app, cl));
@@ -162,7 +161,6 @@ public static void oldvalue(long time) {
 
    }
  public static void update() {
-    tk.glucodata.widget.ExpressiveWidgetReceiver.updateAll(Applic.app);
     if(used) {
       final var cl= GlucoseWidget.class;
       final var manage= AppWidgetManager.getInstance(Applic.app);
