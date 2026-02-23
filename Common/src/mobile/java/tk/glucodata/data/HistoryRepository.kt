@@ -29,6 +29,9 @@ class HistoryRepository(context: Context = Applic.app) {
         
         @Volatile
         private var backfillCompleted = false
+
+        @Volatile
+        private var backfillInProgress = false
         
         /**
          * Reset the backfill flag so ensureBackfilled() re-runs.
@@ -479,15 +482,25 @@ class HistoryRepository(context: Context = Applic.app) {
      */
     suspend fun ensureBackfilled() {
         if (backfillCompleted) return
-        
-        withContext(Dispatchers.IO) {
-            try {
-                Log.d(TAG, "Session start - merging native history for ALL active sensors into database")
-                backfillAllSensors()
-                backfillCompleted = true
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during backfill", e)
+
+        if (backfillInProgress) {
+            Log.d(TAG, "ensureBackfilled skipped — backfill already in progress")
+            return
+        }
+
+        backfillInProgress = true
+        try {
+            withContext(Dispatchers.IO) {
+                try {
+                    Log.d(TAG, "Session start - merging native history for ALL active sensors into database")
+                    backfillAllSensors()
+                    backfillCompleted = true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during backfill", e)
+                }
             }
+        } finally {
+            backfillInProgress = false
         }
     }
     

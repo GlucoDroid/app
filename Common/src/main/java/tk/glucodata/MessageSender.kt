@@ -87,11 +87,19 @@ suspend fun findWearDevicesWithApp() {
     }
 
 public fun finddevices() {
+     if (!GoogleServices.isPlayServicesAvailable(activity)) {
+         Log.w(LOG_ID, "finddevices skipped: Google Play Services unavailable")
+         return
+     }
      val sender=this
      scope.launch {
       findWearDevicesWithApp()
       }
-     Wearable.getCapabilityClient(activity).addListener(sender, JUGGLUCOIDENT)
+     try {
+         Wearable.getCapabilityClient(activity).addListener(sender, JUGGLUCOIDENT)
+     } catch (th: Throwable) {
+         Log.stack(LOG_ID, "addCapabilityListener", th)
+     }
      }
 
   init {
@@ -395,8 +403,18 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
 
     @JvmStatic
     public fun initwearos(app: Context) {
+        if (!GoogleServices.isPlayServicesAvailable(app)) {
+            Log.w(LOG_ID, "initwearos skipped: Google Play Services unavailable")
+            messagesender = null
+            return
+        }
         if(doLog) {Log.i(LOG_ID, "before new MessageSender");}
-        messagesender = MessageSender(app)
+        try {
+            messagesender = MessageSender(app)
+        } catch (th: Throwable) {
+            messagesender = null
+            Log.stack(LOG_ID, "initwearos", th)
+        }
 //    {if(doLog) {Log.i(LOG_ID,"before sendnetinfo");};};
 //    sendnetinfo();
     }

@@ -30,32 +30,102 @@ import tk.glucodata.Log
  * The previous version was an empty stub that broke Sibionics sensor discovery.
  */
 class BleDeviceScanner(context: Context) {
+    private val appContext = context.applicationContext
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val adapter: BluetoothAdapter? = bluetoothManager.adapter
     private var scanCallback: ScanCallback? = null
 
-    @SuppressLint("MissingPermission")
-    fun startScan(onResult: (ScanResult) -> Unit) {
-        if (adapter?.isEnabled == true) {
-            if (scanCallback != null) stopScan() // Stop existing
+    sealed class ScanStartError {
+        object NoPermission : ScanStartError()
+        object BluetoothDisabled : ScanStartError()
+        object NoAdapter : ScanStartError()
+        object ScannerUnavailable : ScanStartError()
+        data class ScanFailed(val code: Int) : ScanStartError()
+    }
 
-            scanCallback = object : ScanCallback() {
-                override fun onScanResult(callbackType: Int, result: ScanResult?) {
-                    result?.let { onResult(it) }
-                }
+    fun hasScanPermission(): Boolean = hasScanPermission(appContext)
+
+    fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
+
+    @SuppressLint("MissingPermission")
+    fun startScan(
+        onResult: (ScanResult) -> Unit,
+        onError: (ScanStartError) -> Unit = {}
+    ) {
+        if (!hasScanPermission()) {
+            Log.e(LOG_ID, "startScan aborted: missing BLE scan permission")
+            onError(ScanStartError.NoPermission)
+            return
+        }
+
+        val btAdapter = adapter
+        if (btAdapter == null) {
+            Log.e(LOG_ID, "startScan aborted: Bluetooth adapter is null")
+            onError(ScanStartError.NoAdapter)
+            return
+        }
+
+        if (!btAdapter.isEnabled) {
+            Log.e(LOG_ID, "startScan aborted: Bluetooth is disabled")
+            onError(ScanStartError.BluetoothDisabled)
+            return
+        }
+
+        val scanner = btAdapter.bluetoothLeScanner
+        if (scanner == null) {
+            Log.e(LOG_ID, "startScan aborted: BluetoothLeScanner is null")
+            onError(ScanStartError.ScannerUnavailable)
+            return
+        }
+
+        if (scanCallback != null) {
+            stopScan()
+        }
+
+        scanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult?) {
+                result?.let { onResult(it) }
             }
-            val settings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build()
-            adapter.bluetoothLeScanner?.startScan(null, settings, scanCallback)
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e(LOG_ID, "BLE scan failed with errorCode=$errorCode")
+                onError(ScanStartError.ScanFailed(errorCode))
+            }
+        }
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
+        try {
+            scanner.startScan(null, settings, scanCallback)
+        } catch (e: SecurityException) {
+            Log.e(LOG_ID, "SecurityException during startScan: " + e.message)
+            scanCallback = null
+            onError(ScanStartError.NoPermission)
+        } catch (e: Exception) {
+            Log.e(LOG_ID, "Exception during startScan: " + e.message)
+            scanCallback = null
+            onError(ScanStartError.ScannerUnavailable)
         }
     }
 
     @SuppressLint("MissingPermission")
     fun stopScan() {
-        if (adapter?.isEnabled == true && scanCallback != null) {
-            adapter.bluetoothLeScanner?.stopScan(scanCallback)
-            scanCallback = null
+        val callback = scanCallback ?: return
+        scanCallback = null
+
+        val btAdapter = adapter ?: return
+        if (!btAdapter.isEnabled) {
+            return
+        }
+
+        try {
+            btAdapter.bluetoothLeScanner?.stopScan(callback)
+        } catch (e: SecurityException) {
+            Log.e(LOG_ID, "SecurityException during stopScan: " + e.message)
+        } catch (e: Exception) {
+            Log.e(LOG_ID, "Exception during stopScan: " + e.message)
         }
     }
 
@@ -64,8 +134,7 @@ class BleDeviceScanner(context: Context) {
         private const val LOG_ID = "BleDeviceScanner"
 
         /** Check BLE scan permissions (mirrors Applic.mayscan() which is package-private) */
-        private fun hasScanPermission(): Boolean {
-            val ctx = Applic.app ?: return false
+        private fun hasScanPermission(ctx: Context): Boolean {
             if (Build.VERSION.SDK_INT >= 31) {
                 return ContextCompat.checkSelfPermission(ctx, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
                     && ContextCompat.checkSelfPermission(ctx, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
@@ -74,6 +143,11 @@ class BleDeviceScanner(context: Context) {
                 return ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
             }
             return true
+        }
+
+        private fun hasScanPermission(): Boolean {
+            val ctx = Applic.app ?: return false
+            return hasScanPermission(ctx)
         }
 
         /**

@@ -954,8 +954,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         dialog.setOnShowListener(d -> {
             Log.e(LOG_ID, "setOnShowListener");
             if (files.isDirectory() || files.mkdirs()) {
-                Log.e(LOG_ID, filespath + " accessable");
-                System.exit(8);
+                Log.i(LOG_ID, filespath + " accessible again, dismissing fatal dialog");
+                dialog.dismiss();
             }
         });
         dialog.show();

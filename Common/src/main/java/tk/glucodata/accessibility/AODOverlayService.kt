@@ -421,7 +421,11 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             // Format based on viewMode and calibration (matching hero card logic)
             val calibratedVal = if (hasCalibration) {
                 val baseVal = if (isRawMode) rawVal else autoVal
-                tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseVal, time, isRawMode)
+                if (baseVal.isFinite() && baseVal > 0.1f) {
+                    tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseVal, time, isRawMode)
+                } else {
+                    0f
+                }
             } else 0f
             
             valStr = when {

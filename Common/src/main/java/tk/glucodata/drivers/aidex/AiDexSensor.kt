@@ -209,6 +209,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         private const val BROADCAST_SCAN_BASE_INTERVAL_CONNECTED_MS = 60_000L
         private const val BROADCAST_SCAN_MAX_INTERVAL_MS = 300_000L
         private const val BROADCAST_MIN_STORE_INTERVAL_MS = 50_000L
+        private const val COMMAND_SESSION_ACTIVE_WINDOW_MS = 90_000L
 
         private const val BROADCAST_REFERENCE_MS = 5 * 60_000L
 
@@ -367,6 +368,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private var cccdWriteTimeoutGattToken: Int = 0
     private var cccdWriteTimeoutShortUuid: Int = 0
     private var cccdWriteRetryCount: Int = 0
+    // Runtime quarantine for supplementary CCCDs that repeatedly wedge a session on some stacks.
+    // Main-chain UUIDs remain mandatory and are never suppressed.
+    @Volatile private var cccdSuppressSupplementaryF001 = false
+    @Volatile private var cccdSuppressSupplementaryF003 = false
     // Edit 50a: Bypass flag for proactive GATT connect on 2nd DISCOVER.
     // When true, connectDevice() allows GATT connect even without vendorExecuteConnectReceived.
     // Unlike Edit 49a, we do NOT set vendorExecuteConnectReceived — the GATT connects and waits
@@ -823,6 +828,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (!broadcastEnabled) return false
         if (!(wantsAuto() || (wantsRaw() && rawBroadcastFallbackEnabled))) return false
 
+        // During GATT setup (connected but CCCDs not completed), keep scan off.
+        // On some vendor/phone stacks this competes with descriptor writes and increases stalls.
+        if (vendorBleEnabled && mBluetoothGatt != null && !vendorGattNotified) {
+            Log.d(TAG, "wantsBroadcastScan: suppressed — GATT setup in progress")
+            return false
+        }
+
         // Suppress scanning once vendor native stack is ready on an active GATT session.
         // Some reconnect paths stream AUTO_UPDATE without flipping vendorLongConnectTriggered,
         // and keeping scans active there causes repeated scan timeouts/reconnect churn.
@@ -1011,6 +1023,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             cccdChainRunning = false
             cccdChainGattToken = 0
         }
+        cccdSuppressSupplementaryF001 = false
+        cccdSuppressSupplementaryF003 = false
         vendorHistoryRangePending = false
         cancelBroadcastPoll()  // Edit 37a: stop polling loop
         vendorConsecutiveDiscoverCount = 0  // Edit 37e: reset discover counter
@@ -1476,7 +1490,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 false
             } else {
                 val ageMs = System.currentTimeMillis() - vendorLastMessageTime
-                ageMs in 0..15_000L
+                ageMs in 0..COMMAND_SESSION_ACTIVE_WINDOW_MS
             }
         }
         val aesBeforeCmd = try { controller.isInitialized } catch (_: Throwable) { false }
@@ -2449,13 +2463,25 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 if (data != null && message.isSuccess) {
                     val result = parseVendorBroadcastPayload(data, now)
                     if (result != null) {
+                        val gapDetected = detectVendorHistoryGap(result.timeOffsetMinutes, "vendor-gatt")
+                        val rawCandidateForStore = if (gapDetected) {
+                            if (result.rawMgDl > 0f) {
+                                Log.i(
+                                    TAG,
+                                    "Vendor GET_BROADCAST_DATA: ignoring raw candidate ${result.rawMgDl} during gap recovery (offset=${result.timeOffsetMinutes}, nextIndex=$vendorHistoryNextIndex)"
+                                )
+                            }
+                            0f
+                        } else {
+                            result.rawMgDl
+                        }
                         val didStore = storeAutoFromSource(
                             result.glucoseMgDl,
                             result.timeOffsetMinutes,
                             now,
                             "vendor-gatt",
                             fromVendor = true,
-                            vendorRawMgDl = result.rawMgDl
+                            vendorRawMgDl = rawCandidateForStore
                         )
                         // Edit 77: Only set vendorGotGlucoseThisCycle and transition to slow poll
                         // when glucose was actually stored. During warmup, storeAutoFromSource
@@ -2470,7 +2496,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                                 scheduleNextBroadcastPoll()  // reschedule at slow interval
                             }
                             // Edit 42c: Connection is fully alive — request history backfill
-                            if (detectVendorHistoryGap(result.timeOffsetMinutes, "vendor-gatt")) {
+                            if (gapDetected) {
                                 requestHistoryBackfill("post-glucose-gap")
                             } else {
                                 requestHistoryBackfill("post-glucose")
@@ -3006,7 +3032,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
      * 2. Clear the BLE bond (sensor has different bond context)
      * 3. Disconnect and let SensorBluetooth reconnect — next onVendorDiscovered() will do a fresh pair()
      */
-    private var vendorLastMessageTime = 0L
+    @Volatile private var vendorLastMessageTime = 0L
     private var reconnectStallRunnable: Runnable? = null
     private val RECONNECT_STALL_TIMEOUT_MS = 30_000L  // Edit 35b: increased from 20s to 30s
     private var vendorStallRetryCount = 0  // Edit 36d: track soft-restart attempts
@@ -4367,22 +4393,30 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
         // 1. Supplementary: F001 if not already in main chain
         if (privUuid != 0xF001 && charUuid != 0xF001) {
-            val cF001 = sF000.getCharacteristic(shortToFullUuid(0xF001))
-            if (cF001 != null) {
-                // Register local notification listener immediately (this is a local-only operation, no GATT op)
-                gatt.setCharacteristicNotification(cF001, true)
-                pendingCccdWrites.addLast(0xF001)
-                Log.i(TAG, "Edit 72: Queued supplementary CCCD F001")
+            if (isSupplementaryRuntimeSuppressed(0xF001)) {
+                Log.i(TAG, "Edit 72: Supplementary CCCD F001 suppressed for this runtime (previous timeout/failure)")
+            } else {
+                val cF001 = sF000.getCharacteristic(shortToFullUuid(0xF001))
+                if (cF001 != null) {
+                    // Register local notification listener immediately (this is a local-only operation, no GATT op)
+                    gatt.setCharacteristicNotification(cF001, true)
+                    pendingCccdWrites.addLast(0xF001)
+                    Log.i(TAG, "Edit 72: Queued supplementary CCCD F001")
+                }
             }
         }
 
         // 2. Supplementary: F003 if not already in main chain
         if (privUuid != 0xF003 && charUuid != 0xF003) {
-            val cF003 = sF000.getCharacteristic(shortToFullUuid(0xF003))
-            if (cF003 != null) {
-                gatt.setCharacteristicNotification(cF003, true)
-                pendingCccdWrites.addLast(0xF003)
-                Log.i(TAG, "Edit 72: Queued supplementary CCCD F003")
+            if (isSupplementaryRuntimeSuppressed(0xF003)) {
+                Log.i(TAG, "Edit 72: Supplementary CCCD F003 suppressed for this runtime (previous timeout/failure)")
+            } else {
+                val cF003 = sF000.getCharacteristic(shortToFullUuid(0xF003))
+                if (cF003 != null) {
+                    gatt.setCharacteristicNotification(cF003, true)
+                    pendingCccdWrites.addLast(0xF003)
+                    Log.i(TAG, "Edit 72: Queued supplementary CCCD F003")
+                }
             }
         }
 
@@ -4447,6 +4481,29 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
     private fun isSupplementaryCccd(shortUuid: Int): Boolean =
         !isMainChainCccd(shortUuid) && (shortUuid == 0xF001 || shortUuid == 0xF003)
+
+    private fun isSupplementaryRuntimeSuppressed(shortUuid: Int): Boolean = when (shortUuid) {
+        0xF001 -> cccdSuppressSupplementaryF001
+        0xF003 -> cccdSuppressSupplementaryF003
+        else -> false
+    }
+
+    private fun markSupplementaryRuntimeSuppressed(shortUuid: Int, reason: String) {
+        when (shortUuid) {
+            0xF001 -> {
+                if (!cccdSuppressSupplementaryF001) {
+                    cccdSuppressSupplementaryF001 = true
+                    Log.w(TAG, "CCCD: Suppressing supplementary 0xF001 for this runtime ($reason)")
+                }
+            }
+            0xF003 -> {
+                if (!cccdSuppressSupplementaryF003) {
+                    cccdSuppressSupplementaryF003 = true
+                    Log.w(TAG, "CCCD: Suppressing supplementary 0xF003 for this runtime ($reason)")
+                }
+            }
+        }
+    }
 
     /**
      * Edit 72: Writes the next CCCD from the pendingCccdWrites queue.
@@ -4546,13 +4603,22 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             cccdWriteRetryCount++
             if (cccdWriteRetryCount > CCCD_WRITE_MAX_RETRIES) {
                 if (isSupplementaryCccd(nextShort)) {
+                    markSupplementaryRuntimeSuppressed(nextShort, "writeDescriptor retry exhaustion")
                     Log.w(
                         TAG,
                         "writeNextCccd: supplementary CCCD 0x${Integer.toHexString(nextShort)} " +
-                                "writeDescriptor retry exhaustion (${cccdWriteRetryCount}/$CCCD_WRITE_MAX_RETRIES) — skipping"
+                                "writeDescriptor retry exhaustion (${cccdWriteRetryCount}/$CCCD_WRITE_MAX_RETRIES) — reconnecting without this supplementary CCCD"
                     )
                     cccdWriteRetryCount = 0
-                    writeNextCccd(gatt)
+                    pendingCccdWrites.clear()
+                    synchronized(cccdChainLock) {
+                        if (cccdChainGattToken == System.identityHashCode(gatt)) cccdChainRunning = false
+                    }
+                    try {
+                        gatt.disconnect()
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "writeNextCccd: disconnect after supplementary retry exhaustion failed: ${t.message}")
+                    }
                     return
                 }
                 Log.e(
@@ -4607,12 +4673,21 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             if (mBluetoothGatt !== gatt) return@Runnable
             if (!cccdChainRunning || vendorGattNotified) return@Runnable
             if (isSupplementaryCccd(shortUuid)) {
+                markSupplementaryRuntimeSuppressed(shortUuid, "watchdog timeout")
                 Log.w(
                     TAG,
-                    "CCCD watchdog: supplementary 0x${Integer.toHexString(shortUuid)} timed out after ${timeoutMs}ms — skipping and continuing chain"
+                    "CCCD watchdog: supplementary 0x${Integer.toHexString(shortUuid)} timed out after ${timeoutMs}ms — reconnecting and retrying without this supplementary CCCD"
                 )
                 cancelCccdWriteTimeout()
-                writeNextCccd(gatt)
+                pendingCccdWrites.clear()
+                synchronized(cccdChainLock) {
+                    if (cccdChainGattToken == gattToken) cccdChainRunning = false
+                }
+                try {
+                    gatt.disconnect()
+                } catch (t: Throwable) {
+                    Log.e(TAG, "CCCD watchdog: disconnect after supplementary timeout failed: ${t.message}")
+                }
                 return@Runnable
             }
             Log.e(TAG, "CCCD watchdog: timeout on 0x${Integer.toHexString(shortUuid)} after ${timeoutMs}ms, reconnecting")
@@ -5715,10 +5790,32 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         return null
     }
 
-    private fun decodeVendorBroadcastRawCandidate(payload: ByteArray): Float {
+    private fun decodeVendorBroadcastRawCandidate(payload: ByteArray, glucoseMgDl: Float, now: Long): Float {
         if (payload.size < 8) return 0f
         val i1 = u16Le(payload, 6) / 100f
-        return selectVendorRawLane(i1 = i1, i2 = 0f, rawOnlyMode = hasRawLane())
+        val candidate = selectVendorRawLane(i1 = i1, i2 = 0f, rawOnlyMode = hasRawLane())
+        if (!candidate.isFinite() || candidate <= 0f) return 0f
+
+        // Short GET_BROADCAST_DATA frames expose only one raw lane (i1). That lane is noisier
+        // than AUTO_UPDATE_FULL_HISTORY/GET_HISTORIES raw lanes, so gate obvious outliers.
+        val minByGlucose = glucoseMgDl * 0.10f
+        val maxByGlucose = glucoseMgDl * 1.20f
+        if (candidate < minByGlucose || candidate > maxByGlucose) {
+            Log.w(
+                TAG,
+                "Ignoring short-broadcast raw candidate $candidate mg/dL (glucose=$glucoseMgDl mg/dL)"
+            )
+            return 0f
+        }
+        val recentRaw = recentRawSecondary(now)
+        if (recentRaw > 0f && kotlin.math.abs(candidate - recentRaw) > 8f) {
+            Log.w(
+                TAG,
+                "Ignoring short-broadcast raw outlier $candidate mg/dL (recentRaw=$recentRaw mg/dL)"
+            )
+            return 0f
+        }
+        return candidate
     }
 
     private fun parseVendorInstantPayload(payload: ByteArray, now: Long): VendorDecodeResult? {
@@ -5737,7 +5834,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         val trend = payload[4].toInt()
         val glucose = payload[5].toInt() and 0xFF
         if (glucose !in MIN_VALID_GLUCOSE_MGDL_INT..MAX_VALID_GLUCOSE_MGDL_INT) return null
-        val rawMgDl = decodeVendorBroadcastRawCandidate(payload)
+        val rawMgDl = decodeVendorBroadcastRawCandidate(payload, glucose.toFloat(), now)
         updateStartTimeFromOffset(offsetMinutes.toLong(), now)
         return VendorDecodeResult(glucose.toFloat(), offsetMinutes, trend, rawMgDl)
     }

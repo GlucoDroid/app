@@ -838,39 +838,58 @@ public class SensorBluetooth {
 
     // --- KOTLIN SENSORS (AiDex) SUPPORT ---
     public static void addAiDexSensor(Context context, String name, String address) {
-        // Add to persistent storage
-        android.content.SharedPreferences prefs = context.getSharedPreferences("tk.glucodata_preferences",
-                Context.MODE_PRIVATE);
-        java.util.Set<String> sensors = prefs.getStringSet("aidex_sensors", new java.util.HashSet<>());
-        java.util.Set<String> newSensors = new java.util.HashSet<>(sensors);
-        newSensors.add(name + "|" + address);
-        prefs.edit().putStringSet("aidex_sensors", newSensors).apply();
+        if (context == null || name == null || name.trim().isEmpty() || address == null || address.trim().isEmpty()) {
+            Log.w(LOG_ID, "addAiDexSensor: invalid input name/address");
+            return;
+        }
+        try {
+            // Add to persistent storage
+            android.content.SharedPreferences prefs = context.getSharedPreferences("tk.glucodata_preferences",
+                    Context.MODE_PRIVATE);
+            java.util.Set<String> sensors;
+            try {
+                sensors = prefs.getStringSet("aidex_sensors", new java.util.HashSet<>());
+            } catch (ClassCastException cce) {
+                Log.stack(LOG_ID, "addAiDexSensor: malformed aidex_sensors pref, resetting", cce);
+                prefs.edit().remove("aidex_sensors").apply();
+                sensors = new java.util.HashSet<>();
+            }
+            if (sensors == null) {
+                sensors = new java.util.HashSet<>();
+            }
+            java.util.Set<String> newSensors = new java.util.HashSet<>(sensors);
+            newSensors.add(name + "|" + address);
+            prefs.edit().putStringSet("aidex_sensors", newSensors).apply();
 
-        // If SensorBluetooth is alive, add it immediately
-        if (blueone != null) {
-            String serial = name;
-            // Check if already added (avoid duplicates)
-            for (SuperGattCallback cb : blueone.gattcallbacks) {
-                if (cb.SerialNumber != null && cb.SerialNumber.equals(serial)) {
-                    return;
+            // If SensorBluetooth is alive, add it immediately
+            if (blueone != null) {
+                String serial = name;
+                // Check if already added (avoid duplicates)
+                for (SuperGattCallback cb : blueone.gattcallbacks) {
+                    if (cb.SerialNumber != null && cb.SerialNumber.equals(serial)) {
+                        return;
+                    }
                 }
+                long dataptr = Natives.getdataptr(name);
+                // Clear finished flag so sensor appears in activeSensors/bluetoothactive
+                if (dataptr != 0L) {
+                    Natives.unfinishSensor(dataptr);
+                }
+                // Multi-sensor fix: Do NOT force this sensor as main on reconnect.
+                // The user's main sensor selection should be respected. The old code
+                // (Edit 85) called setcurrentsensor() here, which caused the main
+                // sensor to silently switch to AiDex whenever it reconnected, even
+                // if the user had intentionally set another sensor (e.g. Sibionics)
+                // as main. The main sensor is now only changed explicitly by the user
+                // or when the first-ever sensor is added (via addsensor() in C++).
+                Context appCtx = Applic.app != null ? Applic.app : context.getApplicationContext();
+                SuperGattCallback cb = new tk.glucodata.drivers.aidex.AiDexSensor(appCtx, name, dataptr);
+                cb.mActiveDeviceAddress = address;
+                blueone.gattcallbacks.add(cb);
+                cb.connectDevice(0);
             }
-            long dataptr = Natives.getdataptr(name);
-            // Clear finished flag so sensor appears in activeSensors/bluetoothactive
-            if (dataptr != 0L) {
-                Natives.unfinishSensor(dataptr);
-            }
-            // Multi-sensor fix: Do NOT force this sensor as main on reconnect.
-            // The user's main sensor selection should be respected. The old code
-            // (Edit 85) called setcurrentsensor() here, which caused the main
-            // sensor to silently switch to AiDex whenever it reconnected, even
-            // if the user had intentionally set another sensor (e.g. Sibionics)
-            // as main. The main sensor is now only changed explicitly by the user
-            // or when the first-ever sensor is added (via addsensor() in C++).
-            SuperGattCallback cb = new tk.glucodata.drivers.aidex.AiDexSensor(Applic.app, name, dataptr);
-            cb.mActiveDeviceAddress = address;
-            blueone.gattcallbacks.add(cb);
-            cb.connectDevice(0);
+        } catch (Throwable t) {
+            Log.stack(LOG_ID, "addAiDexSensor", t);
         }
     }
 

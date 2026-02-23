@@ -63,6 +63,27 @@ public final class BlecommLoader {
         return ensureLoaded();
     }
 
+    public static boolean isLibraryPresent(Context context) {
+        if (loaded) {
+            return true;
+        }
+        if (context == null) {
+            return false;
+        }
+        try {
+            if (externalLibraryFile(context).isFile()) {
+                return true;
+            }
+            String nativeLibraryDir = context.getApplicationInfo() != null
+                ? context.getApplicationInfo().nativeLibraryDir
+                : null;
+            return nativeLibraryDir != null && new File(nativeLibraryDir, LIBRARY_FILE).isFile();
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to check blecomm library presence", t);
+            return false;
+        }
+    }
+
     public static boolean isLoaded() {
         return loaded;
     }
@@ -87,7 +108,7 @@ public final class BlecommLoader {
             byte[] libraryBytes = (headerRead == 4 && isZipBytes(header))
                 ? extractLibraryFromArchive(input)
                 : readFully(input);
-            if (libraryBytes == null || libraryBytes.length == 0) {
+            if (libraryBytes == null || libraryBytes.length == 0 || !isElfSharedObject(libraryBytes)) {
                 return false;
             }
             File target = externalLibraryFile(context);
@@ -100,11 +121,7 @@ public final class BlecommLoader {
             }
             loaded = false;
             failedLogged = false;
-            if (tryLoadExternal(context)) {
-                loaded = true;
-                return true;
-            }
-            return false;
+            return true;
         } catch (Throwable t) {
             Log.e(TAG, "Failed to install proprietary blecomm library", t);
             return false;
@@ -190,6 +207,15 @@ public final class BlecommLoader {
             && bytes[1] == 0x4b
             && bytes[2] == 0x03
             && bytes[3] == 0x04;
+    }
+
+    private static boolean isElfSharedObject(byte[] bytes) {
+        return bytes != null
+            && bytes.length >= 4
+            && bytes[0] == 0x7f
+            && bytes[1] == 0x45
+            && bytes[2] == 0x4c
+            && bytes[3] == 0x46;
     }
 
     private static byte[] readFully(InputStream input) throws java.io.IOException {

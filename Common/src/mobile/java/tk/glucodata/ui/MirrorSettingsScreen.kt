@@ -137,19 +137,31 @@ fun MirrorSettingsScreen(navController: NavController) {
         }
     }
     val launchScanner: () -> Unit = {
-        try {
-            GmsBarcodeScanning.getClient(context).startScan()
-                .addOnSuccessListener { barcode ->
-                    barcode.rawValue?.let { raw ->
-                        if (raw.contains("MirrorJuggluco") || raw.contains("\"port\"")) scannedQrPayload = raw
-                        else Toast.makeText(context, "Invalid QR Code", Toast.LENGTH_SHORT).show()
+        val fallback = {
+            zxingLauncher.launch(
+                ScanOptions().apply {
+                    setPrompt("Scan Juggluco Mirror QR")
+                    setBeepEnabled(false)
+                }
+            )
+        }
+        if (!tk.glucodata.GoogleServices.isPlayServicesAvailable(context)) {
+            fallback()
+        } else {
+            try {
+                GmsBarcodeScanning.getClient(context).startScan()
+                    .addOnSuccessListener { barcode ->
+                        barcode.rawValue?.let { raw ->
+                            if (raw.contains("MirrorJuggluco") || raw.contains("\"port\"")) scannedQrPayload = raw
+                            else Toast.makeText(context, "Invalid QR Code", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                }
-                .addOnFailureListener {
-                    zxingLauncher.launch(ScanOptions().apply { setPrompt("Scan Juggluco Mirror QR"); setBeepEnabled(false) })
-                }
-        } catch (_: Exception) {
-            zxingLauncher.launch(ScanOptions().apply { setPrompt("Scan Juggluco Mirror QR"); setBeepEnabled(false) })
+                    .addOnFailureListener {
+                        fallback()
+                    }
+            } catch (_: Throwable) {
+                fallback()
+            }
         }
     }
 
@@ -181,10 +193,10 @@ fun MirrorSettingsScreen(navController: NavController) {
             confirmButton = {
                 Button(onClick = {
                     Natives.changebackuphost(
-                        -1, arrayOf(device.ip), 1, false, device.port.toString(),
+                        -1, arrayOf(device.ip), 1, true, device.port.toString(),
                         false, false, false, false, true,
-                        false, true, "", System.currentTimeMillis(), device.name,
-                        false, true, null, false
+                        false, false, device.password, System.currentTimeMillis(), device.label.ifEmpty { device.name },
+                        false, true, null, true
                     )
                     Toast.makeText(context, "Connected to ${device.name}", Toast.LENGTH_SHORT).show()
                     tk.glucodata.Applic.wakemirrors()
@@ -289,13 +301,24 @@ fun MirrorSettingsScreen(navController: NavController) {
                     onCheckedChange = { checked ->
                         isBroadcasting = checked
                         if (checked) {
-                            // Create a sender entry so master actually listens for connections
+                            // Create a sender entry so master actually listens
                             val idx = Natives.makeHomeSender()
                             if (idx >= 0) {
                                 broadcastSenderIdx = idx
                                 triggerRefresh++
+                                // Read the ACTUAL port, password, and label from the sender entry
+                                val senderPort = Natives.getbackuphostport(idx)?.toIntOrNull() ?: 8795
+                                val senderPassword = Natives.getbackuppassword(idx) ?: ""
+                                val senderLabel = Natives.getbackuplabel(idx) ?: ""
+                                mdnsManager.registerService(
+                                    android.os.Build.MODEL ?: "Device",
+                                    senderPort,
+                                    senderPassword,
+                                    senderLabel
+                                )
+                            } else {
+                                mdnsManager.registerService(android.os.Build.MODEL ?: "Device")
                             }
-                            mdnsManager.registerService(android.os.Build.MODEL ?: "Device")
                         } else {
                             mdnsManager.unregisterService()
                         }

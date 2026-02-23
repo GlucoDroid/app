@@ -1,8 +1,12 @@
 package com.microtechmd.blecomm;
 
+import androidx.annotation.Keep;
+
 /* loaded from: classes2.dex */
+@Keep
 public abstract class BleAdapter {
     protected static BleAdapter instance;
+    @Keep
     protected long ptr;
 
     private native void constructor();

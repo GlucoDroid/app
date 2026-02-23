@@ -34,23 +34,29 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.widget.RemoteViews;
 
 public class GlucoseWidget extends AppWidgetProvider {
+    private static final Object widgetLock = new Object();
+    private static final long MIN_UPDATE_INTERVAL_MS = 1500L;
+    private static long lastUpdateElapsedRealtime = 0L;
     static RemoteGlucose remote = null;
     static int width=0;
 
 private static void setWidth(int widthdip) {
-    var density=GlucoseCurve.getDensity();
-    if(density<=0.0f) {
-        density=1.0f;
+    synchronized (widgetLock) {
+        var density = GlucoseCurve.getDensity();
+        if (density <= 0.0f) {
+            density = 1.0f;
         }
-      var    widthpx = widthdip*density;
+        var widthpx = widthdip * density;
 //      var fontsize=widthpx*0.22f;
-      var fontsize=widthpx*(Applic.unit==1?0.35f:0.4f);
-      remote=  new RemoteGlucose(fontsize,widthpx,Applic.unit==1?0.30f:0.32f,2,true);
-      width=widthdip;
-      }
+        var fontsize = widthpx * (Applic.unit == 1 ? 0.35f : 0.4f);
+        remote = new RemoteGlucose(fontsize, widthpx, Applic.unit == 1 ? 0.30f : 0.32f, 2, true);
+        width = widthdip;
+    }
+}
 @Override
 public void onAppWidgetOptionsChanged(Context context, AppWidgetManager appWidgetManager, int appWidgetId, Bundle widgetInfo) {
    var widthdip=widgetInfo.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH);
@@ -71,10 +77,15 @@ static private long oldage=glucosetimeout;
 static private void showviews(RemoteViews views,int rId,AppWidgetManager appWidgetManager, int appWidgetId) {
     Intent intent = new Intent(Applic.app, MainActivity.class);
     PendingIntent pendingIntent = PendingIntent.getActivity(Applic.app, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT|penmutable);
-    views.setOnClickPendingIntent(rId, pendingIntent);
-    appWidgetManager.updateAppWidget(appWidgetId, views);
+    try {
+        views.setOnClickPendingIntent(rId, pendingIntent);
+        appWidgetManager.updateAppWidget(appWidgetId, views);
+    } catch (Throwable th) {
+        Log.stack(LOG_ID, "showviews(" + appWidgetId + ")", th);
+    }
    }
 static private void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
+   try {
    var widgetInfo=appWidgetManager.getAppWidgetOptions(appWidgetId);
    for(var key : widgetInfo.keySet()) {
         {if(doLog) {Log.d(LOG_ID, key + " = " + widgetInfo.get(key));};};
@@ -91,25 +102,31 @@ static private void updateAppWidget(Context context, AppWidgetManager appWidgetM
    RemoteViews  views;
    strGlucose glu;
    int id= R.id.arrowandvalue;
-   if(SuperGattCallback.previousglucose != null|| (((glu=Natives.lastglucose())!=null) && ((SuperGattCallback.previousglucose = new notGlucose(glu.time * 1000L, glu.value, glu.rate,glu.sensorgen2))!=null))) {
-      final var now=System.currentTimeMillis();
-      final var time=SuperGattCallback.previousglucose.time;
-      if((now-time)>oldage) {
-         final String tformat= timef.format(time);
-         String message = "\n  "+context.getString(R.string.nonewvalue) + tformat;
-         views=remoteMessage(message);
-         id=R.id.content;
+   synchronized (widgetLock) {
+      if (remote == null) {
+         setWidth(widthdip == 0 ? 200 : widthdip);
       }
-      else {
-         views = remote.arrowremote(50,SuperGattCallback.previousglucose,false);
+      if (SuperGattCallback.previousglucose != null || (((glu = Natives.lastglucose()) != null) && ((SuperGattCallback.previousglucose = new notGlucose(glu.time * 1000L, glu.value, glu.rate, glu.sensorgen2)) != null))) {
+         final var now = System.currentTimeMillis();
+         final var time = SuperGattCallback.previousglucose.time;
+         if ((now - time) > oldage) {
+            final String tformat = timef.format(time);
+            String message = "\n  " + context.getString(R.string.nonewvalue) + tformat;
+            views = remoteMessage(message);
+            id = R.id.content;
+         } else {
+            views = remote.arrowremote(50, SuperGattCallback.previousglucose, false);
          }
+      } else {
+         views = remoteMessage("\n  " + context.getString(R.string.novalue));
+         id = R.id.content;
       }
-   else {
-         views=remoteMessage("\n  "+context.getString(R.string.novalue));
-         id=R.id.content;
-         }
+   }
 
    showviews(views,id,  appWidgetManager, appWidgetId);
+   } catch (Throwable th) {
+      Log.stack(LOG_ID, "updateAppWidget(" + appWidgetId + ")", th);
+   }
     }
 
 static private void updateall(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
@@ -161,7 +178,15 @@ public static void oldvalue(long time) {
 
    }
  public static void update() {
+    try {
     if(used) {
+      final long now = SystemClock.elapsedRealtime();
+      synchronized (widgetLock) {
+         if ((now - lastUpdateElapsedRealtime) < MIN_UPDATE_INTERVAL_MS) {
+            return;
+         }
+         lastUpdateElapsedRealtime = now;
+      }
       final var cl= GlucoseWidget.class;
       final var manage= AppWidgetManager.getInstance(Applic.app);
       int ids[] = manage.getAppWidgetIds(new ComponentName(Applic.app, cl));
@@ -171,5 +196,8 @@ public static void oldvalue(long time) {
       else
          used=false;
       }
+    } catch (Throwable th) {
+      Log.stack(LOG_ID, "update()", th);
+    }
     }
 }

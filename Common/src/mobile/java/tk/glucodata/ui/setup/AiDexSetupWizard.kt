@@ -1,5 +1,13 @@
 package tk.glucodata.ui.setup
 
+import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -18,11 +26,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.microtechmd.blecomm.BlecommLoader
 import kotlinx.coroutines.launch
+import tk.glucodata.Log
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
+import tk.glucodata.ui.util.BleDeviceScanner
 import tk.glucodata.ui.util.rememberBleScanner
 
 enum class AiDexSetupStep {
@@ -37,24 +47,36 @@ fun AiDexSetupWizard(
     onDismiss: () -> Unit,
     onComplete: () -> Unit
 ) {
+    val tag = "AiDexSetupWizard"
     val ui = rememberWizardUiMetrics()
     var currentStep by remember { mutableStateOf(AiDexSetupStep.SCAN) }
     var selectedDeviceName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var vendorLibAvailable by remember { mutableStateOf(BlecommLoader.ensureLoaded(context)) }
+    var vendorLibAvailable by remember { mutableStateOf(BlecommLoader.isLibraryPresent(context)) }
     val uploadLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val installed = BlecommLoader.installFromDocument(context, uri)
-        vendorLibAvailable = BlecommLoader.ensureLoaded(context)
-        val message = if (installed && vendorLibAvailable) {
+        vendorLibAvailable = if (installed) true else BlecommLoader.isLibraryPresent(context)
+        val message = if (installed) {
             context.getString(R.string.installedlibrary)
         } else {
             context.getString(R.string.cantextract, BlecommLoader.requiredLibraryFileName())
         }
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+    val launchUploadPickerSafely = {
+        try {
+            uploadLauncher.launch(arrayOf("*/*"))
+        } catch (e: ActivityNotFoundException) {
+            Log.e(tag, "No document picker activity available: ${e.message}")
+            Toast.makeText(context, context.getString(R.string.unable_to_open_source_file), Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            Log.e(tag, "Failed to launch document picker: ${t.message}")
+            Toast.makeText(context, context.getString(R.string.unable_to_open_source_file), Toast.LENGTH_LONG).show()
+        }
     }
 
     Scaffold(
@@ -78,34 +100,51 @@ fun AiDexSetupWizard(
                 AiDexSetupStep.SCAN -> AiDexScanStep(
                     ui = ui,
                     vendorLibAvailable = vendorLibAvailable,
-                    onUploadProprietary = { uploadLauncher.launch(arrayOf("*/*")) },
+                    onUploadProprietary = launchUploadPickerSafely,
                     onDeviceSelected = { rawName, address ->
-                        if (!vendorLibAvailable) {
-                            Toast.makeText(context, context.getString(R.string.wronglibrary), Toast.LENGTH_LONG).show()
-                            uploadLauncher.launch(arrayOf("*/*"))
-                            return@AiDexScanStep
-                        }
-                        val name = normalizeAiDexSerial(rawName)
-                        if (name == null) {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.aidex_parse_error, rawName),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            return@AiDexScanStep
-                        }
-                        
-                        selectedDeviceName = name
-                        currentStep = AiDexSetupStep.CONNECTING
-                        
-                        // Initiate Connection Logic
-                        scope.launch {
-                            // 1. Add to Persistence & SensorBluetooth
-                            SensorBluetooth.addAiDexSensor(context, name, address)
-                            
-                            // 2. Wait a bit then show success
-                            kotlinx.coroutines.delay(2000)
-                            currentStep = AiDexSetupStep.SUCCESS
+                        try {
+                            if (!vendorLibAvailable) {
+                                Toast.makeText(context, context.getString(R.string.wronglibrary), Toast.LENGTH_LONG).show()
+                                return@AiDexScanStep
+                            }
+                            val libReady = BlecommLoader.ensureLoaded(context)
+                            vendorLibAvailable = libReady
+                            if (!libReady) {
+                                Toast.makeText(context, context.getString(R.string.wronglibrary), Toast.LENGTH_LONG).show()
+                                return@AiDexScanStep
+                            }
+                            val name = normalizeAiDexSerial(rawName)
+                            if (name == null) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.aidex_parse_error, rawName),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                return@AiDexScanStep
+                            }
+
+                            selectedDeviceName = name
+                            currentStep = AiDexSetupStep.CONNECTING
+
+                            // Initiate Connection Logic
+                            scope.launch {
+                                try {
+                                    // 1. Add to Persistence & SensorBluetooth
+                                    SensorBluetooth.addAiDexSensor(context, name, address)
+
+                                    // 2. Wait a bit then show success
+                                    kotlinx.coroutines.delay(2000)
+                                    currentStep = AiDexSetupStep.SUCCESS
+                                } catch (t: Throwable) {
+                                    Log.e(tag, "Failed to add/select AiDex sensor: ${t.message}")
+                                    Toast.makeText(context, context.getString(R.string.nobluetooth), Toast.LENGTH_LONG).show()
+                                    currentStep = AiDexSetupStep.SCAN
+                                }
+                            }
+                        } catch (t: Throwable) {
+                            Log.e(tag, "onDeviceSelected failed: ${t.message}")
+                            Toast.makeText(context, context.getString(R.string.nobluetooth), Toast.LENGTH_LONG).show()
+                            currentStep = AiDexSetupStep.SCAN
                         }
                     }
                 )
@@ -158,25 +197,89 @@ fun AiDexScanStep(
         val rawName: String
     )
 
+    val context = LocalContext.current
     var devices by remember { mutableStateOf<List<ScanCandidate>>(emptyList()) }
     val scanner = rememberBleScanner()
-    
-    // Start Scanning Effect
-    DisposableEffect(Unit) {
-        scanner.startScan { result ->
-            val device = result.device
-            val name = device.name ?: result.scanRecord?.deviceName ?: return@startScan
-            normalizeAiDexSerial(name) ?: return@startScan
-            // val mfg = record?.getManufacturerSpecificData(0x59)
-            // Relaxed filter: Don't check for 0x59 manufacturer ID to support variants (Linx, Lumiflex)
-            // if (record != null && mfg == null) return@startScan
-            if (devices.none { it.address == device.address }) {
-                devices = devices + ScanCandidate(
-                    address = device.address,
-                    rawName = name
-                )
-            }
+    var scanPermissionGranted by remember { mutableStateOf(hasBleScanPermissions(context)) }
+    var bluetoothEnabled by remember { mutableStateOf(scanner.isBluetoothEnabled()) }
+    var scanRetryKey by remember { mutableStateOf(0) }
+    var scanError by remember { mutableStateOf<BleDeviceScanner.ScanStartError?>(null) }
+    var requestedPermissionOnce by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        scanPermissionGranted = hasBleScanPermissions(context)
+        bluetoothEnabled = scanner.isBluetoothEnabled()
+        scanError = null
+        scanRetryKey += 1
+    }
+    val enableBluetoothLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        bluetoothEnabled = scanner.isBluetoothEnabled()
+        scanError = null
+        scanRetryKey += 1
+    }
+
+    val requestScanPermission = {
+        val required = requiredBleScanPermissions()
+        if (required.isEmpty()) {
+            scanPermissionGranted = true
+            scanRetryKey += 1
+        } else {
+            permissionLauncher.launch(required)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!scanPermissionGranted && !requestedPermissionOnce) {
+            requestedPermissionOnce = true
+            requestScanPermission()
+        }
+    }
+
+    // Start Scanning Effect
+    DisposableEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey) {
+        if (!scanPermissionGranted || !bluetoothEnabled) {
+            scanner.stopScan()
+            return@DisposableEffect onDispose { scanner.stopScan() }
+        }
+
+        scanner.startScan(
+            onResult = { result ->
+                val device = result.device
+                val name = try {
+                    device.name ?: result.scanRecord?.deviceName
+                } catch (_: SecurityException) {
+                    null
+                } ?: return@startScan
+                val address = try {
+                    device.address
+                } catch (_: SecurityException) {
+                    null
+                } ?: return@startScan
+
+                normalizeAiDexSerial(name) ?: return@startScan
+                // val mfg = record?.getManufacturerSpecificData(0x59)
+                // Relaxed filter: Don't check for 0x59 manufacturer ID to support variants (Linx, Lumiflex)
+                // if (record != null && mfg == null) return@startScan
+                if (devices.none { it.address == address }) {
+                    devices = devices + ScanCandidate(
+                        address = address,
+                        rawName = name
+                    )
+                }
+            },
+            onError = { error ->
+                scanError = error
+                when (error) {
+                    BleDeviceScanner.ScanStartError.NoPermission -> scanPermissionGranted = false
+                    BleDeviceScanner.ScanStartError.BluetoothDisabled -> bluetoothEnabled = false
+                    else -> Unit
+                }
+            }
+        )
         onDispose { scanner.stopScan() }
     }
 
@@ -188,6 +291,53 @@ fun AiDexScanStep(
             modifier = Modifier.padding(ui.horizontalPadding),
             style = MaterialTheme.typography.titleMedium
         )
+        if (!scanPermissionGranted || !bluetoothEnabled || scanError != null) {
+            Spacer(Modifier.height(ui.spacerMedium))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = ui.horizontalPadding)
+                    .fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    val messageRes = when {
+                        !scanPermissionGranted && Build.VERSION.SDK_INT >= 31 -> R.string.turn_on_nearby_devices_permission
+                        !scanPermissionGranted -> R.string.turn_on_location_permission
+                        !bluetoothEnabled || scanError is BleDeviceScanner.ScanStartError.BluetoothDisabled -> R.string.bluetooth_is_turned_off
+                        else -> R.string.nobluetooth
+                    }
+                    Text(
+                        text = stringResource(messageRes),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(ui.spacerMedium))
+                    val buttonRes = when {
+                        !scanPermissionGranted -> R.string.permission
+                        !bluetoothEnabled || scanError is BleDeviceScanner.ScanStartError.BluetoothDisabled -> R.string.enable_bluetooth
+                        else -> R.string.search_bluetooth
+                    }
+                    Button(
+                        onClick = {
+                            when {
+                                !scanPermissionGranted -> requestScanPermission()
+                                !bluetoothEnabled || scanError is BleDeviceScanner.ScanStartError.BluetoothDisabled -> {
+                                    enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                                }
+                                else -> {
+                                    scanError = null
+                                    scanPermissionGranted = hasBleScanPermissions(context)
+                                    bluetoothEnabled = scanner.isBluetoothEnabled()
+                                    scanRetryKey += 1
+                                }
+                            }
+                        },
+                        modifier = Modifier.height(ui.buttonHeight)
+                    ) {
+                        Text(stringResource(buttonRes))
+                    }
+                }
+            }
+        }
         if (!vendorLibAvailable) {
             Spacer(Modifier.height(ui.spacerMedium))
             Card(
@@ -221,7 +371,7 @@ fun AiDexScanStep(
                     headlineContent = { Text("$name ($serial)") },
                     supportingContent = { Text(device.address) },
                     leadingContent = { Icon(Icons.Default.Bluetooth, null) },
-                    modifier = Modifier.clickable { 
+                    modifier = Modifier.clickable(enabled = vendorLibAvailable) {
                         onDeviceSelected(name, device.address) 
                     }
                 )
@@ -253,4 +403,21 @@ private fun normalizeAiDexSerial(rawName: String): String? {
         return "X-${cleaned.uppercase()}"
     }
     return null
+}
+
+private fun requiredBleScanPermissions(): Array<String> {
+    return when {
+        Build.VERSION.SDK_INT >= 31 -> arrayOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT
+        )
+        Build.VERSION.SDK_INT >= 23 -> arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        else -> emptyArray()
+    }
+}
+
+private fun hasBleScanPermissions(context: Context): Boolean {
+    return requiredBleScanPermissions().all { permission ->
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
 }

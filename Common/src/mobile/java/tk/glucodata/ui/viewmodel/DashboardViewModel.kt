@@ -2,6 +2,7 @@ package tk.glucodata.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -97,9 +98,14 @@ class DashboardViewModel(
     val alertsSummary = _alertsSummary.asStateFlow()
 
     init {
-        refreshData()
+        // Keep initial UI boot light; do heavy history sync right after initial render window.
+        refreshData(syncHistory = false)
         startCollection()
         startHistoryCollection()
+        viewModelScope.launch {
+            delay(1200L)
+            HistorySync.syncFromNative()
+        }
     }
     
     /**

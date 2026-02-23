@@ -521,6 +521,11 @@ object CalibrationManager {
         if (!isEnabledForMode(isRawMode)) {
             return value
         }
+        // Missing/invalid inputs must stay missing. Calibrating 0/NaN can produce
+        // synthetic values that look real (e.g. in raw mode when raw is unavailable).
+        if (!value.isFinite() || value <= 0f) {
+            return value
+        }
 
         val currentSensor = sensorIdOverride ?: Natives.lastsensorname() ?: ""
         val algorithm = getAlgorithmForMode(isRawMode)

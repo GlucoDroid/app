@@ -548,6 +548,8 @@ public class Applic extends Application implements androidx.work.Configuration.P
     }
 
     static public boolean useWearos() {
+        if (!GoogleServices.isPlayServicesAvailable(Applic.app))
+            return false;
         if (isWearable)
             return true;
         else

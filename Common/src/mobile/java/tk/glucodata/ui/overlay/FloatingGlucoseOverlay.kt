@@ -182,7 +182,11 @@ fun FloatingGlucoseOverlay(
                             val hasCalibration = CalibrationManager.hasActiveCalibration(isRawModeForCal)
                             val calibratedValue = if (hasCalibration) {
                                  val baseValue = if (isRawModeForCal) point.rawValue else point.value
-                                 CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
+                                 if (baseValue.isFinite() && baseValue > 0.1f) {
+                                     CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
+                                 } else {
+                                     null
+                                 }
                             } else null
                             val dvs = getDisplayValues(point, viewMode, unit, calibratedValue)
                             
@@ -234,7 +238,11 @@ fun FloatingGlucoseOverlay(
                     val hasCalibration = CalibrationManager.hasActiveCalibration(isRawModeForCal)
                     val calibratedValue = if (hasCalibration) {
                          val baseValue = if (isRawModeForCal) point.rawValue else point.value
-                         CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
+                         if (baseValue.isFinite() && baseValue > 0.1f) {
+                             CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
+                         } else {
+                             null
+                         }
                     } else null
                     val dvs = getDisplayValues(point, viewMode, unit, calibratedValue)
 

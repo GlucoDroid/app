@@ -720,11 +720,15 @@ fun InteractiveGlucoseChart(
                                     val v = if (hasCalibration) {
                                         val baseV =
                                             if (isRawMode) pointAtTouch.rawValue else pointAtTouch.value
-                                        tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
-                                            baseV,
-                                            pointAtTouch.timestamp,
-                                            isRawMode
-                                        )
+                                        if (baseV.isFinite() && baseV > 0.1f) {
+                                            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                                                baseV,
+                                                pointAtTouch.timestamp,
+                                                isRawMode
+                                            )
+                                        } else {
+                                            if (isRawMode) pointAtTouch.rawValue else pointAtTouch.value
+                                        }
                                     } else if (isRawMode) {
                                         pointAtTouch.rawValue
                                     } else {
@@ -1322,15 +1326,18 @@ fun InteractiveGlucoseChart(
                         
                         // --- CALIBRATION LINE ---
                         if (hasCalibration) {
+                            val baseV = if (isRawModeChart) p.rawValue else p.value
+                            if (!baseV.isFinite() || baseV <= 0.1f) {
+                                calFirst = true
+                                continue
+                            }
                             if (!calFirst && kotlin.math.abs(px - calLastX) < 0.8f) {
-                                val baseV = if (isRawModeChart) p.rawValue else p.value
                                 val proxyY = chartHeight - ((baseV - cYMin) * yScale)
                                 if (kotlin.math.abs(proxyY - calLastY) < 1.0f) {
                                      continue
                                 }
                             }
 
-                            val baseV = if (isRawModeChart) p.rawValue else p.value
                             val v = tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseV, p.timestamp, isRawModeChart)
                             
                             if (v.isNaN() || v < 0.1f) {
@@ -1401,11 +1408,15 @@ fun InteractiveGlucoseChart(
                         val useRaw = viewMode == 1 || viewMode == 3
                         val v = if (hideInitialWhenCalibrated) {
                             val baseValue = if (useRaw) p.rawValue else p.value
-                            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
-                                baseValue,
-                                p.timestamp,
-                                useRaw
-                            )
+                            if (baseValue.isFinite() && baseValue > 0.1f) {
+                                tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                                    baseValue,
+                                    p.timestamp,
+                                    useRaw
+                                )
+                            } else {
+                                baseValue
+                            }
                         } else {
                             if (useRaw) p.rawValue else p.value
                         }
@@ -1506,9 +1517,11 @@ fun InteractiveGlucoseChart(
                          // Draw calibrated dot on top (primary when active)
                          if (hasCalibrationDot) {
                              val baseValue = if (viewMode == 1 || viewMode == 3) p.rawValue else p.value
-                             val calibratedV = tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, p.timestamp, isRawModeDot)
-                             val py = valToY(calibratedV)
-                             if (py.isFinite()) drawCircle(primaryColor, dotRadius, Offset(cursorX, py))
+                             if (baseValue.isFinite() && baseValue > 0.1f) {
+                                 val calibratedV = tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, p.timestamp, isRawModeDot)
+                                 val py = valToY(calibratedV)
+                                 if (py.isFinite()) drawCircle(primaryColor, dotRadius, Offset(cursorX, py))
+                             }
                          }
                     }
                 }
@@ -1554,7 +1567,7 @@ fun InteractiveGlucoseChart(
                 val isRawModeTT = viewMode == 1 || viewMode == 3
                 val hasCalibrationTT = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeTT)
                 val calibratedValueTT = if (hasCalibrationTT) {
-                    val baseValue = if (isRawModeTT && point.rawValue > 0.1f) point.rawValue else point.value
+                    val baseValue = if (isRawModeTT) point.rawValue else point.value
                     if (baseValue > 0.1f) {
                         tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeTT)
                     } else {

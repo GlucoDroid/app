@@ -318,30 +318,38 @@ fun getDisplayValues(
         "--"
     }
     val valStr = tk.glucodata.ui.util.GlucoseFormatter.format(point.value, isMmol)
-    val calStr = calibratedValue?.let { tk.glucodata.ui.util.GlucoseFormatter.format(it, isMmol) }
-    val hideInitialWhenCalibrated = calibratedValue != null &&
+    val isRawPrimaryMode = viewMode == 1 || viewMode == 3
+    // In raw-primary views, do not show a calibrated value when raw is absent.
+    // Otherwise we can end up calibrating auto/fallback values with raw-mode coefficients.
+    val effectiveCalibratedValue = when {
+        calibratedValue == null -> null
+        isRawPrimaryMode && !rawDisplayValue.isFinite() -> null
+        else -> calibratedValue
+    }
+    val calStr = effectiveCalibratedValue?.let { tk.glucodata.ui.util.GlucoseFormatter.format(it, isMmol) }
+    val hideInitialWhenCalibrated = effectiveCalibratedValue != null &&
         tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
     
     // If calibration is active, it becomes primary and everything shifts down
-    if (calibratedValue != null && calStr != null) {
+    if (effectiveCalibratedValue != null && calStr != null) {
         if (hideInitialWhenCalibrated) {
             return when (viewMode) {
                 2 -> DisplayValues( // Auto + Raw → Calibrated primary, Raw secondary
-                    primaryValue = calibratedValue,
+                    primaryValue = effectiveCalibratedValue,
                     secondaryValue = rawDisplayValue,
                     primaryStr = calStr,
                     secondaryStr = rawStr,
                     fullFormatted = "$calStr · $rawStr $unit"
                 )
                 3 -> DisplayValues( // Raw + Auto → Calibrated primary, Auto secondary
-                    primaryValue = calibratedValue,
+                    primaryValue = effectiveCalibratedValue,
                     secondaryValue = point.value,
                     primaryStr = calStr,
                     secondaryStr = valStr,
                     fullFormatted = "$calStr · $valStr $unit"
                 )
                 else -> DisplayValues(
-                    primaryValue = calibratedValue,
+                    primaryValue = effectiveCalibratedValue,
                     primaryStr = calStr,
                     fullFormatted = "$calStr $unit"
                 )
@@ -349,14 +357,14 @@ fun getDisplayValues(
         }
         return when (viewMode) {
             1 -> DisplayValues( // Raw → Calibrated primary, Raw secondary
-                primaryValue = calibratedValue,
+                primaryValue = effectiveCalibratedValue,
                 secondaryValue = rawDisplayValue,
                 primaryStr = calStr,
                 secondaryStr = rawStr,
                 fullFormatted = "$calStr · $rawStr $unit"
             )
             2 -> DisplayValues( // Auto + Raw → Calibrated primary, Auto secondary, Raw tertiary
-                primaryValue = calibratedValue,
+                primaryValue = effectiveCalibratedValue,
                 secondaryValue = point.value,
                 tertiaryValue = rawDisplayValue,
                 primaryStr = calStr,
@@ -365,7 +373,7 @@ fun getDisplayValues(
                 fullFormatted = "$calStr · $valStr · $rawStr $unit"
             )
             3 -> DisplayValues( // Raw + Auto → Calibrated primary, Raw secondary, Auto tertiary
-                primaryValue = calibratedValue,
+                primaryValue = effectiveCalibratedValue,
                 secondaryValue = rawDisplayValue,
                 tertiaryValue = point.value,
                 primaryStr = calStr,
@@ -374,7 +382,7 @@ fun getDisplayValues(
                 fullFormatted = "$calStr · $rawStr · $valStr $unit"
             )
             else -> DisplayValues( // Auto → Calibrated primary, Auto secondary
-                primaryValue = calibratedValue,
+                primaryValue = effectiveCalibratedValue,
                 secondaryValue = point.value,
                 primaryStr = calStr,
                 secondaryStr = valStr,
@@ -1110,7 +1118,11 @@ fun DashboardScreen(
         val calibratedValue = remember(latestPoint, viewMode) {
             if (latestPoint != null && tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeHero)) {
                 val baseValue = if (isRawModeHero) latestPoint.rawValue else latestPoint.value
-                tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, latestPoint.timestamp, isRawModeHero)
+                if (baseValue.isFinite() && baseValue > 0.1f) {
+                    tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, latestPoint.timestamp, isRawModeHero)
+                } else {
+                    null
+                }
             } else null
         }
 
@@ -1610,7 +1622,11 @@ fun ReadingRow(
                 val hasCalibrationRR = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeRR)
                 val calibratedValueRR = if (hasCalibrationRR) {
                     val baseValue = if (isRawModeRR) point.rawValue else point.value
-                    tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeRR)
+                    if (baseValue.isFinite() && baseValue > 0.1f) {
+                        tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeRR)
+                    } else {
+                        null
+                    }
                 } else null
                 val dvs = getDisplayValues(point, viewMode, unit, calibratedValueRR)
                 // Colors

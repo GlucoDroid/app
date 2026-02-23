@@ -65,8 +65,10 @@ class GlucoseRepository {
      * changes, the flow automatically re-subscribes to the new sensor's data.
      */
     fun getCurrentReading(): Flow<GlucosePoint?> = channelFlow {
-        // Ensure backfill is done on first access
-        historyRepository.ensureBackfilled()
+        // Run heavy backfill asynchronously so first frame/render is not delayed.
+        launch {
+            historyRepository.ensureBackfilled()
+        }
 
         // 1. Launch Background Poller for Native Data
         launch {
