@@ -45,6 +45,9 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
@@ -1115,19 +1118,56 @@ fun DashboardScreen(
             )
         }
 
-        // --- GESTURE-CONTROLLED CHART EXPANSION ---
-        // Extra dp added to chart height by user drag gesture
-        val chartBoostScope = rememberCoroutineScope()
-        val chartHeightBoostDp = remember { Animatable(0f) }
+        // --- GESTURE-CONTROLLED CHART EXPANSION (Nested Scroll) ---
+        // Extra px added to chart height by user drag gesture
+        val density = LocalDensity.current
+        var chartHeightBoostPx by remember { mutableFloatStateOf(0f) }
+        
         // Max boost = remaining screen space below chart
         val heroReserve = if (isCompactScreen) 96.dp else 108.dp
         val navBarReserve = 80.dp
+        val pickerHeight = 60.dp
+        val bottomMargin = 8.dp // Ensures picker sits nicely above nav
+        
         val maxChartBoostDp = remember(configuration.screenHeightDp, portraitExpandedChartHeight) {
-            val maxChartH = configuration.screenHeightDp.dp - heroReserve - navBarReserve - 60.dp // 60dp for picker
-            (maxChartH - portraitExpandedChartHeight).coerceAtLeast(0.dp).value
+            val maxChartH = configuration.screenHeightDp.dp - heroReserve - navBarReserve - pickerHeight - bottomMargin
+            (maxChartH - portraitExpandedChartHeight).coerceAtLeast(0.dp)
         }
+        val maxChartBoostPx = with(density) { maxChartBoostDp.toPx() }
+        
+        val nestedScrollConnection = remember(maxChartBoostPx, listState) {
+            object : NestedScrollConnection {
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    // Dragging UP (scroll delta < 0): Shrink chart FIRST
+                    if (available.y < 0 && chartHeightBoostPx > 0f) {
+                        val newBoost = (chartHeightBoostPx + available.y).coerceAtLeast(0f)
+                        val consumedY = newBoost - chartHeightBoostPx
+                        chartHeightBoostPx = newBoost
+                        return Offset(0f, consumedY)
+                    }
+                    return Offset.Zero
+                }
+
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource
+                ): Offset {
+                    // Dragging DOWN (scroll delta > 0): Grow chart if at top of list
+                    if (available.y > 0 && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
+                        val newBoost = (chartHeightBoostPx + available.y).coerceAtMost(maxChartBoostPx)
+                        val consumedY = newBoost - chartHeightBoostPx
+                        chartHeightBoostPx = newBoost
+                        return Offset(0f, consumedY)
+                    }
+                    return Offset.Zero
+                }
+            }
+        }
+        
+        val chartHeightBoostDp = with(density) { chartHeightBoostPx.toDp() }
         val chartBoostProgress by remember { derivedStateOf { 
-            if (maxChartBoostDp > 0f) (chartHeightBoostDp.value / maxChartBoostDp).coerceIn(0f, 1f) else 0f 
+            if (maxChartBoostPx > 0f) (chartHeightBoostPx / maxChartBoostPx).coerceIn(0f, 1f) else 0f 
         }}
 
         // --- REUSABLE UI SECTIONS ---
@@ -1270,6 +1310,7 @@ fun DashboardScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    .nestedScroll(nestedScrollConnection)
                     .padding(padding),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1304,7 +1345,7 @@ fun DashboardScreen(
                 item {
                     // Portrait Chart: Flexible height
                     // Apply gesture boost on top of the standard chart height
-                    val boostedChartHeight = portraitExpandedChartHeight + chartHeightBoostDp.value.dp
+                    val boostedChartHeight = portraitExpandedChartHeight + chartHeightBoostDp
                     val chartHeightCapTarget = (
                         boostedChartHeight.value +
                             (portraitChartMaxHeight.value.coerceAtLeast(boostedChartHeight.value) - boostedChartHeight.value) * collapseFraction
@@ -1397,27 +1438,6 @@ fun DashboardScreen(
                             expandedProgress = expandedProgress,
                             onToggleExpanded = null,
                             chartBoostProgress = chartBoostProgress,
-                            onPickerDragUp = { deltaY ->
-                                // Reverse gesture: dragging picker up shrinks chart
-                                chartBoostScope.launch {
-                                    chartHeightBoostDp.snapTo(
-                                        (chartHeightBoostDp.value + deltaY).coerceIn(0f, maxChartBoostDp)
-                                    )
-                                }
-                            },
-                            onPickerDragEnd = {
-                                // Snap to 0 or max on release
-                                chartBoostScope.launch {
-                                    val target = if (chartHeightBoostDp.value > maxChartBoostDp * 0.3f) maxChartBoostDp else 0f
-                                    chartHeightBoostDp.animateTo(
-                                        target,
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    )
-                                }
-                            },
                             onPointClick = { point ->
                                 onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
                             },
@@ -1434,37 +1454,6 @@ fun DashboardScreen(
                     Box(
                         modifier = Modifier
                             .padding(start = 16.dp, top = 10.dp, end = 16.dp)
-                            .pointerInput(maxChartBoostDp) {
-                                detectVerticalDragGestures(
-                                    onDragEnd = {
-                                        // Snap to 0 or maxBoost based on threshold
-                                        chartBoostScope.launch {
-                                            val target = if (chartHeightBoostDp.value > maxChartBoostDp * 0.3f) maxChartBoostDp else 0f
-                                            chartHeightBoostDp.animateTo(
-                                                target,
-                                                animationSpec = spring(
-                                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                                    stiffness = Spring.StiffnessMediumLow
-                                                )
-                                            )
-                                        }
-                                    },
-                                    onDragCancel = {
-                                        chartBoostScope.launch {
-                                            chartHeightBoostDp.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
-                                        }
-                                    }
-                                ) { _, dragAmount ->
-                                    val dpDelta = with(density) { dragAmount.toDp().value }
-                                    // Rubber-band: diminishing returns as you drag further
-                                    val tension = dpDelta / (1f + kotlin.math.abs(chartHeightBoostDp.value) / (maxChartBoostDp * 0.5f))
-                                    chartBoostScope.launch {
-                                        chartHeightBoostDp.snapTo(
-                                            (chartHeightBoostDp.value + tension).coerceIn(0f, maxChartBoostDp)
-                                        )
-                                    }
-                                }
-                            }
                     ) {
                         RecentReadingsCard(
                             recentReadings = recentReadings,

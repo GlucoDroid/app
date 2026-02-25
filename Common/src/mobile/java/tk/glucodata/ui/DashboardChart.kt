@@ -143,9 +143,7 @@ fun DashboardChartSection(
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
-    chartBoostProgress: Float = 0f,
-    onPickerDragUp: ((Float) -> Unit)? = null,
-    onPickerDragEnd: (() -> Unit)? = null
+    chartBoostProgress: Float = 0f
 ) {
     val chartContent: @Composable () -> Unit = {
         Column(modifier = Modifier.padding(bottom = 0.dp)) {
@@ -165,9 +163,7 @@ fun DashboardChartSection(
                         onToggleExpanded = onToggleExpanded,
                         onPointClick = onPointClick,
                         onCalibrationClick = onCalibrationClick,
-                        chartBoostProgress = chartBoostProgress,
-                        onPickerDragUp = onPickerDragUp,
-                        onPickerDragEnd = onPickerDragEnd
+                        chartBoostProgress = chartBoostProgress
                     )
                 } else {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_data_available)) }
@@ -211,9 +207,7 @@ fun InteractiveGlucoseChart(
     onToggleExpanded: (() -> Unit)? = null,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
-    chartBoostProgress: Float = 0f,
-    onPickerDragUp: ((Float) -> Unit)? = null,
-    onPickerDragEnd: (() -> Unit)? = null
+    chartBoostProgress: Float = 0f
 ) {
     // --- THEME & PAINTS ---
     val isDark = isSystemInDarkTheme()
@@ -1963,20 +1957,7 @@ fun InteractiveGlucoseChart(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset(y = pickerVerticalOffset)
-                .zIndex(1f)
-                .then(
-                    if (chartBoostProgress > 0.01f && onPickerDragUp != null) {
-                        Modifier.pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onDragEnd = { onPickerDragEnd?.invoke() },
-                                onDragCancel = { onPickerDragEnd?.invoke() }
-                            ) { _, dragAmount ->
-                                val dpDelta = with(density) { dragAmount.toDp().value }
-                                onPickerDragUp?.invoke(dpDelta)
-                            }
-                        }
-                    } else Modifier
-                ),
+                .zIndex(1f),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Drag handle: subtle bar that fades in when chart is boosted
