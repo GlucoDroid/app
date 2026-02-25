@@ -54,6 +54,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.automirrored.filled.LastPage
@@ -141,7 +142,10 @@ fun DashboardChartSection(
     onToggleExpanded: (() -> Unit)? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     onPointClick: ((GlucosePoint) -> Unit)? = null,
-    onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null
+    onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
+    chartBoostProgress: Float = 0f,
+    onPickerDragUp: ((Float) -> Unit)? = null,
+    onPickerDragEnd: (() -> Unit)? = null
 ) {
     val chartContent: @Composable () -> Unit = {
         Column(modifier = Modifier.padding(bottom = 0.dp)) {
@@ -160,7 +164,10 @@ fun DashboardChartSection(
                         expandedProgress = expandedProgress,
                         onToggleExpanded = onToggleExpanded,
                         onPointClick = onPointClick,
-                        onCalibrationClick = onCalibrationClick
+                        onCalibrationClick = onCalibrationClick,
+                        chartBoostProgress = chartBoostProgress,
+                        onPickerDragUp = onPickerDragUp,
+                        onPickerDragEnd = onPickerDragEnd
                     )
                 } else {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_data_available)) }
@@ -203,7 +210,10 @@ fun InteractiveGlucoseChart(
     expandedProgress: Float = if (isExpanded) 1f else 0f,
     onToggleExpanded: (() -> Unit)? = null,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
-    onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null
+    onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
+    chartBoostProgress: Float = 0f,
+    onPickerDragUp: ((Float) -> Unit)? = null,
+    onPickerDragEnd: (() -> Unit)? = null
 ) {
     // --- THEME & PAINTS ---
     val isDark = isSystemInDarkTheme()
@@ -1948,14 +1958,46 @@ fun InteractiveGlucoseChart(
 
         // Two-phase dynamic shrink: measure the ideal pill width against the available
         // screen width. Phase 1 reduces inter-item spacing. Phase 2 scales everything.
-        BoxWithConstraints(
+        // Picker container with optional drag handle for chart expansion gesture
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset(y = pickerVerticalOffset)
                 .zIndex(1f)
-                .padding(horizontal = baseInset),
-            contentAlignment = Alignment.Center
+                .then(
+                    if (chartBoostProgress > 0.01f && onPickerDragUp != null) {
+                        Modifier.pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragEnd = { onPickerDragEnd?.invoke() },
+                                onDragCancel = { onPickerDragEnd?.invoke() }
+                            ) { _, dragAmount ->
+                                val dpDelta = with(density) { dragAmount.toDp().value }
+                                onPickerDragUp?.invoke(dpDelta)
+                            }
+                        }
+                    } else Modifier
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Drag handle: subtle bar that fades in when chart is boosted
+            Box(
+                modifier = Modifier
+                    .padding(bottom = 6.dp)
+                    .width(32.dp)
+                    .height(4.dp)
+                    .graphicsLayer { alpha = chartBoostProgress }
+                    .background(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(2.dp)
+                    )
+            )
+
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = baseInset),
+                contentAlignment = Alignment.Center
+            ) {
             // Estimate intrinsic width of all elements at their base (unscaled) sizes.
             // Estimate intrinsic width. Use a realistic text width for short labels: "1H", "24H", etc.
             val avgTextWidth = 18.dp 
@@ -2167,6 +2209,7 @@ fun InteractiveGlucoseChart(
                         }
                     }
                 }
+            }
             }
         }
     }
