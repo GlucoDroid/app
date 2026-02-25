@@ -1147,7 +1147,7 @@ public class SensorBluetooth {
 
         // nullKAuth=false;
         // Natives.setmaxsensors(gattcallbacks.size());
-        if (mBluetoothManager == null) {
+        if (mBluetoothManager == null || mBluetoothAdapter == null) {
             return initializeBluetooth();
         } else {
             addReceivers();
@@ -1174,6 +1174,16 @@ public class SensorBluetooth {
             Log.i(LOG_ID, "checkandconnect(" + cb.SerialNumber + "," + delay + ")");
         }
         ;
+        BluetoothAdapter adapter = mBluetoothAdapter;
+        if (adapter == null && mBluetoothManager != null) {
+            try {
+                adapter = mBluetoothManager.getAdapter();
+                mBluetoothAdapter = adapter;
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "checkandconnect getAdapter", th);
+            }
+        }
+
         if (cb.mActiveDeviceAddress != null) {
             if (BluetoothAdapter.checkBluetoothAddress(cb.mActiveDeviceAddress)) {
                 {
@@ -1184,7 +1194,11 @@ public class SensorBluetooth {
                     ;
                 }
                 ;
-                cb.mActiveBluetoothDevice = mBluetoothAdapter.getRemoteDevice(cb.mActiveDeviceAddress);
+                if (adapter != null) {
+                    cb.mActiveBluetoothDevice = adapter.getRemoteDevice(cb.mActiveDeviceAddress);
+                } else if (doLog) {
+                    Log.w(LOG_ID, cb.SerialNumber + " adapter unavailable for " + cb.mActiveDeviceAddress);
+                }
                 connectToActiveDevice(cb, delay);
                 return false;
             }
@@ -1196,7 +1210,7 @@ public class SensorBluetooth {
         }
 
         var main = MainActivity.thisone;
-        if ((main == null && Applic.mayscan()) || main.finepermission()) {
+        if ((main == null && Applic.mayscan()) || (main != null && main.finepermission())) {
             connectToActiveDevice(cb, delay);
             return false;
         }

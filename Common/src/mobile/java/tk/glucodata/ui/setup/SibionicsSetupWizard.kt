@@ -1,5 +1,6 @@
 package tk.glucodata.ui.setup
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
@@ -32,7 +33,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -245,6 +245,14 @@ fun constructFakeSibionicsQr(input: String, targetLength: Int = 59): String? {
 
     val magicCode = "0697283164"
 
+    // For full sensor payloads, keep the scanned content intact so native parsing behavior
+    // matches the legacy scanner path. Avoid re-packing into synthetic payloads.
+    val compactRaw = trimmedInput.filterNot { it.isWhitespace() }
+    val gtinPos = compactRaw.indexOf(magicCode)
+    if (targetLength >= 65 && gtinPos in 0..4 && (compactRaw.length - gtinPos) >= 55) {
+        return compactRaw
+    }
+
     // If input is already a full QR (contains magic code and is long), validate structure
     // FORCE-RECONSTRUCTION: We intentionally bypass this 'fast path' to ensure we strip 
     // any potential invisible characters or trailing garbage that might offset the native
@@ -327,7 +335,23 @@ fun SibionicsSetupWizard(
     var sensorPtr by remember { mutableStateOf(0L) }
     var sensorName by remember { mutableStateOf("") }
     var resetTransmitter by remember { mutableStateOf(false) } // Default false as requested
+    var scannerTouchActive by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val handleDismiss: () -> Unit = {
+        tk.glucodata.MainActivity.onSensorScanResult = null
+        tk.glucodata.MainActivity.onTransmitterScanResult = null
+        onDismiss()
+    }
+    val handleBack: () -> Unit = {
+        when (currentStep) {
+            SibionicsSetupStep.SELECT_TYPE -> handleDismiss()
+            SibionicsSetupStep.SCAN_SENSOR -> currentStep = SibionicsSetupStep.SELECT_TYPE
+            SibionicsSetupStep.SCAN_TRANSMITTER -> currentStep = SibionicsSetupStep.SCAN_SENSOR
+            SibionicsSetupStep.CONNECTING -> handleDismiss()
+        }
+    }
+
+    BackHandler(onBack = handleBack)
 
     // Register callbacks with MainActivity
     DisposableEffect(Unit) {
@@ -374,19 +398,16 @@ fun SibionicsSetupWizard(
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scaffoldModifier = if (scannerTouchActive) Modifier else Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = scaffoldModifier,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.sibionics_setup_title)) },
                 windowInsets = TopAppBarDefaults.windowInsets, // Ensure status bar padding
                 navigationIcon = {
-                    IconButton(onClick = {
-                        tk.glucodata.MainActivity.onSensorScanResult = null
-                        tk.glucodata.MainActivity.onTransmitterScanResult = null
-                        onDismiss()
-                    }) {
+                    IconButton(onClick = handleBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel))
                     }
                 },
@@ -429,8 +450,9 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SCAN_SENSOR -> ScanSensorStep(
                     compact = ui.compact,
                     selectedType = selectedType,
-                    onScanClick = {
-                        tk.glucodata.MainActivity.launchQrScan(
+                    onInlineScanResult = { raw ->
+                        tk.glucodata.MainActivity.handleInlineQrScan(
+                            raw,
                             tk.glucodata.MainActivity.REQUEST_BARCODE
                         )
                     },
@@ -449,6 +471,9 @@ fun SibionicsSetupWizard(
                                 0L
                             )
                         }
+                    },
+                    onScannerTouchInteractionChanged = { active ->
+                        scannerTouchActive = active
                     }
                 )
 
@@ -537,18 +562,32 @@ fun SibionicsSetupWizard(
 fun ScanSensorStep(
     compact: Boolean,
     selectedType: SibionicsType,
-    onScanClick: () -> Unit,
-    onManualEntry: (String) -> Unit
+    onInlineScanResult: (String) -> Unit,
+    onManualEntry: (String) -> Unit,
+    onScannerTouchInteractionChanged: (Boolean) -> Unit
 ) {
     val contentPadding = if (compact) 12.dp else 16.dp
-    val heroSize = if (compact) 96.dp else 120.dp
-    val heroInnerPadding = if (compact) 24.dp else 32.dp
-    val heroBottomPadding = if (compact) 16.dp else 24.dp
     val sectionGap = if (compact) 8.dp else 12.dp
     val buttonHeight = if (compact) 46.dp else 48.dp
     var showManualEntry by remember { mutableStateOf(false) }
+    var handledScan by remember { mutableStateOf(false) }
+    var scannerTouchActive by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val launchFullscreenScan = rememberUnifiedQrScanLauncher(
+        requestCode = tk.glucodata.MainActivity.REQUEST_BARCODE,
+        title = stringResource(R.string.sibionics_setup_title),
+        onScanResult = { raw ->
+            if (!handledScan) {
+                handledScan = true
+                onInlineScanResult(raw)
+            }
+        }
+    )
+
+    DisposableEffect(Unit) {
+        onDispose { onScannerTouchInteractionChanged(false) }
+    }
     
     // Gallery Launcher
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -581,53 +620,38 @@ fun ScanSensorStep(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(contentPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top 
+        verticalArrangement = Arrangement.Top,
+        userScrollEnabled = !scannerTouchActive
     ) {
         item {
-            Spacer(modifier = Modifier.height(if (compact) 16.dp else 24.dp)) 
-            Surface(
-                modifier = Modifier.size(heroSize).padding(bottom = heroBottomPadding), 
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Icon(
-                    imageVector = Icons.Default.QrCodeScanner,
-                    contentDescription = null,
-                    modifier = Modifier.padding(heroInnerPadding),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        item {
-            Text(
-                text = stringResource(R.string.scan_sensor_title),
-                style = if (compact) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = if (compact) 12.dp else 16.dp)
+            Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
+            InlineQrScannerCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (compact) 320.dp else 380.dp),
+                onScanResult = { raw ->
+                    if (!handledScan) {
+                        handledScan = true
+                        onInlineScanResult(raw)
+                    }
+                },
+                onManualFallback = launchFullscreenScan,
+                manualFallbackLabel = stringResource(R.string.scan_qr_button),
+                onTouchInteractionChanged = { active ->
+                    scannerTouchActive = active
+                    onScannerTouchInteractionChanged(active)
+                }
             )
-
             Text(
                 text = stringResource(R.string.scan_sensor_instruction),
-                style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = if (compact) 20.dp else 32.dp)
+                modifier = Modifier.padding(top = if (compact) 10.dp else 12.dp, bottom = if (compact) 16.dp else 20.dp)
             )
         }
 
         item {
-            Button(
-                onClick = onScanClick,
-                modifier = Modifier.fillMaxWidth().height(buttonHeight)
-            ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.scan_qr_button))
-            }
-            
-            Spacer(modifier = Modifier.height(sectionGap))
-
             // Add Gallery Button
             OutlinedButton(
                 onClick = { 
@@ -719,8 +743,7 @@ fun SelectTypeStep(
         ) {
             SibionicsType.values().forEach { type ->
                 val isSelected = (type == selectedType)
-                
-                // Animate container color
+
                 val containerColor by animateColorAsState(
                     targetValue = if (isSelected) 
                         MaterialTheme.colorScheme.primaryContainer
@@ -739,21 +762,20 @@ fun SelectTypeStep(
                     animationSpec = androidx.compose.animation.core.tween(250),
                     label = "borderColor"
                 )
+                val checkAlpha by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (isSelected) 1f else 0f,
+                    animationSpec = androidx.compose.animation.core.tween(180),
+                    label = "checkAlpha"
+                )
+                val cardShape = RoundedCornerShape(if (compact) 18.dp else 20.dp)
                 
-                // Selection Card (entire card is the selection target)
                 Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = isSelected,
-                            onClick = { onTypeSelected(type) },
-                            role = Role.RadioButton
-                        ),
-                    shape = MaterialTheme.shapes.large,
+                        .fillMaxWidth(),
+                    onClick = { onTypeSelected(type) },
+                    shape = cardShape,
                     color = containerColor,
-                    border = if (isSelected) 
-                        androidx.compose.foundation.BorderStroke(2.dp, borderColor)
-                    else null,
+                    border = androidx.compose.foundation.BorderStroke(2.dp, borderColor),
                     tonalElevation = if (isSelected) 0.dp else 1.dp
                 ) {
                     Row(
@@ -775,16 +797,14 @@ fun SelectTypeStep(
                             )
                         }
                         
-                        // Selection indicator (subtle checkmark, not radio button)
-                        AnimatedVisibility(
-                            visible = isSelected,
-                            enter = fadeIn() + scaleIn(),
-                            exit = fadeOut() + scaleOut()
+                        Box(
+                            modifier = Modifier.size(if (compact) 24.dp else 28.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = checkAlpha),
                                 modifier = Modifier.size(if (compact) 20.dp else 24.dp)
                             )
                         }
@@ -836,8 +856,6 @@ fun ScanTransmitterStep(
     var foundDevices by remember { mutableStateOf(setOf<String>()) }
     var showManualEntry by remember { mutableStateOf(false) }
     val contentPadding = if (compact) 12.dp else 16.dp
-    val heroSize = if (compact) 96.dp else 120.dp
-    val heroInnerPadding = if (compact) 24.dp else 32.dp
     val buttonHeight = if (compact) 46.dp else 48.dp
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -890,69 +908,22 @@ fun ScanTransmitterStep(
         verticalArrangement = Arrangement.Top 
     ) {
         item {
-            Spacer(modifier = Modifier.height(if (compact) 16.dp else 24.dp))
-            Surface(
-                modifier = Modifier.size(heroSize).padding(bottom = if (compact) 16.dp else 24.dp), 
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Icon(
-                    imageVector = Icons.Default.QrCodeScanner,
-                    contentDescription = null,
-                    modifier = Modifier.padding(heroInnerPadding),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
             
             Text(
                 text = stringResource(R.string.scan_transmitter_title),
-                style = if (compact) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineLarge,
+                style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
              Text(
                 text = stringResource(R.string.scan_transmitter_desc),
-                style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                  textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = if (compact) 20.dp else 32.dp)
+                modifier = Modifier.padding(bottom = if (compact) 14.dp else 18.dp)
             )
-        }
-        
-        item {
-            // Reset Toggle
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = if (compact) 12.dp else 16.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onResetChanged(!resetEnabled) }
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .padding(if (compact) 12.dp else 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = stringResource(R.string.resetname),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = stringResource(R.string.clear_previous_state),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.width(if (compact) 12.dp else 16.dp))
-                StyledSwitch(
-                    checked = resetEnabled,
-                    onCheckedChange = null // Handled by Row click
-                )
-            }
-            
-            Spacer(Modifier.height(if (compact) 16.dp else 24.dp))
 
-            // Bluetooth Scanning Section (Moved to Top)
             OutlinedButton(
                 onClick = { isScanning = !isScanning },
                 modifier = Modifier.fillMaxWidth().height(buttonHeight)
@@ -1010,6 +981,35 @@ fun ScanTransmitterStep(
         }
 
         item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = if (compact) 12.dp else 16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onResetChanged(!resetEnabled) }
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .padding(if (compact) 12.dp else 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = stringResource(R.string.resetname),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = stringResource(R.string.clear_previous_state),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(if (compact) 12.dp else 16.dp))
+                StyledSwitch(
+                    checked = resetEnabled,
+                    onCheckedChange = null
+                )
+            }
+
             Text(
                text = stringResource(R.string.or_scan_qr),
                style = MaterialTheme.typography.labelLarge,

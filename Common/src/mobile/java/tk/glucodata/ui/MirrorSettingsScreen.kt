@@ -2,11 +2,13 @@
 
 package tk.glucodata.ui
 
+import android.app.Activity
 import android.content.Context
 import android.text.Html
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -41,16 +43,20 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import org.json.JSONObject
+import tk.glucodata.MainActivity
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.ui.components.*
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.util.DiscoveredMirror
 import tk.glucodata.util.MDnsManager
+
+private const val UNIFIED_EXTRA_SCAN_TEXT = "tk.glucodata.extra.scan_text"
+private const val UNIFIED_EXTRA_SCAN_CONTEXT = "tk.glucodata.extra.scan_context"
+private const val UNIFIED_SCAN_CONTEXT_MIRROR = 1
 
 // ── QR Code ──────────────────────────────────────────────────────────────────
 
@@ -129,15 +135,30 @@ fun MirrorSettingsScreen(navController: NavController) {
         }
     }
 
-    // ZXing fallback
-    val zxingLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.let { raw ->
-            if (raw.contains("MirrorJuggluco") || raw.contains("\"port\"")) scannedQrPayload = raw
-            else Toast.makeText(context, "Invalid QR Code", Toast.LENGTH_SHORT).show()
+    val handleMirrorScanRaw: (String?) -> Unit = handle@{ raw ->
+        if (raw.isNullOrBlank()) {
+            return@handle
+        }
+        if (raw.contains("MirrorJuggluco") || raw.contains("\"port\"")) {
+            scannedQrPayload = raw
+        } else {
+            Toast.makeText(context, "Invalid QR Code", Toast.LENGTH_SHORT).show()
         }
     }
-    val launchScanner: () -> Unit = {
-        val fallback = {
+
+    val unifiedScannerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            return@rememberLauncherForActivityResult
+        }
+        handleMirrorScanRaw(result.data?.getStringExtra(UNIFIED_EXTRA_SCAN_TEXT))
+    }
+
+    // Legacy ZXing fallback
+    val zxingLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        handleMirrorScanRaw(result.contents)
+    }
+    val launchScanner: () -> Unit = launch@{
+        val legacyFallback = {
             zxingLauncher.launch(
                 ScanOptions().apply {
                     setPrompt("Scan Juggluco Mirror QR")
@@ -145,24 +166,19 @@ fun MirrorSettingsScreen(navController: NavController) {
                 }
             )
         }
-        if (!tk.glucodata.GoogleServices.isPlayServicesAvailable(context)) {
-            fallback()
-        } else {
-            try {
-                GmsBarcodeScanning.getClient(context).startScan()
-                    .addOnSuccessListener { barcode ->
-                        barcode.rawValue?.let { raw ->
-                            if (raw.contains("MirrorJuggluco") || raw.contains("\"port\"")) scannedQrPayload = raw
-                            else Toast.makeText(context, "Invalid QR Code", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                    .addOnFailureListener {
-                        fallback()
-                    }
-            } catch (_: Throwable) {
-                fallback()
-            }
+
+        val unifiedIntent = tk.glucodata.PhotoScan.createUnifiedScanIntent(
+            context,
+            MainActivity.REQUEST_BARCODE,
+            0L,
+            null
+        )
+        if (unifiedIntent != null) {
+            unifiedIntent.putExtra(UNIFIED_EXTRA_SCAN_CONTEXT, UNIFIED_SCAN_CONTEXT_MIRROR)
+            unifiedScannerLauncher.launch(unifiedIntent)
+            return@launch
         }
+        legacyFallback()
     }
 
     // ── Dialogs ──────────────────────────────────────────────────────────
@@ -192,15 +208,12 @@ fun MirrorSettingsScreen(navController: NavController) {
             text = { Text("Found at ${device.ip}:${device.port}.\nThis will receive glucose data from \"${device.name}\".") },
             confirmButton = {
                 Button(onClick = {
-                    Natives.changebackuphost(
-                        -1, arrayOf(device.ip), 1, true, device.port.toString(),
-                        false, false, false, false, true,
-                        false, false, device.password, System.currentTimeMillis(), device.label.ifEmpty { device.name },
-                        false, true, null, true
-                    )
-                    Toast.makeText(context, "Connected to ${device.name}", Toast.LENGTH_SHORT).show()
-                    tk.glucodata.Applic.wakemirrors()
-                    triggerRefresh++
+                    // Use injectMirrorJson — same code path as QR scanning
+                    if (device.mirrorJson.isNotEmpty()) {
+                        if (injectMirrorJson(device.mirrorJson, context)) triggerRefresh++
+                    } else {
+                        Toast.makeText(context, "Connection data missing", Toast.LENGTH_SHORT).show()
+                    }
                     pendingNearby = null
                 }) { Text("Connect") }
             },
@@ -306,15 +319,13 @@ fun MirrorSettingsScreen(navController: NavController) {
                             if (idx >= 0) {
                                 broadcastSenderIdx = idx
                                 triggerRefresh++
-                                // Read the ACTUAL port, password, and label from the sender entry
                                 val senderPort = Natives.getbackuphostport(idx)?.toIntOrNull() ?: 8795
-                                val senderPassword = Natives.getbackuppassword(idx) ?: ""
-                                val senderLabel = Natives.getbackuplabel(idx) ?: ""
+                                // Get the full JSON (same data as QR code) for the follower
+                                val mirrorJson = Natives.getbackJson(idx) ?: ""
                                 mdnsManager.registerService(
                                     android.os.Build.MODEL ?: "Device",
                                     senderPort,
-                                    senderPassword,
-                                    senderLabel
+                                    mirrorJson
                                 )
                             } else {
                                 mdnsManager.registerService(android.os.Build.MODEL ?: "Device")
@@ -525,35 +536,93 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val isNew = pos == -1
 
+    // Determine connection type from existing entry
+    val existingICELabel = if (!isNew) Natives.getICElabel(pos) else null
+    val hasICE = existingICELabel != null
+
     var connectionType by remember { mutableStateOf(
         if (isNew) ConnectionType.LOCAL
-        else if (Natives.getICEside(pos)) ConnectionType.ICE
+        else if (hasICE) ConnectionType.ICE
         else if (Natives.getbackupHasHostname(pos)) ConnectionType.DIRECT
         else ConnectionType.LOCAL
     )}
+
+    // Connection fields
     var port by remember { mutableStateOf(if (!isNew) Natives.getbackuphostport(pos) ?: "8795" else "8795") }
     var password by remember { mutableStateOf(if (!isNew) Natives.getbackuppassword(pos) ?: "" else "") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var iceLabel by remember { mutableStateOf(if (!isNew) Natives.getbackuplabel(pos) ?: "" else "") }
-    var hostname by remember { mutableStateOf(if (!isNew) Natives.getbackupIPs(pos)?.firstOrNull() ?: "" else "") }
-    var isSending by remember { mutableStateOf(if (!isNew) Natives.getbackuphostnums(pos) else false) }
-    var isReceiving by remember { mutableStateOf(if (!isNew) (Natives.getbackuphostreceive(pos) and 2) != 0 else true) }
+
+    // ICE label (email / identifier for ICE connections)
+    var iceLabel by remember { mutableStateOf(existingICELabel ?: "") }
+    var iceSide by remember { mutableStateOf(if (!isNew && hasICE) Natives.getICEside(pos) else false) }
+
+    // Connection label (human-readable name for this entry)
+    var connectionLabel by remember { mutableStateOf(if (!isNew) Natives.getbackuplabel(pos) ?: "" else "") }
+
+    // IP/hostname for non-ICE connections
+    var hostname by remember { mutableStateOf(
+        if (!isNew && !hasICE) Natives.getbackupIPs(pos)?.firstOrNull() ?: "" else ""
+    )}
+
+    // Role: what data flows
+    var isSending by remember { mutableStateOf(
+        if (!isNew) Natives.getbackuphostnums(pos) || Natives.getbackuphoststream(pos) || Natives.getbackuphostscans(pos)
+        else false
+    )}
+    var isReceiving by remember { mutableStateOf(
+        if (!isNew) (Natives.getbackuphostreceive(pos) and 2) != 0 else true
+    )}
+
+    // Auto-detect IP (only for Local mode)
+    var autoDetect by remember { mutableStateOf(
+        if (!isNew && !hasICE) Natives.detectIP(pos) else true
+    )}
 
     fun save() {
         val isICE = connectionType == ConnectionType.ICE
         val isDirect = connectionType == ConnectionType.DIRECT
         val isLocal = connectionType == ConnectionType.LOCAL
-        val finalNames = if ((isDirect || isLocal) && hostname.isNotEmpty()) arrayOf(hostname) else arrayOf("")
-        val finalPort = port.ifEmpty { "8795" }
-        val finalIceLabel = if (isICE) iceLabel else ""
 
+        // Build names array
+        val finalNames: Array<String>
+        val nameCount: Int
+        if (isICE) {
+            finalNames = arrayOf("")
+            nameCount = 0
+        } else if (hostname.isNotEmpty()) {
+            finalNames = arrayOf(hostname)
+            nameCount = 1
+        } else {
+            finalNames = arrayOf("")
+            nameCount = 0
+        }
+
+        val finalPort = port.ifEmpty { "8795" }
+
+        // Map flags per connection type, matching Backup.java line 612:
+        // changebackuphost(pos, names, nr, detect, port, nums, stream, scans,
+        //   recover, receive, activeonly, passiveonly, pass, starttime, label,
+        //   testip, hasname, icelabel, side)
         Natives.changebackuphost(
-            if (isNew) -1 else pos, finalNames, finalNames.size,
-            isLocal, finalPort,
-            isSending, isSending, isSending, false, isReceiving,
-            false, false, password, System.currentTimeMillis(), finalIceLabel,
-            isLocal && hostname.isEmpty(), isDirect || (!isICE && hostname.isNotEmpty()),
-            finalIceLabel.takeIf { isICE }, isReceiving
+            if (isNew) -1 else pos,
+            finalNames,
+            nameCount,
+            /* detect */ isLocal && autoDetect,
+            finalPort,
+            /* nums */ isSending,
+            /* stream */ isSending,
+            /* scans */ isSending,
+            /* recover */ false,
+            /* receive */ isReceiving,
+            /* activeonly */ false,
+            /* passiveonly */ isSending && !isReceiving && !isICE,
+            /* pass */ password.ifEmpty { null },
+            /* starttime */ 0L,
+            /* label */ connectionLabel.ifEmpty { null },
+            /* testip */ isICE || isDirect,
+            /* hasname */ isDirect,
+            /* icelabel */ if (isICE) iceLabel else "",
+            /* side */ iceSide
         )
         tk.glucodata.Applic.wakemirrors()
     }
@@ -603,7 +672,7 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             }
             Text(typeHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
 
-            // Fields
+            // Fields per connection type
             SectionLabel("Details", modifier = Modifier.padding(horizontal = 24.dp))
             Column(modifier = Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when (connectionType) {
@@ -619,7 +688,7 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
                         OutlinedTextField(
                             value = iceLabel, onValueChange = { iceLabel = it },
                             label = { Text("ICE Label") },
-                            supportingText = { Text("Must match on both devices") },
+                            supportingText = { Text("Email or identifier — must match on both devices") },
                             modifier = Modifier.fillMaxWidth(), singleLine = true
                         )
                     }
@@ -641,17 +710,26 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
                 )
             }
 
+            // Connection label
+            SectionLabel("Label", modifier = Modifier.padding(horizontal = 24.dp))
+            OutlinedTextField(
+                value = connectionLabel, onValueChange = { connectionLabel = it },
+                label = { Text("Connection Label (optional)") },
+                supportingText = { Text("Human-readable name for this connection") },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), singleLine = true
+            )
+
             // Role
             SectionLabel("Role", modifier = Modifier.padding(horizontal = 24.dp))
             Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(horizontal = 24.dp)) {
                 SettingsSwitchItem(
-                    title = "Receive Data", subtitle = "This device is a Follower",
+                    title = "Receive Data", subtitle = "This device receives glucose data",
                     checked = isReceiving, onCheckedChange = { isReceiving = it },
                     icon = Icons.Filled.Download, iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.TOP
                 )
                 SettingsSwitchItem(
-                    title = "Send Data", subtitle = "This device is a Master",
+                    title = "Send Data", subtitle = "This device sends glucose data",
                     checked = isSending, onCheckedChange = { isSending = it },
                     icon = Icons.Filled.Upload, iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.BOTTOM

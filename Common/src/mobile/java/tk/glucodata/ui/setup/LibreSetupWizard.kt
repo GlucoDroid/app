@@ -1,5 +1,6 @@
 package tk.glucodata.ui.setup
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -61,6 +62,10 @@ fun LibreSetupWizard(
 
     DisposableEffect(Unit) {
         onDispose { saveCredentials() }
+    }
+
+    BackHandler {
+        if (currentStep > 0) currentStep-- else onDismiss()
     }
 
     Scaffold(

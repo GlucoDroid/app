@@ -22,7 +22,6 @@ package tk.glucodata;
 
 import static tk.glucodata.Applic.Toaster;
 import static tk.glucodata.Applic.isWearable;
-import static tk.glucodata.Applic.useZXing;
 import static tk.glucodata.InsulinTypeHolder.getradiobutton;
 import static tk.glucodata.Log.doLog;
 import static tk.glucodata.MainActivity.REQUEST_BARCODE;
@@ -38,18 +37,26 @@ import static tk.glucodata.util.getcheckbox;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.RadioGroup;
-import android.widget.Toast;
-
-//import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
-//import com.google.mlkit.vision.barcode.common.Barcode;
-//import com.google.mlkit.vision.barcode.common.Barcode;
-//import com.google.mlkit.vision.barcode.common.Barcode;
-
-//import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
-//import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PhotoScan {
     private static final String LOG_ID = "PhotoScan";
+    private static final String SIBIONICS_GTIN = "0697283164";
+    private static final String SIBIONICS_GTIN_NO_LEADING_ZERO = "697283164";
+    private static final int SIBIONICS_PREFIX_PADDING = 43;
+    private static final Pattern AI10_PAREN = Pattern.compile("\\(10\\)\\s*([A-Z0-9]{4,40})",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern AI21_PAREN = Pattern.compile("\\(21\\)\\s*([A-Z0-9]{4,40})",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern AI10_GS = Pattern.compile("(?:\\u001D|\\^])10([A-Z0-9]{4,40})(?=(?:\\u001D|\\^]|$))",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern AI21_GS = Pattern.compile("(?:\\u001D|\\^])21([A-Z0-9]{4,40})(?=(?:\\u001D|\\^]|$))",
+            Pattern.CASE_INSENSITIVE);
 
     private static void wrongtag() {
         Toaster("Wrong QR code");
@@ -182,16 +189,267 @@ public class PhotoScan {
 
     static long wasdataptr = 0L;
 
+    private static boolean isLikelyMirrorPayload(String text) {
+        return text.endsWith("MirrorJuggluco") || text.contains("\"port\"");
+    }
+
+    private static String sanitizeAlnumUpper(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        final StringBuilder out = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isLetterOrDigit(c)) {
+                out.append(Character.toUpperCase(c));
+            }
+        }
+        return out.toString();
+    }
+
+    private static String takeLeadingAlnum(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        int end = 0;
+        while (end < value.length() && Character.isLetterOrDigit(value.charAt(end))) {
+            end++;
+        }
+        return value.substring(0, end);
+    }
+
+    private static String lastGroupMatch(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        String found = null;
+        while (matcher.find()) {
+            found = sanitizeAlnumUpper(matcher.group(1));
+        }
+        return found;
+    }
+
+    private static String extractByAiTailFallback(String text, String ai) {
+        int idx = text.lastIndexOf(ai);
+        if (idx < 0 || idx + 2 >= text.length()) {
+            return null;
+        }
+        String tail = text.substring(idx + 2);
+        String token = sanitizeAlnumUpper(takeLeadingAlnum(tail));
+        return token.length() >= 8 ? token : null;
+    }
+
+    private static boolean looksLikeSibionicsPayload(String text) {
+        final String upper = text.toUpperCase(Locale.ROOT);
+        return upper.contains(SIBIONICS_GTIN_NO_LEADING_ZERO)
+                || upper.contains("(SI)")
+                || (upper.contains("LT4") && (upper.contains("(21)") || upper.contains("\u001D21")
+                        || upper.contains("^]21") || upper.contains("21P2")));
+    }
+
+    private static String buildCanonicalSibionicsPayload(String input) {
+        final String trimmed = input.trim();
+        if (trimmed.isEmpty() || !looksLikeSibionicsPayload(trimmed)) {
+            return null;
+        }
+
+        final String normalized = trimmed.toUpperCase(Locale.ROOT).replace(" ", "");
+
+        String serial = lastGroupMatch(AI21_PAREN, normalized);
+        if (serial == null) {
+            serial = lastGroupMatch(AI21_GS, normalized);
+        }
+        if (serial == null) {
+            serial = extractByAiTailFallback(normalized, "21");
+        }
+        if (serial == null || serial.length() < 8 || serial.length() > 32) {
+            return null;
+        }
+
+        String batch = lastGroupMatch(AI10_PAREN, normalized);
+        if (batch == null) {
+            batch = lastGroupMatch(AI10_GS, normalized);
+        }
+        if (batch == null) {
+            int serialAi = normalized.lastIndexOf("21");
+            if (serialAi > 2) {
+                int batchAi = normalized.lastIndexOf("10", serialAi - 1);
+                if (batchAi >= 0 && batchAi + 2 < serialAi) {
+                    batch = sanitizeAlnumUpper(normalized.substring(batchAi + 2, serialAi));
+                }
+            }
+        }
+
+        if (batch == null) {
+            batch = "";
+        } else if (batch.length() > 24) {
+            batch = batch.substring(0, 24);
+        }
+
+        final String codePart = batch + serial;
+        if (codePart.length() < 12 || codePart.length() > 56) {
+            return null;
+        }
+
+        final String canonical = SIBIONICS_GTIN + "0".repeat(SIBIONICS_PREFIX_PADDING) + codePart;
+        if (doLog) {
+            Log.i(LOG_ID, "Normalized Sibionics QR payload for stable native parse");
+        }
+        return canonical;
+    }
+
+    private static String stripSymbologyPrefix(String text) {
+        if (text == null || text.length() < 3 || text.charAt(0) != ']') {
+            return text;
+        }
+        final char c1 = text.charAt(1);
+        final char c2 = text.charAt(2);
+        if (Character.isLetter(c1) && Character.isDigit(c2)) {
+            return text.substring(3);
+        }
+        return text;
+    }
+
+    private static String printableScanPreview(String text) {
+        if (text == null) {
+            return "";
+        }
+        final String preview = text.replace("\u001D", "<GS>");
+        return preview.length() > 96 ? preview.substring(0, 96) + "..." : preview;
+    }
+
+    private static String normalizeSibionicsFraming(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        String out = input.toUpperCase(Locale.ROOT).replace(" ", "");
+        out = stripSymbologyPrefix(out);
+        out = out.replace("^]", "\u001D");
+
+        final boolean hasGs = out.indexOf('\u001D') >= 0;
+        int ai21 = out.lastIndexOf("21");
+        int ai10 = ai21 > 0 ? out.lastIndexOf("10", ai21 - 1) : -1;
+
+        if (hasGs) {
+            if (!out.startsWith("\u001D")) {
+                out = "\u001D" + out;
+                if (ai21 >= 0) {
+                    ai21++;
+                }
+            }
+            if (ai21 > 0 && out.charAt(ai21 - 1) != '\u001D') {
+                out = out.substring(0, ai21) + "\u001D" + out.substring(ai21);
+            }
+            return out;
+        }
+
+        if (ai10 > 0 && ai21 > (ai10 + 2) && ai21 < (out.length() - 2)) {
+            return "\u001D" + out.substring(0, ai21) + "\u001D" + out.substring(ai21);
+        }
+        return out;
+    }
+
+    private static String delimitCompactSibionicsPayload(String input) {
+        if (input == null || input.isEmpty()) {
+            return null;
+        }
+        final String compact = input.toUpperCase(Locale.ROOT).replace(" ", "");
+        if (!looksLikeSibionicsPayload(compact)) {
+            return null;
+        }
+        if (compact.contains("^]") || compact.indexOf('\u001D') >= 0
+                || compact.contains("(10)") || compact.contains("(21)")) {
+            return null;
+        }
+
+        final int ai10 = compact.lastIndexOf("10", compact.lastIndexOf("21") - 1);
+        final int ai21 = compact.lastIndexOf("21");
+        if (ai10 < 0 || ai21 <= (ai10 + 2) || ai21 >= (compact.length() - 2)) {
+            return null;
+        }
+
+        final int batchLen = ai21 - (ai10 + 2);
+        final int serialLen = compact.length() - (ai21 + 2);
+        if (batchLen < 4 || serialLen < 8) {
+            return null;
+        }
+
+        final String delimited = "\u001D" + compact.substring(0, ai21) + "\u001D" + compact.substring(ai21);
+        if (doLog) {
+            Log.i(LOG_ID, "Injected GS separators for compact Sibionics payload");
+        }
+        return delimited;
+    }
+
+    static String normalizeScanPayload(String scanText, int request) {
+        if (scanText == null) {
+            return "";
+        }
+        final String trimmed = scanText.trim();
+        if (request != REQUEST_BARCODE || trimmed.isEmpty() || isLikelyMirrorPayload(trimmed)) {
+            return trimmed;
+        }
+
+        String normalized = trimmed;
+
+        if (looksLikeSibionicsPayload(normalized)) {
+            normalized = normalizeSibionicsFraming(normalized);
+            if (doLog) {
+                Log.i(LOG_ID, "Sibionics scan after framing normalize len=" + normalized.length()
+                        + " payload=" + printableScanPreview(normalized));
+            }
+        }
+
+        // Conservative fallback: some decoders drop the leading zero in Sibionics GTIN.
+        if (normalized.contains(SIBIONICS_GTIN_NO_LEADING_ZERO) && !normalized.contains(SIBIONICS_GTIN)
+                && looksLikeSibionicsPayload(normalized)) {
+            final int idx = normalized.indexOf(SIBIONICS_GTIN_NO_LEADING_ZERO);
+            if (idx >= 0) {
+                if (doLog) {
+                    Log.i(LOG_ID, "Inserted missing GTIN leading zero for Sibionics QR payload");
+                }
+                normalized = normalized.substring(0, idx) + "0" + normalized.substring(idx);
+            }
+        }
+
+        final String delimited = delimitCompactSibionicsPayload(normalized);
+        if (delimited != null) {
+            return delimited;
+        }
+        return normalized;
+    }
+
     public static void connectSensor(final String scantag, MainActivity act, int request, long sensorptr2) {
+        final String normalizedTag = normalizeScanPayload(scantag, request);
         if (!isWearable) {
             switch (request) {
                 case REQUEST_BARCODE: {
-                    if (scantag.endsWith("MirrorJuggluco")) {
-                        MirrorString.makeMirror(scantag, act);
+                    if (normalizedTag.endsWith("MirrorJuggluco")) {
+                        MirrorString.makeMirror(normalizedTag, act);
                         return;
                     } else {
+                        if (doLog && looksLikeSibionicsPayload(normalizedTag)) {
+                            Log.i(LOG_ID, "Sibionics addSIscangetName input len=" + normalizedTag.length()
+                                    + " payload=" + printableScanPreview(normalizedTag));
+                        }
                         int[] indexptr = { -1 };
-                        String name = Natives.addSIscangetName(scantag, indexptr);
+                        String name = Natives.addSIscangetName(normalizedTag, indexptr);
+                        if (doLog && looksLikeSibionicsPayload(normalizedTag)) {
+                            Log.i(LOG_ID, "Sibionics addSIscangetName output name=" + name + " index=" + indexptr[0]);
+                        }
+                        if ((name == null || name.isEmpty()) && indexptr[0] < 0 && looksLikeSibionicsPayload(normalizedTag)) {
+                            // Keep legacy behavior first (raw payload). Only if native parse fails, try a
+                            // canonicalized Sibionics payload to recover scans from strict/odd decoders.
+                            String canonical = buildCanonicalSibionicsPayload(normalizedTag);
+                            if (canonical != null && !canonical.equals(normalizedTag)) {
+                                int[] canonicalIndexptr = { -1 };
+                                String canonicalName = Natives.addSIscangetName(canonical, canonicalIndexptr);
+                                if (canonicalName != null && !canonicalName.isEmpty()) {
+                                    name = canonicalName;
+                                    indexptr[0] = canonicalIndexptr[0];
+                                } else if (indexptr[0] < 0) {
+                                    indexptr[0] = canonicalIndexptr[0];
+                                }
+                            }
+                        }
                         if (name != null && name.length() > 0) {
                             // Skip calendar popup - legacy behavior disabled by default
                             // MainActivity.tocalendarapp = true;
@@ -258,7 +516,7 @@ public class PhotoScan {
                 }
                     break;
                 case REQUEST_BARCODE_SIB2: {
-                    if (Natives.siSensorptrTransmitterScan(sensorptr2, scantag)) {
+                    if (Natives.siSensorptrTransmitterScan(sensorptr2, normalizedTag)) {
                         // Route to Compose wizard if enabled
                         if (MainActivity.useComposeWizard && MainActivity.onTransmitterScanResult != null) {
                             MainActivity.onTransmitterScanResult.onResult(true);
@@ -290,21 +548,57 @@ public class PhotoScan {
         }
     }
 
-    public static void scanner(MainActivity act, int type, long sensorptr) {
-        if (!isWearable) {
-            if (!Natives.getGoogleScan()) {
-                Toast.makeText(act, "Google Scan Disabled. Using ZXing.", Toast.LENGTH_SHORT).show();
-                scanZXingAlg(act, type, sensorptr);
-            } else {
-                try {
-                    // Toast.makeText(act, "Starting Google Scan...", Toast.LENGTH_SHORT).show();
-                    scanGoogle(act, type, sensorptr);
-                } catch (Throwable th) {
-                    Toast.makeText(act, "Google Scan Crashed: " + th.getMessage(), Toast.LENGTH_LONG).show();
-                    Log.stack(LOG_ID, "scanGoogle", th);
-                    scanZXingAlg(act, type, sensorptr);
-                }
+    static boolean handleUnifiedScanResult(int resultCode, Intent data, MainActivity act, int type) {
+        if (data == null) {
+            return false;
+        }
+        if (!data.hasExtra(UnifiedScanActivity.EXTRA_SCAN_REQUEST)) {
+            return false;
+        }
+        final int request = data.getIntExtra(UnifiedScanActivity.EXTRA_SCAN_REQUEST, type);
+        final long sensorptr = data.getLongExtra(UnifiedScanActivity.EXTRA_SENSOR_PTR, 0L);
+        if (resultCode == Activity.RESULT_OK) {
+            final String scan = data.getStringExtra(UnifiedScanActivity.EXTRA_SCAN_TEXT);
+            if (scan != null && !scan.isEmpty()) {
+                connectSensor(scan, act, request, sensorptr);
+            } else if (request == REQUEST_BARCODE_SIB2) {
+                transmitterScanCancelled(sensorptr);
             }
+            return true;
+        }
+        if (request == REQUEST_BARCODE_SIB2) {
+            transmitterScanCancelled(sensorptr);
+        }
+        return true;
+    }
+
+    public static Intent createUnifiedScanIntent(Context context, int type, long sensorptr, String title) {
+        try {
+            final Intent intent = new Intent(context, UnifiedScanActivity.class);
+            intent.putExtra(UnifiedScanActivity.EXTRA_SCAN_REQUEST, type);
+            intent.putExtra(UnifiedScanActivity.EXTRA_SENSOR_PTR, sensorptr);
+            if (title != null && !title.isEmpty()) {
+                intent.putExtra(UnifiedScanActivity.EXTRA_SCAN_TITLE, title);
+            }
+            return intent;
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "createUnifiedScanIntent", th);
+            return null;
+        }
+    }
+
+    public static void scanner(MainActivity act, int type, long sensorptr) {
+        scanner(act, type, sensorptr, null);
+    }
+
+    public static void scanner(MainActivity act, int type, long sensorptr, String title) {
+        if (!isWearable) {
+            final Intent unifiedIntent = createUnifiedScanIntent(act, type, sensorptr, title);
+            if (unifiedIntent != null) {
+                act.startActivityForResult(unifiedIntent, type);
+                return;
+            }
+            scanZXingAlg(act, type, sensorptr);
         }
     }
 
@@ -312,55 +606,8 @@ public class PhotoScan {
         scanner(act, type, 0L);
     }
 
-    private static void scanGoogle(MainActivity act, int type, long sensorptr) {
-        if (!isWearable) {
-            if (doLog) {
-                Log.i(LOG_ID, "before scan");
-            }
-            ;
-            final var options = new com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
-                    .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_DATA_MATRIX,
-                            com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE)
-                    .build();
-            final var scanner = com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(act, options);
-            scanner.startScan().addOnSuccessListener(
-                    barcode -> {
-                        var rawValue = barcode.getRawValue();
-                        var message = "Scanned: " + rawValue;
-                        if (doLog) {
-                            Log.i(LOG_ID, message);
-                        }
-                        ;
-                        connectSensor(rawValue, act, type, sensorptr);
-                    })
-                    .addOnCanceledListener(
-                            () -> {
-                                var message = "Scan cancelled";
-                                if (doLog) {
-                                    Log.i(LOG_ID, message);
-                                }
-                                ;
-                                Toast.makeText(act, message, Toast.LENGTH_LONG).show();
-                                transmitterScanCancelled(sensorptr);
-                                // Task canceled
-                            })
-                    .addOnFailureListener(
-                            e -> {
-                                var message = e.getMessage();
-                                if (doLog) {
-                                    Log.i(LOG_ID, message);
-                                }
-                                ;
-                                Toast.makeText(act, message, Toast.LENGTH_SHORT).show();
-                                if (useZXing) {
-                                    Toast.makeText(act, "Move to zXing", Toast.LENGTH_SHORT).show();
-                                    scanZXingAlg(act, type, sensorptr);
-                                }
-
-                                // Task failed with an exception
-                            });
-
-        }
+    public static void scan(MainActivity act, int type, String title) {
+        scanner(act, type, 0L, title);
     }
 
     /*

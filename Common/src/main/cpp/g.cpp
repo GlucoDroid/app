@@ -1179,9 +1179,9 @@ extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStream)(
   env->ReleaseStringUTFChars(sensorId, str);
 }
 
-extern "C" JNIEXPORT void JNICALL fromjava(addRawGlucoseStream)(
-    JNIEnv *env, jclass cl, jlong timestamp, jfloat rawGlucose,
-    jstring sensorId) {
+extern "C" JNIEXPORT void JNICALL
+fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
+                              jfloat rawGlucose, jstring sensorId) {
   if (!sensors || !sensorId)
     return;
   const char *str = env->GetStringUTFChars(sensorId, NULL);

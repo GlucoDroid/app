@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -139,7 +138,6 @@ fun ExpressiveSettingsScreen(
 
 
     // Advanced settings
-    var googleScan by remember { mutableStateOf(Natives.getGoogleScan()) }
     var turbo by remember { mutableStateOf(Natives.getpriority()) }
     var autoConnect by remember { mutableStateOf(Natives.getAndroid13()) }
 
@@ -357,21 +355,12 @@ fun ExpressiveSettingsScreen(
             val advColor = MaterialTheme.colorScheme.onSurfaceVariant
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SettingsSwitchItem(
-                    title = stringResource(R.string.googlescan),
-                    subtitle = stringResource(R.string.google_scan_desc),
-                    checked = googleScan,
-                    icon = Icons.AutoMirrored.Filled.BluetoothSearching,
-                    iconTint = advColor,
-                    position = CardPosition.TOP,
-                    onCheckedChange = { Natives.setGoogleScan(it); googleScan = it }
-                )
-                SettingsSwitchItem(
                     title = stringResource(R.string.turbo_title),
                     subtitle = stringResource(R.string.turbo_desc),
                     checked = turbo,
                     icon = Icons.Default.Speed,
                     iconTint = advColor,
-                    position = CardPosition.MIDDLE,
+                    position = CardPosition.TOP,
                     onCheckedChange = { Natives.setpriority(it); turbo = it }
                 )
                 SettingsSwitchItem(

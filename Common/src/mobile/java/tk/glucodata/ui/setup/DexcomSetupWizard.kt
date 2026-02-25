@@ -1,17 +1,14 @@
 package tk.glucodata.ui.setup
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
@@ -24,9 +21,21 @@ import tk.glucodata.R
 @Composable
 fun DexcomSetupWizard(
     onDismiss: () -> Unit,
-    onScan: () -> Unit
+    onScanResult: (String) -> Unit
 ) {
     val ui = rememberWizardUiMetrics()
+    var handledScan by remember { mutableStateOf(false) }
+    val launchFullscreenScan = rememberUnifiedQrScanLauncher(
+        requestCode = tk.glucodata.MainActivity.REQUEST_BARCODE,
+        title = stringResource(R.string.dexcom_setup_title),
+        onScanResult = { raw ->
+            if (!handledScan) {
+                handledScan = true
+                onScanResult(raw)
+            }
+        }
+    )
+    BackHandler(onBack = onDismiss)
     Scaffold(
         topBar = {
             TopAppBar(
@@ -44,55 +53,32 @@ fun DexcomSetupWizard(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(ui.horizontalPadding)
-                .verticalScroll(rememberScrollState())
                 .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(ui.heroSize)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.QrCodeScanner,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(ui.heroInnerPadding)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(ui.spacerLarge))
-            
-            Text(
-                text = stringResource(R.string.scan_dexcom),
-                style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center
+            InlineQrScannerCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (ui.compact) 320.dp else 380.dp),
+                onScanResult = { raw ->
+                    if (!handledScan) {
+                        handledScan = true
+                        onScanResult(raw)
+                    }
+                },
+                onManualFallback = launchFullscreenScan,
+                manualFallbackLabel = stringResource(R.string.scan_dexcom)
             )
-            
+
             Spacer(modifier = Modifier.height(ui.spacerSmall))
-            
+
             Text(
                 text = stringResource(R.string.dexcom_scan_instruction),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            
-            Spacer(modifier = Modifier.height(ui.spacerLarge + ui.spacerMedium))
-            
-            Button(
-                onClick = onScan,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(ui.buttonHeight)
-            ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.scan_dexcom))
-            }
         }
     }
 }

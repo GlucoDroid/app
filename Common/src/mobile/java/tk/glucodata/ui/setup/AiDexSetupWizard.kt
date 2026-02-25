@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -77,6 +78,9 @@ fun AiDexSetupWizard(
             Log.e(tag, "Failed to launch document picker: ${t.message}")
             Toast.makeText(context, context.getString(R.string.unable_to_open_source_file), Toast.LENGTH_LONG).show()
         }
+    }
+    BackHandler {
+        if (currentStep == AiDexSetupStep.SCAN) onDismiss() else currentStep = AiDexSetupStep.SCAN
     }
 
     Scaffold(

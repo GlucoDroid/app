@@ -11,8 +11,7 @@ data class DiscoveredMirror(
     val name: String,
     val ip: String,
     val port: Int,
-    val password: String = "",
-    val label: String = ""
+    val mirrorJson: String = "" // The full QR-equivalent JSON from getbackJson
 )
 
 class MDnsManager(private val context: Context) {
@@ -23,18 +22,26 @@ class MDnsManager(private val context: Context) {
     private var discoveryListener: NsdManager.DiscoveryListener? = null
     
     /**
-     * Register this device as a discoverable Juggluco mirror on the local network.
-     * Embeds the connection password and label in TXT records so the
-     * discovering device can create a matching connection entry.
+     * Register this device as a discoverable Juggluco mirror.
+     * Embeds the mirror JSON (same as QR code content) in TXT records
+     * so discovering devices can connect using the exact same path as QR scanning.
+     *
+     * NSD TXT record values are limited to 255 bytes each, so we chunk
+     * the JSON across multiple keys (j0, j1, j2, ...) if needed.
      */
-    fun registerService(deviceName: String, port: Int = 8795, password: String = "", label: String = "") {
+    fun registerService(deviceName: String, port: Int = 8795, mirrorJson: String = "") {
         val serviceInfo = NsdServiceInfo().apply {
             serviceName = "JugglucoNG-$deviceName"
             this.serviceType = this@MDnsManager.serviceType
             this.port = port
-            // Embed connection params in TXT records (local network only)
-            if (password.isNotEmpty()) setAttribute("pw", password)
-            if (label.isNotEmpty()) setAttribute("lbl", label)
+            // Chunk the JSON into <=250 byte pieces (leaving room for key overhead)
+            if (mirrorJson.isNotEmpty()) {
+                val chunks = mirrorJson.chunked(250)
+                chunks.forEachIndexed { index, chunk ->
+                    setAttribute("j$index", chunk)
+                }
+                setAttribute("jn", chunks.size.toString())
+            }
         }
 
         registrationListener = object : NsdManager.RegistrationListener {
@@ -75,15 +82,22 @@ class MDnsManager(private val context: Context) {
                         override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
                         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                             val hostAddress = serviceInfo.host?.hostAddress ?: return
-                            // Read TXT record attributes
-                            val pw = serviceInfo.attributes["pw"]?.let { String(it) } ?: ""
-                            val lbl = serviceInfo.attributes["lbl"]?.let { String(it) } ?: ""
+                            // Reassemble chunked JSON from TXT records
+                            val numChunks = serviceInfo.attributes["jn"]?.let { String(it).toIntOrNull() } ?: 0
+                            val json = if (numChunks > 0) {
+                                buildString {
+                                    for (i in 0 until numChunks) {
+                                        val chunk = serviceInfo.attributes["j$i"]?.let { String(it) } ?: ""
+                                        append(chunk)
+                                    }
+                                }
+                            } else ""
+
                             val mirror = DiscoveredMirror(
                                 name = serviceInfo.serviceName.removePrefix("JugglucoNG-"),
                                 ip = hostAddress,
                                 port = serviceInfo.port,
-                                password = pw,
-                                label = lbl
+                                mirrorJson = json
                             )
                             Handler(Looper.getMainLooper()).post {
                                 onServiceFound(mirror)

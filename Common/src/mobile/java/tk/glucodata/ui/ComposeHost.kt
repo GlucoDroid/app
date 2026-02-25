@@ -983,8 +983,7 @@ fun DashboardScreen(
         tk.glucodata.ui.setup.LibreSetupWizard(
             onDismiss = { showLibreWizard = false },
             onScanNfc = {
-                tk.glucodata.MainActivity.launchQrScan()
-                showLibreWizard = false
+                tk.glucodata.MainActivity.launchLibreNfcScan()
             }
         )
         return
@@ -994,8 +993,8 @@ fun DashboardScreen(
     if (showDexcomWizard) {
         tk.glucodata.ui.setup.DexcomSetupWizard(
             onDismiss = { showDexcomWizard = false },
-            onScan = {
-                tk.glucodata.MainActivity.launchQrScan()
+            onScanResult = { raw ->
+                tk.glucodata.MainActivity.handleInlineQrScan(raw, tk.glucodata.MainActivity.REQUEST_BARCODE)
                 showDexcomWizard = false
             }
         )
@@ -1006,8 +1005,8 @@ fun DashboardScreen(
     if (showAccuChekWizard) {
         tk.glucodata.ui.setup.AccuChekSetupWizard(
             onDismiss = { showAccuChekWizard = false },
-            onScan = {
-                tk.glucodata.MainActivity.launchQrScan()
+            onScanResult = { raw ->
+                tk.glucodata.MainActivity.handleInlineQrScan(raw, tk.glucodata.MainActivity.REQUEST_BARCODE)
                 showAccuChekWizard = false
             }
         )
@@ -1018,8 +1017,8 @@ fun DashboardScreen(
     if (showCareSensAirWizard) {
         tk.glucodata.ui.setup.CareSensAirSetupWizard(
             onDismiss = { showCareSensAirWizard = false },
-            onScan = {
-                tk.glucodata.MainActivity.launchQrScan()
+            onScanResult = { raw ->
+                tk.glucodata.MainActivity.handleInlineQrScan(raw, tk.glucodata.MainActivity.REQUEST_BARCODE)
                 showCareSensAirWizard = false
             }
         )
@@ -1382,7 +1381,7 @@ fun DashboardScreen(
 
 
                 item {
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Box(modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp)) {
                         RecentReadingsCard(
                             recentReadings = recentReadings,
                             unit = unit,
@@ -2123,22 +2122,6 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
         Text(stringResource(R.string.advanced_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp))
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Google Scan
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.googlescan)) },
-            supportingContent = { Text(stringResource(R.string.google_scan_desc)) },
-            trailingContent = {
-                var googleScan by remember { mutableStateOf(Natives.getGoogleScan()) }
-                StyledSwitch(
-                    checked = googleScan,
-                    onCheckedChange = {
-                        Natives.setGoogleScan(it)
-                        googleScan = it
-                    }
-                )
-            }
-        )
-
         // Turbo (High Priority)
         ListItem(
             headlineContent = { Text(stringResource(R.string.turbo_title)) },
@@ -2770,6 +2753,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
         tk.glucodata.ui.components.SensorTypePicker(
             onDismiss = { showSensorPicker = false },
             onSensorSelected = { type ->
+                showSensorPicker = false
                 when (type) {
                     tk.glucodata.ui.components.SensorType.SIBIONICS -> showSibionicsWizard = true
                     tk.glucodata.ui.components.SensorType.LIBRE -> showLibreWizard = true
@@ -2800,8 +2784,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
             onDismiss = { showLibreWizard = false },
             onScanNfc = {
                 // Launch existing NFC/Libre flow
-                tk.glucodata.MainActivity.launchQrScan()
-                showLibreWizard = false
+                tk.glucodata.MainActivity.launchLibreNfcScan()
             }
         )
         return
@@ -2810,10 +2793,11 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
     // Dexcom Setup Wizard
     if (showDexcomWizard) {
         tk.glucodata.ui.setup.DexcomSetupWizard(
-            onDismiss = { showDexcomWizard = false },
-            onScan = {
-                // Launch existing Dexcom/QR flow
-                tk.glucodata.MainActivity.launchQrScan()
+            onDismiss = {
+                showDexcomWizard = false
+            },
+            onScanResult = { raw ->
+                tk.glucodata.MainActivity.handleInlineQrScan(raw, tk.glucodata.MainActivity.REQUEST_BARCODE)
                 showDexcomWizard = false
             }
         )
@@ -2823,9 +2807,11 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
     // Accu-Chek Setup Wizard
     if (showAccuChekWizard) {
         tk.glucodata.ui.setup.AccuChekSetupWizard(
-            onDismiss = { showAccuChekWizard = false },
-            onScan = {
-                tk.glucodata.MainActivity.launchQrScan()
+            onDismiss = {
+                showAccuChekWizard = false
+            },
+            onScanResult = { raw ->
+                tk.glucodata.MainActivity.handleInlineQrScan(raw, tk.glucodata.MainActivity.REQUEST_BARCODE)
                 showAccuChekWizard = false
             }
         )
@@ -2835,9 +2821,11 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
     // CareSens Air Setup Wizard
     if (showCareSensAirWizard) {
         tk.glucodata.ui.setup.CareSensAirSetupWizard(
-            onDismiss = { showCareSensAirWizard = false },
-            onScan = {
-                tk.glucodata.MainActivity.launchQrScan()
+            onDismiss = {
+                showCareSensAirWizard = false
+            },
+            onScanResult = { raw ->
+                tk.glucodata.MainActivity.handleInlineQrScan(raw, tk.glucodata.MainActivity.REQUEST_BARCODE)
                 showCareSensAirWizard = false
             }
         )

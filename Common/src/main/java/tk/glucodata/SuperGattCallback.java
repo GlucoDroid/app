@@ -556,15 +556,15 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         long hTime = history[i];
                         if (Math.abs(hTime - timeSec) < 5) { // Allow small time diff
                             long rawVal = history[i + 2];
+                            found = true;
                             // rawVal is mg/dL * 10
-                            mgdlToUse = (int) Math.round((float) rawVal / 10.0f);
-
-                            float glVal = (float) rawVal / 10.0f;
+                            final float rawMgdl = (float) rawVal / 10.0f;
+                            mgdlToUse = (int) Math.round(rawMgdl);
+                            float glVal = rawMgdl;
                             if (Applic.unit == 1) {
                                 glVal = glVal / (float) mgdLmult;
                             }
                             glucoseToUse = glVal;
-                            found = true;
                             if (doLog) {
                                 Log.i(LOG_ID, "Using RAW value: " + glucoseToUse + " (mgdl: " + mgdlToUse + ")");
                             }

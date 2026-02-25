@@ -103,7 +103,7 @@ fun SensorSelectionCards(
             
             // Dexcom
             SensorCard(
-                icon = Icons.Default.Bluetooth,
+                icon = Icons.Default.QrCodeScanner,
                 title = stringResource(R.string.dexcom_sensor),
                 subtitle = stringResource(R.string.dexcom_sensor_desc),
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -125,7 +125,7 @@ fun SensorSelectionCards(
 
             // CareSens Air
             SensorCard(
-                icon = Icons.Default.Bluetooth,
+                icon = Icons.Default.QrCodeScanner,
                 title = stringResource(R.string.caresens_air_sensor),
                 subtitle = stringResource(R.string.caresens_air_sensor_desc),
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,

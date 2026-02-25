@@ -1,5 +1,6 @@
 package tk.glucodata.ui.setup
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -8,22 +9,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,9 +34,21 @@ import tk.glucodata.R
 @Composable
 fun AccuChekSetupWizard(
     onDismiss: () -> Unit,
-    onScan: () -> Unit
+    onScanResult: (String) -> Unit
 ) {
     val ui = rememberWizardUiMetrics()
+    var handledScan by remember { mutableStateOf(false) }
+    val launchFullscreenScan = rememberUnifiedQrScanLauncher(
+        requestCode = tk.glucodata.MainActivity.REQUEST_BARCODE,
+        title = stringResource(R.string.accuchek_setup_title),
+        onScanResult = { raw ->
+            if (!handledScan) {
+                handledScan = true
+                onScanResult(raw)
+            }
+        }
+    )
+    BackHandler(onBack = onDismiss)
     Scaffold(
         topBar = {
             TopAppBar(
@@ -55,32 +66,22 @@ fun AccuChekSetupWizard(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(ui.horizontalPadding)
-                .verticalScroll(rememberScrollState())
                 .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(ui.heroSize)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.QrCodeScanner,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(ui.heroInnerPadding)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(ui.spacerLarge))
-
-            Text(
-                text = stringResource(R.string.scan_accuchek),
-                style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center
+            InlineQrScannerCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (ui.compact) 320.dp else 380.dp),
+                onScanResult = { raw ->
+                    if (!handledScan) {
+                        handledScan = true
+                        onScanResult(raw)
+                    }
+                },
+                onManualFallback = launchFullscreenScan,
+                manualFallbackLabel = stringResource(R.string.scan_accuchek)
             )
 
             Spacer(modifier = Modifier.height(ui.spacerSmall))
@@ -91,19 +92,6 @@ fun AccuChekSetupWizard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-
-            Spacer(modifier = Modifier.height(ui.spacerLarge + ui.spacerMedium))
-
-            Button(
-                onClick = onScan,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(ui.buttonHeight)
-            ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(stringResource(R.string.scan_accuchek))
-            }
         }
     }
 }

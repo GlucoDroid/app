@@ -12,6 +12,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -45,12 +46,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.automirrored.filled.LastPage
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.DateRange
@@ -106,6 +111,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -118,7 +124,7 @@ import kotlinx.coroutines.launch
 import tk.glucodata.R
 import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
-import androidx.glance.appwidget.compose
+import tk.glucodata.ui.getDisplayValues
 
 @Composable
 fun DashboardChartSection(
@@ -1639,26 +1645,26 @@ fun InteractiveGlucoseChart(
                         // Colored Text Logic (Keep matching graph lines for values)
                         val styledText = androidx.compose.ui.text.buildAnnotatedString {
                             // Primary Value
-                            withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold)) {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
                                 append(dvs.primaryStr)
                             }
 
                             // Separator & Secondary
                             dvs.secondaryStr?.let { sec ->
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
                                     append(" · ")
                                 }
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = LocalContentColor.current.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)) {
+                                withStyle(SpanStyle(color = LocalContentColor.current.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)) {
                                     append(sec)
                                 }
                             }
 
                             // Tertiary (when 3 values exist)
                             dvs.tertiaryStr?.let { ter ->
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
                                     append(" · ")
                                 }
-                                withStyle(androidx.compose.ui.text.SpanStyle(color = LocalContentColor.current.copy(alpha = 0.4f))) {
+                                withStyle(SpanStyle(color = LocalContentColor.current.copy(alpha = 0.4f))) {
                                     append(ter)
                                 }
                             }
@@ -1920,224 +1926,248 @@ fun InteractiveGlucoseChart(
         val targetTime = now - visibleDuration / 2
         val isAtNow = abs(centerTime - targetTime) < 60 * 60 * 1000 // 1 hour threshold (Old behavior)
         val showBackToNow = !isAtNow
+        val isScrolledRight = centerTime > targetTime
 
-        val isCompact = configuration.screenWidthDp < 380
+        // Responsive Breakpoints (Using user's original exact constraints)
         val baseInset = (12f * safeExpandedProgress).dp
-        val baseInnerStartPadding = (8f * safeExpandedProgress).dp
-        val baseInnerEndPadding = (4f * safeExpandedProgress).dp
-        val baseVerticalPadding = (12f - (4f * safeExpandedProgress)).dp
-        val baseOuterButtonWidth = if (isCompact) 32.dp else 40.dp
-        val baseOuterButtonHeight = 32.dp
-        val baseOuterIconSize = 20.dp
-        val baseBackIconSize = 24.dp
-        val baseRangeHeight = 32.dp
-        val baseRangeHorizontalPadding = 8.dp
-        val baseRangeClockGap = 4.dp
-        val baseRangeClockSize = 16.dp
-        val baseInterItemSpacing = if (isCompact) 4.dp else 8.dp
-        val baseLabelStyle = MaterialTheme.typography.labelLarge
-        val baseLabelFontSize = baseLabelStyle.fontSize.takeIf { it.value.isFinite() } ?: 14.sp
-        val baseTextPaint = remember(baseLabelFontSize, density) {
-            android.graphics.Paint().apply {
-                isAntiAlias = true
-                textSize = with(density) { baseLabelFontSize.toPx() }
-            }
-        }
+        val baseInnerPadding = (8f * safeExpandedProgress).dp // Symmetrical now, more breathing room
+        val baseVerticalPadding = (12f - (4f * safeExpandedProgress)).dp // Slightly taller container padding
+        val baseOuterButtonWidth = 40.dp // Wider pill to match the taller 40dp height
+        val baseOuterButtonHeight = 32.dp // Bumped up from 36dp
+        val baseOuterIconSize = 22.dp // Bumped up from 20dp
+        val baseBackIconSize = 26.dp
+        val baseRangeHeight = 32.dp // Bumped up from 36dp
+        val baseRangeHorizontalPadding = 12.dp // Looser horizontal padding around text, active one reduced down below
+        val baseRangeClockGap = 4.dp // Comfortable gap between clock icon and text
+        val baseRangeClockSize = 16.dp // Bumped up from 16dp
+        val baseOuterButtonGap = 6.dp // Keep outer gap wide
+        val baseInterItemSpacing = 2.dp // Consistent 1dp everywhere for ranges
+        val baseLabelStyle = MaterialTheme.typography.labelLarge // Richer, chunkier font (16sp) to match bigger layout
 
-        val baseRangeLabelWidthsPx = items.map { range ->
-            baseTextPaint.measureText(range.label)
-        }
-        val baseRangesRequiredPx = with(density) {
-            baseRangeLabelWidthsPx.sum() +
-                (items.size * (baseRangeHorizontalPadding * 2).toPx()) +
-                (baseRangeClockSize + baseRangeClockGap).toPx()
-        }
-        val baseFixedRequiredPx = with(density) {
-            (baseInnerStartPadding + baseInnerEndPadding + baseOuterButtonWidth + baseInterItemSpacing).toPx() +
-                if (showBackToNow) (baseInterItemSpacing + baseOuterButtonWidth).toPx() else 0f
-        }
-        val availableWidthPx = with(density) {
-            (configuration.screenWidthDp.dp - (baseInset * 2f)).coerceAtLeast(1.dp).toPx()
-        }
-        val requiredWidthPx = (baseFixedRequiredPx + baseRangesRequiredPx).coerceAtLeast(1f)
-        val pickerScale = (availableWidthPx / requiredWidthPx).coerceIn(0.60f, 1f)
-
-        fun scaled(dp: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp = dp * pickerScale
-        val scaledLabelStyle = baseLabelStyle.copy(fontSize = baseLabelStyle.fontSize * pickerScale)
-        val pickerInsetHorizontal = scaled(baseInset).coerceAtLeast(2.dp)
         val pickerVerticalOffset = -(chartUnderlayBottomDp + (80.dp * safeExpandedProgress))
 
-        Box(
+        // Two-phase dynamic shrink: measure the ideal pill width against the available
+        // screen width. Phase 1 reduces inter-item spacing. Phase 2 scales everything.
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset(y = pickerVerticalOffset)
                 .zIndex(1f)
-                .padding(horizontal = pickerInsetHorizontal),
+                .padding(horizontal = baseInset),
             contentAlignment = Alignment.Center
         ) {
+            // Estimate intrinsic width of all elements at their base (unscaled) sizes.
+            // Estimate intrinsic width. Use a realistic text width for short labels: "1H", "24H", etc.
+            val avgTextWidth = 18.dp 
+            val rangesWidth = (baseRangeHorizontalPadding * 2 + avgTextWidth) * items.size +
+                (baseRangeClockSize + baseRangeClockGap) // selected item's icon
+            val rangeGapsWidth = baseInterItemSpacing * (items.size - 1)
+            // Always reserve space for the Back-to-Now button so the entire UI doesn't visually resize/jump
+            val fixedWidth = (baseInnerPadding * 2) + 
+                baseOuterButtonWidth + baseOuterButtonGap + // date button + gap
+                baseOuterButtonGap + baseOuterButtonWidth   // gap + back-to-now button
+            val idealWidth = fixedWidth + rangesWidth + rangeGapsWidth + 16.dp // tighter safety margin
+            val available = maxWidth
+            val rangeSpacing = baseInterItemSpacing
+
+            // Fully dynamic sizing: smoothly stretches between 0.75x (smallest screens) to 1.25x (largest screens)
+            val uniformScale = if (idealWidth > 0.dp) {
+                (available / idealWidth).coerceIn(0.55f, 1f)
+            } else 1f
+
+            val safeUniformScale = uniformScale.takeIf { it.isFinite() && it > 0f } ?: 1f
+
+            fun scaled(dp: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp {
+                val scaled = dp * safeUniformScale
+                return if (scaled.value.isFinite()) {
+                    scaled.coerceAtLeast(0.dp)
+                } else {
+                    dp.coerceAtLeast(0.dp)
+                }
+            }
+
+            val scaledLabelStyle = baseLabelStyle.copy(fontSize = baseLabelStyle.fontSize * safeUniformScale)
+
+            // Button gaps: always consistent (never conditional on adjacent selection)
+            val buttonGap = scaled(baseOuterButtonGap)
+
+            // Connected group colors (inspired by segmented button group)
+            val inactiveChipColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
+            val activeChipColor = MaterialTheme.colorScheme.secondaryContainer
+
             Row(
                 modifier = Modifier
+                    .widthIn(max = maxWidth) // Hard cap: NEVER overflow the container
+                    .wrapContentWidth()
                     .background(
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.84f * safeExpandedProgress),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f * safeExpandedProgress),
                         shape = RoundedCornerShape(scaled(16.dp))
                     )
                     .padding(
-                        start = scaled(baseInnerStartPadding),
-                        end = scaled(baseInnerEndPadding),
-                        top = scaled(baseVerticalPadding),
-                        bottom = scaled(baseVerticalPadding)
+                        horizontal = scaled(baseInnerPadding),
+                        vertical = scaled(baseVerticalPadding)
                     ),
-                horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-            // Date Picker Button (Left side, always visible)
-            FilledTonalIconButton(
-                onClick = { showDatePicker = true },
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ),
-
-                modifier = Modifier.size(width = scaled(baseOuterButtonWidth), height = scaled(baseOuterButtonHeight))
-            ) {
-                Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Filled.DateRange,
-                    contentDescription = "Jump to Date",
-                    modifier = Modifier.size(scaled(baseOuterIconSize))
-                )
-            }
-
-            Spacer(Modifier.width(width = scaled(baseInterItemSpacing)))
-
-            items.forEach { range ->
-                val rangeDur = range.hours * 60 * 60 * 1000L
-                val isSel = abs(visibleDuration - rangeDur) < 1000
-
-                // M3 Expressive Animation specs - bouncy springs
-                val bouncySpec = spring<Float>(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
-                val colorSpec = spring<Color>(stiffness = Spring.StiffnessMediumLow)
-
-                val containerColor by animateColorAsState(
-                    // Fix: Interpolate alpha of the SAME color to avoid "dark/gray" ghosting during transition
-                    targetValue = if (isSel) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0f),
-                    animationSpec = colorSpec,
-                    label = "ButtonContainerColor"
-                )
-                val contentColor by animateColorAsState(
-                    targetValue = if (isSel) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                    animationSpec = colorSpec,
-                    label = "ButtonContentColor"
-                )
-
-                // M3 Expressive: Scale pop on selection
-                val scale by animateFloatAsState(
-                    targetValue = if (isSel) 1f else 1f,
-                    animationSpec = bouncySpec,
-                    label = "ButtonScale"
-                )
-
-                // M3 Expressive: Icon rotation (fun subtle touch)
-                val iconRotation by animateFloatAsState(
-                    targetValue = if (isSel) 360f else 0f,
-                    animationSpec = spring<Float>(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow
-                    ),
-                    label = "IconRotation"
-                )
-
-                Surface(
-                    onClick = {
-                        val now = System.currentTimeMillis()
-                        performSubtleTick()
-                        markProgrammaticViewportChange(now)
-                        // Cancel any active scroll when interacting with tabs
-                        cancelAutoScroll()
-
-                        if (isSel) {
-                            // "Back to Now" logic with Smart Scroll animation
-                            startAutoScrollTo(now - visibleDuration / 2)
-                        } else {
-                            visibleDuration = rangeDur
-                            onTimeRangeSelected?.invoke(range)
-                            val maxCenter = now - visibleDuration / 2
-                            if (centerTime > maxCenter) {
-                                centerTime = maxCenter
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(scaled(28.dp)),
-                    color = containerColor,
-                    contentColor = contentColor,
+                // Fixed Left: Date Picker Button
+                Box(
                     modifier = Modifier
-                        .height(scaled(baseRangeHeight))
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                        }
+                        .requiredSize(width = scaled(baseOuterButtonWidth), height = scaled(baseOuterButtonHeight))
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .clickable { showDatePicker = true },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Filled.DateRange,
+                        contentDescription = "Jump to Date",
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.requiredSize(scaled(baseOuterIconSize))
+                    )
+                }
+
+                // Consistent gap after date picker
+                Spacer(Modifier.width(buttonGap))
+
+                // Time Ranges — connected group style
+                items.forEachIndexed { index, range ->
+                    // Collapsible gap between range chips (not before the first one)
+                    if (index > 0) {
+                        Spacer(Modifier.width(scaled(rangeSpacing)))
+                    }
+
+                    val rangeDur = range.hours * 60 * 60 * 1000L
+                    val isSel = abs(visibleDuration - rangeDur) < 1000
+
+                    val colorSpec = spring<Color>(stiffness = Spring.StiffnessMediumLow)
+
+                    val containerColor by animateColorAsState(
+                        targetValue = if (isSel) activeChipColor else inactiveChipColor,
+                        animationSpec = colorSpec,
+                        label = "ButtonContainerColor"
+                    )
+                    val contentColor by animateColorAsState(
+                        targetValue = if (isSel) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = colorSpec,
+                        label = "ButtonContentColor"
+                    )
+
+                    val iconRotation by animateFloatAsState(
+                        targetValue = if (isSel) 360f else 0f,
+                        animationSpec = spring<Float>(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        ),
+                        label = "IconRotation"
+                    )
+
+                    // Match ConnectedButtonGroup shape morphing
+                    val fullRadiusPercent = 50
+                    val smallRadiusPercent = 16
+                    
+                    val targetTopStart = if (isSel || index == 0) fullRadiusPercent else smallRadiusPercent
+                    val targetBottomStart = if (isSel || index == 0) fullRadiusPercent else smallRadiusPercent
+                    val targetTopEnd = if (isSel || index == items.lastIndex) fullRadiusPercent else smallRadiusPercent
+                    val targetBottomEnd = if (isSel || index == items.lastIndex) fullRadiusPercent else smallRadiusPercent
+                    val topStart by animateIntAsState(targetTopStart, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "topStart")
+                    val bottomStart by animateIntAsState(targetBottomStart, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "bottomStart")
+                    val topEnd by animateIntAsState(targetTopEnd, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "topEnd")
+                    val bottomEnd by animateIntAsState(targetBottomEnd, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "bottomEnd")
+
+                    val chipShape = RoundedCornerShape(
+                        topStartPercent = topStart,
+                        topEndPercent = topEnd,
+                        bottomEndPercent = bottomEnd,
+                        bottomStartPercent = bottomStart
+                    )
+
+                    Box(
                         modifier = Modifier
-                            .padding(horizontal = scaled(baseRangeHorizontalPadding))
+                            .height(scaled(baseRangeHeight))
+                            .clip(chipShape)
+                            .background(containerColor)
+                            .clickable {
+                                val now = System.currentTimeMillis()
+                                performSubtleTick()
+                                markProgrammaticViewportChange(now)
+                                cancelAutoScroll()
+
+                                if (isSel) {
+                                    startAutoScrollTo(now - visibleDuration / 2)
+                                } else {
+                                    visibleDuration = rangeDur
+                                    onTimeRangeSelected?.invoke(range)
+                                    val maxCenter = now - visibleDuration / 2
+                                    if (centerTime > maxCenter) {
+                                        centerTime = maxCenter
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        if (isSel) {
-                            Icon(
-                                imageVector = Icons.Default.AccessTime,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .padding(end = scaled(baseRangeClockGap))
-                                    .size(scaled(baseRangeClockSize))
-                                    .graphicsLayer { rotationZ = iconRotation }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(
+                                horizontal = scaled(if (isSel) 8.dp else baseRangeHorizontalPadding)
+                            )
+                        ) {
+                            if (isSel) {
+                                Icon(
+                                    imageVector = Icons.Default.AccessTime,
+                                    contentDescription = null,
+                                    tint = contentColor,
+                                    modifier = Modifier
+                                        .padding(end = scaled(baseRangeClockGap))
+                                        .requiredSize(scaled(baseRangeClockSize))
+                                        .graphicsLayer { rotationZ = iconRotation }
+                                )
+                            }
+
+                            Text(
+                                text = range.label,
+                                style = scaledLabelStyle,
+                                color = contentColor,
+                                softWrap = false,
+                                maxLines = 1,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
                             )
                         }
-
-                        Text(
-                            text = range.label,
-                            style = scaledLabelStyle,
-                            softWrap = false,
-                            maxLines = 1,
-                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
-                        )
                     }
                 }
-            }
-            // "Back to Now" Button (Expressive: End of Row)
-            AnimatedVisibility(
-                visible = showBackToNow,
-                enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start) + scaleIn(),
-                exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start) + scaleOut()
-            ) {
-                Spacer(Modifier.width(width = scaled(baseInterItemSpacing)))
 
-                Surface(
-                    onClick = {
-                        // Cancel previous if any
-                        performSubtleTick()
-                        markProgrammaticViewportChange()
-                        startAutoScrollTo(targetTime)
-                    },
-                    shape = RoundedCornerShape(28.dp),
-                    // Subtle surface color for visibility
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier
-                        .size(width = scaled(baseOuterButtonWidth), height = scaled(baseOuterButtonHeight))
+                // Fixed Right: Back to Now Button (Slides in cleanly)
+                AnimatedVisibility(
+                    visible = showBackToNow,
+                    enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start) + scaleIn(),
+                    exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start) + scaleOut()
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.LastPage,
-                            contentDescription = "Back to Now",
-                            modifier = Modifier.size(scaled(baseBackIconSize))
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Consistent gap before back-to-now
+                        Spacer(Modifier.width(buttonGap))
+
+                        Box(
+                            modifier = Modifier
+                                .requiredSize(width = scaled(baseOuterButtonWidth), height = scaled(baseOuterButtonHeight))
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .clickable {
+                                    performSubtleTick()
+                                    markProgrammaticViewportChange()
+                                    startAutoScrollTo(targetTime)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isScrolledRight) Icons.Filled.FirstPage else Icons.AutoMirrored.Filled.LastPage,
+                                contentDescription = "Back to Now",
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.requiredSize(scaled(baseBackIconSize))
+                            )
+                        }
                     }
                 }
             }
-        }
         }
     }
 

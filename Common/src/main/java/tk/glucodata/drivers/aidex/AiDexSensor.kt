@@ -995,6 +995,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private fun stopVendor(reason: String) {
         if (!vendorBleEnabled) return
         if (!vendorStarted) return
+        val gattBeforeStop = mBluetoothGatt
+        val wasGattConnected = vendorGattConnected
+        val wasServicesReady = vendorServicesReady
+        val hadExecuteConnect = vendorExecuteConnectReceived
+        val wasConnectInProgress = connectInProgress
+        val shouldCloseStaleGatt = gattBeforeStop != null &&
+                (!wasGattConnected || !wasServicesReady || !hadExecuteConnect || wasConnectInProgress)
         vendorStarted = false
         try {
             BleController.stopScan()
@@ -1059,6 +1066,28 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         vendorDisconnectHandledForCycle = false
         cccdWriteRetryCount = 0
         nudgeAttempts = 0
+        connectInProgress = false
+        if (shouldCloseStaleGatt) {
+            Log.w(
+                TAG,
+                "stopVendor($reason): closing stale/pre-handshake GATT " +
+                        "(connected=$wasGattConnected servicesReady=$wasServicesReady " +
+                        "executeConnect=$hadExecuteConnect inProgress=$wasConnectInProgress)"
+            )
+            try {
+                gattBeforeStop?.disconnect()
+            } catch (t: Throwable) {
+                Log.e(TAG, "stopVendor($reason): stale gatt disconnect failed: ${t.message}")
+            }
+            try {
+                gattBeforeStop?.close()
+            } catch (t: Throwable) {
+                Log.e(TAG, "stopVendor($reason): stale gatt close failed: ${t.message}")
+            }
+            if (mBluetoothGatt === gattBeforeStop) {
+                mBluetoothGatt = null
+            }
+        }
         unregisterAidexBondReceiver()
         Log.i(TAG, "Vendor stopped ($reason)")
 
@@ -2014,9 +2043,9 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                         ensureVendorStarted("post-disconnect-reconnect")
                         // Also kick a broadcast scan so the native lib gets fresh advertisement data
                         scheduleBroadcastScan("post-disconnect-reconnect", forceImmediate = true)
-                    } else if (!vendorExecuteConnectReceived && mBluetoothGatt != null && !connectInProgress) {
-                        Log.w(TAG, "Vendor DISCONNECT: restart was about to be skipped but executeConnect is still missing. " +
-                                "Triggering recovery restart to break CCCD-ready deadlock.")
+                    } else if (!vendorExecuteConnectReceived && mBluetoothGatt != null && !vendorGattConnected) {
+                        Log.w(TAG, "Vendor DISCONNECT: restart was about to be skipped but executeConnect is still missing " +
+                                "(gatt=${mBluetoothGatt != null}, inProgress=$connectInProgress). Triggering recovery restart.")
                         recoverFromMissingExecuteConnect("post-disconnect-skip")
                     } else {
                         Log.i(TAG, "Vendor DISCONNECT: post-disconnect restart SKIPPED — " +
@@ -4760,17 +4789,17 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     Log.w(
                         TAG,
                         "writeNextCccd: supplementary CCCD 0x${Integer.toHexString(nextShort)} " +
-                                "writeDescriptor retry exhaustion (${cccdWriteRetryCount}/$CCCD_WRITE_MAX_RETRIES) — reconnecting without this supplementary CCCD"
+                                "writeDescriptor retry exhaustion (${cccdWriteRetryCount}/$CCCD_WRITE_MAX_RETRIES) — " +
+                                "skipping this supplementary CCCD and continuing main chain"
                     )
                     cccdWriteRetryCount = 0
-                    pendingCccdWrites.clear()
-                    synchronized(cccdChainLock) {
-                        if (cccdChainGattToken == System.identityHashCode(gatt)) cccdChainRunning = false
-                    }
-                    try {
-                        gatt.disconnect()
-                    } catch (t: Throwable) {
-                        Log.e(TAG, "writeNextCccd: disconnect after supplementary retry exhaustion failed: ${t.message}")
+                    cccdIgnoreLateCallbackShorts.add(nextShort)
+                    if (pendingCccdWrites.isNotEmpty()) {
+                        writeNextCccd(gatt)
+                    } else {
+                        synchronized(cccdChainLock) {
+                            if (cccdChainGattToken == System.identityHashCode(gatt)) cccdChainRunning = false
+                        }
                     }
                     return
                 }
@@ -5899,6 +5928,34 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         return parsed
     }
 
+    private fun gateVendorRawCandidate(
+        source: String,
+        rawCandidateMgDl: Float,
+        glucoseMgDl: Float,
+        now: Long,
+        maxDeltaFromRecent: Float = 12f
+    ): Float {
+        if (!rawCandidateMgDl.isFinite() || rawCandidateMgDl <= 0f) return 0f
+        val minByGlucose = glucoseMgDl * 0.10f
+        val maxByGlucose = glucoseMgDl * 1.20f
+        if (rawCandidateMgDl < minByGlucose || rawCandidateMgDl > maxByGlucose) {
+            Log.w(
+                TAG,
+                "$source: ignoring raw candidate $rawCandidateMgDl mg/dL (auto=$glucoseMgDl mg/dL bounds=$minByGlucose..$maxByGlucose)"
+            )
+            return 0f
+        }
+        val recentRaw = recentRawSecondary(now)
+        if (recentRaw > 0f && kotlin.math.abs(rawCandidateMgDl - recentRaw) > maxDeltaFromRecent) {
+            Log.w(
+                TAG,
+                "$source: ignoring raw outlier $rawCandidateMgDl mg/dL (recentRaw=$recentRaw mg/dL)"
+            )
+            return 0f
+        }
+        return rawCandidateMgDl
+    }
+
     private fun parseVendorInstantPayloadLite(payload: ByteArray, now: Long): VendorDecodeResult? {
         // Vendor AUTO_UPDATE_FULL_HISTORY callback currently arrives as 14-byte payload:
         // [0]=status [1]=calTemp [2]=trend [3..4]=timeOffset [5]=glucose [7..8]=i1*100 [9..10]=i2*100 [11]=vc*100 [12]=calIndex.
@@ -5910,7 +5967,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         val trend = payload[2].toInt()
         val tuple = decodeVendorRawTuplePacked(payload, 7)
         val rawMgDl = if (tuple != null && tuple.isValid != 0) {
-            selectVendorRawLane(tuple.i1, tuple.i2, hasRawLane())
+            val candidate = selectVendorRawLane(tuple.i1, tuple.i2, hasRawLane())
+            gateVendorRawCandidate(
+                source = "vendor-auto14",
+                rawCandidateMgDl = candidate,
+                glucoseMgDl = glucose.toFloat(),
+                now = now
+            )
         } else {
             0f
         }
@@ -5923,28 +5986,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     private fun selectVendorRawLane(i1: Float, i2: Float, rawOnlyMode: Boolean): Float {
-        val i2Candidate = i2.takeIf { it.isFinite() && it > 0f } ?: 0f
-        if (rawOnlyMode) {
-            val i1ScaledCandidate = i1
-                .takeIf { it.isFinite() && it > 0f }
-                ?.let { (it * 10f).coerceAtMost(MAX_VALID_GLUCOSE_MGDL) }
-                ?: 0f
-            val i2LooksEngineering = i2Candidate in 25f..45f
-            if (i2LooksEngineering && i1ScaledCandidate > 0f) {
-                return i1ScaledCandidate
-            }
-            return when {
-                i2Candidate > 0f -> i2Candidate
-                i1ScaledCandidate > 0f -> i1ScaledCandidate
-                else -> 0f
-            }
-        }
-        val i1Candidate = i1.takeIf { it.isFinite() && it > 0f } ?: 0f
-        return when {
-            i2Candidate > 0f -> i2Candidate
-            i1Candidate > 0f -> i1Candidate
-            else -> 0f
-        }
+        // Strict mode requested: raw is always derived from i1 lane only.
+        // No i2 fallback in any mode.
+        val i1Candidate = i1.takeIf { it.isFinite() && it > 0f } ?: return 0f
+        return (i1Candidate * 10f).coerceAtMost(MAX_VALID_GLUCOSE_MGDL)
     }
 
     private fun parseVendorInstantPayloadLiteFramed(payload: ByteArray, now: Long): VendorDecodeResult? {
@@ -5969,28 +6014,13 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         if (payload.size < 8) return 0f
         val i1 = u16Le(payload, 6) / 100f
         val candidate = selectVendorRawLane(i1 = i1, i2 = 0f, rawOnlyMode = hasRawLane())
-        if (!candidate.isFinite() || candidate <= 0f) return 0f
-
-        // Short GET_BROADCAST_DATA frames expose only one raw lane (i1). That lane is noisier
-        // than AUTO_UPDATE_FULL_HISTORY/GET_HISTORIES raw lanes, so gate obvious outliers.
-        val minByGlucose = glucoseMgDl * 0.10f
-        val maxByGlucose = glucoseMgDl * 1.20f
-        if (candidate < minByGlucose || candidate > maxByGlucose) {
-            Log.w(
-                TAG,
-                "Ignoring short-broadcast raw candidate $candidate mg/dL (glucose=$glucoseMgDl mg/dL)"
-            )
-            return 0f
-        }
-        val recentRaw = recentRawSecondary(now)
-        if (recentRaw > 0f && kotlin.math.abs(candidate - recentRaw) > 8f) {
-            Log.w(
-                TAG,
-                "Ignoring short-broadcast raw outlier $candidate mg/dL (recentRaw=$recentRaw mg/dL)"
-            )
-            return 0f
-        }
-        return candidate
+        return gateVendorRawCandidate(
+            source = "vendor-broadcast",
+            rawCandidateMgDl = candidate,
+            glucoseMgDl = glucoseMgDl,
+            now = now,
+            maxDeltaFromRecent = 8f
+        )
     }
 
     private fun parseVendorInstantPayload(payload: ByteArray, now: Long): VendorDecodeResult? {
@@ -6150,7 +6180,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
         val recent = recentRawSecondary(now).takeIf { it > 0f }
         return when (viewModeInternal) {
-            1, 2, 3 -> primary ?: recent ?: 0f
+            1, 2, 3 -> primary ?: 0f
             else -> 0f
         }
     }

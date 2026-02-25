@@ -688,13 +688,8 @@ mobileLibreOldSiDexImplementation {}
     mobileLibre3SiNodexImplementation {}
     mobileLibreOldSiNodexImplementation {}
 }
-    mobileLibre3SiNodexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
     mobileLibre3SiNodexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
-    mobileLibreOldSiNodexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
     mobileLibreOldSiNodexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
-
-    mobileLibre3SiDexGoogleImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
-    mobileLibre3SiDexNogoogleImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
 
     mobileLibre3SiDexGoogleImplementation 'com.google.zxing:core:3.5.4'
     mobileLibre3SiDexNogoogleImplementation 'com.google.zxing:core:3.5.4'
@@ -703,6 +698,24 @@ mobileLibreOldSiDexImplementation {}
     mobileLibre3SiDexGoogleImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     mobileLibre3SiDexNogoogleImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
 
-    mobileLibreOldSiDexImplementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    def cameraXVersion = "1.4.2"
+    def standaloneMlKitVersion = "17.3.0"
+
+    def siMobileVariants = [
+            "mobileLibre3SiDexGoogleImplementation",
+            "mobileLibre3SiDexNogoogleImplementation",
+            "mobileLibre3SiNodexImplementation",
+            "mobileLibreOldSiDexImplementation",
+            "mobileLibreOldSiNodexImplementation"
+    ]
+
+    siMobileVariants.each { cfg ->
+        add(cfg, "androidx.camera:camera-core:$cameraXVersion")
+        add(cfg, "androidx.camera:camera-camera2:$cameraXVersion")
+        add(cfg, "androidx.camera:camera-lifecycle:$cameraXVersion")
+        add(cfg, "androidx.camera:camera-view:$cameraXVersion")
+        add(cfg, "com.google.guava:guava:33.5.0-android")
+        add(cfg, "com.google.mlkit:barcode-scanning:$standaloneMlKitVersion")
+    }
 
 }

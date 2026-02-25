@@ -325,6 +325,31 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
+    @Keep
+    public static void launchQrScan(int requestCode, String title) {
+        if (thisone != null) {
+            thisone.runOnUiThread(() -> PhotoScan.scan(thisone, requestCode, title));
+        }
+    }
+
+    @Keep
+    public static void launchLibreNfcScan() {
+        if (thisone != null) {
+            thisone.runOnUiThread(() -> {
+                thisone.setnfc();
+                Applic.argToaster(thisone, thisone.getString(R.string.libre_nfc_instruction), Toast.LENGTH_SHORT);
+            });
+        }
+    }
+
+    @Keep
+    public static void handleInlineQrScan(String rawValue, int requestCode) {
+        if (thisone == null || rawValue == null || rawValue.isEmpty()) {
+            return;
+        }
+        thisone.runOnUiThread(() -> PhotoScan.connectSensor(rawValue, thisone, requestCode, 0L));
+    }
+
     // Callbacks for Compose Wizard integration
     public interface SensorScanCallback {
         void onResult(String name, long sensorPtr, int libreType);
@@ -1530,9 +1555,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 return;
             case REQUEST_BARCODE_SIB2:
             case REQUEST_BARCODE:
-                if (SiBionics == 1 && !isWearable && useZXing) {
-                    ZXing.zXingResult(resultCode, data, this, requestCode);
-                    return;
+                if (SiBionics == 1 && !isWearable) {
+                    if (PhotoScan.handleUnifiedScanResult(resultCode, data, this, requestCode)) {
+                        return;
+                    }
+                    if (useZXing) {
+                        ZXing.zXingResult(resultCode, data, this, requestCode);
+                        return;
+                    }
                 }
                 ;
                 break;

@@ -1,6 +1,5 @@
 package tk.glucodata.ui.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
@@ -35,14 +34,59 @@ fun SensorTypePicker(
     onDismiss: () -> Unit,
     onSensorSelected: (SensorType) -> Unit
 ) {
+    data class SensorTypeEntry(
+        val type: SensorType,
+        val icon: ImageVector,
+        val titleRes: Int,
+        val subtitleRes: Int
+    )
+
     val configuration = LocalConfiguration.current
     val compact = configuration.screenWidthDp <= 360 || configuration.screenHeightDp <= 700
     val horizontalPadding = if (compact) 12.dp else 16.dp
     val bottomPadding = if (compact) 20.dp else 32.dp
-    val dividerPadding = if (compact) 6.dp else 8.dp
-    val itemVerticalPadding = if (compact) 8.dp else 12.dp
+    val itemSpacing = if (compact) 8.dp else 10.dp
+    val itemVerticalPadding = if (compact) 12.dp else 14.dp
     val iconContainerSize = if (compact) 42.dp else 48.dp
     val iconInnerPadding = if (compact) 10.dp else 12.dp
+    val sensorEntries = listOf(
+        SensorTypeEntry(
+            type = SensorType.SIBIONICS,
+            icon = Icons.Default.QrCodeScanner,
+            titleRes = R.string.sibionics_sensor,
+            subtitleRes = R.string.sibionics_sensor_desc
+        ),
+        SensorTypeEntry(
+            type = SensorType.LIBRE,
+            icon = Icons.Default.Nfc,
+            titleRes = R.string.libre_sensor,
+            subtitleRes = R.string.libre_sensor_desc
+        ),
+        SensorTypeEntry(
+            type = SensorType.DEXCOM,
+            icon = Icons.Default.QrCodeScanner,
+            titleRes = R.string.dexcom_sensor,
+            subtitleRes = R.string.dexcom_sensor_desc
+        ),
+        SensorTypeEntry(
+            type = SensorType.ACCUCHEK,
+            icon = Icons.Default.QrCodeScanner,
+            titleRes = R.string.accuchek_sensor,
+            subtitleRes = R.string.accuchek_sensor_desc
+        ),
+        SensorTypeEntry(
+            type = SensorType.CARESENS_AIR,
+            icon = Icons.Default.QrCodeScanner,
+            titleRes = R.string.caresens_air_sensor,
+            subtitleRes = R.string.caresens_air_sensor_desc
+        ),
+        SensorTypeEntry(
+            type = SensorType.AIDEX,
+            icon = Icons.Default.Bluetooth,
+            titleRes = R.string.aidex_sensor,
+            subtitleRes = R.string.aidex_sensor_desc
+        )
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -60,100 +104,23 @@ fun SensorTypePicker(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = if (compact) 12.dp else 16.dp)
             )
-            
-            // Sibionics
-            SensorTypeItem(
-                icon = Icons.Default.QrCodeScanner,
-                title = stringResource(R.string.sibionics_sensor),
-                subtitle = stringResource(R.string.sibionics_sensor_desc),
-                onClick = {
-                    onSensorSelected(SensorType.SIBIONICS)
-                    onDismiss()
-                },
-                itemVerticalPadding = itemVerticalPadding,
-                iconContainerSize = iconContainerSize,
-                iconInnerPadding = iconInnerPadding
-            )
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = dividerPadding))
-            
-            // Libre 2/3
-            SensorTypeItem(
-                icon = Icons.Default.Nfc,
-                title = stringResource(R.string.libre_sensor),
-                subtitle = stringResource(R.string.libre_sensor_desc),
-                onClick = {
-                    onSensorSelected(SensorType.LIBRE)
-                    onDismiss()
-                },
-                itemVerticalPadding = itemVerticalPadding,
-                iconContainerSize = iconContainerSize,
-                iconInnerPadding = iconInnerPadding
-            )
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = dividerPadding))
-            
-            // Dexcom
-            SensorTypeItem(
-                icon = Icons.Default.Bluetooth,
-                title = stringResource(R.string.dexcom_sensor),
-                subtitle = stringResource(R.string.dexcom_sensor_desc),
-                onClick = {
-                    onSensorSelected(SensorType.DEXCOM)
-                    onDismiss()
-                },
-                itemVerticalPadding = itemVerticalPadding,
-                iconContainerSize = iconContainerSize,
-                iconInnerPadding = iconInnerPadding
-            )
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = dividerPadding))
 
-            // Accu-Chek SmartGuide
-            SensorTypeItem(
-                icon = Icons.Default.QrCodeScanner,
-                title = stringResource(R.string.accuchek_sensor),
-                subtitle = stringResource(R.string.accuchek_sensor_desc),
-                onClick = {
-                    onSensorSelected(SensorType.ACCUCHEK)
-                    onDismiss()
-                },
-                itemVerticalPadding = itemVerticalPadding,
-                iconContainerSize = iconContainerSize,
-                iconInnerPadding = iconInnerPadding
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = dividerPadding))
-
-            // CareSens Air
-            SensorTypeItem(
-                icon = Icons.Default.Bluetooth,
-                title = stringResource(R.string.caresens_air_sensor),
-                subtitle = stringResource(R.string.caresens_air_sensor_desc),
-                onClick = {
-                    onSensorSelected(SensorType.CARESENS_AIR)
-                    onDismiss()
-                },
-                itemVerticalPadding = itemVerticalPadding,
-                iconContainerSize = iconContainerSize,
-                iconInnerPadding = iconInnerPadding
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = dividerPadding))
-
-            // AiDex / LinX
-            SensorTypeItem(
-                icon = Icons.Default.Bluetooth,
-                title = stringResource(R.string.aidex_sensor),
-                subtitle = stringResource(R.string.aidex_sensor_desc),
-                onClick = {
-                    onSensorSelected(SensorType.AIDEX)
-                    onDismiss()
-                },
-                itemVerticalPadding = itemVerticalPadding,
-                iconContainerSize = iconContainerSize,
-                iconInnerPadding = iconInnerPadding
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(itemSpacing)) {
+                sensorEntries.forEach { entry ->
+                    SensorTypeItem(
+                        icon = entry.icon,
+                        title = stringResource(entry.titleRes),
+                        subtitle = stringResource(entry.subtitleRes),
+                        onClick = {
+                            onSensorSelected(entry.type)
+                            onDismiss()
+                        },
+                        itemVerticalPadding = itemVerticalPadding,
+                        iconContainerSize = iconContainerSize,
+                        iconInnerPadding = iconInnerPadding
+                    )
+                }
+            }
         }
     }
 }
@@ -168,41 +135,49 @@ private fun SensorTypeItem(
     iconContainerSize: androidx.compose.ui.unit.Dp = 48.dp,
     iconInnerPadding: androidx.compose.ui.unit.Dp = 12.dp
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = itemVerticalPadding),
-        verticalAlignment = Alignment.CenterVertically
+            .defaultMinSize(minHeight = 72.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        onClick = onClick
     ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(iconContainerSize)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = itemVerticalPadding),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(iconInnerPadding)
-            )
-        }
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(iconContainerSize)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(iconInnerPadding)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
