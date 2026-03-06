@@ -42,6 +42,7 @@ object SensorColors {
 
 data class SensorInfo(
     val serial: String,
+    val displayName: String,
     val deviceAddress: String,
     val connectionStatus: String,
     val starttime: String,
@@ -96,6 +97,12 @@ data class VendorCalibrationInfo(
 
 
 class SensorViewModel : ViewModel() {
+    private companion object {
+        private val sibionicsFreshRestartSeq = java.util.concurrent.atomic.AtomicLong(1L)
+        private val sibionicsCustomToggleSeq = java.util.concurrent.atomic.AtomicLong(1L)
+        private val sibionicsDisableSeq = java.util.concurrent.atomic.AtomicLong(1L)
+    }
+
     private val _sensors = MutableStateFlow<List<SensorInfo>>(emptyList())
     val sensors = _sensors.asStateFlow()
 
@@ -264,6 +271,7 @@ class SensorViewModel : ViewModel() {
                          
                          SensorInfo(
                             serial = gatt.SerialNumber ?: "AiDex",
+                            displayName = try { gatt.mygetDeviceName() } catch (_: Throwable) { gatt.SerialNumber ?: "AiDex" },
                             deviceAddress = gatt.mActiveDeviceAddress ?: "Unknown",
                             connectionStatus = bleStatusForDisplay,  // Raw BLE status (Status=X) or empty
                             starttime = if (startMs > 0) tk.glucodata.bluediag.datestr(startMs) else "",
@@ -342,6 +350,8 @@ class SensorViewModel : ViewModel() {
                         
                         val finalStatus = when {
                             nativeStatus.isNotEmpty() -> nativeStatus
+                            // Pass through custom status strings from GATT callbacks (e.g., "Connected, waiting for data...", "Connected, raw values received")
+                            bleStatus.isNotEmpty() && !bleStatus.startsWith("Status=") -> bleStatus
                             bleStatus.isNotEmpty() && (bleStatus.startsWith("Status=") || bleStatus.contains("Bluetooth off", ignoreCase = true) || bleStatus.contains("search", ignoreCase = true) || bleStatus.contains("Loss of signal", ignoreCase = true)) -> bleStatus
                             isActivelyReceiving && (bleStatus.isEmpty() || bleStatus == "Disconnected") -> tk.glucodata.Applic.app.getString(tk.glucodata.R.string.status_connected)
                             else -> tk.glucodata.Applic.app.getString(tk.glucodata.R.string.status_disconnected)
@@ -353,6 +363,7 @@ class SensorViewModel : ViewModel() {
     
                         SensorInfo(
                             serial = sensorSerial,
+                            displayName = try { gatt.mygetDeviceName() } catch (_: Throwable) { sensorSerial },
                             deviceAddress = gatt.mActiveDeviceAddress ?: "Unknown",
                             connectionStatus = if (bleStatus.startsWith("Status=")) mapBleStatus(bleStatus) else "",
                             starttime = if (startMs > 0) tk.glucodata.bluediag.datestr(startMs) else "",
@@ -381,6 +392,7 @@ class SensorViewModel : ViewModel() {
                     android.util.Log.e("SensorViewModel", "Error loading sensor ${gatt.SerialNumber}", e)
                     SensorInfo(
                         serial = gatt.SerialNumber ?: "Error",
+                        displayName = try { gatt.mygetDeviceName() } catch (_: Throwable) { gatt.SerialNumber ?: "Error" },
                         deviceAddress = gatt.mActiveDeviceAddress ?: "Unknown",
                         connectionStatus = "Load Error",
                         starttime = "",
@@ -667,6 +679,38 @@ class SensorViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Fresh-equivalent native restart for Sibionics:
+     * rebind native algorithm state from persisted native files while preserving
+     * current view mode (Auto/Raw/Auto+Raw/Raw+Auto).
+     */
+    fun restartSibionicsNativeFresh(serial: String) {
+        val gatts = SensorBluetooth.mygatts()
+        val gatt = gatts.find { it.SerialNumber == serial } ?: return
+        if (gatt.dataptr == 0L) return
+
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val opId = sibionicsFreshRestartSeq.getAndIncrement()
+            val preservedViewMode = try { Natives.getViewMode(gatt.dataptr) } catch (_: Throwable) { 0 }
+
+            val ok = try {
+                Natives.siRebindNativeContext(gatt.dataptr, preservedViewMode)
+            } catch (t: Throwable) {
+                android.util.Log.e("SensorVM", "SibNativeFresh[$opId] native rebind failed: ${t.message}")
+                false
+            }
+
+            android.util.Log.i(
+                "SensorVM",
+                "SibNativeFresh[$opId] done ok=$ok preservedViewMode=$preservedViewMode fallbackPath=rebind-only"
+            )
+            if (ok) {
+                try { tk.glucodata.data.HistorySync.forceFullSyncForSensor(serial) } catch (_: Throwable) {}
+            }
+            refreshSensors()
+        }
+    }
+
     fun clearAll(serial: String) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
@@ -699,41 +743,65 @@ class SensorViewModel : ViewModel() {
     fun updateCustomCalibration(serial: String, enabled: Boolean, index: Int, autoReset: Boolean) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
-        if (gatt != null) {
+        if (gatt != null && gatt.dataptr != 0L) {
+            val opId = sibionicsCustomToggleSeq.getAndIncrement()
+            val currentSettings = try { Natives.getCustomCalibrationSettings(gatt.dataptr) } catch (_: Throwable) { -1L }
+            var currentEnabled = false
+            var currentAutoReset = false
+            var currentIndex = 0
+            if (currentSettings >= 0L) {
+                currentEnabled = (currentSettings and 1L) != 0L
+                currentAutoReset = (currentSettings and 2L) != 0L
+                currentIndex = ((currentSettings shr 8) and 0xFF).toInt()
+                if (currentEnabled == enabled && currentAutoReset == autoReset && currentIndex == index) {
+                    android.util.Log.d("SensorVM", "updateCustomCalibration[$opId]: unchanged ($serial), skipping native write")
+                    refreshSensors()
+                    return
+                }
+            }
+            val offToOn = !currentEnabled && enabled
             Natives.setCustomCalibrationSettings(gatt.dataptr, enabled, index, autoReset)
+            android.util.Log.i(
+                "SensorVM",
+                "updateCustomCalibration[$opId]: serial=$serial from(enabled=$currentEnabled,index=$currentIndex,autoReset=$currentAutoReset) " +
+                    "to(enabled=$enabled,index=$index,autoReset=$autoReset) offToOn=$offToOn"
+            )
             refreshSensors()
         }
     }
 
     /**
-     * Disable custom calibration and replay the algorithm in native mode.
-     * Called when the master switch is turned OFF — restores standard Juggluco behavior.
+     * Disable custom calibration and restore the last native snapshot when available.
+     * Falls back to native rebind only; never falls back to destructive native replay.
      */
     fun disableCustomCalAndReplay(serial: String) {
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         if (gatt != null && gatt.dataptr != 0L) {
+            val opId = sibionicsDisableSeq.getAndIncrement()
             val wasCustomEnabled = try {
                 (Natives.getCustomCalibrationSettings(gatt.dataptr) and 1L) != 0L
             } catch (_: Throwable) {
                 // Keep old behavior if settings read fails.
                 true
             }
-            // Disable custom calibration.
-            Natives.setCustomCalibrationSettings(gatt.dataptr, false, 0, false)
-            // Only restore/replay when we actually transition Advanced ON -> OFF.
-            // This avoids a second fallback replay after a successful restore, which
-            // can drift away from the true native state.
+            val vmBefore = try { Natives.getViewMode(gatt.dataptr) } catch (_: Throwable) { -1 }
             if (wasCustomEnabled) {
-                // Try to restore original polls+binState from backup (preserves manufacturer values).
-                // Falls back to legacy replay if no backup exists (e.g. first install).
-                val restored = try { Natives.siRestoreOriginalPolls(gatt.dataptr) } catch (_: Throwable) { false }
-                if (!restored) {
-                    android.util.Log.d("SensorVM", "disableCustomCal: no backup, falling back to legacy replay")
-                    try { Natives.siLocalReplay(gatt.dataptr) } catch (_: Throwable) {}
+                Natives.setCustomCalibrationSettings(gatt.dataptr, false, 0, false)
+                val restoreOk = try { Natives.siRestoreOriginalPolls(gatt.dataptr) } catch (_: Throwable) { false }
+                val vm = if (vmBefore in 0..3) vmBefore else 0
+                val rebindOk = if (!restoreOk) {
+                    try { Natives.siRebindNativeContext(gatt.dataptr, vm) } catch (_: Throwable) { false }
+                } else {
+                    false
                 }
+                val vmAfter = try { Natives.getViewMode(gatt.dataptr) } catch (_: Throwable) { -1 }
+                android.util.Log.i(
+                    "SensorVM",
+                    "disableCustomCal[$opId]: serial=$serial wasCustomEnabled=1 restoreOk=$restoreOk rebindOk=$rebindOk viewMode=$vmBefore->$vmAfter"
+                )
             } else {
-                android.util.Log.d("SensorVM", "disableCustomCal: already in native mode, skipping restore/replay")
+                android.util.Log.i("SensorVM", "disableCustomCal[$opId]: serial=$serial wasCustomEnabled=0 fallbackPath=none")
             }
             try { tk.glucodata.data.HistorySync.forceFullSyncForSensor(serial) } catch (_: Throwable) {}
             refreshSensors()
@@ -762,9 +830,8 @@ class SensorViewModel : ViewModel() {
                     try { gatt.softDisconnect() } catch (t: Throwable) {
                         android.util.Log.e("SensorVM", "reconnectSensor AiDex softDisconnect: ${t.message}")
                     }
-                    kotlinx.coroutines.delay(500)
-                    // Reconnect: connectDevice will defer to vendor stack flow
-                    gatt.connectDevice(200)
+                    kotlinx.coroutines.delay(250)
+                    gatt.manualReconnectNow()
                 } else {
                     if (wipeData && gatt.dataptr != 0L) {
                         wipeSibionicsDataIfNeeded(gatt, "reconnect/wipe")

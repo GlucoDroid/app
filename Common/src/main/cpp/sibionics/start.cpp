@@ -31,12 +31,17 @@
 #include "jnisubin.hpp"
 #include "sibionics/AlgorithmContext.hpp"
 #include "streamdata.hpp"
+#include <atomic>
 #include <dlfcn.h>
 #include <mutex>
 #include <string_view>
 extern void sendstreaming(SensorGlucoseData *hist);
 
 extern bool siInit();
+
+static std::atomic<uint32_t> gSiNativeFreshRestartOp{0};
+static std::atomic<uint32_t> gSiRebindOp{0};
+static std::atomic<uint32_t> gSiRestoreOp{0};
 
 extern "C" JNIEXPORT jstring JNICALL
 fromjava(getSiBluetoothNum)(JNIEnv *envin, jclass cl, jlong dataptr) {
@@ -238,25 +243,29 @@ extern "C" JNIEXPORT void JNICALL fromjava(setCustomCalibrationSettings)(
   auto *sens = stream->hist;
   if (sens) {
     auto *info = sens->getinfo();
-    info->useCustomCalibration = enabled;
+    const bool enabledBool = enabled == JNI_TRUE;
+    const bool autoResetBool = autoReset == JNI_TRUE;
+    if (info->useCustomCalibration == enabledBool &&
+        info->customCalIndex == index &&
+        info->autoResetAlgorithm == autoResetBool) {
+      LOGGER("JNI setCustomCalibrationSettings: unchanged "
+             "(enabled=%d,index=%d,autoReset=%d), skipping\n",
+             enabledBool, index, autoResetBool);
+      return;
+    }
+    info->useCustomCalibration = enabledBool;
     info->customCalIndex = index;
-    info->autoResetAlgorithm = autoReset;
+    info->autoResetAlgorithm = autoResetBool;
     // Edit 86: When toggling custom calibration, reset the bad-value streak
     // counter to prevent pre-existing streaks from immediately triggering
     // an algorithm reset (which causes a pause/play reset loop).
     stream->sicontext.clearBadValueStreak();
-    // Fix: Reset viewMode to Auto (0) when calibration settings change.
-    // viewMode is persisted in mmap and checked independently in C++
-    // (eu.cpp, curve.cpp) and Java (SuperGattCallback.java). If the user
-    // previously set viewMode=1 (raw), it stays set even after enabling
-    // custom calibration, causing the chart to mix raw and calibrated data.
     uint32_t oldViewMode = info->viewMode;
-    if (info->viewMode != 0) {
-      info->viewMode = 0;
-    }
+    // viewMode is a UI selection (Auto/Raw/Auto+Raw/Raw+Auto), not an
+    // algorithm control flag. Do not mutate it here.
     LOGGER("JNI setCustomCalibrationSettings: enabled=%d, index=%d, "
            "autoReset=%d, viewMode=%d->%d (streak cleared)\n",
-           enabled, index, autoReset, oldViewMode, info->viewMode);
+           enabledBool, index, autoResetBool, oldViewMode, info->viewMode);
   }
 }
 
@@ -714,6 +723,12 @@ void SiContext::release() {
 }
 void SiContext::reset(SensorGlucoseData *sens) {
   LOGGER("SiContext::reset() called for sensor %s\n", sens->deviceaddress());
+  auto *info = sens->getinfo();
+  if (info && info->useCustomCalibration) {
+    if (!sens->backupPolls()) {
+      LOGSTRING("SiContext::reset(): backupPolls failed before custom reset\n");
+    }
+  }
   release(); // Properly destroy existing algorithm context
 
   // Wipe the entire memory mapped file content to ensure no stale state
@@ -732,8 +747,6 @@ void SiContext::reset(SensorGlucoseData *sens) {
   // Also delete JSON backups to prevent reloading old state
   unlink(sens->statefile.c_str());
   unlink(pathconcat(sens->getsensordir(), "state3.json").c_str());
-
-  auto *info = sens->getinfo();
 
   // Record reset timestamp for cooldown guard (prevents reset loops)
   info->lastCalResetTime = (uint32_t)time(nullptr);
@@ -912,11 +925,13 @@ void SiContext::localReplay(SensorGlucoseData *sens) {
   LOGGER("SiContext::localReplay() called for sensor %s\n",
          sens->deviceaddress());
 
-  // Step 0: Backup original polls+binState only for custom-calibration replay.
-  // Native-mode replay (used as disable fallback) should not create/overwrite
-  // custom backups.
+  // Step 0: Preserve the current native baseline before custom replay.
+  // Native mode replay (used for manual native restart) must not overwrite the
+  // snapshot with already-mutated custom data.
   if (sens->getinfo()->useCustomCalibration) {
-    sens->backupPolls();
+    if (!sens->backupPolls()) {
+      LOGSTRING("localReplay: backupPolls failed before custom replay\n");
+    }
   }
 
   // Step 1: Destroy existing algorithm context
@@ -1293,49 +1308,117 @@ extern "C" JNIEXPORT void JNICALL fromjava(siLocalReplay)(JNIEnv *env,
   sistream *stream = reinterpret_cast<sistream *>(dataptr);
   auto *sens = stream->hist;
   if (sens) {
-    // Reset viewMode to Auto before replay — user wants to see recalibrated
-    // data
-    auto *info = sens->getinfo();
-    uint32_t oldVM = info->viewMode;
-    if (info->viewMode != 0) {
-      info->viewMode = 0;
-      LOGGER("siLocalReplay: viewMode %d -> 0\n", oldVM);
-    }
     stream->sicontext.localReplay(sens);
   }
 }
 
-// Restore original manufacturer-calibrated values (polls + binState).
-// Called when disabling custom calibration (custom ON -> OFF transition).
-extern "C" JNIEXPORT jboolean JNICALL
-fromjava(siRestoreOriginalPolls)(JNIEnv *env, jclass cl, jlong dataptr) {
+extern "C" JNIEXPORT jboolean JNICALL fromjava(siRestoreOriginalPolls)(
+    JNIEnv *env, jclass cl, jlong dataptr) {
   if (!dataptr)
     return JNI_FALSE;
   sistream *stream = reinterpret_cast<sistream *>(dataptr);
   auto *sens = stream->hist;
-  if (!sens || !sens->hasBackupPolls()) {
-    LOGSTRING("siRestoreOriginalPolls: no backup available\n");
+  if (!sens)
     return JNI_FALSE;
-  }
-
-  // Restore polls.dat, state.bin, state.json, pollinterval from backup.
-  // polls mmap is invalidated by restorePolls() so chart shows original values
-  // immediately.
-  if (!sens->restorePolls()) {
-    LOGSTRING("siRestoreOriginalPolls: restore failed\n");
+  auto *info = sens->getinfo();
+  if (!info)
     return JNI_FALSE;
+
+  const uint32_t opId = ++gSiRestoreOp;
+  const uint32_t viewModeBefore = info->viewMode;
+  const int siIndexBefore = sens->getSiIndex();
+  const int pollcountBefore = info->pollcount;
+
+  const int restoreCode = sens->restorePollsWithReason();
+  LOGGER("siRestoreOriginalPolls[%u]: restore=%s(%d) viewMode=%u pollcount=%d "
+         "siIndex=%d\n",
+         opId, SensorGlucoseData::restorePollsResultName(restoreCode),
+         restoreCode, viewModeBefore, pollcountBefore, siIndexBefore);
+  if (restoreCode != SensorGlucoseData::RESTORE_OK)
+    return JNI_FALSE;
+
+  info->useCustomCalibration = false;
+  info->customCalIndex = 0;
+  info->autoResetAlgorithm = false;
+  stream->sicontext.clearBadValueStreak();
+  sens->exitResetMode();
+
+  const bool rebound = stream->sicontext.reloadFromPersistedState(sens);
+  info->viewMode = viewModeBefore;
+
+  LOGGER("siRestoreOriginalPolls[%u]: rebound=%d viewMode=%u->%u siIndex=%d->%d\n",
+         opId, rebound ? 1 : 0, viewModeBefore, info->viewMode, siIndexBefore,
+         sens->getSiIndex());
+  if (rebound) {
+    sens->removeBackupPolls();
   }
+  return rebound ? JNI_TRUE : JNI_FALSE;
+}
 
-  // Rebind active algorithm context immediately so restored state.bin is used
-  // without waiting for reconnect/app restart.
-  stream->sicontext.reloadFromPersistedState(sens);
+static jboolean siRebindNativeContextImpl(jlong dataptr, jint preservedViewMode,
+                                          const char *sourceTag,
+                                          uint32_t opId) {
+  if (!dataptr)
+    return JNI_FALSE;
+  sistream *stream = reinterpret_cast<sistream *>(dataptr);
+  auto *sens = stream->hist;
+  if (!sens)
+    return JNI_FALSE;
+  auto *info = sens->getinfo();
+  if (!info)
+    return JNI_FALSE;
 
-  LOGSTRING("siRestoreOriginalPolls: original values restored successfully\n");
+  const bool wasCustomEnabled = info->useCustomCalibration;
+  const uint32_t viewModeBefore = info->viewMode;
+  const int siIndexBefore = sens->getSiIndex();
+  const int totalPolls = info->pollcount;
+  const int resetModeBefore = sens->isInResetMode() ? 1 : 0;
 
-  // Remove backup files since we've restored to original state
-  sens->removeBackupPolls();
+  LOGGER("%s[%u]: start viewMode=%u requested=%d pollcount=%d siIndex=%d "
+         "resetMode=%d custom=(enabled=%d,index=%d,autoReset=%d)\n",
+         sourceTag, opId, viewModeBefore, preservedViewMode, totalPolls,
+         siIndexBefore, resetModeBefore, info->useCustomCalibration,
+         info->customCalIndex, info->autoResetAlgorithm);
 
-  return JNI_TRUE;
+  // Force native calibration mode before context reload. Do this directly
+  // (without setCustomCalibrationSettings JNI path) to avoid toggle
+  // side-effects and duplicate writes.
+  info->useCustomCalibration = false;
+  info->customCalIndex = 0;
+  info->autoResetAlgorithm = false;
+  stream->sicontext.clearBadValueStreak();
+
+  sens->exitResetMode();
+  const bool rebound = stream->sicontext.reloadFromPersistedState(sens);
+
+  uint32_t finalViewMode = viewModeBefore;
+  if (preservedViewMode >= 0 && preservedViewMode <= 3) {
+    finalViewMode = static_cast<uint32_t>(preservedViewMode);
+  }
+  info->viewMode = finalViewMode;
+
+  const int siIndexAfter = sens->getSiIndex();
+  LOGGER("%s[%u]: done ok=%d wasCustomEnabled=%d viewMode=%u->%u pollcount=%d "
+         "siIndex=%d->%d resetMode=%d->%d\n",
+         sourceTag, opId, rebound ? 1 : 0, wasCustomEnabled ? 1 : 0,
+         viewModeBefore, info->viewMode, totalPolls, siIndexBefore, siIndexAfter,
+         resetModeBefore, sens->isInResetMode() ? 1 : 0);
+  return rebound ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL fromjava(siRebindNativeContext)(
+    JNIEnv *env, jclass cl, jlong dataptr, jint preservedViewMode) {
+  const uint32_t opId = ++gSiRebindOp;
+  return siRebindNativeContextImpl(dataptr, preservedViewMode,
+                                   "siRebindNativeContext", opId);
+}
+
+// Compatibility alias. Semantics now match siRebindNativeContext.
+extern "C" JNIEXPORT jboolean JNICALL fromjava(siRestartNativeFresh)(
+    JNIEnv *env, jclass cl, jlong dataptr, jint preservedViewMode) {
+  const uint32_t opId = ++gSiNativeFreshRestartOp;
+  return siRebindNativeContextImpl(dataptr, preservedViewMode,
+                                   "siRestartNativeFresh(alias)", opId);
 }
 
 #else

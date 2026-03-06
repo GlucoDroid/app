@@ -2007,6 +2007,28 @@ private:
   }
 
 public:
+  enum RestorePollsResult : int {
+    RESTORE_OK = 0,
+    RESTORE_NO_BACKUP = 1,
+    RESTORE_STALE_BACKUP = 2,
+    RESTORE_COPY_FAIL = 3
+  };
+
+  static const char *restorePollsResultName(int code) {
+    switch (code) {
+    case RESTORE_OK:
+      return "OK";
+    case RESTORE_NO_BACKUP:
+      return "NO_BACKUP";
+    case RESTORE_STALE_BACKUP:
+      return "STALE_BACKUP";
+    case RESTORE_COPY_FAIL:
+      return "COPY_FAIL";
+    default:
+      return "UNKNOWN";
+    }
+  }
+
   bool hasBackupPolls() const {
     pathconcat bakpath(sensordir, "polls.dat.bak");
     return access(bakpath.data(), F_OK) == 0;
@@ -2055,39 +2077,22 @@ public:
   // Restore all backed-up files: polls.dat, state.bin, state.json,
   // pollinterval. After this, algorithm state matches what it was before any
   // custom cal replay.
-  bool restorePolls() {
+  int restorePollsWithReason() {
     if (!hasBackupPolls()) {
       LOGSTRING("restorePolls: no backup found\n");
-      return false;
+      return RESTORE_NO_BACKUP;
     }
     pathconcat bakPolls(sensordir, "polls.dat.bak");
 
-    // Guard against stale backups creating large chart gaps:
-    // if backup snapshot is much older than current latest poll, skip restore
-    // and let caller fall back to native replay.
-    uint32_t currentLastPoll = getlastpolltime();
-    struct stat bakStat {};
-    if (currentLastPoll > 0 && stat(bakPolls.data(), &bakStat) == 0 &&
-        bakStat.st_mtime > 0) {
-      const uint32_t backupSnapshotTime = (uint32_t)bakStat.st_mtime;
-      constexpr uint32_t kMaxSafeBackupLagSec = 5 * 60;
-      if (currentLastPoll > backupSnapshotTime &&
-          (currentLastPoll - backupSnapshotTime) > kMaxSafeBackupLagSec) {
-        LOGGER("restorePolls: backup too old (currentLast=%u backupTime=%u "
-               "lag=%u sec), skipping restore to avoid data gaps\n",
-               currentLastPoll, backupSnapshotTime,
-               currentLastPoll - backupSnapshotTime);
-        // Drop stale backup so next custom replay can create a fresh snapshot.
-        removeBackupPolls();
-        return false;
-      }
-    }
+    // Do not reject "old" backups based on file mtime.
+    // OFF transition expects deterministic restoration of the native baseline;
+    // higher-level sync will reconcile any newer points after restore.
 
     // Restore polls.dat
     pathconcat dstPolls(sensordir, "polls.dat");
     if (!copyFile(bakPolls.data(), dstPolls.data())) {
       LOGSTRING("restorePolls: polls.dat restore failed\n");
-      return false;
+      return RESTORE_COPY_FAIL;
     }
     // Invalidate mmap pages so in-memory data reflects restored file
     if (polls.data()) {
@@ -2117,8 +2122,10 @@ public:
       }
     }
     LOGSTRING("restorePolls: full restore completed successfully\n");
-    return true;
+    return RESTORE_OK;
   }
+
+  bool restorePolls() { return restorePollsWithReason() == RESTORE_OK; }
 
   void removeBackupPolls() {
     pathconcat p1(sensordir, "polls.dat.bak");

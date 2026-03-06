@@ -15,8 +15,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Version history:
  *   v2 — original single-sensor schema (timestamp PK, value, rawValue, rate)
  *   v3 — multi-sensor: added sensorSerial column, auto-generated PK, composite unique index
+ *   v4 — compatibility columns from a reverted Sibionics experiment (unused by current entity)
  */
-@Database(entities = [HistoryReading::class], version = 3, exportSchema = false)
+@Database(entities = [HistoryReading::class], version = 4, exportSchema = false)
 abstract class HistoryDatabase : RoomDatabase() {
     
     abstract fun historyDao(): HistoryDao
@@ -61,6 +62,13 @@ abstract class HistoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_history_readings_sensorSerial ON history_readings (sensorSerial)")
             }
         }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE history_readings ADD COLUMN customValue REAL")
+                db.execSQL("ALTER TABLE history_readings ADD COLUMN customRate REAL")
+            }
+        }
         
         fun getInstance(context: Context): HistoryDatabase =
             INSTANCE ?: synchronized(this) {
@@ -69,7 +77,7 @@ abstract class HistoryDatabase : RoomDatabase() {
                     HistoryDatabase::class.java,
                     "glucose_history.db"
                 )
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration()  // Fallback if migration chain is broken
                 .build().also { INSTANCE = it }
             }

@@ -697,6 +697,12 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/nightscout") { NightscoutSettingsScreen(navController) }
                     composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                     composable("settings/mirror") { MirrorSettingsScreen(navController) }
+                    composable("settings/watch") { WatchSettingsScreen(navController) }
+                    // Keep legacy route for backward compatibility.
+                    composable("settings/weartransport") { WatchSettingsScreen(navController) }
+                    composable("settings/watch/wearos-config") { WearOsConfigScreen(navController) }
+                    composable("settings/watch/garmin-status") { GarminStatusScreen(navController) }
+                    composable("settings/webserver") { WebServerSettingsScreen(navController) }
 
                     composable("settings/turnserver") { tk.glucodata.ui.TurnServerSettingsScreen(navController) }
                     composable("settings/debug") { DebugSettingsScreen(navController) }
@@ -809,6 +815,12 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/nightscout") { NightscoutSettingsScreen(navController) }
                 composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                 composable("settings/mirror") { MirrorSettingsScreen(navController) }
+                composable("settings/watch") { WatchSettingsScreen(navController) }
+                // Keep legacy route for backward compatibility.
+                composable("settings/weartransport") { WatchSettingsScreen(navController) }
+                composable("settings/watch/wearos-config") { WearOsConfigScreen(navController) }
+                composable("settings/watch/garmin-status") { GarminStatusScreen(navController) }
+                composable("settings/webserver") { WebServerSettingsScreen(navController) }
 
                 composable("settings/turnserver") { tk.glucodata.ui.TurnServerSettingsScreen(navController) }
                 composable("settings/debug") { DebugSettingsScreen(navController) }
@@ -1052,7 +1064,9 @@ fun DashboardScreen(
         val latestPoint = remember(glucoseHistory) { glucoseHistory.maxByOrNull { it.timestamp } }
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val isCompactScreen = configuration.screenWidthDp <= 360 || configuration.screenHeightDp <= 700
+        // Continuous screen scale: 0f = 600dp (small phone), 1f = 900dp (large phone/tablet)
+        val screenScale = ((configuration.screenHeightDp - 600f) / 300f).coerceIn(0f, 1f)
+        fun lerpDp(small: Float, large: Float) = (small + (large - small) * screenScale).dp
         val listState = rememberLazyListState()
         val collapseDistancePx = with(LocalDensity.current) { 220.dp.toPx() }
         val collapseFraction by remember(listState, collapseDistancePx, isLandscape) {
@@ -1088,62 +1102,69 @@ fun DashboardScreen(
             label = "DashboardExpandedProgress"
         )
 
-        val contentHorizontalPadding = if (isCompactScreen) 12.dp else 16.dp
-        val contentGap = if (isCompactScreen) 12.dp else 16.dp
-        val portraitChartMaxHeight = remember(configuration.screenHeightDp, isCompactScreen) {
-            // Compact screens: protect list visibility.
-            // Larger/high-DPI screens: allow fuller chart without reverting to full-screen dominance.
-            val targetFraction = if (isCompactScreen) 0.545f else 0.585f
-            val minHeight = if (isCompactScreen) 420.dp else 380.dp
-            val maxHeight = if (isCompactScreen) 520.dp else 520.dp
-            (configuration.screenHeightDp * targetFraction).dp.coerceIn(minHeight, maxHeight)
+        val contentHorizontalPadding = lerpDp(12f, 16f)
+        val contentGap = lerpDp(12f, 16f)
+
+        // Fluid chart max height clamping
+        val portraitChartMaxHeight = remember(configuration.screenHeightDp, screenScale) {
+            val targetFraction = 0.545f + 0.04f * screenScale // smoothly from 0.545 to 0.585
+            val minHeight = lerpDp(420f, 380f) // inversely scales
+            (configuration.screenHeightDp.dp * targetFraction).coerceIn(minHeight, 520.dp)
         }
-        // How many reading rows should peek on screen initially
-        val visibleRowCount = if (isCompactScreen) 2 else 3
-        val portraitExpandedChartHeight = remember(configuration.screenHeightDp, isCompactScreen, visibleRowCount) {
+        
+        val visibleRowCount = if (screenScale < 0.3f) 2 else 3
+        val portraitExpandedChartHeight = remember(configuration.screenHeightDp, screenScale, visibleRowCount) {
             val screenH = configuration.screenHeightDp.dp
-            // Reserve space for other UI elements
-            val heroReserve = if (isCompactScreen) 96.dp else 108.dp   // combined header card
-            val navBarReserve = 80.dp                                   // bottom nav
-            val lazyGaps = 12.dp * 3 + 16.dp + 12.dp                   // spacedBy(12dp) × items + top/bottom contentPadding
-            val readingRowH = 56.dp                                     // each ReadingRow min height
-            val readingsCardChrome = 44.dp                              // "View History" row + divider
+            val heroReserve = lerpDp(96f, 108f)
+            val navBarReserve = 80.dp
+            val lazyGaps = 12.dp * 3 + 16.dp + 12.dp
+            val readingRowH = 56.dp
+            val readingsCardChrome = 44.dp
             val readingsReserve = (readingRowH * visibleRowCount) + readingsCardChrome
-            // Chart gets whatever's left after reserving everything else
+            
             val chartForRows = screenH - heroReserve - navBarReserve - lazyGaps - readingsReserve
-            // Clamp to reasonable bounds
-            chartForRows.coerceIn(
-                if (isCompactScreen) 240.dp else 280.dp,
-                if (isCompactScreen) 440.dp else 520.dp
-            )
+            chartForRows.coerceIn(lerpDp(240f, 280f), lerpDp(440f, 520f))
         }
 
         // --- GESTURE-CONTROLLED CHART EXPANSION (Nested Scroll) ---
         // Extra px added to chart height by user drag gesture
         val density = LocalDensity.current
-        var chartHeightBoostPx by remember { mutableFloatStateOf(0f) }
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val uiPrefs = remember { context.getSharedPreferences("tk.glucodata_ui_prefs", android.content.Context.MODE_PRIVATE) }
         
         // Max boost = remaining screen space below chart
-        val heroReserve = if (isCompactScreen) 96.dp else 108.dp
+        val heroReserve = lerpDp(96f, 108f)
         val navBarReserve = 80.dp
         val pickerHeight = 60.dp
-        val bottomMargin = 8.dp // Ensures picker sits nicely above nav
+        val bottomMargin = lerpDp(12f, 28f) // Scale-adaptive: tighter on small screens, roomier on large
         
-        val maxChartBoostDp = remember(configuration.screenHeightDp, portraitExpandedChartHeight) {
-            val maxChartH = configuration.screenHeightDp.dp - heroReserve - navBarReserve - pickerHeight - bottomMargin
+        // Add actual system bottom padding (e.g., gesture bar/3-button nav)
+        val systemBottomInset = androidx.compose.foundation.layout.WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+        
+        val maxChartBoostDp = remember(configuration.screenHeightDp, portraitExpandedChartHeight, systemBottomInset) {
+            val maxChartH = configuration.screenHeightDp.dp - heroReserve - navBarReserve - pickerHeight - bottomMargin - systemBottomInset
             (maxChartH - portraitExpandedChartHeight).coerceAtLeast(0.dp)
         }
         val maxChartBoostPx = with(density) { maxChartBoostDp.toPx() }
+
+        // Synchronously initialize the boost exactly once from persistent storage
+        var chartHeightBoostPx by remember(maxChartBoostPx) { 
+            mutableFloatStateOf(uiPrefs.getFloat("chart_boost_progress", 0f) * maxChartBoostPx) 
+        }
+
+        val scope = rememberCoroutineScope()
         
         val nestedScrollConnection = remember(maxChartBoostPx, listState) {
             object : NestedScrollConnection {
                 override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                    // Dragging UP (scroll delta < 0): Shrink chart FIRST
+                    // Dragging UP (scroll delta < 0): Shrink chart first.
+                    // 100% absorption means chart shrinks EXACTLY as finger moves, keeping top fixed.
+                    // Once boost hits 0, remainders pass to the list for uninterrupted scrolling.
                     if (available.y < 0 && chartHeightBoostPx > 0f) {
                         val newBoost = (chartHeightBoostPx + available.y).coerceAtLeast(0f)
-                        val consumedY = newBoost - chartHeightBoostPx
+                        val consumed = newBoost - chartHeightBoostPx
                         chartHeightBoostPx = newBoost
-                        return Offset(0f, consumedY)
+                        return Offset(0f, consumed)
                     }
                     return Offset.Zero
                 }
@@ -1153,7 +1174,8 @@ fun DashboardScreen(
                     available: Offset,
                     source: NestedScrollSource
                 ): Offset {
-                    // Dragging DOWN (scroll delta > 0): Grow chart if at top of list
+                    // Dragging DOWN at top of list: Grow chart 1:1 with finger.
+                    // Removing artificial damping so it feels completely free, not restrictive or jiggly.
                     if (available.y > 0 && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
                         val newBoost = (chartHeightBoostPx + available.y).coerceAtMost(maxChartBoostPx)
                         val consumedY = newBoost - chartHeightBoostPx
@@ -1162,6 +1184,64 @@ fun DashboardScreen(
                     }
                     return Offset.Zero
                 }
+
+                override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                    if (chartHeightBoostPx > 0f) {
+                        val halfAnchor = maxChartBoostPx * 0.5f
+
+                        // Determine the current state roughly
+                        val progress = chartHeightBoostPx / maxChartBoostPx
+                        
+                        val target = when {
+                            // FAST EXIT: extremely strong upward fling → collapse to 0
+                            available.y < -3000f -> 0f
+                            // GRADUAL EXIT: moderate upward fling → step DOWN one state
+                            available.y < -400f -> {
+                                if (chartHeightBoostPx > halfAnchor + 10f) halfAnchor
+                                else 0f
+                            }
+                            // FAST EXPAND: extremely strong downward fling → jump full expand
+                            available.y > 3000f -> maxChartBoostPx
+                            // GRADUAL EXPAND: moderate downward fling → step UP one state
+                            available.y > 400f -> {
+                                if (chartHeightBoostPx < halfAnchor - 10f) halfAnchor
+                                else maxChartBoostPx
+                            }
+                            // NO FLING (slow release): position-based zones
+                            else -> when {
+                                progress < 0.25f -> 0f
+                                progress < 0.75f -> halfAnchor
+                                else -> maxChartBoostPx
+                            }
+                        }
+
+                        // Already maxed and flinging down → let list handle overscroll glow
+                        if (chartHeightBoostPx >= maxChartBoostPx - 1f && available.y > 0) {
+                            return androidx.compose.ui.unit.Velocity.Zero
+                        }
+
+                        val isCollapsing = target < chartHeightBoostPx
+                        scope.launch {
+                            androidx.compose.animation.core.animate(
+                                initialValue = chartHeightBoostPx,
+                                targetValue = target,
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = 0.85f,
+                                    stiffness = if (isCollapsing) androidx.compose.animation.core.Spring.StiffnessMedium
+                                                else androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                )
+                            ) { value, _ ->
+                                chartHeightBoostPx = value
+                            }
+                        }
+                        
+                        // If we are fully collapsing to 0, let the list have the leftover momentum
+                        // so the user can swipe down in a single uninterrupted motion.
+                        // Otherwise, consume velocity to prevent list scrolling while snapping to a mid/max state.
+                        return if (target == 0f && isCollapsing) androidx.compose.ui.unit.Velocity.Zero else available
+                    }
+                    return androidx.compose.ui.unit.Velocity.Zero
+                }
             }
         }
         
@@ -1169,6 +1249,12 @@ fun DashboardScreen(
         val chartBoostProgress by remember { derivedStateOf { 
             if (maxChartBoostPx > 0f) (chartHeightBoostPx / maxChartBoostPx).coerceIn(0f, 1f) else 0f 
         }}
+
+        // Persist the chart boost progress debounced to avoid thrashing during drag gestures
+        androidx.compose.runtime.LaunchedEffect(chartBoostProgress) {
+            kotlinx.coroutines.delay(500)
+            uiPrefs.edit().putFloat("chart_boost_progress", chartBoostProgress).apply()
+        }
 
         // --- REUSABLE UI SECTIONS ---
 
@@ -1350,14 +1436,16 @@ fun DashboardScreen(
                         boostedChartHeight.value +
                             (portraitChartMaxHeight.value.coerceAtLeast(boostedChartHeight.value) - boostedChartHeight.value) * collapseFraction
                         ).dp
-                    val expandedMinHeight = if (isCompactScreen) 272.dp else 296.dp
+                    val expandedMinHeight = lerpDp(272f, 296f)
                     val chartMinHeightTarget = (
                         expandedMinHeight.value +
                             (200.dp.value - expandedMinHeight.value) * collapseFraction
                         ).dp
                     val chartHorizontalPaddingTarget = (16f * collapseFraction).dp
                     val chartUnderlayTopTarget = 0.dp
-                    val chartUnderlayBottomTarget = ((if (isCompactScreen) 120f else 168f) * expandedProgress).dp
+                    // Fluid overlap sizing based on screen scale
+                    val underlayBase = 120f + (168f - 120f) * screenScale
+                    val chartUnderlayBottomTarget = (underlayBase * expandedProgress).dp
                     val animatedChartHeightCap by animateDpAsState(
                         targetValue = chartHeightCapTarget,
                         animationSpec = spring(
@@ -1453,7 +1541,7 @@ fun DashboardScreen(
                     val density = LocalDensity.current
                     Box(
                         modifier = Modifier
-                            .padding(start = 16.dp, top = 10.dp, end = 16.dp)
+                            .padding(start = 16.dp, top = 8.dp, end = 16.dp)
                     ) {
                         RecentReadingsCard(
                             recentReadings = recentReadings,
@@ -2142,7 +2230,6 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
         TargetCard(
             title = stringResource(R.string.low_label),
             value = targetLowValue,
-            unit = unit,
             range = if (isMmol) 2.0f..8.0f else 40f..140f,
             onValueChange = { viewModel.setTargetLow(it) },
             modifier = Modifier.padding(horizontal = 16.dp)
@@ -2153,7 +2240,6 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
         TargetCard(
             title = stringResource(R.string.high_label),
             value = targetHighValue,
-            unit = unit,
             range = if (isMmol) 6.0f..16.0f else 100f..350f,
             onValueChange = { viewModel.setTargetHigh(it) },
             modifier = Modifier.padding(horizontal = 16.dp)
@@ -2681,7 +2767,6 @@ fun SettingsScreen(navController: androidx.navigation.NavController, themeMode: 
 fun TargetCard(
     title: String,
     value: Float,
-    unit: String,
     range: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier
@@ -2697,7 +2782,7 @@ fun TargetCard(
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 val currentSliderValStr = if (sliderVal < 30) String.format("%.1f", sliderVal) else sliderVal.toInt().toString()
                 Text(
-                    text = "$currentSliderValStr $unit",
+                    text = currentSliderValStr,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -2798,11 +2883,12 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
     val context = LocalContext.current
     val sensors by viewModel.sensors.collectAsState()
     val configuration = LocalConfiguration.current
-    val isCompactScreen = configuration.screenWidthDp <= 360 || configuration.screenHeightDp <= 700
+    val screenScale = ((configuration.screenHeightDp - 600f) / 300f).coerceIn(0f, 1f)
+    fun lerpDp(small: Float, large: Float) = (small + (large - small) * screenScale).dp
     val panelPadding = 16.dp
     val titleInset = 16.dp
-    val panelTopGap = if (isCompactScreen) 10.dp else 16.dp
-    val panelBottomPadding = if (isCompactScreen) 88.dp else 100.dp
+    val panelTopGap = lerpDp(10f, 16f)
+    val panelBottomPadding = lerpDp(88f, 100f)
     
     // Start/stop real-time polling based on screen visibility
     DisposableEffect(Unit) {
@@ -2931,7 +3017,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                 Spacer(modifier = Modifier.height(panelTopGap))
                 Text(
                     text = stringResource(R.string.sensors_title),
-                    style = if (isCompactScreen) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall,
+                    style = if (screenScale < 0.3f) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall,
                     modifier = Modifier.padding(start = titleInset, end = titleInset)
                 )
                 Spacer(modifier = Modifier.height(panelTopGap))
@@ -2965,8 +3051,8 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                 item {
                     Text(
                         text = stringResource(R.string.sensors_title),
-                    style = if (isCompactScreen) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall,
-                    modifier = Modifier.padding(start = titleInset, bottom = if (isCompactScreen) 16.dp else 24.dp)
+                    style = if (screenScale < 0.3f) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall,
+                    modifier = Modifier.padding(start = titleInset, bottom = lerpDp(16f, 24f))
                     )
                 }
                 items(sensors) { sensor ->
@@ -2983,7 +3069,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(if (isCompactScreen) 12.dp else 16.dp)
+                    .padding(lerpDp(12f, 16f))
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -3643,6 +3729,25 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 var customAutoReset by remember(sensor.customCalEnabled, sensor.customCalAutoReset) {
                     mutableStateOf(if (sensor.customCalEnabled) sensor.customCalAutoReset else true)
                 }
+                fun applyAdvancedToggle(targetEnabled: Boolean) {
+                    if (advancedEnabled == targetEnabled) return
+                    advancedEnabled = targetEnabled
+                    if (!targetEnabled) {
+                        viewModel.disableCustomCalAndReplay(sensor.serial)
+                        settingsDirty = false
+                    } else {
+                        val defaultPos = sliderPos.toInt().coerceIn(0, maxSliderPos)
+                        viewModel.updateCustomCalibration(sensor.serial, true, defaultPos, customAutoReset)
+                        settingsDirty = true
+                    }
+                }
+                fun applyDailyRestartToggle(targetEnabled: Boolean) {
+                    if (customAutoReset == targetEnabled) return
+                    customAutoReset = targetEnabled
+                    val pos = sliderPos.toInt().coerceIn(0, maxSliderPos)
+                    viewModel.updateCustomCalibration(sensor.serial, true, pos, targetEnabled)
+                    settingsDirty = true
+                }
 
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -3657,16 +3762,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                val newState = !advancedEnabled
-                                advancedEnabled = newState
-                                if (!newState) {
-                                    viewModel.disableCustomCalAndReplay(sensor.serial)
-                                    settingsDirty = false
-                                } else {
-                                    val defaultPos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                                    viewModel.updateCustomCalibration(sensor.serial, true, defaultPos, customAutoReset)
-                                    settingsDirty = true
-                                }
+                                applyAdvancedToggle(!advancedEnabled)
                             }
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -3695,17 +3791,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         Spacer(modifier = Modifier.width(12.dp))
                         StyledSwitch(
                             checked = advancedEnabled,
-                            onCheckedChange = { checked ->
-                                advancedEnabled = checked
-                                if (!checked) {
-                                    viewModel.disableCustomCalAndReplay(sensor.serial)
-                                    settingsDirty = false
-                                } else {
-                                    val defaultPos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                                    viewModel.updateCustomCalibration(sensor.serial, true, defaultPos, customAutoReset)
-                                    settingsDirty = true
-                                }
-                            }
+                            onCheckedChange = { checked -> applyAdvancedToggle(checked) }
                         )
                     }
                 }
@@ -3759,10 +3845,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable {
-                                    val newVal = !customAutoReset
-                                    customAutoReset = newVal
-                                    val pos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                                    viewModel.updateCustomCalibration(sensor.serial, true, pos, newVal)
+                                    applyDailyRestartToggle(!customAutoReset)
                                 }
                                 .padding(horizontal = 4.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -3781,11 +3864,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                             Spacer(modifier = Modifier.width(12.dp))
                             StyledSwitch(
                                 checked = customAutoReset,
-                                onCheckedChange = { checked ->
-                                    customAutoReset = checked
-                                    val pos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                                    viewModel.updateCustomCalibration(sensor.serial, true, pos, checked)
-                                }
+                                onCheckedChange = { checked -> applyDailyRestartToggle(checked) }
                             )
                         }
 
@@ -3807,7 +3886,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         if (advancedEnabled) {
                             viewModel.localReplay(sensor.serial)
                         } else {
-                            viewModel.disableCustomCalAndReplay(sensor.serial)
+                            viewModel.restartSibionicsNativeFresh(sensor.serial)
                         }
                         settingsDirty = false
                         showSibionicsCalSheet = false
@@ -4009,9 +4088,16 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
+                            val sensorTitle = if (sensor.isAidex) {
+                                sensor.displayName.takeIf {
+                                    it.isNotBlank() && it != "?" && !it.contains(':')
+                                } ?: sensor.serial
+                            } else {
+                                sensor.serial
+                            }
                             // Title with optional "Active" badge
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("${sensor.serial}", style = MaterialTheme.typography.titleLarge)
+                                Text(sensorTitle, style = MaterialTheme.typography.titleLarge)
                                 // Toggle Main Sensor Badge
                                 Spacer(modifier = Modifier.width(8.dp))
                                 val isMain = sensor.isActive

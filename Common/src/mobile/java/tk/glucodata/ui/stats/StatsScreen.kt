@@ -3,6 +3,7 @@
 package tk.glucodata.ui.stats
 
 import android.content.Intent
+import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -73,6 +74,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -102,6 +104,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
@@ -121,6 +124,7 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import tk.glucodata.ui.theme.labelLargeExpressive
 
 private val TirVeryLowColor = Color(0xFFF0A24A)
 private val TirLowColor = Color(0xFFE7C85A)
@@ -711,6 +715,8 @@ private fun RangeSelectorCard(
     readingCount: Int,
     onRangeSelected: (StatsTimeRange) -> Unit
 ) {
+    val view = LocalView.current
+    var lastRangeHapticAt by remember { mutableLongStateOf(0L) }
     val subtitle = when {
         isLoading -> stringResource(R.string.loading_data)
         !hasData -> stringResource(R.string.statistics_subtitle)
@@ -750,7 +756,16 @@ private fun RangeSelectorCard(
         ConnectedButtonGroup(
             options = ranges,
             selectedOption = selectedRange,
-            onOptionSelected = onRangeSelected,
+            onOptionSelected = { range ->
+                if (range != selectedRange) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastRangeHapticAt >= 90L) {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        lastRangeHapticAt = now
+                    }
+                    onRangeSelected(range)
+                }
+            },
             label = { option -> Text(
                 text = stringResource(option.labelResId),
                 style = MaterialTheme.typography.labelLarge
@@ -1120,9 +1135,9 @@ private fun TirCompactRow(
         MaterialTheme.typography.labelMedium
     }
     val percentStyle = if (compactText) {
-        MaterialTheme.typography.labelLarge
+        MaterialTheme.typography.labelMedium
     } else {
-        MaterialTheme.typography.titleSmall
+        MaterialTheme.typography.labelLarge
     }
     Row(
         modifier = Modifier
@@ -1136,21 +1151,15 @@ private fun TirCompactRow(
                 }
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = if (compactText) 2.dp else 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(if (selected) 9.dp else 7.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
         Text(
             text = label,
             style = labelStyle,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1.1f),
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis
@@ -1160,24 +1169,24 @@ private fun TirCompactRow(
             style = rangeStyle.copy(fontFeatureSettings = "tnum"),
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.widthIn(
-                min = if (compactText) 62.dp else 74.dp,
-                max = if (compactText) 98.dp else 116.dp
+                min = if (compactText) 54.dp else 62.dp,
+                max = if (compactText) 86.dp else 96.dp
             ),
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.End
         )
-        Text(
-            text = String.format(Locale.getDefault(), "%.1f%%", percent),
-            style = percentStyle.copy(
-                fontFeatureSettings = "tnum",
-                fontWeight = FontWeight.SemiBold
-            ),
-            color = color,
-            modifier = Modifier.widthIn(min = 54.dp),
-            maxLines = 1,
-            softWrap = false,
+                Text(
+                    text = String.format(Locale.getDefault(), "%.1f%%", percent),
+                    style = percentStyle.copy(
+                        fontFeatureSettings = "tnum",
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = color.copy(alpha = 0.82f),
+                    modifier = Modifier.width(58.dp),
+                    maxLines = 1,
+                    softWrap = false,
             textAlign = TextAlign.End
         )
     }
@@ -1416,6 +1425,11 @@ private fun MetricsScoreSection(
         summary.cvPercent < 40f -> stringResource(R.string.gvi_moderate)
         else -> stringResource(R.string.gvi_poor)
     }
+    val stdStatus = when {
+        summary.stdDevMgDl < 18f -> stringResource(R.string.gvi_good)
+        summary.stdDevMgDl < 27f -> stringResource(R.string.gvi_moderate)
+        else -> stringResource(R.string.gvi_poor)
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1429,7 +1443,7 @@ private fun MetricsScoreSection(
                 title = stringResource(R.string.average_glucose),
                 value = formatMgDl(summary.avgMgDl, unit),
                 status = avgStatus,
-                meta = "${stringResource(R.string.range)} ${formatMgDl(targets.lowMgDl, unit)}-${formatMgDl(targets.highMgDl, unit)} ${unitLabel(unit)}",
+                meta = "${stringResource(R.string.range)} ${formatMgDl(targets.lowMgDl, unit)}-${formatMgDl(targets.highMgDl, unit)}",
 //                status = " ",
 //                meta = " ",
                 tone = avgTone,
@@ -1455,14 +1469,13 @@ private fun MetricsScoreSection(
             ScoreTile(
                 title = stringResource(R.string.std_dev_short),
                 value = formatMgDl(summary.stdDevMgDl, unit),
-//                status = cvStatus,
+                status = stdStatus,
+                meta = "",
 //                meta = stringResource(
 //                    R.string.standard_deviation,
 //                    formatMgDl(summary.stdDevMgDl, unit),
 //                    unitLabel(unit)
-//                ),
-                status = " ",
-                meta = " ",
+//                )
                 tone = stdTone,
                 infoText = stringResource(R.string.std_dev_description),
                 modifier = Modifier.weight(1f)
@@ -1470,11 +1483,9 @@ private fun MetricsScoreSection(
             ScoreTile(
                 title = stringResource(R.string.cv),
                 value = String.format(Locale.getDefault(), "%.1f%%", summary.cvPercent),
-//                status = cvStatus,
-                status = " ",
-                meta = " ",
+                status = cvStatus,
+                meta = "",
 //                meta = stringResource(R.string.cv_percentage, summary.cvPercent.roundToInt()),
-
                 tone = cvTone,
                 infoText = stringResource(R.string.cv_description),
                 modifier = Modifier.weight(1f)
@@ -1537,6 +1548,8 @@ private fun ScoreTile(
 ) {
     var expanded by remember(title, infoText) { mutableStateOf(false) }
     val expandable = !infoText.isNullOrBlank()
+    val hasStatus = status.isNotBlank()
+    val hasMeta = meta.isNotBlank()
     val tileColor = tone.copy(alpha = 0.09f)
         .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
     Surface(
@@ -1551,8 +1564,8 @@ private fun ScoreTile(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+                .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(if (hasMeta) 2.dp else 0.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1560,7 +1573,7 @@ private fun ScoreTile(
                 verticalAlignment = Alignment.Top
             ) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                    verticalArrangement = Arrangement.spacedBy(if (hasStatus) 1.dp else 0.dp)
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1568,23 +1581,25 @@ private fun ScoreTile(
                     ) {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = tone
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         if (expandable) {
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
-                                tint = tone.copy(alpha = 0.74f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
                                 modifier = Modifier.size(14.dp)
                             )
                         }
                     }
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    if (hasStatus) {
+                        Text(
+                            text = status,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = tone
+                        )
+                    }
                 }
                 Text(
                     text = value,
@@ -1595,11 +1610,13 @@ private fun ScoreTile(
                     textAlign = TextAlign.End
                 )
             }
-            Text(
-                text = meta,
-                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f)
-            )
+            if (hasMeta) {
+                Text(
+                    text = meta,
+                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f)
+                )
+            }
             AnimatedVisibility(
                 visible = expandable && expanded,
                 enter = fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(220)),
@@ -1685,7 +1702,7 @@ private fun PatternsCard(
         } ?: String.format(Locale.getDefault(), "%02d:00 · No AGP sample", hour)
     } else {
         selectedDaily?.let { day ->
-            "${day.date.format(dayFormatter)} · ${formatMgDl(day.averageMgDl, unit)} ${unitLabel(unit)} avg"
+            "${day.date.format(dayFormatter)} · ${formatMgDl(day.averageMgDl, unit)} ~"
         } ?: windowLabel
     }
     val headerSecondary = if (selectedTab == PatternTab.AGP) {

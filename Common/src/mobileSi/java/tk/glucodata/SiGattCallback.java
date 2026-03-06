@@ -132,7 +132,7 @@ public class SiGattCallback extends SuperGattCallback {
             disconnect();
          }
          connected = true;
-         constatstatusstr = "";
+         constatstatusstr = Applic.app.getString(R.string.status_waiting_for_data);
          Natives.EverSenseClear(dataptr);
       } else {
          connected = false;
@@ -302,6 +302,36 @@ public class SiGattCallback extends SuperGattCallback {
    }
 
    @Override
+   public synchronized boolean requestLatestDataForReplay() {
+      if (stop || dataptr == 0) {
+         if (doLog) {
+            Log.i(LOG_ID, SerialNumber + " requestLatestDataForReplay: skipped (stop=" + stop + ", dataptr=" + dataptr + ")");
+         }
+         return false;
+      }
+      if (!connected || mBluetoothGatt == null || service2 == null) {
+         if (doLog) {
+            Log.i(LOG_ID, SerialNumber + " requestLatestDataForReplay: skipped (connected=" + connected
+                  + ", gatt=" + (mBluetoothGatt != null) + ", service2=" + (service2 != null) + ")");
+         }
+         return false;
+      }
+
+      final byte[] data = Natives.siAsknewdata(dataptr);
+      if (data == null) {
+         Log.w(LOG_ID, SerialNumber + " requestLatestDataForReplay: siAsknewdata returned null");
+         return false;
+      }
+
+      final boolean ok = write2(data);
+      if (ok) {
+         wrotepass[0] = System.currentTimeMillis();
+      }
+      Log.i(LOG_ID, SerialNumber + " requestLatestDataForReplay: write=" + ok);
+      return ok;
+   }
+
+   @Override
    public void onCharacteristicWrite(BluetoothGatt bluetoothGatt,
          BluetoothGattCharacteristic bluetoothGattCharacteristic, int status) {
       if (Log.doLog) {
@@ -468,7 +498,33 @@ public class SiGattCallback extends SuperGattCallback {
             askvalues(blue);
          return;
       }
-      handleGlucoseResult(res, timmsec);
+      // Handle status updates based on glucose result
+      if (res != 0L) {
+         // Non-zero glucose: clear any waiting/raw status
+         if (constatstatusstr != null && 
+             (constatstatusstr.equals(Applic.app.getString(R.string.status_waiting_for_data)) ||
+              constatstatusstr.equals(Applic.app.getString(R.string.status_raw_values_received)))) {
+            constatstatusstr = "";
+         }
+         handleGlucoseResult(res, timmsec);
+      } else {
+         // res == 0: glucose is 0 (warmup period or algorithm not ready)
+         // Set status to indicate raw values are being received
+         int viewMode = Natives.getViewMode(dataptr);
+         boolean isRawMode = (viewMode == 1 || viewMode == 3);
+         
+         if (constatstatusstr != null && 
+             constatstatusstr.equals(Applic.app.getString(R.string.status_waiting_for_data))) {
+            // We've received data but glucose is 0 - sensor is in warmup
+            if (isRawMode) {
+               constatstatusstr = Applic.app.getString(R.string.status_raw_values_received);
+               if (doLog) {
+                  Log.i(LOG_ID, SerialNumber + " warmup: raw values received, glucose=0");
+               }
+            }
+         }
+         handleGlucoseResult(res, timmsec);
+      }
    }
 
    /*

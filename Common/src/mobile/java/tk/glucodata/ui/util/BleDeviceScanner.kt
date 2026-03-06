@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
@@ -12,6 +13,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelUuid
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import tk.glucodata.Applic
 import tk.glucodata.Log
+import java.util.UUID
 
 /**
  * BLE scanner used by AiDex setup wizard (instance methods) and
@@ -129,9 +132,16 @@ class BleDeviceScanner(context: Context) {
         }
     }
 
+    data class SibionicsBleDevice(
+        val name: String,
+        val address: String,
+        val rssi: Int
+    )
+
     companion object {
         private const val SCAN_DURATION = 10000L // 10 seconds
         private const val LOG_ID = "BleDeviceScanner"
+        private val SIBIONICS_SERVICE_UUID: UUID = UUID.fromString("0000ff30-0000-1000-8000-00805f9b34fb")
 
         /** Check BLE scan permissions (mirrors Applic.mayscan() which is package-private) */
         private fun hasScanPermission(ctx: Context): Boolean {
@@ -250,6 +260,108 @@ class BleDeviceScanner(context: Context) {
                     }
                 } catch (e: Exception) {
                     Log.e(LOG_ID, "Error stopping scan in awaitClose: " + e.message)
+                }
+                handler.removeCallbacksAndMessages(null)
+            }
+        }
+
+        @SuppressLint("MissingPermission")
+        fun scanForSibionicsByService(): Flow<SibionicsBleDevice> = callbackFlow {
+            if (!hasScanPermission()) {
+                Log.e(LOG_ID, "No bluetooth scan permissions, aborting FF30 scan")
+                close()
+                return@callbackFlow
+            }
+
+            val bluetoothManager = Applic.app.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            val adapter = bluetoothManager.adapter
+            if (adapter == null || !adapter.isEnabled) {
+                Log.e(LOG_ID, "Bluetooth adapter null or disabled (FF30 scan)")
+                close()
+                return@callbackFlow
+            }
+
+            val scanner = adapter.bluetoothLeScanner
+            if (scanner == null) {
+                Log.e(LOG_ID, "BluetoothLeScanner is null (FF30 scan)")
+                close()
+                return@callbackFlow
+            }
+
+            val settings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build()
+
+            val filters = listOf(
+                ScanFilter.Builder()
+                    .setServiceUuid(ParcelUuid(SIBIONICS_SERVICE_UUID))
+                    .build()
+            )
+
+            val seenAddresses = mutableSetOf<String>()
+            val callback = object : ScanCallback() {
+                override fun onScanResult(callbackType: Int, result: ScanResult?) {
+                    if (result == null) return
+                    val address = result.device?.address ?: return
+                    val record = result.scanRecord
+                    val hasFf30 = record?.serviceUuids?.any { it.uuid == SIBIONICS_SERVICE_UUID } == true
+                    if (!hasFf30) return
+
+                    val name = result.device?.name ?: record.deviceName
+                    if (name.isNullOrBlank()) return
+                    if (!seenAddresses.add(address)) return
+
+                    trySend(
+                        SibionicsBleDevice(
+                            name = name,
+                            address = address,
+                            rssi = result.rssi
+                        )
+                    )
+                }
+
+                override fun onBatchScanResults(results: MutableList<ScanResult>?) {
+                    results?.forEach { onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, it) }
+                }
+
+                override fun onScanFailed(errorCode: Int) {
+                    Log.e(LOG_ID, "FF30 scan failed with error code: $errorCode")
+                    close()
+                }
+            }
+
+            try {
+                Log.i(LOG_ID, "Starting FF30 BLE scan for Sibionics-like devices...")
+                scanner.startScan(filters, settings, callback)
+            } catch (e: SecurityException) {
+                Log.e(LOG_ID, "SecurityException during FF30 startScan: " + e.message)
+                close()
+                return@callbackFlow
+            } catch (e: Exception) {
+                Log.e(LOG_ID, "Exception during FF30 startScan: " + e.message)
+                close()
+                return@callbackFlow
+            }
+
+            val handler = Handler(Looper.getMainLooper())
+            handler.postDelayed({
+                try {
+                    if (hasScanPermission() && adapter.isEnabled) {
+                        scanner.stopScan(callback)
+                    }
+                } catch (e: Exception) {
+                    Log.e(LOG_ID, "Error stopping FF30 scan: " + e.message)
+                }
+                close()
+            }, SCAN_DURATION)
+
+            awaitClose {
+                try {
+                    if (hasScanPermission() && adapter.isEnabled) {
+                        scanner.stopScan(callback)
+                    }
+                } catch (e: Exception) {
+                    Log.e(LOG_ID, "Error stopping FF30 scan in awaitClose: " + e.message)
                 }
                 handler.removeCallbacksAndMessages(null)
             }

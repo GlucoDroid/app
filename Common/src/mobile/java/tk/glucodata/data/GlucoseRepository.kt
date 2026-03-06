@@ -124,6 +124,7 @@ class GlucoseRepository {
         try {
             // Get the main sensor serial for tagging
             val sensorSerial = Natives.lastsensorname() ?: "unknown"
+            if (sensorSerial.isBlank()) return
             
             // Fetch the last 2 minutes of main-sensor history.
             // getGlucoseHistory uses infoblockptr()->current — main sensor only.
@@ -131,28 +132,25 @@ class GlucoseRepository {
             val rawHistory = Natives.getGlucoseHistory(nowSec - 120)
             if (rawHistory == null || rawHistory.size < 3) return
 
-            // Find the LAST (most recent) triplet
             val lastIdx = rawHistory.size - 3
             val timeSec = rawHistory[lastIdx]
             val timestampMs = timeSec * 1000L
 
             // Skip if we already stored this exact reading
             if (timestampMs == lastStoredTimestampMs) return
-            
-            val valueMgdl = rawHistory[lastIdx + 1] / 10f   // mg/dL * 10 → mg/dL
-            val rawValueMgdl = rawHistory[lastIdx + 2] / 10f // mg/dL * 10 → mg/dL
 
-            if (valueMgdl <= 0 && rawValueMgdl <= 0) return
+            val valueMgdl = rawHistory[lastIdx + 1] / 10f
+            val rawValueMgdl = rawHistory[lastIdx + 2] / 10f
+            if (valueMgdl <= 0f && rawValueMgdl <= 0f) return
 
-            // Compute approximate rate from the last two entries if available
             var rate = 0f
             if (rawHistory.size >= 6) {
                 val prevIdx = rawHistory.size - 6
                 val prevTimeSec = rawHistory[prevIdx]
-                val prevValue = rawHistory[prevIdx + 1] / 10f
+                val prevValueMgdl = rawHistory[prevIdx + 1] / 10f
                 val dtMin = (timeSec - prevTimeSec) / 60f
-                if (dtMin > 0 && prevValue > 0) {
-                    rate = (valueMgdl - prevValue) / dtMin  // mg/dL per minute
+                if (dtMin > 0f && prevValueMgdl > 0f) {
+                    rate = (valueMgdl - prevValueMgdl) / dtMin
                 }
             }
 
@@ -257,49 +255,19 @@ class GlucoseRepository {
      * Used for initial load and when Room hasn't been populated yet.
      */
     fun getHistory(): List<GlucosePoint> {
-        val history = mutableListOf<GlucosePoint>()
-        
-        try {
-            // Fetch from the very beginning (startSec = 0 means all data)
-            val startSec = 0L
-            
-            val unit = Natives.getunit()
-            val isMmol = (unit == 1)
-            
-            val rawHistory = Natives.getGlucoseHistory(startSec)
-            if (rawHistory != null) {
-                Log.d(TAG, "getGlucoseHistory returned ${rawHistory.size / 3} points (ALL history)")
-                try {
-                    for (i in rawHistory.indices step 3) {
-                        if (i + 2 >= rawHistory.size) break
-                        val timeSec = rawHistory[i]
-                        val valueAutoRaw = rawHistory[i+1]
-                        val valueRawRaw = rawHistory[i+2]
-                        
-                        var value = valueAutoRaw / 10f // mg/dL
-                        var valueRaw = valueRawRaw / 10f // mg/dL
-                        
-                        if (isMmol) {
-                            value = value / 18.0182f
-                            valueRaw = valueRaw / 18.0182f
-                        }
-                        
-                        val timeMs = timeSec * 1000L
-                        val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timeMs))
-                        history.add(GlucosePoint(value, timeStr, timeMs, valueRaw, 0f))
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing history", e)
-                }
-            } else {
-                Log.d(TAG, "getGlucoseHistory returned null. ViewMode might be changing or no data.")
-            }
+        return kotlinx.coroutines.runBlocking {
+            val serial = Natives.lastsensorname() ?: ""
+            if (serial.isBlank()) return@runBlocking emptyList()
 
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching history", e)
+            historyRepository.ensureBackfilled()
+            val rawHistory = historyRepository.getHistoryForSensor(serial, 0L)
+            val isMmol = (Natives.getunit() == 1)
+            rawHistory.map { p ->
+                val v = if (isMmol) p.value / 18.0182f else p.value
+                val r = if (isMmol) p.rawValue / 18.0182f else p.rawValue
+                GlucosePoint(v, p.time, p.timestamp, r, p.rate)
+            }
         }
-        
-        return history.sortedBy { it.timestamp }
     }
 
     fun getUnit(): String {
@@ -315,42 +283,24 @@ class GlucoseRepository {
      * Fetches only the requested duration to minimize memory usage in AppWidget process.
      */
     fun getRecentHistory(durationMs: Long = 24 * 60 * 60 * 1000L): List<GlucosePoint> {
-        val history = mutableListOf<GlucosePoint>()
-        try {
-            val nowSec = System.currentTimeMillis() / 1000L
-            val startSec = (nowSec - (durationMs / 1000)).coerceAtLeast(0)
-            
-            val unit = Natives.getunit()
-            val isMmol = (unit == 1)
-            
-            val rawHistory = Natives.getGlucoseHistory(startSec)
-            if (rawHistory != null) {
-                try {
-                    for (i in rawHistory.indices step 3) {
-                        if (i + 2 >= rawHistory.size) break
-                        val timeSec = rawHistory[i]
-                        val valueAutoRaw = rawHistory[i+1]
-                        val valueRawRaw = rawHistory[i+2]
-                        
-                        var value = valueAutoRaw / 10f // mg/dL
-                        var valueRaw = valueRawRaw / 10f // mg/dL
-                        
-                        if (isMmol) {
-                            value = value / 18.0182f
-                            valueRaw = valueRaw / 18.0182f
-                        }
-                        
-                        val timeMs = timeSec * 1000L
-                        val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timeMs))
-                        history.add(GlucosePoint(value, timeStr, timeMs, valueRaw, 0f))
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing history in getRecentHistory", e)
+        return kotlinx.coroutines.runBlocking {
+            try {
+                val serial = Natives.lastsensorname() ?: ""
+                if (serial.isBlank()) return@runBlocking emptyList()
+
+                historyRepository.ensureBackfilled()
+                val startMs = (System.currentTimeMillis() - durationMs).coerceAtLeast(0L)
+                val rawHistory = historyRepository.getHistoryForSensor(serial, startMs)
+                val isMmol = (Natives.getunit() == 1)
+                rawHistory.map { p ->
+                    val v = if (isMmol) p.value / 18.0182f else p.value
+                    val r = if (isMmol) p.rawValue / 18.0182f else p.rawValue
+                    GlucosePoint(v, p.time, p.timestamp, r, p.rate)
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching recent history", e)
+                emptyList()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching recent history", e)
-        }
-        return history.sortedBy { it.timestamp }
+        }.sortedBy { it.timestamp }
     }
 }

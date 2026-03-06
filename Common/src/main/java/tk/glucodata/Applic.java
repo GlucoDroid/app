@@ -214,6 +214,18 @@ public class Applic extends Application implements androidx.work.Configuration.P
         ;
     }
 
+    public static boolean isWatchNotifyEnabled() {
+        return Notify.alertwatch;
+    }
+
+    public static void setWatchNotifyEnabled(boolean on) {
+        if (app != null) {
+            app.setnotify(on);
+        } else {
+            Notify.alertwatch = on;
+        }
+    }
+
     public void setunit(int unit) {
         if (Applic.unit != unit)
             SuperGattCallback.previousglucosevalue = 0.0f;
@@ -555,16 +567,19 @@ public class Applic extends Application implements androidx.work.Configuration.P
             return;
         }
         try {
-            final boolean enable = GoogleServices.isPlayServicesAvailable(Applic.app);
+            final boolean gmsAvailable = GoogleServices.isPlayServicesAvailable(Applic.app);
             final PackageManager pm = Applic.app.getPackageManager();
             final ComponentName receiver = new ComponentName(Applic.app, "tk.glucodata.MessageReceiver");
             final int current = pm.getComponentEnabledSetting(receiver);
-            final int target = enable
-                    ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                    : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
-            if (current != target) {
-                pm.setComponentEnabledSetting(receiver, target, PackageManager.DONT_KILL_APP);
-                Log.i(LOG_ID, "MessageReceiver component set to " + (enable ? "ENABLED" : "DISABLED"));
+            // Keep user choice for Wear transport. Only force-disable when GMS is unavailable.
+            // This prevents auto-enabling Wear transport on fresh installs.
+            if (!gmsAvailable && current != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                pm.setComponentEnabledSetting(
+                        receiver,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP
+                );
+                Log.i(LOG_ID, "MessageReceiver component forced DISABLED (Google Play Services unavailable)");
             }
         } catch (Throwable th) {
             Log.stack(LOG_ID, "updateWearMessageReceiverComponent", th);

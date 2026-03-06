@@ -36,7 +36,11 @@ class AiDexScanReceiver : BroadcastReceiver() {
 
         if (sensor != null) {
             if (sensor.broadcastScanActive) {
-                Log.d(TAG, "Scan already active for $serial, skipping trigger.")
+                if (sensor.recoverAlarmScanIfStale("scan-alarm")) {
+                    sensor.startBroadcastScan("alarm-recovery")
+                } else {
+                    Log.d(TAG, "Scan already active for $serial, skipping trigger.")
+                }
             } else {
                 sensor.startBroadcastScan("alarm")
             }

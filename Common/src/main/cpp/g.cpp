@@ -1250,6 +1250,26 @@ fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
 extern double calibrateNow(const SensorGlucoseData *sens,
                            const ScanData &value);
 
+// HistorySync currently consumes native history from polls[]. For NFC-only Libre
+// flows (no BLE stream yet), values can exist only in scans[]. If polls are empty,
+// expose scans as a fallback so Room/dashboard stay populated.
+static void appendScanFallbackHistory(const SensorGlucoseData *hist,
+                                      jlong starttime,
+                                      std::vector<jlong> &result) {
+  const auto scans = hist->getScandata();
+  for (const auto &item : scans) {
+    if (!item.valid() || item.t <= starttime)
+      continue;
+
+    const double cali = calibrateNow(hist, item);
+    const jlong valAuto = !isnan(cali) ? (jlong)(cali * 10) : (jlong)item.g * 10;
+
+    result.push_back((jlong)item.t);
+    result.push_back(valAuto);
+    result.push_back(0); // scans have no dedicated raw lane like rawpolls.dat
+  }
+}
+
 extern "C" JNIEXPORT jlongArray JNICALL
 fromjava(getGlucoseHistory)(JNIEnv *env, jclass cl, jlong starttime) {
   // Use the user-selected main sensor instead of getlaststream() which picks
@@ -1293,6 +1313,10 @@ fromjava(getGlucoseHistory)(JNIEnv *env, jclass cl, jlong starttime) {
       result.push_back(valAuto);
       result.push_back(valRaw);
     }
+  }
+
+  if (result.empty()) {
+    appendScanFallbackHistory(hist, starttime, result);
   }
 
   if (result.empty())
@@ -1355,6 +1379,10 @@ extern "C" JNIEXPORT jlongArray JNICALL fromjava(getGlucoseHistoryForSensor)(
       result.push_back(valAuto);
       result.push_back(valRaw);
     }
+  }
+
+  if (result.empty()) {
+    appendScanFallbackHistory(hist, starttime, result);
   }
 
   if (result.empty())

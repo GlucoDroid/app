@@ -137,18 +137,26 @@ fun SettingsSwitchItem(
     onCheckedChange: (Boolean) -> Unit,
     icon: ImageVector? = null,
     iconTint: Color? = null,
-    position: CardPosition = CardPosition.SINGLE
+    position: CardPosition = CardPosition.SINGLE,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
     SettingsItem(
         title = title,
         subtitle = subtitle,
         icon = icon,
         iconTint = iconTint,
-        onClick = { onCheckedChange(!checked) },
+        onClick = if (enabled) {
+            { onCheckedChange(!checked) }
+        } else {
+            null
+        },
+        modifier = modifier,
         trailingContent = {
             StyledSwitch(
                 checked = checked,
-                onCheckedChange = null // Handled by parent click
+                onCheckedChange = null, // Handled by parent click
+                enabled = enabled
             )
         },
         position = position

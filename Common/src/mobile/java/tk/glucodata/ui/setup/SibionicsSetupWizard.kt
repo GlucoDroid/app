@@ -286,23 +286,30 @@ fun constructFakeSibionicsQr(input: String, targetLength: Int = 59): String? {
     }
 
     // CASE 1: Sensor QR (Sibionics sensor)
-    // IMPORTANT: Do NOT truncate batch+serial.
-    // Native code relies on full payload length.
+    // IMPORTANT: Do NOT truncate batch+serial for real QR payloads.
+    // Native code relies on full payload length and end-window extraction.
     if (targetLength >= 65) {
-        // Native code (namefromSIgegs) extracts the last 16 characters treating the LAST character as excluded.
-        // i.e., it takes [len-17, len-1).
-        // If we append "?", it takes [..., ?). So it includes the char before ?.
-        // If we DON'T append "?", it takes [..., lastChar). So it *drops* the last character of the input.
-        // Wait, if input is ...ATR89.
-        // With "?": [ATR89, ?). Result: ...ATR89. (User reported this as wrong).
-        // Without "?": [ATR8, 9). Result: ...ATR8. (This matches camera scan).
-        
-        val codePart = codeToUse  // batch + serial, full length
+        // For short BLE-name fallback (e.g. 47PV45HHCG0), synthesize a 70-char payload
+        // so native always takes the >=65 branch and derives a stable 16-char sensor id
+        // whose short form matches the BLE name at offset +5.
+        if (codeToUse.length <= 11) {
+            // For BLE-name fallback (no full QR), build a short sensor name where the first
+            // 4 chars mirror BLE tail. This is generic and must not depend on variant markers
+            // like LT*.
+            val shortName = (codeToUse.takeLast(4) + codeToUse).take(11).padEnd(11, '0')
+            val syntheticName16 = "00000$shortName" // short view = chars [5..15]
+            val suffix = "X" // native extracts [len-17, len-1), so suffix is ignored
+            val desiredLen = maxOf(targetLength, 65)
+            val prefixLen = desiredLen - syntheticName16.length - suffix.length
+            val prefixPaddingLen = (prefixLen - magicCode.length).coerceAtLeast(0)
+            val prefix = magicCode + "0".repeat(prefixPaddingLen)
+            return prefix + syntheticName16 + suffix
+        }
 
+        // Generic sensor fallback for batch+serial/manual inputs.
+        val codePart = codeToUse
         val minPrefixLen = 53 - magicCode.length
-        val prefixPadding =
-            if (minPrefixLen > 0) "0".repeat(minPrefixLen) else ""
-
+        val prefixPadding = if (minPrefixLen > 0) "0".repeat(minPrefixLen) else ""
         return magicCode + prefixPadding + codePart
     }
 
@@ -572,8 +579,14 @@ fun ScanSensorStep(
     var showManualEntry by remember { mutableStateOf(false) }
     var handledScan by remember { mutableStateOf(false) }
     var scannerTouchActive by remember { mutableStateOf(false) }
+    var bleProbeScanning by remember { mutableStateOf(true) }
+    var bleProbeDevices by remember { mutableStateOf(listOf<BleDeviceScanner.SibionicsBleDevice>()) }
+    var selectedBleAddress by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val selectedBleDevice = remember(bleProbeDevices, selectedBleAddress) {
+        bleProbeDevices.firstOrNull { it.address == selectedBleAddress }
+    }
     val launchFullscreenScan = rememberUnifiedQrScanLauncher(
         requestCode = tk.glucodata.MainActivity.REQUEST_BARCODE,
         title = stringResource(R.string.sibionics_setup_title),
@@ -587,6 +600,31 @@ fun ScanSensorStep(
 
     DisposableEffect(Unit) {
         onDispose { onScannerTouchInteractionChanged(false) }
+    }
+
+    LaunchedEffect(bleProbeScanning) {
+        if (bleProbeScanning) {
+            try {
+                BleDeviceScanner.scanForSibionicsByService().collect { found ->
+                    bleProbeDevices = bleProbeDevices
+                        .toMutableList()
+                        .apply {
+                            val existingIndex = indexOfFirst { it.address == found.address }
+                            if (existingIndex >= 0) {
+                                this[existingIndex] = found
+                            } else {
+                                add(found)
+                            }
+                        }
+                        .sortedBy { it.name.uppercase() }
+                    if (selectedBleAddress == null) {
+                        selectedBleAddress = found.address
+                    }
+                }
+            } finally {
+                bleProbeScanning = false
+            }
+        }
     }
     
     // Gallery Launcher
@@ -649,9 +687,119 @@ fun ScanSensorStep(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = if (compact) 10.dp else 12.dp, bottom = if (compact) 16.dp else 20.dp)
             )
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(if (compact) 12.dp else 14.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.sibionics_ble_probe_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = stringResource(R.string.sibionics_ble_probe_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            bleProbeDevices = emptyList()
+                            selectedBleAddress = null
+                            bleProbeScanning = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(buttonHeight)
+                    ) {
+                        if (bleProbeScanning) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(if (compact) 18.dp else 20.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.scanning_devices))
+                        } else {
+                            Icon(Icons.Default.BluetoothSearching, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.search_bluetooth))
+                        }
+                    }
+
+                    if (bleProbeDevices.isEmpty() && !bleProbeScanning) {
+                        Text(
+                            text = stringResource(R.string.sibionics_ble_probe_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 10.dp)
+                        )
+                    }
+
+                    if (bleProbeDevices.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        bleProbeDevices.forEach { item ->
+                            val selected = (item.address == selectedBleAddress)
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        text = item.name,
+                                        maxLines = 1
+                                    )
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = "${item.address} • RSSI ${item.rssi}",
+                                        maxLines = 1
+                                    )
+                                },
+                                leadingContent = { Icon(Icons.Default.Bluetooth, contentDescription = null) },
+                                trailingContent = {
+                                    if (selected) {
+                                        Icon(Icons.Default.Check, contentDescription = null)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primaryContainer
+                                        else Color.Transparent
+                                    )
+                                    .clickable { selectedBleAddress = item.address }
+                            )
+                        }
+                    }
+
+                    if (selectedType != SibionicsType.SIBIONICS2 && selectedBleDevice != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = stringResource(R.string.sibionics_ble_selected, selectedBleDevice.name),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onManualEntry(selectedBleDevice.name) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(buttonHeight)
+                        ) {
+                            Text(stringResource(R.string.sibionics_use_fake_qr_from_ble))
+                        }
+                    }
+                }
+            }
         }
 
         item {
+            Spacer(modifier = Modifier.height(sectionGap))
             // Add Gallery Button
             OutlinedButton(
                 onClick = { 

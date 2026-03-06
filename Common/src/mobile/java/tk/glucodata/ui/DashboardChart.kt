@@ -227,10 +227,11 @@ fun InteractiveGlucoseChart(
     val minMaxLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
     val safeExpandedProgress = expandedProgress.coerceIn(0f, 1f)
     val chartLayoutConfiguration = LocalConfiguration.current
-    val isCompactChartLayout = chartLayoutConfiguration.screenWidthDp <= 360 || chartLayoutConfiguration.screenHeightDp <= 700
-    val chartUnderlayBottomDp = ((if (isCompactChartLayout) 88f else 112f) * safeExpandedProgress).dp
+    val screenScale = ((chartLayoutConfiguration.screenHeightDp - 600f) / 300f).coerceIn(0f, 1f)
+    val chartUnderlayBottomDp = ((80f + (152f - 80f) * screenScale) * safeExpandedProgress).dp
     val chartUnderlayBottomPx = with(LocalDensity.current) { chartUnderlayBottomDp.toPx() }
     val chartUnderlayBottomIntPx = with(LocalDensity.current) { chartUnderlayBottomDp.roundToPx() }
+    val labelsLiftPx = with(LocalDensity.current) { (4.dp * safeExpandedProgress).toPx() }
     val chartPlotBottomGapPx = with(LocalDensity.current) { (4.dp * safeExpandedProgress).toPx() }
     val bottomAxisHeightPx = with(LocalDensity.current) { 32.dp.toPx() }
     val axisLabelBackgroundColor = androidx.compose.ui.graphics.lerp(
@@ -1156,7 +1157,7 @@ fun InteractiveGlucoseChart(
                                     formatDate.format(reusableDate)
                                 }
                                 drawContext.canvas.nativeCanvas.drawText(
-                                    dateLabel, x, contentHeight - 25f,
+                                    dateLabel, x, contentHeight - labelsLiftPx - 25f,
                                     xTextPaint.apply { typeface = graphFontBold }
                                 )
                                 xTextPaint.typeface = graphFont
@@ -1168,7 +1169,7 @@ fun InteractiveGlucoseChart(
                                     val mm = if (m < 10) "0$m" else m.toString()
                                     "$hh:$mm"
                                 }
-                                drawContext.canvas.nativeCanvas.drawText(timeLabel, x, contentHeight - 28f, xTextPaint)
+                                drawContext.canvas.nativeCanvas.drawText(timeLabel, x, contentHeight - labelsLiftPx - 28f, xTextPaint)
                             }
                         }
                         tGrid += gridInterval
@@ -1690,7 +1691,7 @@ fun InteractiveGlucoseChart(
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
                                 x = cardXOffset.toInt(),
-                                y = scrubTimeLabelOffsetDp.dp.roundToPx() - chartUnderlayBottomIntPx // Keep chip aligned with visible x-axis band
+                                y = scrubTimeLabelOffsetDp.dp.roundToPx() - (chartUnderlayBottomIntPx + labelsLiftPx.toInt()) // Keep chip aligned with visible x-axis band
                             )
                         }
                         .graphicsLayer { translationX = -size.width / 2f }
@@ -1948,7 +1949,7 @@ fun InteractiveGlucoseChart(
         val baseInterItemSpacing = 2.dp // Consistent 1dp everywhere for ranges
         val baseLabelStyle = MaterialTheme.typography.labelLarge // Richer, chunkier font (16sp) to match bigger layout
 
-        val pickerVerticalOffset = -(chartUnderlayBottomDp + (80.dp * safeExpandedProgress))
+        val pickerVerticalOffset = -(chartUnderlayBottomDp + (8.dp * safeExpandedProgress))
 
         // Two-phase dynamic shrink: measure the ideal pill width against the available
         // screen width. Phase 1 reduces inter-item spacing. Phase 2 scales everything.
@@ -1960,12 +1961,11 @@ fun InteractiveGlucoseChart(
                 .zIndex(1f),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Drag handle: subtle bar that fades in when chart is boosted
             Box(
                 modifier = Modifier
-                    .padding(bottom = 6.dp)
+                    .padding(bottom = 8.dp * safeExpandedProgress)
                     .width(32.dp)
-                    .height(4.dp)
+                    .height(4.dp * safeExpandedProgress)
                     .graphicsLayer { alpha = chartBoostProgress }
                     .background(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),

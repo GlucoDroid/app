@@ -219,6 +219,12 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         // Default empty implementation
     }
 
+    // Optional pre-replay sync hook for drivers that can actively request
+    // latest pending sensor data (Sibionics FF30 path).
+    public boolean requestLatestDataForReplay() {
+        return false;
+    }
+
     static final int mininterval = 55;
     static long nexttime = 0L; // secs
     public static tk.glucodata.GlucoseAlarms glucosealarms = null;
@@ -527,25 +533,82 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     private void handleGlucoseResultInternal(long res, long timmsec, int retryCount) {
         // int glumgdl = (int) (res & 0xFFFFFFFFL);
         int glumgL = (int) (res & 0xFFFFFFFFL);
+        int alarm = (int) ((res >> 48) & 0xFFL);
+        short ratein = (short) ((res >> 32) & 0xFFFFL);
+        float rate = ratein / 1000.0f;
+
+        // Check viewMode early - RAW modes may have data even when calibrated glucose is 0
+        int viewMode = Natives.getViewMode(dataptr);
+        boolean isRawMode = (viewMode == 1 || viewMode == 3);
+
+        // In RAW mode with zero calibrated glucose, try to get raw from history
+        // This handles warmup period where algorithm returns 0 but raw data exists
+        if (glumgL == 0 && isRawMode) {
+            long timeSec = timmsec / 1000L;
+            long[] history = Natives.getGlucoseHistory(timeSec - 30);
+            if (history != null) {
+                for (int i = 0; i < history.length; i += 3) {
+                    if (i + 2 >= history.length)
+                        break;
+                    long hTime = history[i];
+                    if (Math.abs(hTime - timeSec) < 5) {
+                        long rawVal = history[i + 2];
+                        if (rawVal != 0) {
+                            // Found raw value - use it even though calibrated is 0
+                            final float rawMgdl = (float) rawVal / 10.0f;
+                            int mgdlToUse = (int) Math.round(rawMgdl);
+                            float glucoseToUse = rawMgdl;
+                            if (Applic.unit == 1) {
+                                glucoseToUse = glucoseToUse / (float) mgdLmult;
+                            }
+                            // Apply calibration
+                            glucoseToUse = CalibrationManager.INSTANCE.getCalibratedValue(glucoseToUse, timmsec, true);
+                            mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
+                            
+                            if (doLog) {
+                                Log.i(LOG_ID, "RAW mode during warmup: using raw=" + glucoseToUse + " mgdl=" + mgdlToUse);
+                            }
+                            
+                            dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime, sensorgen);
+                            tk.glucodata.logic.CustomAlertManager.INSTANCE.checkAndTrigger(tk.glucodata.Applic.app, glucoseToUse, timmsec);
+                            charcha[0] = timmsec;
+                            
+                            if (!isWearable && Natives.gethealthConnect() && Build.VERSION.SDK_INT >= 28) {
+                                if (dohealth(this)) {
+                                    final long sensorptr = Natives.getsensorptr(dataptr);
+                                    HealthConnection.Companion.writeAll(sensorptr, SerialNumber);
+                                }
+                            }
+                            SensorBluetooth.othersworking(this, timmsec);
+                            return;
+                        }
+                        break;
+                    }
+                }
+            }
+            // No raw found yet - retry if possible
+            if (retryCount < 3) {
+                if (doLog) {
+                    Log.i(LOG_ID, "RAW mode: no raw value found, retrying (" + (retryCount + 1) + "/3)...");
+                }
+                Applic.scheduler.schedule(() -> handleGlucoseResultInternal(res, timmsec, retryCount + 1), 200, TimeUnit.MILLISECONDS);
+                return;
+            }
+        }
+
         if (glumgL != 0) {
-            int alarm = (int) ((res >> 48) & 0xFFL);
             if (doLog) {
                 Log.i(LOG_ID, SerialNumber + " alarm=" + alarm);
             }
             ;
-            ;
 
             final float gl = Applic.unit == 1 ? glumgL / (mgdLmult * 10.0f) : glumgL / 10.0f;
-
-            short ratein = (short) ((res >> 32) & 0xFFFFL);
-            float rate = ratein / 1000.0f;
 
             // LOGIC TO USE RAW VALUE IF VIEWMODE SPECIES SO
             float glucoseToUse = gl;
             int mgdlToUse = (int) Math.round(glumgL / 10.0f);
 
-            int viewMode = Natives.getViewMode(dataptr);
-            if (viewMode == 1 || viewMode == 3) {
+            if (isRawMode) {
                 long timeSec = timmsec / 1000L;
                 long[] history = Natives.getGlucoseHistory(timeSec - 30); // Look back 30s to be safe
                 boolean found = false;
@@ -556,6 +619,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         long hTime = history[i];
                         if (Math.abs(hTime - timeSec) < 5) { // Allow small time diff
                             long rawVal = history[i + 2];
+                            if (rawVal <= 0) {
+                                continue;
+                            }
                             found = true;
                             // rawVal is mg/dL * 10
                             final float rawMgdl = (float) rawVal / 10.0f;
@@ -583,7 +649,6 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             }
 
             // Apply Kotlin calibration if enabled
-            boolean isRawMode = (viewMode == 1 || viewMode == 3);
             glucoseToUse = CalibrationManager.INSTANCE.getCalibratedValue(glucoseToUse, timmsec, isRawMode);
             mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
 
@@ -749,11 +814,14 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     private Runnable getConnectDevice() {
         var cb = this;
         if (cb.mBluetoothGatt != null) {
+            // FIX: mBluetoothGatt != null does NOT mean "connected" - it means
+            // "we have a GATT object reference". After disconnect(), mBluetoothGatt
+            // stays non-null even though the connection is dead. Force close any
+            // stale reference to allow reconnection (fixes Sibionics 1 CN reconnect bug).
             if (doLog)
-                Log.d(LOG_ID, SerialNumber + " getConnectDevice: already connected");
-            return null;
+                Log.d(LOG_ID, SerialNumber + " getConnectDevice: clearing stale mBluetoothGatt");
+            close();
         }
-        close();
         if (cb.mActiveDeviceAddress == null || cb.mActiveBluetoothDevice == null) {
             {
                 if (doLog) {

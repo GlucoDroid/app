@@ -239,10 +239,13 @@ public class PhotoScan {
 
     private static boolean looksLikeSibionicsPayload(String text) {
         final String upper = text.toUpperCase(Locale.ROOT);
+        final boolean hasAi21Token = upper.contains("(21)") || upper.contains("\u001D21")
+                || upper.contains("^]21") || upper.contains("21P2");
+        final boolean hasAi10Token = upper.contains("(10)") || upper.contains("\u001D10")
+                || upper.contains("^]10");
         return upper.contains(SIBIONICS_GTIN_NO_LEADING_ZERO)
                 || upper.contains("(SI)")
-                || (upper.contains("LT4") && (upper.contains("(21)") || upper.contains("\u001D21")
-                        || upper.contains("^]21") || upper.contains("21P2")));
+                || (hasAi10Token && hasAi21Token);
     }
 
     private static String buildCanonicalSibionicsPayload(String input) {
@@ -347,6 +350,52 @@ public class PhotoScan {
         return out;
     }
 
+    private static String expandCompactSibionicsFakePayload(String input) {
+        if (input == null || input.isEmpty()) {
+            return null;
+        }
+        final String compact = input.toUpperCase(Locale.ROOT).replace(" ", "");
+        if (!compact.startsWith(SIBIONICS_GTIN)) {
+            return null;
+        }
+        if (compact.contains("^]") || compact.indexOf('\u001D') >= 0
+                || compact.contains("(10)") || compact.contains("(21)")) {
+            return null;
+        }
+        if (compact.length() < SIBIONICS_GTIN.length() + 8) {
+            return null;
+        }
+
+        final String suffix = compact.substring(SIBIONICS_GTIN.length());
+        int nonZero = 0;
+        while (nonZero < suffix.length() && suffix.charAt(nonZero) == '0') {
+            nonZero++;
+        }
+        final String tail = suffix.substring(nonZero);
+        if (tail.length() < 4 || tail.length() > 11) {
+            return null;
+        }
+
+        String shortName;
+        if (tail.startsWith("LT") && tail.length() >= 8) {
+            shortName = (tail.substring(tail.length() - 4) + tail);
+        } else {
+            shortName = tail;
+        }
+        if (shortName.length() > 11) {
+            shortName = shortName.substring(0, 11);
+        } else if (shortName.length() < 11) {
+            shortName = "0".repeat(11 - shortName.length()) + shortName;
+        }
+
+        final String syntheticName16 = "00000" + shortName;
+        final String rebuilt = SIBIONICS_GTIN + "0".repeat(SIBIONICS_PREFIX_PADDING) + syntheticName16 + "X";
+        if (doLog) {
+            Log.i(LOG_ID, "Expanded compact Sibionics fake payload to long sensor format");
+        }
+        return rebuilt;
+    }
+
     private static String delimitCompactSibionicsPayload(String input) {
         if (input == null || input.isEmpty()) {
             return null;
@@ -407,6 +456,15 @@ public class PhotoScan {
                     Log.i(LOG_ID, "Inserted missing GTIN leading zero for Sibionics QR payload");
                 }
                 normalized = normalized.substring(0, idx) + "0" + normalized.substring(idx);
+            }
+        }
+
+        final String expandedFake = expandCompactSibionicsFakePayload(normalized);
+        if (expandedFake != null) {
+            normalized = expandedFake;
+            if (doLog) {
+                Log.i(LOG_ID, "Sibionics fake payload normalize len=" + normalized.length()
+                        + " payload=" + printableScanPreview(normalized));
             }
         }
 

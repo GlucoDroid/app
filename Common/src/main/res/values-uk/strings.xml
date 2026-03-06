@@ -867,6 +867,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="insight_excellent_control">Відмінний контроль!</string>
     <string name="insight_excellent_control_desc">Ви витрачаєте %1$d%% в діапазоні - вище цільового значення 70%%!</string>
     <string name="insight_good_progress">Хороший прогрес</string>
+    <string name="show_sensors_only">Показувати лише сенсори</string>
+    <string name="see_all_devices">Показати всі пристрої</string>
+    <string name="aidex_not_recognized">%1$s • не розпізнано як AiDex</string>
+    <string name="aidex_selectable_unrecognized">%1$s • вибірний пристрій сімейства AiDex</string>
+    <string name="aidex_detected_via_ff30">%1$s • можна вибрати через виявлення FF30</string>
     <string name="insight_good_progress_desc">%1$d%% час у діапазоні. Прагніть до 70%%+ для оптимального контролю.</string>
     <string name="insight_room_improvement">Простір для вдосконалення</string>
     <string name="insight_room_improvement_desc">Зараз на %1$d%% TIR. Подумайте про обговорення з вашою медичною командою.</string>
@@ -1159,4 +1164,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_initial_shown_status">Показані початкові значення</string>
     <string name="calibration_lock_past_history_title">Фіксувати минулу історію</string>
     <string name="calibration_lock_past_history_subtitle">Використовувати лише точки калібрування на момент або до часу кожного показання.</string>
+    <string name="sibionics_ble_probe_title">Поруч Sibionics BLE (FF30)</string>
+    <string name="sibionics_ble_probe_desc">Якщо датчик з’явився тут, Bluetooth працює. Для повного налаштування все одно краще сканувати QR.</string>
+    <string name="sibionics_ble_probe_empty">Пристрої Sibionics FF30 поки не знайдено.</string>
+    <string name="sibionics_ble_selected">Вибрано: %1$s</string>
+    <string name="sibionics_use_fake_qr_from_ble">Використати фейковий QR з цієї BLE-назви</string>
+    <string name="wear_transport">Wear transport</string>
+    <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
+    <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
+    <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
+    <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
+    <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="web_server_desc">Вебсервер, сумісний із Nightscout</string>
+    <string name="invalid_interval">Invalid interval value</string>
 </resources>

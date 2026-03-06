@@ -1048,27 +1048,16 @@ public:
             continue;
           }
 
-          if (sensor.maxtime() <= oldsecs) {
-            LOGGER("blueactive %s old %u\n", showsensorname(i),
-                   sensor.maxtime());
-            break;
-          }
           const SensorGlucoseData *hist = getSensorData(i);
           if (!hist) {
             LOGSTRING("hist==null\n");
             continue;
           }
-          const auto sensmax = hist->getmaxtime();
-          if (sensmax <= nu) {
-            // PER USER REQUEST: Never expire sensors automatically.
-            // "all i want it so that sensors never suddenly dissapear from my
-            // list regardless of its state/age/date/etc" We just log that it's
-            // technically expired, but we DO NOT skip it.
-            LOGGER("blueactive %s expired (sensmax=%u) but KEEPING ACTIVE per "
-                   "user preference\n",
-                   showsensorname(i), sensmax);
-            // if (sensmax < oldsecs) break; // Disable optimization to ensure
-            // we see all sensors continue; // Disable skipping
+
+          const auto sensmax = hist->lastused();  // Use actual last data time, not expected max time
+          if (sensmax <= oldsecs) {
+            LOGGER("blueactive %s old %u\n", showsensorname(i), sensmax);
+            break;
           }
           const auto lasttime = hist->lastused();
           bool canuse = hist->canusestreaming();

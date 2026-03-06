@@ -35,6 +35,7 @@ import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.ui.util.BleDeviceScanner
 import tk.glucodata.ui.util.rememberBleScanner
+import java.util.UUID
 
 enum class AiDexSetupStep {
     SCAN,
@@ -105,7 +106,7 @@ fun AiDexSetupWizard(
                     ui = ui,
                     vendorLibAvailable = vendorLibAvailable,
                     onUploadProprietary = launchUploadPickerSafely,
-                    onDeviceSelected = { rawName, address ->
+                    onDeviceSelected = { selectedName, address ->
                         try {
                             if (!vendorLibAvailable) {
                                 Toast.makeText(context, context.getString(R.string.wronglibrary), Toast.LENGTH_LONG).show()
@@ -117,11 +118,11 @@ fun AiDexSetupWizard(
                                 Toast.makeText(context, context.getString(R.string.wronglibrary), Toast.LENGTH_LONG).show()
                                 return@AiDexScanStep
                             }
-                            val name = normalizeAiDexSerial(rawName)
-                            if (name == null) {
+                            val name = selectedName.trim()
+                            if (name.isEmpty()) {
                                 Toast.makeText(
                                     context,
-                                    context.getString(R.string.aidex_parse_error, rawName),
+                                    context.getString(R.string.aidex_parse_error, selectedName),
                                     Toast.LENGTH_LONG
                                 ).show()
                                 return@AiDexScanStep
@@ -198,7 +199,11 @@ fun AiDexScanStep(
 ) {
     data class ScanCandidate(
         val address: String,
-        val rawName: String
+        val rawName: String,
+        val selectionName: String,
+        val serial: String?,
+        val isLikelyAiDex: Boolean,
+        val detectedViaFf30: Boolean,
     )
 
     val context = LocalContext.current
@@ -209,6 +214,7 @@ fun AiDexScanStep(
     var scanRetryKey by remember { mutableStateOf(0) }
     var scanError by remember { mutableStateOf<BleDeviceScanner.ScanStartError?>(null) }
     var requestedPermissionOnce by remember { mutableStateOf(false) }
+    var showAllDevices by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -244,7 +250,7 @@ fun AiDexScanStep(
     }
 
     // Start Scanning Effect
-    DisposableEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey) {
+    DisposableEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey, showAllDevices) {
         if (!scanPermissionGranted || !bluetoothEnabled) {
             scanner.stopScan()
             return@DisposableEffect onDispose { scanner.stopScan() }
@@ -253,25 +259,33 @@ fun AiDexScanStep(
         scanner.startScan(
             onResult = { result ->
                 val device = result.device
-                val name = try {
-                    device.name ?: result.scanRecord?.deviceName
-                } catch (_: SecurityException) {
-                    null
-                } ?: return@startScan
                 val address = try {
                     device.address
                 } catch (_: SecurityException) {
                     null
                 } ?: return@startScan
+                val record = result.scanRecord
+                val candidate = detectAiDexCandidate(
+                    address = address,
+                    deviceName = try {
+                        device.name
+                    } catch (_: SecurityException) {
+                        null
+                    },
+                    scanRecordName = record?.deviceName,
+                    scanRecordBytes = record?.bytes,
+                    advertisedServiceUuids = record?.serviceUuids?.map { it.uuid }
+                )
 
-                normalizeAiDexSerial(name) ?: return@startScan
-                // val mfg = record?.getManufacturerSpecificData(0x59)
-                // Relaxed filter: Don't check for 0x59 manufacturer ID to support variants (Linx, Lumiflex)
-                // if (record != null && mfg == null) return@startScan
+                if (!showAllDevices && !candidate.isLikelyAiDex) return@startScan
                 if (devices.none { it.address == address }) {
                     devices = devices + ScanCandidate(
                         address = address,
-                        rawName = name
+                        rawName = candidate.displayName,
+                        selectionName = candidate.selectionName,
+                        serial = candidate.serial,
+                        isLikelyAiDex = candidate.isLikelyAiDex,
+                        detectedViaFf30 = candidate.detectedViaFf30,
                     )
                 }
             },
@@ -290,11 +304,29 @@ fun AiDexScanStep(
     Column(modifier = Modifier.fillMaxSize()) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(ui.spacerMedium))
-        Text(
-            stringResource(R.string.aidex_searching_sensors),
-            modifier = Modifier.padding(ui.horizontalPadding),
-            style = MaterialTheme.typography.titleMedium
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = ui.horizontalPadding),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.aidex_searching_sensors),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium
+            )
+            TextButton(
+                onClick = { showAllDevices = !showAllDevices }
+            ) {
+                Text(
+                    if (showAllDevices) {
+                        stringResource(R.string.show_sensors_only)
+                    } else {
+                        stringResource(R.string.see_all_devices)
+                    }
+                )
+            }
+        }
         if (!scanPermissionGranted || !bluetoothEnabled || scanError != null) {
             Spacer(Modifier.height(ui.spacerMedium))
             Card(
@@ -365,18 +397,36 @@ fun AiDexScanStep(
                 }
             }
         }
-        
+
         LazyColumn {
             items(devices) { device ->
                 val name = device.rawName.ifBlank { stringResource(R.string.unknown) }
-                val serial = normalizeAiDexSerial(name)
-                if (serial == null) return@items
+                val serial = device.serial
+
+                // If we're in "sensors only" mode, skip non-matching devices.
+                if (!showAllDevices && !device.isLikelyAiDex) return@items
+
+                val canSelect = vendorLibAvailable && (device.isLikelyAiDex || showAllDevices)
+
                 ListItem(
-                    headlineContent = { Text("$name ($serial)") },
-                    supportingContent = { Text(device.address) },
+                    headlineContent = {
+                        Text(
+                            if (serial != null) "$name ($serial)" else name
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            when {
+                                serial != null -> device.address
+                                device.detectedViaFf30 -> stringResource(R.string.aidex_detected_via_ff30, device.address)
+                                device.isLikelyAiDex -> stringResource(R.string.aidex_selectable_unrecognized, device.address)
+                                else -> stringResource(R.string.aidex_not_recognized, device.address)
+                            }
+                        )
+                    },
                     leadingContent = { Icon(Icons.Default.Bluetooth, null) },
-                    modifier = Modifier.clickable(enabled = vendorLibAvailable) {
-                        onDeviceSelected(name, device.address) 
+                    modifier = Modifier.clickable(enabled = canSelect) {
+                        onDeviceSelected(device.selectionName, device.address)
                     }
                 )
                 HorizontalDivider()
@@ -395,7 +445,7 @@ private fun normalizeAiDexSerial(rawName: String): String? {
 
     // Some AiDex family sensors advertise with a product prefix (for example "Vista-...")
     // instead of the canonical "X-..." serial format used internally by the app.
-    val familyPrefixed = Regex("(?:AIDEX|LINX|LUMIFLEX|VISTA)\\s*[-_]?\\s*([A-Z0-9]{8,})", RegexOption.IGNORE_CASE)
+    val familyPrefixed = Regex("(?:AIDEX|LINX|LUMI|VISTA)\\s*[-_]?\\s*([A-Z0-9]{8,})", RegexOption.IGNORE_CASE)
     val familyMatch = familyPrefixed.find(rawName)
     if (familyMatch != null) {
         val body = familyMatch.groupValues[1].uppercase()
@@ -407,6 +457,111 @@ private fun normalizeAiDexSerial(rawName: String): String? {
         return "X-${cleaned.uppercase()}"
     }
     return null
+}
+
+private data class AiDexScanDetection(
+    val displayName: String,
+    val selectionName: String,
+    val serial: String?,
+    val isLikelyAiDex: Boolean,
+    val detectedViaFf30: Boolean,
+)
+
+private val AIDEX_CGM_SERVICE_UUID: UUID = UUID.fromString("0000181f-0000-1000-8000-00805f9b34fb")
+private val AIDEX_VENDOR_SERVICE_UUID: UUID = UUID.fromString("0000f000-0000-1000-8000-00805f9b34fb")
+private val AIDEX_FF30_SERVICE_UUID: UUID = UUID.fromString("0000ff30-0000-1000-8000-00805f9b34fb")
+
+private fun detectAiDexCandidate(
+    address: String,
+    deviceName: String?,
+    scanRecordName: String?,
+    scanRecordBytes: ByteArray?,
+    advertisedServiceUuids: List<UUID>?,
+): AiDexScanDetection {
+    val localName = extractAiDexLocalName(scanRecordBytes)
+    val names = linkedSetOf<String>()
+    listOf(deviceName, scanRecordName, localName)
+        .mapNotNull { it?.trim()?.takeIf(String::isNotBlank) }
+        .forEach { names.add(it) }
+
+    val serial = names.firstNotNullOfOrNull { normalizeAiDexSerial(it) }
+    val nameLooksAiDex = names.any(::looksLikeAiDexFamilyName)
+    val hasFf30 = advertisedServiceUuids?.contains(AIDEX_FF30_SERVICE_UUID) == true ||
+        scanRecordAdvertises16BitService(scanRecordBytes, 0xFF30)
+    val hasPrimaryServiceHint =
+        advertisedServiceUuids?.any { it == AIDEX_CGM_SERVICE_UUID || it == AIDEX_VENDOR_SERVICE_UUID } == true ||
+            scanRecordAdvertises16BitService(scanRecordBytes, 0x181F) ||
+            scanRecordAdvertises16BitService(scanRecordBytes, 0xF000)
+    val isLikelyAiDex = serial != null || nameLooksAiDex || hasFf30 || hasPrimaryServiceHint
+    val displayName = names.firstOrNull() ?: address
+    val selectionName = serial ?: fallbackAiDexSerial(address)
+    return AiDexScanDetection(
+        displayName = displayName,
+        selectionName = selectionName,
+        serial = serial,
+        isLikelyAiDex = isLikelyAiDex,
+        detectedViaFf30 = hasFf30,
+    )
+}
+
+private fun looksLikeAiDexFamilyName(rawName: String): Boolean {
+    val lowered = rawName.lowercase()
+    return lowered.contains("aidex") ||
+        lowered.contains("linx") ||
+        lowered.contains("lumi") ||
+        lowered.contains("vista")
+}
+
+private fun fallbackAiDexSerial(address: String): String {
+    val body = address.filter(Char::isLetterOrDigit).uppercase()
+    return "X-$body"
+}
+
+private fun extractAiDexLocalName(scanRecord: ByteArray?): String? {
+    if (scanRecord == null) return null
+    var offset = 0
+    while (offset < scanRecord.size - 1) {
+        val len = scanRecord[offset].toInt() and 0xFF
+        if (len == 0) break
+        val next = offset + len + 1
+        if (next > scanRecord.size) break
+        val type = scanRecord[offset + 1].toInt() and 0xFF
+        if (type == 0x08 || type == 0x09) {
+            val start = offset + 2
+            if (next > start) {
+                return try {
+                    String(scanRecord, start, next - start, Charsets.UTF_8)
+                } catch (_: Throwable) {
+                    null
+                }
+            }
+        }
+        offset = next
+    }
+    return null
+}
+
+private fun scanRecordAdvertises16BitService(scanRecord: ByteArray?, serviceShortUuid: Int): Boolean {
+    if (scanRecord == null) return false
+    var offset = 0
+    while (offset < scanRecord.size - 1) {
+        val len = scanRecord[offset].toInt() and 0xFF
+        if (len == 0) break
+        val next = offset + len + 1
+        if (next > scanRecord.size) break
+        val type = scanRecord[offset + 1].toInt() and 0xFF
+        if (type == 0x02 || type == 0x03) {
+            var uuidOffset = offset + 2
+            while (uuidOffset + 1 < next) {
+                val uuid = (scanRecord[uuidOffset].toInt() and 0xFF) or
+                    ((scanRecord[uuidOffset + 1].toInt() and 0xFF) shl 8)
+                if (uuid == serviceShortUuid) return true
+                uuidOffset += 2
+            }
+        }
+        offset = next
+    }
+    return false
 }
 
 private fun requiredBleScanPermissions(): Array<String> {

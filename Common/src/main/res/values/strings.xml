@@ -827,6 +827,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_connection_failed">Connection failed</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnected">Disconnected</string>
+    <string name="status_waiting_for_data">Connected, waiting for data...</string>
+    <string name="status_raw_values_received">Connected, raw values received</string>
     
     <string name="select_sensor_type">Select sensor type</string>
     <string name="choose_theme">Choose theme</string>
@@ -862,6 +864,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="aidex_connecting_to">Connecting to %1$s...</string>
     <string name="aidex_connected">Connected!</string>
     <string name="finish_setup">Finish</string>
+    <string name="show_sensors_only">Show sensors only</string>
+    <string name="see_all_devices">See all devices</string>
+    <string name="aidex_not_recognized">%1$s • not recognized as AiDex</string>
+    <string name="aidex_selectable_unrecognized">%1$s • selectable AiDex-family device</string>
+    <string name="aidex_detected_via_ff30">%1$s • selectable via FF30 detection</string>
     
     <!-- Statistics Screen Strings -->
     <string name="statistics_title">Statistics</string>
@@ -1310,4 +1317,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_overwrite_values_subtitle">Write in DB for statistics, reports, and export.</string>
     <string name="calibration_visual_continuity_subtitle">Visual mode: continue calibrating from the value you currently see.</string>
     <string name="scan_with_follower">Scan this QR Code on the Follower device</string>
+    <string name="sibionics_ble_probe_title">Nearby Sibionics BLE (FF30)</string>
+    <string name="sibionics_ble_probe_desc">If your sensor appears here, Bluetooth is alive. QR scan is still preferred for full setup.</string>
+    <string name="sibionics_ble_probe_empty">No FF30 Sibionics devices found yet.</string>
+    <string name="sibionics_ble_selected">Selected: %1$s</string>
+    <string name="sibionics_use_fake_qr_from_ble">Use fake QR info from this BLE name</string>
+    <string name="wear_transport">Wear transport</string>
+    <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
+    <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
+    <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
+    <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
+    <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="web_server_desc">Nightscout-compatible web server</string>
+    <string name="invalid_interval">Invalid interval value</string>
 </resources>

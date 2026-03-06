@@ -55,12 +55,24 @@ public class AlgNfcV {
         return nfccmd(tag, new byte[]{38, 1, 0}) != null;
     }
     static boolean enableStreaming(final Tag tag, byte[] info) {
-    if(getversion(info)==2) 
-        return gen2enablestreaming(tag);
-    return EUenableStreaming(tag, info);
+        final int version = getversion(info);
+        if (version == 2)
+            return gen2enablestreaming(tag);
+
+        final boolean euEnabled = EUenableStreaming(tag, info, version == 0);
+        if (euEnabled)
+            return true;
+
+        // Some regional Libre2 variants report an unknown generation (0) while still
+        // requiring the Gen2 NFC auth path for BLE bootstrap.
+        if (version == 0) {
+            {if(doLog) {Log.i(LOG_ID, "Unknown Libre generation, trying Gen2 BLE enable fallback");};};
+            return gen2enablestreaming(tag);
+        }
+        return false;
     }
 
-    static boolean EUenableStreaming(final Tag tag, byte[] info) {
+    static boolean EUenableStreaming(final Tag tag, byte[] info, boolean unknownGeneration) {
         byte[] uid = tag.getId();
         byte[] payload = bluetoothOnKey(uid, info);
         if (payload != null) {
@@ -72,7 +84,11 @@ public class AlgNfcV {
             Natives.bluetoothback(uid, info);
             return false;
         }
-        Natives.enabledStreaming(uid, info,2,null); //don't try to enable again
+        // "2" means "don't try BLE bootstrap again". Keep that behavior for known
+        // generations, but avoid hard-locking unknown profiles into NFC-only mode.
+        if (!unknownGeneration) {
+            Natives.enabledStreaming(uid, info,2,null); //don't try to enable again
+        }
         log("payload==null");
         return false;
     }
@@ -303,6 +319,5 @@ static    private byte[] readoncedata(NfcV nfc, byte[] uid,int start, int len) {
     }
 
 }
-
 
 

@@ -866,6 +866,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="cv_description">Коэффициент вариации: стандартное отклонение, деленное на средний уровень глюкозы. Более низкие значения указывают на более стабильный уровень глюкозы.</string>
     <string name="std_dev_short">Стд. откл.</string>
     <string name="std_dev_description">Стандартное отклонение: типичное расстояние показаний от среднего уровня глюкозы.</string>
+    <string name="show_sensors_only">Показывать только сенсоры</string>
+    <string name="see_all_devices">Показать все устройства</string>
+    <string name="aidex_not_recognized">%1$s • не распознано как AiDex</string>
+    <string name="aidex_selectable_unrecognized">%1$s • выбираемое устройство семейства AiDex</string>
+    <string name="aidex_detected_via_ff30">%1$s • можно выбрать через определение FF30</string>
 
     <string name="sensor_battery_voltage">Батарея</string>
     <string name="time_in_range">Время в диапазоне</string>
@@ -1187,4 +1192,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_overwrite_values_title">Записывать калиброванные значения</string>
     <string name="calibration_overwrite_values_subtitle">Запись в БД для статистики, отчётов и экспорта.</string>
     <string name="calibration_visual_continuity_subtitle">Визуальный режим: следующая калибровка от текущего отображаемого значения.</string>
+    <string name="sibionics_ble_probe_title">Поблизости Sibionics BLE (FF30)</string>
+    <string name="sibionics_ble_probe_desc">Если датчик появился здесь, Bluetooth работает. Для полной настройки всё равно предпочтительно сканировать QR.</string>
+    <string name="sibionics_ble_probe_empty">Устройства Sibionics FF30 пока не найдены.</string>
+    <string name="sibionics_ble_selected">Выбрано: %1$s</string>
+    <string name="sibionics_use_fake_qr_from_ble">Использовать фейковый QR из этого BLE-имени</string>
+    <string name="wear_transport">Транспорт Wear</string>
+    <string name="wear_transport_desc">Настройка обмена данных с Wear OS и состояния синхронизации.</string>
+    <string name="wear_transport_runtime_available">Транспорт Wear доступен.</string>
+    <string name="wear_transport_runtime_unavailable">Транспорт Wear недоступен в текущем сеансе приложения.</string>
+    <string name="wear_transport_gms_unavailable">Сервисы Google Play недоступны; транспорт Wear отключен.</string>
+    <string name="wear_transport_reinit_desc">Принудительно перезапустить поиск часов и синхронизацию сети.</string>
+    <string name="web_server_desc">Веб-сервер, совместимый с Nightscout</string>
+    <string name="invalid_interval">Неверное значение интервала</string>
 </resources>

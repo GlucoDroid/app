@@ -867,6 +867,11 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="standard_deviation">Standart Sapma: %1$s %2$s</string>
     <string name="gmi_title">Glikoz Yönetimi Göstergesi</string>
     <string name="gmi_description">Glikoz verilerinize göre tahmini A1C</string>
+    <string name="show_sensors_only">Yalnızca sensörleri göster</string>
+    <string name="see_all_devices">Tüm cihazları gör</string>
+    <string name="aidex_not_recognized">%1$s • AiDex olarak tanınmadı</string>
+    <string name="aidex_selectable_unrecognized">%1$s • seçilebilir AiDex ailesi cihazı</string>
+    <string name="aidex_detected_via_ff30">%1$s • FF30 algılamasıyla seçilebilir</string>
     <string name="gmi_target">Hedef</string>
     <string name="gmi_target_value">&lt;%7,0</string>
     <string name="hourly_patterns">Saatlik Formasyonlar</string>
@@ -1173,4 +1178,17 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="calibration_initial_shown_status">Gösterilen başlangıç ​​değerleri</string>
     <string name="calibration_lock_past_history_title">Geçmişi kilitle</string>
     <string name="calibration_lock_past_history_subtitle">Her ölçüm için yalnızca o anda veya öncesindeki kalibrasyon noktalarını kullan.</string>
+    <string name="sibionics_ble_probe_title">Yakındaki Sibionics BLE (FF30)</string>
+    <string name="sibionics_ble_probe_desc">Sensör burada görünüyorsa Bluetooth çalışıyor demektir. Tam kurulum için QR taraması yine de tercih edilir.</string>
+    <string name="sibionics_ble_probe_empty">Henüz FF30 Sibionics cihazı bulunamadı.</string>
+    <string name="sibionics_ble_selected">Seçilen: %1$s</string>
+    <string name="sibionics_use_fake_qr_from_ble">Bu BLE adından sahte QR bilgisi kullan</string>
+    <string name="wear_transport">Wear transport</string>
+    <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
+    <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
+    <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
+    <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
+    <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="web_server_desc">Nightscout uyumlu web sunucusu</string>
+    <string name="invalid_interval">Invalid interval value</string>
 </resources>

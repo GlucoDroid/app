@@ -867,6 +867,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="gvi_title">Glukosvariabilitetsindex</string>
     <string name="gvi_description">Mäter glukosstabilitet och variabilitetsmönster</string>
     <string name="psg_title">Personligt glykemiskt tillstånd</string>
+    <string name="show_sensors_only">Visa endast sensorer</string>
+    <string name="see_all_devices">Se alla enheter</string>
+    <string name="aidex_not_recognized">%1$s • känns inte igen som AiDex</string>
+    <string name="aidex_selectable_unrecognized">%1$s • valbar enhet i AiDex-familjen</string>
+    <string name="aidex_detected_via_ff30">%1$s • valbar via FF30-detektering</string>
     <string name="psg_description">Din personliga glukosbaslinje och trender</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">12.00</string>
@@ -1145,4 +1150,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_initial_shown_status">Initiala värden visas</string>
     <string name="calibration_lock_past_history_title">Lås tidigare historik</string>
     <string name="calibration_lock_past_history_subtitle">Använd endast kalibreringspunkter vid eller före varje avläsning.</string>
+    <string name="sibionics_ble_probe_title">Sibionics BLE i närheten (FF30)</string>
+    <string name="sibionics_ble_probe_desc">Om sensorn visas här fungerar Bluetooth. QR-skanning rekommenderas fortfarande för fullständig konfiguration.</string>
+    <string name="sibionics_ble_probe_empty">Inga Sibionics FF30-enheter hittades ännu.</string>
+    <string name="sibionics_ble_selected">Vald: %1$s</string>
+    <string name="sibionics_use_fake_qr_from_ble">Använd falsk QR-info från detta BLE-namn</string>
+    <string name="wear_transport">Wear transport</string>
+    <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
+    <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
+    <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
+    <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
+    <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="web_server_desc">Nightscout-kompatibel webbserver</string>
+    <string name="invalid_interval">Invalid interval value</string>
 </resources>

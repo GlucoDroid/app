@@ -88,6 +88,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.lerp
+import android.content.res.Configuration
 import kotlin.math.cos
 import kotlin.math.sin
 import tk.glucodata.R
@@ -179,6 +180,7 @@ fun DashboardCombinedHeader(
         }
     }
     val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isCompactWidth = configuration.screenWidthDp < 390
     val startPadding = if (isCompactWidth) 20.dp else 28.dp
     val trendIconSize = if (isCompactWidth) 34.dp else 40.dp
@@ -230,73 +232,63 @@ fun DashboardCombinedHeader(
         label = "SensorBottomStartRadius"
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(androidx.compose.foundation.layout.IntrinsicSize.Min), // Equal height
-        horizontalArrangement = Arrangement.spacedBy(4.dp) // 12dp Gap
-    ) {
-        // --- LEFT CARD: GLUCOSE (2/3) ---
-        // HERO CARD: M3 Expressive Adaptive Layout
+    // 1. Resolve Values using shared logic (with calibration if active)
+    val dvs = remember(latestPoint, viewMode, currentGlucose, calibratedValue) {
+        if (latestPoint != null) {
+            getDisplayValues(latestPoint, viewMode, "", calibratedValue)
+        } else {
+            null
+        }
+    }
 
-        // 1. Resolve Values using shared logic (with calibration if active)
-        val dvs = remember(latestPoint, viewMode, currentGlucose, calibratedValue) {
-            if (latestPoint != null) {
-                getDisplayValues(latestPoint, viewMode, "", calibratedValue)
-            } else {
-                null
-            }
-        }
+    val primaryText = dvs?.primaryStr ?: currentGlucose
+    val secondaryText = dvs?.secondaryStr
+    val tertiaryText = dvs?.tertiaryStr
+    val hasSecondary = secondaryText != null
+    val hasTertiary = tertiaryText != null
+    val hasThreeValues = hasSecondary && hasTertiary
+    val primaryValueStyle = if (isCompactWidth) {
+        MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.SemiBold)
+    } else {
+        MaterialTheme.typography.displayLargeExpressive
+    }
+    val secondaryInlineStyle = if (isCompactWidth) {
+        MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium)
+    } else {
+        MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Medium)
+    }
+    val slashStyle = if (isCompactWidth) {
+        MaterialTheme.typography.headlineMedium
+    } else {
+        MaterialTheme.typography.headlineLarge
+    }
+    val secondaryThreeValueStyle = if (isCompactWidth) {
+        MaterialTheme.typography.titleMedium.copy(
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.18.sp
+        )
+    } else {
+        MaterialTheme.typography.titleLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.12.sp
+        )
+    }
+    val tertiaryThreeValueStyle = if (isCompactWidth) {
+        MaterialTheme.typography.titleSmall.copy(
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.22.sp
+        )
+    } else {
+        MaterialTheme.typography.titleMedium.copy(
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.18.sp
+        )
+    }
 
-        val primaryText = dvs?.primaryStr ?: currentGlucose
-        val secondaryText = dvs?.secondaryStr
-        val tertiaryText = dvs?.tertiaryStr
-        val hasSecondary = secondaryText != null
-        val hasTertiary = tertiaryText != null
-        val hasThreeValues = hasSecondary && hasTertiary
-        val primaryValueStyle = if (isCompactWidth) {
-            MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.SemiBold)
-        } else {
-            MaterialTheme.typography.displayLargeExpressive
-        }
-        val secondaryInlineStyle = if (isCompactWidth) {
-            MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium)
-        } else {
-            MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Medium)
-        }
-        val slashStyle = if (isCompactWidth) {
-            MaterialTheme.typography.headlineMedium
-        } else {
-            MaterialTheme.typography.headlineLarge
-        }
-        val secondaryThreeValueStyle = if (isCompactWidth) {
-            MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.18.sp
-            )
-        } else {
-            MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.12.sp
-            )
-        }
-        val tertiaryThreeValueStyle = if (isCompactWidth) {
-            MaterialTheme.typography.titleSmall.copy(
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.22.sp
-            )
-        } else {
-            MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.18.sp
-            )
-        }
-
+    val heroCard: @Composable (Modifier) -> Unit = { modifier ->
         Card(
             onClick = onHeroClick,
-            modifier = Modifier
-                .weight(0.7f)
-                .fillMaxHeight(),
+            modifier = modifier,
             colors = CardDefaults.cardColors(
                 containerColor = glucoseContainerColor,
                 contentColor = glucoseContentColor
@@ -308,60 +300,60 @@ fun DashboardCombinedHeader(
                 bottomStart = heroBottomStart
             )
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = startPadding, end = 16.dp, top = 12.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Start
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
+            if (isLandscape) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = startPadding, end = 16.dp, top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    AnimatedContent(
-                        targetState = primaryText,
-                        transitionSpec = {
-                            (slideInVertically(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) { -it / 2 } + fadeIn(tween(200)))
-                                .togetherWith(slideOutVertically(spring(stiffness = Spring.StiffnessMedium)) { it / 2 } + fadeOut(tween(100)))
-                        },
-                        label = "GlucoseHeroAnimation"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = primaryText,
-                            style = primaryValueStyle,
-                            color = glucoseContentColor,
-                            softWrap = false,
-                            maxLines = 1
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                            AnimatedContent(
+                                targetState = primaryText,
+                                transitionSpec = {
+                                    (slideInVertically(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) { -it / 2 } + fadeIn(tween(200)))
+                                        .togetherWith(slideOutVertically(spring(stiffness = Spring.StiffnessMedium)) { it / 2 } + fadeOut(tween(100)))
+                                },
+                                label = "GlucoseHeroAnimation"
+                            ) {
+                                Text(
+                                    text = primaryText,
+                                    style = primaryValueStyle,
+                                    color = glucoseContentColor,
+                                    softWrap = false,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        tk.glucodata.ui.components.TrendIndicator(
+                            trendResult = trendResult,
+                            modifier = Modifier.size(trendIconSize),
+                            color = glucoseContentColor
                         )
                     }
 
                     if (hasThreeValues) {
                         Row(
-                            modifier = Modifier.padding(start = 6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "/",
-                                style = slashStyle,
-                                color = glucoseContentColor.copy(alpha = 0.70f),
-                                softWrap = false,
-                                maxLines = 1,
-                                modifier = Modifier.offset(y = (-2).dp)
-                            )
                             Text(
                                 text = secondaryText ?: "",
                                 style = secondaryThreeValueStyle,
                                 color = glucoseContentColor.copy(alpha = 0.90f),
                                 softWrap = false,
-                                maxLines = 1,
-                                modifier = Modifier
-                                    .padding(start = 4.dp)
-                                    .offset(y = 1.dp)
+                                maxLines = 1
                             )
                             Box(
                                 modifier = Modifier
-                                    .padding(horizontal = 6.dp)
+                                    .padding(horizontal = 8.dp)
                                     .width(1.dp)
                                     .height(if (isCompactWidth) 14.dp else 16.dp)
                                     .background(glucoseContentColor.copy(alpha = 0.30f), RoundedCornerShape(1.dp))
@@ -371,45 +363,131 @@ fun DashboardCombinedHeader(
                                 style = tertiaryThreeValueStyle,
                                 color = glucoseContentColor.copy(alpha = 0.66f),
                                 softWrap = false,
-                                maxLines = 1,
-                                modifier = Modifier.offset(y = (-2).dp)
+                                maxLines = 1
                             )
                         }
                     } else if (hasSecondary) {
                         Text(
-                            text = "/ ${secondaryText ?: ""}",
+                            text = secondaryText ?: "",
                             style = secondaryInlineStyle,
                             color = glucoseContentColor.copy(alpha = 0.80f),
                             softWrap = false,
                             maxLines = 1,
-                            modifier = Modifier.padding(start = 8.dp)
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     } else if (hasTertiary) {
                         Text(
-                            text = "/ ${tertiaryText ?: ""}",
+                            text = tertiaryText ?: "",
                             style = tertiaryThreeValueStyle,
                             color = glucoseContentColor.copy(alpha = 0.60f),
                             softWrap = false,
                             maxLines = 1,
-                            modifier = Modifier.padding(start = 8.dp)
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = startPadding, end = 16.dp, top = 12.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AnimatedContent(
+                            targetState = primaryText,
+                            transitionSpec = {
+                                (slideInVertically(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) { -it / 2 } + fadeIn(tween(200)))
+                                    .togetherWith(slideOutVertically(spring(stiffness = Spring.StiffnessMedium)) { it / 2 } + fadeOut(tween(100)))
+                            },
+                            label = "GlucoseHeroAnimation"
+                        ) {
+                            Text(
+                                text = primaryText,
+                                style = primaryValueStyle,
+                                color = glucoseContentColor,
+                                softWrap = false,
+                                maxLines = 1
+                            )
+                        }
 
-                // Trend Icon
-                tk.glucodata.ui.components.TrendIndicator(
-                    trendResult = trendResult,
-                    modifier = Modifier.size(trendIconSize),
-                    color = glucoseContentColor
-                )
+                        if (hasThreeValues) {
+                            Row(
+                                modifier = Modifier.padding(start = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "/",
+                                    style = slashStyle,
+                                    color = glucoseContentColor.copy(alpha = 0.70f),
+                                    softWrap = false,
+                                    maxLines = 1,
+                                    modifier = Modifier.offset(y = (-2).dp)
+                                )
+                                Text(
+                                    text = secondaryText ?: "",
+                                    style = secondaryThreeValueStyle,
+                                    color = glucoseContentColor.copy(alpha = 0.90f),
+                                    softWrap = false,
+                                    maxLines = 1,
+                                    modifier = Modifier
+                                        .padding(start = 4.dp)
+                                        .offset(y = 1.dp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 6.dp)
+                                        .width(1.dp)
+                                        .height(if (isCompactWidth) 14.dp else 16.dp)
+                                        .background(glucoseContentColor.copy(alpha = 0.30f), RoundedCornerShape(1.dp))
+                                )
+                                Text(
+                                    text = tertiaryText ?: "",
+                                    style = tertiaryThreeValueStyle,
+                                    color = glucoseContentColor.copy(alpha = 0.66f),
+                                    softWrap = false,
+                                    maxLines = 1,
+                                    modifier = Modifier.offset(y = (-2).dp)
+                                )
+                            }
+                        } else if (hasSecondary) {
+                            Text(
+                                text = "/ ${secondaryText ?: ""}",
+                                style = secondaryInlineStyle,
+                                color = glucoseContentColor.copy(alpha = 0.80f),
+                                softWrap = false,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        } else if (hasTertiary) {
+                            Text(
+                                text = "/ ${tertiaryText ?: ""}",
+                                style = tertiaryThreeValueStyle,
+                                color = glucoseContentColor.copy(alpha = 0.60f),
+                                softWrap = false,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+
+                    tk.glucodata.ui.components.TrendIndicator(
+                        trendResult = trendResult,
+                        modifier = Modifier.size(trendIconSize),
+                        color = glucoseContentColor
+                    )
+                }
             }
         }
+    }
 
-        // --- RIGHT CARD: SENSOR (1/3) ---
+    val sensorCard: @Composable (Modifier) -> Unit = { modifier ->
         Card(
-            modifier = Modifier
-                .weight(0.3f)
-                .fillMaxHeight(),
+            modifier = modifier,
              colors = CardDefaults.cardColors(
                 containerColor = sensorContainerColor,
                 contentColor = sensorContentColor
@@ -521,6 +599,34 @@ fun DashboardCombinedHeader(
                     }
                 }
             }
+        }
+    }
+
+    if (isLandscape) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            heroCard(Modifier.fillMaxWidth())
+            sensorCard(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            heroCard(
+                Modifier
+                    .weight(0.7f)
+                    .fillMaxHeight()
+            )
+            sensorCard(
+                Modifier
+                    .weight(0.3f)
+                    .fillMaxHeight()
+            )
         }
     }
 }

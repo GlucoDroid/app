@@ -1433,6 +1433,10 @@ public class Natives {
 
         public static native boolean siRestoreOriginalPolls(long dataptr);
 
+        public static native boolean siRebindNativeContext(long dataptr, int preservedViewMode);
+
+        public static native boolean siRestartNativeFresh(long dataptr, int preservedViewMode);
+
         public static native void setViewMode(long dataptr, int mode);
 
         public static native int getViewMode(long dataptr);

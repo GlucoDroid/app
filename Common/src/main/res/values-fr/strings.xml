@@ -867,6 +867,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="insight_high_variability">Grande variabilité</string>
     <string name="insight_high_variability_desc">Le CV de %1$d%% suggère des fluctuations significatives de la glycémie.</string>
     <string name="insight_great_a1c">Excellente estimation de l\'A1C</string>
+    <string name="show_sensors_only">Afficher seulement les capteurs</string>
+    <string name="see_all_devices">Voir tous les appareils</string>
+    <string name="aidex_not_recognized">%1$s • non reconnu comme AiDex</string>
+    <string name="aidex_selectable_unrecognized">%1$s • appareil de la famille AiDex sélectionnable</string>
+    <string name="aidex_detected_via_ff30">%1$s • sélectionnable via la détection FF30</string>
     <string name="insight_great_a1c_desc">A1C estimé (GMI) : %1$.1f%% - dans la plage cible !</string>
     <string name="insight_a1c_estimate">Estimation A1C</string>
     <string name="insight_a1c_estimate_desc">IMG : %1$.1f%%. Légèrement au-dessus de l\'objectif 7%%.</string>
@@ -1151,4 +1156,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_initial_shown_status">Valeurs initiales affichées</string>
     <string name="calibration_lock_past_history_title">Verrouiller historique passé</string>
     <string name="calibration_lock_past_history_subtitle">Utiliser uniquement les points de calibration au moment ou avant chaque mesure.</string>
+    <string name="sibionics_ble_probe_title">Sibionics BLE à proximité (FF30)</string>
+    <string name="sibionics_ble_probe_desc">Si votre capteur apparaît ici, le Bluetooth fonctionne. Le scan QR reste recommandé pour une configuration complète.</string>
+    <string name="sibionics_ble_probe_empty">Aucun appareil Sibionics FF30 trouvé pour le moment.</string>
+    <string name="sibionics_ble_selected">Sélectionné : %1$s</string>
+    <string name="sibionics_use_fake_qr_from_ble">Utiliser de fausses infos QR depuis ce nom BLE</string>
+    <string name="wear_transport">Wear transport</string>
+    <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
+    <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
+    <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
+    <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
+    <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="web_server_desc">Serveur Web compatible Nightscout</string>
+    <string name="invalid_interval">Invalid interval value</string>
 </resources>

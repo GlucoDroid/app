@@ -206,7 +206,6 @@ fun ExpressiveSettingsScreen(
                 TargetRangeExpandableSettingsItem(
                     lowValue = targetLowValue,
                     highValue = targetHighValue,
-                    unit = unit,
                     isMmol = isMmol,
                     expanded = targetRangeExpanded,
                     onExpandedChange = { targetRangeExpanded = it },
@@ -331,7 +330,7 @@ fun ExpressiveSettingsScreen(
                     showArrow = true,
                     icon = Icons.Default.CloudUpload,
                     iconTint = exchangeColor,
-                    position = if (showLibreView) CardPosition.MIDDLE else CardPosition.BOTTOM,
+                    position = CardPosition.MIDDLE,
                     onClick = { navController.navigate("settings/nightscout") }
                 )
                 if (showLibreView) {
@@ -341,10 +340,28 @@ fun ExpressiveSettingsScreen(
                         showArrow = true,
                         icon = Icons.Default.Cloud,
                         iconTint = exchangeColor,
-                        position = CardPosition.BOTTOM,
+                        position = CardPosition.MIDDLE,
                         onClick = { navController.navigate("settings/libreview") }
                     )
                 }
+                SettingsItem(
+                    title = stringResource(R.string.watches),
+                    subtitle = "WearOS, Watchdrip, GadgetBridge, Kerfstok",
+                    showArrow = true,
+                    icon = Icons.Default.Devices,
+                    iconTint = exchangeColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/watch") }
+                )
+                SettingsItem(
+                    title = stringResource(R.string.webserver),
+                    subtitle = stringResource(R.string.web_server_desc),
+                    showArrow = true,
+                    icon = Icons.Default.Language,
+                    iconTint = exchangeColor,
+                    position = CardPosition.BOTTOM,
+                    onClick = { navController.navigate("settings/webserver") }
+                )
             }
         }
         // === ADVANCED ===
@@ -590,7 +607,6 @@ private fun SettingsLeadingIcon(
 private fun TargetRangeExpandableSettingsItem(
     lowValue: Float,
     highValue: Float,
-    unit: String,
     isMmol: Boolean,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
@@ -631,7 +647,7 @@ private fun TargetRangeExpandableSettingsItem(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "$lowText-$highText $unit",
+                        text = "$lowText-$highText",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -658,7 +674,7 @@ private fun TargetRangeExpandableSettingsItem(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Low: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", lowSlider) else lowSlider.toInt()} $unit",
+                            text = "Low: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", lowSlider) else lowSlider.toInt()}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -670,7 +686,7 @@ private fun TargetRangeExpandableSettingsItem(
                         )
 
                         Text(
-                            text = "High: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", highSlider) else highSlider.toInt()} $unit",
+                            text = "High: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", highSlider) else highSlider.toInt()}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
