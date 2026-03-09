@@ -49,6 +49,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.app.KeyguardManager;
 import android.view.View;
 import android.content.Context;
 import android.content.Intent;
@@ -64,6 +65,7 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.util.DisplayMetrics;
@@ -538,6 +540,40 @@ public class Notify {
     // private static boolean isalarm=false;
     private static Runnable runstopalarm = null;
     private static ScheduledFuture<?> stopschedule = null;
+    private static long alarmPlaybackSession = 0L;
+
+    private static synchronized long beginAlarmPlaybackSession() {
+        return ++alarmPlaybackSession;
+    }
+
+    private static synchronized void invalidateAlarmPlaybackSession() {
+        ++alarmPlaybackSession;
+    }
+
+    private static synchronized boolean isAlarmPlaybackSessionActive(long session) {
+        return alarmPlaybackSession == session;
+    }
+
+    private static boolean isAlarmUiForeground() {
+        final MainActivity main = MainActivity.thisone;
+        if (main == null || !main.active) {
+            return false;
+        }
+        try {
+            final PowerManager powerManager = (PowerManager) Applic.app.getSystemService(Context.POWER_SERVICE);
+            if (powerManager != null && !powerManager.isInteractive()) {
+                return false;
+            }
+            final KeyguardManager keyguardManager = (KeyguardManager) Applic.app.getSystemService(Context.KEYGUARD_SERVICE);
+            if (keyguardManager != null && keyguardManager.isDeviceLocked()) {
+                return false;
+            }
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "isAlarmUiForeground", th);
+            return false;
+        }
+        return true;
+    }
 
     static public void stopalarm() {
         stopalarmnotsend(true);
@@ -561,6 +597,7 @@ public class Notify {
             ;
         }
         ;
+        invalidateAlarmPlaybackSession();
         final var stopper = stopschedule;
         if (stopper != null) {
             stopper.cancel(false);
@@ -728,6 +765,8 @@ public class Notify {
         notifyfocus = true;
         doTurnFocuson();
         stopalarm();
+        final long playbackSession = beginAlarmPlaybackSession();
+        final long stopAtMillis = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(duration);
         // final int[] curfilter={-1};
         final boolean glucosealarm = kind < 2 || kind > 4;
         if (!DontTalk) {
@@ -854,41 +893,14 @@ public class Notify {
         // MOVED EFFECTS START HERE - SAFER
         // Get intensity profile: use passed value or look up from global settings
         final String profile = (intensityProfile != null) ? intensityProfile : getVolumeProfile(kind);
-        int repeatCount = 1;
-        switch (profile.toUpperCase()) {
-            case "HIGH":
-                repeatCount = 3;
-                break;
-            case "MEDIUM":
-                repeatCount = 2;
-                break;
-            case "ASCENDING":
-            default:
-                repeatCount = 1;
-                break;
-        }
-        final int finalRepeatCount = repeatCount;
-        final int finalKind = kind;
-        final boolean finalDisturb = disturb;
 
         if (sound) {
             if (doplaysound[0]) {
-                ring.play();
-
-                // Schedule additional plays for repeats > 1
-                if (finalRepeatCount > 1) {
-                    String ringUri = Natives.readring(kind);
-                    for (int i = 1; i < finalRepeatCount; i++) {
-                        final int delay = i * 2; // 2 seconds between each play
-                        Applic.scheduler.schedule(() -> {
-                            if (getisalarm()) {
-                                Ringtone repeatRing = mkring(ringUri, finalKind, finalDisturb);
-                                if (repeatRing != null) {
-                                    repeatRing.play();
-                                }
-                            }
-                        }, delay, TimeUnit.SECONDS);
-                    }
+                if (ring != null) {
+                    ring.play();
+                    scheduleSoundReplayPoll(ring, stopAtMillis, playbackSession);
+                } else if (doLog) {
+                    Log.w(LOG_ID, "playringhier: ringtone is null");
                 }
             }
         }
@@ -918,6 +930,32 @@ public class Notify {
 
         stopschedule = Applic.scheduler.schedule(runstopalarm, duration, TimeUnit.SECONDS);
 
+    }
+
+    private void scheduleSoundReplayPoll(Ringtone ring, long stopAtMillis, long playbackSession) {
+        Applic.scheduler.schedule(() -> {
+            if (!getisalarm() || !isAlarmPlaybackSessionActive(playbackSession)) {
+                return;
+            }
+            if (System.currentTimeMillis() >= stopAtMillis) {
+                return;
+            }
+            try {
+                if (!ring.isPlaying()) {
+                    if (doLog) {
+                        Log.d(LOG_ID, "replay " + ring.getTitle(app));
+                    }
+                    ring.play();
+                }
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "scheduleSoundReplayPoll", th);
+                return;
+            }
+            if (getisalarm() && isAlarmPlaybackSessionActive(playbackSession)
+                    && System.currentTimeMillis() < stopAtMillis) {
+                scheduleSoundReplayPoll(ring, stopAtMillis, playbackSession);
+            }
+        }, 1, TimeUnit.SECONDS);
     }
 
     private String getDeliveryMode(int kind) {
@@ -1078,6 +1116,9 @@ public class Notify {
                 }
 
                 if (kind == 4) {
+                    if (alertType != null) {
+                        AlertStateTracker.INSTANCE.allowNextTriggerForTest(alertType);
+                    }
                     onenot.lossofsignalalarm(kind, R.drawable.loss, message, typeStr, true);
                 } else {
                     notGlucose dummyGlucose = new notGlucose(System.currentTimeMillis(), String.valueOf(dummyValue), 0f,
@@ -1152,21 +1193,18 @@ public class Notify {
                 boolean activityLaunched = false;
 
                 // 1. Launch Alarm Activity (if ALARM or BOTH)
-                if (isAlarmMode || isBothMode) {
+                if ((isAlarmMode || isBothMode) && isAlarmUiForeground()) {
                     // Custom alerts don't have rate info typically, pass 0f
-                    activityLaunched = showpopupalarm(message, true, 0f);
+                    activityLaunched = showpopupalarm(message, true, 0f, kind);
+                } else if ((isAlarmMode || isBothMode) && doLog) {
+                    Log.i(LOG_ID, "Custom Alert: background/system alarm path uses full-screen notification fallback");
                 }
 
                 boolean skipBanner = false;
-                // If Alarm Activity launched successfully and NOT in Both mode, try to skip
-                // banner
+                // Only foreground direct launches skip the extra banner. Background/screen-off
+                // cases keep the full-screen notification path.
                 if (activityLaunched && isAlarmMode && !isBothMode) {
-                    boolean hasOverlayPerm = Build.VERSION.SDK_INT < 23
-                            || android.provider.Settings.canDrawOverlays(Applic.app);
-                    boolean isForeground = (MainActivity.thisone != null);
-                    if (hasOverlayPerm || isForeground) {
-                        skipBanner = true;
-                    }
+                    skipBanner = true;
                 }
 
                 // 2. Heads-Up Notification (Separate) - This is what standard alerts do!
@@ -1258,7 +1296,7 @@ public class Notify {
         }
     }
 
-    private static boolean showpopupalarm(String message, Boolean cancel, float rate) {
+    private static boolean showpopupalarm(String message, Boolean cancel, float rate, int alertTypeId) {
         if (cancel) {
             MainActivity.showmessage = null;
         }
@@ -1268,10 +1306,10 @@ public class Notify {
             Class<?> alarmClass = Class.forName("tk.glucodata.ui.AlarmActivity");
             Intent alarmIntent = new Intent(Applic.app, alarmClass);
             alarmIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            // message typically contains "LOW 3.9 mmol/L"
-            // Simple parsing or just pass as VAL for now
             alarmIntent.putExtra("EXTRA_GLUCOSE_VAL", message);
             alarmIntent.putExtra("EXTRA_ALARM_TYPE", "ALARM");
+            alarmIntent.putExtra("EXTRA_ALARM_MESSAGE", message);
+            alarmIntent.putExtra("EXTRA_ALERT_TYPE_ID", alertTypeId);
             alarmIntent.putExtra("EXTRA_RATE", rate);
             Applic.app.startActivity(alarmIntent);
             return true;
@@ -1354,7 +1392,7 @@ public class Notify {
                 boolean isBoth = "BOTH".equals(deliveryMode);
 
                 if (isSystem || isBoth) {
-                    showpopupalarm(message, true, Float.NaN);
+                    showpopupalarm(message, true, Float.NaN, kind);
                 }
             }
         } else {
@@ -1447,28 +1485,20 @@ public class Notify {
                                 deliveryMode, forceLaunch));
                     }
 
-                    if (forceLaunch) {
+                    if (forceLaunch && isAlarmUiForeground()) {
                         float rate = (strglucose != null) ? strglucose.rate : Float.NaN;
-                        activityLaunched = showpopupalarm(message, true, rate);
+                        activityLaunched = showpopupalarm(message, true, rate, kind);
                         if (doLog)
                             Log.i(LOG_ID, "Alert Debug: showpopupalarm returned " + activityLaunched);
+                    } else if (forceLaunch && doLog) {
+                        Log.i(LOG_ID, "Alert Debug: background/system alarm path uses full-screen notification fallback");
                     }
 
-                    // If System Alarm launched successfully and we are NOT in Both mode, skip the
-                    // banner ONLY IF we are sure the activity will show (Overlay Perm or
-                    // Foreground)
+                    // If System Alarm launched successfully while the app is already foreground,
+                    // skip the extra banner. Background/screen-off cases keep the full-screen
+                    // notification path because direct activity launches are not reliable there.
                     if (activityLaunched && isSystem && !isBoth) {
-                        boolean hasOverlayPerm = Build.VERSION.SDK_INT < 23
-                                || android.provider.Settings.canDrawOverlays(Applic.app);
-                        boolean isForeground = (MainActivity.thisone != null);
-
-                        if (hasOverlayPerm || isForeground) {
-                            skipBanner = true;
-                        } else {
-                            if (doLog)
-                                Log.i(LOG_ID,
-                                        "System Alarm logic: Activity launched but banner NOT skipped (no overlay perm & bg)");
-                        }
+                        skipBanner = true;
                     }
                     if (doLog)
                         Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
@@ -1640,8 +1670,10 @@ public class Notify {
                         fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION
                                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                         fullScreenIntent.putExtra("EXTRA_GLUCOSE_VAL", glucose.value);
+                        fullScreenIntent.putExtra("EXTRA_ALARM_MESSAGE", message);
                         fullScreenIntent.putExtra("EXTRA_RATE", glucose.rate);
                         fullScreenIntent.putExtra("EXTRA_ALARM_TYPE", "ALARM");
+                        fullScreenIntent.putExtra("EXTRA_ALERT_TYPE_ID", alertTypeId);
 
                         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(Applic.app, 3,
                                 fullScreenIntent,
@@ -1726,9 +1758,9 @@ public class Notify {
                 int viewMode = 0;
                 String mainName = Natives.lastsensorname();
                 if (mainName != null && !mainName.isEmpty()) {
-                    long ptr = Natives.getdataptr(mainName);
-                    if (ptr != 0)
-                        viewMode = Natives.getViewMode(ptr);
+                    long sensorPtr = Natives.str2sensorptr(mainName);
+                    if (sensorPtr != 0)
+                        viewMode = Natives.getViewModeFromSensorptr(sensorPtr);
                 }
 
                 CharSequence valueText = formatGlucoseText(glucose.value, glvalue, nativePoints, viewMode,
@@ -2166,18 +2198,18 @@ public class Notify {
         try {
             // Priority: Main sensor (lastsensorname) or first active
             String mainName = Natives.lastsensorname();
-            long ptr = 0;
+            long sensorPtr = 0;
             if (mainName != null && !mainName.isEmpty()) {
-                ptr = Natives.getdataptr(mainName);
+                sensorPtr = Natives.str2sensorptr(mainName);
             }
-            if (ptr == 0) {
+            if (sensorPtr == 0) {
                 long[] ptrs = Natives.activeSensorPtrs();
                 if (ptrs != null && ptrs.length > 0)
-                    ptr = ptrs[0];
+                    sensorPtr = ptrs[0];
             }
 
-            if (ptr != 0) {
-                String nativeStatus = Natives.getsensortext(ptr);
+            if (sensorPtr != 0) {
+                String nativeStatus = Natives.sensortextfromSensorptr(sensorPtr);
                 if (nativeStatus != null && !nativeStatus.isEmpty()) {
                     newStatusText = nativeStatus;
                 }
@@ -2414,6 +2446,24 @@ public class Notify {
                 }
             }
         }
+        if (viewMode == 0) {
+            try {
+                long sensorPtr = 0;
+                if (activeSensorSerial != null && !activeSensorSerial.isEmpty()) {
+                    sensorPtr = Natives.str2sensorptr(activeSensorSerial);
+                }
+                if (sensorPtr == 0) {
+                    long[] ptrs = Natives.activeSensorPtrs();
+                    if (ptrs != null && ptrs.length > 0) {
+                        sensorPtr = ptrs[0];
+                    }
+                }
+                if (sensorPtr != 0) {
+                    viewMode = Natives.getViewModeFromSensorptr(sensorPtr);
+                }
+            } catch (Throwable t) {
+            }
+        }
 
         // Startup Text using Helper and Natives.lastglucose()
         CharSequence startupValue = "---";
@@ -2447,6 +2497,13 @@ public class Notify {
                 } else {
                     startupValue = vStr;
                 }
+            }
+        }
+        if ("---".contentEquals(startupValue)) {
+            notGlucose previous = SuperGattCallback.previousglucose;
+            float previousValue = SuperGattCallback.previousglucosevalue;
+            if (previous != null && previousValue >= 2.0f) {
+                startupValue = formatGlucoseText(previous.value, previousValue, nativePoints, viewMode, previous.time);
             }
         }
 
@@ -2500,10 +2557,19 @@ public class Notify {
             }
         } else if (!chartPoints.isEmpty()) {
             colorVal = chartPoints.get(chartPoints.size() - 1).value;
+        } else if (SuperGattCallback.previousglucose != null && SuperGattCallback.previousglucosevalue >= 2.0f) {
+            colorVal = SuperGattCallback.previousglucosevalue;
         }
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, colorVal, isMmol);
 
-        arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, (last != null) ? last.rate : 0, isMmol,
+        float startupRate = 0f;
+        if (last != null) {
+            startupRate = last.rate;
+        } else if (SuperGattCallback.previousglucose != null) {
+            startupRate = SuperGattCallback.previousglucose.rate;
+        }
+
+        arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, startupRate, isMmol,
                 glucoseColor);
 
         // Use native TextView for startup value

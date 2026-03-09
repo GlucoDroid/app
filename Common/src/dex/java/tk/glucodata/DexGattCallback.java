@@ -64,6 +64,9 @@ import java.util.concurrent.TimeUnit;
 import static tk.glucodata.util.sleep;
 
 public class DexGattCallback extends SuperGattCallback {
+private static final long DEXCOM_WARMUP_MSEC = 30L * 60L * 1000L;
+private static final long DEXCOM_WARMUP_RETRY_SLACK_MSEC = 15_000L;
+private static final int DEXCOM_RESCAN_AFTER_TIMEOUTS = 2;
 private boolean known=false;
     public DexGattCallback(String SerialNumber, long dataptr) {
         super(SerialNumber, dataptr, 0x40);
@@ -177,6 +180,7 @@ private void releaselock() {
 private int triedinvain=0;
 
 private boolean connected=false;
+private int connectionTimeouts=0;
     @SuppressLint("MissingPermission")
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
@@ -193,6 +197,7 @@ private boolean connected=false;
 
         }
         if(newState == BluetoothProfile.STATE_CONNECTED) {
+          connectionTimeouts=0;
           if(bondstate == BluetoothDevice.BOND_BONDING) {
               {if(doLog) {Log.i(LOG_ID, "wait BOND_BONDING");};};
               }
@@ -225,6 +230,18 @@ private boolean connected=false;
                    {if(doLog) {Log.i(LOG_ID, "BOND_BONDING");};};
                    }
             if(newState == BluetoothProfile.STATE_DISCONNECTED) {
+              if(status == BluetoothGatt.GATT_CONNECTION_TIMEOUT) {
+                  ++connectionTimeouts;
+                  {if(doLog) {Log.i(LOG_ID, "Dexcom connection timeout count=" + connectionTimeouts);};};
+                  if(connectionTimeouts >= DEXCOM_RESCAN_AFTER_TIMEOUTS) {
+                      {if(doLog) {Log.i(LOG_ID, "Dexcom connection timeout: clear cached runtime address and rescan");};};
+                      searchforDeviceAddress();
+                      connectionTimeouts = 0;
+                  }
+              }
+              else {
+                  connectionTimeouts = 0;
+              }
               if(!stop) {
                   if(!known){
                       if(phase==GetData&&!removedBond) {
@@ -269,7 +286,21 @@ private boolean connected=false;
                         Applic.wakemirrors();
 //                        long alreadywaited = tim - constatchange[0];
                         final long alreadywaited = tim - datatime;
-                        if(getalarmclock()) {
+                        if(lastDataInvalidDuringWarmup) {
+                            long stillwait = lastWarmupRetryAt - tim;
+                            {if(doLog) {Log.i(LOG_ID, "warmup alreadywaited=" + alreadywaited + " stillwait=" + stillwait);};};
+                            if(stillwait < 0L)
+                                stillwait = 0L;
+                            if(getalarmclock()) {
+                                if(stillwait > 0L)
+                                    onalarm=setalarm(tim+stillwait,onalarm,SerialNumber );
+                                 else
+                                    sensorbluetooth.connectToActiveDevice(this, 0);
+                            } else {
+                                sensorbluetooth.connectToActiveDevice(this, stillwait);
+                            }
+                        }
+                        else if(getalarmclock()) {
                             //long stillwait=justdata?(6700-alreadywaited):0;
                             final long mmsectimebetween = 5 * 60 * 1000;
                             long stillwait = mmsectimebetween - alreadywaited - 27500;
@@ -706,6 +737,18 @@ private    void getdatacmd() {
     }
 private boolean justdata=false;
 private long datatime=0L;
+private boolean lastDataInvalidDuringWarmup=false;
+private long lastWarmupRetryAt=0L;
+private boolean isWarmupReading(long readingTimeMsec, long res) {
+        if (res != 0L) {
+            return false;
+        }
+        final long refreshedStart = Natives.getSensorStartmsec(dataptr);
+        if (refreshedStart > 0L) {
+            sensorstartmsec = refreshedStart;
+        }
+        return sensorstartmsec > 0L && readingTimeMsec > 0L && (readingTimeMsec - sensorstartmsec) < DEXCOM_WARMUP_MSEC;
+    }
 private    void getdata(byte[] value) {
         final long timmsec = System.currentTimeMillis();
         switch (value[0]) {
@@ -719,6 +762,13 @@ private    void getdata(byte[] value) {
                     final int glumgL = (int) (res & 0xFFFFFFFFL);
                     Log.i(LOG_ID, "dexcomProcessData newtime="+newtime+" res="+res+" "+glumgL/18+" mg/dL "+(glumgL/180.0)+ " mmol/L");                  
                     }
+                lastDataInvalidDuringWarmup = isWarmupReading(newtime, res);
+                if (lastDataInvalidDuringWarmup) {
+                    lastWarmupRetryAt = sensorstartmsec + DEXCOM_WARMUP_MSEC + DEXCOM_WARMUP_RETRY_SLACK_MSEC;
+                    if(doLog) {
+                        Log.i(LOG_ID, "Dexcom reading is still in warmup window; next retry at=" + lastWarmupRetryAt);
+                    }
+                }
                 handleGlucoseResult(res, newtime);
                 Applic.scheduler.schedule(()->{
                   if(connected) askbackfill();}, 10, TimeUnit.MILLISECONDS);
@@ -1029,6 +1079,3 @@ public void searchforDeviceAddress() {
     super.searchforDeviceAddress();
     }
 }
-
-
-

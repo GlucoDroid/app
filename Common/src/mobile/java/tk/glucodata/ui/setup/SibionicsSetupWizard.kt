@@ -42,6 +42,7 @@ import tk.glucodata.Natives
 import tk.glucodata.ui.util.BleDeviceScanner
 
 import android.graphics.BitmapFactory
+import kotlin.math.max
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,27 +72,65 @@ enum class SibionicsSetupStep {
 suspend fun decodeBitmapQr(context: android.content.Context, uri: android.net.Uri): String? {
     return withContext(Dispatchers.IO) {
         try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
+            val bounds = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, bounds)
+            }
 
-            if (bitmap == null) return@withContext null
+            val width = bounds.outWidth
+            val height = bounds.outHeight
+            if (width <= 0 || height <= 0) return@withContext null
 
-            val width = bitmap.width
-            val height = bitmap.height
-            val pixels = IntArray(width * height)
-            bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+            val maxDimension = max(width, height)
+            var baseSample = 1
+            while (maxDimension / baseSample > 1600) {
+                baseSample *= 2
+            }
 
-            val source = RGBLuminanceSource(width, height, pixels)
-            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-            
-            val reader = MultiFormatReader()
-            val result = reader.decode(binaryBitmap)
-            result.text
+            val attempts = linkedSetOf(baseSample, baseSample / 2, 1)
+                .filter { it >= 1 }
+
+            for (sampleSize in attempts) {
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                }
+                val bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
+                    BitmapFactory.decodeStream(input, null, options)
+                } ?: continue
+
+                try {
+                    decodeQrFromBitmap(bitmap)?.let { return@withContext it }
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+
+            null
         } catch (e: Exception) {
             android.util.Log.e("QrDecode", "Error decoding QR", e)
             null
+        } catch (oom: OutOfMemoryError) {
+            android.util.Log.e("QrDecode", "Out of memory decoding QR image: $uri", oom)
+            null
         }
+    }
+}
+
+private fun decodeQrFromBitmap(bitmap: android.graphics.Bitmap): String? {
+    val width = bitmap.width
+    val height = bitmap.height
+    val pixels = IntArray(width * height)
+    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+    val source = RGBLuminanceSource(width, height, pixels)
+    val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+    return try {
+        MultiFormatReader().decode(binaryBitmap).text
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -314,17 +353,7 @@ fun constructFakeSibionicsQr(input: String, targetLength: Int = 59): String? {
     }
 
     // CASE 2: Sibionics 2 Transmitter (Target 59)
-    val namePart = if (codeToUse.length > 10) {
-        codeToUse.takeLast(10)
-    } else {
-        codeToUse.padEnd(10, '0')
-    }
-
-    val paddingLen = targetLength - magicCode.length - namePart.length
-    if (paddingLen < 0) return magicCode + namePart
-
-    val padding = "0".repeat(paddingLen)
-    return magicCode + padding + namePart
+    return tk.glucodata.PhotoScan.buildSibionics2TransmitterPayload(trimmedInput)
 }
 
 /**
@@ -582,6 +611,7 @@ fun ScanSensorStep(
     var bleProbeScanning by remember { mutableStateOf(true) }
     var bleProbeDevices by remember { mutableStateOf(listOf<BleDeviceScanner.SibionicsBleDevice>()) }
     var selectedBleAddress by remember { mutableStateOf<String?>(null) }
+    var galleryDecodeInProgress by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val selectedBleDevice = remember(bleProbeDevices, selectedBleAddress) {
@@ -633,13 +663,20 @@ fun ScanSensorStep(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                val decoded = decodeBitmapQr(context, uri)
-                if (decoded != null) {
-                    onManualEntry(decoded)
-                } else {
-                    tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.no_qr_found))
+                galleryDecodeInProgress = true
+                try {
+                    val decoded = decodeBitmapQr(context, uri)
+                    if (decoded != null) {
+                        onManualEntry(decoded)
+                    } else {
+                        tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.no_qr_found))
+                    }
+                } finally {
+                    galleryDecodeInProgress = false
                 }
             }
+        } else {
+            galleryDecodeInProgress = false
         }
     }
 
@@ -667,6 +704,7 @@ fun ScanSensorStep(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(if (compact) 320.dp else 380.dp),
+                scannerEnabled = !galleryDecodeInProgress,
                 onScanResult = { raw ->
                     if (!handledScan) {
                         handledScan = true
@@ -803,6 +841,7 @@ fun ScanSensorStep(
             // Add Gallery Button
             OutlinedButton(
                 onClick = { 
+                    galleryDecodeInProgress = true
                     galleryLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     ) 

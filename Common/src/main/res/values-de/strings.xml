@@ -1016,6 +1016,11 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="filled">Gefüllt</string>
     <string name="firmware">Firmware</string>
     <string name="flashpermission">Flash-Berechtigung</string>
+    <string name="retry_constantly">Ständig</string>
+    <string name="retry_forever">Unbegrenzt wiederholen</string>
+    <string name="retry_summary_constant">Ständig • %1$d Wiederholungen</string>
+    <string name="retry_summary_constant_forever">Ständig • unbegrenzt</string>
+    <string name="retry_summary_forever">Alle %1$d Min. • unbegrenzt</string>
     <string name="floating_permission_required">Berechtigung für schwebendes Fenster erforderlich</string>
     <string name="floatingconfig">Floating-Konfiguration</string>
     <string name="garminconfig">Garmin-Konfiguration</string>
@@ -1201,4 +1206,6 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Nightscout-kompatibler Webserver</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Wartet auf Verbindung</string>
+    <string name="status_ready_in_minutes">Sensor in %1$d Minuten bereit.</string>
 </resources>

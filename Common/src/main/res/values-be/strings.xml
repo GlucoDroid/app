@@ -1008,6 +1008,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mirror_settings_help_text">Наладзьце параметры сервера адпраўкі/атрымання і люстэрка.</string>
     <string name="model">мадэль</string>
     <string name="modes">Рэжымы</string>
+    <string name="retry_constantly">Пастаянна</string>
+    <string name="retry_forever">Паўтараць бясконца</string>
+    <string name="retry_summary_constant">Пастаянна • %1$d паўтораў</string>
+    <string name="retry_summary_constant_forever">Пастаянна • бясконца</string>
+    <string name="retry_summary_forever">Кожныя %1$d хв • бясконца</string>
     <string name="nearbypermission">Дазвол паблізу</string>
     <string name="new_custom_alert">Новая карыстальніцкая абвестка</string>
     <string name="newamount">Новая сума</string>
@@ -1162,4 +1167,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Вэб-сервер, сумяшчальны з Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Чаканне падключэння</string>
+    <string name="status_ready_in_minutes">Датчык будзе гатовы праз %1$d хвілін.</string>
 </resources>

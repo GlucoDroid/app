@@ -188,15 +188,11 @@ class HistoryRepository(context: Context = Applic.app) {
 
     private fun resolveSensorViewMode(sensorSerial: String): Int {
         return try {
-            val dataPtr = Natives.getdataptr(sensorSerial)
-            if (dataPtr == 0L) {
+            val sensorPtr = Natives.str2sensorptr(sensorSerial)
+            if (sensorPtr == 0L) {
                 0
             } else {
-                try {
-                    Natives.getViewMode(dataPtr)
-                } finally {
-                    Natives.freedataptr(dataPtr)
-                }
+                Natives.getViewModeFromSensorptr(sensorPtr)
             }
         } catch (_: Exception) {
             0

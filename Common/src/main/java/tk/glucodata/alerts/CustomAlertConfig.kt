@@ -25,7 +25,7 @@ data class CustomAlertConfig(
     val sound: Boolean = true,
     val vibrate: Boolean = true,
     val flash: Boolean = false,
-    val style: String = "notification", // notification, alarm, both
+    val style: String = "alarm", // notification, alarm, both
     val intensity: String = "medium", // low, medium, high, ascending
     val overrideDnd: Boolean = false,
     val retryEnabled: Boolean = false,
@@ -92,7 +92,7 @@ data class CustomAlertConfig(
                 sound = json.optBoolean("sound", true),
                 vibrate = json.optBoolean("vibrate", true),
                 flash = json.optBoolean("flash", false),
-                style = json.optString("style", "notification"),
+                style = json.optString("style", "alarm"),
                 intensity = json.optString("intensity", "medium"),
                 overrideDnd = json.optBoolean("overrideDnd", false),
                 durationSeconds = json.optInt("durationSeconds", 60),

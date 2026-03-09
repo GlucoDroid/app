@@ -13,6 +13,7 @@ import tk.glucodata.Natives
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
+import tk.glucodata.ui.util.getLegacyWarmupStatusFromSensorptr
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository()
@@ -193,22 +194,23 @@ class DashboardViewModel(
 
             if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
                 _sensorName.value = sName
-                val dataptr = try {
-                    Natives.getdataptr(sName)
+                val sensorPtr = try {
+                    Natives.str2sensorptr(sName)
                 } catch (e: Exception) {
-                    android.util.Log.e("DashboardVM", "getdataptr failed for '$sName'", e)
+                    android.util.Log.e("DashboardVM", "str2sensorptr failed for '$sName'", e)
                     0L
                 }
-                if (dataptr != 0L) {
-                    val status = Natives.getsensortext(dataptr)
-                    _sensorStatus.value = status ?: ""
+                if (sensorPtr != 0L) {
+                    val nativeStatus = Natives.sensortextfromSensorptr(sensorPtr) ?: ""
+                    val warmupStatus = getLegacyWarmupStatusFromSensorptr(tk.glucodata.Applic.app, sensorPtr, nativeStatus)
+                    _sensorStatus.value = warmupStatus ?: nativeStatus
 
-                    val vm = Natives.getViewMode(dataptr)
+                    val vm = Natives.getViewModeFromSensorptr(sensorPtr)
                     _viewMode.value = vm
                     
-                    val expectedEnd = Natives.getSensorEndTime(dataptr, false)
-                    val officialEnd = Natives.getSensorEndTime(dataptr, true)
-                    val startMsec = Natives.getSensorStartmsec(dataptr)
+                    val expectedEnd = Natives.getSensorEndTimeFromSensorptr(sensorPtr, false)
+                    val officialEnd = Natives.getSensorEndTimeFromSensorptr(sensorPtr, true)
+                    val startMsec = Natives.getSensorStartmsecFromSensorptr(sensorPtr)
                     
                     if (startMsec > 0) {
                          val now = System.currentTimeMillis()

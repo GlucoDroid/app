@@ -1009,6 +1009,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mirror_settings_help_text">Konfigurera skicka/ta emot och spegla serverinställningar.</string>
     <string name="model">Modell</string>
     <string name="modes">Lägen</string>
+    <string name="retry_constantly">Kontinuerligt</string>
+    <string name="retry_forever">Upprepa för alltid</string>
+    <string name="retry_summary_constant">Kontinuerligt • %1$d upprepningar</string>
+    <string name="retry_summary_constant_forever">Kontinuerligt • för alltid</string>
+    <string name="retry_summary_forever">Var %1$d min • för alltid</string>
     <string name="nearbypermission">Tillstånd i närheten</string>
     <string name="new_custom_alert">Ny anpassad varning</string>
     <string name="newamount">Nytt belopp</string>
@@ -1163,4 +1168,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Nightscout-kompatibel webbserver</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Vantar på anslutning</string>
+    <string name="status_ready_in_minutes">Sensorn redo om %1$d minuter.</string>
 </resources>

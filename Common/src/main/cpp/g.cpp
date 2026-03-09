@@ -478,6 +478,14 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(getSensorStartmsec)(JNIEnv *env,
   const streamdata *sdata = reinterpret_cast<const streamdata *>(dataptr);
   return sdata->hist->getstarttime() * 1000LL;
 }
+extern "C" JNIEXPORT jlong JNICALL
+fromjava(getSensorStartmsecFromSensorptr)(JNIEnv *env, jclass cl,
+                                          jlong sensorptr) {
+  const auto *sens = reinterpret_cast<const SensorGlucoseData *>(sensorptr);
+  if (!sens)
+    return 0LL;
+  return sens->getstarttime() * 1000LL;
+}
 extern "C" JNIEXPORT void JNICALL fromjava(updateUsedSensors)(JNIEnv *env,
                                                               jclass cl) {
   setusedsensors();
@@ -1526,6 +1534,19 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(getSensorEndTime)(
     return (jlong)sens->expectedEndTime() * 1000L;
   }
 }
+extern "C" JNIEXPORT jlong JNICALL
+fromjava(getSensorEndTimeFromSensorptr)(JNIEnv *env, jclass cl, jlong sensorptr,
+                                        jboolean official) {
+  const auto *sens = reinterpret_cast<const SensorGlucoseData *>(sensorptr);
+  if (!sens)
+    return 0;
+
+  if (official) {
+    return (jlong)sens->officialendtime() * 1000L;
+  } else {
+    return (jlong)sens->expectedEndTime() * 1000L;
+  }
+}
 
 extern std::vector<int> usedsensors;
 extern void setusedsensors();
@@ -1580,6 +1601,14 @@ fromjava(sensortextfromSensorptr)(JNIEnv *envin, jclass cl, jlong sensorptr) {
   if (!sens)
     return envin->NewStringUTF("");
   return envin->NewStringUTF(getsensortext(sens).data());
+}
+extern "C" JNIEXPORT jint JNICALL
+fromjava(getViewModeFromSensorptr)(JNIEnv *env, jclass cl, jlong sensorptr) {
+  const auto *sens = reinterpret_cast<const SensorGlucoseData *>(sensorptr);
+  if (!sens)
+    return 0;
+  const auto *info = sens->getinfo();
+  return info ? info->viewMode : 0;
 }
 
 extern "C" JNIEXPORT void JNICALL

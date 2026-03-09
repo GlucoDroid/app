@@ -246,10 +246,6 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         @Volatile private var bridgeLastRxAddress: String? = null
         @Volatile private var bridgeLastRxAtMs: Long = 0L
 
-        private val vendorBridgeMessageCallback = BleController.MessageCallback { operation, success, data ->
-            dispatchVendorMessageFromBridge(operation, success, data)
-        }
-
         private fun normalizeAddress(address: String?): String? {
             return address?.takeIf { it.isNotBlank() }?.uppercase(Locale.US)
         }
@@ -375,20 +371,6 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 )
             }
             return null
-        }
-
-        private fun dispatchVendorMessageFromBridge(operation: Int, success: Boolean, data: ByteArray?) {
-            val sensor = resolveBridgeSensor("message-callback-$operation")
-            if (sensor == null) {
-                Log.w(TAG, "Vendor bridge message op=$operation dropped: no route")
-                return
-            }
-            rememberBridgeRoute(sensor.SerialNumber, sensor.scanTargetAddress(), "message-dispatch-$operation")
-            try {
-                sensor.handleVendorReceive(operation, success, data?.copyOf())
-            } catch (t: Throwable) {
-                Log.e(TAG, "Vendor bridge message op=$operation dispatch failed for ${sensor.SerialNumber}: ${t.message}")
-            }
         }
 
         private fun dispatchVendorDiscoveryToSensors(info: BleControllerInfo) {
@@ -687,6 +669,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     private val vendorBleEnabled = true
     private var vendorAdapter: VendorBleAdapter? = null
     private var vendorController: AidexXController? = null
+    private val vendorMessageCallback = BleController.MessageCallback { operation, success, data ->
+        noteVendorBridgeActivity("message-dispatch-$operation")
+        try {
+            handleVendorReceive(operation, success, data?.copyOf())
+        } catch (t: Throwable) {
+            Log.e(TAG, "Vendor message op=$operation dispatch failed for $SerialNumber: ${t.message}")
+        }
+    }
     private var lastScanRecordBytes: ByteArray? = null
     private var vendorStarted = false
     private var vendorRegistered = false
@@ -758,6 +748,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     // caused a forced full re-pair + 30s stall, totaling 91s reconnect time.
     private val VENDOR_RECONNECT_FALLBACK_2ND_MS = 5_000L
     private val VENDOR_RECONNECT_FALLBACK_COMPETING_SESSION_MS = 20_000L
+    private val VENDOR_DISCONNECT_RESTART_COMPETING_SESSION_MS = 10_000L
     private val VENDOR_COMPETING_SESSION_ACTIVITY_WINDOW_MS = 30_000L
     private val VENDOR_WRITE_BOOTSTRAP_CONNECT_COOLDOWN_MS = 7_500L
     private val VENDOR_WRITE_ONLY_STALL_WINDOW_MS = 20_000L
@@ -1028,6 +1019,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
 
     private fun isHalfConnectedStale(now: Long = System.currentTimeMillis()): Boolean {
         if (!vendorBleEnabled) return false
+        if (vendorNativeReady) return false
         if (vendorSetupPhase == VendorSetupPhase.IDLE || vendorSetupPhase == VendorSetupPhase.NATIVE_READY) {
             return false
         }
@@ -1234,6 +1226,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     private fun bridgeGetCharacteristicUuid(reason: String): Int {
+        noteVendorBridgeActivity(reason)
         if (!ensureVendorBridge(reason)) return 0
         return try {
             vendorBridgeAdapter.getCharacteristicUUID()
@@ -1244,6 +1237,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     private fun bridgeGetPrivateCharacteristicUuid(reason: String): Int {
+        noteVendorBridgeActivity(reason)
         if (!ensureVendorBridge(reason)) return 0
         return try {
             vendorBridgeAdapter.getPrivateCharacteristicUUID()
@@ -1263,9 +1257,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
     }
 
-    private fun bridgeForwardReceiveData(shortUuid: Int, payload: ByteArray, reason: String) {
+    private fun bridgeForwardReceiveData(shortUuid: Int, payload: ByteArray, reason: String, addressHint: String? = null) {
         if (payload.isEmpty()) return
-        if (!ensureVendorBridge(reason)) return
+        noteVendorBridgeActivity(reason, addressHint)
+        if (!ensureVendorBridge(reason, addressHint)) return
         try {
             vendorBridgeAdapter.onReceiveData(shortUuid, payload)
         } catch (t: Throwable) {
@@ -1274,6 +1269,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     private fun bridgeOnConnectSuccess(reason: String): Boolean {
+        noteVendorBridgeActivity(reason)
         if (!ensureVendorBridge(reason)) return false
         return try {
             vendorBridgeAdapter.onConnectSuccess()
@@ -1285,6 +1281,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     }
 
     private fun bridgeNotifyDisconnected(status: Int, reason: String, addressHint: String? = null) {
+        noteVendorBridgeActivity(reason, addressHint)
         if (!ensureVendorBridge(reason, addressHint)) return
         try {
             if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -2786,7 +2783,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             val reconnectToken = nextReconnectAttemptToken("vendor-register")
             vendorRegistered = true
             try {
-                controller.setMessageCallback(vendorBridgeMessageCallback)
+                controller.setMessageCallback(vendorMessageCallback)
             } catch (t: Throwable) {
                 Log.e(TAG, "Vendor setMessageCallback failed: ${t.message}")
             }
@@ -3222,7 +3219,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                 val reconnectToken = ensureReconnectAttemptToken("vendor-disconnect")
                 // Schedule a delayed restart — gives the vendor lib time to clean up
                 // its internal state before we re-trigger the scan→connect flow.
-                val restartRunnable = Runnable {
+                lateinit var restartRunnable: Runnable
+                restartRunnable = Runnable {
                     if (reconnectToken != reconnectAttemptToken) {
                         Log.d(
                             TAG,
@@ -3233,6 +3231,20 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                         return@Runnable
                     }
                     vendorDisconnectRestartRunnable = null
+                    val competingSerial = competingVendorSessionSerial()
+                    if (competingSerial != null) {
+                        Log.i(
+                            TAG,
+                            "Vendor DISCONNECT: post-disconnect restart deferred — competing vendor session active on $competingSerial"
+                        )
+                        scheduleBroadcastScan("post-disconnect-competing", forceImmediate = true)
+                        vendorDisconnectRestartRunnable = restartRunnable
+                        vendorWorkHandler.postDelayed(
+                            restartRunnable,
+                            VENDOR_DISCONNECT_RESTART_COMPETING_SESSION_MS
+                        )
+                        return@Runnable
+                    }
                     // Edit 66a: Check if a new GATT connection is already in progress or established.
                     // The proactive connect from Edit 53a can arrive before this delayed Runnable fires,
                     // and tearing down the vendor stack would kill that good connection.
@@ -4380,6 +4392,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             }
             vendorNativeReady = true
             markVendorSetupPhase(VendorSetupPhase.NATIVE_READY, "connect-success-$caller")
+            vendorDisconnectRestartRunnable?.let { vendorWorkHandler.removeCallbacks(it) }
+            vendorDisconnectRestartRunnable = null
             deviceListDirty = true  // Edit 62c: notify UI of state change
             vendorConnectSuccessCrashCount = 0 // reset on success
             Log.i(TAG, "safeCallOnConnectSuccess($caller): onConnectSuccess() returned OK. vendorNativeReady=true")
@@ -5162,9 +5176,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             // to the workHandler, ensuring serialization with writes/connects/disconnects.
             val dataCopy = data.copyOf()
             val charId = id
+            val address = connectedAddress ?: mActiveDeviceAddress
             vendorWorkHandler.post {
                 try {
-                    bridgeForwardReceiveData(charId, dataCopy, "vendorAdapter-handleCharacteristicChanged")
+                    bridgeForwardReceiveData(charId, dataCopy, "vendorAdapter-handleCharacteristicChanged", address)
                 } catch (t: Throwable) {
                     Log.e(TAG, "Vendor RX [0x${Integer.toHexString(charId)}]: onReceiveData crashed: ${t.message}")
                 }
@@ -9649,9 +9664,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         ) {
             val shortUuid = uuidToShort(characteristic.uuid)
             val dataCopy = data.copyOf()
+            val address = gatt.device?.address
             vendorWorkHandler.post {
                 try {
-                    bridgeForwardReceiveData(shortUuid, dataCopy, "onCharacteristicRead")
+                    bridgeForwardReceiveData(shortUuid, dataCopy, "onCharacteristicRead", address)
                     Log.i(TAG, "Vendor READ fwd [0x${Integer.toHexString(shortUuid)}]: ${bytesToHex(dataCopy)}")
                 } catch (t: Throwable) {
                     Log.w(TAG, "Vendor READ fwd failed: ${t.message}")
@@ -9691,9 +9707,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         ) {
             val shortUuid = uuidToShort(uuid)
             val dataCopy = data.copyOf()
+            val address = gatt.device?.address
             vendorWorkHandler.post {
                 try {
-                    bridgeForwardReceiveData(shortUuid, dataCopy, "onCharacteristicChanged")
+                    bridgeForwardReceiveData(shortUuid, dataCopy, "onCharacteristicChanged", address)
                     Log.i(TAG, "Vendor RX fwd [0x${Integer.toHexString(shortUuid)}]: ${bytesToHex(dataCopy)}")
                 } catch (t: Throwable) {
                     Log.w(TAG, "Vendor RX fwd failed: ${t.message}")

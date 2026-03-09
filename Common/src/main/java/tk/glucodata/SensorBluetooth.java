@@ -898,6 +898,26 @@ public class SensorBluetooth {
         initializeBluetooth();
     }
 
+    public static boolean syncNativeDevicesNoBluetooth() {
+        try {
+            if (blueone == null) {
+                blueone = new tk.glucodata.SensorBluetooth();
+            }
+            if (blueone.mBluetoothManager != null) {
+                blueone.stopScan(false);
+            }
+            blueone.removeDevices();
+            String[] active = Natives.activeSensors();
+            if (active != null && active.length > 0) {
+                blueone.setDevices(active);
+            }
+            return true;
+        } catch (Throwable t) {
+            Log.stack(LOG_ID, "syncNativeDevicesNoBluetooth", t);
+            return false;
+        }
+    }
+
     public boolean resetDevices() {
         if (!Natives.getusebluetooth()) {
             {

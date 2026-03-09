@@ -57,6 +57,8 @@ public class PhotoScan {
             Pattern.CASE_INSENSITIVE);
     private static final Pattern AI21_GS = Pattern.compile("(?:\\u001D|\\^])21([A-Z0-9]{4,40})(?=(?:\\u001D|\\^]|$))",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern SIBIONICS2_SERIAL_TOKEN = Pattern.compile("P[0-9A-Z]{12,24}",
+            Pattern.CASE_INSENSITIVE);
 
     private static void wrongtag() {
         Toaster("Wrong QR code");
@@ -428,11 +430,121 @@ public class PhotoScan {
         return delimited;
     }
 
+    private static String normalizeSibionics2NamePart(String rawToken) {
+        final String token = sanitizeAlnumUpper(rawToken);
+        if (token.isEmpty()) {
+            return null;
+        }
+        if (token.startsWith("P") && token.length() >= 16) {
+            return token.substring(token.length() - 12, token.length() - 2);
+        }
+        if (token.length() == 12) {
+            return token.substring(1, 11);
+        }
+        if (token.length() == 11) {
+            return token.substring(1);
+        }
+        if (token.length() > 10) {
+            return token.substring(token.length() - 10);
+        }
+        return token;
+    }
+
+    private static String extractSibionics2TransmitterId(String input) {
+        if (input == null) {
+            return null;
+        }
+        String normalized = stripSymbologyPrefix(input.trim());
+        if (normalized == null || normalized.isEmpty()) {
+            return null;
+        }
+
+        final int lastSlash = normalized.lastIndexOf('/');
+        if (lastSlash >= 0 && lastSlash + 1 < normalized.length()) {
+            normalized = normalized.substring(lastSlash + 1);
+        }
+
+        normalized = normalized.toUpperCase(Locale.ROOT).replace(" ", "");
+        normalized = normalized.replace("^]", "\u001D");
+
+        String ai21Token = lastGroupMatch(AI21_PAREN, normalized);
+        if (ai21Token == null) {
+            ai21Token = lastGroupMatch(AI21_GS, normalized);
+        }
+        if (ai21Token == null) {
+            ai21Token = extractByAiTailFallback(normalized, "21");
+        }
+        if (ai21Token != null) {
+            final String normalizedAi21 = normalizeSibionics2NamePart(ai21Token);
+            if (normalizedAi21 != null && !normalizedAi21.isEmpty()) {
+                return normalizedAi21;
+            }
+        }
+
+        final String compact = sanitizeAlnumUpper(normalized);
+        if (compact.isEmpty()) {
+            return null;
+        }
+
+        String serialToken = null;
+        Matcher serialMatcher = SIBIONICS2_SERIAL_TOKEN.matcher(compact);
+        while (serialMatcher.find()) {
+            serialToken = sanitizeAlnumUpper(serialMatcher.group());
+        }
+
+        if (serialToken != null) {
+            final String normalizedSerial = normalizeSibionics2NamePart(serialToken);
+            if (normalizedSerial != null && !normalizedSerial.isEmpty()) {
+                return normalizedSerial;
+            }
+        }
+
+        if ((compact.contains(SIBIONICS_GTIN) || compact.contains(SIBIONICS_GTIN_NO_LEADING_ZERO)
+                || looksLikeSibionicsPayload(compact)) && compact.length() >= 11) {
+            final String compactTail = extractByAiTailFallback(compact, "21");
+            if (compactTail != null) {
+                final String normalizedCompactTail = normalizeSibionics2NamePart(compactTail);
+                if (normalizedCompactTail != null && !normalizedCompactTail.isEmpty()) {
+                    return normalizedCompactTail;
+                }
+            }
+        }
+
+        return normalizeSibionics2NamePart(compact);
+    }
+
+    public static String buildSibionics2TransmitterPayload(String input) {
+        final String transmitterId = extractSibionics2TransmitterId(input);
+        if (transmitterId == null || transmitterId.length() < 3) {
+            return null;
+        }
+
+        final String namePart;
+        if (transmitterId.length() >= 10) {
+            namePart = transmitterId.substring(0, 10);
+        } else {
+            namePart = transmitterId + "0".repeat(10 - transmitterId.length());
+        }
+
+        final int targetLength = 59;
+        final int paddingLen = targetLength - SIBIONICS_GTIN.length() - namePart.length();
+        if (paddingLen < 0) {
+            return SIBIONICS_GTIN + namePart;
+        }
+        return SIBIONICS_GTIN + "0".repeat(paddingLen) + namePart;
+    }
+
     static String normalizeScanPayload(String scanText, int request) {
         if (scanText == null) {
             return "";
         }
         final String trimmed = scanText.trim();
+
+        if (request == REQUEST_BARCODE_SIB2) {
+            final String transmitterPayload = buildSibionics2TransmitterPayload(trimmed);
+            return transmitterPayload != null ? transmitterPayload : trimmed;
+        }
+
         if (request != REQUEST_BARCODE || trimmed.isEmpty() || isLikelyMirrorPayload(trimmed)) {
             return trimmed;
         }

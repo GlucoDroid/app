@@ -4088,16 +4088,9 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            val sensorTitle = if (sensor.isAidex) {
-                                sensor.displayName.takeIf {
-                                    it.isNotBlank() && it != "?" && !it.contains(':')
-                                } ?: sensor.serial
-                            } else {
-                                sensor.serial
-                            }
                             // Title with optional "Active" badge
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(sensorTitle, style = MaterialTheme.typography.titleLarge)
+                                Text(sensor.serial, style = MaterialTheme.typography.titleLarge)
                                 // Toggle Main Sensor Badge
                                 Spacer(modifier = Modifier.width(8.dp))
                                 val isMain = sensor.isActive

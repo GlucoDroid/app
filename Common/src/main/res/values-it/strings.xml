@@ -999,6 +999,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mirror_settings_help_text">Configurare le impostazioni di invio/ricezione e del server mirror.</string>
     <string name="model">Modello</string>
     <string name="modes">Modalità</string>
+    <string name="retry_constantly">Continuamente</string>
+    <string name="retry_forever">Ripeti per sempre</string>
+    <string name="retry_summary_constant">Continuamente • %1$d ripetizioni</string>
+    <string name="retry_summary_constant_forever">Continuamente • per sempre</string>
+    <string name="retry_summary_forever">Ogni %1$d min • per sempre</string>
     <string name="nearbypermission">Autorizzazione nelle vicinanze</string>
     <string name="new_custom_alert">Nuovo avviso personalizzato</string>
     <string name="newamount">Nuovo importo</string>
@@ -1153,4 +1158,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Server web compatibile con Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">In attesa di connessione</string>
+    <string name="status_ready_in_minutes">Sensore pronto tra %1$d minuti.</string>
 </resources>

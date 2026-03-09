@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -185,20 +186,22 @@ fun AlertSettingsScreen(
                         // Apply draft settings to ALL configs
                         configs.forEach { (type, config) ->
                              val updated = config.copy(
-                                 soundEnabled = draft.soundEnabled,
-                                 vibrationEnabled = draft.vibrationEnabled,
-                                 flashEnabled = draft.flashEnabled,
-                                 deliveryMode = draft.deliveryMode,
-                                 volumeProfile = draft.volumeProfile,
-                                 customSoundUri = draft.customSoundUri,
-                                 overrideDND = draft.overrideDND,
-                                 timeRangeEnabled = draft.timeRangeEnabled,
-                                 activeStartHour = draft.activeStartHour,
-                                 activeEndHour = draft.activeEndHour,
-                                 retryEnabled = draft.retryEnabled,
-                                 retryIntervalMinutes = draft.retryIntervalMinutes,
-                                 retryCount = draft.retryCount,
-                                 defaultSnoozeMinutes = draft.defaultSnoozeMinutes
+                                  soundEnabled = draft.soundEnabled,
+                                  vibrationEnabled = draft.vibrationEnabled,
+                                  flashEnabled = draft.flashEnabled,
+                                  deliveryMode = draft.deliveryMode,
+                                  volumeProfile = draft.volumeProfile,
+                                  customSoundUri = draft.customSoundUri,
+                                  overrideDND = draft.overrideDND,
+                                  timeRangeEnabled = draft.timeRangeEnabled,
+                                  activeStartHour = draft.activeStartHour,
+                                  activeStartMinute = draft.activeStartMinute,
+                                  activeEndHour = draft.activeEndHour,
+                                  activeEndMinute = draft.activeEndMinute,
+                                  retryEnabled = draft.retryEnabled,
+                                  retryIntervalMinutes = draft.retryIntervalMinutes,
+                                  retryCount = draft.retryCount,
+                                  defaultSnoozeMinutes = draft.defaultSnoozeMinutes
                              )
                              configs[type] = updated
                              AlertRepository.saveConfig(updated)
@@ -225,8 +228,8 @@ fun AlertSettingsScreen(
                                 retryIntervalMinutes = draft.retryIntervalMinutes,
                                 retryCount = draft.retryCount,
                                 timeRangeEnabled = draft.timeRangeEnabled,
-                                startTimeMinutes = (draft.activeStartHour ?: 0) * 60,
-                                endTimeMinutes = (draft.activeEndHour ?: 0) * 60,
+                                startTimeMinutes = (draft.activeStartHour ?: 0) * 60 + (draft.activeStartMinute ?: 0),
+                                endTimeMinutes = (draft.activeEndHour ?: 0) * 60 + (draft.activeEndMinute ?: 0),
                                 soundUri = draft.customSoundUri
                             )
                             CustomAlertRepository.update(updated)
@@ -240,7 +243,6 @@ fun AlertSettingsScreen(
                         }
                     },
                     onTest = { draft ->
-                        AlertStateTracker.resetState(AlertType.LOW)
                         // Use draft config settings for the test
                         Notify.testCustomTrigger(
                             draft.customSoundUri,
@@ -712,7 +714,8 @@ fun CustomAlertCard(
                         deliveryMode = when(alert.style.lowercase()) {
                             "alarm", "system_alarm" -> AlertDeliveryMode.SYSTEM_ALARM
                             "both" -> AlertDeliveryMode.BOTH
-                            else -> AlertDeliveryMode.NOTIFICATION_ONLY // Default for "notification" or unknown
+                            "notification" -> AlertDeliveryMode.NOTIFICATION_ONLY
+                            else -> AlertDeliveryMode.SYSTEM_ALARM
                         },
                         overrideDND = alert.overrideDnd,
                         retryEnabled = alert.retryEnabled,
@@ -1708,11 +1711,22 @@ internal fun RetrySettings(
     onIntervalChange: (Int) -> Unit,
     onCountChange: (Int) -> Unit
 ) {
+    val retrySubtitle = if (enabled) {
+        when {
+            intervalMinutes <= 0 && retryCount == 0 -> stringResource(R.string.retry_summary_constant_forever)
+            intervalMinutes <= 0 -> stringResource(R.string.retry_summary_constant, retryCount)
+            retryCount == 0 -> stringResource(R.string.retry_summary_forever, intervalMinutes)
+            else -> stringResource(R.string.retry_summary, intervalMinutes, retryCount)
+        }
+    } else {
+        stringResource(R.string.realert_if_not_dismissed)
+    }
+
     Column {
         ExpressiveExpandableHeader(
             icon = Icons.Default.Refresh,
             title = stringResource(R.string.retry_if_no_reaction),
-            subtitle = if (enabled) stringResource(R.string.retry_summary, intervalMinutes, retryCount) else stringResource(R.string.realert_if_not_dismissed),
+            subtitle = retrySubtitle,
             enabled = enabled,
             onEnabledChange = onEnabledChange,
             iconTint = MaterialTheme.colorScheme.error
@@ -1730,6 +1744,17 @@ internal fun RetrySettings(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    FilterChip(
+                        selected = intervalMinutes <= 0,
+                        onClick = { onIntervalChange(0) },
+                        label = {
+                            Text(
+                                text = stringResource(R.string.retry_constantly),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    )
                     listOf(1, 2, 3, 5, 10, 15).forEach { minutes ->
                         FilterChip(
                             selected = intervalMinutes == minutes,
@@ -1747,11 +1772,17 @@ internal fun RetrySettings(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf(0 to "∞", 1 to "1", 2 to "2", 3 to "3", 5 to "5").forEach { (count, label) ->
+                    listOf(0 to stringResource(R.string.retry_forever), 1 to "1", 2 to "2", 3 to "3", 5 to "5").forEach { (count, label) ->
                         FilterChip(
                             selected = retryCount == count,
                             onClick = { onCountChange(count) },
-                            label = { Text(label) }
+                            label = {
+                                Text(
+                                    text = label,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         )
                     }
                 }
@@ -1789,11 +1820,11 @@ private fun formatThreshold(value: Float, isMmol: Boolean): String {
 private fun getThresholdRange(type: AlertType, isMmol: Boolean): ClosedFloatingPointRange<Float> {
     return when (type) {
         AlertType.VERY_LOW -> if (isMmol) 2.0f..4.0f else 36f..70f
-        AlertType.LOW -> if (isMmol) 3.0f..5.5f else 54f..100f
-        AlertType.HIGH -> if (isMmol) 7.0f..15.0f else 126f..270f
+        AlertType.LOW -> if (isMmol) 3.0f..7f else 54f..100f
+        AlertType.HIGH -> if (isMmol) 6.0f..14.0f else 126f..270f
         AlertType.VERY_HIGH -> if (isMmol) 10.0f..20.0f else 180f..360f
-        AlertType.PRE_LOW -> if (isMmol) 3.5f..6.0f else 63f..108f
-        AlertType.PRE_HIGH -> if (isMmol) 7.0f..14.0f else 126f..252f
+        AlertType.PRE_LOW -> if (isMmol) 3f..7.0f else 63f..108f
+        AlertType.PRE_HIGH -> if (isMmol) 5.0f..10.0f else 126f..252f
         AlertType.PERSISTENT_HIGH -> if (isMmol) 7.0f..15.0f else 126f..270f
         else -> if (isMmol) 2.0f..20.0f else 36f..360f
     }

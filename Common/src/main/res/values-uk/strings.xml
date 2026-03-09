@@ -1016,6 +1016,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="libreview">LibreView</string>
     <string name="locationpermission">Дозвіл на місцезнаходження</string>
     <string name="loghelp">Довідка про журнал</string>
+    <string name="retry_constantly">Постійно</string>
+    <string name="retry_forever">Повторювати без кінця</string>
+    <string name="retry_summary_constant">Постійно • %1$d повторів</string>
+    <string name="retry_summary_constant_forever">Постійно • без кінця</string>
+    <string name="retry_summary_forever">Кожні %1$d хв • без кінця</string>
     <string name="master_alert_control">Головний контроль оповіщення</string>
     <string name="mealhelp">Довідка про харчування</string>
     <string name="metrics">Метрики</string>
@@ -1177,4 +1182,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Вебсервер, сумісний із Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Очікування підключення</string>
+    <string name="status_ready_in_minutes">Датчик буде готовий через %1$d хвилин.</string>
 </resources>

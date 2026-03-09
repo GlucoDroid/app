@@ -83,9 +83,9 @@ fun FloatingGlucoseOverlay(
     val viewData = remember(glucosePoint) {
         val sName = Natives.lastsensorname()
         if (!sName.isNullOrEmpty()) {
-            val ptr = Natives.getdataptr(sName)
-            if (ptr != 0L) {
-                Pair(Natives.getViewMode(ptr), Natives.getunit())
+            val sensorPtr = Natives.str2sensorptr(sName)
+            if (sensorPtr != 0L) {
+                Pair(Natives.getViewModeFromSensorptr(sensorPtr), Natives.getunit())
             } else Pair(0, Natives.getunit())
         } else Pair(0, Natives.getunit())
     }

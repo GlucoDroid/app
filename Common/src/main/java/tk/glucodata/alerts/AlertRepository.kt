@@ -185,9 +185,9 @@ object AlertRepository {
     private fun saveToPrefs(config: AlertConfig) {
         prefs.edit {
             putBoolean(keyEnabled(config.type), config.enabled)
-            config.threshold?.let { putFloat(keyThreshold(config.type), it) }
-            config.durationMinutes?.let { putInt(keyDuration(config.type), it) }
-            config.forecastMinutes?.let { putInt(keyForecast(config.type), it) }
+            if (config.threshold != null) putFloat(keyThreshold(config.type), config.threshold) else remove(keyThreshold(config.type))
+            if (config.durationMinutes != null) putInt(keyDuration(config.type), config.durationMinutes) else remove(keyDuration(config.type))
+            if (config.forecastMinutes != null) putInt(keyForecast(config.type), config.forecastMinutes) else remove(keyForecast(config.type))
             putString(keyDeliveryMode(config.type), config.deliveryMode.name)
             putString(keyVolumeProfile(config.type), config.volumeProfile.name)
             putBoolean(keyOverrideDND(config.type), config.overrideDND)
@@ -202,17 +202,14 @@ object AlertRepository {
             putBoolean(keyFlash(config.type), config.flashEnabled)
             putInt(keySnooze(config.type), config.defaultSnoozeMinutes)
             putInt(keyAlarmDuration(config.type), config.alarmDurationSeconds)
-            // NEW: Time range and retry
             putBoolean(keyTimeRangeEnabled(config.type), config.timeRangeEnabled)
-            config.activeStartHour?.let { putInt(keyActiveStartHour(config.type), it) }
-            config.activeStartMinute?.let { putInt(keyActiveStartMinute(config.type), it) }
-            config.activeEndHour?.let { putInt(keyActiveEndHour(config.type), it) }
-            config.activeEndMinute?.let { putInt(keyActiveEndMinute(config.type), it) }
+            if (config.activeStartHour != null) putInt(keyActiveStartHour(config.type), config.activeStartHour) else remove(keyActiveStartHour(config.type))
+            if (config.activeStartMinute != null) putInt(keyActiveStartMinute(config.type), config.activeStartMinute) else remove(keyActiveStartMinute(config.type))
+            if (config.activeEndHour != null) putInt(keyActiveEndHour(config.type), config.activeEndHour) else remove(keyActiveEndHour(config.type))
+            if (config.activeEndMinute != null) putInt(keyActiveEndMinute(config.type), config.activeEndMinute) else remove(keyActiveEndMinute(config.type))
             putBoolean(keyRetryEnabled(config.type), config.retryEnabled)
             putInt(keyRetryInterval(config.type), config.retryIntervalMinutes)
             putInt(keyRetryCount(config.type), config.retryCount)
-
-
         }
     }
     
@@ -241,15 +238,13 @@ object AlertRepository {
             }
             Natives.writealarmduration(typeId, durationValue)
             
-            config.customSoundUri?.let { 
-                Natives.writering(
-                    typeId, 
-                    it, 
-                    config.soundEnabled, 
-                    config.flashEnabled, 
-                    config.vibrationEnabled
-                ) 
-            }
+            Natives.writering(
+                typeId,
+                config.customSoundUri ?: "",
+                config.soundEnabled,
+                config.flashEnabled,
+                config.vibrationEnabled
+            );
         }
     }
     
@@ -274,4 +269,3 @@ object AlertRepository {
                loadConfig(AlertType.MISSED_READING).enabled
     }
 }
-

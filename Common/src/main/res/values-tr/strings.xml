@@ -1016,6 +1016,11 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="hardware_reset">Donanım sıfırlama</string>
     <string name="hardware_reset_desc">Dahili depolamayı temizler, oturum sayacını yeniden başlatır ve önyargı düzeltmeyi etkinleştirir</string>
     <string name="healthpermission">Sağlık İzni</string>
+    <string name="retry_constantly">Sürekli</string>
+    <string name="retry_forever">Sürekli tekrarla</string>
+    <string name="retry_summary_constant">Sürekli • %1$d tekrar</string>
+    <string name="retry_summary_constant_forever">Sürekli • sonsuza kadar</string>
+    <string name="retry_summary_forever">Her %1$d dk • sürekli</string>
     <string name="helpexport">Dışa aktarmaya yardımcı olun</string>
     <string name="hours_remaining">%1$d saat kaldı</string>
     <string name="import_profile_merge">Profili içe aktar (birleştirme)</string>
@@ -1191,4 +1196,6 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Nightscout uyumlu web sunucusu</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Bağlantı bekleniyor</string>
+    <string name="status_ready_in_minutes">Sensör %1$d dakika içinde hazır.</string>
 </resources>

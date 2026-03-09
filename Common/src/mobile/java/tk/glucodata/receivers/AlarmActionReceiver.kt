@@ -31,15 +31,10 @@ class AlarmActionReceiver : BroadcastReceiver() {
             ACTION_DISMISS -> {
                 Log.i(LOG_ID, "Dismiss action received for alert type: $alertType")
                 Notify.stopalarm()
-                // Clear any snooze for this alert (fully dismissed, not snoozed)
                 alertType?.let { 
                     SnoozeManager.clearSnooze(it)
-                    // Do NOT reset state here. Resetting clears the 'lastTriggerTime', causing the 
-                    // alert logic to think the next reading (1 min later) is a FRESH event, triggering it again.
-                    // By leaving the state as 'triggered', AlertStateTracker.shouldTrigger will return false
-                    // (blocking subsequent alerts) until the failsafe timeout or manual reset.
+                    AlertStateTracker.onAlertDismissed(it)
                     
-                    // Explicitly cancel notification to ensure UI clean-up
                     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
                     notificationManager.cancel(81432) // notify.java: glucosealarmid = 81432
                 }
@@ -65,4 +60,3 @@ class AlarmActionReceiver : BroadcastReceiver() {
         }
     }
 }
-

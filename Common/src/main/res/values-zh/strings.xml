@@ -1016,6 +1016,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="labelhelp">标签帮助</string>
     <string name="librenumhelp">图书馆帮助</string>
     <string name="libreview">自由视图</string>
+    <string name="retry_constantly">持续</string>
+    <string name="retry_forever">持续重复</string>
+    <string name="retry_summary_constant">持续 • %1$d 次重复</string>
+    <string name="retry_summary_constant_forever">持续 • 一直重复</string>
+    <string name="retry_summary_forever">每 %1$d 分钟 • 持续重复</string>
     <string name="locationpermission">位置许可</string>
     <string name="loghelp">记录帮助</string>
     <string name="master_alert_control">主警报控制</string>
@@ -1179,4 +1184,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">兼容 Nightscout 的 Web 服务器</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">等待连接</string>
+    <string name="status_ready_in_minutes">传感器将在 %1$d 分钟后就绪。</string>
 </resources>

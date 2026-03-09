@@ -79,6 +79,7 @@ private fun Context.hasCameraPermission(): Boolean {
 @SuppressLint("ClickableViewAccessibility")
 fun InlineQrScannerCard(
     modifier: Modifier = Modifier,
+    scannerEnabled: Boolean = true,
     onScanResult: (String) -> Unit,
     onManualFallback: (() -> Unit)? = null,
     manualFallbackLabel: String? = null,
@@ -178,10 +179,10 @@ fun InlineQrScannerCard(
         }
     }
 
-    DisposableEffect(previewView, hasPermission, lifecycleOwner, consumed, lifecycleResumed) {
+    DisposableEffect(previewView, hasPermission, lifecycleOwner, consumed, lifecycleResumed, scannerEnabled) {
         val generation = bindingGeneration.incrementAndGet()
         val targetView = previewView
-        if (!hasPermission || targetView == null || consumed || !lifecycleResumed) {
+        if (!hasPermission || targetView == null || consumed || !lifecycleResumed || !scannerEnabled) {
             camera = null
             torchEnabled = false
             onDispose { }
@@ -285,7 +286,7 @@ fun InlineQrScannerCard(
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (hasPermission) {
+            if (hasPermission && scannerEnabled) {
                 key(previewInstanceNonce) {
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),

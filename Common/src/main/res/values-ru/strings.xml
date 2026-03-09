@@ -1014,6 +1014,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="filled">Заполненный</string>
     <string name="firmware">Прошивка</string>
     <string name="flashpermission">Разрешение Flash</string>
+    <string name="retry_constantly">Постоянно</string>
+    <string name="retry_forever">Повторять бесконечно</string>
+    <string name="retry_summary_constant">Постоянно • %1$d повторов</string>
+    <string name="retry_summary_constant_forever">Постоянно • бесконечно</string>
+    <string name="retry_summary_forever">Каждые %1$d мин • бесконечно</string>
     <string name="floating_permission_required">Требуется разрешение на плавающее окно</string>
     <string name="floatingconfig">Плавающая конфигурация</string>
     <string name="garminconfig">Конфигурация Гармин</string>
@@ -1205,4 +1210,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_reinit_desc">Принудительно перезапустить поиск часов и синхронизацию сети.</string>
     <string name="web_server_desc">Веб-сервер, совместимый с Nightscout</string>
     <string name="invalid_interval">Неверное значение интервала</string>
+    <string name="status_waiting_for_connection">Ожидание подключения</string>
+    <string name="status_ready_in_minutes">Датчик будет готов через %1$d минут.</string>
 </resources>

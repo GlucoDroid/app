@@ -62,7 +62,7 @@ data class AlertConfig(
     val forecastMinutes: Int? = null,       // For forecast alerts (how far ahead to predict)
     
     // Delivery settings
-    val deliveryMode: AlertDeliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
+    val deliveryMode: AlertDeliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
     val volumeProfile: VolumeProfile = VolumeProfile.HIGH,
     val overrideDND: Boolean = false,       // Override Do Not Disturb
     
@@ -174,7 +174,7 @@ object AlertDefaults {
                 type = type,
                 enabled = true,
                 threshold = if (isMmol) LOW_THRESHOLD_MMOL else LOW_THRESHOLD_MGDL,
-                deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.HIGH,
                 overrideDND = true,
                 defaultSnoozeMinutes = 15
@@ -183,7 +183,7 @@ object AlertDefaults {
                 type = type,
                 enabled = true,
                 threshold = if (isMmol) HIGH_THRESHOLD_MMOL else HIGH_THRESHOLD_MGDL,
-                deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
                 overrideDND = false,
                 defaultSnoozeMinutes = 30
@@ -212,7 +212,7 @@ object AlertDefaults {
                 enabled = false,
                 threshold = if (isMmol) FORECAST_LOW_THRESHOLD_MMOL else FORECAST_LOW_THRESHOLD_MGDL,
                 forecastMinutes = FORECAST_LOOK_AHEAD_MINUTES,
-                deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
                 defaultSnoozeMinutes = 20
             )
@@ -221,7 +221,7 @@ object AlertDefaults {
                 enabled = false,
                 threshold = if (isMmol) HIGH_THRESHOLD_MMOL else HIGH_THRESHOLD_MGDL,
                 forecastMinutes = FORECAST_LOOK_AHEAD_MINUTES,
-                deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
                 defaultSnoozeMinutes = 30
             )
@@ -229,7 +229,7 @@ object AlertDefaults {
                 type = type,
                 enabled = true,
                 durationMinutes = MISSED_READING_MINUTES,
-                deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
                 defaultSnoozeMinutes = 30
             )
@@ -238,7 +238,7 @@ object AlertDefaults {
                 enabled = false,
                 threshold = if (isMmol) HIGH_THRESHOLD_MMOL else HIGH_THRESHOLD_MGDL,
                 durationMinutes = PERSISTENT_HIGH_MINUTES,
-                deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
                 defaultSnoozeMinutes = 60
             )

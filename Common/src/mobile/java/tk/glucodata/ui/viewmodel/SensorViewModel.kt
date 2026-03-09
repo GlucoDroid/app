@@ -11,6 +11,7 @@ import tk.glucodata.SensorBluetooth
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.Natives
 import tk.glucodata.bluediag
+import tk.glucodata.ui.util.getLegacyWarmupStatus
 import kotlin.math.abs
 
 /**
@@ -192,8 +193,7 @@ class SensorViewModel : ViewModel() {
                 
                 // Conflict Resolution: If last sensor is gone but we have valid active ones,
                 // switch focus to the valid one.
-                // Edit 57a: Actually persist the correction via setcurrentsensor() so that
-                // Notify.java stops calling getdataptr() on the finished sensor. Previously
+                // Edit 57a: Actually persist the correction via setcurrentsensor(). Previously
                 // this only updated the local variable but never wrote back to native state,
                 // so lastsensorname() kept returning the stale serial on every notification.
                 if (activeSensors != null && activeSensors.isNotEmpty()) {
@@ -332,6 +332,7 @@ class SensorViewModel : ViewModel() {
                         // Get detailed status from native code
                         val nativeStatus = Natives.getsensortext(gatt.dataptr) ?: ""
                         val bleStatus = gatt.constatstatusstr ?: ""
+                        val warmupStatus = getLegacyWarmupStatus(tk.glucodata.Applic.app, gatt.dataptr, nativeStatus)
                         
                         // Edit 85: Check `stop` (paused) state via SensorBluetooth helper.
                         // SuperGattCallback.stop is protected, not accessible from this package,
@@ -349,6 +350,7 @@ class SensorViewModel : ViewModel() {
                         }
                         
                         val finalStatus = when {
+                            warmupStatus != null -> warmupStatus
                             nativeStatus.isNotEmpty() -> nativeStatus
                             // Pass through custom status strings from GATT callbacks (e.g., "Connected, waiting for data...", "Connected, raw values received")
                             bleStatus.isNotEmpty() && !bleStatus.startsWith("Status=") -> bleStatus
@@ -367,7 +369,7 @@ class SensorViewModel : ViewModel() {
                             deviceAddress = gatt.mActiveDeviceAddress ?: "Unknown",
                             connectionStatus = if (bleStatus.startsWith("Status=")) mapBleStatus(bleStatus) else "",
                             starttime = if (startMs > 0) tk.glucodata.bluediag.datestr(startMs) else "",
-                            streaming = isActivelyReceiving,
+                            streaming = warmupStatus == null && isActivelyReceiving,
                             rssi = gatt.readrssi,
                             dataptr = gatt.dataptr,
                             officialEnd = if(officialEndMs > 0) tk.glucodata.bluediag.datestr(officialEndMs) else "",
@@ -502,9 +504,8 @@ class SensorViewModel : ViewModel() {
     }
 
     // Edit 56b: When terminating/forgetting the current lastsensorname, update it to
-    // the next active sensor. Otherwise Notify.java keeps calling getdataptr() on the
-    // finished sensor, triggering calibration algorithm re-initialization on every
-    // notification cycle (observed: 33 newAlgContext calls for finished 432T452CBZ4).
+    // the next active sensor. Otherwise notification/UI state can keep targeting the
+    // finished sensor on every refresh cycle.
     // Multi-sensor: No longer calls forceFullSync()/clearAllTables(). Data from the
     // departed sensor stays in Room (harmless — just won't be queried on the dashboard
     // since the dashboard filters by main sensor serial). The next sensor's data is

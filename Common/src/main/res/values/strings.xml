@@ -1016,9 +1016,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="preemptive_snooze">Preemptive Snooze</string>
     <string name="preemptive_snooze_desc">Snooze alerts before they trigger</string>
     <string name="realert_if_not_dismissed">Re-alert if not dismissed</string>
+    <string name="retry_constantly">Constantly</string>
     <string name="retry_every">Retry every</string>
+    <string name="retry_forever">Retry forever</string>
     <string name="retry_if_no_reaction">Retry if no reaction</string>
     <string name="retry_summary">Every %1$d min • %2$d retries</string>
+    <string name="retry_summary_constant">Constantly • %1$d retries</string>
+    <string name="retry_summary_constant_forever">Constantly • forever</string>
+    <string name="retry_summary_forever">Every %1$d min • forever</string>
     <string name="select_time_for_label">Select time for %1$s</string>
     <string name="snooze">Snooze</string>
     <string name="system_default_sound">System Default Sound</string>
@@ -1330,4 +1335,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Nightscout-compatible web server</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Waiting for connection</string>
+    <string name="status_ready_in_minutes">Sensor ready in %1$d minutes.</string>
 </resources>

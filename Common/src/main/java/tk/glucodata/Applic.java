@@ -812,9 +812,8 @@ public class Applic extends Application implements androidx.work.Configuration.P
             initialize();
 
             // Edit 57a: Startup cleanup — if lastsensorname() points to a finished sensor,
-            // switch to the first active sensor (or clear it). This prevents Notify.java from
-            // calling getdataptr() on dead sensors, which triggers useless algorithm context
-            // re-initialization on every notification cycle.
+            // switch to the first active sensor (or clear it). This originally prevented
+            // notification/UI reads from resolving a dead sensor through getdataptr().
             try {
                 String currentSensor = Natives.lastsensorname();
                 String[] active = Natives.activeSensors();
@@ -1074,17 +1073,59 @@ public class Applic extends Application implements androidx.work.Configuration.P
 
     @Keep
     static boolean updateDevices() { // Rename to reset
-        final var blue = tk.glucodata.SensorBluetooth.blueone;
-        if (blue != null) {
-            if (blue.updateDevicers()) {
-                var main = MainActivity.thisone;
-                if (main != null)
-                    main.finepermission();
+        syncCurrentSensorSelection();
+
+        final boolean useBluetooth = Natives.getusebluetooth();
+        boolean ok = false;
+
+        if (useBluetooth) {
+            var blue = tk.glucodata.SensorBluetooth.blueone;
+            if (blue == null) {
+                tk.glucodata.SensorBluetooth.start(true);
+                blue = tk.glucodata.SensorBluetooth.blueone;
             }
-            return true;
+            if (blue != null) {
+                if (blue.updateDevicers()) {
+                    var main = MainActivity.thisone;
+                    if (main != null)
+                        main.finepermission();
+                }
+                ok = true;
+            } else {
+                Log.e(LOG_ID, "tk.glucodata.SensorBluetooth.blueone==null");
+            }
+        } else {
+            ok = tk.glucodata.SensorBluetooth.syncNativeDevicesNoBluetooth();
         }
-        Log.e(LOG_ID, "tk.glucodata.SensorBluetooth.blueone==null");
-        return false;
+
+        updatescreen();
+        Notify.showoldglucose();
+        return ok;
+    }
+
+    private static void syncCurrentSensorSelection() {
+        try {
+            String currentSensor = Natives.lastsensorname();
+            String[] active = Natives.activeSensors();
+            if (active != null && active.length > 0) {
+                boolean isActive = false;
+                if (currentSensor != null && !currentSensor.isEmpty()) {
+                    for (String sensor : active) {
+                        if (currentSensor.equals(sensor)) {
+                            isActive = true;
+                            break;
+                        }
+                    }
+                }
+                if (!isActive) {
+                    Natives.setcurrentsensor(active[0]);
+                }
+            } else if (currentSensor != null && !currentSensor.isEmpty()) {
+                Natives.setcurrentsensor("");
+            }
+        } catch (Throwable t) {
+            Log.stack(LOG_ID, "syncCurrentSensorSelection", t);
+        }
     }
     /*
      * @Keep

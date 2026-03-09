@@ -229,36 +229,29 @@ class StatsViewModel : ViewModel() {
 
     private fun readTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
         return try {
-            val dataPtr = Natives.getdataptr(serial)
-            if (dataPtr == 0L) return emptyList()
+            val sensorPtr = Natives.str2sensorptr(serial)
+            if (sensorPtr == 0L) return emptyList()
 
-            try {
-                val sensorPtr = Natives.getsensorptr(dataPtr)
-                if (sensorPtr == 0L) return emptyList()
+            val tempRaw = Natives.getTemperatureData(sensorPtr)
+            if (tempRaw == null || tempRaw.isEmpty()) return emptyList()
 
-                val tempRaw = Natives.getTemperatureData(sensorPtr)
-                if (tempRaw == null || tempRaw.isEmpty()) return emptyList()
+            val firstTs = history.firstOrNull()?.timestamp
+            val lastTs = history.lastOrNull()?.timestamp
+            val endTs = lastTs ?: System.currentTimeMillis()
+            val startTs = firstTs ?: (endTs - tempRaw.size * 5L * 60L * 1000L)
+            val step = ((endTs - startTs) / tempRaw.size.coerceAtLeast(1)).coerceAtLeast(60_000L)
 
-                val firstTs = history.firstOrNull()?.timestamp
-                val lastTs = history.lastOrNull()?.timestamp
-                val endTs = lastTs ?: System.currentTimeMillis()
-                val startTs = firstTs ?: (endTs - tempRaw.size * 5L * 60L * 1000L)
-                val step = ((endTs - startTs) / tempRaw.size.coerceAtLeast(1)).coerceAtLeast(60_000L)
-
-                buildList(tempRaw.size) {
-                    tempRaw.forEachIndexed { index, value ->
-                        if (value > 0) {
-                            add(
-                                TemperaturePoint(
-                                    timestamp = startTs + index * step,
-                                    temperatureCelsius = value / 10f
-                                )
+            buildList(tempRaw.size) {
+                tempRaw.forEachIndexed { index, value ->
+                    if (value > 0) {
+                        add(
+                            TemperaturePoint(
+                                timestamp = startTs + index * step,
+                                temperatureCelsius = value / 10f
                             )
-                        }
+                        )
                     }
                 }
-            } finally {
-                Natives.freedataptr(dataPtr)
             }
         } catch (e: Exception) {
             Log.e(tag, "readTemperaturePoints failed", e)

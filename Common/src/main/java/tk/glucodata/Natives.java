@@ -172,6 +172,8 @@ public class Natives {
 
         public static native long getSensorEndTime(long dataptr, boolean official);
 
+        public static native long getSensorEndTimeFromSensorptr(long sensorptr, boolean official);
+
         public static native String[] activeSensors();
 
         public static native byte[] bluetoothOnKey(byte[] sensorident, byte[] patchinfo);
@@ -1141,6 +1143,8 @@ public class Natives {
 
         public static native long getSensorStartmsec(long dataptr);
 
+        public static native long getSensorStartmsecFromSensorptr(long sensorptr);
+
         // public static native void setnightscoutV3(boolean val);
         public static native boolean getnightscoutV3();
 
@@ -1294,6 +1298,8 @@ public class Natives {
         public static native String namefromSensorptr(long sensorptr);
 
         public static native String sensortextfromSensorptr(long sensorptr);
+
+        public static native int getViewModeFromSensorptr(long sensorptr);
 
         public static native void finishfromSensorptr(long sensorptr);
 

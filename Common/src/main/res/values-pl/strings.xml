@@ -1013,6 +1013,11 @@
     <string name="filled">Wypełniony</string>
     <string name="firmware">Oprogramowanie sprzętowe</string>
     <string name="flashpermission">Pozwolenie na Flasha</string>
+    <string name="retry_constantly">Ciągle</string>
+    <string name="retry_forever">Powtarzaj bez końca</string>
+    <string name="retry_summary_constant">Ciągle • %1$d powtórzeń</string>
+    <string name="retry_summary_constant_forever">Ciągle • bez końca</string>
+    <string name="retry_summary_forever">Co %1$d min • bez końca</string>
     <string name="floating_permission_required">Wymagane pozwolenie na pływające okno</string>
     <string name="floatingconfig">Konfiguracja pływająca</string>
     <string name="garminconfig">Konfiguracja Garmina</string>
@@ -1198,4 +1203,6 @@
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Serwer WWW zgodny z Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Oczekiwanie na połączenie</string>
+    <string name="status_ready_in_minutes">Sensor gotowy za %1$d minut(y).</string>
 </resources>

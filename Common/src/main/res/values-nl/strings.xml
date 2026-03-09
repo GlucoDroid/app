@@ -1016,6 +1016,11 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="report_style_minimal_swiss">Minimalistisch Zwitsers</string>
     <string name="report_style_medical_journal">Medisch tijdschrift</string>
     <string name="report_style_dark_ink">Premium donkere inkt</string>
+    <string name="retry_constantly">Voortdurend</string>
+    <string name="retry_forever">Blijf herhalen</string>
+    <string name="retry_summary_constant">Voortdurend • %1$d herhalingen</string>
+    <string name="retry_summary_constant_forever">Voortdurend • onbeperkt</string>
+    <string name="retry_summary_forever">Elke %1$d min • onbeperkt</string>
     <string name="report_style_elegant_typography">Elegante typografie</string>
     <string name="export_successful">Exporteren succesvol</string>
     <string name="filled">Gevuld</string>
@@ -1206,4 +1211,6 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="web_server_desc">Nightscout-compatibele webserver</string>
     <string name="invalid_interval">Invalid interval value</string>
+    <string name="status_waiting_for_connection">Wachten op verbinding</string>
+    <string name="status_ready_in_minutes">Sensor is gereed in %1$d minuten.</string>
 </resources>
