@@ -1047,13 +1047,13 @@ class AiDexBleManager(
         constatstatusstr = "Downloading history…"
         Log.i(TAG, "History range: briefStart=$briefStart, rawStart=$rawStart, newest=$newest")
 
-        // Infer sensorstartmsec from the newest offset if 0x21 hasn't provided it.
-        // newest offset ≈ sensor age in minutes, so startTime ≈ now − newest × 60_000.
-        // This is critical: without sensorstartmsec, storeHistoryEntries drops everything.
-        if (sensorstartmsec <= 0L && newest > 0) {
+        // Update sensorstartmsec from the newest offset.
+        // This is critical: SuperGattCallback constructor may have set sensorstartmsec to "now"
+        // (via Natives.getSensorStartmsec for a newly-registered sensor), but the sensor has
+        // been running for days. ensureSensorStartTime will override if >10min off.
+        if (newest > 0) {
             lastOffsetMinutes = newest
             ensureSensorStartTime(System.currentTimeMillis())
-            Log.i(TAG, "Inferred start time from history range: newest=$newest → sensorstartmsec=$sensorstartmsec")
         }
 
         // Start history download from where we left off
@@ -1396,29 +1396,36 @@ class AiDexBleManager(
     )
 
     /**
-     * Ensure sensorstartmsec is set before storing data.
+     * Ensure sensorstartmsec is correct before storing data.
      *
-     * Priority:
-     * 1. Already set from 0x21 response → no-op
-     * 2. Offset available from F003 → infer: now - offset * 60_000
-     * 3. Last resort → use current time (matches vendor driver's storeAidexReading fallback)
+     * Matches the vendor driver's updateStartTimeFromOffset() logic:
+     * - If lastOffsetMinutes is available, compute inferredStart = now - offset * 60_000
+     * - Override sensorstartmsec if it's 0 OR if it's >10 minutes off from the inferred value
+     *   (handles the case where SuperGattCallback constructor set it to "now" via
+     *   Natives.getSensorStartmsec for a newly-registered sensor, even though the sensor
+     *   has been running for days)
+     * - Last resort: use current time
      */
     private fun ensureSensorStartTime(now: Long) {
-        if (sensorstartmsec > 0L) return
-
         if (lastOffsetMinutes > 0) {
-            val inferred = now - (lastOffsetMinutes.toLong() * 60_000L)
-            sensorstartmsec = inferred
-            Log.i(TAG, "Inferred sensorstartmsec from offset: ${lastOffsetMinutes}min → $inferred")
-        } else {
+            val inferredStart = now - (lastOffsetMinutes.toLong() * 60_000L)
+            if (sensorstartmsec == 0L || kotlin.math.abs(sensorstartmsec - inferredStart) > (10L * 60_000L)) {
+                sensorstartmsec = inferredStart
+                Log.i(TAG, "Updated sensorstartmsec from offset: ${lastOffsetMinutes}min → $inferredStart")
+                if (dataptr != 0L) {
+                    try {
+                        Natives.aidexSetStartTime(dataptr, sensorstartmsec)
+                    } catch (_: Throwable) {}
+                }
+            }
+        } else if (sensorstartmsec == 0L) {
             sensorstartmsec = now
             Log.i(TAG, "Fallback sensorstartmsec = now ($now)")
-        }
-
-        if (dataptr != 0L) {
-            try {
-                Natives.aidexSetStartTime(dataptr, sensorstartmsec)
-            } catch (_: Throwable) {}
+            if (dataptr != 0L) {
+                try {
+                    Natives.aidexSetStartTime(dataptr, sensorstartmsec)
+                } catch (_: Throwable) {}
+            }
         }
     }
 
