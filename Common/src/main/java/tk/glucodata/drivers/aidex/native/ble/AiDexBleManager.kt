@@ -1,0 +1,984 @@
+// JugglucoNG — AiDex Native Kotlin Driver
+// AiDexBleManager.kt — Per-sensor BLE connection manager extending SuperGattCallback
+//
+// Replaces the vendor native lib (libblecomm-lib.so) for AiDex sensors.
+// Uses AiDexKeyExchange for crypto, AiDexCommandBuilder for F002 commands,
+// and AiDexParser for parsing responses.
+//
+// Integration: Drop-in replacement for the vendor-mode path in AiDexSensor.kt.
+// SensorBluetooth still manages scanning and the gattcallbacks list.
+
+package tk.glucodata.drivers.aidex.native.ble
+
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothProfile
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
+import tk.glucodata.Log
+import tk.glucodata.SuperGattCallback
+import tk.glucodata.drivers.aidex.native.data.*
+import tk.glucodata.drivers.aidex.native.protocol.*
+import java.util.ArrayDeque
+import java.util.UUID
+
+/**
+ * Per-sensor BLE connection manager for AiDex sensors.
+ *
+ * Extends [SuperGattCallback] so it plugs into JugglucoNG's existing
+ * [SensorBluetooth.gattcallbacks] list and multi-sensor management.
+ *
+ * Lifecycle:
+ *   1. SensorBluetooth creates this and adds to gattcallbacks
+ *   2. SensorBluetooth calls connectDevice() when device is found
+ *   3. GATT connects → discover services → CCCD chain → key exchange → streaming
+ *   4. F003 notifications deliver live glucose via handleGlucoseResult()
+ *   5. History/calibration are fetched after streaming starts
+ *   6. On disconnect, reconnect strategy manages retry timing
+ *
+ * @param serial Sensor serial number (bare, without "X-" prefix)
+ * @param dataptr Native data pointer from Natives.getdataptr(serial)
+ * @param sensorGen Sensor generation identifier
+ */
+@SuppressLint("MissingPermission")
+class AiDexBleManager(
+    serial: String,
+    dataptr: Long,
+    sensorGen: Int,
+) : SuperGattCallback(serial, dataptr, sensorGen) {
+
+    companion object {
+        private const val TAG = "AiDexBleManager"
+
+        // -- BLE UUIDs --
+        val SERVICE_F000: UUID = UUID.fromString("0000181f-0000-1000-8000-00805f9b34fb")
+        val CHAR_F001: UUID = UUID.fromString("0000f001-0000-1000-8000-00805f9b34fb")
+        val CHAR_F002: UUID = UUID.fromString("0000f002-0000-1000-8000-00805f9b34fb")
+        val CHAR_F003: UUID = UUID.fromString("0000f003-0000-1000-8000-00805f9b34fb")
+
+        // -- GATT Queue --
+        private const val GATT_OP_MAX_RETRIES = 10
+        private const val NO_RESPONSE_ADVANCE_MS = 35L
+        private const val BONDING_PAUSE_TIMEOUT_MS = 15_000L
+        private const val GATT_WRITE_RETRY_DELAY_MS = 200L
+
+        // -- Timeouts --
+        private const val MTU_DELAY_MS = 200L
+        private const val DISCOVERY_RETRY_DELAY_MS = 1_500L
+        private const val DISCOVERY_MAX_RETRIES = 2
+        private const val HISTORY_PAGE_TIMEOUT_MS = 25_000L
+        private const val HISTORY_REQUEST_DELAY_MS = 80L
+    }
+
+    // -- Protocol Objects --
+    private val keyExchange = AiDexKeyExchange(serial)
+    private val commandBuilder = AiDexCommandBuilder(keyExchange)
+
+    // -- Reconnect Strategy --
+    val reconnect = AiDexReconnect()
+
+    // -- Connection Phase Tracking --
+    enum class Phase {
+        IDLE,
+        GATT_CONNECTING,
+        DISCOVERING_SERVICES,
+        CCCD_CHAIN,
+        KEY_EXCHANGE,
+        STREAMING,
+    }
+
+    @Volatile var phase: Phase = Phase.IDLE
+        private set
+
+    // -- Handler --
+    private val handlerThread = HandlerThread("AiDex-$serial").also { it.start() }
+    private val handler = Handler(handlerThread.looper)
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // -- GATT Queue --
+    private sealed class GattOp {
+        var retryCount: Int = 0
+        data class Write(val charUuid: UUID, val data: ByteArray) : GattOp()
+        data class Read(val charUuid: UUID) : GattOp()
+    }
+
+    private val gattQueue = ArrayDeque<GattOp>()
+    @Volatile private var gattOpActive = false
+    @Volatile private var queuePausedForBonding = false
+
+    // -- CCCD State --
+    private var servicesReady = false
+    private var cccdQueue = ArrayDeque<UUID>() // Characteristics to enable notifications on
+    private var cccdWriteInProgress = false
+
+    // -- Key Exchange State --
+    private var challengeWritten = false
+    private var bondDataRead = false
+
+    // -- History State --
+    @Volatile private var historyDownloading = false
+    private var historyRawNextIndex = 0
+    private var historyBriefNextIndex = 0
+    private var historyNewestOffset = 0
+
+    // -- F003 Live Data --
+    private var lastGlucoseTimeMs: Long = 0L
+    private var lastOffsetMinutes: Int = 0
+
+    // -- Listeners --
+    /** Called when a live glucose reading is parsed from F003. */
+    var onGlucoseReading: ((GlucoseReading) -> Unit)? = null
+
+    /** Called when calibrated history entries are parsed from 0x23. */
+    var onCalibratedHistory: ((List<CalibratedHistoryEntry>) -> Unit)? = null
+
+    /** Called when ADC history entries are parsed from 0x24. */
+    var onAdcHistory: ((List<AdcHistoryEntry>) -> Unit)? = null
+
+    /** Called when calibration records are parsed from 0x27. */
+    var onCalibrationRecords: ((List<CalibrationRecord>) -> Unit)? = null
+
+    /** Called when sensor info is received (activation date, etc.) */
+    var onSensorInfo: ((SensorInfo) -> Unit)? = null
+
+    /** Called on phase changes for UI status updates. */
+    var onPhaseChange: ((Phase) -> Unit)? = null
+
+    // =========================================================================
+    // SuperGattCallback Overrides
+    // =========================================================================
+
+    override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
+        if (deviceName == null) return false
+        val bareSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
+        return deviceName.contains(bareSerial) || deviceName.contains(SerialNumber)
+    }
+
+    override fun getService(): UUID = SERVICE_F000
+
+    // =========================================================================
+    // GATT Callbacks
+    // =========================================================================
+
+    override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        super.onConnectionStateChange(gatt, status, newState)
+
+        if (newState == BluetoothProfile.STATE_CONNECTED) {
+            val now = System.currentTimeMillis()
+            connectTime = now
+            constatstatusstr = "Connected"
+            setPhase(Phase.DISCOVERING_SERVICES)
+
+            // Reset per-connection state
+            keyExchange.reset()
+            challengeWritten = false
+            bondDataRead = false
+            servicesReady = false
+            gattQueue.clear()
+            gattOpActive = false
+            queuePausedForBonding = false
+            cccdQueue.clear()
+            cccdWriteInProgress = false
+
+            Log.i(TAG, "Connected to ${gatt.device?.address}. Requesting MTU 512...")
+            gatt.requestMtu(512)
+
+            // Schedule service discovery after MTU exchange
+            mainHandler.postDelayed({
+                if (mBluetoothGatt != null && !servicesReady) {
+                    Log.i(TAG, "Discovering services...")
+                    mBluetoothGatt?.discoverServices()
+                    scheduleDiscoveryRetries(gatt)
+                }
+            }, MTU_DELAY_MS)
+
+        } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            Log.i(TAG, "Disconnected. status=$status")
+            constatstatusstr = "Disconnected"
+            connectTime = 0L
+            setPhase(Phase.IDLE)
+
+            // Clear GATT state
+            gattQueue.clear()
+            gattOpActive = false
+            queuePausedForBonding = false
+            servicesReady = false
+            historyDownloading = false
+
+            // Handle specific failure cases
+            when (status) {
+                5 -> { // GATT_INSUFFICIENT_AUTHENTICATION
+                    val delay = reconnect.nextAuthFailureDelayMs()
+                    if (delay != null) {
+                        Log.i(TAG, "Auth failure — reconnecting in ${delay}ms (attempt ${reconnect.authFailureCount})")
+                        close()
+                        handler.postDelayed({ connectDevice(0) }, delay)
+                    } else {
+                        Log.w(TAG, "Auth failures exhausted — broadcast-only mode")
+                        close()
+                    }
+                    return
+                }
+                19 -> { // GATT_CONN_TERMINATE_PEER_USER — normal disconnect from sensor
+                    Log.i(TAG, "Sensor terminated connection (normal)")
+                }
+                else -> {
+                    if (status != 0) {
+                        Log.w(TAG, "Unexpected disconnect status=$status")
+                    }
+                }
+            }
+
+            // Schedule reconnect
+            if (!reconnect.isBroadcastOnlyMode) {
+                val delay = reconnect.nextReconnectDelayMs()
+                Log.i(TAG, "Scheduling reconnect in ${delay}ms (attempt ${reconnect.softAttempts})")
+                close()
+                handler.postDelayed({ connectDevice(0) }, delay)
+            }
+        }
+    }
+
+    override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+        super.onServicesDiscovered(gatt, status)
+
+        if (gatt !== mBluetoothGatt) {
+            Log.w(TAG, "onServicesDiscovered: stale callback, ignoring")
+            return
+        }
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            Log.e(TAG, "onServicesDiscovered: failed status=$status")
+            return
+        }
+
+        val service = gatt.getService(SERVICE_F000)
+        if (service == null) {
+            Log.e(TAG, "onServicesDiscovered: SERVICE_F000 (0x181F) not found!")
+            return
+        }
+
+        servicesReady = true
+        Log.i(TAG, "Services discovered. Starting CCCD chain...")
+        setPhase(Phase.CCCD_CHAIN)
+
+        // Build CCCD queue: F003 first (data), then F002 (commands), then F001 (auth)
+        cccdQueue.clear()
+        cccdQueue.add(CHAR_F003)
+        cccdQueue.add(CHAR_F002)
+        cccdQueue.add(CHAR_F001)
+        cccdWriteInProgress = false
+
+        writeNextCccd(gatt)
+    }
+
+    override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+        if (gatt !== mBluetoothGatt) {
+            Log.w(TAG, "onDescriptorWrite: stale callback, ignoring")
+            return
+        }
+
+        val charUuid = descriptor.characteristic.uuid
+
+        if (status == 0x05) { // GATT_INSUFFICIENT_AUTHENTICATION — bonding in progress
+            Log.i(TAG, "onDescriptorWrite: CCCD $charUuid auth fail — SMP bonding in progress")
+            // Re-queue this characteristic for retry after bonding
+            cccdQueue.addFirst(charUuid)
+            cccdWriteInProgress = false
+            // Wait for bonded() callback to resume
+            return
+        }
+
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            Log.w(TAG, "onDescriptorWrite: CCCD $charUuid failed status=$status")
+            cccdWriteInProgress = false
+            // Try next anyway
+        } else {
+            Log.i(TAG, "onDescriptorWrite: CCCD $charUuid enabled successfully")
+            cccdWriteInProgress = false
+        }
+
+        // Continue CCCD chain
+        if (cccdQueue.isNotEmpty()) {
+            writeNextCccd(gatt)
+        } else {
+            // All CCCDs done — start key exchange
+            Log.i(TAG, "All CCCDs enabled. Starting key exchange...")
+            startKeyExchange(gatt)
+        }
+    }
+
+    override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+        val uuid = characteristic.uuid
+        val data = characteristic.value ?: return
+        if (data.isEmpty()) return
+
+        when (uuid) {
+            CHAR_F003 -> handleF003(data)
+            CHAR_F001 -> handleF001Response(data, gatt)
+            CHAR_F002 -> handleF002Response(data, gatt)
+        }
+    }
+
+    override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+        super.onCharacteristicWrite(gatt, characteristic, status)
+        if (gattOpActive) {
+            handler.post {
+                gattOpActive = false
+                drainGattQueue()
+            }
+        }
+    }
+
+    override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+        super.onCharacteristicRead(gatt, characteristic, status)
+        val uuid = characteristic.uuid
+        val data = characteristic.value
+
+        if (gattOpActive) {
+            handler.post {
+                gattOpActive = false
+                drainGattQueue()
+            }
+        }
+
+        if (uuid == CHAR_F002 && data != null && data.size == 17) {
+            // BOND data read response
+            handleBondData(data, gatt)
+        }
+    }
+
+    override fun bonded() {
+        Log.i(TAG, "Bond established — resuming CCCD chain if paused")
+        reconnect.onBondSuccess()
+
+        // Resume CCCD chain if it was interrupted by auth failure
+        if (queuePausedForBonding) {
+            queuePausedForBonding = false
+            handler.post { drainGattQueue() }
+        }
+        if (cccdQueue.isNotEmpty()) {
+            val gatt = mBluetoothGatt ?: return
+            handler.post { writeNextCccd(gatt) }
+        }
+    }
+
+    // =========================================================================
+    // CCCD Chain
+    // =========================================================================
+
+    private fun writeNextCccd(gatt: BluetoothGatt) {
+        if (cccdWriteInProgress) return
+        val charUuid = cccdQueue.pollFirst() ?: return
+
+        val service = gatt.getService(SERVICE_F000)
+        val characteristic = service?.getCharacteristic(charUuid)
+        if (characteristic == null) {
+            Log.w(TAG, "writeNextCccd: characteristic $charUuid not found, skipping")
+            writeNextCccd(gatt) // Try next
+            return
+        }
+
+        cccdWriteInProgress = true
+        val isIndication = charUuid == CHAR_F001 // F001 uses indications
+        if (isIndication) {
+            enableIndication(gatt, characteristic)
+        } else {
+            enableNotification(gatt, characteristic)
+        }
+    }
+
+    // =========================================================================
+    // Key Exchange
+    // =========================================================================
+
+    private fun startKeyExchange(gatt: BluetoothGatt) {
+        setPhase(Phase.KEY_EXCHANGE)
+
+        // Step 1: Write SN challenge to F001
+        val challenge = keyExchange.getChallenge()
+        Log.i(TAG, "Key exchange: writing challenge to F001 (${AiDexParser.hexString(challenge)})")
+
+        val service = gatt.getService(SERVICE_F000) ?: return
+        val f001 = service.getCharacteristic(CHAR_F001) ?: return
+
+        f001.value = challenge
+        f001.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        gatt.writeCharacteristic(f001)
+        challengeWritten = true
+    }
+
+    /**
+     * Handle F001 notification — contains the PAIR key.
+     */
+    private fun handleF001Response(data: ByteArray, gatt: BluetoothGatt) {
+        if (data.size < 16) {
+            Log.w(TAG, "F001 response too short (${data.size} bytes)")
+            return
+        }
+
+        if (!challengeWritten) {
+            Log.w(TAG, "F001 response received but challenge not written yet — ignoring")
+            return
+        }
+
+        if (keyExchange.pairKey != null) {
+            Log.d(TAG, "F001 response: PAIR key already set, ignoring duplicate")
+            return
+        }
+
+        // Extract PAIR key (first 16 bytes of notification)
+        val pairKeyData = data.copyOfRange(0, 16)
+        keyExchange.onPairKeyReceived(pairKeyData)
+        Log.i(TAG, "Key exchange: PAIR key received (${AiDexParser.hexString(pairKeyData)})")
+
+        // Step 3: Read BOND data from F002
+        readBondData(gatt)
+    }
+
+    /**
+     * Read BOND data from F002 characteristic.
+     */
+    private fun readBondData(gatt: BluetoothGatt) {
+        Log.i(TAG, "Key exchange: reading BOND data from F002")
+        enqueueGattOp(GattOp.Read(CHAR_F002))
+    }
+
+    /**
+     * Handle BOND data read from F002 (17 bytes).
+     */
+    private fun handleBondData(data: ByteArray, gatt: BluetoothGatt) {
+        if (bondDataRead) return
+        bondDataRead = true
+
+        Log.i(TAG, "Key exchange: BOND data received (${data.size} bytes)")
+
+        if (!keyExchange.decryptBond(data)) {
+            Log.e(TAG, "Key exchange: BOND decryption/CRC failed!")
+            // Retry entire key exchange on next connection
+            close()
+            reconnect.nextReconnectDelayMs()
+            handler.postDelayed({ connectDevice(0) }, reconnect.adaptiveDelayMs())
+            return
+        }
+
+        Log.i(TAG, "Key exchange: Session key established!")
+
+        // Step 5: Send post-BOND config
+        sendPostBondConfig(gatt)
+    }
+
+    /**
+     * Send post-BOND config (plaintext 10 C1 F3, encrypted).
+     */
+    private fun sendPostBondConfig(gatt: BluetoothGatt) {
+        val configData = keyExchange.getPostBondConfig()
+        if (configData == null) {
+            Log.e(TAG, "Key exchange: failed to encrypt post-BOND config")
+            return
+        }
+
+        Log.i(TAG, "Key exchange: writing post-BOND config to F001")
+        enqueueGattOp(GattOp.Write(CHAR_F001, configData))
+
+        // Transition to streaming after config is sent
+        handler.postDelayed({
+            onKeyExchangeComplete()
+        }, 500L)
+    }
+
+    /**
+     * Called when key exchange is fully complete. Start receiving data.
+     */
+    private fun onKeyExchangeComplete() {
+        Log.i(TAG, "Key exchange complete — entering streaming phase")
+        setPhase(Phase.STREAMING)
+        reconnect.onConnectionSuccess()
+        constatstatusstr = "Streaming"
+
+        // Request device info and history range
+        requestDeviceInfo()
+        handler.postDelayed({ requestHistoryRange() }, 300L)
+    }
+
+    // =========================================================================
+    // F003 Data Handling
+    // =========================================================================
+
+    private fun handleF003(encryptedData: ByteArray) {
+        val now = System.currentTimeMillis()
+
+        // Status/keepalive frames (5 bytes) — ignore
+        val frameType = AiDexParser.classifyFrame(encryptedData)
+        if (frameType == AiDexParser.FrameType.STATUS) {
+            Log.d(TAG, "F003: Status frame (5 bytes), ignoring")
+            return
+        }
+
+        if (frameType != AiDexParser.FrameType.DATA) {
+            Log.w(TAG, "F003: Unknown frame size ${encryptedData.size}")
+            return
+        }
+
+        // Decrypt
+        val decrypted = keyExchange.decrypt(encryptedData)
+        if (decrypted == null) {
+            Log.w(TAG, "F003: Cannot decrypt — session key not available")
+            return
+        }
+
+        // Parse
+        val frame = AiDexParser.parseDataFrame(decrypted)
+        if (frame == null) {
+            Log.w(TAG, "F003: Failed to parse decrypted data frame")
+            return
+        }
+
+        Log.i(TAG, "F003: glucose=${frame.glucoseMgDl} mg/dL, i1=${frame.i1}, i2=${frame.i2}, " +
+                "opcode=0x${"%02X".format(frame.opcode)}, valid=${frame.isValid}")
+
+        if (!frame.isValid) {
+            Log.w(TAG, "F003: Invalid reading (sentinel or out of range)")
+            // handleGlucoseResult() with 0 will set charcha[1] for failure tracking
+            handleGlucoseResult(0L, now)
+            return
+        }
+
+        // Update timestamps
+        lastGlucoseTimeMs = now
+
+        // Compute all three chart values
+        val autoValue = frame.glucoseMgDl
+        val rawValue = frame.i1 * 10f
+        val sensorGlucose = frame.i1 * 18.0182f
+
+        // Build GlucoseReading
+        val reading = GlucoseReading(
+            timestamp = now,
+            sensorSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber),
+            autoValue = autoValue,
+            rawValue = rawValue,
+            sensorGlucose = sensorGlucose,
+            rawI1 = frame.i1,
+            rawI2 = frame.i2,
+            timeOffsetMinutes = lastOffsetMinutes,
+        )
+        onGlucoseReading?.invoke(reading)
+
+        // Deliver to SuperGattCallback's standard glucose pipeline
+        // Pack: mgdl in lower 32 bits, rate in bits 32-47, alarm in bits 48-55
+        val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10 // scaled to match native format
+        val packedResult = mgdlInt.toLong() and 0xFFFFFFFFL
+        handleGlucoseResult(packedResult, now)
+    }
+
+    // =========================================================================
+    // F002 Command Responses
+    // =========================================================================
+
+    private fun handleF002Response(data: ByteArray, gatt: BluetoothGatt) {
+        if (data.isEmpty()) return
+
+        // Decrypt if session key is available
+        val plaintext = if (keyExchange.isComplete) {
+            keyExchange.decrypt(data)
+        } else {
+            data
+        }
+        if (plaintext == null) {
+            Log.w(TAG, "F002: Cannot decrypt response")
+            return
+        }
+
+        val opcode = plaintext[0].toInt() and 0xFF
+        Log.d(TAG, "F002 response: opcode=0x${"%02X".format(opcode)}, len=${plaintext.size}")
+
+        when (opcode) {
+            0x21 -> handleDeviceInfoResponse(plaintext)
+            0x22 -> handleHistoryRangeResponse(plaintext)
+            0x23 -> handleHistoryRawResponse(plaintext)
+            0x24 -> handleHistoryBriefResponse(plaintext)
+            0x25 -> handleCalibrationAck(plaintext)
+            0x26 -> handleCalibrationRangeResponse(plaintext)
+            0x27 -> handleCalibrationResponse(plaintext)
+            0x11 -> handleStartTimeResponse(plaintext)
+            0x20 -> handleNewSensorAck(plaintext)
+            else -> Log.d(TAG, "F002: Unknown opcode 0x${"%02X".format(opcode)}")
+        }
+    }
+
+    // -- Response Handlers --
+
+    private fun handleDeviceInfoResponse(data: ByteArray) {
+        // data[1] = status, rest = info
+        if (data.size < 2) return
+        val statusByte = data[1].toInt() and 0xFF
+        Log.i(TAG, "Device info response: status=0x${"%02X".format(statusByte)}, len=${data.size}")
+        // Parse activation date, wear days, etc. if needed
+    }
+
+    private fun handleStartTimeResponse(data: ByteArray) {
+        if (data.size < 6) return
+        // data[2..5] = offset in seconds (u32 LE) since sensor start
+        val offsetSec = u32LE(data, 2)
+        lastOffsetMinutes = (offsetSec / 60).toInt()
+        val now = System.currentTimeMillis()
+        sensorstartmsec = now - offsetSec * 1000L
+        Log.i(TAG, "Start time: offset=${lastOffsetMinutes}min, sensorStart=${sensorstartmsec}")
+    }
+
+    private fun handleHistoryRangeResponse(data: ByteArray) {
+        if (data.size < 8) return
+        // data[2..3] = briefStart (0x24), data[4..5] = rawStart (0x23), data[6..7] = newest offset
+        val briefStart = u16LE(data, 2)
+        val rawStart = u16LE(data, 4)
+        val newest = u16LE(data, 6)
+        historyNewestOffset = newest
+        Log.i(TAG, "History range: briefStart=$briefStart, rawStart=$rawStart, newest=$newest")
+
+        // Start history download from where we left off
+        if (historyRawNextIndex < rawStart) historyRawNextIndex = rawStart
+        if (historyBriefNextIndex < briefStart) historyBriefNextIndex = briefStart
+
+        // Fetch calibrated history first
+        if (historyRawNextIndex <= newest) {
+            requestHistoryPage(AiDexOpcodes.GET_HISTORIES_RAW, historyRawNextIndex)
+        }
+    }
+
+    private fun handleHistoryRawResponse(data: ByteArray) {
+        if (data.size < 4) return
+        // data[1] = status, data[2..] = payload
+        val payload = data.copyOfRange(2, data.size)
+        val entries = AiDexParser.parseHistoryResponse(payload)
+        if (entries.isNotEmpty()) {
+            Log.i(TAG, "History raw (0x23): ${entries.size} entries, offsets ${entries.first().timeOffsetMinutes}..${entries.last().timeOffsetMinutes}")
+            onCalibratedHistory?.invoke(entries)
+            historyRawNextIndex = entries.last().timeOffsetMinutes + 1
+
+            // Fetch next page if more data available
+            if (historyRawNextIndex <= historyNewestOffset) {
+                handler.postDelayed({
+                    requestHistoryPage(AiDexOpcodes.GET_HISTORIES_RAW, historyRawNextIndex)
+                }, HISTORY_REQUEST_DELAY_MS)
+            } else {
+                // Raw done — start brief history
+                if (historyBriefNextIndex <= historyNewestOffset) {
+                    handler.postDelayed({
+                        requestHistoryPage(AiDexOpcodes.GET_HISTORIES, historyBriefNextIndex)
+                    }, HISTORY_REQUEST_DELAY_MS)
+                } else {
+                    historyDownloading = false
+                    Log.i(TAG, "History download complete")
+                }
+            }
+        }
+    }
+
+    private fun handleHistoryBriefResponse(data: ByteArray) {
+        if (data.size < 7) return
+        val payload = data.copyOfRange(2, data.size)
+        val entries = AiDexParser.parseBriefHistoryResponse(payload)
+        if (entries.isNotEmpty()) {
+            Log.i(TAG, "History brief (0x24): ${entries.size} entries, offsets ${entries.first().timeOffsetMinutes}..${entries.last().timeOffsetMinutes}")
+            onAdcHistory?.invoke(entries)
+            historyBriefNextIndex = entries.last().timeOffsetMinutes + 1
+
+            // Fetch next page
+            if (historyBriefNextIndex <= historyNewestOffset) {
+                handler.postDelayed({
+                    requestHistoryPage(AiDexOpcodes.GET_HISTORIES, historyBriefNextIndex)
+                }, HISTORY_REQUEST_DELAY_MS)
+            } else {
+                historyDownloading = false
+                Log.i(TAG, "History download complete")
+            }
+        }
+    }
+
+    private fun handleCalibrationAck(data: ByteArray) {
+        if (data.size < 2) return
+        val statusByte = data[1].toInt() and 0xFF
+        Log.i(TAG, "Calibration ACK: status=0x${"%02X".format(statusByte)}")
+    }
+
+    private fun handleCalibrationRangeResponse(data: ByteArray) {
+        if (data.size < 6) return
+        val startIndex = u16LE(data, 2)
+        val endIndex = u16LE(data, 4)
+        Log.i(TAG, "Calibration range: start=$startIndex, end=$endIndex")
+
+        // Fetch calibration records
+        if (startIndex <= endIndex) {
+            requestCalibration(startIndex)
+        }
+    }
+
+    private fun handleCalibrationResponse(data: ByteArray) {
+        if (data.size < 10) return
+        val payload = data.copyOfRange(2, data.size)
+        val records = AiDexParser.parseCalibrationResponse(payload)
+        if (records.isNotEmpty()) {
+            Log.i(TAG, "Calibration records: ${records.size} entries")
+            onCalibrationRecords?.invoke(records)
+        }
+    }
+
+    private fun handleNewSensorAck(data: ByteArray) {
+        if (data.size < 2) return
+        val statusByte = data[1].toInt() and 0xFF
+        Log.i(TAG, "New sensor ACK: status=0x${"%02X".format(statusByte)}")
+    }
+
+    // =========================================================================
+    // F002 Command Sending
+    // =========================================================================
+
+    private fun requestDeviceInfo() {
+        val cmd = commandBuilder.getDeviceInfo() ?: return
+        enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    private fun requestHistoryRange() {
+        val cmd = commandBuilder.getHistoryRange() ?: return
+        historyDownloading = true
+        enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    private fun requestHistoryPage(opcode: Int, offset: Int) {
+        val cmd = when (opcode) {
+            AiDexOpcodes.GET_HISTORIES_RAW -> commandBuilder.getHistoriesRaw(offset)
+            AiDexOpcodes.GET_HISTORIES -> commandBuilder.getHistories(offset)
+            else -> return
+        }
+        if (cmd != null) {
+            enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+        }
+    }
+
+    private fun requestCalibration(index: Int) {
+        val cmd = commandBuilder.getCalibration(index) ?: return
+        enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    // -- Public Command Methods --
+
+    /**
+     * Send a calibration reference value to the sensor.
+     *
+     * @param offsetMinutes time offset in minutes from sensor start
+     * @param glucoseMgDl reference blood glucose in mg/dL
+     */
+    fun sendCalibration(offsetMinutes: Int, glucoseMgDl: Int) {
+        val cmd = commandBuilder.setCalibration(offsetMinutes, glucoseMgDl) ?: run {
+            Log.e(TAG, "Cannot send calibration — session key not available")
+            return
+        }
+        enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    /**
+     * Activate a new sensor.
+     */
+    fun activateSensor(
+        year: Int, month: Int, day: Int,
+        hour: Int, minute: Int, second: Int,
+        tzQuarters: Int, dstQuarters: Int
+    ) {
+        val cmd = commandBuilder.setNewSensor(year, month, day, hour, minute, second, tzQuarters, dstQuarters) ?: run {
+            Log.e(TAG, "Cannot activate sensor — session key not available")
+            return
+        }
+        enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    /**
+     * Request history backfill (both calibrated and raw).
+     */
+    fun requestHistoryBackfill() {
+        if (historyDownloading) return
+        requestHistoryRange()
+    }
+
+    // =========================================================================
+    // GATT Queue
+    // =========================================================================
+
+    private fun enqueueGattOp(op: GattOp) {
+        handler.post {
+            gattQueue.add(op)
+            if (!gattOpActive) {
+                drainGattQueue()
+            }
+        }
+    }
+
+    private fun drainGattQueue() {
+        if (gattOpActive) return
+        if (queuePausedForBonding) {
+            Log.d(TAG, "GATT queue: paused for bonding")
+            return
+        }
+        if (gattQueue.isEmpty()) return
+
+        val next = gattQueue.removeFirst()
+        val gatt = mBluetoothGatt
+        if (gatt == null) {
+            Log.w(TAG, "GATT queue: no active GATT, dropping ${gattQueue.size + 1} ops")
+            gattQueue.clear()
+            gattOpActive = false
+            return
+        }
+
+        when (next) {
+            is GattOp.Write -> {
+                val service = gatt.getService(SERVICE_F000)
+                val characteristic = service?.getCharacteristic(next.charUuid)
+                if (characteristic == null) {
+                    Log.w(TAG, "GATT write: characteristic ${next.charUuid} not found, skipping")
+                    drainGattQueue()
+                    return
+                }
+                characteristic.value = next.data
+                val writeType = if ((characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
+                    BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                } else {
+                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                }
+                characteristic.writeType = writeType
+                val ok = gatt.writeCharacteristic(characteristic)
+                Log.d(TAG, "GATT write [${next.charUuid}]: ok=$ok, queueRemaining=${gattQueue.size}")
+
+                if (ok && writeType == BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) {
+                    gattOpActive = false
+                    handler.postDelayed({
+                        if (!gattOpActive) drainGattQueue()
+                    }, NO_RESPONSE_ADVANCE_MS)
+                } else {
+                    gattOpActive = ok
+                }
+                if (!ok) {
+                    handleWriteFailure(next, gatt)
+                }
+            }
+            is GattOp.Read -> {
+                val service = gatt.getService(SERVICE_F000)
+                val characteristic = service?.getCharacteristic(next.charUuid)
+                if (characteristic == null) {
+                    Log.w(TAG, "GATT read: characteristic ${next.charUuid} not found, skipping")
+                    drainGattQueue()
+                    return
+                }
+                val ok = gatt.readCharacteristic(characteristic)
+                Log.d(TAG, "GATT read [${next.charUuid}]: ok=$ok")
+                gattOpActive = ok
+                if (!ok) {
+                    handleReadFailure(next, gatt)
+                }
+            }
+        }
+    }
+
+    private fun handleWriteFailure(op: GattOp.Write, gatt: BluetoothGatt) {
+        val bondState = gatt.device?.bondState ?: BluetoothDevice.BOND_NONE
+        if (bondState == BluetoothDevice.BOND_BONDING) {
+            Log.i(TAG, "GATT write failed during BONDING — pausing queue")
+            queuePausedForBonding = true
+            gattQueue.addFirst(op) // Re-queue without incrementing retry
+            handler.postDelayed({
+                if (queuePausedForBonding) {
+                    Log.w(TAG, "Bonding pause timeout (${BONDING_PAUSE_TIMEOUT_MS}ms) — resuming")
+                    queuePausedForBonding = false
+                    drainGattQueue()
+                }
+            }, BONDING_PAUSE_TIMEOUT_MS)
+            return
+        }
+        op.retryCount++
+        if (op.retryCount >= GATT_OP_MAX_RETRIES) {
+            Log.e(TAG, "GATT write failed after ${op.retryCount} retries — dropping and reconnecting")
+            gattQueue.clear()
+            gattOpActive = false
+            handler.post {
+                close()
+                connectDevice(reconnect.adaptiveDelayMs())
+            }
+        } else {
+            gattQueue.addFirst(op)
+            handler.postDelayed({ drainGattQueue() }, GATT_WRITE_RETRY_DELAY_MS)
+        }
+    }
+
+    private fun handleReadFailure(op: GattOp.Read, gatt: BluetoothGatt) {
+        op.retryCount++
+        if (op.retryCount >= GATT_OP_MAX_RETRIES) {
+            Log.e(TAG, "GATT read failed after ${op.retryCount} retries — dropping")
+            gattOpActive = false
+            drainGattQueue()
+        } else {
+            gattQueue.addFirst(op)
+            handler.postDelayed({ drainGattQueue() }, GATT_WRITE_RETRY_DELAY_MS)
+        }
+    }
+
+    // =========================================================================
+    // Service Discovery Retry
+    // =========================================================================
+
+    private fun scheduleDiscoveryRetries(gatt: BluetoothGatt) {
+        for (attempt in 1..DISCOVERY_MAX_RETRIES) {
+            mainHandler.postDelayed({
+                if (mBluetoothGatt != null && !servicesReady) {
+                    Log.i(TAG, "Service discovery retry $attempt/$DISCOVERY_MAX_RETRIES")
+                    mBluetoothGatt?.discoverServices()
+                }
+            }, DISCOVERY_RETRY_DELAY_MS * attempt)
+        }
+    }
+
+    // =========================================================================
+    // Phase Management
+    // =========================================================================
+
+    private fun setPhase(newPhase: Phase) {
+        if (phase == newPhase) return
+        phase = newPhase
+        Log.i(TAG, "Phase: $newPhase")
+        onPhaseChange?.invoke(newPhase)
+    }
+
+    // =========================================================================
+    // Cleanup
+    // =========================================================================
+
+    /**
+     * Release all resources. Call when sensor is removed from gattcallbacks list.
+     */
+    fun destroy() {
+        stop = true
+        close()
+        handler.removeCallbacksAndMessages(null)
+        mainHandler.removeCallbacksAndMessages(null)
+        handlerThread.quitSafely()
+    }
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    private fun u16LE(data: ByteArray, offset: Int): Int {
+        return (data[offset].toInt() and 0xFF) or
+                ((data[offset + 1].toInt() and 0xFF) shl 8)
+    }
+
+    private fun u32LE(data: ByteArray, offset: Int): Long {
+        return (data[offset].toInt() and 0xFF).toLong() or
+                ((data[offset + 1].toInt() and 0xFF).toLong() shl 8) or
+                ((data[offset + 2].toInt() and 0xFF).toLong() shl 16) or
+                ((data[offset + 3].toInt() and 0xFF).toLong() shl 24)
+    }
+}
