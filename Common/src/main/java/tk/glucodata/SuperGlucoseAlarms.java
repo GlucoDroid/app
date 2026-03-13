@@ -29,6 +29,7 @@ public class SuperGlucoseAlarms {
     final private static String LOG_ID="SuperGlucoseAlarms";
 public SuperGlucoseAlarms(Application context) {
 	Notify.init(context);
+	tk.glucodata.alerts.AlertRuntimeManager.INSTANCE.ensureMonitoring();
 	}
 
 //static final long showtime = Notify.glucosetimeout;

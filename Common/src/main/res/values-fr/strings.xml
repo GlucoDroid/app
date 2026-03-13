@@ -1176,4 +1176,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">En attente de connexion</string>
     <string name="status_ready_in_minutes">Capteur prêt dans %1$d minutes.</string>
+    <string name="navigate_back">Retour</string>
+    <string name="nightscout_upload_title">Téléversement Nightscout</string>
+    <string name="nightscout_upload_active">Téléversement en arrière-plan</string>
+    <string name="nightscout_upload_paused">Téléversements en pause</string>
+    <string name="nightscout_upload_options_title">Options de téléversement</string>
+    <string name="nightscout_sync_actions_title">Actions de synchronisation</string>
+    <string name="expand_action">Développer</string>
+    <string name="collapse_action">Réduire</string>
 </resources>

@@ -93,6 +93,7 @@ import tk.glucodata.SuperGattCallback
 import tk.glucodata.WatchInterop
 import tk.glucodata.watchdrip
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SectionLabel
 import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.ui.components.SettingsSwitchItem
@@ -876,76 +877,16 @@ fun WebServerSettingsScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item("web_master") {
-                val containerColor = if (active) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                }
-                val border = if (active) {
-                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f))
-                } else {
-                    null
-                }
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = cardShape(CardPosition.SINGLE),
-                    color = containerColor,
-                    border = border
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                active = !active
-                                Natives.setusexdripwebserver(active)
-                            }
-                            .padding(horizontal = 16.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .width(40.dp)
-                                .height(40.dp),
-                            shape = cardShape(CardPosition.SINGLE),
-                            color = if (active) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainerHighest
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Filled.Language,
-                                    contentDescription = null,
-                                    tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.active),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = if (active) "Web server is running" else "Web server is paused",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        StyledSwitch(
-                            checked = active,
-                            onCheckedChange = {
-                                active = it
-                                Natives.setusexdripwebserver(it)
-                            }
-                        )
-                    }
-                }
+                MasterSwitchCard(
+                    title = stringResource(R.string.active),
+                    subtitle = if (active) "Web server is running" else "Web server is paused",
+                    checked = active,
+                    onCheckedChange = {
+                        active = it
+                        Natives.setusexdripwebserver(it)
+                    },
+                    icon = Icons.Filled.Language
+                )
             }
 
             item("web_secret") {

@@ -1205,4 +1205,12 @@
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Oczekiwanie na połączenie</string>
     <string name="status_ready_in_minutes">Sensor gotowy za %1$d minut(y).</string>
+    <string name="navigate_back">Wróć</string>
+    <string name="nightscout_upload_title">Przesyłanie do Nightscout</string>
+    <string name="nightscout_upload_active">Przesyłanie w tle</string>
+    <string name="nightscout_upload_paused">Przesyłanie wstrzymane</string>
+    <string name="nightscout_upload_options_title">Opcje przesyłania</string>
+    <string name="nightscout_sync_actions_title">Akcje synchronizacji</string>
+    <string name="expand_action">Rozwiń</string>
+    <string name="collapse_action">Zwiń</string>
 </resources>

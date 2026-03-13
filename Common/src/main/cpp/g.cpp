@@ -445,6 +445,46 @@ fromjava(getHidefromSensorptr)(JNIEnv *env, jclass cl, jlong sensorptr) {
   return reinterpret_cast<const SensorGlucoseData *>(sensorptr)->hide;
 }
 
+static SensorGlucoseData *findSensorByName(JNIEnv *env, jstring jsensor) {
+  if (!jsensor || !sensors) {
+    return nullptr;
+  }
+  const char *sensorChars = env->GetStringUTFChars(jsensor, nullptr);
+  if (!sensorChars) {
+    return nullptr;
+  }
+  SensorGlucoseData *sens = sensors->getSensorData(sensorChars);
+  if (!sens) {
+    sens = sensors->gethistshort(sensorChars);
+  }
+  if (sens) {
+    sens->sensorerror = false;
+  } else {
+    LOGGER("ERROR: %s unknown sensor\n", sensorChars);
+  }
+  env->ReleaseStringUTFChars(jsensor, sensorChars);
+  return sens;
+}
+
+static jint sensorKindForUi(const SensorGlucoseData *sens) {
+  if (!sens) {
+    return -1;
+  }
+  if (sens->isSibionics()) {
+    return 0x10;
+  }
+  if (sens->isDexcom()) {
+    return 0x40;
+  }
+  if (sens->isLibre3()) {
+    return 3;
+  }
+  if (sens->isLibre2()) {
+    return 2;
+  }
+  return 0;
+}
+
 extern "C" JNIEXPORT void JNICALL fromjava(healthConnectReset)(JNIEnv *env,
                                                                jclass cl) {
   sensors->onallsensors([](SensorGlucoseData *sens) {
@@ -836,6 +876,33 @@ extern "C" JNIEXPORT jstring JNICALL fromjava(getDeviceAddress)(
 }
 #include "strconcat.hpp"
 extern strconcat getsensortext(const SensorGlucoseData *hist);
+extern "C" JNIEXPORT jstring JNICALL
+fromjava(getSensorStatusByName)(JNIEnv *envin, jclass cl, jstring jsensor) {
+  const SensorGlucoseData *usedhist = findSensorByName(envin, jsensor);
+  if (!usedhist)
+    return envin->NewStringUTF("");
+  return envin->NewStringUTF(getsensortext(usedhist).data());
+}
+extern "C" JNIEXPORT jlongArray JNICALL
+fromjava(getSensorUiSnapshot)(JNIEnv *env, jclass cl, jstring jsensor) {
+  const SensorGlucoseData *sens = findSensorByName(env, jsensor);
+  if (!sens) {
+    return nullptr;
+  }
+  const auto *info = sens->getinfo();
+  const jlong values[5]{
+      static_cast<jlong>(sensorKindForUi(sens)),
+      static_cast<jlong>(info ? info->viewMode : 0),
+      static_cast<jlong>(sens->getstarttime()) * 1000LL,
+      static_cast<jlong>(sens->expectedEndTime()) * 1000LL,
+      static_cast<jlong>(sens->officialendtime()) * 1000LL};
+  jlongArray result = env->NewLongArray(5);
+  if (!result) {
+    return nullptr;
+  }
+  env->SetLongArrayRegion(result, 0, 5, values);
+  return result;
+}
 extern "C" JNIEXPORT jstring JNICALL fromjava(getsensortext)(JNIEnv *envin,
                                                              jclass cl,
                                                              jlong dataptr) {

@@ -1186,4 +1186,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">等待连接</string>
     <string name="status_ready_in_minutes">传感器将在 %1$d 分钟后就绪。</string>
+    <string name="navigate_back">返回</string>
+    <string name="nightscout_upload_title">Nightscout 上传</string>
+    <string name="nightscout_upload_active">后台上传中</string>
+    <string name="nightscout_upload_paused">上传已暂停</string>
+    <string name="nightscout_upload_options_title">上传选项</string>
+    <string name="nightscout_sync_actions_title">同步操作</string>
+    <string name="expand_action">展开</string>
+    <string name="collapse_action">收起</string>
 </resources>

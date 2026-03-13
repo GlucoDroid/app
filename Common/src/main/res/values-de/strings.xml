@@ -1208,4 +1208,12 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Wartet auf Verbindung</string>
     <string name="status_ready_in_minutes">Sensor in %1$d Minuten bereit.</string>
+    <string name="navigate_back">Zurück</string>
+    <string name="nightscout_upload_title">Nightscout-Upload</string>
+    <string name="nightscout_upload_active">Upload im Hintergrund aktiv</string>
+    <string name="nightscout_upload_paused">Uploads pausiert</string>
+    <string name="nightscout_upload_options_title">Upload-Optionen</string>
+    <string name="nightscout_sync_actions_title">Synchronisierungsaktionen</string>
+    <string name="expand_action">Erweitern</string>
+    <string name="collapse_action">Einklappen</string>
 </resources>

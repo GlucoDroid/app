@@ -5,13 +5,12 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:paddingStart="0dp"
-    android:paddingTop="0dp"
+    android:paddingTop="4dp"
     android:paddingEnd="4dp"
-    android:paddingBottom="0dp"
+    android:paddingBottom="4dp"
     android:gravity="center_vertical"
-    android:minHeight="48dp">
+    android:minHeight="52dp">
 
-    <!-- LEFT COLUMN: Value, Arrow, Status (compact) -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
@@ -39,7 +38,6 @@
             android:textStyle="bold"
             android:visibility="gone" />
 
-        <!-- Row 1: Glucose + Arrow -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -63,7 +61,6 @@
                 android:visibility="gone"
                 android:contentDescription="Glucose Value" />
 
-            <!-- Trend Arrow with left padding -->
             <ImageView
                 android:id="@+id/notification_arrow"
                 android:layout_width="wrap_content"
@@ -76,7 +73,6 @@
 
         </LinearLayout>
 
-        <!-- Row 2: Status (Custom Font via TextView) -->
         <TextView
             android:id="@+id/notification_status"
             android:layout_width="wrap_content"
@@ -102,7 +98,6 @@
 
     </LinearLayout>
 
-    <!-- RIGHT COLUMN: Sparkline Chart with clipping on left and bottom only -->
     <FrameLayout
         android:id="@+id/chart_container"
         android:layout_width="0dp"

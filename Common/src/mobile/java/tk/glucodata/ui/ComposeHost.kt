@@ -1123,7 +1123,7 @@ fun DashboardScreen(
             val readingsReserve = (readingRowH * visibleRowCount) + readingsCardChrome
             
             val chartForRows = screenH - heroReserve - navBarReserve - lazyGaps - readingsReserve
-            chartForRows.coerceIn(lerpDp(240f, 280f), lerpDp(440f, 520f))
+            chartForRows.coerceIn(lerpDp(200f, 280f), lerpDp(440f, 520f))
         }
 
         // --- GESTURE-CONTROLLED CHART EXPANSION (Nested Scroll) ---
@@ -1436,10 +1436,10 @@ fun DashboardScreen(
                         boostedChartHeight.value +
                             (portraitChartMaxHeight.value.coerceAtLeast(boostedChartHeight.value) - boostedChartHeight.value) * collapseFraction
                         ).dp
-                    val expandedMinHeight = lerpDp(272f, 296f)
+                    val expandedMinHeight = lerpDp(120f, 280f)
                     val chartMinHeightTarget = (
                         expandedMinHeight.value +
-                            (200.dp.value - expandedMinHeight.value) * collapseFraction
+                            (lerpDp(100f, 200f).value - expandedMinHeight.value) * collapseFraction
                         ).dp
                     val chartHorizontalPaddingTarget = (16f * collapseFraction).dp
                     val chartUnderlayTopTarget = 0.dp
@@ -5003,7 +5003,7 @@ fun LibreViewSettingsScreen(navController: androidx.navigation.NavController) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NightscoutSettingsScreen(navController: androidx.navigation.NavController) {
+fun NightscoutSettingsScreenLegacy(navController: androidx.navigation.NavController) {
     val context = LocalContext.current
 
     // Load initial values from Natives

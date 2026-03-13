@@ -559,7 +559,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     ;
                 }
                 ;
-                Notify.stopalarm();
+                Notify.acknowledgeCurrentAlert(extras.getString(Notify.EXTRA_CUSTOM_ALERT_ID));
                 return;
             } else {
                 {

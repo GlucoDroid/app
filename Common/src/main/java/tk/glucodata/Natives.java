@@ -142,6 +142,8 @@ public class Natives {
         // Values are in 0.1°C units. Returns null if not a Sibionics sensor.
         public static native int[] getTemperatureData(long sensorptr);
 
+        public static native int[] getTemperatureDataByName(String sensorname);
+
         public static native boolean sameSensor(long one, long two);
 
         public static native String getSensorName(long dataptr);
@@ -171,6 +173,10 @@ public class Natives {
         public static native long laststarttime();
 
         public static native long getSensorEndTime(long dataptr, boolean official);
+
+        public static native long[] getSensorUiSnapshot(String sensorname);
+
+        public static native String getSensorStatusByName(String sensorname);
 
         public static native long getSensorEndTimeFromSensorptr(long sensorptr, boolean official);
 

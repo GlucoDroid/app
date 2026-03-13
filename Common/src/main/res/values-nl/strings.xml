@@ -1213,4 +1213,12 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Wachten op verbinding</string>
     <string name="status_ready_in_minutes">Sensor is gereed in %1$d minuten.</string>
+    <string name="navigate_back">Terug</string>
+    <string name="nightscout_upload_title">Nightscout-upload</string>
+    <string name="nightscout_upload_active">Upload op de achtergrond actief</string>
+    <string name="nightscout_upload_paused">Uploads gepauzeerd</string>
+    <string name="nightscout_upload_options_title">Uploadopties</string>
+    <string name="nightscout_sync_actions_title">Synchronisatieacties</string>
+    <string name="expand_action">Uitklappen</string>
+    <string name="collapse_action">Inklappen</string>
 </resources>

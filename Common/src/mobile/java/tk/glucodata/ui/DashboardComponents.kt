@@ -181,7 +181,7 @@ fun DashboardCombinedHeader(
     }
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val isCompactWidth = configuration.screenWidthDp < 390
+    val isCompactWidth = configuration.screenWidthDp <200
     val startPadding = if (isCompactWidth) 20.dp else 28.dp
     val trendIconSize = if (isCompactWidth) 34.dp else 40.dp
     val cornerWeights = remember(trendResult.velocity) { trendCornerWeightsFromVelocity(trendResult.velocity) }
@@ -248,7 +248,7 @@ fun DashboardCombinedHeader(
     val hasTertiary = tertiaryText != null
     val hasThreeValues = hasSecondary && hasTertiary
     val primaryValueStyle = if (isCompactWidth) {
-        MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.SemiBold)
+        MaterialTheme.typography.displayMedium
     } else {
         MaterialTheme.typography.displayLargeExpressive
     }
@@ -258,9 +258,9 @@ fun DashboardCombinedHeader(
         MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Medium)
     }
     val slashStyle = if (isCompactWidth) {
-        MaterialTheme.typography.headlineMedium
+        MaterialTheme.typography.titleLarge
     } else {
-        MaterialTheme.typography.headlineLarge
+        MaterialTheme.typography.headlineMedium
     }
     val secondaryThreeValueStyle = if (isCompactWidth) {
         MaterialTheme.typography.titleMedium.copy(
@@ -351,12 +351,11 @@ fun DashboardCombinedHeader(
                                 softWrap = false,
                                 maxLines = 1
                             )
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp)
-                                    .width(1.dp)
-                                    .height(if (isCompactWidth) 14.dp else 16.dp)
-                                    .background(glucoseContentColor.copy(alpha = 0.30f), RoundedCornerShape(1.dp))
+                            Text(
+                                text = "·",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = glucoseContentColor.copy(alpha = 0.40f),
+                                modifier = Modifier.padding(horizontal = 4.dp)
                             )
                             Text(
                                 text = tertiaryText ?: "",
@@ -438,12 +437,11 @@ fun DashboardCombinedHeader(
                                         .padding(start = 4.dp)
                                         .offset(y = 1.dp)
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .padding(horizontal = 6.dp)
-                                        .width(1.dp)
-                                        .height(if (isCompactWidth) 14.dp else 16.dp)
-                                        .background(glucoseContentColor.copy(alpha = 0.30f), RoundedCornerShape(1.dp))
+                                Text(
+                                    text = "·",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = glucoseContentColor.copy(alpha = 0.40f),
+                                    modifier = Modifier.padding(horizontal = 4.dp)
                                 )
                                 Text(
                                     text = tertiaryText ?: "",

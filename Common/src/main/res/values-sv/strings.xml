@@ -1170,4 +1170,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Vantar på anslutning</string>
     <string name="status_ready_in_minutes">Sensorn redo om %1$d minuter.</string>
+    <string name="navigate_back">Gå tillbaka</string>
+    <string name="nightscout_upload_title">Nightscout-uppladdning</string>
+    <string name="nightscout_upload_active">Uppladdning i bakgrunden</string>
+    <string name="nightscout_upload_paused">Uppladdningar pausade</string>
+    <string name="nightscout_upload_options_title">Uppladdningsalternativ</string>
+    <string name="nightscout_sync_actions_title">Synkåtgärder</string>
+    <string name="expand_action">Expandera</string>
+    <string name="collapse_action">Fäll ihop</string>
 </resources>

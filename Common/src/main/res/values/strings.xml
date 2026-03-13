@@ -1163,6 +1163,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="locationpermission">Location Permission</string>
     <string name="loghelp">Log Help</string>
     <string name="master_alert_control">Master alert control</string>
+    <string name="navigate_back">Navigate back</string>
     <string name="mealhelp">Meal Help</string>
     <string name="metrics">Metrics</string>
     <string name="mirror_connection_settings_help_text">Connection settings for this mirror endpoint.</string>
@@ -1177,8 +1178,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="newlabelhelp">Newlabel Help</string>
     <string name="nightnumhelp">Nightnum Help</string>
     <string name="nightscout_enable_upload">Enable Nightscout upload</string>
+    <string name="nightscout_upload_title">Nightscout upload</string>
+    <string name="nightscout_upload_active">Uploading in background</string>
+    <string name="nightscout_upload_paused">Uploads paused</string>
+    <string name="nightscout_upload_options_title">Upload options</string>
     <string name="nightscout_send_amounts_desc">Upload Insulin/Carbs (Treatments)</string>
     <string name="nightscout_settings_title">Nightscout Settings</string>
+    <string name="nightscout_sync_actions_title">Sync actions</string>
     <string name="nightscout_url_label">Nightscout URL</string>
     <string name="nightscout_url_placeholder">https://my-nightscout.herokuapp.com</string>
     <string name="nightscout_use_v3_api">Use Nightscout v3 API</string>
@@ -1209,6 +1215,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ringtone">Ringtone</string>
     <string name="schedulehelp">Schedule Help</string>
     <string name="searchhelp">Search Help</string>
+    <string name="expand_action">Expand</string>
+    <string name="collapse_action">Collapse</string>
     <string name="select_alert_sound">Select alert sound</string>
     <string name="select_all">Select all</string>
     <string name="selected_count">Selected (%1$d)</string>

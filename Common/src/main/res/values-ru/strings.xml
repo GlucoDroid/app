@@ -1212,4 +1212,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="invalid_interval">Неверное значение интервала</string>
     <string name="status_waiting_for_connection">Ожидание подключения</string>
     <string name="status_ready_in_minutes">Датчик будет готов через %1$d минут.</string>
+    <string name="navigate_back">Назад</string>
+    <string name="nightscout_upload_title">Загрузка в Nightscout</string>
+    <string name="nightscout_upload_active">Загрузка в фоне</string>
+    <string name="nightscout_upload_paused">Загрузка приостановлена</string>
+    <string name="nightscout_upload_options_title">Параметры загрузки</string>
+    <string name="nightscout_sync_actions_title">Действия синхронизации</string>
+    <string name="expand_action">Развернуть</string>
+    <string name="collapse_action">Свернуть</string>
 </resources>

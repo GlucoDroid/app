@@ -58,6 +58,7 @@ import android.graphics.Bitmap; // Added Import
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
+import android.media.MediaMetadataRetriever;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.os.VibrationEffect;
@@ -345,6 +346,7 @@ public class Notify {
             channel.setSound(null, null);
             channel.setDescription(description);
             channel.setShowBadge(true); // Default behavior
+            channel.setLockscreenVisibility(VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(channel);
 
             description = context.getString(R.string.alarm_description);
@@ -353,6 +355,7 @@ public class Notify {
             channel.setSound(null, null);
             channel.setDescription(description);
             channel.setShowBadge(true);
+            channel.setLockscreenVisibility(VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(channel);
 
             description = context.getString(R.string.notification_description);
@@ -363,6 +366,7 @@ public class Notify {
             channel.setSound(null, null);
             channel.setDescription(description);
             channel.setShowBadge(true);
+            channel.setLockscreenVisibility(VISIBILITY_PUBLIC);
 
             notificationManager.createNotificationChannel(channel);
 
@@ -372,6 +376,7 @@ public class Notify {
             channelLow.setDescription("Alerts when glucose is below target");
             channelLow.setSound(null, null); // App plays sound manually
             channelLow.setShowBadge(false);
+            channelLow.setLockscreenVisibility(VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(channelLow);
 
             NotificationChannel channelHigh = new NotificationChannel(CHANNEL_HIGH, "High Glucose",
@@ -379,6 +384,7 @@ public class Notify {
             channelHigh.setDescription("Alerts when glucose is above target");
             channelHigh.setSound(null, null);
             channelHigh.setShowBadge(false);
+            channelHigh.setLockscreenVisibility(VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(channelHigh);
 
             NotificationChannel channelLoss = new NotificationChannel(CHANNEL_LOSS, "Signal Loss",
@@ -386,6 +392,7 @@ public class Notify {
             channelLoss.setDescription("Alerts when sensor signal is lost");
             channelLoss.setSound(null, null);
             channelLoss.setShowBadge(false);
+            channelLoss.setLockscreenVisibility(VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(channelLoss);
         }
 
@@ -393,58 +400,76 @@ public class Notify {
 
     // channel.setShowBadge(false);
     // channel.setShowBadge(false);
-    void lowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+    boolean lowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_low) + " " + format(usedlocale, glucoseformat, gl);
-        arrowglucosealarm(0, gl, msg, strgl, CHANNEL_LOW, alarm);
+        final boolean triggered = arrowglucosealarm(0, gl, msg, strgl, CHANNEL_LOW, alarm);
         if (!isWearable) {
-            if (alarm) {
+            if (triggered) {
                 tk.glucodata.WearInt.alarm("LOW " + strgl.value);
             }
         }
+        return triggered;
     }
 
-    void highglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+    boolean highglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_high) + " " + format(usedlocale, glucoseformat, gl);
-        arrowglucosealarm(1, gl, msg, strgl, CHANNEL_HIGH, alarm);
+        final boolean triggered = arrowglucosealarm(1, gl, msg, strgl, CHANNEL_HIGH, alarm);
         if (!isWearable) {
-            if (alarm) {
+            if (triggered) {
                 tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
             }
         }
+        return triggered;
     }
 
-    void veryhighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+    boolean veryhighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_very_high) + " "
                 + format(usedlocale, glucoseformat, gl);
-        arrowglucosealarm(6, gl, msg, strgl, GLUCOSEALARM, alarm);
+        final boolean triggered = arrowglucosealarm(6, gl, msg, strgl, GLUCOSEALARM, alarm);
         if (!isWearable) {
-            if (alarm) {
+            if (triggered) {
                 tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
             }
         }
+        return triggered;
     }
 
-    void verylowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+    boolean verylowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_very_low) + " "
                 + format(usedlocale, glucoseformat, gl);
-        arrowglucosealarm(5, gl, msg, strgl, GLUCOSEALARM, alarm);
+        final boolean triggered = arrowglucosealarm(5, gl, msg, strgl, GLUCOSEALARM, alarm);
         if (!isWearable) {
-            if (alarm) {
+            if (triggered) {
                 tk.glucodata.WearInt.alarm("LOW " + strgl.value);
             }
         }
+        return triggered;
     }
 
-    void prehighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+    boolean prehighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_forecast_high) + " "
                 + format(usedlocale, glucoseformat, gl);
-        arrowglucosealarm(8, gl, msg, strgl, GLUCOSEALARM, alarm);
+        return arrowglucosealarm(8, gl, msg, strgl, GLUCOSEALARM, alarm);
     }
 
-    void prelowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
+    boolean prelowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_forecast_low) + " "
                 + format(usedlocale, glucoseformat, gl);
-        arrowglucosealarm(7, gl, msg, strgl, GLUCOSEALARM, alarm);
+        return arrowglucosealarm(7, gl, msg, strgl, GLUCOSEALARM, alarm);
+    }
+
+    public static boolean triggerSupplementalGlucoseAlert(int kind, float glucoseValue, float rate, String message) {
+        final Notify notify = onenot;
+        if (notify == null || !Float.isFinite(glucoseValue)) {
+            return false;
+        }
+
+        final notGlucose base = SuperGattCallback.previousglucose;
+        final notGlucose snapshot = copyGlucoseSnapshot(base, glucoseValue);
+        snapshot.time = System.currentTimeMillis();
+        snapshot.value = format(usedlocale, pureglucoseformat, glucoseValue);
+        snapshot.rate = rate;
+        return notify.arrowglucosealarm(kind, glucoseValue, message, snapshot, GLUCOSEALARM, true);
     }
 
     static private final int glucosenotificationid = 81431;
@@ -540,26 +565,472 @@ public class Notify {
     // private static boolean isalarm=false;
     private static Runnable runstopalarm = null;
     private static ScheduledFuture<?> stopschedule = null;
-    private static long alarmPlaybackSession = 0L;
+    private static final long RETRY_RESHOW_GAP_MS = 10_000L;
+    private static final Object retrySessionLock = new Object();
+    private static ScheduledFuture<?> retrySessionSchedule = null;
+    private static AlertRetrySession activeRetrySession = null;
+    private static volatile boolean alarmUiVisible = false;
 
-    private static synchronized long beginAlarmPlaybackSession() {
-        return ++alarmPlaybackSession;
+    private static final class AlertRetrySession {
+        int kind;
+        float glucoseValue;
+        notGlucose glucoseSnapshot;
+        String message;
+        String notificationType;
+        long lastFireStartedAtMs;
+        int retriesUsed;
+
+        AlertRetrySession(int kind, float glucoseValue, notGlucose glucoseSnapshot, String message,
+                String notificationType, long lastFireStartedAtMs) {
+            this.kind = kind;
+            this.glucoseValue = glucoseValue;
+            this.glucoseSnapshot = glucoseSnapshot;
+            this.message = message;
+            this.notificationType = notificationType;
+            this.lastFireStartedAtMs = lastFireStartedAtMs;
+            this.retriesUsed = 0;
+        }
+
+        void updateFrom(int kind, float glucoseValue, notGlucose glucoseSnapshot, String message,
+                String notificationType) {
+            this.kind = kind;
+            this.glucoseValue = glucoseValue;
+            this.glucoseSnapshot = glucoseSnapshot;
+            this.message = message;
+            this.notificationType = notificationType;
+        }
     }
 
-    private static synchronized void invalidateAlarmPlaybackSession() {
-        ++alarmPlaybackSession;
+    private static notGlucose copyGlucoseSnapshot(notGlucose glucose, float fallbackValue) {
+        if (glucose == null) {
+            return new notGlucose(System.currentTimeMillis(), String.valueOf(fallbackValue), Float.NaN, 0);
+        }
+        return new notGlucose(glucose.time, glucose.value, glucose.rate, glucose.sensorgen2);
     }
 
-    private static synchronized boolean isAlarmPlaybackSessionActive(long session) {
-        return alarmPlaybackSession == session;
+    private static int sanitizeAlarmDurationSeconds(int durationSeconds) {
+        if (durationSeconds <= 0 || durationSeconds > 120) {
+            return 60;
+        }
+        return durationSeconds;
     }
 
-    private static boolean isAlarmUiForeground() {
-        final MainActivity main = MainActivity.thisone;
-        if (main == null || !main.active) {
+    private static Uri resolveAlertSoundUri(String uristr, int fallbackResId) {
+        if (uristr == null || uristr.isEmpty()) {
+            uristr = "android.resource://" + Applic.app.getPackageName() + "/" + fallbackResId;
+        }
+        return Uri.parse(uristr);
+    }
+
+    private static long estimateSoundDurationMs(String uristr, int fallbackResId) {
+        final Uri uri = resolveAlertSoundUri(uristr, fallbackResId);
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(Applic.app, uri);
+            final String duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            if (duration != null && !duration.isEmpty()) {
+                return Long.parseLong(duration);
+            }
+        } catch (Throwable th) {
+            if (doLog) {
+                Log.i(LOG_ID, "estimateSoundDurationMs metadata failed: " + th);
+            }
+        } finally {
+            try {
+                retriever.release();
+            } catch (Throwable ignored) {
+            }
+        }
+
+        MediaPlayer player = null;
+        try {
+            player = MediaPlayer.create(Applic.app, uri);
+            if (player != null) {
+                final int duration = player.getDuration();
+                if (duration > 0) {
+                    return duration;
+                }
+            }
+        } catch (Throwable th) {
+            if (doLog) {
+                Log.i(LOG_ID, "estimateSoundDurationMs player failed: " + th);
+            }
+        } finally {
+            if (player != null) {
+                try {
+                    player.release();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        return 0L;
+    }
+
+    private static long estimateVibrationDurationMs(int kind, String profileName) {
+        if (profileName != null && "SILENT".equals(profileName.toUpperCase())) {
+            return 0L;
+        }
+        final long[] timings;
+        if (kind == 0) {
+            timings = new long[] { 0, 200, 100, 200, 100, 800, 200 };
+        } else if (kind == 1) {
+            timings = new long[] { 0, 150, 100, 150, 100, 150, 100, 150, 300 };
+        } else if (kind == 5) {
+            timings = new long[] { 0, 300, 100, 300, 100, 300, 100, 1000, 200 };
+        } else if (kind == 6) {
+            timings = new long[] { 0, 800, 200, 800, 500 };
+        } else if (kind == 7 || kind == 8) {
+            timings = new long[] { 0, 400, 200, 400, 500 };
+        } else if (kind == 4) {
+            timings = new long[] { 0, 500, 1000, 500, 1000 };
+        } else {
+            timings = new long[] { 0, 500, 200, 500, 500 };
+        }
+        long total = 0L;
+        for (long timing : timings) {
+            total += timing;
+        }
+        return total;
+    }
+
+    private static int getFlashCountForProfile(String profile) {
+        if (profile == null) {
+            return 2;
+        }
+        switch (profile.toUpperCase()) {
+            case "HIGH":
+                return 6;
+            case "MEDIUM":
+                return 4;
+            case "ASCENDING":
+            default:
+                return 2;
+        }
+    }
+
+    private static long estimateFlashDurationMs(String profile) {
+        final int flashCount = getFlashCountForProfile(profile);
+        final long flashPeriod = 200L;
+        return Math.max(flashPeriod, ((flashCount * 2L) - 1L) * flashPeriod);
+    }
+
+    public static long estimateAlertEffectDurationMs(String soundUri, int kind, boolean sound, boolean flash,
+            boolean vibrate, String profileName, int configuredDurationSeconds) {
+        final int sanitizedDurationSeconds = sanitizeAlarmDurationSeconds(configuredDurationSeconds);
+        final long configuredDurationMs = TimeUnit.SECONDS.toMillis(sanitizedDurationSeconds);
+        final int fallbackResId = defaults[Math.max(0, Math.min(kind, defaults.length - 1))];
+        long longestEffectMs = 0L;
+        if (sound) {
+            longestEffectMs = Math.max(longestEffectMs, estimateSoundDurationMs(soundUri, fallbackResId));
+        }
+        if (vibrate) {
+            longestEffectMs = Math.max(longestEffectMs, estimateVibrationDurationMs(kind, profileName));
+        }
+        if (flash) {
+            longestEffectMs = Math.max(longestEffectMs, estimateFlashDurationMs(profileName));
+        }
+        if (longestEffectMs <= 0L) {
+            return configuredDurationMs;
+        }
+        return Math.min(configuredDurationMs, longestEffectMs);
+    }
+
+    private static float resolveAlarmRate(float requestedRate, boolean isHigh, boolean isTest) {
+        if (Float.isFinite(requestedRate)) {
+            return requestedRate;
+        }
+        try {
+            final strGlucose latest = Natives.lastglucose();
+            if (latest != null && Float.isFinite(latest.rate)) {
+                return latest.rate;
+            }
+        } catch (Throwable th) {
+            if (doLog) {
+                Log.i(LOG_ID, "resolveAlarmRate latest lookup failed: " + th);
+            }
+        }
+        if (isTest) {
+            return isHigh ? 1.2f : -1.2f;
+        }
+        return Float.NaN;
+    }
+
+    private static void cancelRetryScheduleLocked() {
+        if (retrySessionSchedule != null) {
+            retrySessionSchedule.cancel(false);
+            retrySessionSchedule = null;
+        }
+    }
+
+    private static void cancelRetrySessionLocked(String reason) {
+        if (activeRetrySession != null && doLog) {
+            Log.i(LOG_ID, "Cancel retry session kind=" + activeRetrySession.kind + " reason=" + reason);
+        }
+        cancelRetryScheduleLocked();
+        activeRetrySession = null;
+    }
+
+    private static boolean isSameRetryFamily(int firstKind, int secondKind) {
+        return firstKind == secondKind
+                || (isLowFamilyAlert(firstKind) && isLowFamilyAlert(secondKind))
+                || (isHighFamilyAlert(firstKind) && isHighFamilyAlert(secondKind));
+    }
+
+    private static long computeRetryDelayMs(AlertRetrySession session, AlertConfig config, long nowMs) {
+        final long intervalMs = config.getRetryIntervalMinutes() <= 0
+                ? 0L
+                : TimeUnit.MINUTES.toMillis(config.getRetryIntervalMinutes());
+        if (intervalMs <= 0L) {
+            return RETRY_RESHOW_GAP_MS;
+        }
+        final long dueAtMs = session.lastFireStartedAtMs + intervalMs;
+        return Math.max(RETRY_RESHOW_GAP_MS, dueAtMs - nowMs);
+    }
+
+    public static int resolveAlertKind(int fallbackKind) {
+        synchronized (retrySessionLock) {
+            if (activeRetrySession != null) {
+                return activeRetrySession.kind;
+            }
+        }
+        return lastalarm >= 0 ? lastalarm : fallbackKind;
+    }
+
+    public static void cancelRetrySession(int kind, String reason) {
+        synchronized (retrySessionLock) {
+            if (activeRetrySession != null && activeRetrySession.kind == kind) {
+                cancelRetrySessionLocked(reason);
+            }
+        }
+    }
+
+    public static void cancelCurrentRetrySession(String reason) {
+        synchronized (retrySessionLock) {
+            cancelRetrySessionLocked(reason);
+        }
+    }
+
+    public static void cancelAlertNotification() {
+        if (onenot != null && onenot.notificationManager != null) {
+            onenot.notificationManager.cancel(glucosealarmid);
+        }
+    }
+
+    private static boolean dismissCustomAlertById(String customAlertId) {
+        if (customAlertId == null || customAlertId.isEmpty()) {
             return false;
         }
         try {
+            final Class<?> managerClass = Class.forName("tk.glucodata.logic.CustomAlertManager");
+            final Object manager = managerClass.getField("INSTANCE").get(null);
+            managerClass.getMethod("dismissAlert", String.class).invoke(manager, customAlertId);
+            return true;
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "dismissCustomAlertById", th);
+            return false;
+        }
+    }
+
+    public static void acknowledgeCurrentAlert() {
+        acknowledgeCurrentAlert(null);
+    }
+
+    public static void acknowledgeCurrentAlert(String customAlertId) {
+        if (dismissCustomAlertById(customAlertId)) {
+            cancelCurrentRetrySession("notification-open-custom");
+            cancelAlertNotification();
+            stopalarm();
+            return;
+        }
+        final int kind = resolveAlertKind(-1);
+        cancelCurrentRetrySession("notification-open");
+        if (kind >= 0) {
+            final AlertType type = AlertType.Companion.fromId(kind);
+            if (type != null) {
+                SnoozeManager.INSTANCE.clearSnooze(type);
+                AlertStateTracker.INSTANCE.onAlertDismissed(type);
+            }
+        }
+        cancelAlertNotification();
+        stopalarm();
+    }
+
+    private static void fireRetrySession(int expectedKind) {
+        final AlertRetrySession sessionSnapshot;
+        synchronized (retrySessionLock) {
+            retrySessionSchedule = null;
+            if (activeRetrySession == null || activeRetrySession.kind != expectedKind) {
+                return;
+            }
+            final AlertType alertType = AlertType.Companion.fromId(activeRetrySession.kind);
+            if (alertType == null) {
+                cancelRetrySessionLocked("unknown-alert-type");
+                return;
+            }
+            final AlertConfig config = AlertRepository.INSTANCE.loadConfig(alertType);
+            if (!config.getEnabled() || !config.getRetryEnabled() || !config.isActiveNow()
+                    || SnoozeManager.INSTANCE.isSnoozed(alertType)) {
+                cancelRetrySessionLocked("retry-disabled-or-snoozed");
+                return;
+            }
+            if (config.getRetryCount() != 0 && activeRetrySession.retriesUsed >= config.getRetryCount()) {
+                cancelRetrySessionLocked("retry-limit-reached");
+                return;
+            }
+            activeRetrySession.retriesUsed += 1;
+            activeRetrySession.lastFireStartedAtMs = System.currentTimeMillis();
+            sessionSnapshot = new AlertRetrySession(
+                    activeRetrySession.kind,
+                    activeRetrySession.glucoseValue,
+                    copyGlucoseSnapshot(activeRetrySession.glucoseSnapshot, activeRetrySession.glucoseValue),
+                    activeRetrySession.message,
+                    activeRetrySession.notificationType,
+                    activeRetrySession.lastFireStartedAtMs);
+            sessionSnapshot.retriesUsed = activeRetrySession.retriesUsed;
+        }
+
+        if (doLog) {
+            Log.i(LOG_ID, "Timed retry firing kind=" + sessionSnapshot.kind + " retry=" + sessionSnapshot.retriesUsed);
+        }
+
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (onenot != null) {
+                onenot.deliverTriggeredAlert(
+                        sessionSnapshot.kind,
+                        sessionSnapshot.glucoseValue,
+                        sessionSnapshot.message,
+                        sessionSnapshot.glucoseSnapshot,
+                        sessionSnapshot.notificationType);
+            }
+        });
+    }
+
+    private void syncRetrySession(int kind, float glvalue, String message, notGlucose strglucose, String type,
+            AlertConfig config, boolean newFire) {
+        if (config == null) {
+            cancelRetrySession(kind, "missing-config");
+            return;
+        }
+        synchronized (retrySessionLock) {
+            if (!config.getRetryEnabled()) {
+                if (activeRetrySession != null && isSameRetryFamily(activeRetrySession.kind, kind)) {
+                    cancelRetrySessionLocked("retry-disabled-for-current-kind");
+                }
+                return;
+            }
+            final notGlucose snapshot = copyGlucoseSnapshot(strglucose, glvalue);
+            if (activeRetrySession == null) {
+                if (!newFire) {
+                    return;
+                }
+                activeRetrySession = new AlertRetrySession(kind, glvalue, snapshot, message, type,
+                        System.currentTimeMillis());
+                if (doLog) {
+                    Log.i(LOG_ID, "Created retry session kind=" + kind);
+                }
+                return;
+            }
+            if (!isSameRetryFamily(activeRetrySession.kind, kind)) {
+                if (!newFire) {
+                    return;
+                }
+                cancelRetrySessionLocked("replace-with-new-alert-family");
+                activeRetrySession = new AlertRetrySession(kind, glvalue, snapshot, message, type,
+                        System.currentTimeMillis());
+                if (doLog) {
+                    Log.i(LOG_ID, "Replaced retry session with kind=" + kind);
+                }
+                return;
+            }
+            final boolean kindChanged = activeRetrySession.kind != kind;
+            activeRetrySession.updateFrom(kind, glvalue, snapshot, message, type);
+            if (newFire) {
+                if (kindChanged) {
+                    activeRetrySession.retriesUsed = 0;
+                }
+                activeRetrySession.lastFireStartedAtMs = System.currentTimeMillis();
+                cancelRetryScheduleLocked();
+            }
+        }
+    }
+
+    private static void scheduleRetryAfterStop(int kind) {
+        synchronized (retrySessionLock) {
+            if (activeRetrySession == null || activeRetrySession.kind != kind) {
+                return;
+            }
+            final AlertType alertType = AlertType.Companion.fromId(activeRetrySession.kind);
+            if (alertType == null) {
+                cancelRetrySessionLocked("unknown-alert-type");
+                return;
+            }
+            final AlertConfig config = AlertRepository.INSTANCE.loadConfig(alertType);
+            if (!config.getEnabled() || !config.getRetryEnabled() || !config.isActiveNow()
+                    || SnoozeManager.INSTANCE.isSnoozed(alertType)) {
+                cancelRetrySessionLocked("retry-disabled-or-snoozed");
+                return;
+            }
+            if (config.getRetryCount() != 0 && activeRetrySession.retriesUsed >= config.getRetryCount()) {
+                cancelRetrySessionLocked("retry-limit-reached");
+                return;
+            }
+            cancelRetryScheduleLocked();
+            final long delayMs = computeRetryDelayMs(activeRetrySession, config, System.currentTimeMillis());
+            retrySessionSchedule = Applic.scheduler.schedule(() -> fireRetrySession(kind), delayMs,
+                    TimeUnit.MILLISECONDS);
+            if (doLog) {
+                Log.i(LOG_ID, "Scheduled retry kind=" + kind + " delayMs=" + delayMs + " retriesUsed="
+                        + activeRetrySession.retriesUsed + " maxRetries=" + config.getRetryCount());
+            }
+        }
+    }
+
+    private static String resolvePrimarySensorName() {
+        try {
+            final String mainName = Natives.lastsensorname();
+            if (mainName != null && !mainName.isEmpty()) {
+                return mainName;
+            }
+            final String[] activeSensors = Natives.activeSensors();
+            if (activeSensors != null && activeSensors.length > 0) {
+                return activeSensors[0];
+            }
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "resolvePrimarySensorName", th);
+        }
+        return null;
+    }
+
+    private static int resolveSensorViewMode(String sensorName) {
+        if (sensorName == null || sensorName.isEmpty()) {
+            return 0;
+        }
+        try {
+            final long[] snapshot = Natives.getSensorUiSnapshot(sensorName);
+            if (snapshot != null && snapshot.length >= 2) {
+                return (int) snapshot[1];
+            }
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "resolveSensorViewMode", th);
+        }
+        return 0;
+    }
+
+    private static boolean isAlarmUiForeground() {
+        if (alarmUiVisible) {
+            return true;
+        }
+        final MainActivity main = MainActivity.thisone;
+        if (main == null || !main.active || main.isFinishing()) {
+            return false;
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && main.isDestroyed()) {
+                return false;
+            }
+            if (!main.hasWindowFocus()) {
+                return false;
+            }
             final PowerManager powerManager = (PowerManager) Applic.app.getSystemService(Context.POWER_SERVICE);
             if (powerManager != null && !powerManager.isInteractive()) {
                 return false;
@@ -577,6 +1048,13 @@ public class Notify {
 
     static public void stopalarm() {
         stopalarmnotsend(true);
+    }
+
+    public static final String EXTRA_CUSTOM_ALERT_ID = "custom_alert_id";
+    public static final String EXTRA_ALERT_DELIVERY_MODE = "alert_delivery_mode";
+
+    public static void setAlarmUiVisible(boolean visible) {
+        alarmUiVisible = visible;
     }
 
     static public void stopalarmnotsend(boolean send) {
@@ -597,7 +1075,6 @@ public class Notify {
             ;
         }
         ;
-        invalidateAlarmPlaybackSession();
         final var stopper = stopschedule;
         if (stopper != null) {
             stopper.cancel(false);
@@ -750,23 +1227,28 @@ public class Notify {
     private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
             boolean disturb, int kind) {
         // Default: use global profile from SharedPrefs
-        playringhier(ring, duration, sound, flash, vibrate, disturb, kind, null);
+        playringhier(ring, duration, sound, flash, vibrate, disturb, kind, null, -1L);
     }
 
     private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
             boolean disturb, int kind, String intensityProfile) {
-        // CAP DURATION to prevent infinite loops (max 120 seconds)
-        if (duration <= 0 || duration > 120) {
-            duration = 60; // Default to 60 seconds if invalid
+        playringhier(ring, duration, sound, flash, vibrate, disturb, kind, intensityProfile, -1L);
+    }
+
+    private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
+            boolean disturb, int kind, String intensityProfile, long effectDurationMs) {
+        final int sanitizedDuration = sanitizeAlarmDurationSeconds(duration);
+        if (sanitizedDuration != duration) {
+            duration = sanitizedDuration;
             if (doLog)
                 Log.i(LOG_ID, "Duration capped to 60s (was invalid or >120)");
         }
+        final long sanitizedDurationMs = TimeUnit.SECONDS.toMillis(duration);
+        final long stopDelayMs = effectDurationMs > 0L ? Math.min(sanitizedDurationMs, effectDurationMs) : sanitizedDurationMs;
 
         notifyfocus = true;
         doTurnFocuson();
         stopalarm();
-        final long playbackSession = beginAlarmPlaybackSession();
-        final long stopAtMillis = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(duration);
         // final int[] curfilter={-1};
         final boolean glucosealarm = kind < 2 || kind > 4;
         if (!DontTalk) {
@@ -867,6 +1349,7 @@ public class Notify {
                 if (glucosealarm)
                     overwriteglucose(kind);
                 setisalarm(false);
+                scheduleRetryAfterStop(kind);
 
             } else {
                 if (doLog) {
@@ -884,7 +1367,7 @@ public class Notify {
         setisalarm(true);
         {
             if (doLog) {
-                Log.d(LOG_ID, "schedule stop");
+                Log.d(LOG_ID, "schedule stop afterMs=" + stopDelayMs);
             }
             ;
         }
@@ -898,7 +1381,6 @@ public class Notify {
             if (doplaysound[0]) {
                 if (ring != null) {
                     ring.play();
-                    scheduleSoundReplayPoll(ring, stopAtMillis, playbackSession);
                 } else if (doLog) {
                     Log.w(LOG_ID, "playringhier: ringtone is null");
                 }
@@ -907,19 +1389,7 @@ public class Notify {
         if (!isWearable) {
             if (flash) {
                 // Flash count based on intensity: Ascending=2, Medium=4, High=6
-                int flashCount;
-                switch (profile.toUpperCase()) {
-                    case "HIGH":
-                        flashCount = 6;
-                        break;
-                    case "MEDIUM":
-                        flashCount = 4;
-                        break;
-                    case "ASCENDING":
-                    default:
-                        flashCount = 2;
-                        break;
-                }
+                int flashCount = getFlashCountForProfile(profile);
                 long flashPeriod = 200; // Fixed 200ms period for all intensities
                 Flash.start(app, flashPeriod, flashCount);
             }
@@ -928,36 +1398,9 @@ public class Notify {
             vibratealarm(kind, profile);
         }
 
-        stopschedule = Applic.scheduler.schedule(runstopalarm, duration, TimeUnit.SECONDS);
+        stopschedule = Applic.scheduler.schedule(runstopalarm, stopDelayMs, TimeUnit.MILLISECONDS);
 
     }
-
-    private void scheduleSoundReplayPoll(Ringtone ring, long stopAtMillis, long playbackSession) {
-        Applic.scheduler.schedule(() -> {
-            if (!getisalarm() || !isAlarmPlaybackSessionActive(playbackSession)) {
-                return;
-            }
-            if (System.currentTimeMillis() >= stopAtMillis) {
-                return;
-            }
-            try {
-                if (!ring.isPlaying()) {
-                    if (doLog) {
-                        Log.d(LOG_ID, "replay " + ring.getTitle(app));
-                    }
-                    ring.play();
-                }
-            } catch (Throwable th) {
-                Log.stack(LOG_ID, "scheduleSoundReplayPoll", th);
-                return;
-            }
-            if (getisalarm() && isAlarmPlaybackSessionActive(playbackSession)
-                    && System.currentTimeMillis() < stopAtMillis) {
-                scheduleSoundReplayPoll(ring, stopAtMillis, playbackSession);
-            }
-        }, 1, TimeUnit.SECONDS);
-    }
-
     private String getDeliveryMode(int kind) {
         try {
             android.content.SharedPreferences prefs = Applic.app.getSharedPreferences("tk.glucodata.alerts",
@@ -971,6 +1414,20 @@ public class Notify {
         } catch (Exception e) {
             return "SYSTEM_ALARM";
         }
+    }
+
+    private static String normalizeDeliveryMode(String deliveryMode) {
+        if (deliveryMode == null) {
+            return "NOTIFICATION_ONLY";
+        }
+        final String mode = deliveryMode.toUpperCase();
+        if (mode.equals("ALARM") || mode.equals("SYSTEM_ALARM")) {
+            return "SYSTEM_ALARM";
+        }
+        if (mode.equals("BOTH")) {
+            return "BOTH";
+        }
+        return "NOTIFICATION_ONLY";
     }
 
     private String getVolumeProfile(int kind) {
@@ -1064,7 +1521,10 @@ public class Notify {
         Log.i(LOG_ID, "mksound DEBUG: kind=" + kind + " ring=" + (ring != null ? ring.getTitle(app) : "NULL")
                 + " duration=" + duration + " sound=" + sound + " flash=" + flash + " vibration=" + vibration);
 
-        playringhier(ring, duration, sound, flash, vibration, dist, kind);
+        final String profileName = getVolumeProfile(kind);
+        final long effectDurationMs = estimateAlertEffectDurationMs(ringUri, kind, sound, flash, vibration,
+                profileName, duration);
+        playringhier(ring, duration, sound, flash, vibration, dist, kind, profileName, effectDurationMs);
     }
 
     /**
@@ -1137,24 +1597,26 @@ public class Notify {
 
     public static void triggerCustomAlert(String soundUri, boolean sound, boolean vibrate, boolean flash,
             boolean isHigh, float glucoseValue, String deliveryMode, String volumeProfile, int durationSeconds,
-            boolean overrideDnd) {
+            boolean overrideDnd, String customAlertId, String customAlertName, float rate) {
         triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, glucoseValue, false, deliveryMode,
-                volumeProfile, durationSeconds, overrideDnd);
+                volumeProfile, durationSeconds, overrideDnd, customAlertId, customAlertName, rate);
     }
 
     public static void testCustomTrigger(String soundUri, boolean sound, boolean vibrate, boolean flash,
-            boolean isHigh, String deliveryMode, String volumeProfile, int durationSeconds, boolean overrideDnd) {
+            boolean isHigh, String deliveryMode, String volumeProfile, int durationSeconds, boolean overrideDnd,
+            String customAlertId, String customAlertName) {
         boolean isMmol = tk.glucodata.Applic.unit == 1;
         float dummyValue = isHigh ? (isMmol ? 12.0f : 216f) : (isMmol ? 3.5f : 63f);
         triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, dummyValue, true, deliveryMode,
-                volumeProfile, durationSeconds, overrideDnd);
+                volumeProfile, durationSeconds, overrideDnd, customAlertId, customAlertName, Float.NaN);
     }
 
     private static long lastCustomTriggerTime = 0;
 
     private static void triggerCustomAlertInternal(String soundUri, boolean sound, boolean vibrate, boolean flash,
             boolean isHigh, float glucoseValue, boolean isTest, String deliveryMode,
-            String volumeProfile, int durationSeconds, boolean overrideDnd) {
+            String volumeProfile, int durationSeconds, boolean overrideDnd, String customAlertId,
+            String customAlertName, float rate) {
 
         long now = System.currentTimeMillis();
         // Debounce only for test mode to prevent accidental double-clicks
@@ -1176,33 +1638,40 @@ public class Notify {
                     }
                 }
 
-                String message = isTest
+                final String defaultName = isTest
                         ? ("Test Custom " + (isHigh ? "High" : "Low"))
-                        : (isHigh ? "Custom High " : "Custom Low ")
-                                + format(util.getlocale(), glucoseformat, glucoseValue);
+                        : (isHigh ? "Custom High" : "Custom Low");
+                final String message = (customAlertName != null && !customAlertName.isBlank())
+                        ? customAlertName
+                        : defaultName;
 
                 String typeStr = "glucoseNotification";
-                notGlucose glucoseStr = new notGlucose(System.currentTimeMillis(), String.valueOf(glucoseValue), 0f, 0);
+                final float resolvedRate = resolveAlarmRate(rate, isHigh, isTest);
+                notGlucose glucoseStr = new notGlucose(System.currentTimeMillis(), String.valueOf(glucoseValue),
+                        resolvedRate, 0);
 
                 // Delivery Mode Logic
-                String mode = (deliveryMode != null) ? deliveryMode.toUpperCase() : "NOTIFICATION";
-                boolean isAlarmMode = mode.equals("ALARM") || mode.equals("SYSTEM_ALARM");
+                String mode = normalizeDeliveryMode(deliveryMode);
+                boolean isAlarmMode = mode.equals("SYSTEM_ALARM");
                 boolean isBothMode = mode.equals("BOTH");
-                boolean isNotificationMode = mode.equals("NOTIFICATION") || mode.equals("NOTIFICATION_ONLY");
 
                 boolean activityLaunched = false;
 
-                // 1. Launch Alarm Activity (if ALARM or BOTH)
+                // Alarm mode should always try the full-screen activity first and only
+                // fall back to the notification surface if Android blocks the launch.
                 if ((isAlarmMode || isBothMode) && isAlarmUiForeground()) {
-                    // Custom alerts don't have rate info typically, pass 0f
-                    activityLaunched = showpopupalarm(message, true, 0f, kind);
+                    activityLaunched = showpopupalarm(glucoseStr.value, message, glucoseStr.rate, kind, customAlertId,
+                            mode);
+                    if (!activityLaunched && doLog) {
+                        Log.i(LOG_ID, "Custom Alert: AlarmActivity launch failed, using notification fallback");
+                    }
                 } else if ((isAlarmMode || isBothMode) && doLog) {
-                    Log.i(LOG_ID, "Custom Alert: background/system alarm path uses full-screen notification fallback");
+                    Log.i(LOG_ID, "Custom Alert: using notification fullscreen path");
                 }
 
                 boolean skipBanner = false;
-                // Only foreground direct launches skip the extra banner. Background/screen-off
-                // cases keep the full-screen notification path.
+                // Alarm-only mode should not also post a separate alert notification when the
+                // full-screen alarm activity is already visible.
                 if (activityLaunched && isAlarmMode && !isBothMode) {
                     skipBanner = true;
                 }
@@ -1211,7 +1680,8 @@ public class Notify {
                 // Only if we shouldn't skip the banner (Notification mode, Both mode, or Alarm
                 // mode failure)
                 if (!skipBanner) {
-                    onenot.makeseparatenotification(glucoseValue, message, glucoseStr, typeStr, kind);
+                    onenot.makeseparatenotification(glucoseValue, message, glucoseStr, typeStr, kind, mode,
+                            customAlertId);
                 }
 
                 // 3. Sound/Flash/Vibrate - Use standard playringhier (handles repeats, stop,
@@ -1237,21 +1707,22 @@ public class Notify {
 
                     // Pass disturb to mkring so it uses the correct audio stream
                     Ringtone ring = onenot.mkring(actualUri, kind, disturb);
+                    final long effectDurationMs = estimateAlertEffectDurationMs(actualUri, kind, sound, flash,
+                            vibrate, volumeProfile, finalDuration);
 
                     // playringhier with intensity profile - uses custom alert's intensity not
                     // global
-                    onenot.playringhier(ring, finalDuration, sound, flash, vibrate, disturb, kind, volumeProfile);
+                    onenot.playringhier(ring, finalDuration, sound, flash, vibrate, disturb, kind, volumeProfile,
+                            effectDurationMs);
 
                     if (doLog)
                         Log.i(LOG_ID, "Custom Alert: sound=" + sound + " flash=" + flash + " vibrate=" + vibrate
                                 + " duration=" + finalDuration + " disturb=" + disturb + " intensity=" + volumeProfile);
                 }
 
-                // 4. Update Persistent Notification (Silent)
-                // Use 'true' for 'once' to ensure it's a silent update to the persistent
-                // channel
-                // This keeps the persistent notification in sync without double-alerting
-                onenot.arrowplacelargenotification(kind, glucoseValue, message, glucoseStr, typeStr, true);
+                // Keep the regular ongoing glucose notification on its normal surface instead of
+                // turning it into a second custom-alert card.
+                onenot.updateForegroundGlucoseNotification(kind, glucoseValue, glucoseStr);
             }
         });
     }
@@ -1296,28 +1767,48 @@ public class Notify {
         }
     }
 
-    private static boolean showpopupalarm(String message, Boolean cancel, float rate, int alertTypeId) {
-        if (cancel) {
-            MainActivity.showmessage = null;
+    private static Intent buildAlarmActivityIntent(String glucoseValue, String alarmMessage, float rate, int alertTypeId,
+            String customAlertId, String deliveryMode) throws ClassNotFoundException {
+        Class<?> alarmClass = Class.forName("tk.glucodata.ui.AlarmActivity");
+        Intent alarmIntent = new Intent(Applic.app, alarmClass);
+        alarmIntent.putExtra("EXTRA_GLUCOSE_VAL", glucoseValue);
+        alarmIntent.putExtra("EXTRA_ALARM_TYPE", "ALARM");
+        alarmIntent.putExtra("EXTRA_ALARM_MESSAGE", alarmMessage);
+        alarmIntent.putExtra("EXTRA_ALERT_TYPE_ID", alertTypeId);
+        alarmIntent.putExtra("EXTRA_RATE", rate);
+        if (deliveryMode != null && !deliveryMode.isEmpty()) {
+            alarmIntent.putExtra(EXTRA_ALERT_DELIVERY_MODE, deliveryMode);
         }
+        if (customAlertId != null && !customAlertId.isEmpty()) {
+            alarmIntent.putExtra(EXTRA_CUSTOM_ALERT_ID, customAlertId);
+        }
+        return alarmIntent;
+    }
 
+    private static PendingIntent mkAlarmPendingIntent(String glucoseValue, String alarmMessage, float rate,
+            int alertTypeId, String customAlertId, String deliveryMode) throws ClassNotFoundException {
+        Intent alarmIntent = buildAlarmActivityIntent(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId,
+                deliveryMode);
+        alarmIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return PendingIntent.getActivity(Applic.app, 3, alarmIntent, PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
+    }
+
+    private static boolean showpopupalarm(String glucoseValue, String alarmMessage, float rate, int alertTypeId) {
+        return showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, null, null);
+    }
+
+    private static boolean showpopupalarm(String glucoseValue, String alarmMessage, float rate, int alertTypeId,
+            String customAlertId, String deliveryMode) {
+        MainActivity.showmessage = null;
         try {
-            // Launch AlarmActivity (Reflected)
-            Class<?> alarmClass = Class.forName("tk.glucodata.ui.AlarmActivity");
-            Intent alarmIntent = new Intent(Applic.app, alarmClass);
-            alarmIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            alarmIntent.putExtra("EXTRA_GLUCOSE_VAL", message);
-            alarmIntent.putExtra("EXTRA_ALARM_TYPE", "ALARM");
-            alarmIntent.putExtra("EXTRA_ALARM_MESSAGE", message);
-            alarmIntent.putExtra("EXTRA_ALERT_TYPE_ID", alertTypeId);
-            alarmIntent.putExtra("EXTRA_RATE", rate);
+            Intent alarmIntent = buildAlarmActivityIntent(glucoseValue, alarmMessage, rate, alertTypeId,
+                    customAlertId, deliveryMode);
+            alarmIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             Applic.app.startActivity(alarmIntent);
             return true;
-        } catch (ClassNotFoundException e) {
-            if (doLog)
-                Log.e(LOG_ID, "AlarmActivity not found (WearOS?): " + e.toString());
-            return false;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             if (doLog)
                 Log.e(LOG_ID, "showpopupalarm failed: " + e.toString());
             return false;
@@ -1353,13 +1844,17 @@ public class Notify {
         wasvalue = 0.0f;
     }
 
+    private void updateForegroundGlucoseNotification(int kind, float glvalue, notGlucose glucose) {
+        final String currentMessage = format(usedlocale, glucoseformat, glvalue);
+        arrowplacelargenotification(kind, glvalue, currentMessage, glucose, GLUCOSENOTIFICATION, true);
+    }
+
     private void arrowsoundalarm(int kind, float glvalue, String message, notGlucose sglucose, String type,
             boolean alarm, boolean skipBanner) {
         if (alarm) {
-            // wasdraw=draw;
-            wasvalue = glvalue;
-            wasmessage = message;
-            wastype = type;
+            wasvalue = 0.0f;
+            wasmessage = null;
+            wastype = null;
             if (!skipBanner) {
                 makeseparatenotification(glvalue, message, sglucose, type, kind);
             }
@@ -1372,9 +1867,46 @@ public class Notify {
             ;
             mksound(kind);
         }
-        // Force silent update (true) if alarm is active to prevent duplicate alerts
-        // from persistent notification
-        arrowplacelargenotification(kind, glvalue, message, sglucose, type, alarm ? true : !alarm);
+        updateForegroundGlucoseNotification(kind, glvalue, sglucose);
+    }
+
+    private void deliverTriggeredAlert(int kind, float glvalue, String message, notGlucose strglucose, String type) {
+        boolean activityLaunched = false;
+        boolean skipBanner = false;
+
+        if (kind != 2) {
+            String deliveryMode = getDeliveryMode(kind);
+
+            boolean isSystem = "SYSTEM_ALARM".equals(deliveryMode);
+            boolean isBoth = "BOTH".equals(deliveryMode);
+            boolean forceLaunch = isSystem || isBoth;
+
+            if (doLog) {
+                Log.i(LOG_ID, String.format("Alert Debug: kind=%d deliveryMode=%s forceLaunch=%b", kind,
+                        deliveryMode, forceLaunch));
+            }
+
+            if (forceLaunch && isAlarmUiForeground()) {
+                float rate = (strglucose != null) ? strglucose.rate : Float.NaN;
+                activityLaunched = showpopupalarm(strglucose != null ? strglucose.value : message, message,
+                        rate, kind, null, deliveryMode);
+                if (doLog)
+                    Log.i(LOG_ID, "Alert Debug: showpopupalarm returned " + activityLaunched);
+                if (!activityLaunched && doLog) {
+                    Log.i(LOG_ID, "Alert Debug: AlarmActivity launch failed, using notification fallback");
+                }
+            } else if (forceLaunch && doLog) {
+                Log.i(LOG_ID, "Alert Debug: using notification fullscreen path");
+            }
+
+            if (activityLaunched && isSystem && !isBoth) {
+                skipBanner = true;
+            }
+            if (doLog)
+                Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
+        }
+
+        arrowsoundalarm(kind, glvalue, message, strglucose, type, true, skipBanner);
     }
 
     private void lossofsignalalarm(int kind, int draw, String message, String type, boolean alarm) {
@@ -1392,7 +1924,7 @@ public class Notify {
                 boolean isBoth = "BOTH".equals(deliveryMode);
 
                 if (isSystem || isBoth) {
-                    showpopupalarm(message, true, Float.NaN, kind);
+                    showpopupalarm(message, message, Float.NaN, kind);
                 }
             }
         } else {
@@ -1423,7 +1955,7 @@ public class Notify {
             soundalarm(kind, draw, message, type, alarm);
     }
 
-    private void arrowglucosealarm(int kind, float glvalue, String message, notGlucose strglucose, String type,
+    private boolean arrowglucosealarm(int kind, float glvalue, String message, notGlucose strglucose, String type,
             boolean alarm) {
         {
             if (doLog) {
@@ -1433,10 +1965,9 @@ public class Notify {
         }
         ;
 
-        boolean activityLaunched = false;
-        boolean skipBanner = false;
         boolean incomingAlarm = alarm; // Capture initial state from Native/Caller
         AlertType alertType = null;
+        AlertConfig config = null;
 
         // Resolve AlertType early
         try {
@@ -1447,62 +1978,27 @@ public class Notify {
 
         if (alarm) {
 
-            // SNOOZE CHECK & RETRY LOGIC
+            // First-fire gate. Timed retries are handled by Notify after a successful
+            // initial firing, not by subsequent glucose readings.
             try {
                 if (alertType != null) {
-                    AlertConfig config = AlertRepository.INSTANCE.loadConfig(alertType);
+                    config = AlertRepository.INSTANCE.loadConfig(alertType);
 
-                    // Unified Retry & Snooze Check
                     if (!AlertStateTracker.INSTANCE.shouldTrigger(alertType, config)) {
                         if (doLog)
                             Log.i(LOG_ID, "Alert Suppressed (Snoozed or Retry Logic): kind=" + kind);
-                        // Downgrade to silent update:
-                        // This skips popup/sound but allows notification text update
                         alarm = false;
                     } else {
-                        // If we proceed, record the trigger
                         AlertStateTracker.INSTANCE.onAlertTriggered(alertType);
+                        syncRetrySession(kind, glvalue, message, strglucose, type, config, true);
                     }
                 }
             } catch (Exception e) {
                 Log.e(LOG_ID, "Error checking alert state: " + e.toString());
             }
 
-            // Re-check alarm as it might have been set to false above
             if (alarm) {
-                if (kind != 2) {
-                    // UNIFIED LOGIC: Check Delivery Mode preference for ALL types (Legacy & New)
-                    String deliveryMode = getDeliveryMode(kind);
-
-                    boolean isSystem = "SYSTEM_ALARM".equals(deliveryMode);
-                    boolean isBoth = "BOTH".equals(deliveryMode);
-
-                    // Launch ONLY if System or Both is explicitly selected.
-                    boolean forceLaunch = isSystem || isBoth;
-
-                    if (doLog) {
-                        Log.i(LOG_ID, String.format("Alert Debug: kind=%d deliveryMode=%s forceLaunch=%b", kind,
-                                deliveryMode, forceLaunch));
-                    }
-
-                    if (forceLaunch && isAlarmUiForeground()) {
-                        float rate = (strglucose != null) ? strglucose.rate : Float.NaN;
-                        activityLaunched = showpopupalarm(message, true, rate, kind);
-                        if (doLog)
-                            Log.i(LOG_ID, "Alert Debug: showpopupalarm returned " + activityLaunched);
-                    } else if (forceLaunch && doLog) {
-                        Log.i(LOG_ID, "Alert Debug: background/system alarm path uses full-screen notification fallback");
-                    }
-
-                    // If System Alarm launched successfully while the app is already foreground,
-                    // skip the extra banner. Background/screen-off cases keep the full-screen
-                    // notification path because direct activity launches are not reliable there.
-                    if (activityLaunched && isSystem && !isBoth) {
-                        skipBanner = true;
-                    }
-                    if (doLog)
-                        Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
-                }
+                deliverTriggeredAlert(kind, glvalue, message, strglucose, type);
             }
         } else {
             // Processing for SILENT updates (alarm was false initially, OR
@@ -1515,8 +2011,17 @@ public class Notify {
             // episode is
             // still ongoing forever (preventing future triggers).
             if (!incomingAlarm && alertType != null) {
-                // Only reset if it was naturally silent, NOT if we suppressed it ourselves.
                 AlertStateTracker.INSTANCE.resetState(alertType);
+                cancelRetrySession(kind, "condition-cleared");
+            } else if (incomingAlarm && alertType != null) {
+                try {
+                    if (config == null) {
+                        config = AlertRepository.INSTANCE.loadConfig(alertType);
+                    }
+                    syncRetrySession(kind, glvalue, message, strglucose, type, config, false);
+                } catch (Exception e) {
+                    Log.e(LOG_ID, "Error updating retry session: " + e.toString());
+                }
             }
 
             final var act = MainActivity.thisone;
@@ -1541,17 +2046,21 @@ public class Notify {
                 MainActivity.showmessage = message;
             }
         }
-        if (!alarm && alertwatch) {
-            {
-                if (doLog) {
-                    Log.i(LOG_ID, "arrowglucosealarm alertwatch=" + alertwatch);
+        if (!alarm) {
+            if (alertwatch) {
+                {
+                    if (doLog) {
+                        Log.i(LOG_ID, "arrowglucosealarm alertwatch=" + alertwatch);
+                    }
+                    ;
                 }
                 ;
+                arrowglucosenotification(kind, glvalue, message, strglucose, GLUCOSENOTIFICATION, false);
+            } else {
+                updateForegroundGlucoseNotification(kind, glvalue, strglucose);
             }
-            ;
-            arrowglucosenotification(kind, glvalue, message, strglucose, GLUCOSENOTIFICATION, false);
-        } else
-            arrowsoundalarm(kind, glvalue, message, strglucose, type, alarm, skipBanner);
+        }
+        return alarm;
     }
 
     private void canceller() {
@@ -1626,16 +2135,40 @@ public class Notify {
 
     private void makeseparatenotification(float glvalue, String message, notGlucose glucose, String type,
             int alertTypeId) {
+        makeseparatenotification(glvalue, message, glucose, type, alertTypeId, null, null);
+    }
+
+    private void makeseparatenotification(float glvalue, String message, notGlucose glucose, String type,
+            int alertTypeId, String deliveryModeOverride, String customAlertId) {
         if (!isWearable) {
             if (alertseparate) {
+                String currentDeliveryMode = deliveryModeOverride != null
+                        ? normalizeDeliveryMode(deliveryModeOverride)
+                        : getDeliveryMode(alertTypeId);
                 // notificationManager.cancel(glucosealarmid); // Performance optimization:
                 // Don't cancel, just overwrite
-                var intent = mkpending();
-                var GluNotBuilder = mkbuilderintent(type, intent);
-                // Swipe Dismiss Action (triggers same logic as Dismiss button)
+                PendingIntent intent;
+                if (!"NOTIFICATION_ONLY".equals(currentDeliveryMode)) {
+                    try {
+                        intent = mkAlarmPendingIntent(glucose.value, message, glucose.rate, alertTypeId, customAlertId,
+                                currentDeliveryMode);
+                    } catch (Throwable e) {
+                        if (doLog) {
+                            Log.e(LOG_ID, "alarm content intent setup failed: " + e.toString());
+                        }
+                        intent = mkpending(customAlertId);
+                    }
+                } else {
+                    intent = mkpending(customAlertId);
+                }
+                var GluNotBuilder = mkbuilderintent(type, intent, false);
+                // Swipe away means ignore this surface, not dismiss the whole episode.
                 Intent swipeDismissIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmActionReceiver.class);
-                swipeDismissIntent.setAction(tk.glucodata.receivers.AlarmActionReceiver.ACTION_DISMISS);
+                swipeDismissIntent.setAction(tk.glucodata.receivers.AlarmActionReceiver.ACTION_IGNORE);
                 swipeDismissIntent.putExtra("alert_type_id", alertTypeId);
+                if (customAlertId != null && !customAlertId.isEmpty()) {
+                    swipeDismissIntent.putExtra(EXTRA_CUSTOM_ALERT_ID, customAlertId);
+                }
                 PendingIntent swipeDismissPendingIntent = PendingIntent.getBroadcast(Applic.app, 4, swipeDismissIntent,
                         PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
                 GluNotBuilder.setDeleteIntent(swipeDismissPendingIntent);
@@ -1660,28 +2193,16 @@ public class Notify {
 
                 // UNIFIED LOGIC: Only attach Full Screen Intent if NOT in "Notification Only"
                 // mode.
-                String currentDeliveryMode = getDeliveryMode(alertTypeId);
                 if (!"NOTIFICATION_ONLY".equals(currentDeliveryMode)) {
                     // Use Reflection for Intent creation to safe-guard against Missing Class on
                     // Wear
                     try {
-                        Class<?> alarmClass = Class.forName("tk.glucodata.ui.AlarmActivity");
-                        Intent fullScreenIntent = new Intent(Applic.app, alarmClass);
-                        fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION
-                                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                        fullScreenIntent.putExtra("EXTRA_GLUCOSE_VAL", glucose.value);
-                        fullScreenIntent.putExtra("EXTRA_ALARM_MESSAGE", message);
-                        fullScreenIntent.putExtra("EXTRA_RATE", glucose.rate);
-                        fullScreenIntent.putExtra("EXTRA_ALARM_TYPE", "ALARM");
-                        fullScreenIntent.putExtra("EXTRA_ALERT_TYPE_ID", alertTypeId);
-
-                        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(Applic.app, 3,
-                                fullScreenIntent,
-                                PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
+                        PendingIntent fullScreenPendingIntent = mkAlarmPendingIntent(glucose.value, message,
+                                glucose.rate, alertTypeId, customAlertId, currentDeliveryMode);
                         GluNotBuilder.setFullScreenIntent(fullScreenPendingIntent, true);
-                    } catch (ClassNotFoundException e) {
+                    } catch (Throwable e) {
                         if (doLog)
-                            Log.e(LOG_ID, "AlarmActivity not found (WearOS?): " + e.toString());
+                            Log.e(LOG_ID, "fullScreenIntent setup failed: " + e.toString());
                     }
                 }
 
@@ -1689,33 +2210,21 @@ public class Notify {
                 Intent snoozeIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmActionReceiver.class);
                 snoozeIntent.setAction(tk.glucodata.receivers.AlarmActionReceiver.ACTION_SNOOZE);
                 snoozeIntent.putExtra("alert_type_id", alertTypeId);
+                if (customAlertId != null && !customAlertId.isEmpty()) {
+                    snoozeIntent.putExtra(EXTRA_CUSTOM_ALERT_ID, customAlertId);
+                }
                 PendingIntent snoozePendingIntent = PendingIntent.getBroadcast(Applic.app, 1, snoozeIntent,
                         PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
-                if (Build.VERSION.SDK_INT >= 23) {
-                    android.graphics.drawable.Icon icon = android.graphics.drawable.Icon.createWithResource(Applic.app,
-                            R.drawable.ic_snooze);
-                    Notification.Action snoozeAction = new Notification.Action.Builder(icon, "Snooze",
-                            snoozePendingIntent).build();
-                    GluNotBuilder.addAction(snoozeAction);
-                } else if (Build.VERSION.SDK_INT >= 20) {
-                    GluNotBuilder.addAction(R.drawable.ic_snooze, "Snooze", snoozePendingIntent);
-                }
 
                 // Add Dismiss Action
                 Intent dismissIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmActionReceiver.class);
                 dismissIntent.setAction(tk.glucodata.receivers.AlarmActionReceiver.ACTION_DISMISS);
                 dismissIntent.putExtra("alert_type_id", alertTypeId);
+                if (customAlertId != null && !customAlertId.isEmpty()) {
+                    dismissIntent.putExtra(EXTRA_CUSTOM_ALERT_ID, customAlertId);
+                }
                 PendingIntent dismissPendingIntent = PendingIntent.getBroadcast(Applic.app, 2, dismissIntent,
                         PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
-                if (Build.VERSION.SDK_INT >= 23) {
-                    android.graphics.drawable.Icon icon = android.graphics.drawable.Icon.createWithResource(Applic.app,
-                            R.drawable.ic_dismiss);
-                    Notification.Action dismissAction = new Notification.Action.Builder(icon, "Dismiss",
-                            dismissPendingIntent).build();
-                    GluNotBuilder.addAction(dismissAction);
-                } else if (Build.VERSION.SDK_INT >= 20) {
-                    GluNotBuilder.addAction(R.drawable.ic_dismiss, "Dismiss", dismissPendingIntent);
-                }
 
                 // --- RICH UI START (Minimal: Value + Arrow + Alert Name) ---
                 // Fetch Layout Prefs
@@ -1729,9 +2238,6 @@ public class Notify {
 
                 // Data Prep
                 int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, glvalue, isMmol);
-                Bitmap arrowBitmap = showArrow
-                        ? NotificationChartDrawer.drawArrow(Applic.app, glucose.rate, isMmol, glucoseColor, arrowSize)
-                        : null;
 
                 // Fetch Native Points for Consistent Text Formatting (Raw/Auto)
                 long endT = System.currentTimeMillis();
@@ -1756,35 +2262,62 @@ public class Notify {
 
                 // Determine ViewMode for formatting
                 int viewMode = 0;
-                String mainName = Natives.lastsensorname();
-                if (mainName != null && !mainName.isEmpty()) {
-                    long sensorPtr = Natives.str2sensorptr(mainName);
-                    if (sensorPtr != 0)
-                        viewMode = Natives.getViewModeFromSensorptr(sensorPtr);
+                viewMode = resolveSensorViewMode(resolvePrimarySensorName());
+
+                float displayRate = glucose.rate;
+                try {
+                    boolean useRaw = (viewMode == 1 || viewMode == 3);
+                    tk.glucodata.logic.TrendEngine.TrendResult res = tk.glucodata.logic.TrendEngine.INSTANCE
+                            .calculateTrend(nativePoints, useRaw, isMmol);
+                    displayRate = res.getVelocity();
+                } catch (Throwable t) {
+                    // keep original rate if fails
                 }
+
+                Bitmap arrowBitmap = showArrow
+                        ? NotificationChartDrawer.drawArrow(Applic.app, displayRate, isMmol, glucoseColor, arrowSize)
+                        : null;
 
                 CharSequence valueText = formatGlucoseText(glucose.value, glvalue, nativePoints, viewMode,
                         glucose.time);
 
-                // Construct RemoteViews Matches Regular Notification
-                RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(), R.layout.notification_material);
+                // Construct RemoteViews using the same rich alert surface for every mode.
+                RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(),
+                        R.layout.notification_material);
                 RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
                         R.layout.notification_material_expanded);
+                RemoteViews remoteViewsHeadsUp = new RemoteViews(Applic.app.getPackageName(),
+                        R.layout.notification_material_heads_up);
 
                 // Clean message: "Forecast Low 4.0 mmol/L" -> "Forecast Low"
-                String cleanMessage = message.replaceAll("[0-9.,]+", "").replaceAll("mmol/L", "")
-                        .replaceAll("mg/dL", "").trim();
+                String cleanMessage = customAlertId != null && !customAlertId.isEmpty()
+                        ? message
+                        : message.replaceAll("[0-9.,]+", "").replaceAll("mmol/L", "")
+                                .replaceAll("mg/dL", "").trim();
+                final String badgeText = cleanMessage.isEmpty() ? message : cleanMessage;
+                final String alertMeta = timef.format(glucose.time);
+                final String plainValueText = valueText.toString();
+
+                GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
+                GluNotBuilder.setContentTitle(badgeText);
+                GluNotBuilder.setContentText(plainValueText);
+                GluNotBuilder.setSubText(alertMeta);
+                GluNotBuilder.setTicker(badgeText + " " + plainValueText);
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    Notification.Builder publicBuilder = mkbuilderintent(type, intent, false);
+                    setIcon(publicBuilder, glvalue, glucose.sensorgen2);
+                    publicBuilder
+                            .setVisibility(VISIBILITY_PUBLIC)
+                            .setContentTitle(badgeText)
+                            .setContentText(plainValueText)
+                            .setSubText(alertMeta);
+                    GluNotBuilder.setPublicVersion(publicBuilder.build());
+                }
 
                 // Font Styling
                 // Initialize ssb first!!
                 android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder(valueText);
-
-                // Prepend Status if present (User Request: "Forecast Low 4,0")
-                if (!cleanMessage.isEmpty()) {
-                    android.text.SpannableStringBuilder ssbStatus = new android.text.SpannableStringBuilder(
-                            cleanMessage + " ");
-                    ssb.insert(0, ssbStatus);
-                }
 
                 String family = (fontWeight >= 500) ? "google-sans-medium" : "google-sans";
                 ssb.setSpan(new android.text.style.TypefaceSpan(family), 0, ssb.length(),
@@ -1799,8 +2332,10 @@ public class Notify {
                 remoteViews.setTextViewTextSize(R.id.notification_glucose, android.util.TypedValue.COMPLEX_UNIT_SP,
                         24 * fontSize);
 
-                // Hide Alert Name Status (now in main line)
-                remoteViews.setViewVisibility(R.id.notification_status, View.GONE);
+                remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
+                remoteViews.setTextViewText(R.id.notification_status, badgeText);
+                remoteViews.setViewVisibility(R.id.notification_alert_badge, View.GONE);
+                remoteViews.setViewVisibility(R.id.notification_meta, View.GONE);
 
                 if (showArrow && arrowBitmap != null) {
                     remoteViews.setViewVisibility(R.id.notification_arrow, View.VISIBLE);
@@ -1820,6 +2355,10 @@ public class Notify {
                         android.util.TypedValue.COMPLEX_UNIT_SP, 28 * fontSize);
 
                 remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.GONE);
+                remoteViewsExpanded.setViewVisibility(R.id.notification_alert_badge, View.VISIBLE);
+                remoteViewsExpanded.setTextViewText(R.id.notification_alert_badge, badgeText);
+                remoteViewsExpanded.setViewVisibility(R.id.notification_meta, View.VISIBLE);
+                remoteViewsExpanded.setTextViewText(R.id.notification_meta, alertMeta);
 
                 if (showArrow && arrowBitmap != null) {
                     remoteViewsExpanded.setViewVisibility(R.id.notification_arrow, View.VISIBLE);
@@ -1830,12 +2369,45 @@ public class Notify {
 
                 // Hide Chart in Expanded too
                 remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.GONE);
+                remoteViewsExpanded.setViewVisibility(R.id.notification_alert_actions, View.VISIBLE);
+                remoteViewsExpanded.setOnClickPendingIntent(R.id.notification_action_snooze, snoozePendingIntent);
+                remoteViewsExpanded.setOnClickPendingIntent(R.id.notification_action_dismiss, dismissPendingIntent);
+
+                remoteViewsHeadsUp.setTextViewText(R.id.notification_glucose, ssb);
+                remoteViewsHeadsUp.setTextColor(R.id.notification_glucose, glucoseColor);
+                remoteViewsHeadsUp.setTextViewTextSize(R.id.notification_glucose,
+                        android.util.TypedValue.COMPLEX_UNIT_SP, 24 * fontSize);
+                remoteViewsHeadsUp.setViewVisibility(R.id.notification_status, View.GONE);
+                remoteViewsHeadsUp.setViewVisibility(R.id.notification_alert_badge, View.VISIBLE);
+                remoteViewsHeadsUp.setTextViewText(R.id.notification_alert_badge, badgeText);
+                remoteViewsHeadsUp.setViewVisibility(R.id.notification_meta, View.VISIBLE);
+                remoteViewsHeadsUp.setTextViewText(R.id.notification_meta, alertMeta);
+                remoteViewsHeadsUp.setViewVisibility(R.id.notification_alert_actions, View.VISIBLE);
+                remoteViewsHeadsUp.setOnClickPendingIntent(R.id.notification_action_snooze, snoozePendingIntent);
+                remoteViewsHeadsUp.setOnClickPendingIntent(R.id.notification_action_dismiss, dismissPendingIntent);
+
+                if (showArrow && arrowBitmap != null) {
+                    remoteViewsHeadsUp.setViewVisibility(R.id.notification_arrow, View.VISIBLE);
+                    remoteViewsHeadsUp.setImageViewBitmap(R.id.notification_arrow, arrowBitmap);
+                } else {
+                    remoteViewsHeadsUp.setViewVisibility(R.id.notification_arrow, View.GONE);
+                }
+
+                final int badgeBackground = getAlertBadgeBackgroundRes(alertTypeId);
+                final int primaryActionBackground = getAlertPrimaryActionBackgroundRes(alertTypeId);
+                remoteViewsExpanded.setInt(R.id.notification_alert_badge, "setBackgroundResource", badgeBackground);
+                remoteViewsHeadsUp.setInt(R.id.notification_alert_badge, "setBackgroundResource", badgeBackground);
+                remoteViewsExpanded.setInt(R.id.notification_action_dismiss, "setBackgroundResource",
+                        primaryActionBackground);
+                remoteViewsHeadsUp.setInt(R.id.notification_action_dismiss, "setBackgroundResource",
+                        primaryActionBackground);
 
                 // Bind to Builder
                 if (Build.VERSION.SDK_INT >= 24) {
                     GluNotBuilder.setStyle(new Notification.DecoratedCustomViewStyle());
                     GluNotBuilder.setCustomContentView(remoteViews);
                     GluNotBuilder.setCustomBigContentView(remoteViewsExpanded);
+                    GluNotBuilder.setCustomHeadsUpContentView(remoteViewsHeadsUp);
                 } else {
                     GluNotBuilder.setContent(remoteViews);
                 }
@@ -1848,9 +2420,41 @@ public class Notify {
         }
     }
 
+    private static boolean isLowFamilyAlert(int alertTypeId) {
+        return alertTypeId == 0 || alertTypeId == 5 || alertTypeId == 7;
+    }
+
+    private static boolean isHighFamilyAlert(int alertTypeId) {
+        return alertTypeId == 1 || alertTypeId == 6 || alertTypeId == 8 || alertTypeId == 10;
+    }
+
+    private static int getAlertBadgeBackgroundRes(int alertTypeId) {
+        if (isLowFamilyAlert(alertTypeId)) {
+            return R.drawable.notification_alert_badge_low;
+        }
+        if (isHighFamilyAlert(alertTypeId)) {
+            return R.drawable.notification_alert_badge_high;
+        }
+        return R.drawable.notification_alert_badge_neutral;
+    }
+
+    private static int getAlertPrimaryActionBackgroundRes(int alertTypeId) {
+        if (isLowFamilyAlert(alertTypeId)) {
+            return R.drawable.notification_alert_action_primary_low;
+        }
+        if (isHighFamilyAlert(alertTypeId)) {
+            return R.drawable.notification_alert_action_primary_high;
+        }
+        return R.drawable.notification_alert_action_primary_neutral;
+    }
+
     static public boolean alertseparate = false;
 
     static public PendingIntent mkpending() {
+        return mkpending(null);
+    }
+
+    static public PendingIntent mkpending(String customAlertId) {
         {
             if (doLog) {
                 Log.i(LOG_ID, "mkpending");
@@ -1860,6 +2464,9 @@ public class Notify {
         ;
         Intent notifyIntent = new Intent(Applic.app, MainActivity.class);
         notifyIntent.putExtra(fromnotification, true);
+        if (customAlertId != null && !customAlertId.isEmpty()) {
+            notifyIntent.putExtra(EXTRA_CUSTOM_ALERT_ID, customAlertId);
+        }
         notifyIntent.addCategory(Intent.CATEGORY_LAUNCHER);
         notifyIntent.setAction(Intent.ACTION_MAIN);
         notifyIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -1867,6 +2474,11 @@ public class Notify {
     }
 
     private Notification.Builder mkbuilderintent(String type, PendingIntent notifyPendingIntent) {
+        return mkbuilderintent(type, notifyPendingIntent, true);
+    }
+
+    private Notification.Builder mkbuilderintent(String type, PendingIntent notifyPendingIntent,
+            boolean groupWithService) {
         Notification.Builder GluNotBuilder;
         if (true) {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -1882,7 +2494,7 @@ public class Notify {
         if (Build.VERSION.SDK_INT >= 20) {
             GluNotBuilder.setLocalOnly(false);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+        if (groupWithService && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             GluNotBuilder.setGroup("aa2");
         }
         return GluNotBuilder;
@@ -2197,19 +2809,9 @@ public class Notify {
         String newStatusText = statusText;
         try {
             // Priority: Main sensor (lastsensorname) or first active
-            String mainName = Natives.lastsensorname();
-            long sensorPtr = 0;
-            if (mainName != null && !mainName.isEmpty()) {
-                sensorPtr = Natives.str2sensorptr(mainName);
-            }
-            if (sensorPtr == 0) {
-                long[] ptrs = Natives.activeSensorPtrs();
-                if (ptrs != null && ptrs.length > 0)
-                    sensorPtr = ptrs[0];
-            }
-
-            if (sensorPtr != 0) {
-                String nativeStatus = Natives.sensortextfromSensorptr(sensorPtr);
+            String sensorName = resolvePrimarySensorName();
+            if (sensorName != null && !sensorName.isEmpty()) {
+                String nativeStatus = Natives.getSensorStatusByName(sensorName);
                 if (nativeStatus != null && !nativeStatus.isEmpty()) {
                     newStatusText = nativeStatus;
                 }
@@ -2257,7 +2859,7 @@ public class Notify {
 
         // 3b. Construct RemoteViews (Expanded)
         RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
-                R.layout.notification_material_expanded);
+                R.layout.notification_material_regular_expanded);
 
         // Glucose Value - Expanded: Size 28sp (scale ~1.17 * fontSize)
         Bitmap valueBitmapExpanded = NotificationChartDrawer.drawGlucoseText(Applic.app, valueText.toString(),
@@ -2448,19 +3050,11 @@ public class Notify {
         }
         if (viewMode == 0) {
             try {
-                long sensorPtr = 0;
-                if (activeSensorSerial != null && !activeSensorSerial.isEmpty()) {
-                    sensorPtr = Natives.str2sensorptr(activeSensorSerial);
+                String sensorName = activeSensorSerial;
+                if (sensorName == null || sensorName.isEmpty()) {
+                    sensorName = resolvePrimarySensorName();
                 }
-                if (sensorPtr == 0) {
-                    long[] ptrs = Natives.activeSensorPtrs();
-                    if (ptrs != null && ptrs.length > 0) {
-                        sensorPtr = ptrs[0];
-                    }
-                }
-                if (sensorPtr != 0) {
-                    viewMode = Natives.getViewModeFromSensorptr(sensorPtr);
-                }
+                viewMode = resolveSensorViewMode(sensorName);
             } catch (Throwable t) {
             }
         }
@@ -2697,7 +3291,7 @@ public class Notify {
         remoteViews.setTextViewText(R.id.notification_status, styledMessage);
 
         RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
-                R.layout.notification_material_expanded);
+                R.layout.notification_material_regular_expanded);
         remoteViewsExpanded.setTextViewText(R.id.notification_glucose, finalText);
         remoteViewsExpanded.setTextColor(R.id.notification_glucose, glucoseColor);
         // Apply size and weight to expanded startup notification

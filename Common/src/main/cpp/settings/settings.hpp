@@ -949,8 +949,8 @@ public:
         unit = getunit(country);
       else
         unit = 3;
-      setalarms(39 * 18, 13 * 180, false, false, false, false);
-      setranges(3 * 180, 12 * 180, 39 * 18, 10 * 180);
+      setalarms(36 * 18, 9 * 180, false, false, false, false);
+      setranges(3 * 180, 12 * 180, 36 * 18, 9 * 180);
     } else {
       LOGGER("setconvert was unit=%d\n", unit);
     }

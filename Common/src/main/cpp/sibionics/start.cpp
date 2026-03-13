@@ -1214,6 +1214,43 @@ fromjava(getTemperatureData)(JNIEnv *env, jclass cl, jlong sensorptr) {
   return result;
 }
 
+extern "C" JNIEXPORT jintArray JNICALL
+fromjava(getTemperatureDataByName)(JNIEnv *env, jclass cl, jstring jsensor) {
+  if (!jsensor || !sensors)
+    return nullptr;
+  const char *sensorChars = env->GetStringUTFChars(jsensor, nullptr);
+  if (!sensorChars)
+    return nullptr;
+
+  const auto *sens = sensors->getSensorData(sensorChars);
+  if (!sens) {
+    sens = sensors->gethistshort(sensorChars);
+  }
+  env->ReleaseStringUTFChars(jsensor, sensorChars);
+  if (!sens || !sens->isSibionics())
+    return nullptr;
+
+  const uint16_t *tempData = sens->getTempPollsData();
+  const int count = sens->pollcount();
+  if (!tempData || count <= 0)
+    return nullptr;
+
+  jintArray result = env->NewIntArray(count);
+  if (!result)
+    return nullptr;
+
+  jint *buf = env->GetIntArrayElements(result, nullptr);
+  if (!buf)
+    return nullptr;
+
+  for (int i = 0; i < count; i++) {
+    buf[i] = (jint)tempData[i];
+  }
+
+  env->ReleaseIntArrayElements(result, buf, 0);
+  return result;
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
                         jbyteArray bluetoothdata, jlong mmsec) {

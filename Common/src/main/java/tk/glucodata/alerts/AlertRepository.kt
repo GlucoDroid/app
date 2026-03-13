@@ -15,6 +15,11 @@ import tk.glucodata.Natives
 object AlertRepository {
     
     private const val PREFS_NAME = "tk.glucodata.alerts"
+    private const val DEFAULT_THRESHOLD_MIGRATION_KEY = "alert_threshold_defaults_v3"
+    @Volatile
+    private var hiddenLegacyAlertCleanupDone = false
+    @Volatile
+    private var defaultThresholdMigrationDone = false
     
     private val prefs: SharedPreferences by lazy {
         Applic.app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -49,6 +54,8 @@ object AlertRepository {
      * For legacy types, reads from Natives. For new types, reads from SharedPreferences.
      */
     fun loadConfig(type: AlertType): AlertConfig {
+        ensureDefaultThresholdMigration()
+        ensureHiddenLegacyAlertCleanup()
         val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
         val default = AlertDefaults.defaultConfig(type, isMmol)
 
@@ -107,6 +114,10 @@ object AlertRepository {
         legacyOverrides: AlertConfig.() -> AlertConfig
     ): AlertConfig {
         val base = default.legacyOverrides()
+        return applyLegacyOverrides(type, base)
+    }
+
+    private fun applyLegacyOverrides(type: AlertType, base: AlertConfig): AlertConfig {
         return base.copy(
             deliveryMode = prefs.getString(keyDeliveryMode(type), null)
                 ?.let { AlertDeliveryMode.valueOf(it) } ?: base.deliveryMode,
@@ -172,6 +183,7 @@ object AlertRepository {
      * For legacy types, writes to both SharedPreferences and Natives.
      */
     fun saveConfig(config: AlertConfig) {
+        ensureHiddenLegacyAlertCleanup()
         // FIRST: Save to SharedPreferences
         saveToPrefs(config)
         
@@ -215,19 +227,19 @@ object AlertRepository {
     
     private fun syncNativeAlarmSettings(config: AlertConfig) {
         val typeId = config.type.id
-        
-        // Unified Update: Use the static Java wrapper in Natives to handle ALL native-backed types
-        // This removes the distinction between Legacy and Advanced types in this repository.
-        if (typeId <= 8) {
+
+        // Compose alert settings must not silently toggle hidden legacy-only alert types
+        // like AVAILABLE(2) / AMOUNT(3).
+        if (typeId == AlertType.LOW.id || typeId == AlertType.HIGH.id || typeId == AlertType.LOSS.id) {
             Natives.setAlertConfig(
                 typeId,
                 config.threshold ?: 0f,
                 config.enabled
             )
-            
+
             // Sync extra settings (DND, Duration, Sound) which are still per-ID in Natives
             Natives.setalarmdisturb(typeId, config.overrideDND)
-            
+
             // For LOSS (Type 4), 'alarmDuration' in Natives likely controls the Timeout (time until alarm),
             // not the sound duration. So we sync the durationMinutes (converted to seconds).
             // For others, it controls Sound Duration.
@@ -238,6 +250,23 @@ object AlertRepository {
             }
             Natives.writealarmduration(typeId, durationValue)
             
+            Natives.writering(
+                typeId,
+                config.customSoundUri ?: "",
+                config.soundEnabled,
+                config.flashEnabled,
+                config.vibrationEnabled
+            );
+        } else if (typeId == AlertType.VERY_LOW.id || typeId == AlertType.VERY_HIGH.id ||
+            typeId == AlertType.PRE_LOW.id || typeId == AlertType.PRE_HIGH.id) {
+            Natives.setAlertConfig(
+                typeId,
+                config.threshold ?: 0f,
+                config.enabled
+            )
+
+            Natives.setalarmdisturb(typeId, config.overrideDND)
+            Natives.writealarmduration(typeId, config.alarmDurationSeconds)
             Natives.writering(
                 typeId,
                 config.customSoundUri ?: "",
@@ -257,7 +286,8 @@ object AlertRepository {
      * Load all alert configurations.
      */
     fun loadAllConfigs(): List<AlertConfig> {
-        return AlertType.entries.map { loadConfig(it) }
+        ensureHiddenLegacyAlertCleanup()
+        return AlertType.settingsEntries.map { loadConfig(it) }
     }
     
     /**
@@ -267,5 +297,130 @@ object AlertRepository {
         return loadConfig(AlertType.LOW).enabled ||
                loadConfig(AlertType.VERY_LOW).enabled ||
                loadConfig(AlertType.MISSED_READING).enabled
+    }
+
+    private fun ensureDefaultThresholdMigration() {
+        if (defaultThresholdMigrationDone) {
+            return
+        }
+        synchronized(this) {
+            if (defaultThresholdMigrationDone) {
+                return
+            }
+            if (prefs.getBoolean(DEFAULT_THRESHOLD_MIGRATION_KEY, false)) {
+                defaultThresholdMigrationDone = true
+                return
+            }
+
+            val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
+            migrateLegacyThresholdIfUnchanged(
+                type = AlertType.LOW,
+                currentThreshold = Natives.alarmlow(),
+                enabled = Natives.hasalarmlow(),
+                oldDefault = if (isMmol) AlertDefaults.LEGACY_LOW_THRESHOLD_MMOL else AlertDefaults.LEGACY_LOW_THRESHOLD_MGDL,
+                newDefault = if (isMmol) AlertDefaults.LOW_THRESHOLD_MMOL else AlertDefaults.LOW_THRESHOLD_MGDL,
+                isMmol = isMmol
+            )
+            migrateLegacyThresholdIfUnchanged(
+                type = AlertType.HIGH,
+                currentThreshold = Natives.alarmhigh(),
+                enabled = Natives.hasalarmhigh(),
+                oldDefault = if (isMmol) AlertDefaults.LEGACY_HIGH_THRESHOLD_MMOL else AlertDefaults.LEGACY_HIGH_THRESHOLD_MGDL,
+                newDefault = if (isMmol) AlertDefaults.HIGH_THRESHOLD_MMOL else AlertDefaults.HIGH_THRESHOLD_MGDL,
+                isMmol = isMmol
+            )
+            migrateLegacyThresholdIfUnchanged(
+                type = AlertType.VERY_LOW,
+                currentThreshold = Natives.alarmverylow(),
+                enabled = Natives.hasalarmverylow(),
+                oldDefault = if (isMmol) AlertDefaults.LEGACY_VERY_LOW_THRESHOLD_MMOL else AlertDefaults.LEGACY_VERY_LOW_THRESHOLD_MGDL,
+                newDefault = if (isMmol) AlertDefaults.VERY_LOW_THRESHOLD_MMOL else AlertDefaults.VERY_LOW_THRESHOLD_MGDL,
+                isMmol = isMmol
+            )
+            migrateLegacyThresholdIfUnchanged(
+                type = AlertType.VERY_HIGH,
+                currentThreshold = Natives.alarmveryhigh(),
+                enabled = Natives.hasalarmveryhigh(),
+                oldDefault = if (isMmol) AlertDefaults.LEGACY_VERY_HIGH_THRESHOLD_MMOL else AlertDefaults.LEGACY_VERY_HIGH_THRESHOLD_MGDL,
+                newDefault = if (isMmol) AlertDefaults.VERY_HIGH_THRESHOLD_MMOL else AlertDefaults.VERY_HIGH_THRESHOLD_MGDL,
+                isMmol = isMmol
+            )
+            migrateLegacyThresholdIfUnchanged(
+                type = AlertType.PRE_LOW,
+                currentThreshold = Natives.alarmprelow(),
+                enabled = Natives.hasalarmprelow(),
+                oldDefault = if (isMmol) AlertDefaults.LEGACY_FORECAST_LOW_THRESHOLD_MMOL else AlertDefaults.LEGACY_FORECAST_LOW_THRESHOLD_MGDL,
+                newDefault = if (isMmol) AlertDefaults.FORECAST_LOW_THRESHOLD_MMOL else AlertDefaults.FORECAST_LOW_THRESHOLD_MGDL,
+                isMmol = isMmol
+            )
+            migrateLegacyThresholdIfUnchanged(
+                type = AlertType.PRE_HIGH,
+                currentThreshold = Natives.alarmprehigh(),
+                enabled = Natives.hasalarmprehigh(),
+                oldDefault = if (isMmol) AlertDefaults.LEGACY_HIGH_THRESHOLD_MMOL else AlertDefaults.LEGACY_HIGH_THRESHOLD_MGDL,
+                newDefault = if (isMmol) AlertDefaults.FORECAST_HIGH_THRESHOLD_MMOL else AlertDefaults.FORECAST_HIGH_THRESHOLD_MGDL,
+                isMmol = isMmol
+            )
+
+            prefs.edit {
+                putBoolean(DEFAULT_THRESHOLD_MIGRATION_KEY, true)
+            }
+            defaultThresholdMigrationDone = true
+        }
+    }
+
+    private fun migrateLegacyThresholdIfUnchanged(
+        type: AlertType,
+        currentThreshold: Float,
+        enabled: Boolean,
+        oldDefault: Float,
+        newDefault: Float,
+        isMmol: Boolean
+    ) {
+        if (prefs.contains(keyThreshold(type)) || !approximatelyEquals(currentThreshold, oldDefault)) {
+            return
+        }
+
+        val migrated = applyLegacyOverrides(
+            type,
+            AlertDefaults.defaultConfig(type, isMmol).copy(
+                enabled = enabled,
+                threshold = newDefault
+            )
+        )
+        saveToPrefs(migrated)
+        syncNativeAlarmSettings(migrated)
+    }
+
+    private fun approximatelyEquals(first: Float, second: Float): Boolean {
+        return kotlin.math.abs(first - second) < 0.11f
+    }
+
+    private fun ensureHiddenLegacyAlertCleanup() {
+        if (hiddenLegacyAlertCleanupDone) {
+            return
+        }
+        synchronized(this) {
+            if (hiddenLegacyAlertCleanupDone) {
+                return
+            }
+            val hiddenPrefixes = listOf(
+                "alert_${AlertType.AVAILABLE.id}_",
+                "alert_${AlertType.AMOUNT.id}_"
+            )
+            val hadHiddenComposePrefs = prefs.all.keys.any { key ->
+                hiddenPrefixes.any { prefix -> key.startsWith(prefix) }
+            }
+            if (hadHiddenComposePrefs) {
+                prefs.edit {
+                    prefs.all.keys
+                        .filter { key -> hiddenPrefixes.any { prefix -> key.startsWith(prefix) } }
+                        .forEach(::remove)
+                }
+                // Compose should never have been the owner of the legacy "value available" alert.
+                Natives.setAlertConfig(AlertType.AVAILABLE.id, 0f, false)
+            }
+            hiddenLegacyAlertCleanupDone = true
+        }
     }
 }

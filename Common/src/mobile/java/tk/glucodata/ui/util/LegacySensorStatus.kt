@@ -7,7 +7,7 @@ import tk.glucodata.R
 private const val DEXCOM_SENSOR_KIND = 0x40
 private const val DEXCOM_WARMUP_DURATION_MS = 30L * 60L * 1000L
 
-private fun legacyWarmupStatus(context: Context, sensorKind: Int, startMs: Long, nativeStatus: String): String? {
+fun getLegacyWarmupStatus(context: Context, sensorKind: Int, startMs: Long, nativeStatus: String): String? {
     if (sensorKind != DEXCOM_SENSOR_KIND) {
         return null
     }
@@ -32,14 +32,5 @@ fun getLegacyWarmupStatus(context: Context, dataptr: Long, nativeStatus: String)
     }
     val sensorKind = runCatching { Natives.getLibreVersion(dataptr) }.getOrDefault(-1)
     val startMs = runCatching { Natives.getSensorStartmsec(dataptr) }.getOrDefault(0L)
-    return legacyWarmupStatus(context, sensorKind, startMs, nativeStatus)
-}
-
-fun getLegacyWarmupStatusFromSensorptr(context: Context, sensorptr: Long, nativeStatus: String): String? {
-    if (sensorptr == 0L) {
-        return null
-    }
-    val sensorKind = runCatching { Natives.getSensorptrLibreVersion(sensorptr) }.getOrDefault(-1)
-    val startMs = runCatching { Natives.getSensorStartmsecFromSensorptr(sensorptr) }.getOrDefault(0L)
-    return legacyWarmupStatus(context, sensorKind, startMs, nativeStatus)
+    return getLegacyWarmupStatus(context, sensorKind, startMs, nativeStatus)
 }

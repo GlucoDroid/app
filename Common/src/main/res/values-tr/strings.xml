@@ -1198,4 +1198,12 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Bağlantı bekleniyor</string>
     <string name="status_ready_in_minutes">Sensör %1$d dakika içinde hazır.</string>
+    <string name="navigate_back">Geri dön</string>
+    <string name="nightscout_upload_title">Nightscout yükleme</string>
+    <string name="nightscout_upload_active">Arka planda yükleniyor</string>
+    <string name="nightscout_upload_paused">Yüklemeler duraklatıldı</string>
+    <string name="nightscout_upload_options_title">Yükleme seçenekleri</string>
+    <string name="nightscout_sync_actions_title">Senkronizasyon işlemleri</string>
+    <string name="expand_action">Genişlet</string>
+    <string name="collapse_action">Daralt</string>
 </resources>

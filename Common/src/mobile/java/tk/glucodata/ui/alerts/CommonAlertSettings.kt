@@ -43,31 +43,42 @@ fun CommonAlertSettings(
     onConfigChange: (AlertConfig) -> Unit,
     onPickSound: (AlertConfig) -> Unit,
     onTest: () -> Unit,
+    showTestButton: Boolean = true,
     // Optional Header Content (e.g., Thresholds)
     headerContent: (@Composable () -> Unit)? = null
 ) {
+    val sectionHorizontalPadding = 16.dp
+
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-         // === Test Button ===
-         FilledTonalButton(
-             onClick = onTest,
-             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-             contentPadding = PaddingValues(8.dp)
-         ) {
-             Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-             Spacer(Modifier.width(8.dp))
-             Text(stringResource(R.string.test_alert))
+         if (showTestButton) {
+              FilledTonalButton(
+                  onClick = onTest,
+                  modifier = Modifier.fillMaxWidth().padding(horizontal = sectionHorizontalPadding),
+                  contentPadding = PaddingValues(8.dp)
+              ) {
+                  Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                 Spacer(Modifier.width(8.dp))
+                 Text(stringResource(R.string.test_alert))
+             }
          }
-         
+          
          // === Header (Thresholds/Durations) ===
-         headerContent?.invoke()
+         headerContent?.let {
+             Column(
+                 modifier = Modifier.padding(horizontal = sectionHorizontalPadding),
+                 verticalArrangement = Arrangement.spacedBy(8.dp)
+             ) {
+                 it()
+             }
+         }
 
-         // === Feedback Modes (Sound, Vibrate, Flash) ===
-         // Source: GlobalAlertSettingsCard.kt
+          // === Feedback Modes (Sound, Vibrate, Flash) ===
+          // Source: GlobalAlertSettingsCard.kt
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
         ) {
             Text(stringResource(R.string.modes))
             val modes = listOf("Sound", "Vibrate", "Flash")
@@ -117,7 +128,7 @@ fun CommonAlertSettings(
         // === Alert Style ===
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
         ) {
             Text(stringResource(R.string.alert_style))
             ConnectedButtonGroup(
@@ -136,7 +147,7 @@ fun CommonAlertSettings(
         // === Intensity ===
          Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
         ) {
             Text(stringResource(R.string.intensity))
             ConnectedButtonGroup(
@@ -165,7 +176,7 @@ fun CommonAlertSettings(
                         .fillMaxWidth()
                         .heightIn(min = 56.dp)
                         .clickable { onPickSound(config) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = sectionHorizontalPadding, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -234,7 +245,7 @@ fun CommonAlertSettings(
             range = 5..60,
             stepSize = 5,
             onValueChange = { onConfigChange(config.copy(defaultSnoozeMinutes = it)) },
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
         )
     }
 }

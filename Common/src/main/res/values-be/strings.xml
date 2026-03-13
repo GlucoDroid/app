@@ -1169,4 +1169,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Чаканне падключэння</string>
     <string name="status_ready_in_minutes">Датчык будзе гатовы праз %1$d хвілін.</string>
+    <string name="navigate_back">Назад</string>
+    <string name="nightscout_upload_title">Загрузка ў Nightscout</string>
+    <string name="nightscout_upload_active">Загрузка ў фоне</string>
+    <string name="nightscout_upload_paused">Загрузкі прыпынены</string>
+    <string name="nightscout_upload_options_title">Параметры загрузкі</string>
+    <string name="nightscout_sync_actions_title">Дзеянні сінхранізацыі</string>
+    <string name="expand_action">Разгарнуць</string>
+    <string name="collapse_action">Згарнуць</string>
 </resources>

@@ -13,11 +13,15 @@ import tk.glucodata.Natives
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
-import tk.glucodata.ui.util.getLegacyWarmupStatusFromSensorptr
+import tk.glucodata.ui.util.getLegacyWarmupStatus
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository()
 ) : ViewModel() {
+    private companion object {
+        const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
+    }
+
     private val _currentGlucose = MutableStateFlow("---")
     val currentGlucose = _currentGlucose.asStateFlow()
 
@@ -148,6 +152,7 @@ class DashboardViewModel(
             // Load Notification Chart Setting
             val context = tk.glucodata.Applic.app
             val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+            migrateTargetRangeDefaultsIfNeeded(prefs, isMmol)
             _notificationChartEnabled.value = prefs.getBoolean("notification_chart_enabled", true)
             
             _targetLow.value = Natives.targetlow()
@@ -194,24 +199,29 @@ class DashboardViewModel(
 
             if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
                 _sensorName.value = sName
-                val sensorPtr = try {
-                    Natives.str2sensorptr(sName)
-                } catch (e: Exception) {
-                    android.util.Log.e("DashboardVM", "str2sensorptr failed for '$sName'", e)
-                    0L
+                val nativeStatus = try {
+                    Natives.getSensorStatusByName(sName).orEmpty()
+                } catch (t: Throwable) {
+                    android.util.Log.e("DashboardVM", "getSensorStatusByName failed for '$sName'", t)
+                    ""
                 }
-                if (sensorPtr != 0L) {
-                    val nativeStatus = Natives.sensortextfromSensorptr(sensorPtr) ?: ""
-                    val warmupStatus = getLegacyWarmupStatusFromSensorptr(tk.glucodata.Applic.app, sensorPtr, nativeStatus)
+                val snapshot = try {
+                    Natives.getSensorUiSnapshot(sName)
+                } catch (t: Throwable) {
+                    android.util.Log.e("DashboardVM", "getSensorUiSnapshot failed for '$sName'", t)
+                    null
+                }
+                if (snapshot != null && snapshot.size >= 5) {
+                    val sensorKind = snapshot[0].toInt()
+                    val vm = snapshot[1].toInt()
+                    val startMsec = snapshot[2]
+                    val expectedEnd = snapshot[3]
+                    val officialEnd = snapshot[4]
+                    val warmupStatus = getLegacyWarmupStatus(tk.glucodata.Applic.app, sensorKind, startMsec, nativeStatus)
                     _sensorStatus.value = warmupStatus ?: nativeStatus
 
-                    val vm = Natives.getViewModeFromSensorptr(sensorPtr)
                     _viewMode.value = vm
-                    
-                    val expectedEnd = Natives.getSensorEndTimeFromSensorptr(sensorPtr, false)
-                    val officialEnd = Natives.getSensorEndTimeFromSensorptr(sensorPtr, true)
-                    val startMsec = Natives.getSensorStartmsecFromSensorptr(sensorPtr)
-                    
+
                     if (startMsec > 0) {
                          val now = System.currentTimeMillis()
                          // Progress Calculation for Dynamic UI
@@ -247,10 +257,18 @@ class DashboardViewModel(
                     // Removed separate block that caused scope errors.
                     // All logic is now consolidated above.
                 } else {
+                     _sensorStatus.value = nativeStatus
+                     _viewMode.value = 0
+                     _sensorProgress.value = 0f
+                     _sensorHoursRemaining.value = 999L
                      _daysRemaining.value = ""
                 }
             } else {
                  _sensorName.value = ""
+                 _sensorStatus.value = ""
+                 _viewMode.value = 0
+                 _sensorProgress.value = 0f
+                 _sensorHoursRemaining.value = 999L
                  _daysRemaining.value = ""
             }
 
@@ -451,5 +469,28 @@ class DashboardViewModel(
         } else {
             context.stopService(intent)
         }
+    }
+
+    private fun migrateTargetRangeDefaultsIfNeeded(
+        prefs: android.content.SharedPreferences,
+        isMmol: Boolean
+    ) {
+        if (prefs.getBoolean(TARGET_RANGE_DEFAULTS_MIGRATION_KEY, false)) {
+            return
+        }
+
+        val currentLow = Natives.targetlow()
+        val currentHigh = Natives.targethigh()
+        val oldLow = if (isMmol) 3.9f else 70f
+        val oldHigh = if (isMmol) 10.0f else 180f
+
+        if (kotlin.math.abs(currentLow - oldLow) < 0.11f && kotlin.math.abs(currentHigh - oldHigh) < 0.11f) {
+            Natives.setTargetRange(
+                if (isMmol) 3.6f else 65f,
+                if (isMmol) 9.0f else 162f
+            )
+        }
+
+        prefs.edit().putBoolean(TARGET_RANGE_DEFAULTS_MIGRATION_KEY, true).apply()
     }
 }

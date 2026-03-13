@@ -13,11 +13,13 @@ import androidx.core.view.WindowCompat
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
+import tk.glucodata.Natives
 import tk.glucodata.Notify
 import tk.glucodata.alerts.AlertRepository
 import tk.glucodata.alerts.AlertStateTracker
 import tk.glucodata.alerts.AlertType
 import tk.glucodata.alerts.SnoozeManager
+import tk.glucodata.logic.CustomAlertManager
 
 class AlarmActivity : ComponentActivity() {
 
@@ -32,11 +34,29 @@ class AlarmActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        turnScreenOnAndKeyguard()
         showAlarmContent()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Notify.setAlarmUiVisible(true)
+        turnScreenOnAndKeyguard()
+    }
+
+    override fun onStop() {
+        Notify.setAlarmUiVisible(false)
+        super.onStop()
     }
 
     private fun showAlarmContent() {
         val model = buildUiModel(intent)
+        val customAlertId = intent.getStringExtra(Notify.EXTRA_CUSTOM_ALERT_ID)
+        val deliveryMode = intent.getStringExtra(Notify.EXTRA_ALERT_DELIVERY_MODE)
+
+        if (deliveryMode == "SYSTEM_ALARM") {
+            cancelAlarmNotification()
+        }
 
         setContent {
             AlarmScreen(
@@ -49,15 +69,28 @@ class AlarmActivity : ComponentActivity() {
                 timeText = model.timeText,
                 onSnooze = {
                     Notify.stopalarm()
-                    model.alertType?.let { SnoozeManager.snooze(it, model.snoozeMinutes) }
+                    if (customAlertId != null) {
+                        CustomAlertManager.snoozeAlert(customAlertId, model.snoozeMinutes)
+                    } else {
+                        Notify.cancelCurrentRetrySession("alarm-activity-snooze")
+                        AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))?.let {
+                            SnoozeManager.snooze(it, model.snoozeMinutes)
+                            AlertStateTracker.resetState(it)
+                        }
+                    }
                     cancelAlarmNotification()
                     finish()
                 },
                 onDismiss = {
                     Notify.stopalarm()
-                    model.alertType?.let {
-                        SnoozeManager.clearSnooze(it)
-                        AlertStateTracker.onAlertDismissed(it)
+                    if (customAlertId != null) {
+                        CustomAlertManager.dismissAlert(customAlertId)
+                    } else {
+                        Notify.cancelCurrentRetrySession("alarm-activity-dismiss")
+                        AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))?.let {
+                            SnoozeManager.clearSnooze(it)
+                            AlertStateTracker.onAlertDismissed(it)
+                        }
                     }
                     cancelAlarmNotification()
                     finish()
@@ -69,8 +102,17 @@ class AlarmActivity : ComponentActivity() {
     private fun buildUiModel(intent: Intent): AlarmUiModel {
         val rawValue = intent.getStringExtra(EXTRA_GLUCOSE_VAL).orEmpty()
         val rawMessage = intent.getStringExtra(EXTRA_ALARM_MESSAGE).orEmpty()
-        val rate = intent.getFloatExtra(EXTRA_RATE, Float.NaN)
+        val latestRate = try {
+            Natives.lastglucose()?.rate?.takeIf { it.isFinite() }
+        } catch (_: Throwable) {
+            null
+        }
+        val rate = selectAlarmRate(
+            intent.getFloatExtra(EXTRA_RATE, Float.NaN).takeIf { it.isFinite() },
+            latestRate
+        )
         val alertType = AlertType.fromId(intent.getIntExtra(EXTRA_ALERT_TYPE_ID, -1))
+        val customAlertId = intent.getStringExtra(Notify.EXTRA_CUSTOM_ALERT_ID)
 
         val glucoseSource = rawValue.ifBlank { rawMessage }
         val (parsedValueRaw, parsedValueMessage) = parseGlucoseString(glucoseSource)
@@ -81,9 +123,14 @@ class AlarmActivity : ComponentActivity() {
         val primaryGlucose = glucoseParts.firstOrNull().orEmpty().ifBlank { "---" }
         val secondaryGlucose = glucoseParts.getOrNull(1)
 
-        val alertLabel = alertType?.let { getString(it.nameResId) }
-            ?: intent.getStringExtra(EXTRA_ALARM_TYPE).orEmpty().ifBlank { parsedValueMessage.ifBlank { rawMessage } }
-                .ifBlank { getString(tk.glucodata.R.string.alarms) }
+        val alertLabel = if (!customAlertId.isNullOrBlank()) {
+            rawMessage.ifBlank { intent.getStringExtra(EXTRA_ALARM_TYPE).orEmpty() }
+                .ifBlank { parsedValueMessage.ifBlank { getString(tk.glucodata.R.string.alarms) } }
+        } else {
+            alertType?.let { getString(it.nameResId) }
+                ?: intent.getStringExtra(EXTRA_ALARM_TYPE).orEmpty().ifBlank { parsedValueMessage.ifBlank { rawMessage } }
+                    .ifBlank { getString(tk.glucodata.R.string.alarms) }
+        }
 
         val supportingText = parsedValueMessage.takeIf {
             it.isNotBlank() &&
@@ -163,6 +210,12 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun decimalSeparator(): Char = DecimalFormatSymbols.getInstance(Locale.getDefault()).decimalSeparator
+
+    private fun selectAlarmRate(intentRate: Float?, latestRate: Float?): Float {
+        val latest = latestRate?.takeIf { it.isFinite() }
+        val intent = intentRate?.takeIf { it.isFinite() }
+        return latest ?: intent ?: Float.NaN
+    }
 
     private fun cancelAlarmNotification() {
         (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)?.cancel(81432)

@@ -229,10 +229,7 @@ class StatsViewModel : ViewModel() {
 
     private fun readTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
         return try {
-            val sensorPtr = Natives.str2sensorptr(serial)
-            if (sensorPtr == 0L) return emptyList()
-
-            val tempRaw = Natives.getTemperatureData(sensorPtr)
+            val tempRaw = Natives.getTemperatureDataByName(serial)
             if (tempRaw == null || tempRaw.isEmpty()) return emptyList()
 
             val firstTs = history.firstOrNull()?.timestamp
@@ -253,7 +250,7 @@ class StatsViewModel : ViewModel() {
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(tag, "readTemperaturePoints failed", e)
             emptyList()
         }

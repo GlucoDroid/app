@@ -1184,4 +1184,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Очікування підключення</string>
     <string name="status_ready_in_minutes">Датчик буде готовий через %1$d хвилин.</string>
+    <string name="navigate_back">Назад</string>
+    <string name="nightscout_upload_title">Завантаження в Nightscout</string>
+    <string name="nightscout_upload_active">Завантаження у фоновому режимі</string>
+    <string name="nightscout_upload_paused">Завантаження призупинено</string>
+    <string name="nightscout_upload_options_title">Параметри завантаження</string>
+    <string name="nightscout_sync_actions_title">Дії синхронізації</string>
+    <string name="expand_action">Розгорнути</string>
+    <string name="collapse_action">Згорнути</string>
 </resources>

@@ -59,9 +59,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Locale
 import kotlin.math.roundToInt
 import tk.glucodata.Natives
+import tk.glucodata.Applic
 import tk.glucodata.R
 import tk.glucodata.logic.TrendEngine
 import tk.glucodata.ui.components.TrendIndicator
@@ -96,8 +96,9 @@ fun AlarmScreen(
     onDismiss: () -> Unit
 ) {
     val colorScheme = remember(severity) { severityColorScheme(severity) }
-    val trend = remember(rate) { resolveTrend(rate) }
-    val trendResult = remember(rate) { alarmTrendResult(rate) }
+    val normalizedRate = remember(rate) { normalizeAlarmRate(rate) }
+    val trend = remember(normalizedRate) { resolveTrend(normalizedRate) }
+    val trendResult = remember(normalizedRate) { alarmTrendResult(normalizedRate) }
 
     MaterialTheme(colorScheme = colorScheme, typography = AppTypography) {
         val typographyChoice = rememberAlarmTypographyChoice()
@@ -187,6 +188,7 @@ private fun PixelAlarmContent(
             ) {
                 HeroBlock(
                     primaryGlucose = primaryGlucose,
+                    trend = trend,
                     trendResult = trendResult,
                     compact = compact,
                     typographyChoice = typographyChoice,
@@ -221,14 +223,15 @@ private fun AlarmHeader(
     modifier: Modifier = Modifier
 ) {
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    val labelWords = remember(alarmLabel) {
-        alarmLabel.trim().uppercase(Locale.getDefault()).split(Regex("\\s+")).filter { it.isNotEmpty() }
+    val normalizedLabel = remember(alarmLabel) { alarmLabel.trim().replace(Regex("\\s+"), " ") }
+    val labelWords = remember(normalizedLabel) {
+        normalizedLabel.split(Regex("\\s+")).filter { it.isNotEmpty() }
     }
     val displayLabel = remember(labelWords) { formatAlarmLabel(labelWords) }
-    val titleFontSize = remember(labelWords, compact, screenWidthDp) {
-        adaptiveAlarmTitleSize(labelWords, compact, screenWidthDp)
+    val titleFontSize = remember(displayLabel, labelWords, compact, screenWidthDp) {
+        adaptiveAlarmTitleSize(displayLabel, labelWords, compact, screenWidthDp)
     }
-    val titleLineHeight = (titleFontSize.value + if (labelWords.size >= 2) 3f else 5f).sp
+    val titleLineHeight = (titleFontSize.value + if (displayLabel.contains('\n')) 5f else 7f).sp
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -241,7 +244,7 @@ private fun AlarmHeader(
                 fontSize = titleFontSize,
                 lineHeight = titleLineHeight,
                 fontWeight = FontWeight.W100,
-                letterSpacing = 0.15.sp
+                letterSpacing = 0.sp
             ),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
@@ -253,12 +256,33 @@ private fun AlarmHeader(
 @Composable
 private fun HeroBlock(
     primaryGlucose: String,
+    trend: Trend,
     trendResult: TrendEngine.TrendResult,
     compact: Boolean,
     typographyChoice: AlarmTypographyChoice,
     arrowScale: Float,
     modifier: Modifier = Modifier
 ) {
+    val motionTransition = rememberInfiniteTransition(label = "alarm-trend-motion")
+    val motionPhase by motionTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1450),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alarm-trend-phase"
+    )
+    val arrowOffsetX = when (trend.direction) {
+        TrendDirection.FLAT -> motionPhase * if (compact) 6f else 8f
+        TrendDirection.UNKNOWN -> 0f
+        else -> 0f
+    }
+    val arrowOffsetY = when (trend.direction) {
+        TrendDirection.UP, TrendDirection.DOWN -> motionPhase * trend.verticalSign * (if (compact) 7f else 9f)
+        else -> 0f
+    }
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -282,7 +306,8 @@ private fun HeroBlock(
         Box(
             modifier = Modifier
                 .padding(start = if (compact) 8.dp else 12.dp)
-                .size(if (compact) 116.dp else 144.dp),
+                .size(if (compact) 116.dp else 144.dp)
+                .offset { IntOffset(arrowOffsetX.roundToInt(), arrowOffsetY.roundToInt()) },
             contentAlignment = Alignment.Center
         ) {
             TrendIndicator(
@@ -321,9 +346,11 @@ private fun ActionDock(
             ) {
                 FilledTonalButton(
                     onClick = onSnooze,
-                    modifier = Modifier.height(if (compact) 52.dp else 56.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(if (compact) 0.42f else 0.36f)
+                        .height(if (compact) 58.dp else 62.dp),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    contentPadding = PaddingValues(horizontal = 24.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -449,9 +476,26 @@ private fun resolveTrend(rate: Float): Trend {
 
     val label = Natives.getxDripTrendName(rate)
     return when {
-        rate >= 0.2f -> Trend(TrendDirection.UP, Icons.AutoMirrored.Rounded.TrendingUp, label, -1)
-        rate > -0.2f -> Trend(TrendDirection.FLAT, Icons.AutoMirrored.Rounded.TrendingFlat, label, 0)
+        rate >= 0.05f -> Trend(TrendDirection.UP, Icons.AutoMirrored.Rounded.TrendingUp, label, -1)
+        rate > -0.05f -> Trend(TrendDirection.FLAT, Icons.AutoMirrored.Rounded.TrendingFlat, label, 0)
         else -> Trend(TrendDirection.DOWN, Icons.AutoMirrored.Rounded.TrendingDown, label, 1)
+    }
+}
+
+private fun normalizeAlarmRate(rate: Float): Float {
+    if (rate.isNaN()) {
+        return Float.NaN
+    }
+    val unitAdjusted = if (Applic.unit == 1) rate * 18.0182f else rate
+    val nativeAdjusted = try {
+        Natives.thresholdchange(rate)
+    } catch (_: Throwable) {
+        Float.NaN
+    }
+    return when {
+        nativeAdjusted.isFinite() && kotlin.math.abs(nativeAdjusted) > kotlin.math.abs(unitAdjusted) -> nativeAdjusted
+        unitAdjusted.isFinite() -> unitAdjusted
+        else -> nativeAdjusted
     }
 }
 
@@ -463,8 +507,8 @@ private fun alarmTrendResult(rate: Float): TrendEngine.TrendResult {
     val state = when {
         rate > 2.0f -> TrendEngine.TrendState.DoubleUp
         rate > 1.0f -> TrendEngine.TrendState.SingleUp
-        rate > 0.5f -> TrendEngine.TrendState.FortyFiveUp
-        rate >= -0.5f -> TrendEngine.TrendState.Flat
+        rate > 0.05f -> TrendEngine.TrendState.FortyFiveUp
+        rate >= -0.05f -> TrendEngine.TrendState.Flat
         rate >= -1.0f -> TrendEngine.TrendState.FortyFiveDown
         rate >= -2.0f -> TrendEngine.TrendState.SingleDown
         else -> TrendEngine.TrendState.DoubleDown
@@ -476,14 +520,19 @@ private fun alarmTrendResult(rate: Float): TrendEngine.TrendResult {
 private fun formatAlarmLabel(words: List<String>): String {
     return when (words.size) {
         0 -> ""
-        2 -> words.joinToString(separator = "\n") { trackAlarmWord(it) }
-        else -> words.joinToString(separator = " ") { trackAlarmWord(it) }
+        1 -> words.first()
+        2 -> words.joinToString(separator = "\n")
+        else -> {
+            val trailingGroupSize = if ((words.lastOrNull()?.length ?: 0) <= 2) 2 else 1
+            val firstLine = words.dropLast(trailingGroupSize).joinToString(" ")
+            val secondLine = words.takeLast(trailingGroupSize).joinToString(" ")
+            listOf(firstLine, secondLine).filter { it.isNotBlank() }.joinToString("\n")
+        }
     }
 }
 
-private fun trackAlarmWord(word: String): String = word.toCharArray().joinToString(separator = "\u200A")
-
 private fun adaptiveAlarmTitleSize(
+    displayLabel: String,
     words: List<String>,
     compact: Boolean,
     screenWidthDp: Int
@@ -496,10 +545,15 @@ private fun adaptiveAlarmTitleSize(
     } -
         (if (compact) 4 else 0) -
         when ((words.maxOfOrNull { it.length } ?: 0)) {
-            in 9..Int.MAX_VALUE -> 10
+            in 12..Int.MAX_VALUE -> 16
+            in 9..11 -> 11
             in 7..8 -> 6
             in 6..6 -> 3
             else -> 0
         } -
-        if (words.size >= 2) 2 else 0
+        when {
+            displayLabel.contains('\n') -> 6
+            words.size >= 2 -> 3
+            else -> 0
+        }
     ).coerceAtLeast(40).sp

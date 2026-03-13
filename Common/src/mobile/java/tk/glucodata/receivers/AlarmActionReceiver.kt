@@ -9,6 +9,7 @@ import tk.glucodata.alerts.AlertType
 import tk.glucodata.alerts.SnoozeManager
 import tk.glucodata.alerts.AlertStateTracker
 import tk.glucodata.Log
+import tk.glucodata.logic.CustomAlertManager
 
 /**
  * Handles notification actions for alerts (snooze, dismiss).
@@ -19,43 +20,65 @@ class AlarmActionReceiver : BroadcastReceiver() {
         private const val LOG_ID = "AlarmActionReceiver"
         const val ACTION_SNOOZE = "tk.glucodata.ACTION_SNOOZE"
         const val ACTION_DISMISS = "tk.glucodata.ACTION_DISMISS"
+        const val ACTION_IGNORE = "tk.glucodata.ACTION_IGNORE"
         const val EXTRA_ALERT_TYPE_ID = "alert_type_id"
         const val EXTRA_SNOOZE_MINUTES = "snooze_minutes"
     }
     
     override fun onReceive(context: Context, intent: Intent) {
-        val alertTypeId = intent.getIntExtra(EXTRA_ALERT_TYPE_ID, -1)
-        val alertType = if (alertTypeId >= 0) AlertType.fromId(alertTypeId) else null
+        val customAlertId = intent.getStringExtra(Notify.EXTRA_CUSTOM_ALERT_ID)
+        val fallbackAlertTypeId = intent.getIntExtra(EXTRA_ALERT_TYPE_ID, -1)
+        val resolvedAlertType = AlertType.fromId(Notify.resolveAlertKind(fallbackAlertTypeId))
         
         when (intent.action) {
             ACTION_DISMISS -> {
-                Log.i(LOG_ID, "Dismiss action received for alert type: $alertType")
+                Log.i(LOG_ID, "Dismiss action received for alert type: $resolvedAlertType")
                 Notify.stopalarm()
-                alertType?.let { 
-                    SnoozeManager.clearSnooze(it)
-                    AlertStateTracker.onAlertDismissed(it)
-                    
-                    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-                    notificationManager.cancel(81432) // notify.java: glucosealarmid = 81432
+                if (customAlertId != null) {
+                    CustomAlertManager.dismissAlert(customAlertId)
+                } else {
+                    Notify.cancelCurrentRetrySession("notification-dismiss")
+                    resolvedAlertType?.let {
+                        SnoozeManager.clearSnooze(it)
+                        AlertStateTracker.onAlertDismissed(it)
+                    }
                 }
+                Notify.cancelAlertNotification()
             }
             
             ACTION_SNOOZE -> {
-                Log.i(LOG_ID, "Snooze action received for alert type: $alertType")
+                Log.i(LOG_ID, "Snooze action received for alert type: $resolvedAlertType")
                 Notify.stopalarm()
                 
                 // Get snooze duration (from intent or default from config)
                 val snoozeMinutes = if (intent.hasExtra(EXTRA_SNOOZE_MINUTES)) {
                     intent.getIntExtra(EXTRA_SNOOZE_MINUTES, 15)
+                } else if (customAlertId != null) {
+                    15
                 } else {
-                    alertType?.let { AlertRepository.loadConfig(it).defaultSnoozeMinutes } ?: 15
+                    resolvedAlertType?.let { AlertRepository.loadConfig(it).defaultSnoozeMinutes } ?: 15
                 }
                 
-                // Register the snooze with SnoozeManager
-                alertType?.let { 
-                    SnoozeManager.snooze(it, snoozeMinutes)
-                    Log.i(LOG_ID, "Snoozed ${it.name} for $snoozeMinutes minutes")
+                if (customAlertId != null) {
+                    CustomAlertManager.snoozeAlert(customAlertId, snoozeMinutes)
+                } else {
+                    Notify.cancelCurrentRetrySession("notification-snooze")
+                    resolvedAlertType?.let {
+                        SnoozeManager.snooze(it, snoozeMinutes)
+                        AlertStateTracker.resetState(it)
+                        Log.i(LOG_ID, "Snoozed ${it.name} for $snoozeMinutes minutes")
+                    }
                 }
+                Notify.cancelAlertNotification()
+            }
+
+            ACTION_IGNORE -> {
+                Log.i(LOG_ID, "Ignore action received for alert type: $resolvedAlertType")
+                Notify.stopalarm()
+                if (customAlertId != null) {
+                    CustomAlertManager.ignoreAlert(customAlertId)
+                }
+                Notify.cancelAlertNotification()
             }
         }
     }

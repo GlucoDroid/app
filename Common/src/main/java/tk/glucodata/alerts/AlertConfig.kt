@@ -21,6 +21,20 @@ enum class AlertType(val id: Int, val nameResId: Int) {
 
     companion object {
         fun fromId(id: Int): AlertType? = entries.find { it.id == id }
+
+        // Compose alert settings intentionally hide old legacy-only alert types.
+        val settingsEntries = listOf(
+            LOW,
+            HIGH,
+            VERY_LOW,
+            VERY_HIGH,
+            PRE_LOW,
+            PRE_HIGH,
+            MISSED_READING,
+            PERSISTENT_HIGH,
+            LOSS,
+            SENSOR_EXPIRY
+        )
     }
 }
 
@@ -144,18 +158,32 @@ data class SnoozeState(
  */
 object AlertDefaults {
     // Default thresholds (mmol/L - converted to mg/dL at runtime if needed)
-    const val LOW_THRESHOLD_MMOL = 3.9f
-    const val HIGH_THRESHOLD_MMOL = 10.0f
-    const val VERY_LOW_THRESHOLD_MMOL = 3.0f
-    const val VERY_HIGH_THRESHOLD_MMOL = 13.9f
-    const val FORECAST_LOW_THRESHOLD_MMOL = 4.4f
+    const val LOW_THRESHOLD_MMOL = 3.6f
+    const val HIGH_THRESHOLD_MMOL = 9.0f
+    const val VERY_LOW_THRESHOLD_MMOL = 3.2f
+    const val VERY_HIGH_THRESHOLD_MMOL = 12.0f
+    const val FORECAST_LOW_THRESHOLD_MMOL = 3.9f
+    const val FORECAST_HIGH_THRESHOLD_MMOL = 8.0f
+    const val PERSISTENT_HIGH_THRESHOLD_MMOL = 10.0f
+    const val LEGACY_HIGH_THRESHOLD_MMOL = 10.0f
+    const val LEGACY_VERY_HIGH_THRESHOLD_MMOL = 13.9f
+    const val LEGACY_LOW_THRESHOLD_MMOL = 3.9f
+    const val LEGACY_VERY_LOW_THRESHOLD_MMOL = 3.0f
+    const val LEGACY_FORECAST_LOW_THRESHOLD_MMOL = 4.4f
     
     // mg/dL equivalents
-    const val LOW_THRESHOLD_MGDL = 70f
-    const val HIGH_THRESHOLD_MGDL = 180f
-    const val VERY_LOW_THRESHOLD_MGDL = 55f
-    const val VERY_HIGH_THRESHOLD_MGDL = 250f
-    const val FORECAST_LOW_THRESHOLD_MGDL = 80f
+    const val LOW_THRESHOLD_MGDL = 65f
+    const val HIGH_THRESHOLD_MGDL = 162f
+    const val VERY_LOW_THRESHOLD_MGDL = 58f
+    const val VERY_HIGH_THRESHOLD_MGDL = 216f
+    const val FORECAST_LOW_THRESHOLD_MGDL = 70f
+    const val FORECAST_HIGH_THRESHOLD_MGDL = 144f
+    const val PERSISTENT_HIGH_THRESHOLD_MGDL = 180f
+    const val LEGACY_HIGH_THRESHOLD_MGDL = 180f
+    const val LEGACY_VERY_HIGH_THRESHOLD_MGDL = 250f
+    const val LEGACY_LOW_THRESHOLD_MGDL = 70f
+    const val LEGACY_VERY_LOW_THRESHOLD_MGDL = 55f
+    const val LEGACY_FORECAST_LOW_THRESHOLD_MGDL = 80f
     
     // Duration defaults
     const val MISSED_READING_MINUTES = 30
@@ -219,7 +247,7 @@ object AlertDefaults {
             AlertType.PRE_HIGH -> AlertConfig(
                 type = type,
                 enabled = false,
-                threshold = if (isMmol) HIGH_THRESHOLD_MMOL else HIGH_THRESHOLD_MGDL,
+                threshold = if (isMmol) FORECAST_HIGH_THRESHOLD_MMOL else FORECAST_HIGH_THRESHOLD_MGDL,
                 forecastMinutes = FORECAST_LOOK_AHEAD_MINUTES,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
@@ -227,7 +255,7 @@ object AlertDefaults {
             )
             AlertType.MISSED_READING -> AlertConfig(
                 type = type,
-                enabled = true,
+                enabled = false,
                 durationMinutes = MISSED_READING_MINUTES,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
@@ -236,7 +264,7 @@ object AlertDefaults {
             AlertType.PERSISTENT_HIGH -> AlertConfig(
                 type = type,
                 enabled = false,
-                threshold = if (isMmol) HIGH_THRESHOLD_MMOL else HIGH_THRESHOLD_MGDL,
+                threshold = if (isMmol) PERSISTENT_HIGH_THRESHOLD_MMOL else PERSISTENT_HIGH_THRESHOLD_MGDL,
                 durationMinutes = PERSISTENT_HIGH_MINUTES,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
                 volumeProfile = VolumeProfile.MEDIUM,
@@ -244,7 +272,7 @@ object AlertDefaults {
             )
             AlertType.SENSOR_EXPIRY -> AlertConfig(
                 type = type,
-                enabled = true,
+                enabled = false,
                 deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
                 volumeProfile = VolumeProfile.MEDIUM,
                 soundEnabled = true,
@@ -252,7 +280,7 @@ object AlertDefaults {
             )
             AlertType.LOSS -> AlertConfig(
                 type = type,
-                enabled = true,
+                enabled = false,
                 durationMinutes = 30,
                 deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
                 volumeProfile = VolumeProfile.VIBRATE_ONLY,

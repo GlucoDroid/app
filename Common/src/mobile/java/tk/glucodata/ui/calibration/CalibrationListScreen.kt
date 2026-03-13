@@ -621,40 +621,41 @@ private fun MasterCalibrationCard(
         label = "masterCalibrationChevron"
     )
     val containerColor by animateColorAsState(
-        targetValue = if (isEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f)
+        targetValue = if (isEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.74f)
         else MaterialTheme.colorScheme.surfaceContainerLow,
         label = "calibrationMasterContainer"
     )
-    val expandedContainerColor by animateColorAsState(
-        targetValue = if (isEnabled) {
-            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.78f)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        },
-        label = "calibrationMasterExpandedContainer"
-    )
+    val expandedContainerColor = if (isEnabled) {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    } else {
+        MaterialTheme.colorScheme.surfaceContainer
+    }
 
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp)),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, if (isEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.26f) else Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isEnabled) 1.dp else 0.dp)
+        border = BorderStroke(
+            1.dp,
+            if (isEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.26f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 84.dp)
                     .clickable { expanded = !expanded }
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.size(36.dp),
-                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = if (isEnabled)
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                     else
@@ -665,7 +666,7 @@ private fun MasterCalibrationCard(
                             imageVector = Icons.Default.WaterDrop,
                             contentDescription = null,
                             tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -711,53 +712,53 @@ private fun MasterCalibrationCard(
                     modifier = Modifier.fillMaxWidth(),
                     color = expandedContainerColor
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        val rowDividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
-                        HorizontalDivider(color = rowDividerColor)
-                        MasterToggleRow(
-                            title = stringResource(R.string.calibration_hide_initial_values),
-                            subtitle = if (hideInitialWhenCalibrated) {
-                                stringResource(R.string.calibration_initial_hidden_status)
-                            } else {
-                                stringResource(R.string.calibration_initial_shown_status)
-                            },
-                            checked = hideInitialWhenCalibrated,
-                            enabled = isEnabled,
-                            onToggle = onToggleHideInitial
-                        )
-                        HorizontalDivider(color = rowDividerColor)
-                        MasterToggleRow(
-                            title = stringResource(R.string.calibratepast),
-                            subtitle = stringResource(R.string.calibration_apply_past_subtitle),
-                            checked = applyToPast,
-                            enabled = isEnabled,
-                            onToggle = onToggleApplyToPast
-                        )
-                        HorizontalDivider(color = rowDividerColor)
-                        MasterToggleRow(
-                            title = stringResource(R.string.calibration_lock_past_history_title),
-                            subtitle = stringResource(R.string.calibration_lock_past_history_subtitle),
-                            checked = lockPastHistory,
-                            enabled = isEnabled,
-                            onToggle = onToggleLockPastHistory
-                        )
-                        HorizontalDivider(color = rowDividerColor)
-                        MasterToggleRow(
-                            title = stringResource(R.string.calibration_overwrite_values_title),
-                            subtitle = stringResource(R.string.calibration_overwrite_values_subtitle),
-                            checked = overwriteSensorValues,
-                            enabled = isEnabled,
-                            onToggle = onToggleOverwriteSensorValues
-                        )
-                        HorizontalDivider(color = rowDividerColor)
-                        MasterToggleRow(
-                            title = stringResource(R.string.calibrate_a),
-                            subtitle = stringResource(R.string.calibration_visual_continuity_subtitle),
-                            checked = visualContinuity,
-                            enabled = isEnabled,
-                            onToggle = onToggleVisualContinuity
-                        )
-                    }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    val rowDividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+                    HorizontalDivider(color = rowDividerColor)
+                    MasterToggleRow(
+                        title = stringResource(R.string.calibration_hide_initial_values),
+                        subtitle = if (hideInitialWhenCalibrated) {
+                            stringResource(R.string.calibration_initial_hidden_status)
+                        } else {
+                            stringResource(R.string.calibration_initial_shown_status)
+                        },
+                        checked = hideInitialWhenCalibrated,
+                        enabled = isEnabled,
+                        onToggle = onToggleHideInitial
+                    )
+                    HorizontalDivider(color = rowDividerColor)
+                    MasterToggleRow(
+                        title = stringResource(R.string.calibratepast),
+                        subtitle = stringResource(R.string.calibration_apply_past_subtitle),
+                        checked = applyToPast,
+                        enabled = isEnabled,
+                        onToggle = onToggleApplyToPast
+                    )
+                    HorizontalDivider(color = rowDividerColor)
+                    MasterToggleRow(
+                        title = stringResource(R.string.calibration_lock_past_history_title),
+                        subtitle = stringResource(R.string.calibration_lock_past_history_subtitle),
+                        checked = lockPastHistory,
+                        enabled = isEnabled,
+                        onToggle = onToggleLockPastHistory
+                    )
+                    HorizontalDivider(color = rowDividerColor)
+                    MasterToggleRow(
+                        title = stringResource(R.string.calibration_overwrite_values_title),
+                        subtitle = stringResource(R.string.calibration_overwrite_values_subtitle),
+                        checked = overwriteSensorValues,
+                        enabled = isEnabled,
+                        onToggle = onToggleOverwriteSensorValues
+                    )
+                    HorizontalDivider(color = rowDividerColor)
+                    MasterToggleRow(
+                        title = stringResource(R.string.calibrate_a),
+                        subtitle = stringResource(R.string.calibration_visual_continuity_subtitle),
+                        checked = visualContinuity,
+                        enabled = isEnabled,
+                        onToggle = onToggleVisualContinuity
+                    )
+                }
                 }
             }
         }
