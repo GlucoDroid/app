@@ -79,6 +79,7 @@ class AiDexBleManager(
         private const val DISCOVERY_MAX_RETRIES = 2
         private const val HISTORY_PAGE_TIMEOUT_MS = 25_000L
         private const val HISTORY_REQUEST_DELAY_MS = 80L
+        private const val KEY_EXCHANGE_TIMEOUT_MS = 35_000L
 
         // -- History Storage --
         private const val MIN_VALID_GLUCOSE_MGDL = 20
@@ -135,6 +136,15 @@ class AiDexBleManager(
     private var bondDataRead = false
     private var keyExchangePendingBond = false
 
+    /** Watchdog: force-disconnect if key exchange doesn't complete within timeout. */
+    private val keyExchangeWatchdog = Runnable {
+        if (phase == Phase.KEY_EXCHANGE) {
+            Log.e(TAG, "Key exchange watchdog FIRED — timeout after ${KEY_EXCHANGE_TIMEOUT_MS}ms. Force-disconnecting.")
+            constatstatusstr = "Key exchange timeout"
+            try { mBluetoothGatt?.disconnect() } catch (_: Throwable) {}
+        }
+    }
+
     // -- History State --
     @Volatile private var historyDownloading = false
     private var historyRawNextIndex = 0
@@ -145,6 +155,12 @@ class AiDexBleManager(
     // -- F003 Live Data --
     private var lastGlucoseTimeMs: Long = 0L
     private var lastOffsetMinutes: Int = 0
+
+    // -- Device Info (0x21) Retry --
+    private var deviceInfoRetryCount = 0
+    private val DEVICE_INFO_MAX_RETRIES = 5
+    private val DEVICE_INFO_RETRY_DELAY_MS = 3_000L
+    @Volatile private var deviceInfoComplete = false
 
     // -- AiDexDriver State --
     @Volatile private var _batteryMillivolts: Int = 0
@@ -214,6 +230,9 @@ class AiDexBleManager(
             queuePausedForBonding = false
             cccdQueue.clear()
             cccdWriteInProgress = false
+            cccdRetryCount = 0
+            deviceInfoRetryCount = 0
+            deviceInfoComplete = false
 
             Log.i(TAG, "Connected to ${gatt.device?.address}. Requesting MTU 512...")
             gatt.requestMtu(512)
@@ -233,6 +252,12 @@ class AiDexBleManager(
             connectTime = 0L
             setPhase(Phase.IDLE)
 
+            // Cancel ALL pending handler callbacks from the old connection.
+            // Key exchange delays, CCCD retries, post-bond config, history timeouts, etc.
+            // must not fire on a stale or new connection.
+            handler.removeCallbacksAndMessages(null)
+            mainHandler.removeCallbacksAndMessages(null)
+
             // Clear GATT state
             gattQueue.clear()
             gattOpActive = false
@@ -242,6 +267,7 @@ class AiDexBleManager(
             keyExchangePendingBond = false
             postCccdStreamingPending = false
             historyDownloading = false
+            cccdRetryCount = 0
 
             // Handle specific failure cases
             when (status) {
@@ -267,12 +293,17 @@ class AiDexBleManager(
                 }
             }
 
-            // Schedule reconnect
-            if (!reconnect.isBroadcastOnlyMode) {
+            // Schedule reconnect — but NOT if paused (stop=true) or broadcast-only
+            if (stop) {
+                Log.i(TAG, "Paused (stop=true) — not scheduling reconnect")
+                close()
+            } else if (!reconnect.isBroadcastOnlyMode) {
                 val delay = reconnect.nextReconnectDelayMs()
                 Log.i(TAG, "Scheduling reconnect in ${delay}ms (attempt ${reconnect.softAttempts})")
                 close()
                 handler.postDelayed({ connectDevice(0) }, delay)
+            } else {
+                close()
             }
         }
     }
@@ -461,14 +492,19 @@ class AiDexBleManager(
     // CCCD Chain
     // =========================================================================
 
+    private var cccdRetryCount = 0
+    private val CCCD_MAX_RETRIES = 5
+    private val CCCD_RETRY_DELAY_MS = 300L
+
     private fun writeNextCccd(gatt: BluetoothGatt) {
         if (cccdWriteInProgress) return
-        val charUuid = cccdQueue.pollFirst() ?: return
+        val charUuid = cccdQueue.peekFirst() ?: return
 
         val service = gatt.getService(SERVICE_F000)
         val characteristic = service?.getCharacteristic(charUuid)
         if (characteristic == null) {
             Log.w(TAG, "writeNextCccd: characteristic $charUuid not found, skipping")
+            cccdQueue.pollFirst()
             writeNextCccd(gatt) // Try next
             return
         }
@@ -477,7 +513,34 @@ class AiDexBleManager(
         // All AiDex characteristics (F001, F002, F003) use NOTIFY, not INDICATE.
         // F001 props=0x18 (WRITE + NOTIFY), F002 props=WRITE+NOTIFY, F003 props=0x10 (NOTIFY).
         // Writing indication (02 00) to a NOTIFY-only CCCD fails with status=3.
-        enableNotification(gatt, characteristic)
+        val ok = enableNotification(gatt, characteristic)
+        if (!ok) {
+            cccdWriteInProgress = false
+            cccdRetryCount++
+            if (cccdRetryCount >= CCCD_MAX_RETRIES) {
+                Log.e(TAG, "writeNextCccd: CCCD $charUuid failed after $cccdRetryCount retries — skipping")
+                cccdRetryCount = 0
+                cccdQueue.pollFirst()
+                if (cccdQueue.isEmpty()) {
+                    cccdChainComplete = true
+                    if (postCccdStreamingPending) {
+                        Log.w(TAG, "Post-key-exchange CCCD re-registration had failures. Entering streaming anyway...")
+                        enterStreamingPhase()
+                    }
+                } else {
+                    writeNextCccd(gatt)
+                }
+            } else {
+                Log.w(TAG, "writeNextCccd: CCCD $charUuid write failed — retry $cccdRetryCount/$CCCD_MAX_RETRIES in ${CCCD_RETRY_DELAY_MS}ms")
+                handler.postDelayed({
+                    if (mBluetoothGatt != null) writeNextCccd(gatt)
+                }, CCCD_RETRY_DELAY_MS)
+            }
+        } else {
+            // Success — remove from queue, reset retry count. onDescriptorWrite will advance chain.
+            cccdQueue.pollFirst()
+            cccdRetryCount = 0
+        }
     }
 
     // =========================================================================
@@ -486,6 +549,10 @@ class AiDexBleManager(
 
     private fun startKeyExchange(gatt: BluetoothGatt) {
         setPhase(Phase.KEY_EXCHANGE)
+
+        // Start watchdog timer — force disconnect if key exchange doesn't complete
+        handler.removeCallbacks(keyExchangeWatchdog)
+        handler.postDelayed(keyExchangeWatchdog, KEY_EXCHANGE_TIMEOUT_MS)
 
         // Step 1: Write SN challenge to F001
         val challenge = keyExchange.getChallenge()
@@ -630,6 +697,7 @@ class AiDexBleManager(
      */
     private fun enterStreamingPhase() {
         postCccdStreamingPending = false
+        handler.removeCallbacks(keyExchangeWatchdog)  // Cancel watchdog — key exchange succeeded
         setPhase(Phase.STREAMING)
         reconnect.onConnectionSuccess()
         constatstatusstr = "Streaming"
@@ -648,10 +716,10 @@ class AiDexBleManager(
         val now = System.currentTimeMillis()
         Log.i(TAG, "handleF003: len=${encryptedData.size}, raw=${AiDexParser.hexString(encryptedData.copyOfRange(0, minOf(encryptedData.size, 8)))}")
 
-        // Status/keepalive frames (5 bytes) — ignore
+        // Status/keepalive frames (5 bytes) — decrypt and extract battery voltage
         val frameType = AiDexParser.classifyFrame(encryptedData)
         if (frameType == AiDexParser.FrameType.STATUS) {
-            Log.d(TAG, "F003: Status frame (5 bytes), ignoring")
+            handleStatusFrame(encryptedData)
             return
         }
 
@@ -744,6 +812,37 @@ class AiDexBleManager(
         }
     }
 
+    /**
+     * Handle 5-byte F003 status/keepalive frame.
+     * Decrypts and attempts to extract battery voltage.
+     *
+     * These frames arrive every ~4 minutes between glucose data frames.
+     * Format (after decryption) is not fully documented. We decrypt and log
+     * the plaintext for analysis, and attempt to extract battery voltage
+     * from bytes 1-2 as u16 LE millivolts (matching the vendor driver's
+     * 2-byte LE battery format from AUTO_UPDATE_BATTERY_VOLTAGE).
+     */
+    private fun handleStatusFrame(encryptedData: ByteArray) {
+        val decrypted = keyExchange.decrypt(encryptedData)
+        if (decrypted == null) {
+            Log.d(TAG, "F003: Status frame — cannot decrypt (no session key)")
+            return
+        }
+
+        Log.d(TAG, "F003: Status frame decrypted: ${AiDexParser.hexString(decrypted)}")
+
+        // Attempt battery voltage extraction: bytes 1-2 as u16 LE millivolts.
+        // Vendor driver reports typical range ~1530-1560 mV.
+        // Accept any value in 500-3500 mV range as plausible.
+        if (decrypted.size >= 3) {
+            val candidate = (decrypted[1].toInt() and 0xFF) or ((decrypted[2].toInt() and 0xFF) shl 8)
+            if (candidate in 500..3500) {
+                _batteryMillivolts = candidate
+                Log.i(TAG, "F003: Battery voltage: ${candidate} mV (${String.format("%.3f", candidate / 1000.0)} V)")
+            }
+        }
+    }
+
     // =========================================================================
     // F002 Command Responses
     // =========================================================================
@@ -812,35 +911,40 @@ class AiDexBleManager(
         //   DeviceInfo: 00 00 01 07 01 03 0F 00 47 58 2D 30 31 53 00 00
         //   StartTime:  EA 07 02 1C 13 25 05 14 00
 
-        if (data.size < 9) return
+        if (data.size < 3) {
+            retryDeviceInfo("too short (${data.size} bytes)")
+            return
+        }
         val statusByte = data[1].toInt() and 0xFF
         Log.i(TAG, "Device info response: status=0x${"%02X".format(statusByte)}, len=${data.size}")
 
-        // Parse device metadata (bytes 3-16)
-        if (data.size >= 17) {
-            try {
-                val fwMajor = data[3].toInt() and 0xFF
-                val fwMinor = data[4].toInt() and 0xFF
-                val hwMajor = data[5].toInt() and 0xFF
-                val hwMinor = data[6].toInt() and 0xFF
-                _firmwareVersion = "$fwMajor.$fwMinor"
-                _hardwareVersion = "$hwMajor.$hwMinor"
+        // Truncated response (status != 0 or too short for metadata) — retry
+        if (data.size < 17 || statusByte != 0) {
+            retryDeviceInfo("status=0x${"%02X".format(statusByte)}, len=${data.size} (need ≥17 for metadata, ≥24 for start time)")
+            return
+        }
 
-                // Model string: bytes 9..16, null-terminated ASCII
-                if (data.size >= 17) {
-                    val modelBytes = data.copyOfRange(9, 17)
-                    val nullIdx = modelBytes.indexOf(0.toByte())
-                    val modelStr = if (nullIdx >= 0) String(modelBytes, 0, nullIdx, Charsets.US_ASCII)
-                    else String(modelBytes, Charsets.US_ASCII)
-                    if (modelStr.isNotBlank()) {
-                        _modelName = modelStr.trim()
-                        applyWearProfileFromModel(_modelName)
-                    }
-                }
-                Log.i(TAG, "Device info: fw=$_firmwareVersion hw=$_hardwareVersion model=$_modelName")
-            } catch (t: Throwable) {
-                Log.e(TAG, "Device info parse failed: ${t.message}")
+        // Parse device metadata (bytes 3-16)
+        try {
+            val fwMajor = data[3].toInt() and 0xFF
+            val fwMinor = data[4].toInt() and 0xFF
+            val hwMajor = data[5].toInt() and 0xFF
+            val hwMinor = data[6].toInt() and 0xFF
+            _firmwareVersion = "$fwMajor.$fwMinor"
+            _hardwareVersion = "$hwMajor.$hwMinor"
+
+            // Model string: bytes 9..16, null-terminated ASCII
+            val modelBytes = data.copyOfRange(9, 17)
+            val nullIdx = modelBytes.indexOf(0.toByte())
+            val modelStr = if (nullIdx >= 0) String(modelBytes, 0, nullIdx, Charsets.US_ASCII)
+            else String(modelBytes, Charsets.US_ASCII)
+            if (modelStr.isNotBlank()) {
+                _modelName = modelStr.trim()
+                applyWearProfileFromModel(_modelName)
             }
+            Log.i(TAG, "Device info: fw=$_firmwareVersion hw=$_hardwareVersion model=$_modelName")
+        } catch (t: Throwable) {
+            Log.e(TAG, "Device info parse failed: ${t.message}")
         }
 
         // Parse start time (bytes 17-25)
@@ -892,6 +996,31 @@ class AiDexBleManager(
             } catch (t: Throwable) {
                 Log.e(TAG, "Start time parse failed: ${t.message}")
             }
+        } else {
+            // Got metadata but no start time — retry for full response
+            retryDeviceInfo("metadata OK but no start time (len=${data.size}, need ≥24)")
+            return
+        }
+
+        // If we got here, we have everything
+        deviceInfoComplete = true
+        deviceInfoRetryCount = 0
+    }
+
+    /**
+     * Retry 0x21 device info request with backoff.
+     */
+    private fun retryDeviceInfo(reason: String) {
+        deviceInfoRetryCount++
+        if (deviceInfoRetryCount <= DEVICE_INFO_MAX_RETRIES && phase == Phase.STREAMING) {
+            val delay = DEVICE_INFO_RETRY_DELAY_MS * deviceInfoRetryCount
+            Log.w(TAG, "Device info incomplete ($reason) — retry $deviceInfoRetryCount/$DEVICE_INFO_MAX_RETRIES in ${delay}ms")
+            handler.postDelayed({
+                if (phase == Phase.STREAMING) requestDeviceInfo()
+            }, delay)
+        } else {
+            Log.w(TAG, "Device info: 0x21 command not supported by sensor ($reason) — using start time from history range")
+            deviceInfoComplete = false
         }
     }
 
@@ -914,7 +1043,18 @@ class AiDexBleManager(
         val newest = u16LE(data, 6)
         historyNewestOffset = newest
         historyStoredCount = 0
+        historyDownloading = true
+        constatstatusstr = "Downloading history…"
         Log.i(TAG, "History range: briefStart=$briefStart, rawStart=$rawStart, newest=$newest")
+
+        // Infer sensorstartmsec from the newest offset if 0x21 hasn't provided it.
+        // newest offset ≈ sensor age in minutes, so startTime ≈ now − newest × 60_000.
+        // This is critical: without sensorstartmsec, storeHistoryEntries drops everything.
+        if (sensorstartmsec <= 0L && newest > 0) {
+            lastOffsetMinutes = newest
+            ensureSensorStartTime(System.currentTimeMillis())
+            Log.i(TAG, "Inferred start time from history range: newest=$newest → sensorstartmsec=$sensorstartmsec")
+        }
 
         // Start history download from where we left off
         if (historyRawNextIndex < rawStart) historyRawNextIndex = rawStart
@@ -947,6 +1087,7 @@ class AiDexBleManager(
             })
 
             historyRawNextIndex = entries.last().timeOffsetMinutes + 1
+            constatstatusstr = "History: $historyStoredCount entries"
 
             // Fetch next page if more data available
             if (historyRawNextIndex <= historyNewestOffset) {
@@ -987,6 +1128,7 @@ class AiDexBleManager(
             })
 
             historyBriefNextIndex = entries.last().timeOffsetMinutes + 1
+            constatstatusstr = "History: $historyStoredCount entries"
 
             // Fetch next page
             if (historyBriefNextIndex <= historyNewestOffset) {
@@ -1290,8 +1432,13 @@ class AiDexBleManager(
      * - Does progressive HistorySync every HISTORY_SYNC_BATCH_SIZE entries
      */
     private fun storeHistoryEntries(entries: List<HistoryStoreEntry>) {
+        // Ensure start time is available before computing timestamps.
+        // History download can begin before 0x21 succeeds or before any F003 arrives.
         if (sensorstartmsec <= 0L) {
-            Log.w(TAG, "storeHistoryEntries: sensorstartmsec not set — cannot compute timestamps, skipping ${entries.size} entries")
+            ensureSensorStartTime(System.currentTimeMillis())
+        }
+        if (sensorstartmsec <= 0L) {
+            Log.w(TAG, "storeHistoryEntries: sensorstartmsec still not set after ensureSensorStartTime — skipping ${entries.size} entries")
             return
         }
         if (dataptr == 0L) {
@@ -1357,6 +1504,7 @@ class AiDexBleManager(
      */
     private fun onHistoryDownloadComplete() {
         historyDownloading = false
+        constatstatusstr = if (historyStoredCount > 0) "Streaming ($historyStoredCount history)" else "Streaming"
         Log.i(TAG, "History download complete. Total entries stored: $historyStoredCount")
 
         // Final sync to Room DB
@@ -1481,9 +1629,13 @@ class AiDexBleManager(
     }
 
     override fun softDisconnect() {
-        Log.i(TAG, "softDisconnect: non-destructive disconnect for $SerialNumber")
+        Log.i(TAG, "softDisconnect: pausing sensor $SerialNumber")
+        stop = true  // Prevent auto-reconnect from disconnect handler
+        handler.removeCallbacksAndMessages(null)   // Cancel pending reconnects/timeouts
+        mainHandler.removeCallbacksAndMessages(null)
         try { mBluetoothGatt?.disconnect() } catch (_: Throwable) {}
         setPhase(Phase.IDLE)
+        constatstatusstr = "Paused"
     }
 
     override fun manualReconnectNow() {
@@ -1500,6 +1652,7 @@ class AiDexBleManager(
         if (enabled) {
             // Disconnect GATT, rely on advertisements only
             softDisconnect()
+            constatstatusstr = "Broadcast Only"
         } else {
             // Resume active GATT connection
             manualReconnectNow()
