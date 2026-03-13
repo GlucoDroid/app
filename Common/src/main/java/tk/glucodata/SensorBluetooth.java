@@ -632,6 +632,10 @@ public class SensorBluetooth {
                     if (aidex.getBroadcastOnlyConnection()) {
                         continue;
                     }
+                } else if (tk.glucodata.drivers.aidex.AiDexNativeFactory.isNativeAiDex(cb)) {
+                    if (tk.glucodata.drivers.aidex.AiDexNativeFactory.isBroadcastOnly(cb)) {
+                        continue;
+                    }
                 }
                 cb.constatstatusstr = "Searching for sensors";
             }
@@ -883,7 +887,12 @@ public class SensorBluetooth {
                 // as main. The main sensor is now only changed explicitly by the user
                 // or when the first-ever sensor is added (via addsensor() in C++).
                 Context appCtx = Applic.app != null ? Applic.app : context.getApplicationContext();
-                SuperGattCallback cb = new tk.glucodata.drivers.aidex.AiDexSensor(appCtx, name, dataptr);
+                SuperGattCallback cb;
+                if (tk.glucodata.drivers.aidex.AiDexNativeFactory.isNativeModeEnabled(appCtx)) {
+                    cb = tk.glucodata.drivers.aidex.AiDexNativeFactory.createBleManager(name, dataptr);
+                } else {
+                    cb = new tk.glucodata.drivers.aidex.AiDexSensor(appCtx, name, dataptr);
+                }
                 cb.mActiveDeviceAddress = address;
                 blueone.gattcallbacks.add(cb);
                 cb.connectDevice(0);
@@ -1239,6 +1248,9 @@ public class SensorBluetooth {
 
     SuperGattCallback getGattCallback(String name, long dataptr) {
         if (name.startsWith("X-")) {
+            if (tk.glucodata.drivers.aidex.AiDexNativeFactory.isNativeModeEnabled(Applic.app)) {
+                return tk.glucodata.drivers.aidex.AiDexNativeFactory.createBleManager(name, dataptr);
+            }
             return new tk.glucodata.drivers.aidex.AiDexSensor(Applic.app, name, dataptr);
         }
         if (libreVersion == 3 || tk.glucodata.BuildConfig.SiBionics == 1 || tk.glucodata.BuildConfig.DexCom == 1) {

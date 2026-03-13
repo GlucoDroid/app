@@ -50,7 +50,7 @@ class AiDexBleManager(
     serial: String,
     dataptr: Long,
     sensorGen: Int,
-) : SuperGattCallback(serial, dataptr, sensorGen) {
+) : SuperGattCallback(serial, dataptr, sensorGen), SensorBleController {
 
     companion object {
         private const val TAG = "AiDexBleManager"
@@ -958,13 +958,19 @@ class AiDexBleManager(
     /**
      * Release all resources. Call when sensor is removed from gattcallbacks list.
      */
-    fun destroy() {
+    override fun destroy() {
         stop = true
         close()
         handler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacksAndMessages(null)
         handlerThread.quitSafely()
     }
+
+    /**
+     * Whether this sensor is in broadcast-only fallback mode.
+     * Used by SensorBluetooth.scanStarter() via AiDexNativeFactory.
+     */
+    fun getBroadcastOnlyConnection(): Boolean = reconnect.isBroadcastOnlyMode
 
     // =========================================================================
     // Helpers
