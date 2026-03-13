@@ -803,6 +803,22 @@ class KeyExchangeTests {
     }
 
     @Test
+    fun testKeyExchangePrefixStripping() {
+        // AiDexKeyExchange must produce the same secret/IV regardless of prefix.
+        // SuperGattCallback.SerialNumber includes the "X-" prefix (e.g., "X-2222267V4E").
+        val bare = AiDexKeyExchange("2222267V4E")
+        val withPrefix = AiDexKeyExchange("X-2222267V4E")
+        val withFullPrefix = AiDexKeyExchange("AiDEX X-2222267V4E")
+
+        assertArrayEquals(bare.snSecret, withPrefix.snSecret)
+        assertArrayEquals(bare.snIv, withPrefix.snIv)
+        assertArrayEquals(bare.snSecret, withFullPrefix.snSecret)
+        assertArrayEquals(bare.snIv, withFullPrefix.snIv)
+        assertEquals(bare.bareSerial, withPrefix.bareSerial)
+        assertEquals("2222267V4E", withPrefix.bareSerial)
+    }
+
+    @Test
     fun testKeyExchangeReset() {
         val ke = AiDexKeyExchange("2222267V4E")
         ke.onPairKeyReceived(ByteArray(16) { 0x42 })

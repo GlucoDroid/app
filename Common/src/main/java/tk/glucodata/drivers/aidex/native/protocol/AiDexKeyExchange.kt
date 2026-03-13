@@ -22,11 +22,15 @@ import tk.glucodata.drivers.aidex.native.crypto.SerialCrypto
  */
 class AiDexKeyExchange(val serial: String) {
 
+    /** Bare serial number (without "X-" or "AiDEX X-" prefix).
+     *  snToBytes() expects the bare serial (e.g., "2222267V4E", not "X-2222267V4E"). */
+    val bareSerial: String = SerialCrypto.stripPrefix(serial)
+
     /** SN-derived secret (F001 challenge). Stable per serial. */
-    val snSecret: ByteArray = SerialCrypto.deriveSecret(serial)
+    val snSecret: ByteArray = SerialCrypto.deriveSecret(bareSerial)
 
     /** SN-derived IV. Used for BOND, F003, and F002. Stable per serial. */
-    val snIv: ByteArray = SerialCrypto.deriveIv(serial)
+    val snIv: ByteArray = SerialCrypto.deriveIv(bareSerial)
 
     /** PAIR key from F001 notification. Changes per connection. */
     var pairKey: ByteArray? = null
