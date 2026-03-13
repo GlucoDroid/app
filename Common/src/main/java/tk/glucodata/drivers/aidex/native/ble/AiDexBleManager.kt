@@ -24,6 +24,7 @@ import tk.glucodata.Log
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.AiDexDriver
 import tk.glucodata.drivers.aidex.CalibrationRecord as SharedCalibrationRecord
+import tk.glucodata.drivers.aidex.native.crypto.Crc16CcittFalse
 import tk.glucodata.drivers.aidex.native.data.*
 import tk.glucodata.drivers.aidex.native.protocol.*
 import java.util.ArrayDeque
@@ -553,6 +554,13 @@ class AiDexBleManager(
             return
         }
 
+        // Validate CRC-16 embedded in frame (bytes 15-16)
+        val frameCrc = Crc16CcittFalse.checksum(decrypted.copyOfRange(0, 15))
+        if (frameCrc != frame.crc16) {
+            Log.w(TAG, "F003: CRC-16 mismatch (expected=0x${"%04X".format(frameCrc)}, got=0x${"%04X".format(frame.crc16)})")
+            return
+        }
+
         Log.i(TAG, "F003: glucose=${frame.glucoseMgDl} mg/dL, i1=${frame.i1}, i2=${frame.i2}, " +
                 "opcode=0x${"%02X".format(frame.opcode)}, valid=${frame.isValid}")
 
@@ -609,6 +617,12 @@ class AiDexBleManager(
             return
         }
 
+        // Validate CRC-16 on decrypted response (log warning but don't reject —
+        // some response types may not have a CRC trailer)
+        if (plaintext.size >= 3 && !Crc16CcittFalse.validateResponse(plaintext)) {
+            Log.d(TAG, "F002: CRC-16 mismatch (len=${plaintext.size}, may not have CRC trailer)")
+        }
+
         val opcode = plaintext[0].toInt() and 0xFF
         Log.d(TAG, "F002 response: opcode=0x${"%02X".format(opcode)}, len=${plaintext.size}")
 
@@ -620,7 +634,7 @@ class AiDexBleManager(
             0x25 -> handleCalibrationAck(plaintext)
             0x26 -> handleCalibrationRangeResponse(plaintext)
             0x27 -> handleCalibrationResponse(plaintext)
-            0x11 -> handleStartTimeResponse(plaintext)
+            0x11 -> handleBroadcastDataResponse(plaintext)
             0x20 -> handleNewSensorAck(plaintext)
             else -> Log.d(TAG, "F002: Unknown opcode 0x${"%02X".format(opcode)}")
         }
@@ -629,21 +643,111 @@ class AiDexBleManager(
     // -- Response Handlers --
 
     private fun handleDeviceInfoResponse(data: ByteArray) {
-        // data[1] = status, rest = info
-        if (data.size < 2) return
+        // Wire opcode 0x21 returns combined device info + start time.
+        // Real capture format (26 bytes total):
+        //   data[0]     = 0x21 (opcode)
+        //   data[1..2]  = status (2 bytes, e.g. 00 00)
+        //   data[3]     = fw_major
+        //   data[4]     = fw_minor
+        //   data[5]     = hw_major
+        //   data[6]     = hw_minor
+        //   data[7..8]  = sensor_type (u16 LE)
+        //   data[9..16] = model name (8 bytes ASCII, null-terminated)
+        //   data[17..18]= year (u16 LE)
+        //   data[19]    = month (1-12)
+        //   data[20]    = day
+        //   data[21]    = hour
+        //   data[22]    = minute
+        //   data[23]    = second
+        //   data[24]    = timezone (signed, 15-min quarters)
+        //   data[25]    = DST offset (15-min quarters)
+        //
+        // Confirmed from real sensor X-2222267V4E capture:
+        //   DeviceInfo: 00 00 01 07 01 03 0F 00 47 58 2D 30 31 53 00 00
+        //   StartTime:  EA 07 02 1C 13 25 05 14 00
+
+        if (data.size < 9) return
         val statusByte = data[1].toInt() and 0xFF
         Log.i(TAG, "Device info response: status=0x${"%02X".format(statusByte)}, len=${data.size}")
-        // Parse activation date, wear days, etc. if needed
+
+        // Parse device metadata (bytes 3-16)
+        if (data.size >= 17) {
+            try {
+                val fwMajor = data[3].toInt() and 0xFF
+                val fwMinor = data[4].toInt() and 0xFF
+                val hwMajor = data[5].toInt() and 0xFF
+                val hwMinor = data[6].toInt() and 0xFF
+                _firmwareVersion = "$fwMajor.$fwMinor"
+                _hardwareVersion = "$hwMajor.$hwMinor"
+
+                // Model string: bytes 9..16, null-terminated ASCII
+                if (data.size >= 17) {
+                    val modelBytes = data.copyOfRange(9, 17)
+                    val nullIdx = modelBytes.indexOf(0.toByte())
+                    val modelStr = if (nullIdx >= 0) String(modelBytes, 0, nullIdx, Charsets.US_ASCII)
+                    else String(modelBytes, Charsets.US_ASCII)
+                    if (modelStr.isNotBlank()) {
+                        _modelName = modelStr.trim()
+                        applyWearProfileFromModel(_modelName)
+                    }
+                }
+                Log.i(TAG, "Device info: fw=$_firmwareVersion hw=$_hardwareVersion model=$_modelName")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Device info parse failed: ${t.message}")
+            }
+        }
+
+        // Parse start time (bytes 17-25)
+        if (data.size >= 24) {
+            try {
+                val year = u16LE(data, 17)
+                val month = data[19].toInt() and 0xFF
+                val day = data[20].toInt() and 0xFF
+                val hour = data[21].toInt() and 0xFF
+                val minute = data[22].toInt() and 0xFF
+                val second = data[23].toInt() and 0xFF
+                val tzQuarters = if (data.size >= 25) data[24].toInt() else 0  // signed
+                val dstQuarters = if (data.size >= 26) data[25].toInt() and 0xFF else 0
+
+                val isAllZeros = (year == 0 && month == 0 && day == 0 && hour == 0 && minute == 0 && second == 0)
+                if (isAllZeros) {
+                    Log.w(TAG, "Start time: all zeros — sensor not activated")
+                } else if (year in 2020..2040 && month in 1..12 && day in 1..31) {
+                    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                    cal.set(year, month - 1, day, hour, minute, second)
+                    cal.set(Calendar.MILLISECOND, 0)
+                    val tzOffsetMs = (tzQuarters + dstQuarters) * 15L * 60_000L
+                    val startUtcMs = cal.timeInMillis - tzOffsetMs
+
+                    sensorstartmsec = startUtcMs
+                    val now = System.currentTimeMillis()
+                    lastOffsetMinutes = ((now - startUtcMs) / 60_000L).toInt()
+
+                    // Compute expiry
+                    val expiryMs = startUtcMs + (_wearDays.toLong() * 24 * 3600_000L)
+                    _sensorExpired = now > expiryMs
+
+                    Log.i(TAG, "Start time: $year-${"%02d".format(month)}-${"%02d".format(day)} " +
+                            "${"%02d".format(hour)}:${"%02d".format(minute)}:${"%02d".format(second)} " +
+                            "tz=${tzQuarters}q dst=${dstQuarters}q → startMs=$startUtcMs offset=${lastOffsetMinutes}min")
+                } else {
+                    Log.w(TAG, "Start time: date out of range $year-$month-$day")
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "Start time parse failed: ${t.message}")
+            }
+        }
     }
 
-    private fun handleStartTimeResponse(data: ByteArray) {
-        if (data.size < 6) return
-        // data[2..5] = offset in seconds (u32 LE) since sensor start
-        val offsetSec = u32LE(data, 2)
-        lastOffsetMinutes = (offsetSec / 60).toInt()
-        val now = System.currentTimeMillis()
-        sensorstartmsec = now - offsetSec * 1000L
-        Log.i(TAG, "Start time: offset=${lastOffsetMinutes}min, sensorStart=${sensorstartmsec}")
+    /**
+     * Handle GET_BROADCAST_DATA (0x11) response — live glucose from query.
+     */
+    private fun handleBroadcastDataResponse(data: ByteArray) {
+        if (data.size < 4) return
+        Log.d(TAG, "Broadcast data response: len=${data.size}")
+        // This provides current glucose similar to F003, but via command/response.
+        // F003 notifications already deliver live glucose, so this is mostly
+        // used during initial pairing flow. Parse if needed in the future.
     }
 
     private fun handleHistoryRangeResponse(data: ByteArray) {
@@ -966,6 +1070,15 @@ class AiDexBleManager(
         onPhaseChange?.invoke(newPhase)
     }
 
+    private fun applyWearProfileFromModel(modelName: String) {
+        val normalized = modelName.trim().uppercase(java.util.Locale.US)
+        _wearDays = when {
+            normalized.startsWith("GX-01S") -> 15
+            else -> 14
+        }
+        Log.i(TAG, "Wear profile: model=$modelName days=$_wearDays")
+    }
+
     // =========================================================================
     // AiDexDriver Interface Implementation
     // =========================================================================
@@ -1024,13 +1137,14 @@ class AiDexBleManager(
         Log.i(TAG, "forgetVendor: tearing down native driver for $SerialNumber")
         stop = true
         keyExchange.reset()
-        // Disconnect GATT if connected
+        // Capture device reference BEFORE nullifying gatt
+        val device = mBluetoothGatt?.device
+        // Disconnect and close GATT
         try { mBluetoothGatt?.disconnect() } catch (_: Throwable) {}
         try { mBluetoothGatt?.close() } catch (_: Throwable) {}
         mBluetoothGatt = null
         // Remove BLE bond via reflection
         try {
-            val device = mBluetoothGatt?.device
             if (device?.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED) {
                 val removeBond = device.javaClass.getMethod("removeBond")
                 removeBond.invoke(device)

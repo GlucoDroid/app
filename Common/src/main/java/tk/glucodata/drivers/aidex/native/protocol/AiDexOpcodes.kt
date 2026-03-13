@@ -13,8 +13,8 @@ object AiDexOpcodes {
     /** Post-BOND configuration (always sent after session key extraction) */
     const val POST_BOND_CONFIG: Int = 0x10
 
-    /** Get sensor start time and current offset */
-    const val GET_START_TIME: Int = 0x11
+    /** Get broadcast data (live glucose from advertisement-style query) */
+    const val GET_BROADCAST_DATA: Int = 0x11
 
     /** Start new sensor (set activation datetime) */
     const val SET_NEW_SENSOR: Int = 0x20

@@ -11,7 +11,6 @@
 package tk.glucodata.drivers.aidex
 
 import android.content.Context
-import tk.glucodata.Applic
 import tk.glucodata.Log
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.native.ble.AiDexBleManager
@@ -34,24 +33,12 @@ import tk.glucodata.drivers.aidex.native.ble.AiDexBleManager
 object AiDexNativeFactory {
 
     private const val TAG = "AiDexNativeFactory"
-    private const val PREF_FILE = "tk.glucodata_preferences"
-    private const val PREF_KEY = "aidex_native_driver_enabled"
 
     /**
-     * Check whether the native Kotlin driver is enabled (SharedPreferences toggle).
-     * Defaults to false — opt-in for now.
+     * Native Kotlin driver is always enabled — it replaces the vendor native lib.
      */
     @JvmStatic
-    fun isNativeModeEnabled(context: Context? = null): Boolean {
-        val ctx = context ?: Applic.app ?: return false
-        return try {
-            val prefs = ctx.getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
-            prefs.getBoolean(PREF_KEY, false)
-        } catch (t: Throwable) {
-            Log.stack(TAG, "isNativeModeEnabled", t)
-            false
-        }
-    }
+    fun isNativeModeEnabled(context: Context? = null): Boolean = true
 
     /**
      * Create an [AiDexBleManager] (native Kotlin driver) as a [SuperGattCallback].

@@ -25,7 +25,7 @@ class AiDexCommandBuilder(private val keyExchange: AiDexKeyExchange) {
 
     fun getDeviceInfo() = buildEncrypted(AiDexOpcodes.GET_DEVICE_INFO)
 
-    fun getStartTime() = buildEncrypted(AiDexOpcodes.GET_START_TIME)
+    fun getBroadcastData() = buildEncrypted(AiDexOpcodes.GET_BROADCAST_DATA)
 
     fun getHistoryRange() = buildEncrypted(AiDexOpcodes.GET_HISTORY_RANGE)
 

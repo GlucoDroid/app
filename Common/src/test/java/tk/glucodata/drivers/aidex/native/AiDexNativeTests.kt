@@ -64,7 +64,7 @@ class Crc16CcittFalseTests {
     }
 
     @Test
-    fun testGetStartTime() {
+    fun testGetBroadcastData() {
         // CRC-16(0x11) = 0xE3E0
         assertEquals(0xE3E0, Crc16CcittFalse.checksum(byteArrayOf(0x11)))
     }
@@ -839,7 +839,7 @@ class CommandBuilderTests {
         val builder = AiDexCommandBuilder(ke)
 
         assertNull(builder.getDeviceInfo())
-        assertNull(builder.getStartTime())
+        assertNull(builder.getBroadcastData())
         assertNull(builder.getHistoryRange())
         assertNull(builder.getHistoriesRaw(14400))
         assertNull(builder.getHistories(14400))
