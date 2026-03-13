@@ -21,6 +21,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import tk.glucodata.Log
+import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.AiDexDriver
 import tk.glucodata.drivers.aidex.CalibrationRecord as SharedCalibrationRecord
@@ -78,6 +79,13 @@ class AiDexBleManager(
         private const val DISCOVERY_MAX_RETRIES = 2
         private const val HISTORY_PAGE_TIMEOUT_MS = 25_000L
         private const val HISTORY_REQUEST_DELAY_MS = 80L
+
+        // -- History Storage --
+        private const val MIN_VALID_GLUCOSE_MGDL = 20
+        private const val MAX_VALID_GLUCOSE_MGDL = 500
+        private const val MAX_OFFSET_DAYS = 30
+        private const val WARMUP_DURATION_MS = 60L * 60_000L  // 1 hour
+        private const val HISTORY_SYNC_BATCH_SIZE = 500  // sync to Room every N entries
     }
 
     // -- Protocol Objects --
@@ -132,6 +140,7 @@ class AiDexBleManager(
     private var historyRawNextIndex = 0
     private var historyBriefNextIndex = 0
     private var historyNewestOffset = 0
+    private var historyStoredCount = 0  // entries stored via aidexProcessData this download
 
     // -- F003 Live Data --
     private var lastGlucoseTimeMs: Long = 0L
@@ -688,26 +697,51 @@ class AiDexBleManager(
         // Compute all three chart values
         val autoValue = frame.glucoseMgDl
         val rawValue = frame.i1 * 10f
-        val sensorGlucose = frame.i1 * 18.0182f
 
-        // Build GlucoseReading
+        // Build GlucoseReading for listener callback
         val reading = GlucoseReading(
             timestamp = now,
             sensorSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber),
             autoValue = autoValue,
             rawValue = rawValue,
-            sensorGlucose = sensorGlucose,
+            sensorGlucose = frame.i1 * 18.0182f,
             rawI1 = frame.i1,
             rawI2 = frame.i2,
             timeOffsetMinutes = lastOffsetMinutes,
         )
         onGlucoseReading?.invoke(reading)
 
-        // Deliver to SuperGattCallback's standard glucose pipeline
-        // Pack: mgdl in lower 32 bits, rate in bits 32-47, alarm in bits 48-55
-        val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10 // scaled to match native format
-        val packedResult = mgdlInt.toLong() and 0xFFFFFFFFL
-        handleGlucoseResult(packedResult, now)
+        // Ensure sensorstartmsec is set before storing.
+        // If no start time from 0x21 yet, infer from offset or use current time.
+        ensureSensorStartTime(now)
+
+        // Store in native C++ layer via JNI, matching vendor driver's storeAidexReading().
+        // aidexProcessData returns a packed long (lower 32 = glucose*10, bits 32-47 = rate,
+        // bits 48-55 = alarm) which is passed to handleGlucoseResult for notifications/broadcasts.
+        if (dataptr != 0L) {
+            try {
+                val res = Natives.aidexProcessData(
+                    dataptr, byteArrayOf(0), now, autoValue, rawValue, 1.0f
+                )
+                handleGlucoseResult(res, now)
+
+                // Sync to Room DB for Compose chart
+                tk.glucodata.data.HistorySync.syncFromNative()
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e(TAG, "F003: Native library mismatch: $e")
+                // Fallback: manual pack for handleGlucoseResult
+                val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
+                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now)
+            } catch (e: Throwable) {
+                Log.e(TAG, "F003: aidexProcessData failed: $e")
+                val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
+                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now)
+            }
+        } else {
+            Log.w(TAG, "F003: dataptr is 0 — cannot store reading")
+            val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
+            handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now)
+        }
     }
 
     // =========================================================================
@@ -835,6 +869,16 @@ class AiDexBleManager(
                     val now = System.currentTimeMillis()
                     lastOffsetMinutes = ((now - startUtcMs) / 60_000L).toInt()
 
+                    // Persist start time and wear days to native C++ layer
+                    if (dataptr != 0L) {
+                        try {
+                            Natives.aidexSetStartTime(dataptr, startUtcMs)
+                        } catch (_: Throwable) {}
+                        try {
+                            Natives.aidexSetWearDays(dataptr, _wearDays)
+                        } catch (_: Throwable) {}
+                    }
+
                     // Compute expiry
                     val expiryMs = startUtcMs + (_wearDays.toLong() * 24 * 3600_000L)
                     _sensorExpired = now > expiryMs
@@ -869,6 +913,7 @@ class AiDexBleManager(
         val rawStart = u16LE(data, 4)
         val newest = u16LE(data, 6)
         historyNewestOffset = newest
+        historyStoredCount = 0
         Log.i(TAG, "History range: briefStart=$briefStart, rawStart=$rawStart, newest=$newest")
 
         // Start history download from where we left off
@@ -889,6 +934,18 @@ class AiDexBleManager(
         if (entries.isNotEmpty()) {
             Log.i(TAG, "History raw (0x23): ${entries.size} entries, offsets ${entries.first().timeOffsetMinutes}..${entries.last().timeOffsetMinutes}")
             onCalibratedHistory?.invoke(entries)
+
+            // Store each entry in native C++ layer.
+            // 0x23 returns factory-calibrated glucose (autoValue). No raw/ADC data.
+            storeHistoryEntries(entries.map { entry ->
+                HistoryStoreEntry(
+                    offsetMinutes = entry.timeOffsetMinutes,
+                    glucoseMgDl = entry.glucoseMgDl.toFloat(),
+                    rawMgDl = 0f,  // 0x23 doesn't have raw ADC data
+                    isValid = !entry.isSentinel,
+                )
+            })
+
             historyRawNextIndex = entries.last().timeOffsetMinutes + 1
 
             // Fetch next page if more data available
@@ -903,8 +960,7 @@ class AiDexBleManager(
                         requestHistoryPage(AiDexOpcodes.GET_HISTORIES, historyBriefNextIndex)
                     }, HISTORY_REQUEST_DELAY_MS)
                 } else {
-                    historyDownloading = false
-                    Log.i(TAG, "History download complete")
+                    onHistoryDownloadComplete()
                 }
             }
         }
@@ -917,6 +973,19 @@ class AiDexBleManager(
         if (entries.isNotEmpty()) {
             Log.i(TAG, "History brief (0x24): ${entries.size} entries, offsets ${entries.first().timeOffsetMinutes}..${entries.last().timeOffsetMinutes}")
             onAdcHistory?.invoke(entries)
+
+            // Store each entry in native C++ layer.
+            // 0x24 returns raw ADC data: i1, i2, vc. rawValue = i1*10.
+            // Invalid entries have i1==0 && i2==0 && vc==0.
+            storeHistoryEntries(entries.map { entry ->
+                HistoryStoreEntry(
+                    offsetMinutes = entry.timeOffsetMinutes,
+                    glucoseMgDl = 0f,  // 0x24 doesn't have calibrated glucose
+                    rawMgDl = entry.rawValue,  // i1 * 10, matches Android selectVendorRawLane()
+                    isValid = !(entry.i1 == 0f && entry.i2 == 0f && entry.vc == 0f),
+                )
+            })
+
             historyBriefNextIndex = entries.last().timeOffsetMinutes + 1
 
             // Fetch next page
@@ -925,8 +994,7 @@ class AiDexBleManager(
                     requestHistoryPage(AiDexOpcodes.GET_HISTORIES, historyBriefNextIndex)
                 }, HISTORY_REQUEST_DELAY_MS)
             } else {
-                historyDownloading = false
-                Log.i(TAG, "History download complete")
+                onHistoryDownloadComplete()
             }
         }
     }
@@ -1169,6 +1237,149 @@ class AiDexBleManager(
                 }
             }, DISCOVERY_RETRY_DELAY_MS * attempt)
         }
+    }
+
+    // =========================================================================
+    // Data Storage Helpers
+    // =========================================================================
+
+    /**
+     * Lightweight container for history entries to store via aidexProcessData.
+     */
+    private data class HistoryStoreEntry(
+        val offsetMinutes: Int,
+        val glucoseMgDl: Float,
+        val rawMgDl: Float,
+        val isValid: Boolean,
+    )
+
+    /**
+     * Ensure sensorstartmsec is set before storing data.
+     *
+     * Priority:
+     * 1. Already set from 0x21 response → no-op
+     * 2. Offset available from F003 → infer: now - offset * 60_000
+     * 3. Last resort → use current time (matches vendor driver's storeAidexReading fallback)
+     */
+    private fun ensureSensorStartTime(now: Long) {
+        if (sensorstartmsec > 0L) return
+
+        if (lastOffsetMinutes > 0) {
+            val inferred = now - (lastOffsetMinutes.toLong() * 60_000L)
+            sensorstartmsec = inferred
+            Log.i(TAG, "Inferred sensorstartmsec from offset: ${lastOffsetMinutes}min → $inferred")
+        } else {
+            sensorstartmsec = now
+            Log.i(TAG, "Fallback sensorstartmsec = now ($now)")
+        }
+
+        if (dataptr != 0L) {
+            try {
+                Natives.aidexSetStartTime(dataptr, sensorstartmsec)
+            } catch (_: Throwable) {}
+        }
+    }
+
+    /**
+     * Store a batch of history entries to the native C++ layer via aidexProcessData.
+     *
+     * Matches the vendor driver's storeHistoryRecord() logic:
+     * - Requires sensorstartmsec > 0 (timestamp = sensorstartmsec + offset * 60_000)
+     * - Filters: invalid entries, ADC saturation (≥1023), out of range, warmup period, future
+     * - Calls aidexProcessData with ONLY glucose/raw, NO handleGlucoseResult (no notifications)
+     * - Does progressive HistorySync every HISTORY_SYNC_BATCH_SIZE entries
+     */
+    private fun storeHistoryEntries(entries: List<HistoryStoreEntry>) {
+        if (sensorstartmsec <= 0L) {
+            Log.w(TAG, "storeHistoryEntries: sensorstartmsec not set — cannot compute timestamps, skipping ${entries.size} entries")
+            return
+        }
+        if (dataptr == 0L) {
+            Log.w(TAG, "storeHistoryEntries: dataptr is 0 — cannot store")
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        var stored = 0
+
+        for (entry in entries) {
+            // Filter invalid
+            if (!entry.isValid) continue
+            if (entry.offsetMinutes <= 0) continue
+            if (entry.offsetMinutes.toLong() > MAX_OFFSET_DAYS * 24L * 60L) continue
+
+            // Filter ADC saturation sentinel (≥1023 for calibrated, but raw can be higher)
+            val glucoseInt = entry.glucoseMgDl.toInt()
+            if (glucoseInt >= 1023 && entry.glucoseMgDl > 0f) continue
+
+            // Filter out-of-range calibrated values
+            if (entry.glucoseMgDl > 0f && glucoseInt !in MIN_VALID_GLUCOSE_MGDL..MAX_VALID_GLUCOSE_MGDL) continue
+
+            // Compute timestamp
+            val historicalTimeMs = sensorstartmsec + (entry.offsetMinutes.toLong() * 60_000L)
+
+            // Warmup gate: skip readings from within first hour after sensor start
+            val sensorAgeAtRecordMs = historicalTimeMs - sensorstartmsec
+            if (sensorAgeAtRecordMs in 0 until WARMUP_DURATION_MS) continue
+
+            // Future-timestamp guard (2 minutes tolerance)
+            if (historicalTimeMs > now + 120_000L) continue
+
+            // Store via JNI — lightweight path, no handleGlucoseResult
+            try {
+                val rawForStore = if (entry.rawMgDl.isFinite() && entry.rawMgDl > 0f) entry.rawMgDl else 0f
+                Natives.aidexProcessData(
+                    dataptr, byteArrayOf(0), historicalTimeMs,
+                    entry.glucoseMgDl, rawForStore, 1.0f
+                )
+                stored++
+                historyStoredCount++
+            } catch (t: Throwable) {
+                Log.e(TAG, "storeHistoryEntries: aidexProcessData failed: $t")
+                break  // Don't keep hammering a broken JNI
+            }
+
+            // Progressive sync to Room DB every HISTORY_SYNC_BATCH_SIZE entries
+            if (historyStoredCount % HISTORY_SYNC_BATCH_SIZE == 0) {
+                try {
+                    tk.glucodata.data.HistorySync.syncFromNative()
+                } catch (_: Throwable) {}
+            }
+        }
+
+        if (stored > 0) {
+            Log.i(TAG, "storeHistoryEntries: stored $stored/${entries.size} entries (total=$historyStoredCount)")
+        }
+    }
+
+    /**
+     * Called when all history pages (both raw and brief) have been downloaded.
+     */
+    private fun onHistoryDownloadComplete() {
+        historyDownloading = false
+        Log.i(TAG, "History download complete. Total entries stored: $historyStoredCount")
+
+        // Final sync to Room DB
+        if (historyStoredCount > 0) {
+            try {
+                val bareSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
+                tk.glucodata.data.HistorySync.forceFullSyncForSensor(bareSerial)
+            } catch (t: Throwable) {
+                Log.e(TAG, "HistorySync.forceFullSyncForSensor failed: $t")
+                // Fallback
+                try {
+                    tk.glucodata.data.HistorySync.syncFromNative()
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // Request calibration range
+        handler.postDelayed({
+            val cmd = commandBuilder.getCalibrationRange()
+            if (cmd != null) {
+                enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+            }
+        }, 200L)
     }
 
     // =========================================================================
