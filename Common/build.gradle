@@ -88,7 +88,7 @@ android {
         //compileSdk 36
         applicationId "tk.glucodata.ng"
 
-         versionName '0.6.1-Alpha'
+         versionName '0.6.8-Alpha'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -680,6 +680,9 @@ dependencies {
     implementation "androidx.glance:glance-appwidget:1.1.0"
     implementation "androidx.glance:glance-material3:1.1.0"
     implementation "androidx.work:work-runtime:2.9.1"
+
+    // Unit tests
+    testImplementation 'junit:junit:4.13.2'
 
 configurations {
 mobileLibre3SiDexGoogleImplementation {}
