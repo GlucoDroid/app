@@ -43,6 +43,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,8 +58,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import kotlinx.coroutines.delay
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.ui.components.CardPosition
@@ -77,14 +80,61 @@ fun NightscoutSettingsScreen(navController: NavController) {
     var sendTreatments by rememberSaveable { mutableStateOf(Natives.getpostTreatments()) }
     var isV3 by rememberSaveable { mutableStateOf(Natives.getnightscoutV3()) }
     var showSecret by rememberSaveable { mutableStateOf(false) }
+    var lastResponseCode by rememberSaveable { mutableStateOf(0) }
+    var lastAttemptTime by rememberSaveable { mutableStateOf(0L) }
+    var lastSuccessTime by rememberSaveable { mutableStateOf(0L) }
+    var retryMinutes by rememberSaveable { mutableStateOf(0) }
+    var uploaderRunning by rememberSaveable { mutableStateOf(false) }
 
     fun persistSettings() {
         Natives.setNightUploader(url.trim(), secret.trim(), isActive, isV3)
         Natives.setpostTreatments(sendTreatments)
     }
 
+    fun refreshStatus() {
+        lastResponseCode = Natives.getnightscoutlastresponsecode()
+        lastAttemptTime = Natives.getnightscoutlastattempttime()
+        lastSuccessTime = Natives.getnightscoutlastsuccesstime()
+        retryMinutes = Natives.getnightscoutretryminutes()
+        uploaderRunning = Natives.getnightscoutuploaderrunning()
+    }
+
+    LaunchedEffect(isActive) {
+        while (true) {
+            refreshStatus()
+            delay(if (isActive) 5_000L else 15_000L)
+        }
+    }
+
     DisposableEffect(Unit) {
+        refreshStatus()
         onDispose { persistSettings() }
+    }
+
+    fun formatStatusTime(epochSeconds: Long): String {
+        if (epochSeconds <= 0L) return context.getString(R.string.nightscout_status_never)
+        val formatted = java.text.DateFormat.getDateTimeInstance(
+            java.text.DateFormat.SHORT,
+            java.text.DateFormat.SHORT,
+            java.util.Locale.getDefault()
+        ).format(java.util.Date(epochSeconds * 1000L))
+        return formatted
+    }
+
+    val responseSummary = when {
+        !isActive -> context.getString(R.string.nightscout_status_paused)
+        lastResponseCode == 0 && lastAttemptTime <= 0L -> context.getString(R.string.nightscout_status_waiting)
+        lastResponseCode in 200..299 -> context.getString(R.string.nightscout_status_response_ok, lastResponseCode)
+        lastResponseCode == 404 -> context.getString(R.string.nightscout_status_response_404)
+        lastResponseCode == 413 -> context.getString(R.string.nightscout_status_response_413)
+        lastResponseCode > 0 -> context.getString(R.string.nightscout_status_response_error, lastResponseCode)
+        else -> context.getString(R.string.nightscout_status_waiting)
+    }
+    val uploaderSummary = when {
+        !isActive -> context.getString(R.string.nightscout_status_paused)
+        uploaderRunning -> context.getString(R.string.nightscout_status_running)
+        retryMinutes > 0 -> context.getString(R.string.nightscout_status_retry_in, retryMinutes)
+        else -> context.getString(R.string.nightscout_status_waiting)
     }
 
     Scaffold(
@@ -174,6 +224,55 @@ fun NightscoutSettingsScreen(navController: NavController) {
                 }
             }
 
+            item("nightscout_status_card") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    shape = cardShape(CardPosition.SINGLE),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.status),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = uploaderSummary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = responseSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.nightscout_status_last_attempt,
+                                formatStatusTime(lastAttemptTime)
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.nightscout_status_last_success,
+                                formatStatusTime(lastSuccessTime)
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             item("nightscout_options_group") {
                 Column(
                     modifier = Modifier
@@ -210,6 +309,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
                     onClick = {
                         persistSettings()
                         Natives.wakeuploader()
+                        refreshStatus()
                         Toast.makeText(context, context.getString(R.string.sending_now), Toast.LENGTH_SHORT).show()
                     },
                     enabled = isActive,
@@ -235,6 +335,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
                     onClick = {
                         persistSettings()
                         Natives.resetuploader()
+                        refreshStatus()
                         Toast.makeText(context, context.getString(R.string.resend_triggered), Toast.LENGTH_SHORT).show()
                     },
                     enabled = isActive,

@@ -1,8 +1,11 @@
 #if 1
 //#ifndef WEAROS
 #include <jni.h>
+#include <atomic>
 #include <ctime>
 #include <memory>
+#include <string>
+#include <string_view>
 #include "settings/settings.hpp"
 #include "share/logs.hpp"
 #include "sensoren.hpp"
@@ -35,6 +38,11 @@ jstring jnightuploadEntries3url=nullptr;
 jstring jnightuploadTreatmentsurl=nullptr;
 jstring jnightuploadTreatments3url=nullptr;
 jstring jnightuploadsecret= nullptr;
+static int lastNightUploadCode = 0;
+static std::atomic<int> lastNightUploadResponseCode{0};
+static std::atomic<long long> lastNightUploadAttemptTime{0};
+static std::atomic<long long> lastNightUploadSuccessTime{0};
+static std::atomic<int> lastNightUploadWaitMinutes{0};
 /*
 void makeuploadurl(JNIEnv *env) {
         const int namelen=settings->data()->nightuploadnamelen;
@@ -128,7 +136,13 @@ static int nightupload(jstring jnightuploadurl,const char *data,int len,bool put
     auto env=getenv();
     jbyteArray uit=env->NewByteArray(len);
         env->SetByteArrayRegion(uit, 0, len,(const jbyte *)data);
+    lastNightUploadAttemptTime = static_cast<long long>(time(nullptr));
     int res=env->CallStaticIntMethod(nightpostclass,upload,jnightuploadurl,uit,jnightuploadsecret,put);
+    lastNightUploadCode = res;
+    lastNightUploadResponseCode = res;
+    if(res==HTTP_OK || res==201) {
+        lastNightUploadSuccessTime = static_cast<long long>(time(nullptr));
+    }
     LOGGER("nightupload=%d\n",res);
     env->DeleteLocalRef(uit);
     return res;
@@ -281,60 +295,68 @@ static bool uploadCGM() {
     time_t old=nu-twoweeks; */
 
     int newstartsensor=startsensor;
+    constexpr const int maxuploaditems=400;
     for(int sensorid=last;sensorid>=startsensor;--sensorid) {
         if(SensorGlucoseData *sens=sensors->getSensorData(sensorid)) {
             std::span<const ScanData> gdata=sens->getPolldata();
             const sensorname_t *sensorname=sens->shortsensorname();
             const char *sensornamestr=sensorname->data();
-            int len=gdata.size();
+            const int totallen=gdata.size();
             int positer=sens->getinfo()->nightiter;
             LOGGER("%d: positer=%d\n",sensorid,positer);
-            int left=len-positer;
+            int left=totallen-positer;
             if(left>=0) {
-constexpr const int            maxitems=10440;
-                if(left>maxitems) {
-                    left=maxitems;
-                    len=positer+left;
-                    }
-                const int arraysize=3+left*itemsize;
-                LOGGER("arraysize=%d\n",arraysize);
-                char  *start=new(std::nothrow)  char[arraysize];
-                if(!start) {
-                    LOGGER("new char[%d] failed\n",arraysize);
-                    return false;
-                    }
-                unique_ptr<char[]> destruct(start);
-                char *ptr=start;
-                *ptr++='[';
-                for(;positer<len;positer++) { //Geen overlappende data?
-                    const ScanData &el= gdata[positer];
-                    if(el.valid(positer)&&el.gettime()>mintime) {
-                        ptr+=mkuploaditem(sens,ptr,sensornamestr,el);
-                        }
-                    }
-                LOGGER("%d new positer=%d\n",sensorid,len);
-                if(ptr>(start+1)) {
-                    ptr[-1]=']';
-                    *ptr='\0';
-                    int datalen=ptr-start;
-                    LOGGER("%d: UPLOADER #%d\n",sensorid,datalen);
-                    LOGGERN(start,datalen);
-                    if(nightuploadEntries(start,datalen)==HTTP_OK) {
-                        sens->getinfo()->nightiter=len;
-                        LOGGER("%d nightupload Success\n",sensorid);
-                        LOGGER("%d saved nightiter=%d\n", sensorid,len);
-                        newstartsensor=sensorid;
-                        continue;
-                        }
-                    else {
-                        LOGSTRING("nightupload failure\n");
+                bool sent=false;
+                while(positer<totallen) {
+                    const int chunkend=std::min(totallen,positer+maxuploaditems);
+                    const int chunkitems=chunkend-positer;
+                    const int arraysize=3+chunkitems*itemsize;
+                    LOGGER("arraysize=%d\n",arraysize);
+                    char  *start=new(std::nothrow)  char[arraysize];
+                    if(!start) {
+                        LOGGER("new char[%d] failed\n",arraysize);
                         return false;
                         }
+                    unique_ptr<char[]> destruct(start);
+                    char *ptr=start;
+                    *ptr++='[';
+                    for(int iter=positer;iter<chunkend;iter++) { //Geen overlappende data?
+                        const ScanData &el= gdata[iter];
+                        if(el.valid(iter)&&el.gettime()>mintime) {
+                            ptr+=mkuploaditem(sens,ptr,sensornamestr,el);
+                            }
+                        }
+                    LOGGER("%d new positer=%d\n",sensorid,chunkend);
+                    if(ptr>(start+1)) {
+                        ptr[-1]=']';
+                        *ptr='\0';
+                        int datalen=ptr-start;
+                        LOGGER("%d: UPLOADER #%d\n",sensorid,datalen);
+                        LOGGERN(start,datalen);
+                        const int res = nightuploadEntries(start,datalen);
+                        if(res==HTTP_OK || res==201) {
+                            sens->getinfo()->nightiter=chunkend;
+                            positer=chunkend;
+                            LOGGER("%d nightupload Success\n",sensorid);
+                            LOGGER("%d saved nightiter=%d\n", sensorid,chunkend);
+                            newstartsensor=sensorid;
+                            sent=true;
+                            continue;
+                            }
+                        else {
+                            LOGGER("nightupload failure code=%d\n",res);
+                            LOGSTRING("nightupload failure\n");
+                            return false;
+                            }
+                        }
+                    else  {
+                        LOGGER("ADDED nothing %d new positer=%d\n",sensorid,chunkend);
+                        sens->getinfo()->nightiter=chunkend;
+                        positer=chunkend;
+                        }
                     }
-            else  {
-                   LOGGER("ADDED nothing %d new positer=%d\n",sensorid,len);
-               sens->getinfo()->nightiter=len;
-               }
+                if(sent)
+                    continue;
                 }
             if(sens->getmaxtime()>nu) 
                 newstartsensor=sensorid;
@@ -354,6 +376,7 @@ extern bool uploadtreatments(bool);
 static void uploaderthread() {
     int waitmin=0;
     uploaderrunning=true;
+    lastNightUploadWaitMinutes = waitmin;
     const char view[]{"UPLOADER"};
     LOGGERN(view,sizeof(view)-1);
        prctl(PR_SET_NAME, view, 0, 0, 0);
@@ -363,6 +386,7 @@ static void uploaderthread() {
           if(!networkpresent||!uploadercondition.dobackup) {
             if(!networkpresent) {
                 waitmin=60;
+                lastNightUploadWaitMinutes = waitmin;
                 }
                 std::unique_lock<std::mutex> lck(uploadercondition.backupmutex);
             LOGGER("UPLOADER before lock waitmin=%d\n",waitmin);
@@ -383,24 +407,55 @@ static void uploaderthread() {
         uploadercondition.dobackup=0;
         bool useV3=settings->data()->nightscoutV3;
         if(current&(Backup::wakestream|Backup::wakeall)) {
-            if(!(useV3?uploadCGM3():uploadCGM())) {
+            bool uploaded = useV3?uploadCGM3():uploadCGM();
+            if(!uploaded && !useV3 && lastNightUploadCode==404) {
+                LOGSTRING("Nightscout v1 endpoint returned 404, retrying with v3\n");
+                settings->data()->nightscoutV3 = true;
+                settings->updated();
+                auto env = getenv();
+                makeuploadsecret(env);
+                makeuploadurls(env);
+                useV3 = true;
+                uploaded = uploadCGM3();
+            }
+            if(!uploaded) {
                 waitmin=15;
+                lastNightUploadWaitMinutes = waitmin;
                 continue;
                 }
             }
         if(current&(Backup::wakenums|Backup::wakeall)) {
-            if(!uploadtreatments(useV3)) {
+            bool treatmentsOk = uploadtreatments(useV3);
+            if(!treatmentsOk && !useV3 && lastNightUploadCode==404) {
+                LOGSTRING("Nightscout v1 treatments endpoint returned 404, retrying with v3\n");
+                settings->data()->nightscoutV3 = true;
+                settings->updated();
+                auto env = getenv();
+                makeuploadsecret(env);
+                makeuploadurls(env);
+                useV3 = true;
+                treatmentsOk = uploadtreatments(true);
+            }
+            if(!treatmentsOk) {
                 waitmin=15;
+                lastNightUploadWaitMinutes = waitmin;
                 continue;
                 }
             }
         waitmin=5*60;
+        lastNightUploadWaitMinutes = waitmin;
         }
     }
 
+void startuploaderthread();
 void wakeuploader() {
-    if(uploaderrunning) 
+    if(!uploaderrunning && settings->data()->nightuploadon) {
+        startuploaderthread();
+    }
+    if(uploaderrunning) {
+        lastNightUploadWaitMinutes = 0;
         uploadercondition.wakebackup(Backup::wakeall);
+    }
     }
 void wakestreamuploader() {
     if(uploaderrunning) 
@@ -412,7 +467,24 @@ extern "C" JNIEXPORT void JNICALL fromjava(wakeuploader) (JNIEnv *env, jclass cl
     } 
 extern "C" JNIEXPORT void JNICALL fromjava(resetuploader) (JNIEnv *env, jclass clazz) {
     reset();
+    wakeuploader();
     } 
+
+extern "C" JNIEXPORT jint JNICALL fromjava(getnightscoutlastresponsecode) (JNIEnv *env, jclass clazz) {
+    return lastNightUploadResponseCode.load();
+    }
+extern "C" JNIEXPORT jlong JNICALL fromjava(getnightscoutlastattempttime) (JNIEnv *env, jclass clazz) {
+    return lastNightUploadAttemptTime.load();
+    }
+extern "C" JNIEXPORT jlong JNICALL fromjava(getnightscoutlastsuccesstime) (JNIEnv *env, jclass clazz) {
+    return lastNightUploadSuccessTime.load();
+    }
+extern "C" JNIEXPORT jint JNICALL fromjava(getnightscoutretryminutes) (JNIEnv *env, jclass clazz) {
+    return lastNightUploadWaitMinutes.load();
+    }
+extern "C" JNIEXPORT jboolean JNICALL fromjava(getnightscoutuploaderrunning) (JNIEnv *env, jclass clazz) {
+    return uploaderrunning;
+    }
 
 void enduploaderthread() {
     if(uploaderrunning) {

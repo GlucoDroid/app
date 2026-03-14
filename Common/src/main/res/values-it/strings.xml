@@ -1165,6 +1165,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_upload_active">Caricamento in background</string>
     <string name="nightscout_upload_paused">Caricamenti in pausa</string>
     <string name="nightscout_upload_options_title">Opzioni di caricamento</string>
+    <string name="nightscout_status_never">Mai</string>
+    <string name="nightscout_status_paused">Upload in pausa</string>
+    <string name="nightscout_status_waiting">In attesa del prossimo upload</string>
+    <string name="nightscout_status_running">Upload in corso</string>
+    <string name="nightscout_status_retry_in">Nuovo tentativo tra %1$d min</string>
+    <string name="nightscout_status_response_ok">Ultima risposta: HTTP %1$d</string>
+    <string name="nightscout_status_response_error">Ultima risposta: HTTP %1$d</string>
+    <string name="nightscout_status_response_404">Ultima risposta: HTTP 404, endpoint non corretto</string>
+    <string name="nightscout_status_response_413">Ultima risposta: HTTP 413, payload troppo grande</string>
+    <string name="nightscout_status_last_attempt">Ultimo tentativo: %1$s</string>
+    <string name="nightscout_status_last_success">Ultimo successo: %1$s</string>
     <string name="nightscout_sync_actions_title">Azioni di sincronizzazione</string>
     <string name="expand_action">Espandi</string>
     <string name="collapse_action">Comprimi</string>

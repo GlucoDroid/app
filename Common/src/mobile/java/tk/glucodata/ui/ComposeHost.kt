@@ -1277,6 +1277,13 @@ fun DashboardScreen(
             glucoseHistory.takeLast(10).reversed().distinctBy { it.timestamp }
         }
 
+        val isManualCalibrationEnabled = if (viewMode == 1 || viewMode == 3) isRawEnabled else isAutoEnabled
+        val triggerCalibrationIfEnabled: (CalibrationSheetState) -> Unit = { state ->
+            if (isManualCalibrationEnabled) {
+                onTriggerCalibration(state)
+            }
+        }
+
         // Compute calibrated value for current reading (respects viewMode)
         val isRawModeHero = viewMode == 1 || viewMode == 3
         val calibratedValue = remember(latestPoint, viewMode) {
@@ -1347,7 +1354,7 @@ fun DashboardScreen(
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
                             }
                         )
                     }
@@ -1394,10 +1401,10 @@ fun DashboardScreen(
                         expandedProgress = 0f,
                         onToggleExpanded = null,
                         onPointClick = { point -> 
-                            onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                            triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
                         },
                         onCalibrationClick = { cal ->
-                            onTriggerCalibration(CalibrationSheetState.Edit(cal))
+                            triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))
                         }
                     )
                     
@@ -1436,7 +1443,7 @@ fun DashboardScreen(
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
                             }
                         )
                     }
@@ -1541,10 +1548,10 @@ fun DashboardScreen(
                             onToggleExpanded = null,
                             chartBoostProgress = chartBoostProgress,
                             onPointClick = { point ->
-                                onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
                             },
                             onCalibrationClick = { cal ->
-                                onTriggerCalibration(CalibrationSheetState.Edit(cal))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))
                             }
                         )
                     }
@@ -1574,7 +1581,7 @@ fun DashboardScreen(
                                 modifier = Modifier
                                     .animateItem()
                                     .clickable {
-                                        onTriggerCalibration(CalibrationSheetState.New(item.value, item.rawValue, item.timestamp))
+                                        triggerCalibrationIfEnabled(CalibrationSheetState.New(item.value, item.rawValue, item.timestamp))
                                     }
                             )
                         }
@@ -1590,10 +1597,10 @@ fun DashboardScreen(
                             onAddCalibration = {
                                 val autoVal = latestPoint?.value ?: try { currentGlucose.toFloat() } catch (e: Exception) { 0f }
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
                             },
                             onEditCalibration = { cal ->
-                                onTriggerCalibration(CalibrationSheetState.Edit(cal))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))
                             },
                             onViewHistory = onNavigateToCalibrations,
                             snackbarHostState = snackbarHostState
@@ -4469,10 +4476,12 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                     val calCount = sensor.vendorCalibrations.size
                     val collapsible = calCount > 3
                     var calExpanded by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+                    // Newest first — reverse so most recent calibrations appear at the top
+                    val allCalsReversed = sensor.vendorCalibrations.reversed()
                     val visibleCals = if (collapsible && !calExpanded) {
-                        sensor.vendorCalibrations.takeLast(3)  // Show most recent 3
+                        allCalsReversed.take(3)  // Show most recent 3
                     } else {
-                        sensor.vendorCalibrations
+                        allCalsReversed
                     }
 
                     Surface(
@@ -4486,29 +4495,6 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                                 .padding(12.dp)
                                 .animateContentSize()
                         ) {
-                            // Collapse/expand header when >3 calibrations
-                            if (collapsible) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { calExpanded = !calExpanded }
-                                        .padding(bottom = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "$calCount calibrations",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Icon(
-                                        imageVector = if (calExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = if (calExpanded) "Show less" else "Show all",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
                             visibleCals.forEachIndexed { idx, cal ->
                                 if (idx > 0) {
                                     HorizontalDivider(
@@ -4588,6 +4574,34 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                                             )
                                         }
                                     }
+                                }
+                            }
+                            // Expand/collapse at BOTTOM with proper touch target
+                            if (collapsible) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
+                                        .clickable { calExpanded = !calExpanded },
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (calExpanded) "Show less" else "Show all $calCount",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = if (calExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         }

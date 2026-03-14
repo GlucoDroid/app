@@ -1218,6 +1218,17 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="nightscout_upload_active">Upload op de achtergrond actief</string>
     <string name="nightscout_upload_paused">Uploads gepauzeerd</string>
     <string name="nightscout_upload_options_title">Uploadopties</string>
+    <string name="nightscout_status_never">Nooit</string>
+    <string name="nightscout_status_paused">Uploader gepauzeerd</string>
+    <string name="nightscout_status_waiting">Wachten op volgende upload</string>
+    <string name="nightscout_status_running">Uploader actief</string>
+    <string name="nightscout_status_retry_in">Nieuwe poging over %1$d min</string>
+    <string name="nightscout_status_response_ok">Laatste reactie: HTTP %1$d</string>
+    <string name="nightscout_status_response_error">Laatste reactie: HTTP %1$d</string>
+    <string name="nightscout_status_response_404">Laatste reactie: HTTP 404, eindpunt komt niet overeen</string>
+    <string name="nightscout_status_response_413">Laatste reactie: HTTP 413, payload te groot</string>
+    <string name="nightscout_status_last_attempt">Laatste poging: %1$s</string>
+    <string name="nightscout_status_last_success">Laatste succes: %1$s</string>
     <string name="nightscout_sync_actions_title">Synchronisatieacties</string>
     <string name="expand_action">Uitklappen</string>
     <string name="collapse_action">Inklappen</string>

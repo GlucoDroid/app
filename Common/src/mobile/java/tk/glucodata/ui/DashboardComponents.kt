@@ -980,6 +980,7 @@ fun CalibrationsCard(
     if (calibrations.isEmpty()) {
         androidx.compose.material3.FilledTonalButton(
             onClick = onAddCalibration,
+            enabled = isCalibrationEnabled,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
 //            elevation = androidx.compose.material3.ButtonDefaults.filledTonalButtonElevation(defaultElevation = 2.dp)
@@ -1045,6 +1046,7 @@ fun CalibrationsCard(
                  // Right: Calibrate
                  androidx.compose.material3.Button(
                     onClick = onAddCalibration,
+                    enabled = isCalibrationEnabled,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(
                         topStart = 4.dp, 
@@ -1176,7 +1178,11 @@ fun CalibrationsCard(
                                     }
                                 },
                                 isDisabled = isRowDisabled,
-                                onClick = { onEditCalibration(cal) }
+                                onClick = {
+                                    if (isCalibrationEnabled) {
+                                        onEditCalibration(cal)
+                                    }
+                                }
                         ) {
                                 // Row content with disabled visual state
                                 Row(
@@ -1224,7 +1230,7 @@ fun CalibrationsCard(
                 }
 
                 // Footer: If more than 8 items, show "Previous calibrations" button
-                if (calibrations.size > 8) {
+                if (calibrations.isNotEmpty()) {
                     androidx.compose.material3.FilledTonalButton(
                         onClick = onViewHistory,
                         modifier = Modifier

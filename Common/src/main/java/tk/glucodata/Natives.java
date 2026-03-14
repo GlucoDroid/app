@@ -1023,6 +1023,16 @@ public class Natives {
 
         public static native void resetuploader();
 
+        public static native int getnightscoutlastresponsecode();
+
+        public static native long getnightscoutlastattempttime();
+
+        public static native long getnightscoutlastsuccesstime();
+
+        public static native int getnightscoutretryminutes();
+
+        public static native boolean getnightscoutuploaderrunning();
+
         public static native void setAndroid13(boolean val);
 
         public static native boolean getAndroid13();

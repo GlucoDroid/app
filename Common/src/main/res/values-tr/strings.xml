@@ -1203,6 +1203,17 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="nightscout_upload_active">Arka planda yükleniyor</string>
     <string name="nightscout_upload_paused">Yüklemeler duraklatıldı</string>
     <string name="nightscout_upload_options_title">Yükleme seçenekleri</string>
+    <string name="nightscout_status_never">Asla</string>
+    <string name="nightscout_status_paused">Yükleyici duraklatıldı</string>
+    <string name="nightscout_status_waiting">Sonraki yükleme bekleniyor</string>
+    <string name="nightscout_status_running">Yükleyici çalışıyor</string>
+    <string name="nightscout_status_retry_in">%1$d dk sonra yeniden denenecek</string>
+    <string name="nightscout_status_response_ok">Son yanıt: HTTP %1$d</string>
+    <string name="nightscout_status_response_error">Son yanıt: HTTP %1$d</string>
+    <string name="nightscout_status_response_404">Son yanıt: HTTP 404, uç nokta eşleşmiyor</string>
+    <string name="nightscout_status_response_413">Son yanıt: HTTP 413, yük çok büyük</string>
+    <string name="nightscout_status_last_attempt">Son deneme: %1$s</string>
+    <string name="nightscout_status_last_success">Son başarılı: %1$s</string>
     <string name="nightscout_sync_actions_title">Senkronizasyon işlemleri</string>
     <string name="expand_action">Genişlet</string>
     <string name="collapse_action">Daralt</string>

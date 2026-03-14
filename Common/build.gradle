@@ -318,6 +318,7 @@ buildTypes {
         releasedub {
             versionNameSuffix 'DUB'
         applicationIdSuffix ".dub"
+            resValue "string", "app_name", "JugglucoNG Dub"
             signingConfig signingConfigs.alg
             minifyEnabled true 
         shrinkResources true

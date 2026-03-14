@@ -11,12 +11,17 @@
 package tk.glucodata.drivers.aidex.native.ble
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
@@ -100,6 +105,11 @@ class AiDexBleManager(
         private const val MAX_OFFSET_DAYS = 30
         private const val WARMUP_DURATION_MS = 10L * 60_000L  // 10 minutes (matches AiDex sensor warmup)
         private const val HISTORY_SYNC_BATCH_SIZE = 2000  // progressive sync to Room every N entries
+
+        // -- Broadcast Scan --
+        private const val BROADCAST_SCAN_WINDOW_MS = 30_000L  // How long each scan runs
+        private const val BROADCAST_SCAN_INTERVAL_MS = 60_000L  // Time between scans
+        private const val BROADCAST_MIN_STORE_INTERVAL_MS = 50_000L  // Min interval between stored broadcast readings
     }
 
     // -- Protocol Objects --
@@ -272,10 +282,10 @@ class AiDexBleManager(
     /** Whether a calibration download is in progress. */
     private var calibrationDownloading: Boolean = false
 
-    // -- Device Info (0x21) Retry --
-    private var deviceInfoRetryCount = 0
-    private val DEVICE_INFO_MAX_RETRIES = 5
-    private val DEVICE_INFO_RETRY_DELAY_MS = 3_000L
+    // -- Device Info (0x21) --
+    // 0x21 always fails with status=0x01 on tested sensors.
+    // All info comes from DIS (0x180A) + CGM Session Start Time (0x2AAA) instead.
+    // Kept as single-shot attempt (no retries) for future sensors that may support it.
     @Volatile private var deviceInfoComplete = false
 
     // -- Reconnection Prevention Flags --
@@ -314,6 +324,15 @@ class AiDexBleManager(
     @Volatile private var _calibrationRecords: List<SharedCalibrationRecord> = emptyList()
     @Volatile private var _viewModeInternal: Int = 0
     @Volatile private var _resetCompensationEnabled: Boolean = false
+
+    // -- Broadcast Scan State --
+    @Volatile private var broadcastScanActive: Boolean = false
+    private var broadcastScanCallback: ScanCallback? = null
+    private var broadcastScanner: android.bluetooth.le.BluetoothLeScanner? = null
+    @Volatile private var lastBroadcastGlucose: Float = 0f
+    @Volatile private var lastBroadcastTime: Long = 0L
+    @Volatile private var lastBroadcastStoredTime: Long = 0L
+    @Volatile private var broadcastScanMisses: Int = 0
 
     // -- Transient Status --
     /** Temporary status message (e.g., calibration result) that auto-clears after 5 seconds. */
@@ -434,7 +453,6 @@ class AiDexBleManager(
             cccdQueue.clear()
             cccdWriteInProgress = false
             cccdRetryCount = 0
-            deviceInfoRetryCount = 0
             deviceInfoComplete = false
 
             Log.i(TAG, "Connected to ${gatt.device?.address}. Requesting MTU 512...")
@@ -478,7 +496,6 @@ class AiDexBleManager(
             lastCalibratedGlucoseFallback = null
             lastOffsetMinutes = 0
             liveOffsetCutoff = 0
-            deviceInfoRetryCount = 0
             deviceInfoComplete = false
 
             // Handle specific failure cases
@@ -493,6 +510,8 @@ class AiDexBleManager(
                         Log.w(TAG, "Auth failures exhausted — broadcast-only fallback")
                         close()
                         constatstatusstr = "Pairing failed"
+                        // Start broadcast scanning as fallback
+                        handler.post { startBroadcastScan("auth-failure-fallback") }
                     }
                     return
                 }
@@ -522,7 +541,10 @@ class AiDexBleManager(
                 } catch (_: Throwable) {}
                 keyExchange.reset()
                 close()
-                constatstatusstr = "Unpaired"
+                constatstatusstr = "Unpaired — Broadcast Only"
+                // Transition to broadcast-only mode so user keeps getting data
+                reconnect.isBroadcastOnlyMode = true
+                handler.post { startBroadcastScan("post-unpair-disconnect") }
             } else if (pendingResetReconnect) {
                 // Post-reset reconnect: sensor cleared its bond table + storage.
                 // We must: remove stale BLE bond, clear key exchange, wait for
@@ -567,8 +589,9 @@ class AiDexBleManager(
                 close()
                 handler.postDelayed({ connectDevice(0) }, delay)
             } else {
-                Log.i(TAG, "Broadcast-only mode — not scheduling reconnect")
+                Log.i(TAG, "Broadcast-only mode — starting broadcast scan instead of reconnect")
                 close()
+                handler.postDelayed({ startBroadcastScan("post-disconnect") }, 2_000L)
             }
         }
     }
@@ -1098,12 +1121,14 @@ class AiDexBleManager(
         constatstatusstr = "Connected"
         Log.i(TAG, "Streaming phase entered. Reading device info + requesting history...")
 
-        // Read standard BLE characteristics for device info (model, firmware, start time)
+        // Read standard BLE characteristics for device info (model, firmware, start time).
+        // These are the primary source — 0x21 F002 command always fails on tested sensors.
         readDeviceInformationService()
         readCGMSessionCharacteristics()
 
-        // Request device info via F002 and history range
-        requestDeviceInfo()
+        // Skip 0x21 (getDeviceInfo) — it always fails with status=0x01 on tested sensors
+        // and wastes ~45s in retries. DIS + 2AAA provide all needed info.
+        // Go straight to history range request.
         handler.postDelayed({ requestHistoryRange() }, 300L)
     }
 
@@ -1410,15 +1435,15 @@ class AiDexBleManager(
         //   StartTime:  EA 07 02 1C 13 25 05 14 00
 
         if (data.size < 3) {
-            retryDeviceInfo("too short (${data.size} bytes)")
+            Log.d(TAG, "Device info 0x21: too short (${data.size} bytes) — ignoring, using DIS+2AAA")
             return
         }
         val statusByte = data[1].toInt() and 0xFF
         Log.i(TAG, "Device info response: status=0x${"%02X".format(statusByte)}, len=${data.size}")
 
-        // Truncated response (status != 0 or too short for metadata) — retry
+        // If status != 0 or too short — not supported by this sensor, no retries.
         if (data.size < 17 || statusByte != 0) {
-            retryDeviceInfo("status=0x${"%02X".format(statusByte)}, len=${data.size} (need ≥17 for metadata, ≥24 for start time)")
+            Log.d(TAG, "Device info 0x21: status=0x${"%02X".format(statusByte)}, len=${data.size} — not supported, using DIS+2AAA")
             return
         }
 
@@ -1496,31 +1521,12 @@ class AiDexBleManager(
                 Log.e(TAG, "Start time parse failed: ${t.message}")
             }
         } else {
-            // Got metadata but no start time — retry for full response
-            retryDeviceInfo("metadata OK but no start time (len=${data.size}, need ≥24)")
-            return
+            // Got metadata but no start time — will use 2AAA or infer from offset
+            Log.d(TAG, "Device info 0x21: metadata OK but no start time (len=${data.size}) — using 2AAA")
         }
 
         // If we got here, we have everything
         deviceInfoComplete = true
-        deviceInfoRetryCount = 0
-    }
-
-    /**
-     * Retry 0x21 device info request with backoff.
-     */
-    private fun retryDeviceInfo(reason: String) {
-        deviceInfoRetryCount++
-        if (deviceInfoRetryCount <= DEVICE_INFO_MAX_RETRIES && phase == Phase.STREAMING) {
-            val delay = DEVICE_INFO_RETRY_DELAY_MS * deviceInfoRetryCount
-            Log.w(TAG, "Device info incomplete ($reason) — retry $deviceInfoRetryCount/$DEVICE_INFO_MAX_RETRIES in ${delay}ms")
-            handler.postDelayed({
-                if (phase == Phase.STREAMING) requestDeviceInfo()
-            }, delay)
-        } else {
-            Log.w(TAG, "Device info: 0x21 command not supported by sensor ($reason) — using start time from history range")
-            deviceInfoComplete = false
-        }
     }
 
     /**
@@ -2249,9 +2255,10 @@ class AiDexBleManager(
             // Compute timestamp
             val historicalTimeMs = sensorstartmsec + (entry.offsetMinutes.toLong() * 60_000L)
 
-            // Warmup gate: skip readings from within first 10 minutes after sensor start
-            val sensorAgeAtRecordMs = historicalTimeMs - sensorstartmsec
-            if (sensorAgeAtRecordMs in 0 until WARMUP_DURATION_MS) continue
+            // No warmup gate — valid readings during warmup are stored and displayed.
+            // The isValid/MIN_VALID check above already filters out garbage warmup data
+            // (e.g., glucose=15 mg/dL). Valid-looking readings (>= MIN_VALID) are stored
+            // even during the first 10 minutes so the user sees data as soon as possible.
 
             // Future-timestamp guard (2 minutes tolerance)
             if (historicalTimeMs > now + 120_000L) continue
@@ -2358,9 +2365,14 @@ class AiDexBleManager(
 
         return when (phase) {
             Phase.IDLE -> {
-                if (isUnpaired || constatstatusstr == "Unpaired") "Unpaired — tap Pair to reconnect"
-                else if (stop && !reconnect.isBroadcastOnlyMode) "Paused"
-                else if (reconnect.isBroadcastOnlyMode) "Pairing failed — tap to retry"
+                if (reconnect.isBroadcastOnlyMode) {
+                    if (broadcastScanActive) "Scanning for broadcasts..."
+                    else if (lastBroadcastTime > 0 && (now - lastBroadcastTime) < 5 * 60_000L)
+                        "Broadcast Mode — Receiving"
+                    else "Broadcast Mode"
+                }
+                else if (isUnpaired) "Unpaired — tap Pair to reconnect"
+                else if (stop) "Paused"
                 else constatstatusstr ?: "Disconnected"
             }
             Phase.GATT_CONNECTING -> "Connecting..."
@@ -2462,6 +2474,7 @@ class AiDexBleManager(
     override fun forgetVendor() {
         Log.i(TAG, "forgetVendor: tearing down native driver for $SerialNumber")
         stop = true
+        cancelBroadcastScan()
         keyExchange.reset()
         // Notify C++ layer that this sensor is being removed — prevents zombie resurrection
         try { finishSensor() } catch (_: Throwable) {}
@@ -2489,6 +2502,7 @@ class AiDexBleManager(
         Log.i(TAG, "softDisconnect: pausing sensor $SerialNumber")
         _isPaused = true  // Block external reconnection triggers (LossOfSensorAlarm, reconnectall)
         stop = true  // Prevent auto-reconnect from disconnect handler
+        cancelBroadcastScan()  // Stop active BLE scanner and cancel scheduled scans
         handler.removeCallbacksAndMessages(null)   // Cancel pending reconnects/timeouts
         close()  // SuperGattCallback.close() does disconnect + close + nulls mBluetoothGatt
         setPhase(Phase.IDLE)
@@ -2510,11 +2524,14 @@ class AiDexBleManager(
         Log.i(TAG, "setBroadcastOnlyConnection($enabled) for $SerialNumber")
         reconnect.isBroadcastOnlyMode = enabled
         if (enabled) {
-            // Disconnect GATT, rely on advertisements only
+            // Disconnect GATT, start broadcast scanning
             softDisconnect()
             constatstatusstr = "Broadcast Only"
+            // Start broadcast scan loop
+            handler.post { startBroadcastScan("broadcast-mode-enabled") }
         } else {
-            // Resume active GATT connection
+            // Stop broadcast scanning, resume active GATT connection
+            cancelBroadcastScan()
             manualReconnectNow()
         }
     }
@@ -2638,7 +2655,10 @@ class AiDexBleManager(
             } catch (_: Throwable) {}
             keyExchange.reset()
             softDisconnect()
-            constatstatusstr = "Unpaired"
+            constatstatusstr = "Unpaired — Broadcast Only"
+            // Transition to broadcast-only mode so user keeps getting data
+            reconnect.isBroadcastOnlyMode = true
+            handler.post { startBroadcastScan("post-unpair") }
             return true
         }
         // Set flag BEFORE sending — the response handler (or disconnect handler)
@@ -2693,6 +2713,232 @@ class AiDexBleManager(
         set(value) { _viewModeInternal = value }
 
     // =========================================================================
+    // Broadcast Scanning
+    // =========================================================================
+
+    /**
+     * Runnable that starts a broadcast scan. Posted with delay for periodic scanning.
+     */
+    private val broadcastScanRunnable = Runnable { startBroadcastScan("scheduled") }
+
+    /**
+     * Runnable that stops a broadcast scan after the scan window expires.
+     */
+    private val broadcastScanStopRunnable = Runnable {
+        stopBroadcastScan("timeout", found = false)
+    }
+
+    /**
+     * Start a BLE scan for broadcast advertisements from this sensor.
+     * Used in broadcast-only mode (after unpair, or manual broadcast mode).
+     *
+     * Ported from AiDexSensor.kt:startBroadcastScan().
+     */
+    @SuppressLint("MissingPermission")
+    private fun startBroadcastScan(reason: String) {
+        if (!reconnect.isBroadcastOnlyMode) return
+        if (broadcastScanActive) return
+
+        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
+        if (!adapter.isEnabled) return
+
+        val scanner = adapter.bluetoothLeScanner ?: return
+        broadcastScanner = scanner
+
+        if (broadcastScanCallback == null) {
+            broadcastScanCallback = object : ScanCallback() {
+                override fun onScanResult(callbackType: Int, result: ScanResult) {
+                    val device = result.device ?: return
+                    val address = device.address
+                    val targetAddress = mActiveDeviceAddress
+
+                    // Filter to our sensor's address only
+                    if (targetAddress != null && address != targetAddress) return
+
+                    val scanRecord = result.scanRecord?.bytes ?: return
+                    parseScanRecord(scanRecord, result.rssi)
+                }
+
+                override fun onBatchScanResults(results: List<ScanResult>) {
+                    results.forEach { onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, it) }
+                }
+
+                override fun onScanFailed(errorCode: Int) {
+                    Log.w(TAG, "Broadcast scan failed: $errorCode")
+                    stopBroadcastScan("scan-failed-$errorCode", found = false)
+                }
+            }
+        }
+
+        // Build filters: device address if known, otherwise open scan
+        val filterBuilder = ScanFilter.Builder()
+        val targetAddr = mActiveDeviceAddress
+        if (targetAddr != null) {
+            filterBuilder.setDeviceAddress(targetAddr)
+        }
+        val filters = arrayListOf(filterBuilder.build())
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+            .build()
+
+        try {
+            scanner.startScan(filters, settings, broadcastScanCallback)
+            broadcastScanActive = true
+            handler.removeCallbacks(broadcastScanStopRunnable)
+            handler.postDelayed(broadcastScanStopRunnable, BROADCAST_SCAN_WINDOW_MS)
+            Log.i(TAG, "Broadcast scan started ($reason)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Broadcast scan start failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Stop the active broadcast scan and optionally schedule the next one.
+     */
+    @SuppressLint("MissingPermission")
+    private fun stopBroadcastScan(reason: String, found: Boolean) {
+        if (broadcastScanActive) {
+            try {
+                broadcastScanner?.stopScan(broadcastScanCallback)
+            } catch (_: Throwable) {}
+            broadcastScanActive = false
+            Log.d(TAG, "Broadcast scan stopped ($reason, found=$found)")
+        }
+
+        broadcastScanMisses = if (found) 0 else (broadcastScanMisses + 1)
+
+        // Schedule next scan if still in broadcast-only mode
+        if (reconnect.isBroadcastOnlyMode && !stop) {
+            scheduleBroadcastScan("post-$reason")
+        }
+    }
+
+    /**
+     * Cancel all broadcast scan scheduling.
+     */
+    private fun cancelBroadcastScan() {
+        handler.removeCallbacks(broadcastScanRunnable)
+        handler.removeCallbacks(broadcastScanStopRunnable)
+        if (broadcastScanActive) {
+            try {
+                broadcastScanner?.stopScan(broadcastScanCallback)
+            } catch (_: Throwable) {}
+            broadcastScanActive = false
+        }
+    }
+
+    /**
+     * Schedule the next broadcast scan with appropriate delay.
+     */
+    private fun scheduleBroadcastScan(reason: String) {
+        if (!reconnect.isBroadcastOnlyMode || stop) return
+
+        var delay = BROADCAST_SCAN_INTERVAL_MS
+        // Retry aggressively (15s) for a few attempts if we're missing broadcasts
+        if (delay > 15_000L && broadcastScanMisses in 1..5) {
+            delay = 15_000L
+        }
+
+        handler.removeCallbacks(broadcastScanRunnable)
+        handler.postDelayed(broadcastScanRunnable, delay)
+        Log.d(TAG, "Broadcast scan scheduled in ${delay / 1000}s ($reason, misses=$broadcastScanMisses)")
+    }
+
+    /**
+     * Parse scan record from BLE advertisement to extract manufacturer data.
+     * AiDex broadcast format (in Manufacturer Specific Data, type 0xFF):
+     *   bytes 0..3 : u32 LE timeOffsetMinutes
+     *   byte 4     : i8 trend
+     *   bytes 5..6 : packed glucose mg/dL (10-bit: lo | (carry & 0x03) << 8)
+     *
+     * Ported from AiDexSensor.kt:onScanRecord() + parseBroadcastData().
+     */
+    private fun parseScanRecord(scanRecord: ByteArray, rssi: Int) {
+        var offset = 0
+        while (offset < scanRecord.size - 2) {
+            val len = scanRecord[offset].toInt() and 0xFF
+            if (len == 0) break
+            val type = scanRecord[offset + 1].toInt() and 0xFF
+
+            if (type == 0xFF) {  // Manufacturer Specific Data
+                if (offset + 3 < scanRecord.size) {
+                    val dataLen = len - 3
+                    if (dataLen >= 6 && offset + 4 + dataLen <= scanRecord.size) {
+                        val data = ByteArray(dataLen)
+                        System.arraycopy(scanRecord, offset + 4, data, 0, dataLen)
+                        handleBroadcastPayload(data)
+                    }
+                }
+            }
+            offset += len + 1
+        }
+    }
+
+    /**
+     * Parse and store broadcast glucose payload.
+     */
+    private fun handleBroadcastPayload(data: ByteArray) {
+        if (data.size < 6) return
+
+        val now = System.currentTimeMillis()
+
+        // Parse LinX broadcast format
+        val offsetMinutes = u32LE(data, 0) and 0xFFFF_FFFFL
+        val trend = data[4].toInt()  // signed
+        val lo = data[5].toInt() and 0xFF
+        val carry = data[6].toInt() and 0xFF
+        val glucoseMgDlInt = lo or ((carry and 0x03) shl 8)
+
+        if (glucoseMgDlInt !in MIN_VALID_GLUCOSE_MGDL..MAX_VALID_GLUCOSE_MGDL) return
+
+        Log.i(TAG, "BROADCAST: offset=${offsetMinutes}min glucose=$glucoseMgDlInt mg/dL trend=$trend rssi=?")
+
+        lastBroadcastGlucose = glucoseMgDlInt.toFloat()
+        lastBroadcastTime = now
+
+        // Update offset tracking
+        lastOffsetMinutes = offsetMinutes.toInt()
+        ensureSensorStartTime(now)
+
+        // Update notification status
+        constatstatusstr = "Receiving"
+
+        // Dedup: don't store if too soon after last stored broadcast
+        if (lastBroadcastStoredTime != 0L && (now - lastBroadcastStoredTime) < BROADCAST_MIN_STORE_INTERVAL_MS) {
+            // Still update notification with the glucose value
+            val mgdlPacked = (glucoseMgDlInt * 10).toLong() and 0xFFFFFFFFL
+            handleGlucoseResult(mgdlPacked, now)
+            return
+        }
+
+        // Store via JNI
+        if (dataptr != 0L) {
+            try {
+                val res = Natives.aidexProcessData(
+                    dataptr, byteArrayOf(0), now,
+                    glucoseMgDlInt.toFloat(), 0f, 1.0f
+                )
+                handleGlucoseResult(res, now)
+                lastBroadcastStoredTime = now
+
+                // Sync to Room DB
+                tk.glucodata.data.HistorySync.syncFromNative()
+            } catch (e: Throwable) {
+                Log.e(TAG, "Broadcast: aidexProcessData failed: $e")
+                val mgdlPacked = (glucoseMgDlInt * 10).toLong() and 0xFFFFFFFFL
+                handleGlucoseResult(mgdlPacked, now)
+            }
+        } else {
+            val mgdlPacked = (glucoseMgDlInt * 10).toLong() and 0xFFFFFFFFL
+            handleGlucoseResult(mgdlPacked, now)
+        }
+
+        // Stop current scan, schedule next
+        stopBroadcastScan("broadcast-received", found = true)
+    }
+
+    // =========================================================================
     // Cleanup
     // =========================================================================
 
@@ -2701,6 +2947,7 @@ class AiDexBleManager(
      */
     override fun destroy() {
         stop = true
+        cancelBroadcastScan()
         close()
         handler.removeCallbacksAndMessages(null)
         handlerThread.quitSafely()

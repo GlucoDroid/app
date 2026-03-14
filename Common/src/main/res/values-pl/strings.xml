@@ -1210,6 +1210,17 @@
     <string name="nightscout_upload_active">Przesyłanie w tle</string>
     <string name="nightscout_upload_paused">Przesyłanie wstrzymane</string>
     <string name="nightscout_upload_options_title">Opcje przesyłania</string>
+    <string name="nightscout_status_never">Nigdy</string>
+    <string name="nightscout_status_paused">Wysyłanie wstrzymane</string>
+    <string name="nightscout_status_waiting">Oczekiwanie na następne wysłanie</string>
+    <string name="nightscout_status_running">Wysyłanie trwa</string>
+    <string name="nightscout_status_retry_in">Ponowna próba za %1$d min</string>
+    <string name="nightscout_status_response_ok">Ostatnia odpowiedź: HTTP %1$d</string>
+    <string name="nightscout_status_response_error">Ostatnia odpowiedź: HTTP %1$d</string>
+    <string name="nightscout_status_response_404">Ostatnia odpowiedź: HTTP 404, nieprawidłowy endpoint</string>
+    <string name="nightscout_status_response_413">Ostatnia odpowiedź: HTTP 413, zbyt duży ładunek</string>
+    <string name="nightscout_status_last_attempt">Ostatnia próba: %1$s</string>
+    <string name="nightscout_status_last_success">Ostatni sukces: %1$s</string>
     <string name="nightscout_sync_actions_title">Akcje synchronizacji</string>
     <string name="expand_action">Rozwiń</string>
     <string name="collapse_action">Zwiń</string>

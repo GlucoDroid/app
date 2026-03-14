@@ -1213,6 +1213,17 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="nightscout_upload_active">Upload im Hintergrund aktiv</string>
     <string name="nightscout_upload_paused">Uploads pausiert</string>
     <string name="nightscout_upload_options_title">Upload-Optionen</string>
+    <string name="nightscout_status_never">Nie</string>
+    <string name="nightscout_status_paused">Uploader pausiert</string>
+    <string name="nightscout_status_waiting">Warte auf den nächsten Upload</string>
+    <string name="nightscout_status_running">Uploader läuft</string>
+    <string name="nightscout_status_retry_in">Nächster Versuch in %1$d Min.</string>
+    <string name="nightscout_status_response_ok">Letzte Antwort: HTTP %1$d</string>
+    <string name="nightscout_status_response_error">Letzte Antwort: HTTP %1$d</string>
+    <string name="nightscout_status_response_404">Letzte Antwort: HTTP 404, Endpunkt stimmt nicht</string>
+    <string name="nightscout_status_response_413">Letzte Antwort: HTTP 413, Nutzlast zu groß</string>
+    <string name="nightscout_status_last_attempt">Letzter Versuch: %1$s</string>
+    <string name="nightscout_status_last_success">Letzter Erfolg: %1$s</string>
     <string name="nightscout_sync_actions_title">Synchronisierungsaktionen</string>
     <string name="expand_action">Erweitern</string>
     <string name="collapse_action">Einklappen</string>

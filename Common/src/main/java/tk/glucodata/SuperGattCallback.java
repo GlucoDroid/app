@@ -333,6 +333,50 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         return markAlertTriggered(alarm, Notify.onenot.lowglucose(sglucose, gl, rate, true), alarmspeak);
     }
 
+    private static boolean isStandardGlucoseAlertCode(int alarm) {
+        return alarm == 4 || alarm == 5 || alarm == 6 || alarm == 7 || alarm == 16 || alarm == 17 || alarm == 18
+                || alarm == 19;
+    }
+
+    private static int resolveCalibratedAlertCode(float glucoseValue, float rate) {
+        if (!Float.isFinite(glucoseValue) || glucoseValue <= 0f) {
+            return 0;
+        }
+
+        if (Natives.hasalarmveryhigh() && glucoseValue > Natives.alarmveryhigh()) {
+            return 16;
+        }
+        if (Natives.hasalarmhigh() && glucoseValue > Natives.alarmhigh()) {
+            return 6;
+        }
+        if (Natives.hasalarmverylow() && glucoseValue < Natives.alarmverylow()) {
+            return 17;
+        }
+        if (Natives.hasalarmlow() && glucoseValue < Natives.alarmlow()) {
+            return 7;
+        }
+
+        final float projected = glucoseValue + rate * 0.4f * 180.0f;
+        if (Natives.hasalarmprelow() && projected < Natives.alarmprelow()) {
+            return 19;
+        }
+        if (Natives.hasalarmprehigh() && projected > Natives.alarmprehigh()) {
+            return 18;
+        }
+        return 0;
+    }
+
+    private static int reconcileAlertCodeWithCalibratedValue(int existingAlarm, float glucoseValue, float rate) {
+        final int calibratedAlarm = resolveCalibratedAlertCode(glucoseValue, rate);
+        if (calibratedAlarm != 0) {
+            return calibratedAlarm;
+        }
+        if (isStandardGlucoseAlertCode(existingAlarm)) {
+            return 0;
+        }
+        return existingAlarm;
+    }
+
     static void dowithglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,
             long sensorstartmsec, long showtime, int sensorgen) {
 
@@ -645,6 +689,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             // Apply Kotlin calibration if enabled
             glucoseToUse = CalibrationManager.INSTANCE.getCalibratedValue(glucoseToUse, timmsec, isRawMode);
             mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
+            alarm = reconcileAlertCodeWithCalibratedValue(alarm, glucoseToUse, rate);
 
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
                     sensorgen);

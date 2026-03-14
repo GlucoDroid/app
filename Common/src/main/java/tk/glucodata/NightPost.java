@@ -87,7 +87,14 @@ private static void patch() {
       }
 
 static String getstring(HttpURLConnection con)  throws IOException{
-    try(BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+    var stream = con.getErrorStream();
+    if(stream == null) {
+        stream = con.getInputStream();
+    }
+    if(stream == null) {
+        return "";
+    }
+    try(BufferedReader in = new BufferedReader(new InputStreamReader(stream))) {
         StringBuffer response = new StringBuffer();
         String inputLine;
         while ((inputLine = in.readLine()) != null) {

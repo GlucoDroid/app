@@ -1189,6 +1189,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_upload_active">Завантаження у фоновому режимі</string>
     <string name="nightscout_upload_paused">Завантаження призупинено</string>
     <string name="nightscout_upload_options_title">Параметри завантаження</string>
+    <string name="nightscout_status_never">Ніколи</string>
+    <string name="nightscout_status_paused">Завантаження призупинено</string>
+    <string name="nightscout_status_waiting">Очікування наступного завантаження</string>
+    <string name="nightscout_status_running">Завантаження триває</string>
+    <string name="nightscout_status_retry_in">Повтор через %1$d хв</string>
+    <string name="nightscout_status_response_ok">Остання відповідь: HTTP %1$d</string>
+    <string name="nightscout_status_response_error">Остання відповідь: HTTP %1$d</string>
+    <string name="nightscout_status_response_404">Остання відповідь: HTTP 404, endpoint не збігається</string>
+    <string name="nightscout_status_response_413">Остання відповідь: HTTP 413, завеликий payload</string>
+    <string name="nightscout_status_last_attempt">Остання спроба: %1$s</string>
+    <string name="nightscout_status_last_success">Останній успіх: %1$s</string>
     <string name="nightscout_sync_actions_title">Дії синхронізації</string>
     <string name="expand_action">Розгорнути</string>
     <string name="collapse_action">Згорнути</string>
