@@ -78,4 +78,8 @@ class AiDexCommandBuilder(private val keyExchange: AiDexKeyExchange) {
 
     /** Alias for [reset] — used by AiDexBleManager.resetSensor(). */
     fun resetSensor() = reset()
+
+    fun clearStorage() = buildEncrypted(AiDexOpcodes.CLEAR_STORAGE)
+
+    fun shelfMode() = buildEncrypted(AiDexOpcodes.SHELF_MODE)
 }

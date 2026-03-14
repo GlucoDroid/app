@@ -173,6 +173,15 @@ class AiDexBleManager(
         prefs.edit().putInt(prefKey(name), value).apply()
     }
 
+    private fun readBoolPref(name: String, default: Boolean): Boolean {
+        val key = prefKey(name)
+        return if (prefs.contains(key)) prefs.getBoolean(key, default) else default
+    }
+
+    private fun writeBoolPref(name: String, value: Boolean) {
+        prefs.edit().putBoolean(prefKey(name), value).apply()
+    }
+
     // -- History State --
     @Volatile private var historyDownloading = false
     private var historyRawNextIndex = 0
@@ -182,6 +191,13 @@ class AiDexBleManager(
     private var historyDownloadStartIndex = 0  // snapshot of starting index for progress display
     private var historyPhase: HistoryPhase = HistoryPhase.IDLE
 
+    // -- Post-Reset Activation Flag --
+    // Set true by resetSensor(). When the post-reset reconnect reads CGM Session
+    // Start Time and finds all-zeros (sensor uninitialized), automatically sends
+    // SET_NEW_SENSOR (0x20) to re-activate. Persisted to SharedPreferences so it
+    // survives driver instance recreation.
+    @Volatile private var needsPostResetActivation: Boolean = false
+
     init {
         // Restore persisted history offsets so reconnects only download new data.
         // Matches the vendor driver's Edit 47 approach (SharedPreferences persistence).
@@ -189,6 +205,12 @@ class AiDexBleManager(
         historyBriefNextIndex = readIntPref("historyBriefNextIndex", 0)
         if (historyRawNextIndex > 0 || historyBriefNextIndex > 0) {
             Log.i(TAG, "Restored history offsets: raw=$historyRawNextIndex, brief=$historyBriefNextIndex")
+        }
+        // Restore post-reset activation flag — survives driver instance recreation
+        // (e.g., finish/unfinish sensor cycle that creates a new AiDexBleManager)
+        needsPostResetActivation = readBoolPref("needsPostResetActivation", false)
+        if (needsPostResetActivation) {
+            Log.i(TAG, "Restored needsPostResetActivation=true from prefs — will auto-activate on next connect")
         }
     }
 
@@ -235,6 +257,12 @@ class AiDexBleManager(
     // pipeline already stored them. Matches vendor driver's
     // vendorHistoryAutoUpdateCutoff mechanism.
     @Volatile private var liveOffsetCutoff: Int = 0
+
+    // -- Reset Reconnect Flag --
+    // Set true BEFORE sending reset command. When disconnect arrives with this
+    // flag set, the driver removes the stale BLE bond, clears key exchange,
+    // waits for the sensor to reboot, and auto-reconnects.
+    @Volatile private var pendingResetReconnect: Boolean = false
 
     // -- AiDexDriver State --
     @Volatile private var _batteryMillivolts: Int = 0
@@ -430,7 +458,42 @@ class AiDexBleManager(
             }
 
             // Schedule reconnect — but NOT if paused (stop=true) or broadcast-only
-            if (stop) {
+            if (pendingResetReconnect) {
+                // Post-reset reconnect: sensor cleared its bond table + storage.
+                // We must: remove stale BLE bond, clear key exchange, wait for
+                // sensor reboot, then auto-reconnect fresh.
+                pendingResetReconnect = false
+                Log.i(TAG, "===== POST-RESET RECONNECT — removing bond, will reconnect in 5s =====")
+
+                // Clear crypto state — will re-derive on next connection
+                keyExchange.reset()
+
+                // Capture device ref before closing GATT
+                val device = mBluetoothGatt?.device
+
+                // Remove stale Android BLE bond via reflection
+                try {
+                    if (device?.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED) {
+                        val removeBond = device.javaClass.getMethod("removeBond")
+                        removeBond.invoke(device)
+                        Log.i(TAG, "Post-reset: BLE bond removed")
+                    }
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Post-reset: removeBond failed: ${t.message}")
+                }
+
+                close()
+
+                // Reset reconnect counters so the fresh connect uses clean backoff
+                reconnect.reset()
+
+                // Delay 5 seconds for sensor to finish rebooting, then reconnect
+                handler.postDelayed({
+                    Log.i(TAG, "Post-reset: attempting auto-reconnect after 5s delay")
+                    stop = false
+                    connectDevice(0)
+                }, 5_000L)
+            } else if (stop) {
                 Log.i(TAG, "Paused (stop=true) — not scheduling reconnect")
                 close()
             } else if (!reconnect.isBroadcastOnlyMode) {
@@ -647,6 +710,20 @@ class AiDexBleManager(
             Log.i(TAG, "CGM Session Start: $year-$month-$day $hour:$minute:$second TZ=${tz * 15}min DST=$dst")
         } else {
             Log.i(TAG, "CGM Session Start: $year-$month-$day $hour:$minute:$second (no TZ)")
+        }
+
+        // Detect uninitialized sensor (all-zeros start time after reset)
+        if (year == 0 && month == 0 && day == 0 && hour == 0 && minute == 0 && second == 0) {
+            Log.i(TAG, "CGM Session Start: all zeros — sensor is uninitialized")
+            if (needsPostResetActivation) {
+                needsPostResetActivation = false
+                writeBoolPref("needsPostResetActivation", false)
+                Log.i(TAG, "Post-reset: auto-activating sensor with SET_NEW_SENSOR (0x20)")
+                startNewSensor()
+                // Re-read session start time after a delay so we pick up the new activation time
+                handler.postDelayed({ readCGMSessionCharacteristics() }, 2_000L)
+            }
+            return
         }
 
         // Construct timestamp
@@ -1197,6 +1274,9 @@ class AiDexBleManager(
             0x27 -> handleCalibrationResponse(plaintext)
             0x11 -> handleBroadcastDataResponse(plaintext)
             0x20 -> handleNewSensorAck(plaintext)
+            0xF3 -> handleClearStorageResponse(plaintext)
+            0xF0 -> handleResetResponse(plaintext)
+            0xF2 -> handleDeleteBondResponse(plaintext)
             else -> {
                 // AUTO_UPDATE_CALIBRATION detection: sensor pushes unsolicited calibration
                 // data with an unknown opcode. Heuristic: valid CRC, size >= 12 (opcode +
@@ -1670,6 +1750,43 @@ class AiDexBleManager(
         if (data.size < 2) return
         val statusByte = data[1].toInt() and 0xFF
         Log.i(TAG, "New sensor ACK: status=0x${"%02X".format(statusByte)}")
+    }
+
+    /**
+     * Handle CLEAR_STORAGE (0xF3) response.
+     * On success (status=0x00), send RESET (0xF0) as the second step of the reset sequence.
+     */
+    private fun handleClearStorageResponse(data: ByteArray) {
+        val status = if (data.size >= 2) data[1].toInt() and 0xFF else 0xFF
+        Log.i(TAG, "CLEAR_STORAGE response: status=0x${"%02X".format(status)}")
+        if (pendingResetReconnect) {
+            // Step 2: Now send RESET (0xF0)
+            Log.i(TAG, "CLEAR_STORAGE done — sending RESET (0xF0)")
+            val cmd = commandBuilder.reset()
+            if (cmd != null) {
+                enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+            } else {
+                Log.e(TAG, "Cannot send RESET: session key unavailable")
+            }
+        }
+    }
+
+    /**
+     * Handle RESET (0xF0) response.
+     * The sensor will disconnect shortly after this. The disconnect handler
+     * checks pendingResetReconnect to perform bond removal + delayed reconnect.
+     */
+    private fun handleResetResponse(data: ByteArray) {
+        val status = if (data.size >= 2) data[1].toInt() and 0xFF else 0xFF
+        Log.i(TAG, "RESET response: status=0x${"%02X".format(status)} — sensor will disconnect shortly")
+    }
+
+    /**
+     * Handle DELETE_BOND (0xF2) response.
+     */
+    private fun handleDeleteBondResponse(data: ByteArray) {
+        val status = if (data.size >= 2) data[1].toInt() and 0xFF else 0xFF
+        Log.i(TAG, "DELETE_BOND response: status=0x${"%02X".format(status)}")
     }
 
     // =========================================================================
@@ -2312,11 +2429,31 @@ class AiDexBleManager(
     }
 
     override fun resetSensor(): Boolean {
-        Log.i(TAG, "resetSensor: sending reset (0xF0) for $SerialNumber")
-        val cmd = commandBuilder.resetSensor() ?: run {
+        Log.i(TAG, "resetSensor: CLEAR_STORAGE (0xF3) then RESET (0xF0) for $SerialNumber")
+
+        // Step 0: Build CLEAR_STORAGE command (requires session key)
+        val cmd = commandBuilder.clearStorage() ?: run {
             Log.e(TAG, "resetSensor: session key not available")
             return false
         }
+
+        // Reset history indices — new sensor means history starts from scratch
+        historyRawNextIndex = 0
+        historyBriefNextIndex = 0
+        writeIntPref("historyRawNextIndex", 0)
+        writeIntPref("historyBriefNextIndex", 0)
+        liveOffsetCutoff = 0
+        Log.i(TAG, "resetSensor: history indices reset to 0")
+
+        // Set flags BEFORE sending commands — the disconnect handler checks pendingResetReconnect,
+        // and handleCGMSessionStartTime checks needsPostResetActivation on the next connection
+        pendingResetReconnect = true
+        needsPostResetActivation = true
+        writeBoolPref("needsPostResetActivation", true)
+
+        // Step 1: Send CLEAR_STORAGE (0xF3)
+        // Step 2 (RESET 0xF0) is sent from handleClearStorageResponse() when
+        // the sensor acknowledges the clear.
         enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
         return true
     }
