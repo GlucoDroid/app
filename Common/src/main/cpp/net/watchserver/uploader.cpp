@@ -2,6 +2,7 @@
 //#ifndef WEAROS
 #include <jni.h>
 #include <atomic>
+#include <cctype>
 #include <ctime>
 #include <memory>
 #include <string>
@@ -38,11 +39,13 @@ jstring jnightuploadEntries3url=nullptr;
 jstring jnightuploadTreatmentsurl=nullptr;
 jstring jnightuploadTreatments3url=nullptr;
 jstring jnightuploadsecret= nullptr;
+jclass nightscoutcalibrationclass=nullptr;
 static int lastNightUploadCode = 0;
 static std::atomic<int> lastNightUploadResponseCode{0};
 static std::atomic<long long> lastNightUploadAttemptTime{0};
 static std::atomic<long long> lastNightUploadSuccessTime{0};
 static std::atomic<int> lastNightUploadWaitMinutes{0};
+static bool lastNightUploadConfigError = false;
 /*
 void makeuploadurl(JNIEnv *env) {
         const int namelen=settings->data()->nightuploadnamelen;
@@ -57,10 +60,54 @@ void makeuploadurl(JNIEnv *env) {
         jnightuploadEntriesurl=  (jstring)env->NewGlobalRef(local);
         env->DeleteLocalRef(local);
         } */
-static void makeuploadurl(JNIEnv *env,std::string_view pathstr,jstring &url) {
+static bool hasScheme(std::string_view text) {
+    return text.rfind("http://", 0) == 0 || text.rfind("https://", 0) == 0;
+    }
+
+static int normalizeNightscoutBaseUrl(char *dest, int destsize, const char *src, int srclen) {
+    if(!dest || destsize <= 0) {
+        return 0;
+        }
+    if(!src || srclen <= 0) {
+        dest[0]='\0';
+        return 0;
+        }
+    const char *start=src;
+    const char *end=src+srclen;
+    while(start<end && isspace(static_cast<unsigned char>(*start)))
+        ++start;
+    while(end>start && isspace(static_cast<unsigned char>(end[-1])))
+        --end;
+    std::string normalized(start,end-start);
+    if(normalized.empty()) {
+        dest[0]='\0';
+        return 0;
+        }
+    if(!hasScheme(normalized)) {
+        normalized.insert(0,"https://");
+        }
+    while(!normalized.empty() && normalized.back()=='/')
+        normalized.pop_back();
+    const auto entriespos=normalized.find("/api/");
+    if(entriespos!=std::string_view::npos)
+        normalized.resize(entriespos);
+    int len=std::min<int>(normalized.size(),destsize-1);
+    memcpy(dest,normalized.data(),len);
+    dest[len]='\0';
+    return len;
+    }
+
+static bool makeuploadurl(JNIEnv *env,std::string_view pathstr,jstring &url) {
 
         const int namelen=settings->data()->nightuploadnamelen;
         const char *name=settings->data()->nightuploadname;
+        if(namelen<=0 || !hasScheme(std::string_view(name,namelen))) {
+            if(url) {
+                env->DeleteGlobalRef(url);
+                url=nullptr;
+                }
+            return false;
+            }
         char fullname[namelen+pathstr.size()+1];
         memcpy(fullname,name,namelen);
         memcpy(fullname+namelen,pathstr.data(),pathstr.size()+1);
@@ -70,12 +117,32 @@ static void makeuploadurl(JNIEnv *env,std::string_view pathstr,jstring &url) {
             env->DeleteGlobalRef(url);
         url=  (jstring)env->NewGlobalRef(local);
         env->DeleteLocalRef(local);
+        return true;
         }
-static void makeuploadurls(JNIEnv *env) {
-    makeuploadurl(env,R"(/api/v1/entries)",jnightuploadEntriesurl);
-    makeuploadurl(env,R"(/api/v3/entries)",jnightuploadEntries3url);
-    makeuploadurl(env,R"(/api/v1/treatments)",jnightuploadTreatmentsurl);
-    makeuploadurl(env,R"(/api/v3/treatments)",jnightuploadTreatments3url);
+static bool makeuploadurls(JNIEnv *env) {
+    const bool entriesv1=makeuploadurl(env,R"(/api/v1/entries)",jnightuploadEntriesurl);
+    const bool entriesv3=makeuploadurl(env,R"(/api/v3/entries)",jnightuploadEntries3url);
+    const bool treatmentsv1=makeuploadurl(env,R"(/api/v1/treatments)",jnightuploadTreatmentsurl);
+    const bool treatmentsv3=makeuploadurl(env,R"(/api/v3/treatments)",jnightuploadTreatments3url);
+    return entriesv1&&entriesv3&&treatmentsv1&&treatmentsv3;
+    }
+
+static bool ensureNightscoutBaseUrl() {
+    char normalized[sizeof(settings->data()->nightuploadname)]{};
+    const int len=normalizeNightscoutBaseUrl(
+        normalized,
+        sizeof(normalized),
+        settings->data()->nightuploadname,
+        settings->data()->nightuploadnamelen
+    );
+    if(len<=0)
+        return false;
+    if(len!=settings->data()->nightuploadnamelen || memcmp(normalized,settings->data()->nightuploadname,len)!=0) {
+        memcpy(settings->data()->nightuploadname,normalized,len+1);
+        settings->data()->nightuploadnamelen=len;
+        settings->updated();
+        }
+    return true;
     }
 
 extern std::string sha1encode(const char *secret, int len);
@@ -97,6 +164,12 @@ static void makeuploadsecret(JNIEnv *env) {
 bool inituploader(JNIEnv *env) {
     if(!settings->data()->nightuploadon)  
         return false;
+    if(!ensureNightscoutBaseUrl()) {
+        lastNightUploadCode = -2;
+        lastNightUploadResponseCode = -2;
+        lastNightUploadConfigError = true;
+        return false;
+        }
     if(nightpostclass==nullptr) {
         constexpr const char nightpostclassstr[]="tk/glucodata/NightPost";
         if(jclass cl=env->FindClass(nightpostclassstr)) {
@@ -109,13 +182,55 @@ bool inituploader(JNIEnv *env) {
             return false;
             }
         }
+    if(nightscoutcalibrationclass==nullptr) {
+        constexpr const char calibrationclassstr[]="tk/glucodata/NightscoutCalibration";
+        if(jclass cl=env->FindClass(calibrationclassstr)) {
+            nightscoutcalibrationclass=(jclass)env->NewGlobalRef(cl);
+            env->DeleteLocalRef(cl);
+            }
+        }
     makeuploadsecret(env); 
-    makeuploadurls(env);
-extern void startuploaderthread();
+    if(!makeuploadurls(env)) {
+        lastNightUploadCode = -2;
+        lastNightUploadResponseCode = -2;
+        lastNightUploadConfigError = true;
+        LOGSTRING("Nightscout uploader disabled until URL is valid\n");
+        return false;
+        }
+    extern void startuploaderthread();
     startuploaderthread();
     LOGAR("end inituploader");
     return true;
        }
+
+static int getNightscoutCalibrationOverrideForItem(SensorGlucoseData *sens,const char *sensorname,int autoMgdl,int rawCurrent,long long timestampMillis) {
+    if(nightscoutcalibrationclass==nullptr)
+        return 0;
+    auto env=getenv();
+    if(env==nullptr)
+        return 0;
+    const static jmethodID nightscoutCalibrationOverride = env->GetStaticMethodID(
+        nightscoutcalibrationclass,
+        "getNightscoutCalibrationOverride",
+        "(Ljava/lang/String;IIIJ)I"
+    );
+    if(nightscoutCalibrationOverride==nullptr)
+        return 0;
+    auto jsensor=env->NewStringUTF(sensorname);
+    const auto *info=sens->getinfo();
+    const int viewMode=info?info->viewMode:0;
+    const int overrideValue=env->CallStaticIntMethod(
+        nightscoutcalibrationclass,
+        nightscoutCalibrationOverride,
+        jsensor,
+        viewMode,
+        autoMgdl,
+        rawCurrent,
+        timestampMillis
+    );
+    env->DeleteLocalRef(jsensor);
+    return overrideValue;
+    }
 
 //static boolean upload(String httpurl,byte[] postdata,String secret) ;
 extern vector<Numdata*> numdatas;
@@ -132,6 +247,12 @@ static void reset() {
         numdata->setNightSend(0);
     }
 static int nightupload(jstring jnightuploadurl,const char *data,int len,bool put) {
+    if(jnightuploadurl==nullptr) {
+        lastNightUploadCode = -2;
+        lastNightUploadResponseCode = -2;
+        lastNightUploadConfigError = true;
+        return -2;
+        }
     const static jmethodID  upload=getenv()->GetStaticMethodID(nightpostclass,"upload","(Ljava/lang/String;[BLjava/lang/String;Z)I");
     auto env=getenv();
     jbyteArray uit=env->NewByteArray(len);
@@ -140,8 +261,10 @@ static int nightupload(jstring jnightuploadurl,const char *data,int len,bool put
     int res=env->CallStaticIntMethod(nightpostclass,upload,jnightuploadurl,uit,jnightuploadsecret,put);
     lastNightUploadCode = res;
     lastNightUploadResponseCode = res;
+    lastNightUploadConfigError = (res==-2);
     if(res==HTTP_OK || res==201) {
         lastNightUploadSuccessTime = static_cast<long long>(time(nullptr));
+        lastNightUploadConfigError = false;
     }
     LOGGER("nightupload=%d\n",res);
     env->DeleteLocalRef(uit);
@@ -170,7 +293,12 @@ extern std::string_view getdeltaname(float change);
 template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const char *sensorname,const T &item) {
     const time_t tim=item.gettime();
     int mgdL;
-    if(double calibrated=calibrateONEtest(sens,item);!isnan(calibrated)) {
+    const int rawCurrent=sens->getRawForPoll(&item);
+    const int overrideValue=getNightscoutCalibrationOverrideForItem(sens,sensorname,item.getmgdL(),rawCurrent,tim*1000LL);
+    if(overrideValue>0) {
+        mgdL=overrideValue;
+         }
+    else if(double calibrated=calibrateONEtest(sens,item);!isnan(calibrated)) {
         mgdL=(int)round(calibrated);
          }
     else
@@ -239,7 +367,19 @@ static bool uploadCGM3() {
 extern char * writev3entry(char *outin,const ScanData *val, const sensorname_t *sensorname,bool server=true);
 
                         const char *ptr;
-                        if(double calibrated=calibrateONEtest(sens,*el);!isnan(calibrated)) {
+                        const int overrideValue=getNightscoutCalibrationOverrideForItem(
+                            sens,
+                            sensorname->data(),
+                            el->getmgdL(),
+                            sens->getRawForPoll(el),
+                            el->gettime()*1000LL
+                        );
+                        if(overrideValue>0) {
+                            ScanData newel=*el;
+                            newel.g=overrideValue;
+                            ptr=writev3entry(buf,&newel, sensorname,false);
+                             }
+                        else if(double calibrated=calibrateONEtest(sens,*el);!isnan(calibrated)) {
                             ScanData newel=*el;
                             newel.g=(int32_t)round(calibrated);
                             ptr=writev3entry(buf,&newel, sensorname,false);
@@ -419,7 +559,7 @@ static void uploaderthread() {
                 uploaded = uploadCGM3();
             }
             if(!uploaded) {
-                waitmin=15;
+                waitmin=lastNightUploadConfigError?0:15;
                 lastNightUploadWaitMinutes = waitmin;
                 continue;
                 }
@@ -437,7 +577,7 @@ static void uploaderthread() {
                 treatmentsOk = uploadtreatments(true);
             }
             if(!treatmentsOk) {
-                waitmin=15;
+                waitmin=lastNightUploadConfigError?0:15;
                 lastNightUploadWaitMinutes = waitmin;
                 continue;
                 }
@@ -450,7 +590,10 @@ static void uploaderthread() {
 void startuploaderthread();
 void wakeuploader() {
     if(!uploaderrunning && settings->data()->nightuploadon) {
-        startuploaderthread();
+        auto env=getenv();
+        if(env && inituploader(env)) {
+            lastNightUploadConfigError = false;
+            }
     }
     if(uploaderrunning) {
         lastNightUploadWaitMinutes = 0;

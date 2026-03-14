@@ -1189,6 +1189,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_status_retry_in">Retry scheduled in %1$d min</string>
     <string name="nightscout_status_response_ok">Last response: HTTP %1$d</string>
     <string name="nightscout_status_response_error">Last response: HTTP %1$d</string>
+    <string name="nightscout_status_response_invalid_url">Last response: invalid Nightscout URL</string>
     <string name="nightscout_status_response_404">Last response: HTTP 404, endpoint mismatch detected</string>
     <string name="nightscout_status_response_413">Last response: HTTP 413, payload too large</string>
     <string name="nightscout_status_last_attempt">Last attempt: %1$s</string>

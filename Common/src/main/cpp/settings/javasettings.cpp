@@ -21,6 +21,7 @@
 #include "settings.hpp"
 #include <algorithm>
 #include <cinttypes>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <jni.h>
@@ -1617,6 +1618,45 @@ extern "C" JNIEXPORT jstring JNICALL fromjava(getnightuploadsecret)(JNIEnv *env,
   return myNewStringUTF(env, settings->data()->nightuploadsecret);
 }
 extern void enduploaderthread();
+static int normalizeNightscoutBaseUrl(char *dest, int destsize, const char *src,
+                                      int srclen) {
+  if (!dest || destsize <= 0) {
+    return 0;
+  }
+  if (!src || srclen <= 0) {
+    dest[0] = '\0';
+    return 0;
+  }
+  const char *start = src;
+  const char *end = src + srclen;
+  while (start < end && std::isspace(static_cast<unsigned char>(*start))) {
+    ++start;
+  }
+  while (end > start && std::isspace(static_cast<unsigned char>(end[-1]))) {
+    --end;
+  }
+  std::string normalized(start, end - start);
+  if (normalized.empty()) {
+    dest[0] = '\0';
+    return 0;
+  }
+  if (normalized.rfind("http://", 0) != 0 &&
+      normalized.rfind("https://", 0) != 0) {
+    normalized.insert(0, "https://");
+  }
+  while (!normalized.empty() && normalized.back() == '/') {
+    normalized.pop_back();
+  }
+  const auto apiPos = normalized.find("/api/");
+  if (apiPos != std::string::npos) {
+    normalized.resize(apiPos);
+  }
+  const int len = std::min<int>(normalized.size(), destsize - 1);
+  memcpy(dest, normalized.data(), len);
+  dest[len] = '\0';
+  return len;
+}
+
 extern "C" JNIEXPORT void JNICALL
 fromjava(setNightUploader)(JNIEnv *env, jclass cl, jstring jurl,
                            jstring jsecret, jboolean active, jboolean v3) {
@@ -1624,15 +1664,17 @@ fromjava(setNightUploader)(JNIEnv *env, jclass cl, jstring jurl,
   if (jurl != nullptr) {
     int maxurllen = sizeof(settings->data()->nightuploadname) - 1;
     char *name = settings->data()->nightuploadname;
+    char rawname[sizeof(settings->data()->nightuploadname)]{};
     jint jlen = env->GetStringLength(jurl);
     if (jlen >= maxurllen)
       jlen = maxurllen;
-    env->GetStringUTFRegion(jurl, 0, jlen, name);
+    env->GetStringUTFRegion(jurl, 0, jlen, rawname);
     int len = env->GetStringUTFLength(jurl);
     if (len >= maxurllen)
       len = maxurllen;
-    name[len] = '\0';
-    settings->data()->nightuploadnamelen = len;
+    rawname[len] = '\0';
+    settings->data()->nightuploadnamelen =
+        normalizeNightscoutBaseUrl(name, maxurllen + 1, rawname, len);
   }
   if (jsecret != nullptr) {
     int maxsecretlen = sizeof(settings->data()->nightuploadsecret) - 1;

@@ -124,6 +124,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
     val responseSummary = when {
         !isActive -> context.getString(R.string.nightscout_status_paused)
         lastResponseCode == 0 && lastAttemptTime <= 0L -> context.getString(R.string.nightscout_status_waiting)
+        lastResponseCode == -2 -> context.getString(R.string.nightscout_status_response_invalid_url)
         lastResponseCode in 200..299 -> context.getString(R.string.nightscout_status_response_ok, lastResponseCode)
         lastResponseCode == 404 -> context.getString(R.string.nightscout_status_response_404)
         lastResponseCode == 413 -> context.getString(R.string.nightscout_status_response_413)

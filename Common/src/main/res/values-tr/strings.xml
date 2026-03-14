@@ -1210,6 +1210,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="nightscout_status_retry_in">%1$d dk sonra yeniden denenecek</string>
     <string name="nightscout_status_response_ok">Son yanıt: HTTP %1$d</string>
     <string name="nightscout_status_response_error">Son yanıt: HTTP %1$d</string>
+    <string name="nightscout_status_response_invalid_url">Last response: invalid Nightscout URL</string>
     <string name="nightscout_status_response_404">Son yanıt: HTTP 404, uç nokta eşleşmiyor</string>
     <string name="nightscout_status_response_413">Son yanıt: HTTP 413, yük çok büyük</string>
     <string name="nightscout_status_last_attempt">Son deneme: %1$s</string>

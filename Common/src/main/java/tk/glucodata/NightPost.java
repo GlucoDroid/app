@@ -75,6 +75,7 @@ import tk.glucodata.settings.LibreNumbers;
 
 public class NightPost  {
     private static final String LOG_ID="NightPost";
+    private static final int ERROR_INVALID_URL = -2;
 
 private static void patch() {
       try {
@@ -234,6 +235,13 @@ static public int upload(String httpurl,byte[] postdata,String secret,boolean pu
     uploadtime=System.currentTimeMillis();
     {if(doLog) {Log.i(LOG_ID,"upload("+httpurl+",#"+postdata.length+","+ secret+","+(put?"PUT":"POST")+")");};};
     try {
+
+      if(httpurl==null || !(httpurl.startsWith("https://") || httpurl.startsWith("http://"))) {
+        final String invalid="upload failure:\nInvalid Nightscout URL: "+httpurl;
+        uploadstatus=invalid;
+        Log.e(LOG_ID,invalid);
+        return ERROR_INVALID_URL;
+      }
 
       uploadstatus="start upload "+httpurl;
         URL url = new URL(httpurl);

@@ -1220,6 +1220,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="nightscout_status_retry_in">Nächster Versuch in %1$d Min.</string>
     <string name="nightscout_status_response_ok">Letzte Antwort: HTTP %1$d</string>
     <string name="nightscout_status_response_error">Letzte Antwort: HTTP %1$d</string>
+    <string name="nightscout_status_response_invalid_url">Last response: invalid Nightscout URL</string>
     <string name="nightscout_status_response_404">Letzte Antwort: HTTP 404, Endpunkt stimmt nicht</string>
     <string name="nightscout_status_response_413">Letzte Antwort: HTTP 413, Nutzlast zu groß</string>
     <string name="nightscout_status_last_attempt">Letzter Versuch: %1$s</string>

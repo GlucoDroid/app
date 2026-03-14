@@ -1217,6 +1217,7 @@
     <string name="nightscout_status_retry_in">Ponowna próba za %1$d min</string>
     <string name="nightscout_status_response_ok">Ostatnia odpowiedź: HTTP %1$d</string>
     <string name="nightscout_status_response_error">Ostatnia odpowiedź: HTTP %1$d</string>
+    <string name="nightscout_status_response_invalid_url">Last response: invalid Nightscout URL</string>
     <string name="nightscout_status_response_404">Ostatnia odpowiedź: HTTP 404, nieprawidłowy endpoint</string>
     <string name="nightscout_status_response_413">Ostatnia odpowiedź: HTTP 413, zbyt duży ładunek</string>
     <string name="nightscout_status_last_attempt">Ostatnia próba: %1$s</string>
