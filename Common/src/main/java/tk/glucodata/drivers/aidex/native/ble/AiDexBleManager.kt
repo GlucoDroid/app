@@ -509,8 +509,9 @@ class AiDexBleManager(
                     } else {
                         Log.w(TAG, "Auth failures exhausted — broadcast-only fallback")
                         close()
-                        constatstatusstr = "Pairing failed"
-                        // Start broadcast scanning as fallback
+                        constatstatusstr = "Pairing failed — Broadcast Only"
+                        // Transition to broadcast-only mode
+                        reconnect.isBroadcastOnlyMode = true
                         handler.post { startBroadcastScan("auth-failure-fallback") }
                     }
                     return
@@ -1866,7 +1867,10 @@ class AiDexBleManager(
             }
             keyExchange.reset()
             softDisconnect()
-            constatstatusstr = "Unpaired"
+            constatstatusstr = "Unpaired — Broadcast Only"
+            // Transition to broadcast-only mode so user keeps getting data
+            reconnect.isBroadcastOnlyMode = true
+            handler.post { startBroadcastScan("post-unpair") }
         }
     }
 
