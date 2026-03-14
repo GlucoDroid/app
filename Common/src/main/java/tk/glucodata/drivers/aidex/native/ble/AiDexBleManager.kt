@@ -99,7 +99,7 @@ class AiDexBleManager(
         private const val MAX_VALID_GLUCOSE_MGDL = 500
         private const val MAX_OFFSET_DAYS = 30
         private const val WARMUP_DURATION_MS = 10L * 60_000L  // 10 minutes (matches AiDex sensor warmup)
-        private const val HISTORY_SYNC_BATCH_SIZE = 500  // sync to Room every N entries
+        private const val HISTORY_SYNC_BATCH_SIZE = 2000  // progressive sync to Room every N entries
     }
 
     // -- Protocol Objects --
@@ -258,6 +258,9 @@ class AiDexBleManager(
     // merges with calibrated glucose when storing.
     // Our wire format is swapped: 0x23 = calibrated, 0x24 = raw ADC.
     private val calibratedGlucoseCache = HashMap<Int, Int>()
+    // Fallback glucose for 0x24 entries without an exact 0x23 offset match.
+    // Carried across pages so edge-of-page entries still get a valid glucose.
+    private var lastCalibratedGlucoseFallback: Int? = null
 
     // -- F003 Live Data --
     private var lastGlucoseTimeMs: Long = 0L
@@ -472,6 +475,7 @@ class AiDexBleManager(
 
             // Clear per-connection caches and state (bugs #6, #7, #12, #13)
             calibratedGlucoseCache.clear()
+            lastCalibratedGlucoseFallback = null
             lastOffsetMinutes = 0
             liveOffsetCutoff = 0
             deviceInfoRetryCount = 0
@@ -1220,6 +1224,15 @@ class AiDexBleManager(
                 )
                 handleGlucoseResult(res, now)
 
+                // Clear "Connected" from notification — the glucose value itself is now
+                // the notification's primary content. Matches vendor driver behavior:
+                // AiDexSensor.kt:6745 deliberately avoids updating constatstatusstr during
+                // normal operation to prevent notification flicker. Setting to "" hides the
+                // status line entirely so only the glucose value is shown.
+                if (constatstatusstr == "Connected") {
+                    constatstatusstr = ""
+                }
+
                 // Sync to Room DB for Compose chart
                 tk.glucodata.data.HistorySync.syncFromNative()
             } catch (e: UnsatisfiedLinkError) {
@@ -1602,35 +1615,10 @@ class AiDexBleManager(
             Log.i(TAG, "History raw (0x23): ${entries.size} entries, offsets ${entries.first().timeOffsetMinutes}..${entries.last().timeOffsetMinutes}")
             onCalibratedHistory?.invoke(entries)
 
-            // Cache 0x23 calibrated glucose by offset.
+            // Cache 0x23 calibrated glucose by offset using extracted helper.
             // DO NOT store yet — wait for 0x24 to provide raw ADC data,
             // then store BOTH together in a single aidexProcessData call.
-            // This matches the vendor driver's approach (cache raw by offset,
-            // merge when brief history arrives).
-            //
-            // Skip the LAST entry of each page: it's a control/calibration value
-            // embedded by the sensor, not a real glucose reading. These cause
-            // spikes (e.g., 88→366→85) at every 120th offset.
-            var cached = 0
-            var skipped = 0
-            val lastIdx = entries.size - 1
-            for ((idx, entry) in entries.withIndex()) {
-                if (entry.isSentinel) { skipped++; continue }
-                if (idx == lastIdx && entries.size >= 120) {
-                    // Last entry of a full page — likely a control value.
-                    // Verify by checking if it deviates significantly from neighbors.
-                    val prevGlucose = if (idx > 0) entries[idx - 1].glucoseMgDl else entry.glucoseMgDl
-                    val deviation = kotlin.math.abs(entry.glucoseMgDl - prevGlucose)
-                    if (deviation > 50) {
-                        Log.i(TAG, "0x23: skipping control value at offset ${entry.timeOffsetMinutes} " +
-                                "(glucose=${entry.glucoseMgDl}, prev=$prevGlucose, dev=$deviation)")
-                        skipped++
-                        continue
-                    }
-                }
-                calibratedGlucoseCache[entry.timeOffsetMinutes] = entry.glucoseMgDl
-                cached++
-            }
+            val (cached, skipped) = HistoryMerge.cacheCalibratedEntries(entries, calibratedGlucoseCache)
             Log.i(TAG, "0x23: cached $cached, skipped $skipped (cache size=${calibratedGlucoseCache.size})")
 
             historyRawNextIndex = entries.last().timeOffsetMinutes + 1
@@ -1665,24 +1653,13 @@ class AiDexBleManager(
             Log.i(TAG, "History brief (0x24): ${entries.size} entries, offsets ${entries.first().timeOffsetMinutes}..${entries.last().timeOffsetMinutes}")
             onAdcHistory?.invoke(entries)
 
-            // Merge 0x24 raw ADC data with cached 0x23 calibrated glucose.
-            // For each 0x24 entry, look up the corresponding 0x23 glucose by offset.
-            // Store BOTH glucose AND raw in a single aidexProcessData call.
-            // This matches the vendor driver's approach (storeHistoryRecord with both values).
-            var merged = 0
-            var rawOnly = 0
-            storeHistoryEntries(entries.map { entry ->
-                val cachedGlucose = calibratedGlucoseCache.remove(entry.timeOffsetMinutes)
-                if (cachedGlucose != null) merged++ else rawOnly++
-                HistoryStoreEntry(
-                    offsetMinutes = entry.timeOffsetMinutes,
-                    glucoseMgDl = cachedGlucose?.toFloat() ?: 0f,
-                    rawMgDl = entry.rawValue,  // i1 * 10, matches Android selectVendorRawLane()
-                    isValid = !(entry.i1 == 0f && entry.i2 == 0f && entry.vc == 0f),
-                )
-            })
+            // Merge 0x24 raw ADC data with cached 0x23 calibrated glucose using extracted helper.
+            val mergeResult = HistoryMerge.mergeHistoryEntries(entries, calibratedGlucoseCache, lastCalibratedGlucoseFallback)
+            storeHistoryEntries(mergeResult.entries)
+            // Persist the last known glucose for the next page
+            if (mergeResult.lastKnownGlucose != null) lastCalibratedGlucoseFallback = mergeResult.lastKnownGlucose
 
-            Log.i(TAG, "0x24: merged=$merged rawOnly=$rawOnly (cache remaining=${calibratedGlucoseCache.size})")
+            Log.i(TAG, "0x24: merged=${mergeResult.mergedCount} fallback=${mergeResult.fallbackCount} noGlucose=${mergeResult.noGlucoseCount} (cache remaining=${calibratedGlucoseCache.size})")
 
             historyBriefNextIndex = entries.last().timeOffsetMinutes + 1
             writeIntPref("historyBriefNextIndex", historyBriefNextIndex)
@@ -2171,15 +2148,7 @@ class AiDexBleManager(
     // Data Storage Helpers
     // =========================================================================
 
-    /**
-     * Lightweight container for history entries to store via aidexProcessData.
-     */
-    private data class HistoryStoreEntry(
-        val offsetMinutes: Int,
-        val glucoseMgDl: Float,
-        val rawMgDl: Float,
-        val isValid: Boolean,
-    )
+    // HistoryStoreEntry is now in data/HistoryMerge.kt for testability
 
     /**
      * Ensure sensorstartmsec is correct before storing data.
@@ -2274,8 +2243,8 @@ class AiDexBleManager(
             val glucoseInt = entry.glucoseMgDl.toInt()
             if (glucoseInt >= 1023 && entry.glucoseMgDl > 0f) continue
 
-            // Filter out-of-range calibrated values
-            if (entry.glucoseMgDl > 0f && glucoseInt !in MIN_VALID_GLUCOSE_MGDL..MAX_VALID_GLUCOSE_MGDL) continue
+            // Filter out-of-range calibrated values (matches vendor driver's MIN_VALID..MAX_VALID check)
+            if (glucoseInt !in MIN_VALID_GLUCOSE_MGDL..MAX_VALID_GLUCOSE_MGDL) continue
 
             // Compute timestamp
             val historicalTimeMs = sensorstartmsec + (entry.offsetMinutes.toLong() * 60_000L)
@@ -2301,10 +2270,16 @@ class AiDexBleManager(
                 break  // Don't keep hammering a broken JNI
             }
 
-            // Progressive sync to Room DB every HISTORY_SYNC_BATCH_SIZE entries
+            // Progressive sync to Room DB every HISTORY_SYNC_BATCH_SIZE entries.
+            // Uses forceFullSyncForSensor (DELETE + re-insert) to bypass the
+            // 30-second throttle in syncFromNative(), matching vendor driver Edit 73.
+            // This allows the chart to show data incrementally during large downloads
+            // instead of waiting until the entire history is fetched.
             if (historyStoredCount % HISTORY_SYNC_BATCH_SIZE == 0) {
                 try {
-                    tk.glucodata.data.HistorySync.syncFromNative()
+                    val bareSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
+                    tk.glucodata.data.HistorySync.forceFullSyncForSensor(bareSerial)
+                    Log.i(TAG, "Progressive sync at $historyStoredCount entries")
                 } catch (_: Throwable) {}
             }
         }
@@ -2327,6 +2302,7 @@ class AiDexBleManager(
             Log.i(TAG, "History complete: ${calibratedGlucoseCache.size} cached 0x23 entries had no matching 0x24")
             calibratedGlucoseCache.clear()
         }
+        lastCalibratedGlucoseFallback = null
 
         Log.i(TAG, "History download complete. Total entries stored: $historyStoredCount")
 
@@ -2583,6 +2559,7 @@ class AiDexBleManager(
         writeIntPref("historyBriefNextIndex", 0)
         liveOffsetCutoff = 0
         calibratedGlucoseCache.clear()
+        lastCalibratedGlucoseFallback = null
         Log.i(TAG, "startNewSensor: history indices and caches reset")
 
         val cal = Calendar.getInstance(TimeZone.getDefault())

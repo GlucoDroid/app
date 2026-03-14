@@ -4466,55 +4466,128 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                     val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
                     val unitLabel = if (isMmol) "mmol/L" else "mg/dL"
                     val calDateFormat = java.text.SimpleDateFormat("dd MMM HH:mm", java.util.Locale.getDefault())
+                    val calCount = sensor.vendorCalibrations.size
+                    val collapsible = calCount > 3
+                    var calExpanded by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+                    val visibleCals = if (collapsible && !calExpanded) {
+                        sensor.vendorCalibrations.takeLast(3)  // Show most recent 3
+                    } else {
+                        sensor.vendorCalibrations
+                    }
 
-//                    Text(
-//                        text = "Previous Calibrations",
-//                        style = MaterialTheme.typography.titleSmall,
-//                        color = MaterialTheme.colorScheme.onSurface,
-//                        modifier = Modifier.padding(bottom = 8.dp)
-//                    )
                     Surface(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         tonalElevation = 1.dp
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            sensor.vendorCalibrations.forEachIndexed { idx, cal ->
+                        Column(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .animateContentSize()
+                        ) {
+                            // Collapse/expand header when >3 calibrations
+                            if (collapsible) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { calExpanded = !calExpanded }
+                                        .padding(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "$calCount calibrations",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Icon(
+                                        imageVector = if (calExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = if (calExpanded) "Show less" else "Show all",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            visibleCals.forEachIndexed { idx, cal ->
                                 if (idx > 0) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(vertical = 4.dp),
                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                     )
                                 }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Glucose value
-                                    val displayGlucose = if (isMmol) {
-                                        String.format(java.util.Locale.getDefault(), "%.1f", cal.referenceGlucoseMgDl / 18.0182f)
-                                    } else {
-                                        cal.referenceGlucoseMgDl.toString()
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Glucose value with index badge
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            val displayGlucose = if (isMmol) {
+                                                String.format(java.util.Locale.getDefault(), "%.1f", cal.referenceGlucoseMgDl / 18.0182f)
+                                            } else {
+                                                cal.referenceGlucoseMgDl.toString()
+                                            }
+                                            Text(
+                                                text = "$displayGlucose $unitLabel",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            // Index badge
+                                            Surface(
+                                                shape = RoundedCornerShape(50),
+                                                color = MaterialTheme.colorScheme.primaryContainer,
+                                                modifier = Modifier.padding(start = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "#${cal.index}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                        // Timestamp or offset
+                                        val timeText = if (cal.timestampMs > 0) {
+                                            calDateFormat.format(java.util.Date(cal.timestampMs))
+                                        } else {
+                                            "${cal.timeOffsetMinutes}m"
+                                        }
+                                        Text(
+                                            text = timeText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
-                                    Text(
-                                        text = "$displayGlucose $unitLabel",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    // Timestamp or offset
-                                    val timeText = if (cal.timestampMs > 0) {
-                                        calDateFormat.format(java.util.Date(cal.timestampMs))
-                                    } else {
-                                        "${cal.timeOffsetMinutes}m"
+                                    // CF, Offset, @minutes — ported from iGlucco
+                                    Row(
+                                        modifier = Modifier.padding(top = 2.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Text(
+                                            text = "CF: ${"%.2f".format(cal.cf)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "Offset: ${"%.2f".format(cal.offset)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (cal.timeOffsetMinutes > 0) {
+                                            Text(
+                                                text = "@${cal.timeOffsetMinutes}min",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            )
+                                        }
                                     }
-                                    Text(
-                                        text = timeText,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
                                 }
                             }
                         }
