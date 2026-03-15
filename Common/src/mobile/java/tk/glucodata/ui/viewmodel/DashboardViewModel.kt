@@ -9,7 +9,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
+import tk.glucodata.SensorBluetooth
 import tk.glucodata.Natives
+import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
@@ -107,6 +109,7 @@ class DashboardViewModel(
         refreshData(syncHistory = false)
         startCollection()
         startHistoryCollection()
+        startUiRefreshCollection()
         viewModelScope.launch {
             delay(1200L)
             HistorySync.syncFromNative()
@@ -122,7 +125,19 @@ class DashboardViewModel(
     fun onResume() {
         glucoseRepository.refreshSensorSerial()
         refreshData(syncHistory = false)
+        viewModelScope.launch {
+            HistorySync.syncFromNative()
+        }
     }
+
+    private fun startUiRefreshCollection() {
+        viewModelScope.launch {
+            UiRefreshBus.events.collect {
+                refreshData(syncHistory = false)
+            }
+        }
+    }
+
     private fun startCollection() {
         viewModelScope.launch {
             glucoseRepository.getCurrentReading().collect { point ->
@@ -205,6 +220,26 @@ class DashboardViewModel(
                     android.util.Log.e("DashboardVM", "getSensorStatusByName failed for '$sName'", t)
                     ""
                 }
+                val aiDexStatus = try {
+                    (SensorBluetooth.mygatts().firstOrNull { it.SerialNumber == sName } as? tk.glucodata.drivers.aidex.AiDexDriver)
+                        ?.getDetailedBleStatus()
+                        ?.takeIf { it.isNotBlank() }
+                } catch (t: Throwable) {
+                    android.util.Log.e("DashboardVM", "AiDex getDetailedBleStatus failed for '$sName'", t)
+                    null
+                }
+                val prioritizedAiDexStatus = aiDexStatus?.takeIf {
+                    nativeStatus.isBlank() ||
+                    it.contains("warmup", ignoreCase = true) ||
+                    it.contains("pair", ignoreCase = true) ||
+                    it.contains("connecting", ignoreCase = true) ||
+                    it.contains("reconnecting", ignoreCase = true) ||
+                    it.contains("history", ignoreCase = true) ||
+                    it.contains("broadcast", ignoreCase = true) ||
+                    it.contains("handshak", ignoreCase = true) ||
+                    it.contains("configur", ignoreCase = true) ||
+                    it.contains("key exchange", ignoreCase = true)
+                }
                 val snapshot = try {
                     Natives.getSensorUiSnapshot(sName)
                 } catch (t: Throwable) {
@@ -218,7 +253,7 @@ class DashboardViewModel(
                     val expectedEnd = snapshot[3]
                     val officialEnd = snapshot[4]
                     val warmupStatus = getLegacyWarmupStatus(tk.glucodata.Applic.app, sensorKind, startMsec, nativeStatus)
-                    _sensorStatus.value = warmupStatus ?: nativeStatus
+                    _sensorStatus.value = prioritizedAiDexStatus ?: warmupStatus ?: nativeStatus
 
                     _viewMode.value = vm
 
@@ -257,7 +292,7 @@ class DashboardViewModel(
                     // Removed separate block that caused scope errors.
                     // All logic is now consolidated above.
                 } else {
-                     _sensorStatus.value = nativeStatus
+                     _sensorStatus.value = prioritizedAiDexStatus ?: nativeStatus
                      _viewMode.value = 0
                      _sensorProgress.value = 0f
                      _sensorHoursRemaining.value = 999L

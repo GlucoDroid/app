@@ -3078,7 +3078,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                     modifier = Modifier.padding(start = titleInset, bottom = lerpDp(16f, 24f))
                     )
                 }
-                items(sensors) { sensor ->
+                items(sensors, key = { it.serial }) { sensor ->
                     SensorCard(sensor, viewModel, sensorCount = sensors.size)
                 }
             }
@@ -3356,6 +3356,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
     var showAiDexCalibrateDialog by remember { mutableStateOf(false) }
     var showAiDexUnpairDialog by remember { mutableStateOf(false) }
     var calibrationInputText by remember { mutableStateOf("") }
+    var aiDexBiasChecked by remember(sensor.serial, sensor.resetCompensationActive) { mutableStateOf(sensor.resetCompensationActive) }
     // Edit 78: resetBiasChecked removed — bias toggle now lives in the bottom sheet as an independent switch
 
     val scope = rememberCoroutineScope() // Fix: Add missing scope
@@ -3611,10 +3612,11 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 // --- Bias Correction toggle ---
                 Surface(
                     onClick = {
-                        if (sensor.resetCompensationActive) {
-                            viewModel.disableAiDexBiasCompensation(sensor.serial)
-                        } else {
+                        aiDexBiasChecked = !aiDexBiasChecked
+                        if (aiDexBiasChecked) {
                             viewModel.enableAiDexBiasCompensation(sensor.serial)
+                        } else {
+                            viewModel.disableAiDexBiasCompensation(sensor.serial)
                         }
                     },
                     shape = RoundedCornerShape(12.dp),
@@ -3640,10 +3642,12 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                             Text(
                                 if (sensor.resetCompensationActive && sensor.resetCompensationStatus.isNotEmpty())
                                     sensor.resetCompensationStatus
+                                else if (aiDexBiasChecked && sensor.resetCompensationStatus.isNotEmpty())
+                                    sensor.resetCompensationStatus
                                 else
                                     stringResource(R.string.bias_correction_desc),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (sensor.resetCompensationActive)
+                                color = if (aiDexBiasChecked)
                                     MaterialTheme.colorScheme.tertiary
                                 else
                                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -3651,12 +3655,13 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         StyledSwitch(
-                            checked = sensor.resetCompensationActive,
+                            checked = aiDexBiasChecked,
                             onCheckedChange = {
-                                if (sensor.resetCompensationActive) {
-                                    viewModel.disableAiDexBiasCompensation(sensor.serial)
-                                } else {
+                                aiDexBiasChecked = it
+                                if (it) {
                                     viewModel.enableAiDexBiasCompensation(sensor.serial)
+                                } else {
+                                    viewModel.disableAiDexBiasCompensation(sensor.serial)
                                 }
                             }
                         )
@@ -3668,7 +3673,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                 // --- Hardware Reset action ---
                 Surface(
                     onClick = {
-                        viewModel.resetAiDexSensor(sensor.serial, enableBiasCompensation = true)
+                        viewModel.resetAiDexSensor(sensor.serial, enableBiasCompensation = aiDexBiasChecked)
                         showAiDexClearDialog = false
                     },
                     shape = RoundedCornerShape(12.dp),

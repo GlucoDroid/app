@@ -5,8 +5,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import tk.glucodata.Applic
 import tk.glucodata.Natives
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Singleton that synchronizes native glucose history with the Room database.
@@ -32,16 +35,23 @@ object HistorySync {
 
     // Per-sensor backfill stability tracking.
     // Key = sensor serial, Value = (lastReadingCount, stableCount).
-    private val sensorStability = HashMap<String, Pair<Int, Int>>()
+    private val sensorStability = ConcurrentHashMap<String, Pair<Int, Int>>()
     private const val STABLE_THRESHOLD = 2
     private const val STABLE_GROWTH_TOLERANCE = 2
 
-    // Throttle: don't re-sync more often than every 30 seconds for full syncs,
-    // 15 seconds for incremental
+    private val syncGate = Mutex()
+    private val syncRequestLock = Any()
+    @Volatile
+    private var syncInProgress = false
+    @Volatile
+    private var pendingForceFull = false
+
+    // Throttle: keep active-dashboard sync responsive enough for reconnect/backfill,
+    // but still avoid hammering native history on every 3-second UI tick.
     @Volatile
     private var lastSyncTimeMs = 0L
-    private const val MIN_FULL_SYNC_INTERVAL_MS = 30_000L
-    private const val MIN_INCR_SYNC_INTERVAL_MS = 15_000L
+    private const val MIN_FULL_SYNC_INTERVAL_MS = 5_000L
+    private const val MIN_INCR_SYNC_INTERVAL_MS = 3_000L
 
     // Incremental overlap: 5 minutes catches any very-recent backfill without
     // re-processing thousands of readings every call.
@@ -61,18 +71,48 @@ object HistorySync {
      */
     @JvmOverloads
     fun syncFromNative(forceFull: Boolean = false) {
+        queueSync(forceFull, bypassThrottle = false)
+    }
+
+    private fun queueSync(forceFull: Boolean, bypassThrottle: Boolean) {
         val now = System.currentTimeMillis()
 
-        // Determine if ALL sensors have stabilized for throttle interval selection
-        val allStable = sensorStability.values.all { (_, stable) -> stable >= STABLE_THRESHOLD }
-        val minInterval = if (allStable && initialSyncDone) MIN_INCR_SYNC_INTERVAL_MS else MIN_FULL_SYNC_INTERVAL_MS
+        synchronized(syncRequestLock) {
+            if (syncInProgress) {
+                if (forceFull) {
+                    pendingForceFull = true
+                }
+                return
+            }
 
-        // Throttle: skip if called too frequently (unless it's the first sync or forced)
-        if (!forceFull && initialSyncDone && (now - lastSyncTimeMs) < minInterval) {
-            return  // too soon, skip
+            // Determine if ALL sensors have stabilized for throttle interval selection
+            val allStable = sensorStability.values.all { (_, stable) -> stable >= STABLE_THRESHOLD }
+            val minInterval = if (allStable && initialSyncDone) MIN_INCR_SYNC_INTERVAL_MS else MIN_FULL_SYNC_INTERVAL_MS
+
+            // Throttle: skip if called too frequently (unless it's the first sync, forced,
+            // or a queued rerun that arrived while the previous sync was still running).
+            if (!bypassThrottle && !forceFull && initialSyncDone && (now - lastSyncTimeMs) < minInterval) {
+                return
+            }
+
+            syncInProgress = true
         }
 
-        scope.launch { doSyncAllSensors(forceFull) }
+        scope.launch {
+            try {
+                doSyncAllSensors(forceFull)
+            } finally {
+                var rerunForceFull = false
+                synchronized(syncRequestLock) {
+                    syncInProgress = false
+                    rerunForceFull = pendingForceFull
+                    pendingForceFull = false
+                }
+                if (rerunForceFull) {
+                    queueSync(rerunForceFull, bypassThrottle = true)
+                }
+            }
+        }
     }
 
     /**
@@ -80,32 +120,34 @@ object HistorySync {
      * via [Natives.getGlucoseHistoryForSensor].
      */
     private suspend fun doSyncAllSensors(forceFull: Boolean) {
-        try {
-            val activeSensors = Natives.activeSensors()
-            if (activeSensors == null || activeSensors.isEmpty()) {
-                // No active sensors — try the main sensor as fallback
-                val mainSensor = Natives.lastsensorname()
-                if (mainSensor.isNullOrEmpty()) {
-                    Log.w(TAG, "No active sensors and no main sensor — nothing to sync")
-                    lastSyncTimeMs = 0L
-                    return
+        syncGate.withLock {
+            try {
+                val activeSensors = Natives.activeSensors()
+                if (activeSensors == null || activeSensors.isEmpty()) {
+                    // No active sensors — try the main sensor as fallback
+                    val mainSensor = Natives.lastsensorname()
+                    if (mainSensor.isNullOrEmpty()) {
+                        Log.w(TAG, "No active sensors and no main sensor — nothing to sync")
+                        lastSyncTimeMs = 0L
+                        return@withLock
+                    }
+                    // Sync just the main sensor
+                    doSyncSensor(mainSensor, forceFull)
+                } else {
+                    // Sync every active sensor
+                    for (serial in activeSensors) {
+                        if (serial.isNullOrEmpty()) continue
+                        doSyncSensor(serial, forceFull)
+                    }
                 }
-                // Sync just the main sensor
-                doSyncSensor(mainSensor, forceFull)
-            } else {
-                // Sync every active sensor
-                for (serial in activeSensors) {
-                    if (serial.isNullOrEmpty()) continue
-                    doSyncSensor(serial, forceFull)
-                }
-            }
 
-            lastSyncTimeMs = System.currentTimeMillis()
-            if (!initialSyncDone) {
-                initialSyncDone = true
+                lastSyncTimeMs = System.currentTimeMillis()
+                if (!initialSyncDone) {
+                    initialSyncDone = true
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error syncing all sensors: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error syncing all sensors: ${e.message}")
         }
     }
 
@@ -208,9 +250,7 @@ object HistorySync {
         lastSyncTimeMs = 0L
         initialSyncDone = false
         sensorStability.clear()
-        scope.launch {
-            doSyncAllSensors(forceFull = true)
-        }
+        syncFromNative(forceFull = true)
     }
 
     /**
@@ -229,14 +269,16 @@ object HistorySync {
         sensorStability.remove(serial)
         lastSyncTimeMs = 0L  // Allow immediate sync
         scope.launch {
-            // Step 1: Delete existing Room data for this sensor
-            try {
-                historyRepository.deleteForSensor(serial)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error deleting Room data for $serial before resync: ${e.message}")
+            syncGate.withLock {
+                // Step 1: Delete existing Room data for this sensor
+                try {
+                    historyRepository.deleteForSensor(serial)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error deleting Room data for $serial before resync: ${e.message}")
+                }
+                // Step 2: Re-sync from native (all data for this sensor)
+                doSyncSensor(serial, forceFull = true)
             }
-            // Step 2: Re-sync from native (all data for this sensor)
-            doSyncSensor(serial, forceFull = true)
         }
     }
 }

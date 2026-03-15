@@ -29,6 +29,7 @@ import tk.glucodata.Applic
 import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
+import tk.glucodata.UiRefreshBus
 import tk.glucodata.drivers.aidex.AiDexDriver
 import tk.glucodata.drivers.aidex.CalibrationRecord as SharedCalibrationRecord
 import tk.glucodata.drivers.aidex.native.crypto.Crc16CcittFalse
@@ -104,6 +105,7 @@ class AiDexBleManager(
         private const val MAX_VALID_GLUCOSE_MGDL = 500
         private const val MAX_OFFSET_DAYS = 30
         private const val WARMUP_DURATION_MS = 10L * 60_000L  // 10 minutes (matches AiDex sensor warmup)
+        private const val EXTENDED_WARMUP_GRACE_MS = 60L * 60_000L  // Extra visual grace for restarted sensors that still have no valid data
         private const val HISTORY_SYNC_BATCH_SIZE = 2000  // progressive sync to Room every N entries
 
         // -- Broadcast Scan --
@@ -225,6 +227,7 @@ class AiDexBleManager(
     // SET_NEW_SENSOR (0x20) to re-activate. Persisted to SharedPreferences so it
     // survives driver instance recreation.
     @Volatile private var needsPostResetActivation: Boolean = false
+    @Volatile private var postResetWarmupExtensionActive: Boolean = false
 
     init {
         // Restore persisted history offsets so reconnects only download new data.
@@ -240,6 +243,7 @@ class AiDexBleManager(
         if (needsPostResetActivation) {
             Log.i(TAG, "Restored needsPostResetActivation=true from prefs — will auto-activate on next connect")
         }
+        postResetWarmupExtensionActive = readBoolPref("postResetWarmupExtensionActive", false)
     }
 
     private enum class HistoryPhase {
@@ -1207,11 +1211,19 @@ class AiDexBleManager(
             Log.w(TAG, "F003: Invalid reading (sentinel or out of range)")
             // handleGlucoseResult() with 0 will set charcha[1] for failure tracking
             handleGlucoseResult(0L, now)
+            if (postResetWarmupExtensionActive) {
+                UiRefreshBus.requestRefresh()
+            }
             return
         }
 
         // Update timestamps
         lastGlucoseTimeMs = now
+        if (postResetWarmupExtensionActive) {
+            postResetWarmupExtensionActive = false
+            writeBoolPref("postResetWarmupExtensionActive", false)
+            UiRefreshBus.requestRefresh()
+        }
 
         // Track highest live offset for history dedup — history entries at or above
         // this offset are already stored by the live pipeline and should be skipped.
@@ -1822,7 +1834,7 @@ class AiDexBleManager(
     private fun handleClearStorageResponse(data: ByteArray) {
         val status = if (data.size >= 2) data[1].toInt() and 0xFF else 0xFF
         Log.i(TAG, "CLEAR_STORAGE response: status=0x${"%02X".format(status)}")
-        if (pendingResetReconnect) {
+        if (pendingResetReconnect && status == 0x00) {
             // Step 2: Now send RESET (0xF0)
             Log.i(TAG, "CLEAR_STORAGE done — sending RESET (0xF0)")
             val cmd = commandBuilder.reset()
@@ -1831,6 +1843,13 @@ class AiDexBleManager(
             } else {
                 Log.e(TAG, "Cannot send RESET: session key unavailable")
             }
+        } else if (status != 0x00) {
+            Log.e(TAG, "CLEAR_STORAGE failed — not arming extended post-reset warmup")
+            pendingResetReconnect = false
+            needsPostResetActivation = false
+            postResetWarmupExtensionActive = false
+            writeBoolPref("needsPostResetActivation", false)
+            writeBoolPref("postResetWarmupExtensionActive", false)
         }
     }
 
@@ -1842,6 +1861,8 @@ class AiDexBleManager(
     private fun handleResetResponse(data: ByteArray) {
         val status = if (data.size >= 2) data[1].toInt() and 0xFF else 0xFF
         Log.i(TAG, "RESET response: status=0x${"%02X".format(status)} — sensor will disconnect shortly")
+        postResetWarmupExtensionActive = (status == 0x00)
+        writeBoolPref("postResetWarmupExtensionActive", postResetWarmupExtensionActive)
     }
 
     /**
@@ -2367,6 +2388,27 @@ class AiDexBleManager(
     override fun getDetailedBleStatus(): String {
         val now = System.currentTimeMillis()
 
+        fun connectedWarmupStatus(connectionPart: String): String? {
+            val startMs = sensorstartmsec
+            if (startMs <= 0L) return null
+            val ageMs = now - startMs
+            if (ageMs < 0L) return null
+
+            val ageMin = ageMs / 60_000L
+            if (ageMin < 10L) {
+                val remaining = 10L - ageMin
+                return "$connectionPart — Warmup ${remaining}m"
+            }
+
+            val hasValidReadingSinceStart = lastGlucoseTimeMs >= startMs
+            if (postResetWarmupExtensionActive && !hasValidReadingSinceStart && ageMs < (WARMUP_DURATION_MS + EXTENDED_WARMUP_GRACE_MS)) {
+                val remaining = ((WARMUP_DURATION_MS + EXTENDED_WARMUP_GRACE_MS - ageMs) + 59_999L) / 60_000L
+                return "$connectionPart — Warmup extended ${remaining}m"
+            }
+
+            return null
+        }
+
         return when (phase) {
             Phase.IDLE -> {
                 if (reconnect.isBroadcastOnlyMode) {
@@ -2418,15 +2460,7 @@ class AiDexBleManager(
                     }
                 }
 
-                // Warmup countdown (first 10 minutes after sensor activation)
-                val startMs = sensorstartmsec
-                if (startMs > 0) {
-                    val ageMin = (now - startMs) / 60_000L
-                    if (ageMin in 0 until 10) {
-                        val remaining = 10 - ageMin
-                        return "Connected — Warmup ${remaining}m"
-                    }
-                }
+                connectedWarmupStatus("Connected")?.let { return it }
 
                 // Normal connected state
                 "Connected"
