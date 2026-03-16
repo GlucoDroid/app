@@ -340,10 +340,10 @@ fun getDisplayValues(
             return when (viewMode) {
                 2 -> DisplayValues( // Auto + Raw → Calibrated primary, Raw secondary
                     primaryValue = effectiveCalibratedValue,
-                    secondaryValue = rawDisplayValue,
+                    secondaryValue = rawDisplayValue.takeIf { it.isFinite() },
                     primaryStr = calStr,
-                    secondaryStr = rawStr,
-                    fullFormatted = "$calStr · $rawStr $unit"
+                    secondaryStr = rawStr.takeUnless { it == "--" },
+                    fullFormatted = if (rawDisplayValue.isFinite()) "$calStr · $rawStr $unit" else "$calStr $unit"
                 )
                 3 -> DisplayValues( // Raw + Auto → Calibrated primary, Auto secondary
                     primaryValue = effectiveCalibratedValue,
@@ -370,20 +370,20 @@ fun getDisplayValues(
             2 -> DisplayValues( // Auto + Raw → Calibrated primary, Auto secondary, Raw tertiary
                 primaryValue = effectiveCalibratedValue,
                 secondaryValue = point.value,
-                tertiaryValue = rawDisplayValue,
+                tertiaryValue = rawDisplayValue.takeIf { it.isFinite() },
                 primaryStr = calStr,
                 secondaryStr = valStr,
-                tertiaryStr = rawStr,
-                fullFormatted = "$calStr · $valStr · $rawStr $unit"
+                tertiaryStr = rawStr.takeUnless { it == "--" },
+                fullFormatted = if (rawDisplayValue.isFinite()) "$calStr · $valStr · $rawStr $unit" else "$calStr · $valStr $unit"
             )
             3 -> DisplayValues( // Raw + Auto → Calibrated primary, Raw secondary, Auto tertiary
                 primaryValue = effectiveCalibratedValue,
-                secondaryValue = rawDisplayValue,
-                tertiaryValue = point.value,
+                secondaryValue = rawDisplayValue.takeIf { it.isFinite() },
+                tertiaryValue = point.value.takeIf { rawDisplayValue.isFinite() },
                 primaryStr = calStr,
-                secondaryStr = rawStr,
-                tertiaryStr = valStr,
-                fullFormatted = "$calStr · $rawStr · $valStr $unit"
+                secondaryStr = rawStr.takeUnless { it == "--" },
+                tertiaryStr = valStr.takeIf { rawDisplayValue.isFinite() },
+                fullFormatted = if (rawDisplayValue.isFinite()) "$calStr · $rawStr · $valStr $unit" else "$calStr $unit"
             )
             else -> DisplayValues( // Auto → Calibrated primary, Auto secondary
                 primaryValue = effectiveCalibratedValue,
@@ -404,17 +404,17 @@ fun getDisplayValues(
         )
         2 -> DisplayValues( // Auto + Raw
             primaryValue = point.value,
-            secondaryValue = rawDisplayValue,
+            secondaryValue = rawDisplayValue.takeIf { it.isFinite() },
             primaryStr = valStr,
-            secondaryStr = rawStr,
-            fullFormatted = "$valStr · $rawStr $unit"
+            secondaryStr = rawStr.takeUnless { it == "--" },
+            fullFormatted = if (rawDisplayValue.isFinite()) "$valStr · $rawStr $unit" else "$valStr $unit"
         )
         3 -> DisplayValues( // Raw + Auto
-            primaryValue = rawDisplayValue,
-            secondaryValue = point.value,
-            primaryStr = rawStr,
-            secondaryStr = valStr,
-            fullFormatted = "$rawStr · $valStr $unit"
+            primaryValue = if (rawDisplayValue.isFinite()) rawDisplayValue else point.value,
+            secondaryValue = point.value.takeIf { rawDisplayValue.isFinite() },
+            primaryStr = if (rawDisplayValue.isFinite()) rawStr else valStr,
+            secondaryStr = valStr.takeIf { rawDisplayValue.isFinite() },
+            fullFormatted = if (rawDisplayValue.isFinite()) "$rawStr · $valStr $unit" else "$valStr $unit"
         )
         else -> DisplayValues( // Auto (0)
             primaryValue = point.value,

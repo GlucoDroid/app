@@ -404,6 +404,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             // If we can't determine main sensor, default to allowing (safety)
             isMainSensor = true;
         }
+        final boolean isAiDexSerial = SerialNumber != null && SerialNumber.startsWith("X-");
 
         if (!isMainSensor) {
             if (doLog) {
@@ -412,6 +413,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             }
             // Still update the screen so charts/history reflect all sensors
             Applic.updatescreen();
+            if (!isAiDexSerial) {
+                UiRefreshBus.requestDataRefresh();
+            }
             return;
         }
 
@@ -501,6 +505,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         ;
 
         Applic.updatescreen();
+        if (!isAiDexSerial) {
+            UiRefreshBus.requestDataRefresh();
+        }
 
         if (!DontTalk) {
             if (dotalk && !alarmspeak[0]) {

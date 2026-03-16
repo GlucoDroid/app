@@ -9,13 +9,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
-import tk.glucodata.SensorBluetooth
 import tk.glucodata.Natives
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
-import tk.glucodata.ui.util.getLegacyWarmupStatus
+import tk.glucodata.ui.util.resolveDashboardSensorStatus
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository()
@@ -132,8 +131,11 @@ class DashboardViewModel(
 
     private fun startUiRefreshCollection() {
         viewModelScope.launch {
-            UiRefreshBus.events.collect {
-                refreshData(syncHistory = false)
+            UiRefreshBus.events.collect { event ->
+                when (event) {
+                    UiRefreshBus.Event.DataChanged -> refreshData(syncHistory = true)
+                    UiRefreshBus.Event.StatusOnly -> refreshData(syncHistory = false)
+                }
             }
         }
     }
@@ -220,34 +222,6 @@ class DashboardViewModel(
                     android.util.Log.e("DashboardVM", "getSensorStatusByName failed for '$sName'", t)
                     ""
                 }
-                val aiDexStatus = try {
-                    (SensorBluetooth.mygatts().firstOrNull { it.SerialNumber == sName } as? tk.glucodata.drivers.aidex.AiDexDriver)
-                        ?.getDetailedBleStatus()
-                        ?.takeIf { it.isNotBlank() }
-                } catch (t: Throwable) {
-                    android.util.Log.e("DashboardVM", "AiDex getDetailedBleStatus failed for '$sName'", t)
-                    null
-                }
-                val aiDexDashboardStatus = aiDexStatus?.takeIf {
-                    it.contains("warmup", ignoreCase = true) ||
-                    it.contains("pair", ignoreCase = true) ||
-                    it.contains("bond", ignoreCase = true) ||
-                    it.contains("connecting", ignoreCase = true) ||
-                    it.contains("reconnecting", ignoreCase = true) ||
-                    it.contains("discover", ignoreCase = true) ||
-                    it.contains("history", ignoreCase = true) ||
-                    it.contains("broadcast", ignoreCase = true) ||
-                    it.contains("handshak", ignoreCase = true) ||
-                    it.contains("configur", ignoreCase = true) ||
-                    it.contains("setting up", ignoreCase = true) ||
-                    it.contains("key exchange", ignoreCase = true) ||
-                    it.contains("initializing", ignoreCase = true) ||
-                    it.contains("scanning", ignoreCase = true) ||
-                    it.contains("fetching", ignoreCase = true) ||
-                    it.contains("storing", ignoreCase = true) ||
-                    it.contains("paused", ignoreCase = true) ||
-                    it.contains("unpaired", ignoreCase = true)
-                }
                 val snapshot = try {
                     Natives.getSensorUiSnapshot(sName)
                 } catch (t: Throwable) {
@@ -260,8 +234,7 @@ class DashboardViewModel(
                     val startMsec = snapshot[2]
                     val expectedEnd = snapshot[3]
                     val officialEnd = snapshot[4]
-                    val warmupStatus = getLegacyWarmupStatus(tk.glucodata.Applic.app, sensorKind, startMsec, nativeStatus)
-                    _sensorStatus.value = warmupStatus ?: nativeStatus.ifBlank { aiDexDashboardStatus.orEmpty() }
+                    _sensorStatus.value = resolveDashboardSensorStatus(sName, sensorKind, startMsec, nativeStatus)
 
                     _viewMode.value = vm
 
@@ -300,7 +273,7 @@ class DashboardViewModel(
                     // Removed separate block that caused scope errors.
                     // All logic is now consolidated above.
                 } else {
-                     _sensorStatus.value = nativeStatus.ifBlank { aiDexDashboardStatus.orEmpty() }
+                     _sensorStatus.value = resolveDashboardSensorStatus(sName, nativeStatus)
                      _viewMode.value = 0
                      _sensorProgress.value = 0f
                      _sensorHoursRemaining.value = 999L

@@ -74,9 +74,6 @@ class GlucoseRepository {
         launch {
             while (isActive) {
                 pollNativeAndStore()
-                // Keep Room in sync with native backfill/replay (e.g. Sibionics reconnect history)
-                // while the dashboard is running. HistorySync is already internally throttled.
-                HistorySync.syncFromNative()
                 delay(3000)
             }
         }

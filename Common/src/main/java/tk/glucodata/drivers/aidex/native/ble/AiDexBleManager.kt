@@ -106,6 +106,11 @@ class AiDexBleManager(
         private const val MAX_OFFSET_DAYS = 30
         private const val WARMUP_DURATION_MS = 10L * 60_000L  // 10 minutes (matches AiDex sensor warmup)
         private const val EXTENDED_WARMUP_GRACE_MS = 60L * 60_000L  // Extra visual grace for restarted sensors that still have no valid data
+        private const val POST_RESET_WAITING_STATUS = "Waiting for first valid reading"
+        private const val BROADCAST_FALLBACK_LIVE_TIMEOUT_MS = 90_000L
+        private const val BROADCAST_ASSIST_SCAN_DELAY_MS = 15_000L
+        private const val BROADCAST_ASSIST_SCAN_WINDOW_MS = 12_000L
+        private const val BROADCAST_ASSIST_SETUP_STALL_MS = 45_000L
         private const val HISTORY_SYNC_BATCH_SIZE = 2000  // progressive sync to Room every N entries
 
         // -- Broadcast Scan --
@@ -331,6 +336,7 @@ class AiDexBleManager(
 
     // -- Broadcast Scan State --
     @Volatile private var broadcastScanActive: Boolean = false
+    @Volatile private var broadcastScanContinuousMode: Boolean = false
     private var broadcastScanCallback: ScanCallback? = null
     private var broadcastScanner: android.bluetooth.le.BluetoothLeScanner? = null
     @Volatile private var lastBroadcastGlucose: Float = 0f
@@ -341,6 +347,19 @@ class AiDexBleManager(
     // -- Transient Status --
     /** Temporary status message (e.g., calibration result) that auto-clears after 5 seconds. */
     @Volatile private var transientStatusMessage: String? = null
+    private val broadcastAssistRunnable: Runnable = object : Runnable {
+        override fun run() {
+            if (stop || reconnect.isBroadcastOnlyMode || hasRecentLiveData()) return
+            if (phase == Phase.DISCOVERING_SERVICES || phase == Phase.CCCD_CHAIN || phase == Phase.KEY_EXCHANGE) {
+                val setupAge = if (connectTime > 0L) System.currentTimeMillis() - connectTime else 0L
+                if (setupAge in 1 until BROADCAST_ASSIST_SETUP_STALL_MS) {
+                    handler.postDelayed(this, BROADCAST_ASSIST_SCAN_DELAY_MS)
+                    return
+                }
+            }
+            startBroadcastScan("assist-no-data", continuous = false)
+        }
+    }
     private val transientStatusClearRunnable = Runnable {
         transientStatusMessage = null
         AiDexDriver.deviceListDirty = true
@@ -408,7 +427,7 @@ class AiDexBleManager(
      */
     override fun connectDevice(delayMillis: Long): Boolean {
         // Guard: paused, unpaired, or broadcast-only — refuse connection
-        if (_isPaused || isUnpaired) {
+        if (isPaused || isUnpaired) {
             Log.d(TAG, "connectDevice: skip — isPaused=$isPaused isUnpaired=$isUnpaired")
             return true  // Return true so SensorBluetooth doesn't start a scan
         }
@@ -461,6 +480,8 @@ class AiDexBleManager(
 
             Log.i(TAG, "Connected to ${gatt.device?.address}. Requesting MTU 512...")
             gatt.requestMtu(512)
+            handler.removeCallbacks(broadcastAssistRunnable)
+            handler.postDelayed(broadcastAssistRunnable, BROADCAST_ASSIST_SCAN_DELAY_MS)
 
             // Schedule service discovery after MTU exchange
             handler.postDelayed({
@@ -514,9 +535,10 @@ class AiDexBleManager(
                         Log.w(TAG, "Auth failures exhausted — broadcast-only fallback")
                         close()
                         constatstatusstr = "Pairing failed — Broadcast Only"
-                        // Transition to broadcast-only mode
                         reconnect.isBroadcastOnlyMode = true
+                        stop = false
                         handler.post { startBroadcastScan("auth-failure-fallback") }
+                        UiRefreshBus.requestStatusRefresh()
                     }
                     return
                 }
@@ -549,6 +571,8 @@ class AiDexBleManager(
                 constatstatusstr = "Unpaired — Broadcast Only"
                 // Transition to broadcast-only mode so user keeps getting data
                 reconnect.isBroadcastOnlyMode = true
+                stop = false
+                UiRefreshBus.requestStatusRefresh()
                 handler.post { startBroadcastScan("post-unpair-disconnect") }
             } else if (pendingResetReconnect) {
                 // Post-reset reconnect: sensor cleared its bond table + storage.
@@ -596,6 +620,7 @@ class AiDexBleManager(
             } else {
                 Log.i(TAG, "Broadcast-only mode — starting broadcast scan instead of reconnect")
                 close()
+                UiRefreshBus.requestStatusRefresh()
                 handler.postDelayed({ startBroadcastScan("post-disconnect") }, 2_000L)
             }
         }
@@ -1212,23 +1237,34 @@ class AiDexBleManager(
             // handleGlucoseResult() with 0 will set charcha[1] for failure tracking
             handleGlucoseResult(0L, now)
             if (postResetWarmupExtensionActive) {
-                UiRefreshBus.requestRefresh()
+                val warmupElapsed = sensorstartmsec > 0L && (now - sensorstartmsec) >= WARMUP_DURATION_MS
+                if (warmupElapsed && constatstatusstr != POST_RESET_WAITING_STATUS) {
+                    constatstatusstr = POST_RESET_WAITING_STATUS
+                }
+                UiRefreshBus.requestStatusRefresh()
             }
             return
         }
 
         // Update timestamps
         lastGlucoseTimeMs = now
+        handler.removeCallbacks(broadcastAssistRunnable)
         if (postResetWarmupExtensionActive) {
             postResetWarmupExtensionActive = false
             writeBoolPref("postResetWarmupExtensionActive", false)
-            UiRefreshBus.requestRefresh()
+            if (constatstatusstr == POST_RESET_WAITING_STATUS) {
+                constatstatusstr = ""
+            }
+            UiRefreshBus.requestStatusRefresh()
         }
 
         // Track highest live offset for history dedup — history entries at or above
         // this offset are already stored by the live pipeline and should be skipped.
         if (lastOffsetMinutes > liveOffsetCutoff) {
             liveOffsetCutoff = lastOffsetMinutes
+        }
+        if (broadcastScanActive && !broadcastScanContinuousMode) {
+            stopBroadcastScan("live-reading", found = true)
         }
 
         // Compute all three chart values
@@ -1891,6 +1927,8 @@ class AiDexBleManager(
             constatstatusstr = "Unpaired — Broadcast Only"
             // Transition to broadcast-only mode so user keeps getting data
             reconnect.isBroadcastOnlyMode = true
+            stop = false
+            UiRefreshBus.requestStatusRefresh()
             handler.post { startBroadcastScan("post-unpair") }
         }
     }
@@ -2550,6 +2588,7 @@ class AiDexBleManager(
 
     override fun manualReconnectNow() {
         Log.i(TAG, "manualReconnectNow: forcing reconnect for $SerialNumber")
+        cancelBroadcastScan()
         _isPaused = false   // Clear paused flag — user explicitly wants reconnection
         isUnpaired = false // Clear unpaired flag — user explicitly wants reconnection
         reconnect.reset()  // Clears isBroadcastOnlyMode + authFailureCount
@@ -2565,6 +2604,8 @@ class AiDexBleManager(
             // Disconnect GATT, start broadcast scanning
             softDisconnect()
             constatstatusstr = "Broadcast Only"
+            stop = false
+            UiRefreshBus.requestStatusRefresh()
             // Start broadcast scan loop
             handler.post { startBroadcastScan("broadcast-mode-enabled") }
         } else {
@@ -2696,6 +2737,8 @@ class AiDexBleManager(
             constatstatusstr = "Unpaired — Broadcast Only"
             // Transition to broadcast-only mode so user keeps getting data
             reconnect.isBroadcastOnlyMode = true
+            stop = false
+            UiRefreshBus.requestStatusRefresh()
             handler.post { startBroadcastScan("post-unpair") }
             return true
         }
@@ -2704,6 +2747,7 @@ class AiDexBleManager(
         pendingUnpairDisconnect = true
         enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
         constatstatusstr = "Unpairing..."
+        UiRefreshBus.requestStatusRefresh()
         return true
     }
 
@@ -2712,9 +2756,11 @@ class AiDexBleManager(
         keyExchange.reset()
         softDisconnect()
         constatstatusstr = "Re-pairing..."
+        UiRefreshBus.requestStatusRefresh()
         handler.postDelayed({
             _isPaused = false   // Clear paused flag — user explicitly wants re-pair
             isUnpaired = false // Clear unpaired flag — user explicitly wants re-pair
+            reconnect.reset()  // Clear broadcast-only fallback/auth-failure state before pairing again
             stop = false
             connectDevice(500L)
         }, 1000L)
@@ -2773,8 +2819,11 @@ class AiDexBleManager(
      * Ported from AiDexSensor.kt:startBroadcastScan().
      */
     @SuppressLint("MissingPermission")
-    private fun startBroadcastScan(reason: String) {
-        if (!reconnect.isBroadcastOnlyMode) return
+    private fun hasRecentLiveData(now: Long = System.currentTimeMillis()): Boolean {
+        return lastGlucoseTimeMs > 0L && (now - lastGlucoseTimeMs) < BROADCAST_FALLBACK_LIVE_TIMEOUT_MS
+    }
+
+    private fun startBroadcastScan(reason: String, continuous: Boolean = reconnect.isBroadcastOnlyMode) {
         if (broadcastScanActive) return
 
         val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
@@ -2823,9 +2872,11 @@ class AiDexBleManager(
         try {
             scanner.startScan(filters, settings, broadcastScanCallback)
             broadcastScanActive = true
+            broadcastScanContinuousMode = continuous
             handler.removeCallbacks(broadcastScanStopRunnable)
-            handler.postDelayed(broadcastScanStopRunnable, BROADCAST_SCAN_WINDOW_MS)
+            handler.postDelayed(broadcastScanStopRunnable, if (continuous) BROADCAST_SCAN_WINDOW_MS else BROADCAST_ASSIST_SCAN_WINDOW_MS)
             Log.i(TAG, "Broadcast scan started ($reason)")
+            UiRefreshBus.requestStatusRefresh()
         } catch (e: Exception) {
             Log.e(TAG, "Broadcast scan start failed: ${e.message}")
         }
@@ -2842,12 +2893,13 @@ class AiDexBleManager(
             } catch (_: Throwable) {}
             broadcastScanActive = false
             Log.d(TAG, "Broadcast scan stopped ($reason, found=$found)")
+            UiRefreshBus.requestStatusRefresh()
         }
 
         broadcastScanMisses = if (found) 0 else (broadcastScanMisses + 1)
 
         // Schedule next scan if still in broadcast-only mode
-        if (reconnect.isBroadcastOnlyMode && !stop) {
+        if (broadcastScanContinuousMode && reconnect.isBroadcastOnlyMode && !stop) {
             scheduleBroadcastScan("post-$reason")
         }
     }
@@ -2864,6 +2916,7 @@ class AiDexBleManager(
             } catch (_: Throwable) {}
             broadcastScanActive = false
         }
+        broadcastScanContinuousMode = false
     }
 
     /**
@@ -2917,7 +2970,7 @@ class AiDexBleManager(
      * Parse and store broadcast glucose payload.
      */
     private fun handleBroadcastPayload(data: ByteArray) {
-        if (data.size < 6) return
+        if (data.size < 7) return
 
         val now = System.currentTimeMillis()
 
@@ -2939,8 +2992,15 @@ class AiDexBleManager(
         lastOffsetMinutes = offsetMinutes.toInt()
         ensureSensorStartTime(now)
 
+        val fallbackActive = reconnect.isBroadcastOnlyMode || !hasRecentLiveData(now)
+        if (!fallbackActive) {
+            return
+        }
+
         // Update notification status
-        constatstatusstr = "Receiving"
+        if (reconnect.isBroadcastOnlyMode) {
+            constatstatusstr = "Receiving"
+        }
 
         // Dedup: don't store if too soon after last stored broadcast
         if (lastBroadcastStoredTime != 0L && (now - lastBroadcastStoredTime) < BROADCAST_MIN_STORE_INTERVAL_MS) {

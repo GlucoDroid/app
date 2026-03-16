@@ -558,7 +558,8 @@ fun DashboardCombinedHeader(
 
                     // 2. Main Status / Days (Hero Value)
                     // Priority: Status if critical, else Days "1 / 14"
-                    val mainText = if (sensorStatus.isNotEmpty() && sensorStatus != "Ready") sensorStatus 
+                    val showingStatus = sensorStatus.isNotEmpty() && sensorStatus != "Ready"
+                    val mainText = if (showingStatus) sensorStatus
                                    else {
                                        if (sensorHoursRemaining <= 24) "$sensorHoursRemaining" + "h"
                                        else daysRemaining
@@ -575,26 +576,28 @@ fun DashboardCombinedHeader(
                             )
 
                              // Icon: Always show for Main sensor, regardless of count
-                             Spacer(modifier = Modifier.width(8.dp))
-                             
-                             if (sensorHoursRemaining <= 24) {
-                                  // Urgent: Hourglass with Dynamic Speed
-                                  val duration = (500 + (1500 * (sensorHoursRemaining / 24f))).toInt().coerceAtLeast(500)
-                                  AnimatedHourglassIcon(
-                                      color = sensorContentColor.copy(alpha = 0.8f),
-                                      modifier = Modifier.size(14.dp),
-                                      cycleDuration = duration
-                                  )
-                             } else {
-                                  // Normal: Custom Calendar with Page Flip
-                                  CustomCalendarIcon(
-                                      color = sensorContentColor.copy(alpha = 0.6f),
-                                      modifier = Modifier.size(14.dp),
-                                      currentDay = currentDay
-                                  )
+                             if (!showingStatus) {
+                                 Spacer(modifier = Modifier.width(8.dp))
+
+                                 if (sensorHoursRemaining <= 24) {
+                                      // Urgent: Hourglass with Dynamic Speed
+                                      val duration = (500 + (1500 * (sensorHoursRemaining / 24f))).toInt().coerceAtLeast(500)
+                                      AnimatedHourglassIcon(
+                                          color = sensorContentColor.copy(alpha = 0.8f),
+                                          modifier = Modifier.size(14.dp),
+                                          cycleDuration = duration
+                                      )
+                                 } else {
+                                      // Normal: Custom Calendar with Page Flip
+                                      CustomCalendarIcon(
+                                          color = sensorContentColor.copy(alpha = 0.6f),
+                                          modifier = Modifier.size(14.dp),
+                                          currentDay = currentDay
+                                      )
+                                 }
                              }
-                        }
-                    }
+                         }
+                     }
                 }
             }
         }
