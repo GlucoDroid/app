@@ -139,6 +139,7 @@ fun DashboardChartSection(
     selectedTimeRange: TimeRange,
     isExpanded: Boolean = false,
     expandedProgress: Float = if (isExpanded) 1f else 0f,
+    expandedUnderlayBottom: androidx.compose.ui.unit.Dp = 116.dp,
     onToggleExpanded: (() -> Unit)? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     onPointClick: ((GlucosePoint) -> Unit)? = null,
@@ -160,6 +161,7 @@ fun DashboardChartSection(
                         selectedTimeRange = selectedTimeRange,
                         isExpanded = isExpanded,
                         expandedProgress = expandedProgress,
+                        expandedUnderlayBottom = expandedUnderlayBottom,
                         onToggleExpanded = onToggleExpanded,
                         onPointClick = onPointClick,
                         onCalibrationClick = onCalibrationClick,
@@ -204,6 +206,7 @@ fun InteractiveGlucoseChart(
     selectedTimeRange: TimeRange? = null,
     isExpanded: Boolean = false,
     expandedProgress: Float = if (isExpanded) 1f else 0f,
+    expandedUnderlayBottom: androidx.compose.ui.unit.Dp = 116.dp,
     onToggleExpanded: (() -> Unit)? = null,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
@@ -226,9 +229,7 @@ fun InteractiveGlucoseChart(
     val hoverLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     val minMaxLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
     val safeExpandedProgress = expandedProgress.coerceIn(0f, 1f)
-    val chartLayoutConfiguration = LocalConfiguration.current
-    val screenScale = ((chartLayoutConfiguration.screenHeightDp - 600f) / 300f).coerceIn(0f, 1f)
-    val chartUnderlayBottomDp = ((80f + (152f - 80f) * screenScale) * safeExpandedProgress).dp
+    val chartUnderlayBottomDp = expandedUnderlayBottom * safeExpandedProgress
     val chartUnderlayBottomPx = with(LocalDensity.current) { chartUnderlayBottomDp.toPx() }
     val chartUnderlayBottomIntPx = with(LocalDensity.current) { chartUnderlayBottomDp.roundToPx() }
     val labelsLiftPx = with(LocalDensity.current) { (4.dp * safeExpandedProgress).toPx() }
