@@ -311,6 +311,12 @@ class AiDexBleManager(
     // vendorHistoryAutoUpdateCutoff mechanism.
     @Volatile private var liveOffsetCutoff: Int = 0
 
+    // -- History Catch-up Broadcast --
+    // Tracks the newest valid entry stored during history download for the
+    // catch-up broadcast in onHistoryDownloadComplete().
+    private var lastHistoryNewestGlucose: Float = 0f
+    private var lastHistoryNewestOffset: Int = 0
+
     // -- Reset Reconnect Flag --
     // Set true BEFORE sending reset command. When disconnect arrives with this
     // flag set, the driver removes the stale BLE bond, clears key exchange,
@@ -521,6 +527,8 @@ class AiDexBleManager(
             lastCalibratedGlucoseFallback = null
             lastOffsetMinutes = 0
             liveOffsetCutoff = 0
+            lastHistoryNewestGlucose = 0f
+            lastHistoryNewestOffset = 0
             deviceInfoComplete = false
 
             // Handle specific failure cases
@@ -1246,7 +1254,11 @@ class AiDexBleManager(
             return
         }
 
-        // Update timestamps
+        // Update timestamps — keep lastOffsetMinutes current from every F003 frame
+        // to prevent ensureSensorStartTime() from drifting sensorstartmsec forward.
+        if (frame.timeOffsetMinutes > 0) {
+            lastOffsetMinutes = frame.timeOffsetMinutes
+        }
         lastGlucoseTimeMs = now
         handler.removeCallbacks(broadcastAssistRunnable)
         if (postResetWarmupExtensionActive) {
@@ -2335,6 +2347,10 @@ class AiDexBleManager(
                 )
                 stored++
                 historyStoredCount++
+                if (entry.offsetMinutes > lastHistoryNewestOffset) {
+                    lastHistoryNewestOffset = entry.offsetMinutes
+                    lastHistoryNewestGlucose = entry.glucoseMgDl
+                }
             } catch (t: Throwable) {
                 Log.e(TAG, "storeHistoryEntries: aidexProcessData failed: $t")
                 break  // Don't keep hammering a broken JNI
@@ -2389,6 +2405,18 @@ class AiDexBleManager(
                 } catch (_: Throwable) {}
             }
         }
+
+        // Catch-up broadcast: notify xDrip/Watchdrip of the newest history record
+        // so the stream resumes immediately without waiting for the next F003 (~60s).
+        // Uses manual pack (not aidexProcessData) to avoid double-writing data
+        // that was already stored by storeHistoryEntries().
+        if (lastHistoryNewestGlucose > 0f && lastHistoryNewestOffset > 0) {
+            val mgdlInt = lastHistoryNewestGlucose.toInt().coerceIn(0, 0xFFFF) * 10
+            handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, System.currentTimeMillis())
+            Log.i(TAG, "History catch-up broadcast: glucose=$lastHistoryNewestGlucose offset=$lastHistoryNewestOffset")
+        }
+        lastHistoryNewestGlucose = 0f
+        lastHistoryNewestOffset = 0
 
         // Request calibration range
         handler.postDelayed({
