@@ -93,6 +93,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.lerp
 import kotlin.math.cos
 import kotlin.math.sin
@@ -654,10 +655,15 @@ private fun DashboardHeroPrimaryText(
 private enum class DashboardHeroValueLayoutMode {
     PrimaryOnly,
     InlinePair,
-    StackedPair,
+    TightInlinePair,
     InlineStack,
-    StackedStack
+    TightInlineStack
 }
+
+private fun TextStyle.scaleForHero(factor: Float): TextStyle = copy(
+    fontSize = if (fontSize != TextUnit.Unspecified) fontSize * factor else fontSize,
+    lineHeight = if (lineHeight != TextUnit.Unspecified) lineHeight * factor else lineHeight
+)
 
 @Composable
 private fun DashboardHeroValueCluster(
@@ -681,7 +687,10 @@ private fun DashboardHeroValueCluster(
     } else {
         contentColor.copy(alpha = 0.60f)
     }
-    val stackedPairStyle = if (hasSecondary) secondaryStackStyle else tertiaryStackStyle
+    val dotStyle = separatorStyle.scaleForHero(1.12f)
+    val tightInlinePairStyle = secondaryInlineStyle.scaleForHero(0.90f)
+    val tightSecondaryStackStyle = secondaryStackStyle.scaleForHero(0.90f)
+    val tightTertiaryStackStyle = tertiaryStackStyle.scaleForHero(0.90f)
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
     var availableWidthPx by remember { mutableStateOf(0) }
@@ -695,23 +704,38 @@ private fun DashboardHeroValueCluster(
             style = primaryStyle,
             maxLines = 1
         ).size.width
+        val dotWidthPx = textMeasurer.measure(
+            text = "·",
+            style = dotStyle,
+            maxLines = 1
+        ).size.width
         val inlinePairWidthPx = if (!hasThreeValues && pairText != null) {
             primaryWidthPx +
-                with(density) { 8.dp.roundToPx() } +
+                with(density) { 6.dp.roundToPx() } +
+                dotWidthPx +
+                with(density) { 4.dp.roundToPx() } +
                 textMeasurer.measure(
-                    text = "· $pairText",
+                    text = pairText,
                     style = secondaryInlineStyle,
                     maxLines = 1
                 ).size.width
         } else {
             0
         }
+        val tightInlinePairWidthPx = if (!hasThreeValues && pairText != null) {
+            primaryWidthPx +
+                with(density) { 4.dp.roundToPx() } +
+                dotWidthPx +
+                with(density) { 3.dp.roundToPx() } +
+                textMeasurer.measure(
+                    text = pairText,
+                    style = tightInlinePairStyle,
+                    maxLines = 1
+                ).size.width
+        } else {
+            0
+        }
         val inlineStackWidthPx = if (hasThreeValues) {
-            val separatorWidth = textMeasurer.measure(
-                text = "·",
-                style = separatorStyle,
-                maxLines = 1
-            ).size.width
             val secondaryWidth = textMeasurer.measure(
                 text = secondaryText.orEmpty(),
                 style = secondaryStackStyle,
@@ -723,18 +747,39 @@ private fun DashboardHeroValueCluster(
                 maxLines = 1
             ).size.width
             primaryWidthPx +
-                with(density) { 10.dp.roundToPx() } +
-                separatorWidth +
-                with(density) { 6.dp.roundToPx() } +
+                with(density) { 8.dp.roundToPx() } +
+                dotWidthPx +
+                with(density) { 4.dp.roundToPx() } +
+                maxOf(secondaryWidth, tertiaryWidth)
+        } else {
+            0
+        }
+        val tightInlineStackWidthPx = if (hasThreeValues) {
+            val secondaryWidth = textMeasurer.measure(
+                text = secondaryText.orEmpty(),
+                style = tightSecondaryStackStyle,
+                maxLines = 1
+            ).size.width
+            val tertiaryWidth = textMeasurer.measure(
+                text = tertiaryText.orEmpty(),
+                style = tightTertiaryStackStyle,
+                maxLines = 1
+            ).size.width
+            primaryWidthPx +
+                with(density) { 4.dp.roundToPx() } +
+                dotWidthPx +
+                with(density) { 3.dp.roundToPx() } +
                 maxOf(secondaryWidth, tertiaryWidth)
         } else {
             0
         }
         val layoutMode = when {
             hasThreeValues && inlineStackWidthPx <= availableWidthPx -> DashboardHeroValueLayoutMode.InlineStack
-            hasThreeValues -> DashboardHeroValueLayoutMode.StackedStack
+            hasThreeValues && tightInlineStackWidthPx <= availableWidthPx -> DashboardHeroValueLayoutMode.TightInlineStack
+            hasThreeValues -> DashboardHeroValueLayoutMode.TightInlineStack
             pairText != null && inlinePairWidthPx <= availableWidthPx -> DashboardHeroValueLayoutMode.InlinePair
-            pairText != null -> DashboardHeroValueLayoutMode.StackedPair
+            pairText != null && tightInlinePairWidthPx <= availableWidthPx -> DashboardHeroValueLayoutMode.TightInlinePair
+            pairText != null -> DashboardHeroValueLayoutMode.TightInlinePair
             else -> DashboardHeroValueLayoutMode.PrimaryOnly
         }
 
@@ -757,34 +802,54 @@ private fun DashboardHeroValueCluster(
                         style = primaryStyle,
                         color = contentColor
                     )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "· ${pairText.orEmpty()}",
+                        text = "·",
+                        style = dotStyle,
+                        color = contentColor.copy(alpha = 0.72f),
+                        softWrap = false,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = pairText.orEmpty(),
                         style = secondaryInlineStyle,
                         color = inlinePairColor,
                         softWrap = false,
+                        overflow = TextOverflow.Clip,
                         maxLines = 1,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                 }
             }
 
-            DashboardHeroValueLayoutMode.StackedPair -> {
-                Column(
+            DashboardHeroValueLayoutMode.TightInlinePair -> {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.Center
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     DashboardHeroPrimaryText(
                         value = primaryText,
                         style = primaryStyle,
                         color = contentColor
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "· ${pairText.orEmpty()}",
-                        style = stackedPairStyle,
+                        text = "·",
+                        style = dotStyle,
+                        color = contentColor.copy(alpha = 0.72f),
+                        softWrap = false,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = pairText.orEmpty(),
+                        style = tightInlinePairStyle,
                         color = inlinePairColor,
                         softWrap = false,
+                        overflow = TextOverflow.Clip,
                         maxLines = 1,
-                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                 }
             }
@@ -800,19 +865,20 @@ private fun DashboardHeroValueCluster(
                         color = contentColor
                     )
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Text(
                         text = "·",
-                        style = separatorStyle,
-                        color = contentColor.copy(alpha = 0.70f),
+                        style = dotStyle,
+                        color = contentColor.copy(alpha = 0.72f),
                         softWrap = false,
                         maxLines = 1
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     Column(
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
@@ -835,39 +901,49 @@ private fun DashboardHeroValueCluster(
                 }
             }
 
-            DashboardHeroValueLayoutMode.StackedStack -> {
-                Column(
+            DashboardHeroValueLayoutMode.TightInlineStack -> {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.Center
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     DashboardHeroPrimaryText(
                         value = primaryText,
                         style = primaryStyle,
                         color = contentColor
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "·",
+                        style = dotStyle,
+                        color = contentColor.copy(alpha = 0.72f),
+                        softWrap = false,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
                     Column(
-                        modifier = Modifier.padding(start = 4.dp, top = 2.dp),
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "· ${secondaryText.orEmpty()}",
-                            style = secondaryStackStyle,
+                            text = secondaryText.orEmpty(),
+                            style = tightSecondaryStackStyle,
                             color = contentColor.copy(alpha = 0.90f),
                             textAlign = TextAlign.Start,
                             softWrap = false,
+                            overflow = TextOverflow.Clip,
                             maxLines = 1
                         )
                         Text(
                             text = tertiaryText.orEmpty(),
-                            style = tertiaryStackStyle,
+                            style = tightTertiaryStackStyle,
                             color = contentColor.copy(alpha = 0.70f),
                             textAlign = TextAlign.Start,
                             softWrap = false,
+                            overflow = TextOverflow.Clip,
                             maxLines = 1,
-                            modifier = Modifier.padding(start = 12.dp)
                         )
                     }
-                }
+                }            
             }
         }
     }
