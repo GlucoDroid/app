@@ -343,7 +343,6 @@ class AiDexBleManager(
     @Volatile private var lastBroadcastTime: Long = 0L
     @Volatile private var lastBroadcastStoredTime: Long = 0L
     @Volatile private var broadcastScanMisses: Int = 0
-    private var lastHistoryStoreEntry: HistoryStoreEntry? = null
 
     // -- Transient Status --
     /** Temporary status message (e.g., calibration result) that auto-clears after 5 seconds. */
@@ -1248,7 +1247,6 @@ class AiDexBleManager(
         }
 
         // Update timestamps
-        lastOffsetMinutes = frame.timeOffsetMinutes
         lastGlucoseTimeMs = now
         handler.removeCallbacks(broadcastAssistRunnable)
         if (postResetWarmupExtensionActive) {
@@ -2331,13 +2329,12 @@ class AiDexBleManager(
             // Store via JNI — lightweight path, no handleGlucoseResult
             try {
                 val rawForStore = if (entry.rawMgDl.isFinite() && entry.rawMgDl > 0f) entry.rawMgDl else 0f
-                val res = Natives.aidexProcessData(
+                Natives.aidexProcessData(
                     dataptr, byteArrayOf(0), historicalTimeMs,
                     entry.glucoseMgDl, rawForStore, 1.0f
                 )
                 stored++
                 historyStoredCount++
-                lastHistoryStoreEntry = entry
             } catch (t: Throwable) {
                 Log.e(TAG, "storeHistoryEntries: aidexProcessData failed: $t")
                 break  // Don't keep hammering a broken JNI
@@ -2385,19 +2382,6 @@ class AiDexBleManager(
             try {
                 val bareSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
                 tk.glucodata.data.HistorySync.forceFullSyncForSensor(bareSerial)
-
-                // Final xDrip/WatchDrip catch-up: broadcast the very latest history record
-                // so the stream resumes immediately without waiting for the next F003 (1 min).
-                // Back-date the broadcast time slightly (10s) to ensure it appears "just now"
-                // but doesn't overlap with a potentially concurrent live reading.
-                lastHistoryStoreEntry?.let { entry ->
-                    val historicalTimeMs = sensorstartmsec + (entry.offsetMinutes.toLong() * 60_000L)
-                    val res = Natives.aidexProcessData(
-                        dataptr, byteArrayOf(0), historicalTimeMs,
-                        entry.glucoseMgDl, entry.rawMgDl, 1.0f
-                    )
-                    handleGlucoseResult(res, now - 10000L)
-                }
             } catch (t: Throwable) {
                 Log.e(TAG, "HistorySync.forceFullSyncForSensor failed: $t")
                 // Fallback
@@ -2406,7 +2390,6 @@ class AiDexBleManager(
                 } catch (_: Throwable) {}
             }
         }
-        lastHistoryStoreEntry = null
 
         // Request calibration range
         handler.postDelayed({
