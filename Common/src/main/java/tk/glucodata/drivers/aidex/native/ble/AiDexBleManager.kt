@@ -26,6 +26,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
 import tk.glucodata.Applic
+import tk.glucodata.BatteryTrace
 import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
@@ -114,7 +115,8 @@ class AiDexBleManager(
         private const val HISTORY_SYNC_BATCH_SIZE = 2000  // progressive sync to Room every N entries
 
         // -- Broadcast Scan --
-        private const val BROADCAST_SCAN_WINDOW_MS = 30_000L  // How long each scan runs
+        private const val BROADCAST_SCAN_WINDOW_MS = 12_000L  // Healthy steady-state scan window
+        private const val BROADCAST_RECOVERY_SCAN_WINDOW_MS = 30_000L  // Larger window while recovering broadcasts
         private const val BROADCAST_SCAN_INTERVAL_MS = 60_000L  // Time between scans
         private const val BROADCAST_MIN_STORE_INTERVAL_MS = 50_000L  // Min interval between stored broadcast readings
     }
@@ -1315,8 +1317,10 @@ class AiDexBleManager(
                     constatstatusstr = ""
                 }
 
-                // Sync to Room DB for Compose chart
-                tk.glucodata.data.HistorySync.syncFromNative()
+                // Sync only this sensor; live packets should not trigger a full all-sensor backfill.
+                tk.glucodata.data.HistorySync.syncSensorFromNative(
+                    tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
+                )
             } catch (e: UnsatisfiedLinkError) {
                 Log.e(TAG, "F003: Native library mismatch: $e")
                 // Fallback: manual pack for handleGlucoseResult
@@ -2395,14 +2399,14 @@ class AiDexBleManager(
 
         // Final sync to Room DB
         if (historyStoredCount > 0) {
+            val bareSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
             try {
-                val bareSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
                 tk.glucodata.data.HistorySync.forceFullSyncForSensor(bareSerial)
             } catch (t: Throwable) {
                 Log.e(TAG, "HistorySync.forceFullSyncForSensor failed: $t")
                 // Fallback
                 try {
-                    tk.glucodata.data.HistorySync.syncFromNative()
+                    tk.glucodata.data.HistorySync.syncSensorFromNative(bareSerial, forceFull = true)
                 } catch (_: Throwable) {}
             }
         }
@@ -2907,9 +2911,14 @@ class AiDexBleManager(
             broadcastScanActive = true
             broadcastScanContinuousMode = continuous
             handler.removeCallbacks(broadcastScanStopRunnable)
-            handler.postDelayed(broadcastScanStopRunnable, if (continuous) BROADCAST_SCAN_WINDOW_MS else BROADCAST_ASSIST_SCAN_WINDOW_MS)
+            val windowMs = currentBroadcastScanWindowMs(continuous)
+            handler.postDelayed(broadcastScanStopRunnable, windowMs)
             Log.i(TAG, "Broadcast scan started ($reason)")
-            UiRefreshBus.requestStatusRefresh()
+            BatteryTrace.bump(
+                key = "aidex.broadcast_scan.start",
+                logEvery = 10L,
+                detail = "reason=$reason continuous=$continuous windowMs=$windowMs misses=$broadcastScanMisses"
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Broadcast scan start failed: ${e.message}")
         }
@@ -2926,7 +2935,11 @@ class AiDexBleManager(
             } catch (_: Throwable) {}
             broadcastScanActive = false
             Log.d(TAG, "Broadcast scan stopped ($reason, found=$found)")
-            UiRefreshBus.requestStatusRefresh()
+            BatteryTrace.bump(
+                key = "aidex.broadcast_scan.stop",
+                logEvery = 10L,
+                detail = "reason=$reason found=$found misses=$broadcastScanMisses"
+            )
         }
 
         broadcastScanMisses = if (found) 0 else (broadcastScanMisses + 1)
@@ -2967,6 +2980,15 @@ class AiDexBleManager(
         handler.removeCallbacks(broadcastScanRunnable)
         handler.postDelayed(broadcastScanRunnable, delay)
         Log.d(TAG, "Broadcast scan scheduled in ${delay / 1000}s ($reason, misses=$broadcastScanMisses)")
+    }
+
+    private fun currentBroadcastScanWindowMs(continuous: Boolean, now: Long = System.currentTimeMillis()): Long {
+        if (!continuous) return BROADCAST_ASSIST_SCAN_WINDOW_MS
+        return if (broadcastScanMisses > 0 || !hasRecentLiveData(now)) {
+            BROADCAST_RECOVERY_SCAN_WINDOW_MS
+        } else {
+            BROADCAST_SCAN_WINDOW_MS
+        }
     }
 
     /**
@@ -3053,8 +3075,10 @@ class AiDexBleManager(
                 handleGlucoseResult(res, now)
                 lastBroadcastStoredTime = now
 
-                // Sync to Room DB
-                tk.glucodata.data.HistorySync.syncFromNative()
+                // Sync only the AiDex sensor that produced this broadcast frame.
+                tk.glucodata.data.HistorySync.syncSensorFromNative(
+                    tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
+                )
             } catch (e: Throwable) {
                 Log.e(TAG, "Broadcast: aidexProcessData failed: $e")
                 val mgdlPacked = (glucoseMgDlInt * 10).toLong() and 0xFFFFFFFFL

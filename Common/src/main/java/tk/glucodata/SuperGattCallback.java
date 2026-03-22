@@ -414,6 +414,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             // Still update the screen so charts/history reflect all sensors
             Applic.updatescreen();
             if (!isAiDexSerial) {
+                if (SerialNumber != null && !SerialNumber.isEmpty()) {
+                    tk.glucodata.data.HistorySync.syncSensorFromNative(SerialNumber);
+                }
                 UiRefreshBus.requestDataRefresh();
             }
             return;
@@ -506,6 +509,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
         Applic.updatescreen();
         if (!isAiDexSerial) {
+            if (SerialNumber != null && !SerialNumber.isEmpty()) {
+                tk.glucodata.data.HistorySync.syncSensorFromNative(SerialNumber);
+            }
             UiRefreshBus.requestDataRefresh();
         }
 

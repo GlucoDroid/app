@@ -8,12 +8,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import android.util.Log
 import tk.glucodata.Applic
+import tk.glucodata.BatteryTrace
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 /**
@@ -58,8 +57,7 @@ class GlucoseRepository {
     /**
      * Get the current reading for the main sensor.
      * OBSERVES the Room Database (Single Source of Truth) filtered by main sensor serial.
-     * Also runs a background Poller to fetch Native data and write it to the DB.
-     * This unifies Native (Polled) and AiDex (Pushed) data streams.
+     * Live updates are pushed into Room from real sensor events or explicit sync points.
      *
      * Reactive: Uses [flatMapLatest] on [_currentSerial] so when the main sensor
      * changes, the flow automatically re-subscribes to the new sensor's data.
@@ -70,15 +68,7 @@ class GlucoseRepository {
             historyRepository.ensureBackfilled()
         }
 
-        // 1. Launch Background Poller for Native Data
-        launch {
-            while (isActive) {
-                pollNativeAndStore()
-                delay(3000)
-            }
-        }
-
-        // 2. Observe Database for main sensor updates — reactive to sensor changes
+        // Observe Database for main sensor updates — reactive to sensor changes
         _currentSerial.flatMapLatest { serial ->
             if (serial.isNotEmpty()) {
                 historyRepository.getLatestReadingFlowForSensor(serial)
@@ -109,6 +99,11 @@ class GlucoseRepository {
         }
     }
 
+    suspend fun syncLatestNativeReadingOnce() {
+        BatteryTrace.bump("glucose.native.one_shot_sync", logEvery = 20L)
+        pollNativeAndStore()
+    }
+
     /** Timestamp (ms) of the last reading we stored, to avoid redundant writes. */
     private var lastStoredTimestampMs = 0L
 
@@ -122,6 +117,7 @@ class GlucoseRepository {
      */
     private suspend fun pollNativeAndStore() {
         try {
+            BatteryTrace.bump("glucose.native.poll_once", logEvery = 20L)
             // Get the main sensor serial for tagging
             val sensorSerial = Natives.lastsensorname() ?: "unknown"
             if (sensorSerial.isBlank()) return

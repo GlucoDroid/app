@@ -8920,8 +8920,10 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             val res = Natives.aidexProcessData(dataptr, bytes, timeMs, autoGlucose, rawGlucose, 1.0f)
             handleGlucoseResult(res, timeMs)
 
-            // Trigger sync to update Compose chart
-            tk.glucodata.data.HistorySync.syncFromNative()
+            // Trigger a targeted sync for just this sensor's live reading.
+            tk.glucodata.data.HistorySync.syncSensorFromNative(
+                tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)
+            )
 
             // History backfill is now handled asynchronously via checkAndRequestHistory()
             // from handleF003Data. The old inline call here blocked the calling thread

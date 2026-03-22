@@ -75,6 +75,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.RectangleShape
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.util.AdaptiveLayoutDensity
@@ -166,8 +169,6 @@ import androidx.compose.material.icons.rounded.TrendingDown
 import androidx.compose.material.icons.rounded.TrendingFlat
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import kotlin.math.abs
@@ -560,7 +561,7 @@ private fun DashboardRoute(
     navController: androidx.navigation.NavController,
     onTriggerCalibration: (CalibrationSheetState) -> Unit
 ) {
-    val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsState()
+    val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
 
     DashboardScreen(
         viewModel = dashboardViewModel,
@@ -577,12 +578,12 @@ private fun HistoryRoute(
     onBack: () -> Unit,
     onTriggerCalibration: (CalibrationSheetState) -> Unit
 ) {
-    val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsState()
-    val unit by dashboardViewModel.unit.collectAsState()
-    val viewMode by dashboardViewModel.viewMode.collectAsState()
-    val targetLow by dashboardViewModel.targetLow.collectAsState()
-    val targetHigh by dashboardViewModel.targetHigh.collectAsState()
-    val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsState()
+    val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
+    val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
+    val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
+    val targetLow by dashboardViewModel.targetLow.collectAsStateWithLifecycle()
+    val targetHigh by dashboardViewModel.targetHigh.collectAsStateWithLifecycle()
+    val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
 
     HistoryBrowseScreen(
         glucoseHistory = glucoseHistory,
@@ -604,10 +605,10 @@ private fun CalibrationListRoute(
     navController: androidx.navigation.NavController,
     onTriggerCalibration: (CalibrationSheetState) -> Unit
 ) {
-    val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsState()
-    val unit by dashboardViewModel.unit.collectAsState()
-    val viewMode by dashboardViewModel.viewMode.collectAsState()
-    val currentGlucose by dashboardViewModel.currentGlucose.collectAsState()
+    val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
+    val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
+    val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
+    val currentGlucose by dashboardViewModel.currentGlucose.collectAsStateWithLifecycle()
 
     val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
 
@@ -636,9 +637,9 @@ private fun CalibrationSheetHost(
 ) {
     if (sheetState is CalibrationSheetState.Hidden) return
 
-    val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsState()
-    val unit by dashboardViewModel.unit.collectAsState()
-    val viewMode by dashboardViewModel.viewMode.collectAsState()
+    val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
+    val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
+    val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
 
     val (initAuto, initRaw, initTime) = when (sheetState) {
         is CalibrationSheetState.New -> Triple(sheetState.auto, sheetState.raw, sheetState.timestamp)
@@ -683,6 +684,28 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     // Handle back button to exit app when on start destination
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
+
+    fun collectionModeForRoute(route: String?): DashboardViewModel.CollectionMode = when (route) {
+        "dashboard" -> DashboardViewModel.CollectionMode.DASHBOARD
+        "history", "calibrations", "settings/calibrations" -> DashboardViewModel.CollectionMode.FULL_HISTORY
+        else -> DashboardViewModel.CollectionMode.INACTIVE
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        dashboardViewModel.setCollectionMode(collectionModeForRoute(currentRoute))
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        dashboardViewModel.onResume()
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        dashboardViewModel.setCollectionMode(DashboardViewModel.CollectionMode.INACTIVE)
+    }
+
+    LaunchedEffect(currentRoute) {
+        dashboardViewModel.setCollectionMode(collectionModeForRoute(currentRoute))
+    }
 
     BackHandler(enabled = currentRoute == "dashboard") {
         // OPTION 1 (Current): Traditional Android - Back button exits/destroys app
@@ -949,23 +972,23 @@ fun DashboardScreen(
     }
 
 
-    val currentGlucose by viewModel.currentGlucose.collectAsState()
-    val currentRate by viewModel.currentRate.collectAsState()
-    val sensorName by viewModel.sensorName.collectAsState()
-    val daysRemaining by viewModel.daysRemaining.collectAsState()
-    val glucoseHistory by viewModel.glucoseHistory.collectAsState()
-    val unit by viewModel.unit.collectAsState()
-    val targetLow by viewModel.targetLow.collectAsState()
-    val targetHigh by viewModel.targetHigh.collectAsState()
-    val sensorStatus by viewModel.sensorStatus.collectAsState()
-    val sensorProgress by viewModel.sensorProgress.collectAsState()
-    val viewMode by viewModel.viewMode.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val activeSensorList by viewModel.activeSensorList.collectAsState()
-    val sensorHoursRemaining by viewModel.sensorHoursRemaining.collectAsState()
-    val currentDay by viewModel.currentDay.collectAsState()
-    val isRawEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForRaw.collectAsState()
-    val isAutoEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForAuto.collectAsState()
+    val currentGlucose by viewModel.currentGlucose.collectAsStateWithLifecycle()
+    val currentRate by viewModel.currentRate.collectAsStateWithLifecycle()
+    val sensorName by viewModel.sensorName.collectAsStateWithLifecycle()
+    val daysRemaining by viewModel.daysRemaining.collectAsStateWithLifecycle()
+    val glucoseHistory by viewModel.glucoseHistory.collectAsStateWithLifecycle()
+    val unit by viewModel.unit.collectAsStateWithLifecycle()
+    val targetLow by viewModel.targetLow.collectAsStateWithLifecycle()
+    val targetHigh by viewModel.targetHigh.collectAsStateWithLifecycle()
+    val sensorStatus by viewModel.sensorStatus.collectAsStateWithLifecycle()
+    val sensorProgress by viewModel.sensorProgress.collectAsStateWithLifecycle()
+    val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val activeSensorList by viewModel.activeSensorList.collectAsStateWithLifecycle()
+    val sensorHoursRemaining by viewModel.sensorHoursRemaining.collectAsStateWithLifecycle()
+    val currentDay by viewModel.currentDay.collectAsStateWithLifecycle()
+    val isRawEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForRaw.collectAsStateWithLifecycle()
+    val isAutoEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForAuto.collectAsStateWithLifecycle()
 
     // Initialize Calibration Manager
     LaunchedEffect(Unit) {

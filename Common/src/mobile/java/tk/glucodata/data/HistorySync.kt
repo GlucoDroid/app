@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import tk.glucodata.Applic
+import tk.glucodata.BatteryTrace
 import tk.glucodata.Natives
 import java.util.concurrent.ConcurrentHashMap
 
@@ -36,6 +37,8 @@ object HistorySync {
     // Per-sensor backfill stability tracking.
     // Key = sensor serial, Value = (lastReadingCount, stableCount).
     private val sensorStability = ConcurrentHashMap<String, Pair<Int, Int>>()
+    private val sensorLastSyncTimeMs = ConcurrentHashMap<String, Long>()
+    private val sensorSyncInProgress = ConcurrentHashMap.newKeySet<String>()
     private const val STABLE_THRESHOLD = 2
     private const val STABLE_GROWTH_TOLERANCE = 2
 
@@ -71,7 +74,51 @@ object HistorySync {
      */
     @JvmOverloads
     fun syncFromNative(forceFull: Boolean = false) {
+        BatteryTrace.bump(
+            key = "history.sync.all.request",
+            logEvery = 20L,
+            detail = if (forceFull) "forceFull=true" else null
+        )
         queueSync(forceFull, bypassThrottle = false)
+    }
+
+    @JvmStatic
+    @JvmOverloads
+    fun syncSensorFromNative(serial: String, forceFull: Boolean = false) {
+        if (serial.isBlank()) return
+
+        val now = System.currentTimeMillis()
+        val (_, stableCount) = sensorStability[serial] ?: Pair(-1, 0)
+        val sensorStable = stableCount >= STABLE_THRESHOLD
+        val minInterval = if (sensorStable && initialSyncDone) MIN_INCR_SYNC_INTERVAL_MS else MIN_FULL_SYNC_INTERVAL_MS
+        val lastSensorSync = sensorLastSyncTimeMs[serial] ?: 0L
+
+        if (!forceFull && (now - lastSensorSync) < minInterval) {
+            return
+        }
+        if (!sensorSyncInProgress.add(serial)) {
+            return
+        }
+
+        BatteryTrace.bump(
+            key = "history.sync.sensor.request",
+            logEvery = 20L,
+            detail = "serial=$serial forceFull=$forceFull"
+        )
+
+        scope.launch {
+            try {
+                syncGate.withLock {
+                    doSyncSensor(serial, forceFull)
+                    sensorLastSyncTimeMs[serial] = System.currentTimeMillis()
+                    if (!initialSyncDone) {
+                        initialSyncDone = true
+                    }
+                }
+            } finally {
+                sensorSyncInProgress.remove(serial)
+            }
+        }
     }
 
     private fun queueSync(forceFull: Boolean, bypassThrottle: Boolean) {
@@ -122,6 +169,11 @@ object HistorySync {
     private suspend fun doSyncAllSensors(forceFull: Boolean) {
         syncGate.withLock {
             try {
+                BatteryTrace.bump(
+                    key = "history.sync.all.run",
+                    logEvery = 20L,
+                    detail = if (forceFull) "forceFull=true" else null
+                )
                 val activeSensors = Natives.activeSensors()
                 if (activeSensors == null || activeSensors.isEmpty()) {
                     // No active sensors — try the main sensor as fallback
@@ -156,6 +208,11 @@ object HistorySync {
      */
     private suspend fun doSyncSensor(serial: String, forceFull: Boolean) {
         try {
+            BatteryTrace.bump(
+                key = "history.sync.sensor.run",
+                logEvery = 20L,
+                detail = "serial=$serial forceFull=$forceFull"
+            )
             val (lastCount, stableCount) = sensorStability[serial] ?: Pair(-1, 0)
             val sensorStable = stableCount >= STABLE_THRESHOLD
 
@@ -250,6 +307,7 @@ object HistorySync {
         lastSyncTimeMs = 0L
         initialSyncDone = false
         sensorStability.clear()
+        sensorLastSyncTimeMs.clear()
         syncFromNative(forceFull = true)
     }
 
@@ -267,6 +325,7 @@ object HistorySync {
     fun forceFullSyncForSensor(serial: String) {
         Log.i(TAG, "forceFullSyncForSensor($serial) — deleting Room data then re-syncing")
         sensorStability.remove(serial)
+        sensorLastSyncTimeMs.remove(serial)
         lastSyncTimeMs = 0L  // Allow immediate sync
         scope.launch {
             syncGate.withLock {

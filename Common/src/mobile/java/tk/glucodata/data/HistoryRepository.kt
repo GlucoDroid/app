@@ -9,9 +9,13 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import tk.glucodata.Applic
+import tk.glucodata.BatteryTrace
 import tk.glucodata.Natives
 import tk.glucodata.data.calibration.CalibrationManager
 import tk.glucodata.ui.GlucosePoint
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Repository for managing the independent glucose history database.
@@ -26,6 +30,9 @@ class HistoryRepository(context: Context = Applic.app) {
     
     companion object {
         private const val TAG = "HistoryRepo"
+        private val TIME_FORMATTER = object : ThreadLocal<SimpleDateFormat>() {
+            override fun initialValue(): SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+        }
         
         @Volatile
         private var backfillCompleted = false
@@ -230,6 +237,7 @@ class HistoryRepository(context: Context = Applic.app) {
         withContext(Dispatchers.IO) {
             try {
                 dao.insertAll(readings)
+                BatteryTrace.bump("room.history.insert_batch", logEvery = 20L, detail = "size=${readings.size}")
                 // Only log small batches (likely genuine new data, not re-syncs)
                 if (readings.size <= 10) {
                     Log.d(TAG, "Stored ${readings.size} readings")
@@ -247,17 +255,7 @@ class HistoryRepository(context: Context = Applic.app) {
      */
     fun getHistoryFlowForSensor(serial: String, startTime: Long = 0L): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
         return dao.getHistoryFlowForSensor(serial, startTime).map { readings ->
-            readings.map { reading ->
-                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                    .format(java.util.Date(reading.timestamp))
-                GlucosePoint(
-                    value = reading.value,
-                    time = timeStr,
-                    timestamp = reading.timestamp,
-                    rawValue = reading.rawValue,
-                    rate = reading.rate
-                )
-            }.distinctBy { it.timestamp }
+            mapReadings(readings)
         }.flowOn(Dispatchers.IO)
     }
 
@@ -289,11 +287,9 @@ class HistoryRepository(context: Context = Applic.app) {
     fun getLatestReadingFlowForSensor(serial: String): kotlinx.coroutines.flow.Flow<GlucosePoint?> {
         return dao.getLatestReadingFlowForSensor(serial).map { reading ->
             reading?.let {
-                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                    .format(java.util.Date(it.timestamp))
                 GlucosePoint(
                     value = it.value,
-                    time = timeStr,
+                    time = formatTime(it.timestamp),
                     timestamp = it.timestamp,
                     rawValue = it.rawValue,
                     rate = it.rate
@@ -309,17 +305,7 @@ class HistoryRepository(context: Context = Applic.app) {
         return withContext(Dispatchers.IO) {
             try {
                 val readings = dao.getReadingsSinceForSensor(serial, startTime)
-                readings.map { reading ->
-                    val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                        .format(java.util.Date(reading.timestamp))
-                    GlucosePoint(
-                        value = reading.value,
-                        time = timeStr,
-                        timestamp = reading.timestamp,
-                        rawValue = reading.rawValue,
-                        rate = reading.rate
-                    )
-                }.distinctBy { it.timestamp }
+                mapReadings(readings)
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting history for sensor $serial", e)
                 emptyList()
@@ -349,18 +335,7 @@ class HistoryRepository(context: Context = Applic.app) {
      */
     fun getHistoryFlow(startTime: Long = 0L): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
         return dao.getHistoryFlow(startTime).map { readings ->
-            readings.map { reading ->
-                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                    .format(java.util.Date(reading.timestamp))
-                
-                GlucosePoint(
-                    value = reading.value,
-                    time = timeStr,
-                    timestamp = reading.timestamp,
-                    rawValue = reading.rawValue,
-                    rate = reading.rate
-                )
-            }.distinctBy { it.timestamp }
+            mapReadings(readings)
         }.flowOn(Dispatchers.IO)
     }
 
@@ -371,11 +346,9 @@ class HistoryRepository(context: Context = Applic.app) {
     fun getLatestReadingFlow(): kotlinx.coroutines.flow.Flow<GlucosePoint?> {
         return dao.getLatestReadingFlow().map { reading ->
             reading?.let {
-                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                    .format(java.util.Date(it.timestamp))
                 GlucosePoint(
                     value = it.value,
-                    time = timeStr,
+                    time = formatTime(it.timestamp),
                     timestamp = it.timestamp,
                     rawValue = it.rawValue,
                     rate = it.rate
@@ -392,18 +365,7 @@ class HistoryRepository(context: Context = Applic.app) {
         return withContext(Dispatchers.IO) {
             try {
                 val readings = dao.getReadingsSince(startTime)
-                readings.map { reading ->
-                    val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                        .format(java.util.Date(reading.timestamp))
-                    
-                    GlucosePoint(
-                        value = reading.value,
-                        time = timeStr,
-                        timestamp = reading.timestamp,
-                        rawValue = reading.rawValue,
-                        rate = reading.rate
-                    )
-                }.distinctBy { it.timestamp }
+                mapReadings(readings)
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting history", e)
                 emptyList()
@@ -418,18 +380,7 @@ class HistoryRepository(context: Context = Applic.app) {
         return withContext(Dispatchers.IO) {
             try {
                 val readings = dao.getReadingsSince(startTime)
-                readings.map { reading ->
-                    val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                        .format(java.util.Date(reading.timestamp))
-                    
-                    GlucosePoint(
-                        value = reading.value,
-                        time = timeStr,
-                        timestamp = reading.timestamp,
-                        rawValue = reading.rawValue,
-                        rate = reading.rate
-                    )
-                }.distinctBy { it.timestamp }
+                mapReadings(readings)
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting raw history", e)
                 emptyList()
@@ -466,6 +417,21 @@ class HistoryRepository(context: Context = Applic.app) {
             }
         }
     }
+
+    private fun mapReadings(readings: List<HistoryReading>): List<GlucosePoint> {
+        return readings.map { reading ->
+            GlucosePoint(
+                value = reading.value,
+                time = formatTime(reading.timestamp),
+                timestamp = reading.timestamp,
+                rawValue = reading.rawValue,
+                rate = reading.rate
+            )
+        }.distinctBy { it.timestamp }
+    }
+
+    private fun formatTime(timestamp: Long): String =
+        requireNotNull(TIME_FORMATTER.get()).format(Date(timestamp))
     
     /**
      * Backfill ALL history from native layer on first run.

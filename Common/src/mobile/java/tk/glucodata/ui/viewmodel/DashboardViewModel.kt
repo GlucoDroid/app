@@ -3,14 +3,16 @@ package tk.glucodata.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import tk.glucodata.Natives
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.BatteryTrace
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
@@ -21,6 +23,13 @@ class DashboardViewModel(
 ) : ViewModel() {
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
+        const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
+    }
+
+    enum class CollectionMode {
+        INACTIVE,
+        DASHBOARD,
+        FULL_HISTORY
     }
 
     private val _currentGlucose = MutableStateFlow("---")
@@ -103,15 +112,20 @@ class DashboardViewModel(
     private val _alertsSummary = MutableStateFlow("")
     val alertsSummary = _alertsSummary.asStateFlow()
 
+    private var collectionMode = CollectionMode.INACTIVE
+    private var currentReadingJob: Job? = null
+    private var historyJob: Job? = null
+    private var uiRefreshJob: Job? = null
+    private var activeHistoryStartTimeMs: Long? = null
+
     init {
         // Keep initial UI boot light; do heavy history sync right after initial render window.
         refreshData(syncHistory = false)
-        startCollection()
-        startHistoryCollection()
-        startUiRefreshCollection()
         viewModelScope.launch {
             delay(1200L)
-            HistorySync.syncFromNative()
+            if (collectionMode != CollectionMode.INACTIVE) {
+                HistorySync.syncFromNative()
+            }
         }
     }
     
@@ -124,31 +138,57 @@ class DashboardViewModel(
     fun onResume() {
         glucoseRepository.refreshSensorSerial()
         refreshData(syncHistory = false)
-        viewModelScope.launch {
-            HistorySync.syncFromNative()
+        if (collectionMode != CollectionMode.INACTIVE) {
+            ensureUiRefreshCollection()
+            ensureCurrentReadingCollection()
+            startHistoryCollectionForMode(collectionMode)
+            viewModelScope.launch {
+                glucoseRepository.syncLatestNativeReadingOnce()
+                HistorySync.syncFromNative()
+            }
         }
     }
 
-    private fun startUiRefreshCollection() {
-        viewModelScope.launch {
+    fun setCollectionMode(mode: CollectionMode) {
+        if (collectionMode == mode) return
+        collectionMode = mode
+        when (mode) {
+            CollectionMode.INACTIVE -> stopCollectionJobs()
+            CollectionMode.DASHBOARD,
+            CollectionMode.FULL_HISTORY -> {
+                refreshData(syncHistory = false)
+                ensureUiRefreshCollection()
+                ensureCurrentReadingCollection()
+                startHistoryCollectionForMode(mode)
+                viewModelScope.launch {
+                    glucoseRepository.syncLatestNativeReadingOnce()
+                }
+            }
+        }
+    }
+
+    private fun ensureUiRefreshCollection() {
+        if (uiRefreshJob?.isActive == true) return
+        uiRefreshJob = viewModelScope.launch {
             UiRefreshBus.events.collect { event ->
                 when (event) {
-                    UiRefreshBus.Event.DataChanged -> refreshData(syncHistory = true)
+                    UiRefreshBus.Event.DataChanged -> refreshData(syncHistory = false)
                     UiRefreshBus.Event.StatusOnly -> refreshData(syncHistory = false)
                 }
             }
         }
     }
 
-    private fun startCollection() {
-        viewModelScope.launch {
+    private fun ensureCurrentReadingCollection() {
+        if (currentReadingJob?.isActive == true) return
+        currentReadingJob = viewModelScope.launch {
             glucoseRepository.getCurrentReading().collect { point ->
                 if (point != null) {
                     val valueToDisplay = if (viewMode.value == 1 || viewMode.value == 3) point.rawValue else point.value
                     _currentGlucose.value = if (valueToDisplay < 30) String.format("%.1f", valueToDisplay) else valueToDisplay.toInt().toString()
                     _currentRate.value = point.rate ?: 0f
                     // Don't append to _glucoseHistory here — the Room Flow in
-                    // startHistoryCollection() handles it. Appending here caused
+                    // startHistoryCollectionForMode() handles it. Appending here caused
                     // a triple-write race (append + 24h Flow + full Flow) that
                     // triggered redundant full-screen recompositions.
                 }
@@ -156,7 +196,7 @@ class DashboardViewModel(
         }
     }
 
-    fun refreshData(syncHistory: Boolean = true) {
+    fun refreshData(syncHistory: Boolean = false) {
         viewModelScope.launch {
             // Update the sensor serial in GlucoseRepository — if it changed,
             // all flatMapLatest flows will automatically re-subscribe
@@ -296,57 +336,58 @@ class DashboardViewModel(
                 }
             }
             
-            // Note: History is now collected reactively via startHistoryCollection()
+            // Note: History is now collected reactively via startHistoryCollectionForMode()
         }
     }
 
-    private fun startHistoryCollection() {
-        viewModelScope.launch {
-            // Re-collect history when unit changes
-            _unit.collect { unitStr ->
+    private fun startHistoryCollectionForMode(mode: CollectionMode) {
+        val startTimeMs = when (mode) {
+            CollectionMode.INACTIVE -> return
+            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
+            CollectionMode.FULL_HISTORY -> 0L
+        }
+
+        if (historyJob?.isActive == true && activeHistoryStartTimeMs == startTimeMs) return
+
+        historyJob?.cancel()
+        activeHistoryStartTimeMs = startTimeMs
+        _isLoading.value = true
+
+        historyJob = viewModelScope.launch {
+            combine(
+                _unit,
+                glucoseRepository.getHistoryFlowRaw(startTimeMs).distinctUntilChanged()
+            ) { unitStr, rawHistory ->
+                unitStr to rawHistory
+            }.collect { (unitStr, rawHistory) ->
+                BatteryTrace.bump(
+                    key = "dashboard.history.emission",
+                    logEvery = 20L,
+                    detail = "mode=$mode size=${rawHistory.size}"
+                )
                 val isMmol = unitStr == "mmol/L"
-                
-                // TWO-STAGE LOADING for instant UI with full history:
-                // Stage 1: Load last 24h immediately (fast, for instant render)
-                // Stage 2: After first emission, switch to full history and CANCEL stage 1
-                val oneDayAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000L)
-                
-                var stage1Job: kotlinx.coroutines.Job? = null
-                stage1Job = viewModelScope.launch {
-                    var switchedToFull = false
-                    glucoseRepository.getHistoryFlowRaw(oneDayAgo)
-                        .collect { rawHistory ->
-                            if (!switchedToFull) {
-                                // First emission from stage 1: render immediately
-                                val converted = rawHistory.map { p ->
-                                    val v = if (isMmol) p.value / 18.0182f else p.value
-                                    val r = if (isMmol) p.rawValue / 18.0182f else p.rawValue
-                                    tk.glucodata.ui.GlucosePoint(v, p.time, p.timestamp, r, p.rate)
-                                }
-                                _glucoseHistory.value = converted
-                                _isLoading.value = false
-                                switchedToFull = true
-                                
-                                // Stage 2: Launch full history collector and cancel this one
-                                viewModelScope.launch {
-                                    glucoseRepository.getHistoryFlowRaw(0L)
-                                        .distinctUntilChanged()
-                                        .collect { fullHistory ->
-                                            val fullConverted = fullHistory.map { p ->
-                                                val v = if (isMmol) p.value / 18.0182f else p.value
-                                                val r = if (isMmol) p.rawValue / 18.0182f else p.rawValue
-                                                tk.glucodata.ui.GlucosePoint(v, p.time, p.timestamp, r, p.rate)
-                                            }
-                                            _glucoseHistory.value = fullConverted
-                                        }
-                                }
-                                // Cancel stage 1 — stage 2 now owns _glucoseHistory
-                                stage1Job?.cancel()
-                            }
-                        }
+                _glucoseHistory.value = if (isMmol) {
+                    rawHistory.map { p ->
+                        val v = p.value / 18.0182f
+                        val r = p.rawValue / 18.0182f
+                        tk.glucodata.ui.GlucosePoint(v, p.time, p.timestamp, r, p.rate)
+                    }
+                } else {
+                    rawHistory
                 }
+                _isLoading.value = false
             }
         }
+    }
+
+    private fun stopCollectionJobs() {
+        currentReadingJob?.cancel()
+        currentReadingJob = null
+        historyJob?.cancel()
+        historyJob = null
+        uiRefreshJob?.cancel()
+        uiRefreshJob = null
+        activeHistoryStartTimeMs = null
     }
 
     fun setLowAlarm(enabled: Boolean, threshold: Float) {
