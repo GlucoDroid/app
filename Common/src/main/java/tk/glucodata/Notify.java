@@ -66,6 +66,8 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -93,6 +95,8 @@ public class Notify {
     };
     static public final int glucosetimeoutSEC = 30 * 11;
     static public final long glucosetimeout = 1000L * glucosetimeoutSEC;
+    static private final long INTERACTIVE_NOTIFICATION_REFRESH_DELAY_MS = 750L;
+    static private final Handler glucoseRefreshHandler = new Handler(Looper.getMainLooper());
 
     static final private String LOG_ID = "Notify";
     static Notify onenot = null;
@@ -516,7 +520,7 @@ public class Notify {
         final var gl = SuperGattCallback.previousglucosevalue;
         if (strgl == null || gl < 2.0f)
             return;
-        noti.arrowglucosenotification(2, gl, format(usedlocale, glucoseformat, gl), strgl, GLUCOSENOTIFICATION, true);
+        noti.postForegroundGlucoseNotification(2, gl, format(usedlocale, glucoseformat, gl), strgl);
     }
 
     void normalglucose(notGlucose strgl, float gl, float rate, boolean waiting) {
@@ -606,6 +610,53 @@ public class Notify {
             return new notGlucose(System.currentTimeMillis(), String.valueOf(fallbackValue), Float.NaN, 0);
         }
         return new notGlucose(glucose.time, glucose.value, glucose.rate, glucose.sensorgen2);
+    }
+
+    private static boolean isScreenInteractive() {
+        try {
+            final PowerManager powerManager = (PowerManager) Applic.app.getSystemService(Context.POWER_SERVICE);
+            return powerManager != null && powerManager.isInteractive();
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "isScreenInteractive", th);
+            return true;
+        }
+    }
+
+    private final Runnable glucoseRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (!isScreenInteractive()) {
+                    return;
+                }
+                final var snapshot = SuperGattCallback.previousglucose;
+                final var glucoseValue = SuperGattCallback.previousglucosevalue;
+                if (snapshot == null || glucoseValue < 2.0f) {
+                    return;
+                }
+                BatteryTrace.bump("notify.glucose.followup", 20L, "interactive=true");
+                postForegroundGlucoseNotification(
+                        2,
+                        glucoseValue,
+                        format(usedlocale, glucoseformat, glucoseValue),
+                        snapshot);
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "glucoseRefreshRunnable", th);
+            }
+        }
+    };
+
+    private void scheduleInteractiveNotificationRefresh() {
+        if (!isScreenInteractive()) {
+            return;
+        }
+        glucoseRefreshHandler.removeCallbacks(glucoseRefreshRunnable);
+        glucoseRefreshHandler.postDelayed(glucoseRefreshRunnable, INTERACTIVE_NOTIFICATION_REFRESH_DELAY_MS);
+    }
+
+    private void postForegroundGlucoseNotification(int kind, float glvalue, String message, notGlucose glucose) {
+        hasvalue = true;
+        fornotify(makearrownotification(kind, glvalue, message, glucose, GLUCOSENOTIFICATION, true));
     }
 
     private static int sanitizeAlarmDurationSeconds(int durationSeconds) {
@@ -1846,7 +1897,8 @@ public class Notify {
 
     private void updateForegroundGlucoseNotification(int kind, float glvalue, notGlucose glucose) {
         final String currentMessage = format(usedlocale, glucoseformat, glvalue);
-        arrowplacelargenotification(kind, glvalue, currentMessage, glucose, GLUCOSENOTIFICATION, true);
+        postForegroundGlucoseNotification(kind, glvalue, currentMessage, glucose);
+        scheduleInteractiveNotificationRefresh();
     }
 
     private void arrowsoundalarm(int kind, float glvalue, String message, notGlucose sglucose, String type,
@@ -2064,6 +2116,7 @@ public class Notify {
     }
 
     private void canceller() {
+        glucoseRefreshHandler.removeCallbacks(glucoseRefreshRunnable);
         notificationManager.cancel(glucosenotificationid);
         notificationManager.cancel(numalarmid);
     }
@@ -2242,21 +2295,10 @@ public class Notify {
                 // Fetch Native Points for Consistent Text Formatting (Raw/Auto)
                 long endT = System.currentTimeMillis();
                 long recentStartT = endT - 10 * 60 * 1000L;
+                final String activeSensorSerial = NotificationHistorySource.resolveSensorSerial(resolvePrimarySensorName());
                 java.util.List<GlucosePoint> nativePoints = new java.util.ArrayList<>();
                 try {
-                    long[] historyRaw = Natives.getGlucoseHistory(recentStartT / 1000L);
-                    if (historyRaw != null) {
-                        for (int i = 0; i < historyRaw.length; i += 3) {
-                            long t = historyRaw[i] * 1000L;
-                            float val = historyRaw[i + 1] / 10.0f;
-                            float valRaw = historyRaw[i + 2] / 10.0f;
-                            if (isMmol) {
-                                val /= 18.0182f;
-                                valRaw /= 18.0182f;
-                            }
-                            nativePoints.add(new GlucosePoint(t, val, valRaw));
-                        }
-                    }
+                    nativePoints = NotificationHistorySource.getDisplayHistory(recentStartT, isMmol, activeSensorSerial);
                 } catch (Exception e) {
                 }
 
@@ -2279,7 +2321,7 @@ public class Notify {
                         : null;
 
                 CharSequence valueText = formatGlucoseText(glucose.value, glvalue, nativePoints, viewMode,
-                        glucose.time);
+                        glucose.time, activeSensorSerial);
 
                 // Construct RemoteViews using the same rich alert surface for every mode.
                 RemoteViews remoteViews = new RemoteViews(Applic.app.getPackageName(),
@@ -2508,7 +2550,8 @@ public class Notify {
     // Helper to format "Value · Raw" with HTML styling and comma separator
     public static CharSequence formatGlucoseText(String value, float glvalue, java.util.List<GlucosePoint> points,
             int viewMode,
-            long targetTime) {
+            long targetTime,
+            String calibrationSensorId) {
         String valueText;
         boolean isSimple = false;
         try {
@@ -2527,7 +2570,7 @@ public class Notify {
         if (isSimple && points != null && !points.isEmpty()) {
             boolean isRawMode = (viewMode == 1 || viewMode == 3);
             boolean hasCalibration = tk.glucodata.data.calibration.CalibrationManager.INSTANCE
-                    .hasActiveCalibration(isRawMode);
+                    .hasActiveCalibration(isRawMode, calibrationSensorId);
             boolean hideInitialWhenCalibrated = hasCalibration
                     && tk.glucodata.data.calibration.CalibrationManager.INSTANCE.shouldHideInitialWhenCalibrated();
 
@@ -2672,42 +2715,28 @@ public class Notify {
 
         // Delta (Current - Previous?) - omitted for now
 
-        // Trigger History Sync to ensure Room DB has latest data for main app
-        tk.glucodata.data.HistorySync.INSTANCE.syncFromNative();
-
         // 2. Build Chart
-        // Fetch history (last 3 hours) from Room DB (same source as main chart)
         long endT = System.currentTimeMillis();
         long startT = endT - 3 * 60 * 60 * 1000L;
         boolean isMmol = Applic.unit == 1; // Check user unit preference
+        final String activeSensorSerial = NotificationHistorySource.resolveSensorSerial(resolvePrimarySensorName());
 
-        // Use Room DB via HistoryRepository for chart display (consistent with main
-        // app)
         java.util.List<GlucosePoint> chartPoints;
         try {
-            chartPoints = tk.glucodata.data.HistoryRepository.getHistoryForNotification(startT, isMmol);
+            chartPoints = NotificationHistorySource.getDisplayHistory(startT, isMmol, activeSensorSerial);
         } catch (Exception e) {
             chartPoints = new java.util.ArrayList<>();
         }
 
-        // FRESH native points for value text lookup (has calibrateNow on-the-fly)
-        // Only need recent readings for value matching
+        BatteryTrace.bump(
+                "notify.glucose.render",
+                20L,
+                "interactive=" + isScreenInteractive());
+
         long recentStartT = endT - 10 * 60 * 1000L; // Last 10 minutes
         java.util.List<GlucosePoint> nativePoints = new java.util.ArrayList<>();
         try {
-            long[] historyRaw = Natives.getGlucoseHistory(recentStartT / 1000L); // Native expects seconds
-            if (historyRaw != null) {
-                for (int i = 0; i < historyRaw.length; i += 3) {
-                    long t = historyRaw[i] * 1000L;
-                    float val = historyRaw[i + 1] / 10.0f;
-                    float valRaw = historyRaw[i + 2] / 10.0f;
-                    if (isMmol) {
-                        val = val / 18.0182f;
-                        valRaw = valRaw / 18.0182f;
-                    }
-                    nativePoints.add(new GlucosePoint(t, val, valRaw));
-                }
-            }
+            nativePoints = NotificationHistorySource.getDisplayHistory(recentStartT, isMmol, activeSensorSerial);
         } catch (Exception e) {
             // Fall back to chart points if native fails
             nativePoints = chartPoints;
@@ -2715,7 +2744,6 @@ public class Notify {
 
         // Status Logic & ViewMode extraction
         String statusText = "";
-        String activeSensorSerial = Natives.lastsensorname();
         int viewMode = 0; // Default
 
         if (activeSensorSerial != null && SensorBluetooth.blueone != null) {
@@ -2744,9 +2772,15 @@ public class Notify {
         // If ViewMode == 3 (Combined), we force appending Raw if available
         boolean isRawMode = (viewMode == 1 || viewMode == 3);
         boolean hasCalibration = tk.glucodata.data.calibration.CalibrationManager.INSTANCE
-                .hasActiveCalibration(isRawMode);
+                .hasActiveCalibration(isRawMode, activeSensorSerial);
 
-        CharSequence valueText = formatGlucoseText(glucose.value, glvalue, nativePoints, viewMode, glucose.time);
+        CharSequence valueText = formatGlucoseText(
+                glucose.value,
+                glvalue,
+                nativePoints,
+                viewMode,
+                glucose.time,
+                activeSensorSerial);
 
         // Semantic Color
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, glvalue, isMmol);
@@ -2912,14 +2946,14 @@ public class Notify {
             // Use safeContext and explicit height
             chartBitmapCollapsed = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, collapsedHeight,
                     isMmol,
-                    viewMode, showTargetRange, hasCalibration, true);
+                    viewMode, showTargetRange, hasCalibration, true, activeSensorSerial);
         }
 
         if (showChart) {
             // Expanded chart: Use safely resolved density context (default 0 ->
             // 256*density)
             chartBitmapExpanded = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, 0, isMmol,
-                    viewMode, showTargetRange, hasCalibration, false);
+                    viewMode, showTargetRange, hasCalibration, false, activeSensorSerial);
         }
 
         remoteViews.setImageViewBitmap(R.id.notification_chart, chartBitmapCollapsed);
@@ -2987,57 +3021,28 @@ public class Notify {
         final String message = app
                 .getString(SensorBluetooth.blueone != null ? R.string.connectwithsensor : R.string.exchangedata);
 
-        // Fetch History for Startup Graph from Room DB (same source as main chart)
         long endT = System.currentTimeMillis();
         long startT = endT - 3 * 60 * 60 * 1000L;
         boolean isMmol = Applic.unit == 1;
+        final String activeSensorSerial = NotificationHistorySource.resolveSensorSerial(resolvePrimarySensorName());
 
-        // Use Room DB via HistoryRepository for consistent data with chart
         java.util.List<GlucosePoint> chartPoints;
         try {
-            // Get RAW mg/dL
-            java.util.List<GlucosePoint> rawPoints = tk.glucodata.data.HistoryRepository
-                    .getHistoryRawForNotification(startT);
-
-            // Convert to Display Unit if needed (UI Layer Logic)
-            chartPoints = new java.util.ArrayList<>();
-            for (GlucosePoint p : rawPoints) {
-                float val = p.value;
-                float rawVal = p.rawValue;
-                if (isMmol) {
-                    val /= 18.0182f;
-                    rawVal /= 18.0182f;
-                }
-                chartPoints.add(new GlucosePoint(p.timestamp, val, rawVal));
-            }
+            chartPoints = NotificationHistorySource.getDisplayHistory(startT, isMmol, activeSensorSerial);
         } catch (Exception e) {
             chartPoints = new java.util.ArrayList<>();
         }
 
-        // FRESH native points for value text lookup (has calibrateNow on-the-fly)
         long recentStartT = endT - 15 * 60 * 1000L; // Last 15 minutes
         java.util.List<GlucosePoint> nativePoints = new java.util.ArrayList<>();
         try {
-            long[] historyRaw = Natives.getGlucoseHistory(recentStartT / 1000L);
-            if (historyRaw != null) {
-                for (int i = 0; i < historyRaw.length; i += 3) {
-                    long t = historyRaw[i] * 1000L;
-                    float val = historyRaw[i + 1] / 10.0f;
-                    float valRaw = historyRaw[i + 2] / 10.0f;
-                    if (isMmol) {
-                        val = val / 18.0182f;
-                        valRaw = valRaw / 18.0182f;
-                    }
-                    nativePoints.add(new GlucosePoint(t, val, valRaw));
-                }
-            }
+            nativePoints = NotificationHistorySource.getDisplayHistory(recentStartT, isMmol, activeSensorSerial);
         } catch (Exception e) {
             nativePoints = chartPoints;
         }
 
         // Identify ViewMode for Startup
         int viewMode = 0;
-        String activeSensorSerial = Natives.lastsensorname();
         if (activeSensorSerial != null && SensorBluetooth.blueone != null) {
             synchronized (SensorBluetooth.gattcallbacks) {
                 for (SuperGattCallback cb : SensorBluetooth.gattcallbacks) {
@@ -3073,7 +3078,8 @@ public class Notify {
                     // ignore
                 }
                 // Use unified formatter with TIME check using NATIVE points
-                startupValue = formatGlucoseText(last.value, val, nativePoints, viewMode, last.time);
+                startupValue = formatGlucoseText(last.value, val, nativePoints, viewMode, last.time,
+                        activeSensorSerial);
             }
         } else if (!chartPoints.isEmpty()) {
             // Fallback if Natives.lastglucose() is not ready but history is
@@ -3097,7 +3103,8 @@ public class Notify {
             notGlucose previous = SuperGattCallback.previousglucose;
             float previousValue = SuperGattCallback.previousglucosevalue;
             if (previous != null && previousValue >= 2.0f) {
-                startupValue = formatGlucoseText(previous.value, previousValue, nativePoints, viewMode, previous.time);
+                startupValue = formatGlucoseText(previous.value, previousValue, nativePoints, viewMode, previous.time,
+                        activeSensorSerial);
             }
         }
 
@@ -3133,11 +3140,11 @@ public class Notify {
             // Collapsed: Compact Mode = TRUE, Height 48dp
             chartBitmapCollapsed = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, collapsedHeight,
                     isMmol,
-                    viewMode, true, false, true);
+                    viewMode, true, false, true, activeSensorSerial);
 
             // Expanded: Compact Mode = FALSE, Height 256dp (via 0)
             chartBitmapExpanded = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, 0, isMmol,
-                    viewMode, true, false, false);
+                    viewMode, true, false, false, activeSensorSerial);
         }
 
         Bitmap arrowBitmap;
@@ -3532,6 +3539,9 @@ public class Notify {
             boolean once) {
         hasvalue = true;
         fornotify(makearrownotification(kind, glvalue, message, glucose, type, once));
+        if (once && GLUCOSENOTIFICATION.equals(type)) {
+            scheduleInteractiveNotificationRefresh();
+        }
 
     }
 
@@ -3556,6 +3566,9 @@ public class Notify {
         }
         ;
         fornotify(makearrownotification(kind, glvalue, message, glucose, type, once));
+        if (once && GLUCOSENOTIFICATION.equals(type)) {
+            scheduleInteractiveNotificationRefresh();
+        }
     }
 
     final private int numalarmid = 81432;

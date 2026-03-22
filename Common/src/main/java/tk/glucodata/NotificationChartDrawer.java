@@ -340,24 +340,40 @@ public class NotificationChartDrawer {
             boolean isMmol, int viewMode, boolean showTargetRange) {
         boolean compactMode = (heightHint > 0 && heightHint < 150);
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange, false,
-                compactMode);
+                compactMode, null);
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration) {
         boolean compactMode = (heightHint > 0 && heightHint < 150);
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
-                hasCalibration, compactMode);
+                hasCalibration, compactMode, null);
+    }
+
+    public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration,
+            String calibrationSensorId) {
+        boolean compactMode = (heightHint > 0 && heightHint < 150);
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
+                hasCalibration, compactMode, calibrationSensorId);
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode) {
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
-                hasCalibration, compactMode);
+                hasCalibration, compactMode, null);
+    }
+
+    public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
+            String calibrationSensorId) {
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
+                hasCalibration, compactMode, calibrationSensorId);
     }
 
     private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
-            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode) {
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
+            String calibrationSensorId) {
         // Get display metrics for proper sizing
         DisplayMetrics dm = context.getResources().getDisplayMetrics();
         int width = (widthHint > 0) ? widthHint : dm.widthPixels;
@@ -490,7 +506,9 @@ public class NotificationChartDrawer {
                     float calVal = tk.glucodata.data.calibration.CalibrationManager.INSTANCE.getCalibratedValue(
                             baseVal,
                             p.timestamp,
-                            isRawModeForCal);
+                            isRawModeForCal,
+                            false,
+                            calibrationSensorId);
                     if (calVal > 0.1f) {
                         minY = Math.min(minY, calVal);
                         maxY = Math.max(maxY, calVal);
@@ -735,7 +753,7 @@ public class NotificationChartDrawer {
                 float baseVal = isRawModeforCal ? p.rawValue : p.value;
                 if (baseVal > 0) {
                     float val = tk.glucodata.data.calibration.CalibrationManager.INSTANCE.getCalibratedValue(baseVal,
-                            p.timestamp, isRawModeforCal);
+                            p.timestamp, isRawModeforCal, false, calibrationSensorId);
 
                     if (val > 0.1f) {
                         float x = chartLeft + ((p.timestamp - startTime) / (float) duration) * chartWidth;

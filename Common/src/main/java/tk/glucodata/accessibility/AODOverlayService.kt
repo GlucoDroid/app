@@ -21,8 +21,10 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
 import android.widget.TextView
 import tk.glucodata.Applic
+import tk.glucodata.BatteryTrace
 import tk.glucodata.GlucosePoint
 import tk.glucodata.Natives
+import tk.glucodata.NotificationHistorySource
 import tk.glucodata.NotificationChartDrawer
 import tk.glucodata.Notify
 import tk.glucodata.R
@@ -33,6 +35,10 @@ import tk.glucodata.logic.TrendEngine
 import java.util.Locale
 
 class AODOverlayService : AccessibilityService(), SensorEventListener {
+    companion object {
+        private const val PERIODIC_REFRESH_MS = 60_000L
+        private const val BROADCAST_FOLLOW_UP_MS = 750L
+    }
 
     private var windowManager: WindowManager? = null
     private var sensorManager: SensorManager? = null
@@ -52,12 +58,22 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private var yOffset = 0
     private var currentOverlayPosition = "TOP"
 
+    private val broadcastFollowUpRunnable = Runnable {
+        if (isLocked && overlayView?.visibility == View.VISIBLE) {
+            BatteryTrace.bump("aod.overlay.refresh.followup", logEvery = 20L)
+            updateOverlayContent()
+        }
+    }
+
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 "tk.glucodata.action.GLUCOSE_UPDATE" -> {
                     if (isLocked && overlayView?.visibility == View.VISIBLE) {
+                        BatteryTrace.bump("aod.overlay.refresh.broadcast", logEvery = 20L)
                         updateOverlayContent()
+                        handler.removeCallbacks(broadcastFollowUpRunnable)
+                        handler.postDelayed(broadcastFollowUpRunnable, BROADCAST_FOLLOW_UP_MS)
                     }
                 }
                 Intent.ACTION_SCREEN_OFF -> {
@@ -114,11 +130,12 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            if (overlayView != null) {
+            if (overlayView != null && isLocked) {
+                BatteryTrace.bump("aod.overlay.refresh.periodic", logEvery = 20L)
                 updateOverlayContent()
                 applyBurnInProtection()
+                handler.postDelayed(this, PERIODIC_REFRESH_MS)
             }
-            handler.postDelayed(this, 60000L)
         }
     }
 
@@ -144,9 +161,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     }
 
     private fun createOverlay() {
-        // View creation is now handled by showOverlay() when needed
-        // Just start the periodic update runnable
-        handler.post(updateRunnable)
+        // View creation is handled by showOverlay() when needed.
     }
 
     private fun updateVisibility() {
@@ -224,6 +239,8 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         }
         updateOverlayContent()
         applyBurnInProtection(force = true)
+        handler.removeCallbacks(updateRunnable)
+        handler.postDelayed(updateRunnable, PERIODIC_REFRESH_MS)
         
         // Cache opacity preference (avoid reading SharedPrefs in sensor callback)
         val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
@@ -243,6 +260,8 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private fun hideOverlay() {
         // Unregister light sensor
         sensorManager?.unregisterListener(this)
+        handler.removeCallbacks(updateRunnable)
+        handler.removeCallbacks(broadcastFollowUpRunnable)
         
         // Remove the view entirely - instant disappearance like xDrip
         val view = overlayView
@@ -349,22 +368,17 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val endT = System.currentTimeMillis()
         val startT = endT - 3 * 60 * 60 * 1000L
         val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
+        val activeSensorSerial = NotificationHistorySource.resolveSensorSerial(Natives.lastsensorname())
 
         var chartPoints: List<GlucosePoint>
         try {
-            val rawPoints = tk.glucodata.data.HistoryRepository.getHistoryRawForNotification(startT)
-            chartPoints = rawPoints.map { p ->
-                val valConverted = if (isMmol) p.value / 18.0182f else p.value
-                val rawConverted = if (isMmol) p.rawValue / 18.0182f else p.rawValue
-                GlucosePoint(p.timestamp, valConverted, rawConverted)
-            }
+            chartPoints = NotificationHistorySource.getDisplayHistory(startT, isMmol, activeSensorSerial)
         } catch (e: Exception) {
             chartPoints = ArrayList()
         }
 
         // ViewMode & Status
         var viewMode = 0
-        val activeSensorSerial = Natives.lastsensorname()
         var statusText = ""
 
         if (activeSensorSerial != null && SensorBluetooth.blueone != null) {
@@ -380,7 +394,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         }
 
         val isRawMode = (viewMode == 1 || viewMode == 3)
-        val hasCalibration = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawMode)
+        val hasCalibration = tk.glucodata.NightscoutCalibration.hasCalibrationForViewMode(activeSensorSerial, viewMode)
         val hideInitialWhenCalibrated = hasCalibration &&
             tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
         val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
@@ -430,7 +444,16 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             val calibratedVal = if (hasCalibration) {
                 val baseVal = if (isRawMode) rawVal else autoVal
                 if (baseVal.isFinite() && baseVal > 0.1f) {
-                    tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseVal, time, isRawMode)
+                    val autoMgdl = if (isMmol) autoVal * 18.0182f else autoVal
+                    val rawMgdl = if (isMmol) rawVal * 18.0182f else rawVal
+                    val calibratedMgdl = tk.glucodata.NightscoutCalibration.getCalibratedValueForViewMode(
+                        activeSensorSerial,
+                        viewMode,
+                        autoMgdl,
+                        rawMgdl,
+                        time
+                    )
+                    if (calibratedMgdl > 0f && isMmol) calibratedMgdl / 18.0182f else calibratedMgdl
                 } else {
                     0f
                 }
@@ -544,7 +567,8 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                 isMmol,
                 viewMode,
                 true,
-                hasCalibration
+                hasCalibration,
+                activeSensorSerial
             )
             if (chartImg != null) {
                 chartImg.layoutParams = chartImg.layoutParams?.also { params ->
@@ -596,6 +620,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             sensorManager?.unregisterListener(this)
         } catch (e: Exception) {}
         handler.removeCallbacks(updateRunnable)
+        handler.removeCallbacks(broadcastFollowUpRunnable)
     }
 
     private fun isLockscreenPackage(packageName: String): Boolean {
