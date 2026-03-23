@@ -1607,7 +1607,7 @@ class AiDexBleManager(
                     rawValue ?: 0f,
                     1.0f
                 )
-                handleGlucoseResult(res, now)
+                handleGlucoseResult(res, now, rawValue ?: Float.NaN)
                 if (constatstatusstr == "Connected") {
                     constatstatusstr = ""
                 }
@@ -1615,18 +1615,18 @@ class AiDexBleManager(
             } catch (e: UnsatisfiedLinkError) {
                 Log.e(TAG, "F003($source): Native library mismatch: $e")
                 val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
-                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now)
+                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now, rawValue ?: Float.NaN)
                 maybeRequestHistoryContinuitySyncAfterLive(now, "$source-fallback")
             } catch (e: Throwable) {
                 Log.e(TAG, "F003($source): aidexProcessData failed: $e")
                 val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
-                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now)
+                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now, rawValue ?: Float.NaN)
                 maybeRequestHistoryContinuitySyncAfterLive(now, "$source-fallback")
             }
         } else {
             Log.w(TAG, "F003($source): dataptr is 0 — cannot store reading")
             val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
-            handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now)
+            handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, now, rawValue ?: Float.NaN)
             maybeRequestHistoryContinuitySyncAfterLive(now, "$source-no-dataptr")
         }
     }

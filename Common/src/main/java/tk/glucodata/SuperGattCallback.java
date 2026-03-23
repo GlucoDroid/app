@@ -441,6 +441,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         return match != null ? match.rawMgdl : Float.NaN;
     }
 
+    private static boolean shouldResolveRawLane(int viewMode) {
+        return viewMode == 1 || viewMode == 2 || viewMode == 3;
+    }
+
     private static void storeLiveReadingInRoom(String sensorSerial, long timmsec, float autoMgdl, float rawMgdl, float rate) {
         if (sensorSerial == null || sensorSerial.isEmpty() || timmsec <= 0L) {
             return;
@@ -456,7 +460,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         final float matchedRaw = match != null ? match.rawMgdl : Float.NaN;
         final float storedRaw = (Float.isFinite(rawMgdl) && rawMgdl > 0f)
                 ? rawMgdl
-                : ((Float.isFinite(matchedRaw) && matchedRaw > 0f) ? matchedRaw : storedAuto);
+                : ((Float.isFinite(matchedRaw) && matchedRaw > 0f) ? matchedRaw : 0f);
         HistorySyncAccess.storeCurrentReadingAsync(storedTimestamp, storedAuto, storedRaw, rate, sensorSerial);
     }
 
@@ -701,10 +705,14 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     }
 
     protected void handleGlucoseResult(long res, long timmsec) {
-        handleGlucoseResultInternal(res, timmsec, 0);
+        handleGlucoseResultInternal(res, timmsec, 0, Float.NaN);
     }
 
-    private void handleGlucoseResultInternal(long res, long timmsec, int retryCount) {
+    protected void handleGlucoseResult(long res, long timmsec, float preferredRawMgdl) {
+        handleGlucoseResultInternal(res, timmsec, 0, preferredRawMgdl);
+    }
+
+    private void handleGlucoseResultInternal(long res, long timmsec, int retryCount, float preferredRawMgdl) {
         // int glumgdl = (int) (res & 0xFFFFFFFFL);
         int glumgL = (int) (res & 0xFFFFFFFFL);
         int alarm = (int) ((res >> 48) & 0xFFL);
@@ -714,12 +722,15 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         // Check viewMode early - RAW modes may have data even when calibrated glucose is 0
         int viewMode = Natives.getViewMode(dataptr);
         boolean isRawMode = (viewMode == 1 || viewMode == 3);
+        boolean shouldResolveRawLane = shouldResolveRawLane(viewMode);
 
         // In RAW mode with zero calibrated glucose, try to get raw from history
         // This handles warmup period where algorithm returns 0 but raw data exists
         if (glumgL == 0 && isRawMode) {
             long timeSec = timmsec / 1000L;
-            final float rawMgdl = findRawMgdlNear(SerialNumber, timeSec);
+            final float rawMgdl = (Float.isFinite(preferredRawMgdl) && preferredRawMgdl > 0f)
+                    ? preferredRawMgdl
+                    : findRawMgdlNear(SerialNumber, timeSec);
             if (Float.isFinite(rawMgdl) && rawMgdl > 0f) {
                 // Found raw value - use it even though calibrated is 0
                 int mgdlToUse = (int) Math.round(rawMgdl);
@@ -756,7 +767,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 if (doLog) {
                     Log.i(LOG_ID, "RAW mode: no raw value found, retrying (" + (retryCount + 1) + "/3)...");
                 }
-                Applic.scheduler.schedule(() -> handleGlucoseResultInternal(res, timmsec, retryCount + 1), 200, TimeUnit.MILLISECONDS);
+                Applic.scheduler.schedule(
+                        () -> handleGlucoseResultInternal(res, timmsec, retryCount + 1, preferredRawMgdl),
+                        200,
+                        TimeUnit.MILLISECONDS);
                 return;
             }
         }
@@ -775,9 +789,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             final float autoMgdl = glumgL / 10.0f;
             float rawMgdl = Float.NaN;
 
-            if (isRawMode) {
+            if (shouldResolveRawLane) {
                 long timeSec = timmsec / 1000L;
-                rawMgdl = findRawMgdlNear(SerialNumber, timeSec);
+                rawMgdl = (Float.isFinite(preferredRawMgdl) && preferredRawMgdl > 0f)
+                        ? preferredRawMgdl
+                        : findRawMgdlNear(SerialNumber, timeSec);
                 boolean found = Float.isFinite(rawMgdl) && rawMgdl > 0f;
                 if (found) {
                     mgdlToUse = (int) Math.round(rawMgdl);
@@ -790,19 +806,16 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         Log.i(LOG_ID, "Using RAW value: " + glucoseToUse + " (mgdl: " + mgdlToUse + ")");
                     }
                 }
-                if (!found && retryCount < 3) {
+                if (isRawMode && !found && retryCount < 3) {
                     if (doLog) {
                         Log.i(LOG_ID, "History lookup failed, retrying (" + (retryCount + 1) + "/3)...");
                     }
-                    Applic.scheduler.schedule(() -> handleGlucoseResultInternal(res, timmsec, retryCount + 1), 200,
+                    Applic.scheduler.schedule(() -> handleGlucoseResultInternal(res, timmsec, retryCount + 1, preferredRawMgdl), 200,
                             TimeUnit.MILLISECONDS);
                     return;
                 }
             }
 
-            if (!Float.isFinite(rawMgdl) || rawMgdl <= 0f) {
-                rawMgdl = autoMgdl;
-            }
             storeLiveReadingInRoom(SerialNumber, timmsec, autoMgdl, rawMgdl, rate);
             maybeRequestHistoryContinuitySyncAfterLive(SerialNumber, timmsec);
 
