@@ -347,6 +347,11 @@
     <string name="graph_smoothing_3_minutes">3 minuti</string>
     <string name="graph_smoothing_5_minutes">5 minuti</string>
     <string name="graph_smoothing_7_minutes">7 minuti</string>
+    <string name="preview_window_title">Finestra di anteprima</string>
+    <string name="preview_window_desc">Mostra un mini navigatore di 24 ore sotto il grafico della dashboard senza modificare il comportamento del grafico principale</string>
+    <string name="preview_window_expanded_only">Solo in vista espansa (predefinito)</string>
+    <string name="preview_window_always">Sempre</string>
+    <string name="preview_window_never">Mai</string>
     <string name="debug_logs_desc">Vedi trace.log e logcat</string>
     <string name="data_management">Gestione Dati</string>
     <string name="export_data">Esporta Cronologia</string>

@@ -374,6 +374,11 @@
     <string name="graph_smoothing_3_minutes">3 minutos</string>
     <string name="graph_smoothing_5_minutes">5 minutos</string>
     <string name="graph_smoothing_7_minutes">7 minutos</string>
+    <string name="preview_window_title">Janela de pré-visualização</string>
+    <string name="preview_window_desc">Mostra um mini navegador de 24 horas sob o gráfico do painel sem alterar o comportamento do gráfico principal</string>
+    <string name="preview_window_expanded_only">Apenas na vista expandida (padrão)</string>
+    <string name="preview_window_always">Sempre</string>
+    <string name="preview_window_never">Nunca</string>
     <string name="debug_logs_desc">Ver trace.log e logcat</string>
     <string name="data_management">Gerenciamento de Dados</string>
     <string name="export_data">Exportar Histórico</string>

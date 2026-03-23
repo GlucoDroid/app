@@ -726,6 +726,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="graph_smoothing_3_minutes">3 minutes</string>
     <string name="graph_smoothing_5_minutes">5 minutes</string>
     <string name="graph_smoothing_7_minutes">7 minutes</string>
+    <string name="preview_window_title">Preview window</string>
+    <string name="preview_window_desc">Show a 24-hour mini navigator under the dashboard chart without changing the main chart behavior</string>
+    <string name="preview_window_expanded_only">Expanded view (default)</string>
+    <string name="preview_window_always">Always</string>
+    <string name="preview_window_never">Never</string>
     <string name="debug_logs_desc">View trace.log and logcat</string>
 
     

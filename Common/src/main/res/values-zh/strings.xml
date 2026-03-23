@@ -481,6 +481,11 @@
     <string name="graph_smoothing_3_minutes">3 分钟</string>
     <string name="graph_smoothing_5_minutes">5 分钟</string>
     <string name="graph_smoothing_7_minutes">7 分钟</string>
+    <string name="preview_window_title">预览窗口</string>
+    <string name="preview_window_desc">在不改变主图表行为的情况下，在仪表板图表下方显示 24 小时迷你导航器</string>
+    <string name="preview_window_expanded_only">仅在展开视图中（默认）</string>
+    <string name="preview_window_always">始终</string>
+    <string name="preview_window_never">从不</string>
     <string name="debug_logs_desc">查看 trace.log 和 logcat</string>
     <string name="data_management">数据管理</string>
     <string name="export_data">导出历史记录</string>

@@ -110,6 +110,9 @@ class DashboardViewModel(
     private val _chartSmoothingMinutes = MutableStateFlow(0)
     val chartSmoothingMinutes = _chartSmoothingMinutes.asStateFlow()
 
+    private val _previewWindowMode = MutableStateFlow(0)
+    val previewWindowMode = _previewWindowMode.asStateFlow()
+
     private val _lowAlarmSoundMode = MutableStateFlow(0)
     val lowAlarmSoundMode = _lowAlarmSoundMode.asStateFlow()
 
@@ -228,6 +231,7 @@ class DashboardViewModel(
             migrateTargetRangeDefaultsIfNeeded(prefs, isMmol)
             _notificationChartEnabled.value = prefs.getBoolean("notification_chart_enabled", true)
             _chartSmoothingMinutes.value = prefs.getInt("dashboard_chart_smoothing_minutes", 0)
+            _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
             
             _targetLow.value = Natives.targetlow()
             _targetHigh.value = Natives.targethigh()
@@ -529,6 +533,14 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putInt("dashboard_chart_smoothing_minutes", sanitized).apply()
         _chartSmoothingMinutes.value = sanitized
+    }
+
+    fun setPreviewWindowMode(mode: Int) {
+        val sanitized = mode.coerceIn(0, 2)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putInt("dashboard_chart_preview_window_mode", sanitized).apply()
+        _previewWindowMode.value = sanitized
     }
 
     // Floating Glucose Logic

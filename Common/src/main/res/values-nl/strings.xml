@@ -552,6 +552,11 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="graph_smoothing_3_minutes">3 minuten</string>
     <string name="graph_smoothing_5_minutes">5 minuten</string>
     <string name="graph_smoothing_7_minutes">7 minuten</string>
+    <string name="preview_window_title">Voorbeeldvenster</string>
+    <string name="preview_window_desc">Toont een mini-navigator van 24 uur onder de dashboardgrafiek zonder het gedrag van de hoofdgrafiek te wijzigen</string>
+    <string name="preview_window_expanded_only">Alleen in uitgebreide weergave (standaard)</string>
+    <string name="preview_window_always">Altijd</string>
+    <string name="preview_window_never">Nooit</string>
     <string name="debug_logs_desc">Bekijk trace.log en logcat</string>
     <string name="data_management">Gegevensbeheer</string>
     <string name="export_data">Geschiedenis exporteren</string>

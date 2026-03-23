@@ -31,6 +31,7 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -127,6 +128,13 @@ import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
 import tk.glucodata.ui.getDisplayValues
 
+private const val PREVIEW_WINDOW_MODE_EXPANDED_ONLY = 0
+private const val PREVIEW_WINDOW_MODE_ALWAYS = 1
+private const val PREVIEW_WINDOW_MODE_NEVER = 2
+private const val PREVIEW_WINDOW_DURATION_MS = 24L * 60L * 60L * 1000L
+private val PreviewWindowHeight = 58.dp
+private val PreviewWindowOuterPadding = 12.dp
+
 private fun smoothChartSeries(
     points: List<GlucosePoint>,
     halfWindowMs: Long,
@@ -202,10 +210,192 @@ private fun buildSmoothedChartData(
 }
 
 @Composable
+private fun PreviewWindowNavigator(
+    modifier: Modifier = Modifier,
+    data: List<GlucosePoint>,
+    renderData: List<GlucosePoint>,
+    previewCenterTime: Long,
+    viewMode: Int,
+    targetLow: Float,
+    targetHigh: Float,
+    isMmol: Boolean,
+    currentCenterTime: Long,
+    currentVisibleDuration: Long
+) {
+    val previewDuration = PREVIEW_WINDOW_DURATION_MS
+    val previewHalfDuration = previewDuration / 2
+    val previewStart = previewCenterTime - previewHalfDuration
+    val previewEnd = previewCenterTime + previewHalfDuration
+    val lineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
+    val secondaryLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+    val targetBandColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+    val windowFillColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.11f)
+    val windowStrokeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)
+    val minimumWindowWidthPx = with(LocalDensity.current) { 12.dp.toPx() }
+    val hasCalibration = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(viewMode == 1 || viewMode == 3)
+
+    fun activeValue(index: Int): Float {
+        val sourcePoint = data[index]
+        val renderPoint = renderData[index]
+        val isRawMode = viewMode == 1 || viewMode == 3
+        val baseValue = if (isRawMode) renderPoint.rawValue else renderPoint.value
+        return if (hasCalibration && baseValue.isFinite() && baseValue > 0.1f) {
+            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                baseValue,
+                sourcePoint.timestamp,
+                isRawMode
+            )
+        } else {
+            baseValue
+        }
+    }
+
+    fun windowBoundsPx(width: Float): Pair<Float, Float> {
+        val safeWidth = width.coerceAtLeast(1f)
+        val windowStartTime = currentCenterTime - currentVisibleDuration / 2
+        val windowEndTime = currentCenterTime + currentVisibleDuration / 2
+        val left = (((windowStartTime - previewStart).toFloat() / previewDuration.toFloat()) * safeWidth).coerceIn(0f, safeWidth)
+        val right = (((windowEndTime - previewStart).toFloat() / previewDuration.toFloat()) * safeWidth).coerceIn(0f, safeWidth)
+        return left to maxOf(right, left + minimumWindowWidthPx)
+    }
+
+    Surface(
+        modifier = modifier.zIndex(2f),
+        shape = RoundedCornerShape(18.dp),
+        color = surfaceColor,
+        tonalElevation = 2.dp,
+        shadowElevation = 0.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(PreviewWindowHeight)
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                if (data.isEmpty()) return@Canvas
+
+                val startIdx = data.binarySearchBy(previewStart) { it.timestamp }
+                    .let { if (it < 0) -it - 2 else it }
+                    .coerceIn(0, data.lastIndex)
+                val endExclusive = data.binarySearchBy(previewEnd) { it.timestamp }
+                    .let { if (it < 0) -it else it + 1 }
+                    .coerceIn(startIdx + 1, data.size)
+
+                var minValue = targetLow
+                var maxValue = targetHigh
+                for (index in startIdx until endExclusive) {
+                    val value = activeValue(index)
+                    if (value.isFinite() && value > 0.1f) {
+                        minValue = minOf(minValue, value)
+                        maxValue = maxOf(maxValue, value)
+                    }
+                }
+                if (maxValue <= minValue) {
+                    val fallbackMax = if (isMmol) 14f else 252f
+                    minValue = 0f
+                    maxValue = fallbackMax
+                } else {
+                    val padding = maxOf((maxValue - minValue) * 0.18f, if (isMmol) 0.5f else 9f)
+                    minValue = (minValue - padding).coerceAtLeast(0f)
+                    maxValue += padding
+                }
+
+                val yRange = (maxValue - minValue).coerceAtLeast(0.1f)
+                val widthPx = size.width
+                val heightPx = size.height
+                fun timeToX(timestamp: Long): Float =
+                    ((timestamp - previewStart).toFloat() / previewDuration.toFloat()) * widthPx
+                fun valueToY(value: Float): Float =
+                    heightPx - (((value - minValue) / yRange) * heightPx)
+
+                val bandTop = valueToY(targetHigh).coerceIn(0f, heightPx)
+                val bandBottom = valueToY(targetLow).coerceIn(0f, heightPx)
+                drawRoundRect(
+                    color = targetBandColor,
+                    topLeft = Offset(0f, minOf(bandTop, bandBottom)),
+                    size = Size(widthPx, kotlin.math.abs(bandBottom - bandTop)),
+                    cornerRadius = CornerRadius(10f, 10f)
+                )
+
+                val previewPath = Path()
+                var started = false
+                var lastTimestamp = 0L
+                val gapThreshold = 15 * 60 * 1000L
+                for (index in startIdx until endExclusive) {
+                    val value = activeValue(index)
+                    if (!value.isFinite() || value < 0.1f) {
+                        started = false
+                        continue
+                    }
+                    val timestamp = data[index].timestamp
+                    val x = timeToX(timestamp)
+                    val y = valueToY(value).coerceIn(-64f, heightPx + 64f)
+                    if (!started || (timestamp - lastTimestamp) > gapThreshold) {
+                        previewPath.moveTo(x, y)
+                        started = true
+                    } else {
+                        previewPath.lineTo(x, y)
+                    }
+                    lastTimestamp = timestamp
+                }
+                drawPath(
+                    path = previewPath,
+                    color = lineColor,
+                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
+
+                val currentStart = currentCenterTime - currentVisibleDuration / 2
+                val currentEnd = currentCenterTime + currentVisibleDuration / 2
+                val windowStartX = timeToX(currentStart).coerceIn(0f, widthPx)
+                val windowEndX = timeToX(currentEnd).coerceIn(0f, widthPx)
+                val windowWidth = (windowEndX - windowStartX).coerceAtLeast(12.dp.toPx())
+
+                drawRoundRect(
+                    color = windowFillColor,
+                    topLeft = Offset(windowStartX, 0f),
+                    size = Size(windowWidth, heightPx),
+                    cornerRadius = CornerRadius(12f, 12f)
+                )
+                drawRoundRect(
+                    color = windowStrokeColor,
+                    topLeft = Offset(windowStartX, 0f),
+                    size = Size(windowWidth, heightPx),
+                    cornerRadius = CornerRadius(12f, 12f),
+                    style = Stroke(width = 2.dp.toPx())
+                )
+
+                val leftHandleX = windowStartX + 1.dp.toPx()
+                val rightHandleX = windowStartX + windowWidth - 1.dp.toPx()
+                drawLine(
+                    color = secondaryLineColor,
+                    start = Offset(leftHandleX, 10.dp.toPx()),
+                    end = Offset(leftHandleX, heightPx - 10.dp.toPx()),
+                    strokeWidth = 1.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = secondaryLineColor,
+                    start = Offset(rightHandleX, 10.dp.toPx()),
+                    end = Offset(rightHandleX, heightPx - 10.dp.toPx()),
+                    strokeWidth = 1.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun DashboardChartSection(
     modifier: Modifier,
     glucoseHistory: List<GlucosePoint>,
     graphSmoothingMinutes: Int = 0,
+    previewWindowMode: Int = 0,
     targetLow: Float,
     targetHigh: Float,
     unit: String,
@@ -228,6 +418,7 @@ fun DashboardChartSection(
                     InteractiveGlucoseChart(
                         fullData = glucoseHistory,
                         graphSmoothingMinutes = graphSmoothingMinutes,
+                        previewWindowMode = previewWindowMode,
                         targetLow = targetLow,
                         targetHigh = targetHigh,
                         unit = unit,
@@ -273,6 +464,7 @@ fun DashboardChartSection(
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
     graphSmoothingMinutes: Int = 0,
+    previewWindowMode: Int = 0,
     targetLow: Float,
     targetHigh: Float,
     unit: String,
@@ -309,6 +501,14 @@ fun InteractiveGlucoseChart(
     val chartUnderlayBottomDp = expandedUnderlayBottom * safeExpandedProgress
     val chartUnderlayBottomPx = with(LocalDensity.current) { chartUnderlayBottomDp.toPx() }
     val chartUnderlayBottomIntPx = with(LocalDensity.current) { chartUnderlayBottomDp.roundToPx() }
+    val previewRevealProgress = when (previewWindowMode) {
+        PREVIEW_WINDOW_MODE_ALWAYS -> 1f
+        PREVIEW_WINDOW_MODE_NEVER -> 0f
+        else -> chartBoostProgress.coerceIn(0f, 1f)
+    }
+    val previewWindowReservedDp = 72.dp * previewRevealProgress
+    val previewWindowReservedPx = with(LocalDensity.current) { previewWindowReservedDp.toPx() }
+    val previewWindowReservedIntPx = with(LocalDensity.current) { previewWindowReservedDp.roundToPx() }
     val labelsLiftPx = with(LocalDensity.current) { (4.dp * safeExpandedProgress).toPx() }
     val chartPlotBottomGapPx = with(LocalDensity.current) { (4.dp * safeExpandedProgress).toPx() }
     val bottomAxisHeightPx = with(LocalDensity.current) { 32.dp.toPx() }
@@ -458,6 +658,7 @@ fun InteractiveGlucoseChart(
     
     var preZoomDuration by rememberSaveable { mutableLongStateOf(0L) } // For toggle zoom
     var centerTime by rememberSaveable { mutableLongStateOf(now - visibleDuration / 2) }
+    var previewCenterTime by rememberSaveable { mutableLongStateOf(now - PREVIEW_WINDOW_DURATION_MS / 2) }
 
     // Date picker state
     var showDatePicker by remember { mutableStateOf(false) }
@@ -529,6 +730,23 @@ fun InteractiveGlucoseChart(
                      centerTime = latestDataTimestamp - target / 2
                 }
             }
+        }
+    }
+
+    LaunchedEffect(centerTime, visibleDuration, previewWindowMode) {
+        if (previewWindowMode == PREVIEW_WINDOW_MODE_NEVER) return@LaunchedEffect
+
+        val previewHalfDuration = PREVIEW_WINDOW_DURATION_MS / 2
+        val previewStart = previewCenterTime - previewHalfDuration
+        val previewEnd = previewCenterTime + previewHalfDuration
+        val viewportStart = centerTime - visibleDuration / 2
+        val viewportEnd = centerTime + visibleDuration / 2
+
+        previewCenterTime = when {
+            visibleDuration >= PREVIEW_WINDOW_DURATION_MS -> centerTime
+            viewportStart < previewStart -> viewportStart + previewHalfDuration
+            viewportEnd > previewEnd -> viewportEnd - previewHalfDuration
+            else -> previewCenterTime
         }
     }
 
@@ -734,7 +952,7 @@ fun InteractiveGlucoseChart(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .pointerInput(Unit) {
+                .pointerInput(previewWindowReservedIntPx) {
                     // Manual Gesture Handler for:
                     // 1. Pan / Inertia
                     // 2. Pinch Zoom
@@ -754,6 +972,108 @@ fun InteractiveGlucoseChart(
                             val gestureStartTime = System.currentTimeMillis()
                             lastInteractionTimestamp = gestureStartTime
                             cancelAutoScroll()
+                            val previewIsVisible = previewRevealProgress > 0.02f
+                            val previewHorizontalPaddingPx = PreviewWindowOuterPadding.toPx()
+                            val previewVerticalPaddingPx = PreviewWindowOuterPadding.toPx()
+                            val previewHeightPx = PreviewWindowHeight.toPx()
+                            val previewTop =
+                                size.height.toFloat() - previewVerticalPaddingPx - previewHeightPx
+                            val previewBottom = size.height.toFloat() - previewVerticalPaddingPx
+                            val previewLeft = previewHorizontalPaddingPx
+                            val previewRight =
+                                size.width.toFloat() - previewHorizontalPaddingPx
+                            val isPreviewTouch = previewIsVisible &&
+                                down.position.x in previewLeft..previewRight &&
+                                down.position.y in previewTop..previewBottom
+                            if (isPreviewTouch) {
+                                val previewSafeWidth =
+                                    (previewRight - previewLeft).coerceAtLeast(1f)
+                                val previewDuration = PREVIEW_WINDOW_DURATION_MS
+                                val previewHalfDuration = previewDuration / 2
+                                val gestureStartCenter = centerTime
+                                val gestureStartPreviewCenter = previewCenterTime
+                                val gesturePreviewStart = gestureStartPreviewCenter - previewHalfDuration
+                                val downLocalX =
+                                    (down.position.x - previewLeft).coerceIn(0f, previewSafeWidth)
+
+                                fun adjustedPreviewCenter(
+                                    targetCenter: Long,
+                                    basePreviewCenter: Long
+                                ): Long {
+                                    if (visibleDuration >= previewDuration) {
+                                        return targetCenter
+                                    }
+
+                                    val basePreviewStart = basePreviewCenter - previewHalfDuration
+                                    val basePreviewEnd = basePreviewCenter + previewHalfDuration
+                                    val targetStart = targetCenter - visibleDuration / 2
+                                    val targetEnd = targetCenter + visibleDuration / 2
+                                    return when {
+                                        targetStart < basePreviewStart -> targetStart + previewHalfDuration
+                                        targetEnd > basePreviewEnd -> targetEnd - previewHalfDuration
+                                        else -> basePreviewCenter
+                                    }
+                                }
+
+                                fun updatePreviewViewport(localX: Float) {
+                                    val fraction = (localX / previewSafeWidth).coerceIn(0f, 1f)
+                                    val targetCenter =
+                                        (gesturePreviewStart + (previewDuration * fraction)).toLong()
+                                    centerTime = targetCenter.coerceAtMost(maxAllowedTime)
+                                    previewCenterTime = adjustedPreviewCenter(
+                                        centerTime,
+                                        gestureStartPreviewCenter
+                                    ).coerceAtMost(maxAllowedTime)
+                                }
+
+                                val windowStartTime = gestureStartCenter - visibleDuration / 2
+                                val windowEndTime = gestureStartCenter + visibleDuration / 2
+                                val windowLeft =
+                                    (((windowStartTime - gesturePreviewStart).toFloat() / previewDuration.toFloat()) * previewSafeWidth)
+                                        .coerceIn(0f, previewSafeWidth)
+                                val windowRight =
+                                    (((windowEndTime - gesturePreviewStart).toFloat() / previewDuration.toFloat()) * previewSafeWidth)
+                                        .coerceIn(0f, previewSafeWidth)
+                                val minimumWindowWidthPx = 12.dp.toPx()
+                                val effectiveWindowRight = maxOf(windowRight, windowLeft + minimumWindowWidthPx)
+                                val draggingWindow = downLocalX in windowLeft..effectiveWindowRight
+
+                                down.consume()
+                                markProgrammaticViewportChange()
+                                performSubtleTick(isFrequent = true)
+
+                                if (!draggingWindow) {
+                                    updatePreviewViewport(downLocalX)
+                                }
+
+                                while (true) {
+                                    val previewEvent = awaitPointerEvent()
+                                    val previewChange = previewEvent.changes.firstOrNull() ?: break
+                                    if (!previewChange.pressed) break
+                                    val localX =
+                                        (previewChange.position.x - previewLeft).coerceIn(
+                                            0f,
+                                            previewSafeWidth
+                                        )
+                                    if (draggingWindow) {
+                                        val totalDeltaX = localX - downLocalX
+                                        val totalDeltaMs =
+                                            ((totalDeltaX / previewSafeWidth) * previewDuration.toFloat()).toLong()
+                                        centerTime =
+                                            (gestureStartCenter + totalDeltaMs).coerceAtMost(
+                                                maxAllowedTime
+                                            )
+                                        previewCenterTime = adjustedPreviewCenter(
+                                            centerTime,
+                                            gestureStartPreviewCenter
+                                        ).coerceAtMost(maxAllowedTime)
+                                    } else {
+                                        updatePreviewViewport(localX)
+                                    }
+                                    previewEvent.changes.forEach { it.consume() }
+                                }
+                                return@awaitEachGesture
+                            }
                             if (isAdjustingScrubLabel) {
                                 down.consume()
                                 while (true) {
@@ -785,7 +1105,7 @@ fun InteractiveGlucoseChart(
                             val rightPaddingPx = (16.dp.toPx() * safeExpandedProgress)
                             val usefulWidth = (width - rightPaddingPx).coerceAtLeast(1f)
                             val contentHeight =
-                                (size.height.toFloat() - chartUnderlayBottomPx).coerceAtLeast(1f)
+                                (size.height.toFloat() - chartUnderlayBottomPx - previewWindowReservedPx).coerceAtLeast(1f)
                             val chartHeight =
                                 (contentHeight - 32.dp.toPx() - chartPlotBottomGapPx).coerceAtLeast(
                                     1f
@@ -1026,7 +1346,7 @@ fun InteractiveGlucoseChart(
             // Calculate gradient brush logic outside Canvas (Optimized)
             // Pre-calculate stops based on Y position (requires mapping High/Low to Y)
             val heightPx = constraints.maxHeight.toFloat()
-            val chartHeightPx = (heightPx - chartUnderlayBottomPx - bottomAxisHeightPx - chartPlotBottomGapPx).coerceAtLeast(1f)
+            val chartHeightPx = (heightPx - chartUnderlayBottomPx - previewWindowReservedPx - bottomAxisHeightPx - chartPlotBottomGapPx).coerceAtLeast(1f)
             
             val limitYHigh = if (yMax - yMin > 0.001f) {
                 (chartHeightPx * (1f - (targetHigh - yMin) / (yMax - yMin))).coerceIn(-2000f, chartHeightPx + 2000f)
@@ -1113,7 +1433,7 @@ fun InteractiveGlucoseChart(
                 val width = size.width
                 val rightPaddingPx = (16.dp.toPx() * safeExpandedProgress)
                 val dataWidth = (width - rightPaddingPx).coerceAtLeast(1f)
-                val contentHeight = (size.height - chartUnderlayBottomPx).coerceAtLeast(1f)
+                val contentHeight = (size.height - chartUnderlayBottomPx - previewWindowReservedPx).coerceAtLeast(1f)
                 val bottomAxisHeight = 32.dp.toPx()
                 val chartHeight = (contentHeight - bottomAxisHeight - chartPlotBottomGapPx).coerceAtLeast(1f)
                 if (labelCache.size > 200) labelCache.clear()
@@ -1693,7 +2013,7 @@ fun InteractiveGlucoseChart(
                                     change.consume()
                                     val minOffset = 8f
                                     val effectiveHeight =
-                                        (constraints.maxHeight - chartUnderlayBottomIntPx).coerceAtLeast(
+                                        (constraints.maxHeight - chartUnderlayBottomIntPx - previewWindowReservedIntPx).coerceAtLeast(
                                             56.dp.roundToPx()
                                         )
                                     val maxOffset =
@@ -1773,7 +2093,7 @@ fun InteractiveGlucoseChart(
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
                                 x = cardXOffset.toInt(),
-                                y = scrubTimeLabelOffsetDp.dp.roundToPx() - (chartUnderlayBottomIntPx + labelsLiftPx.toInt()) // Keep chip aligned with visible x-axis band
+                                y = scrubTimeLabelOffsetDp.dp.roundToPx() - (chartUnderlayBottomIntPx + previewWindowReservedIntPx + labelsLiftPx.toInt()) // Keep chip aligned with visible x-axis band
                             )
                         }
                         .graphicsLayer { translationX = -size.width / 2f }
@@ -1783,7 +2103,7 @@ fun InteractiveGlucoseChart(
                                 onDrag = { change, dragAmount ->
                                     change.consume()
                                     val effectiveHeight =
-                                        (constraints.maxHeight - chartUnderlayBottomIntPx).coerceAtLeast(
+                                        (constraints.maxHeight - chartUnderlayBottomIntPx - previewWindowReservedIntPx).coerceAtLeast(
                                             40.dp.roundToPx()
                                         )
                                     val minOffset =
@@ -1887,7 +2207,7 @@ fun InteractiveGlucoseChart(
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
                                 x = calXOffset.toInt(),
-                                y = 0.dp.roundToPx() - chartUnderlayBottomIntPx
+                                y = 0.dp.roundToPx() - (chartUnderlayBottomIntPx + previewWindowReservedIntPx)
                             )
                         }
                         .graphicsLayer { translationX = -size.width / 2f }
@@ -1999,6 +2319,35 @@ fun InteractiveGlucoseChart(
                 }
             }
             */
+
+            val showPreviewWindow = previewWindowMode == PREVIEW_WINDOW_MODE_ALWAYS ||
+                (previewWindowMode == PREVIEW_WINDOW_MODE_EXPANDED_ONLY && chartBoostProgress > 0.02f)
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showPreviewWindow,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+                    .graphicsLayer {
+                        alpha = previewRevealProgress
+                        translationY = (1f - previewRevealProgress) * 18.dp.toPx()
+                    }
+            ) {
+                PreviewWindowNavigator(
+                    modifier = Modifier.fillMaxWidth(),
+                    data = safeData,
+                    renderData = renderData,
+                    previewCenterTime = previewCenterTime,
+                    viewMode = viewMode,
+                    targetLow = targetLow,
+                    targetHigh = targetHigh,
+                    isMmol = isMmol,
+                    currentCenterTime = centerTime,
+                    currentVisibleDuration = visibleDuration
+                )
+            }
         }
 
         // --- ZOOM BUTTONS (Expressive Connected Group) ---

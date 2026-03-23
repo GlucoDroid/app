@@ -475,6 +475,11 @@
     <string name="graph_smoothing_3_minutes">3 minuter</string>
     <string name="graph_smoothing_5_minutes">5 minuter</string>
     <string name="graph_smoothing_7_minutes">7 minuter</string>
+    <string name="preview_window_title">Förhandsfönster</string>
+    <string name="preview_window_desc">Visar en 24-timmars mininavigator under dashboarddiagrammet utan att ändra huvuddiagrammets beteende</string>
+    <string name="preview_window_expanded_only">Endast i expanderat läge (standard)</string>
+    <string name="preview_window_always">Alltid</string>
+    <string name="preview_window_never">Aldrig</string>
     <string name="debug_logs_desc">Se trace.log och logcat</string>
     <string name="data_management">Datahantering</string>
     <string name="export_data">Exportera Historik</string>

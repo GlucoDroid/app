@@ -486,6 +486,11 @@
     <string name="graph_smoothing_3_minutes">3 хвилини</string>
     <string name="graph_smoothing_5_minutes">5 хвилин</string>
     <string name="graph_smoothing_7_minutes">7 хвилин</string>
+    <string name="preview_window_title">Вікно попереднього перегляду</string>
+    <string name="preview_window_desc">Показує 24-годинний мінінавігатор під графіком на головному екрані без зміни поведінки основного графіка</string>
+    <string name="preview_window_expanded_only">Лише в розширеному вигляді (типово)</string>
+    <string name="preview_window_always">Завжди</string>
+    <string name="preview_window_never">Ніколи</string>
     <string name="debug_logs_desc">Перегляд trace.log та logcat</string>
     <string name="data_management">Управління Даними</string>
     <string name="export_data">Експорт Історії</string>

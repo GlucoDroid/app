@@ -64,6 +64,11 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         }
     }
 
+    private fun shouldScheduleBroadcastFollowUp(): Boolean {
+        val current = tk.glucodata.CurrentGlucoseSource.getFresh() ?: return true
+        return current.source != "callback"
+    }
+
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -71,8 +76,12 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                     if (isLocked && overlayView?.visibility == View.VISIBLE) {
                         BatteryTrace.bump("aod.overlay.refresh.broadcast", logEvery = 20L)
                         updateOverlayContent()
-                        handler.removeCallbacks(broadcastFollowUpRunnable)
-                        handler.postDelayed(broadcastFollowUpRunnable, BROADCAST_FOLLOW_UP_MS)
+                        if (shouldScheduleBroadcastFollowUp()) {
+                            handler.removeCallbacks(broadcastFollowUpRunnable)
+                            handler.postDelayed(broadcastFollowUpRunnable, BROADCAST_FOLLOW_UP_MS)
+                        } else {
+                            handler.removeCallbacks(broadcastFollowUpRunnable)
+                        }
                     }
                 }
                 Intent.ACTION_SCREEN_OFF -> {
@@ -236,15 +245,13 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             } catch (e: Exception) {}
             chooseOverlayPosition()
         }
+        val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+        cachedBaseOpacity = prefs.getFloat("aod_opacity", 1.0f)
         updateOverlayContent()
         applyBurnInProtection(force = true)
         handler.removeCallbacks(updateRunnable)
         handler.postDelayed(updateRunnable, PERIODIC_REFRESH_MS)
-        
-        // Cache opacity preference (avoid reading SharedPrefs in sensor callback)
-        val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
-        cachedBaseOpacity = prefs.getFloat("aod_opacity", 1.0f)
-        
+
         // Register light sensor with batching (reduces wakeups)
         lightSensor?.let {
             if (android.os.Build.VERSION.SDK_INT >= 19) {
@@ -392,7 +399,6 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             }
         }
 
-        val hasCalibration = tk.glucodata.NightscoutCalibration.hasCalibrationForViewMode(activeSensorSerial, viewMode)
         val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
         val showSecondary = prefs.getBoolean("aod_show_secondary", false)
         // Current Value
@@ -400,20 +406,14 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         var valStr = "---"
         var time = 0L
 
-        val current = tk.glucodata.CurrentGlucoseSource.getFresh()
-        val resolvedDisplay = tk.glucodata.CurrentDisplaySource.resolveFromLive(
-            liveValueText = current?.valueText,
-            liveNumericValue = current?.numericValue ?: Float.NaN,
-            rate = current?.rate ?: Float.NaN,
-            targetTimeMillis = current?.timeMillis ?: chartPoints.lastOrNull()?.timestamp ?: 0L,
-            sensorId = activeSensorSerial,
-            sensorGen = current?.sensorGen ?: 0,
-            index = current?.index ?: 0,
-            source = current?.source ?: if (chartPoints.isNotEmpty()) "history" else "none",
-            recentPoints = chartPoints,
-            viewMode = viewMode,
-            isMmol = isMmol
+        val resolvedDisplay = tk.glucodata.CurrentDisplaySource.resolveCurrent(
+            maxAgeMillis = tk.glucodata.Notify.glucosetimeout,
+            preferredSensorId = activeSensorSerial
         )
+        if (viewMode == 0 && resolvedDisplay != null) {
+            viewMode = resolvedDisplay.viewMode
+        }
+        val hasCalibration = tk.glucodata.NightscoutCalibration.hasCalibrationForViewMode(activeSensorSerial, viewMode)
 
         if (resolvedDisplay != null) {
             time = resolvedDisplay.timeMillis
@@ -427,7 +427,6 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         }
 
         val displayRate = resolvedDisplay?.rate?.takeIf { it.isFinite() }
-            ?: current?.rate?.takeIf { it.isFinite() }
             ?: TrendAccess.calculateVelocity(chartPoints, useRaw = (viewMode == 1 || viewMode == 3), isMmol = isMmol)
 
         val glucoseColor = NotificationChartDrawer.getGlucoseColor(this, glvalue, isMmol)

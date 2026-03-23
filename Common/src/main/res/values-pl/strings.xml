@@ -549,6 +549,11 @@
     <string name="graph_smoothing_3_minutes">3 minuty</string>
     <string name="graph_smoothing_5_minutes">5 minut</string>
     <string name="graph_smoothing_7_minutes">7 minut</string>
+    <string name="preview_window_title">Okno podglądu</string>
+    <string name="preview_window_desc">Pokazuje 24-godzinny mini-nawigator pod wykresem pulpitu bez zmiany zachowania głównego wykresu</string>
+    <string name="preview_window_expanded_only">Tylko w widoku rozszerzonym (domyślnie)</string>
+    <string name="preview_window_always">Zawsze</string>
+    <string name="preview_window_never">Nigdy</string>
     <string name="debug_logs_desc">Zobacz trace.log i logcat</string>
     <string name="data_management">Zarządzanie Danymi</string>
     <string name="export_data">Eksportuj Historię</string>

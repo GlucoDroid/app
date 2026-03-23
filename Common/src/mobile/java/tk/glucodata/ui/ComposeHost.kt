@@ -131,7 +131,6 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Download
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import tk.glucodata.Natives
 import tk.glucodata.SensorBluetooth
@@ -1225,9 +1224,6 @@ fun DashboardScreen(
                                 }
                             }
 
-                            // If we are fully collapsing to 0, let the list have the leftover momentum
-                            // so the user can swipe down in a single uninterrupted motion.
-                            // Otherwise, consume velocity to prevent list scrolling while snapping to a mid/max state.
                             return if (target == 0f && isCollapsing) androidx.compose.ui.unit.Velocity.Zero else available
                         }
                         return androidx.compose.ui.unit.Velocity.Zero
@@ -1240,6 +1236,40 @@ fun DashboardScreen(
                     chartBoostProgress = 0f
                 } else {
                     chartBoostProgress = chartBoostProgress.coerceIn(0f, 1f)
+                }
+            }
+
+            LaunchedEffect(
+                listState.isScrollInProgress,
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset,
+                maxChartBoostPx,
+                middleChartBoostPx,
+                chartBoostProgress
+            ) {
+                if (maxChartBoostPx <= 0f || listState.isScrollInProgress) return@LaunchedEffect
+
+                val currentBoostPx = chartBoostProgress * maxChartBoostPx
+                if (currentBoostPx <= 1f) {
+                    if (chartBoostProgress != 0f) chartBoostProgress = 0f
+                    return@LaunchedEffect
+                }
+
+                val middleAnchorPx = middleChartBoostPx.coerceIn(0f, maxChartBoostPx)
+                val shouldCollapseToDefault =
+                    listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
+                val targetAnchorPx = if (shouldCollapseToDefault) {
+                    0f
+                } else {
+                    when {
+                        currentBoostPx <= middleAnchorPx * 0.5f -> 0f
+                        currentBoostPx < ((middleAnchorPx + maxChartBoostPx) * 0.5f) -> middleAnchorPx
+                        else -> maxChartBoostPx
+                    }
+                }
+
+                if (abs(targetAnchorPx - currentBoostPx) > 1f) {
+                    chartBoostProgress = (targetAnchorPx / maxChartBoostPx).coerceIn(0f, 1f)
                 }
             }
 

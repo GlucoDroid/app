@@ -526,6 +526,11 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="graph_smoothing_3_minutes">3 dakika</string>
     <string name="graph_smoothing_5_minutes">5 dakika</string>
     <string name="graph_smoothing_7_minutes">7 dakika</string>
+    <string name="preview_window_title">Önizleme penceresi</string>
+    <string name="preview_window_desc">Ana grafik davranışını değiştirmeden pano grafiğinin altında 24 saatlik mini gezgini gösterir</string>
+    <string name="preview_window_expanded_only">Yalnızca genişletilmiş görünümde (varsayılan)</string>
+    <string name="preview_window_always">Her zaman</string>
+    <string name="preview_window_never">Asla</string>
     <string name="debug_logs_desc">trace.log ve logcat\'i görüntüle</string>
     <string name="data_management">Veri Yönetimi</string>
     <string name="export_data">Geçmişi Dışa Aktar</string>

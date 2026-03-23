@@ -421,6 +421,11 @@
     <string name="graph_smoothing_3_minutes">3 minutes</string>
     <string name="graph_smoothing_5_minutes">5 minutes</string>
     <string name="graph_smoothing_7_minutes">7 minutes</string>
+    <string name="preview_window_title">Fenêtre d’aperçu</string>
+    <string name="preview_window_desc">Affiche un mini-navigateur de 24 heures sous le graphique du tableau de bord sans modifier le comportement du graphique principal</string>
+    <string name="preview_window_expanded_only">Vue étendue uniquement (par défaut)</string>
+    <string name="preview_window_always">Toujours</string>
+    <string name="preview_window_never">Jamais</string>
     <string name="debug_logs_desc">Voir traces et logcat</string>
     <string name="data_management">Gestion des Données</string>
     <string name="export_data">Exporter Historique</string>

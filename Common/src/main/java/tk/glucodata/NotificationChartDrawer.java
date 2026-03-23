@@ -1,6 +1,7 @@
 package tk.glucodata;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -14,6 +15,205 @@ import java.util.Calendar;
 import java.util.List;
 
 public class NotificationChartDrawer {
+    private static final String PREFS_NAME = "tk.glucodata_preferences";
+    private static final String CHART_SMOOTHING_KEY = "dashboard_chart_smoothing_minutes";
+    private static final int DASHBOARD_LOW_COLOR = 0xFFE7C85A;
+    private static final int DASHBOARD_HIGH_COLOR = 0xFFC56F33;
+
+    private static int getChartSmoothingMinutes(Context context) {
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            int smoothing = prefs.getInt(CHART_SMOOTHING_KEY, 0);
+            switch (smoothing) {
+                case 2:
+                case 3:
+                case 5:
+                case 7:
+                    return smoothing;
+                default:
+                    return 0;
+            }
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    private static float[] smoothChartSeries(List<GlucosePoint> points, long halfWindowMs, boolean useRawValue) {
+        int size = points.size();
+        double[] prefixSums = new double[size + 1];
+        int[] prefixCounts = new int[size + 1];
+
+        for (int index = 0; index < size; index++) {
+            GlucosePoint point = points.get(index);
+            float value = useRawValue ? point.rawValue : point.value;
+            boolean valid = Float.isFinite(value) && value >= 0.1f;
+            prefixSums[index + 1] = prefixSums[index] + (valid ? value : 0.0);
+            prefixCounts[index + 1] = prefixCounts[index] + (valid ? 1 : 0);
+        }
+
+        float[] result = new float[size];
+        int windowStart = 0;
+        int windowEndExclusive = 0;
+
+        for (int index = 0; index < size; index++) {
+            GlucosePoint point = points.get(index);
+            float original = useRawValue ? point.rawValue : point.value;
+            if (!Float.isFinite(original) || original < 0.1f) {
+                result[index] = original;
+                continue;
+            }
+
+            long timestamp = point.timestamp;
+            long minTime = timestamp - halfWindowMs;
+            long maxTime = timestamp + halfWindowMs;
+
+            while (windowStart < size && points.get(windowStart).timestamp < minTime) {
+                windowStart++;
+            }
+            while (windowEndExclusive < size && points.get(windowEndExclusive).timestamp <= maxTime) {
+                windowEndExclusive++;
+            }
+
+            int count = prefixCounts[windowEndExclusive] - prefixCounts[windowStart];
+            result[index] = count > 0
+                    ? (float) ((prefixSums[windowEndExclusive] - prefixSums[windowStart]) / count)
+                    : original;
+        }
+
+        return result;
+    }
+
+    private static List<GlucosePoint> buildSmoothedChartData(List<GlucosePoint> points, int smoothingMinutes) {
+        if (smoothingMinutes <= 0 || points == null || points.size() < 3) {
+            return points;
+        }
+
+        long halfWindowMs = (smoothingMinutes * 60_000L) / 2L;
+        if (halfWindowMs <= 0L) {
+            return points;
+        }
+
+        float[] smoothedAuto = smoothChartSeries(points, halfWindowMs, false);
+        float[] smoothedRaw = smoothChartSeries(points, halfWindowMs, true);
+        ArrayList<GlucosePoint> result = new ArrayList<>(points.size());
+        for (int index = 0; index < points.size(); index++) {
+            GlucosePoint point = points.get(index);
+            GlucosePoint smoothedPoint = new GlucosePoint(point.timestamp, smoothedAuto[index], smoothedRaw[index]);
+            smoothedPoint.color = point.color;
+            result.add(smoothedPoint);
+        }
+        return result;
+    }
+
+    private static int resolveThresholdSegmentColor(float startValue, float endValue, float targetLow, float targetHigh,
+            int inRangeColor) {
+        float probeValue = (startValue + endValue) * 0.5f;
+        if (!Float.isFinite(probeValue)) {
+            probeValue = endValue;
+        }
+        if (!Float.isFinite(probeValue)) {
+            return inRangeColor;
+        }
+        if (probeValue < targetLow) {
+            return DASHBOARD_LOW_COLOR;
+        }
+        if (probeValue > targetHigh) {
+            return DASHBOARD_HIGH_COLOR;
+        }
+        return inRangeColor;
+    }
+
+    private static void drawThresholdColoredSeries(
+            Canvas canvas,
+            Paint linePaint,
+            List<Long> timestamps,
+            List<Float> values,
+            long startTime,
+            long duration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange,
+            float targetLow,
+            float targetHigh,
+            int inRangeColor) {
+        drawSeries(
+                canvas,
+                linePaint,
+                timestamps,
+                values,
+                startTime,
+                duration,
+                chartLeft,
+                chartBottom,
+                chartWidth,
+                chartHeight,
+                minY,
+                yRange,
+                targetLow,
+                targetHigh,
+                inRangeColor,
+                true);
+    }
+
+    private static void drawSeries(
+            Canvas canvas,
+            Paint linePaint,
+            List<Long> timestamps,
+            List<Float> values,
+            long startTime,
+            long duration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange,
+            float targetLow,
+            float targetHigh,
+            int inRangeColor,
+            boolean useThresholdColors) {
+        int size = Math.min(timestamps.size(), values.size());
+        if (size < 2) {
+            return;
+        }
+
+        long previousTimestamp = 0L;
+        float previousValue = 0f;
+        boolean hasPrevious = false;
+
+        for (int index = 0; index < size; index++) {
+            float currentValue = values.get(index);
+            long currentTimestamp = timestamps.get(index);
+            boolean valid = Float.isFinite(currentValue) && currentValue > 0.1f;
+            if (!valid) {
+                hasPrevious = false;
+                continue;
+            }
+
+            if (hasPrevious) {
+                float startX = chartLeft + ((previousTimestamp - startTime) / (float) duration) * chartWidth;
+                float startY = chartBottom - ((previousValue - minY) / yRange) * chartHeight;
+                float endX = chartLeft + ((currentTimestamp - startTime) / (float) duration) * chartWidth;
+                float endY = chartBottom - ((currentValue - minY) / yRange) * chartHeight;
+                linePaint.setColor(useThresholdColors
+                        ? resolveThresholdSegmentColor(
+                                previousValue,
+                                currentValue,
+                                targetLow,
+                                targetHigh,
+                                inRangeColor)
+                        : inRangeColor);
+                canvas.drawLine(startX, startY, endX, endY, linePaint);
+            }
+
+            previousTimestamp = currentTimestamp;
+            previousValue = currentValue;
+            hasPrevious = true;
+        }
+    }
 
     public static int getGlucoseColor(Context context, float value, boolean isMmol) {
         // Defaults
@@ -417,12 +617,22 @@ public class NotificationChartDrawer {
         long duration = 3 * 60 * 60 * 1000L;
         long startTime = now - duration;
 
+        int smoothingMinutes = getChartSmoothingMinutes(context);
+        List<GlucosePoint> renderSource = buildSmoothedChartData(data, smoothingMinutes);
+
         // Filter data to visible range
         List<GlucosePoint> visiblePoints = new ArrayList<>();
+        List<GlucosePoint> visibleRenderPoints = new ArrayList<>();
         if (data != null) {
-            for (GlucosePoint p : data) {
+            for (int index = 0; index < data.size(); index++) {
+                GlucosePoint p = data.get(index);
                 if (p.timestamp >= startTime) {
                     visiblePoints.add(p);
+                    if (renderSource != null && index < renderSource.size()) {
+                        visibleRenderPoints.add(renderSource.get(index));
+                    } else {
+                        visibleRenderPoints.add(p);
+                    }
                 }
             }
         }
@@ -466,6 +676,10 @@ public class NotificationChartDrawer {
             } else {
             }
         }
+
+        boolean thresholdColorAuto = !hasCalibration && (viewMode == 0 || viewMode == 2);
+        boolean thresholdColorRaw = !hasCalibration && (viewMode == 1 || viewMode == 3);
+        boolean thresholdColorCalibrated = hasCalibration;
 
         // Target Range (Get from Natives or Defaults)
         float targetLow = 70.0f;
@@ -699,77 +913,98 @@ public class NotificationChartDrawer {
         }
 
         // Draw auto line
-        if (showAuto && !visiblePoints.isEmpty()) {
-            linePaint.setColor(autoColor);
-            Path path = new Path();
-            boolean first = true;
-            for (GlucosePoint p : visiblePoints) {
-                if (p.value > 0) {
-                    float x = chartLeft + ((p.timestamp - startTime) / (float) duration) * chartWidth;
-                    float y = chartBottom - ((p.value - minY) / yRange) * chartHeight;
-                    if (first) {
-                        path.moveTo(x, y);
-                        first = false;
-                    } else {
-                        path.lineTo(x, y);
-                    }
-                }
+        if (showAuto && !visibleRenderPoints.isEmpty()) {
+            ArrayList<Long> timestamps = new ArrayList<>(visibleRenderPoints.size());
+            ArrayList<Float> values = new ArrayList<>(visibleRenderPoints.size());
+            for (GlucosePoint p : visibleRenderPoints) {
+                timestamps.add(p.timestamp);
+                values.add(p.value);
             }
-            if (!first) {
-                canvas.drawPath(path, linePaint);
-            }
+            drawSeries(
+                    canvas,
+                    linePaint,
+                    timestamps,
+                    values,
+                    startTime,
+                    duration,
+                    chartLeft,
+                    chartBottom,
+                    chartWidth,
+                    chartHeight,
+                    minY,
+                    yRange,
+                    targetLow,
+                    targetHigh,
+                    autoColor,
+                    thresholdColorAuto);
         }
 
         // Draw raw line
-        if (showRaw && !visiblePoints.isEmpty()) {
-            linePaint.setColor(rawColor);
-            Path path = new Path();
-            boolean first = true;
-            for (GlucosePoint p : visiblePoints) {
-                if (p.rawValue > 0) {
-                    float x = chartLeft + ((p.timestamp - startTime) / (float) duration) * chartWidth;
-                    float y = chartBottom - ((p.rawValue - minY) / yRange) * chartHeight;
-                    if (first) {
-                        path.moveTo(x, y);
-                        first = false;
-                    } else {
-                        path.lineTo(x, y);
-                    }
-                }
+        if (showRaw && !visibleRenderPoints.isEmpty()) {
+            ArrayList<Long> timestamps = new ArrayList<>(visibleRenderPoints.size());
+            ArrayList<Float> values = new ArrayList<>(visibleRenderPoints.size());
+            for (GlucosePoint p : visibleRenderPoints) {
+                timestamps.add(p.timestamp);
+                values.add(p.rawValue);
             }
-            if (!first) {
-                canvas.drawPath(path, linePaint);
-            }
+            drawSeries(
+                    canvas,
+                    linePaint,
+                    timestamps,
+                    values,
+                    startTime,
+                    duration,
+                    chartLeft,
+                    chartBottom,
+                    chartWidth,
+                    chartHeight,
+                    minY,
+                    yRange,
+                    targetLow,
+                    targetHigh,
+                    rawColor,
+                    thresholdColorRaw);
         }
 
         // Draw Calibrated Line (Primary)
-        if (hasCalibration && !visiblePoints.isEmpty()) {
-            linePaint.setColor(lineColor); // Always Primary
-            Path path = new Path();
-            boolean first = true;
+        if (hasCalibration && !visibleRenderPoints.isEmpty()) {
             boolean isRawModeforCal = (viewMode == 1 || viewMode == 3);
+            ArrayList<Long> timestamps = new ArrayList<>(visibleRenderPoints.size());
+            ArrayList<Float> values = new ArrayList<>(visibleRenderPoints.size());
 
-            for (GlucosePoint p : visiblePoints) {
-                float baseVal = isRawModeforCal ? p.rawValue : p.value;
-                if (baseVal > 0) {
-                    float val = CalibrationAccess.getCalibratedValue(baseVal,
-                            p.timestamp, isRawModeforCal, false, calibrationSensorId);
+            for (int index = 0; index < visibleRenderPoints.size(); index++) {
+                GlucosePoint renderPoint = visibleRenderPoints.get(index);
+                GlucosePoint sourcePoint = visiblePoints.get(index);
+                float baseVal = isRawModeforCal ? renderPoint.rawValue : renderPoint.value;
+                float val = baseVal > 0
+                        ? CalibrationAccess.getCalibratedValue(
+                                baseVal,
+                                sourcePoint.timestamp,
+                                isRawModeforCal,
+                                false,
+                                calibrationSensorId)
+                        : 0f;
+                timestamps.add(sourcePoint.timestamp);
+                values.add(val);
+            }
 
-                    if (val > 0.1f) {
-                        float x = chartLeft + ((p.timestamp - startTime) / (float) duration) * chartWidth;
-                        float y = chartBottom - ((val - minY) / yRange) * chartHeight;
-                        if (first) {
-                            path.moveTo(x, y);
-                            first = false;
-                        } else {
-                            path.lineTo(x, y);
-                        }
-                    }
-                }
-            }
-            if (!first) {
-                canvas.drawPath(path, linePaint);
-            }
+            drawSeries(
+                    canvas,
+                    linePaint,
+                    timestamps,
+                    values,
+                    startTime,
+                    duration,
+                    chartLeft,
+                    chartBottom,
+                    chartWidth,
+                    chartHeight,
+                    minY,
+                    yRange,
+                    targetLow,
+                    targetHigh,
+                    lineColor,
+                    thresholdColorCalibrated);
         }
 
         return bitmap;
