@@ -549,7 +549,9 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="graph_smoothing_none">Geen (standaard)</string>
     <string name="graph_smoothing_1_minute">1 minuut</string>
     <string name="graph_smoothing_2_minutes">2 minuten</string>
+    <string name="graph_smoothing_3_minutes">3 minuten</string>
     <string name="graph_smoothing_5_minutes">5 minuten</string>
+    <string name="graph_smoothing_7_minutes">7 minuten</string>
     <string name="debug_logs_desc">Bekijk trace.log en logcat</string>
     <string name="data_management">Gegevensbeheer</string>
     <string name="export_data">Geschiedenis exporteren</string>

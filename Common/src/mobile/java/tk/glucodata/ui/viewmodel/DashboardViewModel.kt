@@ -519,9 +519,9 @@ class DashboardViewModel(
     }
 
     fun setChartSmoothingMinutes(minutes: Int) {
-        val sanitized = minutes.coerceIn(0, 5).let {
+        val sanitized = minutes.coerceIn(0, 7).let {
             when (it) {
-                1, 2, 5 -> it
+                2, 3, 5, 7 -> it
                 else -> 0
             }
         }

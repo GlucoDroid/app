@@ -523,7 +523,9 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="graph_smoothing_none">Yok (varsayılan)</string>
     <string name="graph_smoothing_1_minute">1 dakika</string>
     <string name="graph_smoothing_2_minutes">2 dakika</string>
+    <string name="graph_smoothing_3_minutes">3 dakika</string>
     <string name="graph_smoothing_5_minutes">5 dakika</string>
+    <string name="graph_smoothing_7_minutes">7 dakika</string>
     <string name="debug_logs_desc">trace.log ve logcat\'i görüntüle</string>
     <string name="data_management">Veri Yönetimi</string>
     <string name="export_data">Geçmişi Dışa Aktar</string>

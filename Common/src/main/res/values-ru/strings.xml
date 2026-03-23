@@ -563,7 +563,9 @@
     <string name="graph_smoothing_none">Нет (по умолчанию)</string>
     <string name="graph_smoothing_1_minute">1 минута</string>
     <string name="graph_smoothing_2_minutes">2 минуты</string>
+    <string name="graph_smoothing_3_minutes">3 минуты</string>
     <string name="graph_smoothing_5_minutes">5 минут</string>
+    <string name="graph_smoothing_7_minutes">7 минут</string>
     <string name="debug_logs_desc">Просмотр trace.log и logcat</string>
     <string name="data_management">Управление данными</string>
     <string name="export_data">Экспорт истории</string>

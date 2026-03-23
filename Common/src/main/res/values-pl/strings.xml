@@ -546,7 +546,9 @@
     <string name="graph_smoothing_none">Brak (domyślnie)</string>
     <string name="graph_smoothing_1_minute">1 minuta</string>
     <string name="graph_smoothing_2_minutes">2 minuty</string>
+    <string name="graph_smoothing_3_minutes">3 minuty</string>
     <string name="graph_smoothing_5_minutes">5 minut</string>
+    <string name="graph_smoothing_7_minutes">7 minut</string>
     <string name="debug_logs_desc">Zobacz trace.log i logcat</string>
     <string name="data_management">Zarządzanie Danymi</string>
     <string name="export_data">Eksportuj Historię</string>

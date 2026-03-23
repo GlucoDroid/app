@@ -547,7 +547,9 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="graph_smoothing_none">Keine (Standard)</string>
     <string name="graph_smoothing_1_minute">1 Minute</string>
     <string name="graph_smoothing_2_minutes">2 Minuten</string>
+    <string name="graph_smoothing_3_minutes">3 Minuten</string>
     <string name="graph_smoothing_5_minutes">5 Minuten</string>
+    <string name="graph_smoothing_7_minutes">7 Minuten</string>
     <string name="debug_logs_desc">Trace.log und Logcat anzeigen</string>
     <string name="data_management">Datenverwaltung</string>
     <string name="export_data">Verlauf exportieren</string>

@@ -148,9 +148,10 @@ fun ExpressiveSettingsScreen(
         ThemeMode.DARK -> stringResource(R.string.theme_dark)
     }
     val graphSmoothingLabel = when (chartSmoothingMinutes) {
-        1 -> stringResource(R.string.graph_smoothing_1_minute)
         2 -> stringResource(R.string.graph_smoothing_2_minutes)
+        3 -> stringResource(R.string.graph_smoothing_3_minutes)
         5 -> stringResource(R.string.graph_smoothing_5_minutes)
+        7 -> stringResource(R.string.graph_smoothing_7_minutes)
         else -> stringResource(R.string.graph_smoothing_none)
     }
 
@@ -1291,9 +1292,10 @@ private fun GraphSmoothingPickerDialog(
 ) {
     val options = listOf(
         stringResource(R.string.graph_smoothing_none) to 0,
-        stringResource(R.string.graph_smoothing_1_minute) to 1,
         stringResource(R.string.graph_smoothing_2_minutes) to 2,
-        stringResource(R.string.graph_smoothing_5_minutes) to 5
+        stringResource(R.string.graph_smoothing_3_minutes) to 3,
+        stringResource(R.string.graph_smoothing_5_minutes) to 5,
+        stringResource(R.string.graph_smoothing_7_minutes) to 7
     )
     BasicAlertDialog(onDismissRequest = onDismiss) {
         Surface(
