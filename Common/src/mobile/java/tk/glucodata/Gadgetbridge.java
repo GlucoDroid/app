@@ -82,6 +82,16 @@ static void sendglucose(String glstr,int mgdl,float gl,float rate,long timmsec) 
            Applic.app.sendBroadcast(intent);
         }
 
+static void sendglucose(ExchangeGlucosePayload payload) {
+    sendglucose(
+        payload.primaryText,
+        payload.primaryMgdl,
+        (float)payload.primaryDisplayValue,
+        payload.rate,
+        payload.timeMillis
+    );
+}
+
 private static final int Undetermined=0;
 private static final int Falling_Quickly=1;
 private static final int Falling=2;
@@ -135,5 +145,4 @@ static     String librelabel(float rate) {
 */
 
 }
-
 

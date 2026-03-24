@@ -38,14 +38,14 @@ public class JugglucoSend   {
     private static final String TIME = "glucodata.Minute.Time";
 private static final String LOG_ID="JugglucoSend";
 
-private static Bundle mkGlucosebundle(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec) {
+private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayload payload, int alarm) {
       Bundle extras = new Bundle();
         extras.putString(SERIAL,SerialNumber);
-	extras.putInt(MGDL,mgdl);
-	extras.putFloat(GLUCOSECUSTOM,gl);
-        extras.putFloat(RATE,rate);
+	extras.putInt(MGDL,payload.primaryMgdl);
+	extras.putFloat(GLUCOSECUSTOM,(float)payload.primaryDisplayValue);
+        extras.putFloat(RATE,payload.rate);
         extras.putInt(ALARM,alarm);
-        extras.putLong(TIME,timmsec);
+        extras.putLong(TIME,payload.timeMillis);
 	return extras;
 	  }
 
@@ -53,13 +53,13 @@ private static String[] names=null;
 public static  void setreceivers() {
 	names=Natives.glucodataRecepters();
 	}
-static void broadcastglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec) {
+static void broadcastglucose(String SerialNumber, ExchangeGlucosePayload payload, int alarm) {
 	if(names==null)
 		return;
-	{if(doLog) {Log.i(LOG_ID,"broadcastglucose "+gl+" rate="+rate);};};
+	{if(doLog) {Log.i(LOG_ID,"broadcastglucose "+payload.primaryDisplayValue+" rate="+payload.rate);};};
         final Context context=Applic.app;
         Intent intent = new Intent(ACTION);
-	intent.putExtras(mkGlucosebundle(SerialNumber, mgdl, gl, rate, alarm,timmsec));
+	intent.putExtras(mkGlucosebundle(SerialNumber, payload, alarm));
 	intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
 	for(var name:names) {
 		if(name!=null) {

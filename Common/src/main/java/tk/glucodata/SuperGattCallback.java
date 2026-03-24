@@ -652,29 +652,42 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             tk.glucodata.glucosecomplication.GlucoseValue.updateall();
         }
 
-        if (Natives.getJugglucobroadcast())
-            JugglucoSend.broadcastglucose(SerialNumber, mgdl, gl, rate, alarm, timmsec);
+        final boolean shouldBroadcastMinuteUpdate = tim > nexttime;
+        final boolean shouldResolveExchangePayload =
+                Natives.getJugglucobroadcast()
+                || (shouldBroadcastMinuteUpdate && (
+                        Natives.getlibrelinkused()
+                        || Natives.geteverSensebroadcast()
+                        || Natives.getxbroadcast()
+                        || doWearInt
+                        || doGadgetbridge));
+        final ExchangeGlucosePayload exchangePayload = shouldResolveExchangePayload
+                ? ExchangeGlucosePayload.resolve(SerialNumber, gl, rate, timmsec, sensorgen, sglucose.value)
+                : null;
+
+        if (Natives.getJugglucobroadcast() && exchangePayload != null)
+            JugglucoSend.broadcastglucose(SerialNumber, exchangePayload, alarm);
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
             GlucoseWidget.update();
         }
-        if (tim > nexttime) {
+        if (shouldBroadcastMinuteUpdate) {
             nexttime = tim + mininterval;
             if (!isWearable) {
-                if (Natives.getlibrelinkused())
-                    XInfuus.sendGlucoseBroadcast(SerialNumber, mgdl, rate, timmsec);
-                if (Natives.geteverSensebroadcast())
-                    EverSense.broadcastglucose(mgdl, rate, timmsec);
+                if (Natives.getlibrelinkused() && exchangePayload != null)
+                    XInfuus.sendGlucoseBroadcast(exchangePayload);
+                if (Natives.geteverSensebroadcast() && exchangePayload != null)
+                    EverSense.broadcastglucose(exchangePayload);
                 // SendNSClient.broadcastglucose(mgdl, rate, timmsec);
             }
-            if (Natives.getxbroadcast())
-                SendLikexDrip.broadcastglucose(SerialNumber, mgdl, rate, timmsec, sensorstartmsec, sensorgen);
+            if (Natives.getxbroadcast() && exchangePayload != null)
+                SendLikexDrip.broadcastglucose(exchangePayload, sensorstartmsec);
             if (!isWearable) {
-                if (doWearInt)
-                    tk.glucodata.WearInt.sendglucose(mgdl, rate, alarm, timmsec);
+                if (doWearInt && exchangePayload != null)
+                    tk.glucodata.WearInt.sendglucose(exchangePayload, alarm);
 
-                if (doGadgetbridge)
-                    Gadgetbridge.sendglucose(sglucose.value, mgdl, gl, rate, timmsec);
+                if (doGadgetbridge && exchangePayload != null)
+                    Gadgetbridge.sendglucose(exchangePayload);
             }
         }
 

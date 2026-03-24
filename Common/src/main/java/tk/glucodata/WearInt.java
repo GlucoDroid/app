@@ -195,4 +195,8 @@ static void sendglucose(int mgdl,float rate, int alarm, long timmsec)  {
     	Applic.app.sendBroadcast(intent);
     	};
     }
+
+static void sendglucose(ExchangeGlucosePayload payload, int alarm)  {
+    sendglucose(payload.primaryMgdl, payload.rate, alarm, payload.timeMillis);
+}
 }
