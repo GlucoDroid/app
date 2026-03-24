@@ -15,7 +15,10 @@ import tk.glucodata.data.calibration.CalibrationManager
 import tk.glucodata.ui.GlucosePoint
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.LinkedHashSet
 import java.util.Locale
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Repository for managing the independent glucose history database.
@@ -33,23 +36,22 @@ class HistoryRepository(context: Context = Applic.app) {
         private val TIME_FORMATTER = object : ThreadLocal<SimpleDateFormat>() {
             override fun initialValue(): SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         }
-        
-        @Volatile
-        private var backfillCompleted = false
-
-        @Volatile
-        private var backfillInProgress = false
+        private val backfillLock = ReentrantLock()
+        private val backfilledSensors = LinkedHashSet<String>()
+        private val backfillInProgressSensors = LinkedHashSet<String>()
         
         /**
-         * Reset the backfill flag so ensureBackfilled() re-runs.
-         * Called after vendor history download completes — if ensureBackfilled() ran before
-         * the download finished, it got 0 records and set backfillCompleted=true.
-         * This allows it to re-run and pick up the newly downloaded data.
+         * Reset per-sensor backfill tracking so [ensureBackfilled] re-checks native
+         * history on the next subscription. Used when a vendor/driver history import
+         * completes after an earlier empty native snapshot.
          */
         @JvmStatic
         fun resetBackfillFlag() {
-            backfillCompleted = false
-            Log.d(TAG, "backfillCompleted reset — ensureBackfilled() will re-run")
+            backfillLock.withLock {
+                backfilledSensors.clear()
+                backfillInProgressSensors.clear()
+            }
+            Log.d(TAG, "backfill sensor tracking reset — ensureBackfilled() will re-run")
         }
         
         /**
@@ -111,6 +113,31 @@ class HistoryRepository(context: Context = Applic.app) {
                     emptyList()
                 }
                 uiPoints.map { p ->
+                    val v = if (isMmol) p.value / 18.0182f else p.value
+                    val r = if (isMmol) p.rawValue / 18.0182f else p.rawValue
+                    tk.glucodata.GlucosePoint(p.timestamp, v, r)
+                }
+            }
+        }
+
+        /**
+         * Blocking version for shared/main code that needs the same Room-backed
+         * history for a specific sensor as the dashboard rows.
+         */
+        @JvmStatic
+        fun getHistoryForNotificationForSensor(
+            sensorSerial: String?,
+            startTime: Long,
+            isMmol: Boolean
+        ): List<tk.glucodata.GlucosePoint> {
+            return kotlinx.coroutines.runBlocking {
+                val serial = sensorSerial?.takeIf { it.isNotBlank() } ?: Natives.lastsensorname() ?: ""
+                if (serial.isEmpty()) {
+                    Log.w(TAG, "getHistoryForNotificationForSensor: no sensor serial, returning empty list")
+                    return@runBlocking emptyList()
+                }
+                val raw = HistoryRepository().getHistoryForSensor(serial, startTime)
+                raw.map { p ->
                     val v = if (isMmol) p.value / 18.0182f else p.value
                     val r = if (isMmol) p.rawValue / 18.0182f else p.rawValue
                     tk.glucodata.GlucosePoint(p.timestamp, v, r)
@@ -434,70 +461,54 @@ class HistoryRepository(context: Context = Applic.app) {
         requireNotNull(TIME_FORMATTER.get()).format(Date(timestamp))
     
     /**
-     * Backfill ALL history from native layer on first run.
-     * Multi-sensor: syncs ALL active sensors, not just the main one.
-     * Only runs once per app session.
+     * Backfill native history for any sensor that the current UI/session needs and
+     * has not yet been merged into Room during this process lifetime.
      */
-    suspend fun ensureBackfilled() {
-        if (backfillCompleted) return
-
-        if (backfillInProgress) {
-            Log.d(TAG, "ensureBackfilled skipped — backfill already in progress")
+    suspend fun ensureBackfilled(preferredSerial: String? = null) {
+        val sensorsToCheck = linkedSetOfSensors(
+            Natives.activeSensors(),
+            Natives.lastsensorname(),
+            preferredSerial
+        )
+        if (sensorsToCheck.isEmpty()) {
+            Log.d(TAG, "No sensors for backfill")
             return
         }
 
-        backfillInProgress = true
-        try {
-            withContext(Dispatchers.IO) {
-                try {
-                    Log.d(TAG, "Session start - merging native history for ALL active sensors into database")
-                    backfillAllSensors()
-                    backfillCompleted = true
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during backfill", e)
+        withContext(Dispatchers.IO) {
+            val sensorsToBackfill = backfillLock.withLock {
+                sensorsToCheck.filterNot {
+                    backfilledSensors.contains(it) || backfillInProgressSensors.contains(it)
+                }.also { pending ->
+                    backfillInProgressSensors.addAll(pending)
                 }
             }
-        } finally {
-            backfillInProgress = false
-        }
-    }
-    
-    /**
-     * Import ALL existing history from the native C++ layer for ALL active sensors.
-     * Multi-sensor: iterates activeSensors() and uses getGlucoseHistoryForSensor().
-     */
-    private suspend fun backfillAllSensors() {
-        try {
-            val activeSensors = Natives.activeSensors()
-            if (activeSensors == null || activeSensors.isEmpty()) {
-                // Fallback: try main sensor via the old single-sensor path
-                val mainSensor = Natives.lastsensorname()
-                if (!mainSensor.isNullOrEmpty()) {
-                    backfillSensor(mainSensor)
-                } else {
-                    Log.d(TAG, "No active sensors for backfill")
+            if (sensorsToBackfill.isEmpty()) {
+                return@withContext
+            }
+
+            Log.d(TAG, "Merging native history into Room for sensors=$sensorsToBackfill")
+            for (serial in sensorsToBackfill) {
+                val success = backfillSensor(serial)
+                backfillLock.withLock {
+                    backfillInProgressSensors.remove(serial)
+                    if (success) {
+                        backfilledSensors.add(serial)
+                    }
                 }
-                return
             }
-            
-            for (serial in activeSensors) {
-                if (serial.isNullOrEmpty()) continue
-                backfillSensor(serial)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error backfilling all sensors", e)
         }
     }
 
     /**
      * Backfill a single sensor's data from the native layer.
      */
-    private suspend fun backfillSensor(serial: String) {
+    private suspend fun backfillSensor(serial: String): Boolean {
         try {
             val rawHistory = Natives.getGlucoseHistoryForSensor(serial, 0L)
             if (rawHistory == null) {
                 Log.d(TAG, "Native history for $serial returned null")
-                return
+                return false
             }
 
             val readings = mutableListOf<HistoryReading>()
@@ -526,9 +537,13 @@ class HistoryRepository(context: Context = Applic.app) {
             if (readings.isNotEmpty()) {
                 dao.insertAll(readings)
                 Log.d(TAG, "Backfilled ${readings.size} readings from native for sensor $serial")
+            } else {
+                Log.d(TAG, "Backfill for $serial completed with 0 readings")
             }
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "Error backfilling sensor $serial", e)
+            return false
         }
     }
 
@@ -621,5 +636,19 @@ class HistoryRepository(context: Context = Applic.app) {
                 0
             }
         }
+    }
+
+    private fun linkedSetOfSensors(
+        activeSensors: Array<String?>?,
+        mainSensor: String?,
+        preferredSerial: String? = null
+    ): LinkedHashSet<String> {
+        val result = LinkedHashSet<String>()
+        activeSensors?.forEach { serial ->
+            serial?.takeIf { it.isNotBlank() }?.let(result::add)
+        }
+        mainSensor?.takeIf { it.isNotBlank() }?.let(result::add)
+        preferredSerial?.takeIf { it.isNotBlank() }?.let(result::add)
+        return result
     }
 }

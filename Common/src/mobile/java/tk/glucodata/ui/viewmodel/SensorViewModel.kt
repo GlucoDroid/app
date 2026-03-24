@@ -186,36 +186,12 @@ class SensorViewModel : ViewModel() {
             }
             val gatts = SensorBluetooth.mygatts() ?: ArrayList()
             
-            // Get the currently active sensor (primary data source)
+            // Preserve the explicit current selection even if that sensor is not active.
+            // A non-active sensor can still be a valid dashboard/history target.
             val activeSensors = try { Natives.activeSensors() } catch (_: Exception) { null }
             val activeSensorSerial = try {
-                var sName = Natives.lastsensorname()
-                
-                // Conflict Resolution: If last sensor is gone but we have valid active ones,
-                // switch focus to the valid one.
-                // Edit 57a: Actually persist the correction via setcurrentsensor(). Previously
-                // this only updated the local variable but never wrote back to native state,
-                // so lastsensorname() kept returning the stale serial on every notification.
-                if (activeSensors != null && activeSensors.isNotEmpty()) {
-                    if (sName.isNullOrEmpty() || !activeSensors.contains(sName)) {
-                         val next = activeSensors[0]
-                         try {
-                             Natives.setcurrentsensor(next)
-                             android.util.Log.i("SensorVM", "Edit 57a: Corrected lastsensorname from '$sName' to '$next'")
-                         } catch (t: Throwable) {
-                             android.util.Log.e("SensorVM", "Edit 57a: setcurrentsensor failed: ${t.message}")
-                         }
-                         sName = next
-                    }
-                } else if (!sName.isNullOrEmpty()) {
-                    // No active sensors at all but lastsensorname still set — clear it
-                    try {
-                        Natives.setcurrentsensor("")
-                        android.util.Log.i("SensorVM", "Edit 57a: Cleared stale lastsensorname '$sName' (no active sensors)")
-                    } catch (_: Throwable) {}
-                    sName = ""
-                }
-                sName
+                Natives.lastsensorname()?.takeIf { it.isNotEmpty() }
+                    ?: activeSensors?.firstOrNull { !it.isNullOrBlank() }
             } catch (e: Exception) {
                 null
             }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import android.util.Log
 import android.os.SystemClock
@@ -36,18 +37,28 @@ class GlucoseRepository {
      * current sensor use [flatMapLatest] on this so they automatically
      * re-subscribe when the main sensor changes.
      */
-    private val _currentSerial = MutableStateFlow(Natives.lastsensorname() ?: "")
+    private val _currentSerial = MutableStateFlow(
+        Natives.lastsensorname()?.takeIf { it.isNotBlank() }
+            ?: Natives.activeSensors()?.firstOrNull { !it.isNullOrBlank() }
+            ?: ""
+    )
     val currentSerial = _currentSerial.asStateFlow()
     
     /**
      * Call this whenever the main sensor may have changed (resume, sensor switch, etc.).
      * If the serial actually changed, all flows keyed on [_currentSerial] will restart.
      */
-    fun refreshSensorSerial() {
-        val fresh = Natives.lastsensorname() ?: ""
-        if (fresh != _currentSerial.value) {
-            Log.d(TAG, "Sensor serial changed: '${_currentSerial.value}' → '$fresh'")
-            _currentSerial.value = fresh
+    fun refreshSensorSerial(preferredSerial: String? = null) {
+        val current = _currentSerial.value
+        val resolved = preferredSerial?.takeIf { it.isNotBlank() }
+            ?: Natives.lastsensorname()?.takeIf { it.isNotBlank() }
+            ?: Natives.activeSensors()?.firstOrNull { !it.isNullOrBlank() }
+            ?: current.takeIf { it.isNotBlank() }
+            ?: ""
+
+        if (resolved != current) {
+            Log.d(TAG, "Sensor serial changed: '$current' → '$resolved'")
+            _currentSerial.value = resolved
         }
     }
     
@@ -62,44 +73,41 @@ class GlucoseRepository {
     /**
      * Get the current reading for the main sensor.
      * OBSERVES the Room Database (Single Source of Truth) filtered by main sensor serial.
-     * Live updates are pushed into Room from real sensor events or explicit sync points.
+     * Live updates are pushed into Room from real sensor events; targeted native recovery
+     * remains explicit in higher layers (startup/reconnect/manual repair) instead of being
+     * hidden inside the current-reading subscription.
      *
      * Reactive: Uses [flatMapLatest] on [_currentSerial] so when the main sensor
      * changes, the flow automatically re-subscribes to the new sensor's data.
      */
     fun getCurrentReading(): Flow<GlucosePoint?> = channelFlow {
-        // Run heavy backfill asynchronously so first frame/render is not delayed.
-        launch {
-            historyRepository.ensureBackfilled()
-        }
-
-        // Observe Database for main sensor updates — reactive to sensor changes
-        _currentSerial.flatMapLatest { serial ->
-            if (serial.isNotEmpty()) {
-                historyRepository.getLatestReadingFlowForSensor(serial)
-            } else {
+        _currentSerial.collectLatest { serial ->
+            if (serial.isEmpty()) {
                 Log.w(TAG, "getCurrentReading: no main sensor serial, returning empty flow")
-                flowOf(null)
-            }
-        }.collect { point ->
-            val unit = Natives.getunit()
-            val isMmol = (unit == 1)
-            
-            if (point != null) {
-                // Apply Unit Conversion for Display
-                val displayValue = if (isMmol) point.value / 18.0182f else point.value
-                val displayRaw = if (isMmol) point.rawValue / 18.0182f else point.rawValue
-                
-                val finalPoint = GlucosePoint(
-                    value = displayValue,
-                    time = point.time, // Already formatted HH:mm
-                    timestamp = point.timestamp,
-                    rawValue = displayRaw,
-                    rate = point.rate
-                )
-                send(finalPoint)
-            } else {
                 send(null)
+                return@collectLatest
+            }
+
+            historyRepository.getLatestReadingFlowForSensor(serial).collect { point ->
+                val unit = Natives.getunit()
+                val isMmol = (unit == 1)
+
+                if (point != null) {
+                    // Apply Unit Conversion for Display
+                    val displayValue = if (isMmol) point.value / 18.0182f else point.value
+                    val displayRaw = if (isMmol) point.rawValue / 18.0182f else point.rawValue
+
+                    val finalPoint = GlucosePoint(
+                        value = displayValue,
+                        time = point.time, // Already formatted HH:mm
+                        timestamp = point.timestamp,
+                        rawValue = displayRaw,
+                        rate = point.rate
+                    )
+                    send(finalPoint)
+                } else {
+                    send(null)
+                }
             }
         }
     }
@@ -185,14 +193,13 @@ class GlucoseRepository {
         val isMmol = (unit == 1)
         
         // Ensure backfill is done
-        historyRepository.ensureBackfilled()
-        
         // Fetch history for main sensor only — never fall back to all-sensors
         val serial = Natives.lastsensorname() ?: ""
         if (serial.isEmpty()) {
             Log.w(TAG, "getAllHistory: no main sensor serial, returning empty list")
             return emptyList()
         }
+        historyRepository.ensureBackfilled(serial)
         val rawHistory = historyRepository.getHistoryForSensor(serial, 0L)
         
         // Convert to display unit
@@ -213,6 +220,7 @@ class GlucoseRepository {
             Log.w(TAG, "getHistory: no main sensor serial, returning empty list")
             return emptyList()
         }
+        historyRepository.ensureBackfilled(serial)
         val raw = historyRepository.getHistoryForSensor(serial, startTime)
         return if (isMmol) {
             raw.map { p ->
@@ -230,7 +238,14 @@ class GlucoseRepository {
     fun getHistoryFlow(startTime: Long = 0L, isMmol: Boolean): Flow<List<GlucosePoint>> {
         return _currentSerial.flatMapLatest { serial ->
             if (serial.isNotEmpty()) {
-                historyRepository.getHistoryFlowForSensor(serial, startTime)
+                channelFlow {
+                    launch {
+                        historyRepository.ensureBackfilled(serial)
+                    }
+                    historyRepository.getHistoryFlowForSensor(serial, startTime).collect { points ->
+                        send(points)
+                    }
+                }
             } else {
                 Log.w(TAG, "getHistoryFlow: no main sensor serial, returning empty flow")
                 flowOf(emptyList())
@@ -251,7 +266,14 @@ class GlucoseRepository {
     fun getHistoryFlowRaw(startTime: Long = 0L): Flow<List<GlucosePoint>> {
         return _currentSerial.flatMapLatest { serial ->
             if (serial.isNotEmpty()) {
-                historyRepository.getHistoryFlowForSensor(serial, startTime)
+                channelFlow {
+                    launch {
+                        historyRepository.ensureBackfilled(serial)
+                    }
+                    historyRepository.getHistoryFlowForSensor(serial, startTime).collect { points ->
+                        send(points)
+                    }
+                }
             } else {
                 Log.w(TAG, "getHistoryFlowRaw: no main sensor serial, returning empty flow")
                 flowOf(emptyList())
@@ -268,7 +290,7 @@ class GlucoseRepository {
             val serial = Natives.lastsensorname() ?: ""
             if (serial.isBlank()) return@runBlocking emptyList()
 
-            historyRepository.ensureBackfilled()
+            historyRepository.ensureBackfilled(serial)
             val rawHistory = historyRepository.getHistoryForSensor(serial, 0L)
             val isMmol = (Natives.getunit() == 1)
             rawHistory.map { p ->
@@ -297,7 +319,7 @@ class GlucoseRepository {
                 val serial = Natives.lastsensorname() ?: ""
                 if (serial.isBlank()) return@runBlocking emptyList()
 
-                historyRepository.ensureBackfilled()
+                historyRepository.ensureBackfilled(serial)
                 val startMs = (System.currentTimeMillis() - durationMs).coerceAtLeast(0L)
                 val rawHistory = historyRepository.getHistoryForSensor(serial, startMs)
                 val isMmol = (Natives.getunit() == 1)

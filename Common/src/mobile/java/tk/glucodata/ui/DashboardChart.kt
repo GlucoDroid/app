@@ -686,6 +686,9 @@ fun InteractiveGlucoseChart(
     val now = System.currentTimeMillis()
     val latestDataTimestamp = safeData.lastOrNull()?.timestamp ?: 0L
     val earliestDataTimestamp = safeData.firstOrNull()?.timestamp ?: 0L
+    val dataSeriesSignature = remember(earliestDataTimestamp, latestDataTimestamp, safeData.size) {
+        "$earliestDataTimestamp:$latestDataTimestamp:${safeData.size}"
+    }
 
     var lastAutoScrolledTimestamp by rememberSaveable { mutableLongStateOf(0L) }
     // Jitter fix: Track the auto-scroll job to cancel it on user interaction
@@ -773,6 +776,23 @@ fun InteractiveGlucoseChart(
                      centerTime = latestDataTimestamp - target / 2
                 }
             }
+        }
+    }
+
+    LaunchedEffect(dataSeriesSignature) {
+        if (safeData.isEmpty() || latestDataTimestamp <= 0L) {
+            return@LaunchedEffect
+        }
+
+        val viewportStart = centerTime - visibleDuration / 2
+        val viewportEnd = centerTime + visibleDuration / 2
+        val hasVisibleOverlap = latestDataTimestamp >= viewportStart && earliestDataTimestamp <= viewportEnd
+        val switchedToOlderSeries = lastAutoScrolledTimestamp > 0L && latestDataTimestamp + 60_000L < lastAutoScrolledTimestamp
+
+        if (!hasVisibleOverlap || lastAutoScrolledTimestamp == 0L || switchedToOlderSeries) {
+            centerTime = latestDataTimestamp - visibleDuration / 2
+            previewCenterTime = centerTime
+            lastAutoScrolledTimestamp = latestDataTimestamp
         }
     }
 

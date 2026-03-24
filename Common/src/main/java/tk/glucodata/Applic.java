@@ -811,30 +811,18 @@ public class Applic extends Application implements androidx.work.Configuration.P
             SuperGattCallback.initAlarmTalk();
             initialize();
 
-            // Edit 57a: Startup cleanup — if lastsensorname() points to a finished sensor,
-            // switch to the first active sensor (or clear it). This originally prevented
-            // notification/UI reads from resolving a dead sensor through getdataptr().
+            // Preserve an explicit non-active selection across startup. Historical sensors
+            // are still valid dashboard targets even if they are not in activeSensors().
+            // Only seed an empty current selection from the first active sensor.
             try {
                 String currentSensor = Natives.lastsensorname();
                 String[] active = Natives.activeSensors();
-                if (currentSensor != null && !currentSensor.isEmpty()) {
-                    boolean isActive = false;
-                    if (active != null) {
-                        for (String s : active) {
-                            if (currentSensor.equals(s)) {
-                                isActive = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!isActive) {
-                        String next = (active != null && active.length > 0) ? active[0] : "";
-                        Natives.setcurrentsensor(next);
-                        Log.i("Applic", "Edit 57a: Corrected stale lastsensorname '" + currentSensor + "' -> '" + next + "'");
-                    }
+                if ((currentSensor == null || currentSensor.isEmpty()) && active != null && active.length > 0) {
+                    Natives.setcurrentsensor(active[0]);
+                    Log.i("Applic", "Seeded empty lastsensorname from first active sensor '" + active[0] + "'");
                 }
             } catch (Throwable t) {
-                Log.i("Applic", "Edit 57a: startup sensor cleanup failed: " + t.getMessage());
+                Log.i("Applic", "startup sensor initialization failed: " + t.getMessage());
             }
 
             // Check if FloatingService should be started
@@ -1107,21 +1095,8 @@ public class Applic extends Application implements androidx.work.Configuration.P
         try {
             String currentSensor = Natives.lastsensorname();
             String[] active = Natives.activeSensors();
-            if (active != null && active.length > 0) {
-                boolean isActive = false;
-                if (currentSensor != null && !currentSensor.isEmpty()) {
-                    for (String sensor : active) {
-                        if (currentSensor.equals(sensor)) {
-                            isActive = true;
-                            break;
-                        }
-                    }
-                }
-                if (!isActive) {
-                    Natives.setcurrentsensor(active[0]);
-                }
-            } else if (currentSensor != null && !currentSensor.isEmpty()) {
-                Natives.setcurrentsensor("");
+            if ((currentSensor == null || currentSensor.isEmpty()) && active != null && active.length > 0) {
+                Natives.setcurrentsensor(active[0]);
             }
         } catch (Throwable t) {
             Log.stack(LOG_ID, "syncCurrentSensorSelection", t);

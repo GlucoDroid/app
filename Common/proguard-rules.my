@@ -38,6 +38,7 @@
 -keepnames class tk.glucodata.data.HistoryRepository
 -keepclassmembers class tk.glucodata.data.HistoryRepository {
     public static void resetBackfillFlag();
+    public static java.util.List getHistoryForNotificationForSensor(java.lang.String,long,boolean);
     public static void storeReadingAsync(long,float,int);
     public static void storeReadingAsync(long,float,float,float);
     public static void storeReadingAsync(long,float,float,float,java.lang.String);
@@ -48,6 +49,17 @@
     public static final tk.glucodata.data.HistorySync INSTANCE;
     public final void syncSensorFromNative(java.lang.String,boolean);
     public final void forceFullSyncForSensor(java.lang.String);
+}
+
+# Keep CalibrationManager names and reflected members stable.
+# CalibrationAccess in src/main resolves these mobile-only methods by name.
+-keepnames class tk.glucodata.data.calibration.CalibrationManager
+-keepclassmembers class tk.glucodata.data.calibration.CalibrationManager {
+    public static final tk.glucodata.data.calibration.CalibrationManager INSTANCE;
+    public final boolean hasActiveCalibration(boolean,java.lang.String);
+    public final float getCalibratedValue(float,long,boolean,boolean,java.lang.String);
+    public final boolean shouldHideInitialWhenCalibrated();
+    public final boolean shouldOverwriteSensorValues();
 }
 
 #-keep class tk.glucodata.watchface.WatchFaceService

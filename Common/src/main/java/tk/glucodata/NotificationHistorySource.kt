@@ -30,6 +30,10 @@ object NotificationHistorySource {
     }
 
     private fun loadHistory(startTimeMs: Long, isMmol: Boolean, sensorSerial: String?): List<GlucosePoint> {
+        loadRoomHistory(startTimeMs, isMmol, sensorSerial)
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { return it }
+
         val startSec = startTimeMs / 1000L
         val resolvedSerial = resolveSensorSerial(sensorSerial)
         val history = try {
@@ -67,6 +71,11 @@ object NotificationHistorySource {
             }
         }
         return ArrayList(orderedPoints.values)
+    }
+
+    private fun loadRoomHistory(startTimeMs: Long, isMmol: Boolean, sensorSerial: String?): List<GlucosePoint>? {
+        val resolvedSerial = resolveSensorSerial(sensorSerial) ?: return null
+        return HistoryRepositoryAccess.getHistoryForSensor(resolvedSerial, startTimeMs, isMmol)
     }
 
     private fun shouldReplace(existing: GlucosePoint, candidate: GlucosePoint): Boolean {

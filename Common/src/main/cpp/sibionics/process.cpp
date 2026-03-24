@@ -165,7 +165,11 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
     }
     // Original Juggluco logic - process3 result goes directly into newvalue
     // check
-    double newvalue = 0.0;
+    // Default to the raw sensor value. process3() only returns a calibrated
+    // value on some polls, and pollinterval may still be unset during
+    // startup/history replay. Falling back to raw keeps valid samples instead
+    // of dropping them.
+    double newvalue = value;
     if (value > 0.1 && value < 3000.0 &&
         (newvalue = process3(index, value, temp)) > 1) {
       sens->getinfo()->pollinterval = newvalue - value;

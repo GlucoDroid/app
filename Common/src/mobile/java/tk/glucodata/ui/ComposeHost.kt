@@ -1350,11 +1350,17 @@ fun DashboardScreen(
 
         // Compute calibrated value for current reading (respects viewMode)
             val isRawModeHero = viewMode == 1 || viewMode == 3
-            val calibratedValue = remember(latestPoint, viewMode) {
-                if (latestPoint != null && tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeHero)) {
+            val calibrationSensorId = sensorName.ifBlank { null }
+            val calibratedValue = remember(latestPoint, viewMode, calibrationSensorId) {
+                if (latestPoint != null && tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeHero, calibrationSensorId)) {
                     val baseValue = if (isRawModeHero) latestPoint.rawValue else latestPoint.value
                     if (baseValue.isFinite() && baseValue > 0.1f) {
-                        tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, latestPoint.timestamp, isRawModeHero)
+                        tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                            baseValue,
+                            latestPoint.timestamp,
+                            isRawModeHero,
+                            sensorIdOverride = calibrationSensorId
+                        )
                     } else {
                         null
                     }
@@ -1434,10 +1440,11 @@ fun DashboardScreen(
                                 point = item,
                                 unit = unit,
                                 viewMode = viewMode,
-                                    index = index,
-                                    totalCount = recentReadings.size,
-                                    history = recentReadings,
-                                    calibrations = calibrations,
+                                index = index,
+                                totalCount = recentReadings.size,
+                                history = recentReadings,
+                                sensorId = sensorName,
+                                calibrations = calibrations,
                                 modifier = Modifier.animateItem()
                             )
                         }
@@ -1451,29 +1458,31 @@ fun DashboardScreen(
                         .fillMaxHeight()
                         .padding(vertical = 16.dp)
                 ) {
-                    DashboardChartSection(
-                        modifier = Modifier.weight(1f).fillMaxSize(),
-                        glucoseHistory = glucoseHistory,
-                        graphSmoothingMinutes = chartSmoothingMinutes,
-                        collapseSmoothedData = dataSmoothingCollapseChunks,
-                        targetLow = targetLow,
-                        targetHigh = targetHigh,
-                        unit = unit,
-                        calibrations = calibrations,
-                        viewMode = viewMode,
-                        onTimeRangeSelected = { timeRange = it },
-                        selectedTimeRange = timeRange,
-                        isExpanded = false,
-                        expandedProgress = 0f,
-                        expandedUnderlayBottom = 0.dp,
-                        onToggleExpanded = null,
-                        onPointClick = { point ->
-                            triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
-                        },
-                        onCalibrationClick = { cal ->
-                            triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))
+                        key(sensorName) {
+                            DashboardChartSection(
+                                modifier = Modifier.weight(1f).fillMaxSize(),
+                                glucoseHistory = glucoseHistory,
+                                graphSmoothingMinutes = chartSmoothingMinutes,
+                                collapseSmoothedData = dataSmoothingCollapseChunks,
+                                targetLow = targetLow,
+                                targetHigh = targetHigh,
+                                unit = unit,
+                                calibrations = calibrations,
+                                viewMode = viewMode,
+                                onTimeRangeSelected = { timeRange = it },
+                                selectedTimeRange = timeRange,
+                                isExpanded = false,
+                                expandedProgress = 0f,
+                                expandedUnderlayBottom = 0.dp,
+                                onToggleExpanded = null,
+                                onPointClick = { point ->
+                                    triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                                },
+                                onCalibrationClick = { cal ->
+                                    triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))
+                                }
+                            )
                         }
-                    )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -1546,34 +1555,36 @@ fun DashboardScreen(
                         modifier = Modifier
                             .padding(horizontal = animatedChartHorizontalPadding.coerceAtLeast(0.dp))
                     ) {
-                        DashboardChartSection(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(animatedChartItemHeight)
-                                .padding(bottom = 0.dp),
+                        key(sensorName) {
+                            DashboardChartSection(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(animatedChartItemHeight)
+                                    .padding(bottom = 0.dp),
 
-                            glucoseHistory = glucoseHistory,
-                            graphSmoothingMinutes = chartSmoothingMinutes,
-                            collapseSmoothedData = dataSmoothingCollapseChunks,
-                            targetLow = targetLow,
-                            targetHigh = targetHigh,
-                            unit = unit,
-                            calibrations = calibrations,
-                            viewMode = viewMode,
-                            onTimeRangeSelected = { timeRange = it },
-                            selectedTimeRange = timeRange,
-                            isExpanded = isChartExpanded,
-                            expandedProgress = expandedProgress,
-                            expandedUnderlayBottom = 0.dp,
-                            onToggleExpanded = null,
-                            chartBoostProgress = chartBoostProgress,
-                            onPointClick = { point ->
-                                triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
-                            },
-                            onCalibrationClick = { cal ->
-                                triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))
-                            }
-                        )
+                                glucoseHistory = glucoseHistory,
+                                graphSmoothingMinutes = chartSmoothingMinutes,
+                                collapseSmoothedData = dataSmoothingCollapseChunks,
+                                targetLow = targetLow,
+                                targetHigh = targetHigh,
+                                unit = unit,
+                                calibrations = calibrations,
+                                viewMode = viewMode,
+                                onTimeRangeSelected = { timeRange = it },
+                                selectedTimeRange = timeRange,
+                                isExpanded = isChartExpanded,
+                                expandedProgress = expandedProgress,
+                                expandedUnderlayBottom = 0.dp,
+                                onToggleExpanded = null,
+                                chartBoostProgress = chartBoostProgress,
+                                onPointClick = { point ->
+                                    triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                                },
+                                onCalibrationClick = { cal ->
+                                    triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -1596,6 +1607,7 @@ fun DashboardScreen(
                                 index = index,
                                 totalCount = recentReadings.size,
                                 history = recentReadings,
+                                sensorId = sensorName,
                                 calibrations = calibrations,
                                 modifier = Modifier
                                     .then(
@@ -1687,6 +1699,7 @@ fun ReadingRow(
     index: Int = 0,
     totalCount: Int = 1,
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
+    sensorId: String? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
@@ -1707,8 +1720,11 @@ fun ReadingRow(
     val ageState = remember(point.timestamp) { mutableStateOf(System.currentTimeMillis() - point.timestamp) }
     val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
     val activeCurrentSnapshot = if (isActive) {
-        remember(refreshRevision, point.timestamp, point.value, point.rawValue, viewMode) {
-            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout, SensorIdentity.resolveMainSensor())
+        remember(refreshRevision, point.timestamp, point.value, point.rawValue, viewMode, sensorId) {
+            CurrentDisplaySource.resolveCurrent(
+                Notify.glucosetimeout,
+                sensorId?.takeIf { it.isNotBlank() } ?: SensorIdentity.resolveMainSensor()
+            )
         }
     } else {
         null
@@ -1838,11 +1854,20 @@ fun ReadingRow(
 
                 // Value (Right)
                 val isRawModeRR = viewMode == 1 || viewMode == 3
-                val hasCalibrationRR = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeRR)
+                val calibrationSensorId = sensorId?.takeIf { it.isNotBlank() }
+                val hasCalibrationRR = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(
+                    isRawModeRR,
+                    calibrationSensorId
+                )
                 val calibratedValueRR = if (hasCalibrationRR) {
                     val baseValue = if (isRawModeRR) point.rawValue else point.value
                     if (baseValue.isFinite() && baseValue > 0.1f) {
-                        tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeRR)
+                        tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                            baseValue,
+                            point.timestamp,
+                            isRawModeRR,
+                            sensorIdOverride = calibrationSensorId
+                        )
                     } else {
                         null
                     }

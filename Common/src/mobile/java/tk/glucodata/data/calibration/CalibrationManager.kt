@@ -197,11 +197,35 @@ object CalibrationManager {
         Log.d(TAG, "Calibration cache invalidated: $reason")
     }
 
+    private fun normalizeSensorId(sensorId: String?): String {
+        return sensorId?.trim()?.takeIf { it.isNotEmpty() } ?: ""
+    }
+
+    private fun sensorMatches(calibrationSensorId: String, sensorId: String): Boolean {
+        if (calibrationSensorId.isBlank()) return true
+        if (sensorId.isBlank()) return false
+        return calibrationSensorId.trim().equals(sensorId, ignoreCase = true)
+    }
+
+    private fun sensorCandidates(sensorIdOverride: String?): List<String> {
+        val requested = normalizeSensorId(sensorIdOverride)
+        val current = normalizeSensorId(Natives.lastsensorname())
+        return buildList {
+            if (requested.isNotEmpty()) add(requested)
+            if (current.isNotEmpty() && current != requested) add(current)
+            if (isEmpty()) add("")
+        }
+    }
+
     private fun getValidPoints(isRawMode: Boolean, sensorId: String): List<CalPoint> {
         val currentList = _calibrations.value
         return currentList
             .asSequence()
-            .filter { it.isEnabled && it.isRawMode == isRawMode && (it.sensorId == sensorId || it.sensorId.isEmpty()) }
+            .filter {
+                it.isEnabled &&
+                    it.isRawMode == isRawMode &&
+                    sensorMatches(it.sensorId, sensorId)
+            }
             .map { p ->
                 CalPoint(
                     x = (if (isRawMode) p.sensorValueRaw else p.sensorValue).toDouble(),
@@ -210,6 +234,17 @@ object CalibrationManager {
                 )
             }
             .toList()
+    }
+
+    private fun getValidPointsWithFallback(isRawMode: Boolean, sensorIdOverride: String?): List<CalPoint> {
+        val candidates = sensorCandidates(sensorIdOverride)
+        candidates.forEach { candidate ->
+            val points = getValidPoints(isRawMode = isRawMode, sensorId = candidate)
+            if (points.isNotEmpty()) {
+                return points
+            }
+        }
+        return emptyList()
     }
     
     fun setEnabledForMode(isRawMode: Boolean, enabled: Boolean) {
@@ -536,7 +571,7 @@ object CalibrationManager {
             return value
         }
 
-        val currentSensor = sensorIdOverride ?: Natives.lastsensorname() ?: ""
+        val currentSensor = normalizeSensorId(sensorIdOverride ?: Natives.lastsensorname())
         val algorithm = getAlgorithmForMode(isRawMode)
         val cacheKey = CalibrationCacheKey(
             isRawMode = isRawMode,
@@ -561,7 +596,7 @@ object CalibrationManager {
             return cached
         }
 
-        val allPoints = getValidPoints(isRawMode = isRawMode, sensorId = currentSensor)
+        val allPoints = getValidPointsWithFallback(isRawMode = isRawMode, sensorIdOverride = currentSensor)
         if (allPoints.isEmpty()) {
             return value
         }
@@ -1142,14 +1177,8 @@ object CalibrationManager {
 
     fun hasActiveCalibration(isRawMode: Boolean, sensorIdOverride: String? = null): Boolean {
         if (!isEnabledForMode(isRawMode)) return false
-        
-        val currentSensor = sensorIdOverride ?: Natives.lastsensorname() ?: ""
-        // Use current state value
-        return _calibrations.value.any { 
-            it.isEnabled && 
-            it.isRawMode == isRawMode &&
-            (it.sensorId == currentSensor || it.sensorId.isEmpty()) 
-        }
+
+        return getValidPointsWithFallback(isRawMode, sensorIdOverride).isNotEmpty()
     }
 
     /** Check if an enabled calibration was added at this timestamp (±30s tolerance) for given mode */

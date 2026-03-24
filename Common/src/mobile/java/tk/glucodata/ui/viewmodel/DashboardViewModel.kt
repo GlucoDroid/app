@@ -29,6 +29,7 @@ class DashboardViewModel(
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
+        const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
     }
 
     enum class CollectionMode {
@@ -42,6 +43,10 @@ class DashboardViewModel(
 
     @Volatile
     private var lastUiRecoverySyncAtMs = 0L
+    @Volatile
+    private var lastHistoryRecoverySyncAtMs = 0L
+    @Volatile
+    private var lastHistoryRecoverySerial: String? = null
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading = _isLoading.asStateFlow()
@@ -141,7 +146,7 @@ class DashboardViewModel(
     init {
         // Keep initial UI boot light. Room backfill/targeted sensor sync now cover cold start,
         // so do not force a full native history rebuild during app startup.
-        refreshData(syncHistory = false)
+        refreshData()
     }
     
     /**
@@ -152,7 +157,7 @@ class DashboardViewModel(
      */
     fun onResume() {
         glucoseRepository.refreshSensorSerial()
-        refreshData(syncHistory = false)
+        refreshData()
         if (collectionMode != CollectionMode.INACTIVE) {
             ensureUiRefreshCollection()
             ensureCurrentReadingCollection()
@@ -170,7 +175,7 @@ class DashboardViewModel(
             CollectionMode.INACTIVE -> stopCollectionJobs()
             CollectionMode.DASHBOARD,
             CollectionMode.FULL_HISTORY -> {
-                refreshData(syncHistory = false)
+                refreshData()
                 ensureUiRefreshCollection()
                 ensureCurrentReadingCollection()
                 startHistoryCollectionForMode(mode)
@@ -193,7 +198,19 @@ class DashboardViewModel(
             }
             lastUiRecoverySyncAtMs = nowMs
         }
-        glucoseRepository.syncLatestNativeReadingOnce()
+        val serial = preferredDashboardSensorId()?.takeIf { it.isNotBlank() }
+        val historyStartTimeMs = activeHistoryStartTimeMs
+        val shouldPreferHistoryRecovery = serial != null &&
+            historyStartTimeMs != null &&
+            shouldRequestHistoryRecovery(historyStartTimeMs, _glucoseHistory.value)
+
+        if (!shouldPreferHistoryRecovery) {
+            glucoseRepository.syncLatestNativeReadingOnce()
+        }
+
+        if (shouldPreferHistoryRecovery) {
+            requestHistoryRecoverySync(serial, reason = "ui_recovery")
+        }
     }
 
     private fun ensureUiRefreshCollection() {
@@ -201,8 +218,8 @@ class DashboardViewModel(
         uiRefreshJob = viewModelScope.launch {
             UiRefreshBus.events.collect { event ->
                 when (event) {
-                    UiRefreshBus.Event.DataChanged -> refreshData(syncHistory = false)
-                    UiRefreshBus.Event.StatusOnly -> refreshData(syncHistory = false)
+                    UiRefreshBus.Event.DataChanged -> refreshData()
+                    UiRefreshBus.Event.StatusOnly -> refreshData()
                 }
                 refreshCurrentDisplayAfterSmoothingChange()
             }
@@ -213,7 +230,7 @@ class DashboardViewModel(
         if (currentReadingJob?.isActive == true) return
         currentReadingJob = viewModelScope.launch {
             glucoseRepository.getCurrentReading().collect { point ->
-                val preferredSensorId = SensorIdentity.resolveMainSensor()
+                val preferredSensorId = preferredDashboardSensorId()
                 val resolved = CurrentDisplaySource.resolveCurrent(
                     maxAgeMillis = Notify.glucosetimeout,
                     preferredSensorId = preferredSensorId
@@ -236,7 +253,7 @@ class DashboardViewModel(
         }
     }
 
-    fun refreshData(syncHistory: Boolean = false) {
+    fun refreshData() {
         viewModelScope.launch {
             // Update the sensor serial in GlucoseRepository — if it changed,
             // all flatMapLatest flows will automatically re-subscribe
@@ -284,21 +301,22 @@ class DashboardViewModel(
             var sName = Natives.lastsensorname()
             val activeSensors = Natives.activeSensors()
 
-            // Conflict Resolution: Validate sName against active sensors
-            // If the "last used" sensor is gone (expired/removed) but we have other active sensors,
-            // we must switch focus to the valid one to prevent "split brain" state.
             if (activeSensors != null && activeSensors.isNotEmpty()) {
                 _activeSensorList.value = activeSensors.toList()
-                if (sName.isNullOrEmpty() || !activeSensors.contains(sName)) {
-                     val valid = activeSensors[0]
-                     android.util.Log.w("DashboardVM", "Stale sensor check: '$sName' is invalid. Switching to '$valid'")
-                     sName = valid
-                }
             } else {
                 _activeSensorList.value = emptyList()
             }
 
+            val fallbackSerial = glucoseRepository.currentSerial.value.takeIf { it.isNotBlank() }
+                ?: _sensorName.value.takeIf { it.isNotBlank() }
+                ?: activeSensors?.firstOrNull { !it.isNullOrBlank() }
+
+            if (sName.isNullOrBlank()) {
+                sName = fallbackSerial
+            }
+
             if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
+                glucoseRepository.refreshSensorSerial(sName)
                 _sensorName.value = sName
                 val nativeStatus = try {
                     Natives.getSensorStatusByName(sName).orEmpty()
@@ -372,14 +390,6 @@ class DashboardViewModel(
                  _daysRemaining.value = ""
             }
 
-            // PERFORMANCE FIX: Sync history asynchronously in background
-            // Prevents blocking UI thread on cold start (Back button)
-            if (syncHistory) {
-                viewModelScope.launch {
-                    HistorySync.syncFromNative()
-                }
-            }
-            
             // Note: History is now collected reactively via startHistoryCollectionForMode()
             refreshCurrentDisplayAfterSmoothingChange()
         }
@@ -399,12 +409,24 @@ class DashboardViewModel(
         _isLoading.value = true
 
         historyJob = viewModelScope.launch {
+            var lastRecoveryRequestSerial: String? = null
             combine(
                 _unit,
                 glucoseRepository.getHistoryFlowRaw(startTimeMs).distinctUntilChanged()
             ) { unitStr, rawHistory ->
                 unitStr to rawHistory
             }.collect { (unitStr, rawHistory) ->
+                val preferredSerial = preferredDashboardSensorId()?.takeIf { it.isNotBlank() }
+                if (preferredSerial != null &&
+                    shouldRequestHistoryRecovery(startTimeMs, rawHistory) &&
+                    lastRecoveryRequestSerial != preferredSerial
+                ) {
+                    lastRecoveryRequestSerial = preferredSerial
+                    requestHistoryRecoverySync(
+                        serial = preferredSerial,
+                        reason = "history_flow_${mode.name.lowercase()}_${rawHistory.size}"
+                    )
+                }
                 BatteryTrace.bump(
                     key = "dashboard.history.emission",
                     logEvery = 20L,
@@ -632,10 +654,46 @@ class DashboardViewModel(
     private fun refreshCurrentDisplayAfterSmoothingChange() {
         CurrentDisplaySource.resolveCurrent(
             maxAgeMillis = Notify.glucosetimeout,
-            preferredSensorId = SensorIdentity.resolveMainSensor()
+            preferredSensorId = preferredDashboardSensorId()
         )?.let { resolved ->
             _currentGlucose.value = resolved.primaryStr
             _currentRate.value = resolved.rate.takeIf { it.isFinite() } ?: 0f
         }
+    }
+
+    private fun requestHistoryRecoverySync(serial: String, reason: String) {
+        val nowMs = SystemClock.elapsedRealtime()
+        synchronized(this) {
+            if (serial == lastHistoryRecoverySerial &&
+                (nowMs - lastHistoryRecoverySyncAtMs) < UI_RECOVERY_SYNC_MIN_INTERVAL_MS
+            ) {
+                return
+            }
+            lastHistoryRecoverySerial = serial
+            lastHistoryRecoverySyncAtMs = nowMs
+        }
+        BatteryTrace.bump(
+            key = "dashboard.history.recovery.request",
+            logEvery = 20L,
+            detail = "serial=$serial reason=$reason"
+        )
+        HistorySync.syncSensorFromNative(serial, forceFull = false)
+    }
+
+    private fun shouldRequestHistoryRecovery(
+        startTimeMs: Long,
+        history: List<tk.glucodata.ui.GlucosePoint>
+    ): Boolean {
+        if (history.isEmpty()) {
+            return true
+        }
+        val oldestTimestamp = history.firstOrNull()?.timestamp ?: return true
+        return oldestTimestamp > (startTimeMs + HISTORY_RECOVERY_TOLERANCE_MS)
+    }
+
+    private fun preferredDashboardSensorId(): String? {
+        return glucoseRepository.currentSerial.value.takeIf { it.isNotBlank() }
+            ?: _sensorName.value.takeIf { it.isNotBlank() }
+            ?: SensorIdentity.resolveMainSensor()
     }
 }

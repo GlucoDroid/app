@@ -428,22 +428,28 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         }
     }
 
+    private static final long LIVE_HISTORY_MATCH_WINDOW_SEC = 60L;
+
     private static SensorHistoryMatch findSensorHistoryMatchNear(String sensorSerial, long timeSec) {
-        long[] history = loadRecentSensorHistory(sensorSerial, timeSec - 30L);
+        long[] history = loadRecentSensorHistory(sensorSerial, timeSec - (LIVE_HISTORY_MATCH_WINDOW_SEC + 30L));
         if (history == null) {
             return null;
         }
+        SensorHistoryMatch bestMatch = null;
+        long bestDelta = Long.MAX_VALUE;
         for (int i = 0; i < history.length; i += 3) {
             if (i + 2 >= history.length)
                 break;
             long hTime = history[i];
-            if (Math.abs(hTime - timeSec) < 5L) {
+            long delta = Math.abs(hTime - timeSec);
+            if (delta <= LIVE_HISTORY_MATCH_WINDOW_SEC && delta < bestDelta) {
                 long rawVal = history[i + 2];
                 float rawMgdl = rawVal > 0 ? (float) rawVal / 10.0f : Float.NaN;
-                return new SensorHistoryMatch(hTime * 1000L, rawMgdl);
+                bestMatch = new SensorHistoryMatch(hTime * 1000L, rawMgdl);
+                bestDelta = delta;
             }
         }
-        return null;
+        return bestMatch;
     }
 
     private static float findRawMgdlNear(String sensorSerial, long timeSec) {
@@ -452,7 +458,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     }
 
     private static boolean shouldResolveRawLane(int viewMode) {
-        return viewMode == 1 || viewMode == 2 || viewMode == 3;
+        // Mode 2 is Auto+Raw, not Raw-primary. Live publishing must only
+        // substitute the raw lane when raw is actually the primary display lane.
+        return viewMode == 1 || viewMode == 3;
     }
 
     private static void storeLiveReadingInRoom(String sensorSerial, long timmsec, float autoMgdl, float rawMgdl, float rate) {

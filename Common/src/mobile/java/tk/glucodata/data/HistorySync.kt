@@ -11,6 +11,7 @@ import tk.glucodata.Applic
 import tk.glucodata.BatteryTrace
 import tk.glucodata.Natives
 import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedHashSet
 
 /**
  * Singleton that synchronizes native glucose history with the Room database.
@@ -174,23 +175,18 @@ object HistorySync {
                     logEvery = 20L,
                     detail = if (forceFull) "forceFull=true" else null
                 )
-                val activeSensors = Natives.activeSensors()
-                if (activeSensors == null || activeSensors.isEmpty()) {
-                    // No active sensors — try the main sensor as fallback
-                    val mainSensor = Natives.lastsensorname()
-                    if (mainSensor.isNullOrEmpty()) {
-                        Log.w(TAG, "No active sensors and no main sensor — nothing to sync")
-                        lastSyncTimeMs = 0L
-                        return@withLock
-                    }
-                    // Sync just the main sensor
-                    doSyncSensor(mainSensor, forceFull)
-                } else {
-                    // Sync every active sensor
-                    for (serial in activeSensors) {
-                        if (serial.isNullOrEmpty()) continue
-                        doSyncSensor(serial, forceFull)
-                    }
+                val sensorsToSync = linkedSetOfSensors(
+                    Natives.activeSensors(),
+                    Natives.lastsensorname()
+                )
+                if (sensorsToSync.isEmpty()) {
+                    Log.w(TAG, "No active sensors and no main sensor — nothing to sync")
+                    lastSyncTimeMs = 0L
+                    return@withLock
+                }
+
+                for (serial in sensorsToSync) {
+                    doSyncSensor(serial, forceFull)
                 }
 
                 lastSyncTimeMs = System.currentTimeMillis()
@@ -201,6 +197,15 @@ object HistorySync {
                 Log.e(TAG, "Error syncing all sensors: ${e.message}")
             }
         }
+    }
+
+    private fun linkedSetOfSensors(activeSensors: Array<String?>?, mainSensor: String?): LinkedHashSet<String> {
+        val result = LinkedHashSet<String>()
+        activeSensors?.forEach { serial ->
+            serial?.takeIf { it.isNotBlank() }?.let(result::add)
+        }
+        mainSensor?.takeIf { it.isNotBlank() }?.let(result::add)
+        return result
     }
 
     /**

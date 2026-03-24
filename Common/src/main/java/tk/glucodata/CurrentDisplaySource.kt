@@ -133,26 +133,35 @@ object CurrentDisplaySource {
             rawValue = liveValue
         }
 
-        val hideInitialWhenCalibrated = shouldHideInitialWhenCalibrated()
-        val calibratedValue = resolveCalibratedValue(
-            liveValue = liveValue,
-            autoValue = autoValue,
-            rawValue = rawValue,
-            sensorId = sensorId,
-            viewMode = viewMode,
-            targetTimeMillis = targetTimeMillis,
-            allowLiveFallback = exactMatch == null
-        )
+        val displayValues = exactMatch?.let {
+            resolveDisplayValuesForPoint(
+                point = it,
+                viewMode = viewMode,
+                isMmol = isMmol,
+                sensorId = sensorId
+            )
+        } ?: run {
+            val hideInitialWhenCalibrated = shouldHideInitialWhenCalibrated()
+            val calibratedValue = resolveCalibratedValue(
+                liveValue = liveValue,
+                autoValue = autoValue,
+                rawValue = rawValue,
+                sensorId = sensorId,
+                viewMode = viewMode,
+                targetTimeMillis = targetTimeMillis,
+                allowLiveFallback = exactMatch == null
+            )
 
-        val displayValues = DisplayValueResolver.resolve(
-            autoValue = autoValue,
-            rawValue = rawValue,
-            viewMode = viewMode,
-            isMmol = isMmol,
-            unitLabel = "",
-            calibratedValue = calibratedValue,
-            hideInitialWhenCalibrated = calibratedValue != null && hideInitialWhenCalibrated
-        )
+            DisplayValueResolver.resolve(
+                autoValue = autoValue,
+                rawValue = rawValue,
+                viewMode = viewMode,
+                isMmol = isMmol,
+                unitLabel = "",
+                calibratedValue = calibratedValue,
+                hideInitialWhenCalibrated = calibratedValue != null && hideInitialWhenCalibrated
+            )
+        }
 
         val resolvedTime = when {
             targetTimeMillis > 0L -> targetTimeMillis
@@ -201,15 +210,25 @@ object CurrentDisplaySource {
         targetTimeMillis: Long,
         allowLiveFallback: Boolean
     ): Float? {
-        if (!NightscoutCalibration.hasCalibrationForViewMode(sensorId, viewMode)) {
+        val isRawMode = isRawPrimary(viewMode)
+        if (!CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)) {
+            if (allowLiveFallback && liveValue != null && CalibrationAccess.hasActiveCalibration(isRawMode, null)) {
+                val fallbackCalibrated = CalibrationAccess.getCalibratedValue(
+                    liveValue,
+                    targetTimeMillis,
+                    isRawMode,
+                    false,
+                    null
+                )
+                return fallbackCalibrated.takeIf { it.isFinite() && it > 0.1f } ?: liveValue
+            }
             return null
         }
-
-        val isRawMode = isRawPrimary(viewMode)
         val baseValue = (if (isRawMode) rawValue else autoValue).takeIf { it.isFinite() && it > 0.1f }
             ?: autoValue.takeIf { it.isFinite() && it > 0.1f }
             ?: rawValue.takeIf { it.isFinite() && it > 0.1f }
-            ?: return liveValue?.takeIf { allowLiveFallback && it.isFinite() && it > 0.1f }
+            ?: liveValue?.takeIf { allowLiveFallback && it.isFinite() && it > 0.1f }
+            ?: return null
 
         val calibratedValue = CalibrationAccess.getCalibratedValue(
             baseValue,
@@ -220,6 +239,40 @@ object CurrentDisplaySource {
         )
         return calibratedValue.takeIf { it.isFinite() && it > 0.1f }
             ?: liveValue?.takeIf { allowLiveFallback && it.isFinite() && it > 0.1f }
+    }
+
+    private fun resolveDisplayValuesForPoint(
+        point: GlucosePoint,
+        viewMode: Int,
+        isMmol: Boolean,
+        sensorId: String?
+    ): DisplayValues {
+        val isRawMode = isRawPrimary(viewMode)
+        val calibratedValue = if (CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)) {
+            val baseValue = if (isRawMode) point.rawValue else point.value
+            if (baseValue.isFinite() && baseValue > 0.1f) {
+                CalibrationAccess.getCalibratedValue(
+                    baseValue,
+                    point.timestamp,
+                    isRawMode,
+                    false,
+                    sensorId
+                ).takeIf { it.isFinite() && it > 0.1f }
+            } else {
+                null
+            }
+        } else {
+            null
+        }
+        return DisplayValueResolver.resolve(
+            autoValue = point.value,
+            rawValue = point.rawValue,
+            viewMode = viewMode,
+            isMmol = isMmol,
+            unitLabel = "",
+            calibratedValue = calibratedValue,
+            hideInitialWhenCalibrated = calibratedValue != null && shouldHideInitialWhenCalibrated()
+        )
     }
 
     private fun shouldHideInitialWhenCalibrated(): Boolean {
