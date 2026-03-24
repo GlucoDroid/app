@@ -1,16 +1,68 @@
 package tk.glucodata.ui.setup
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -20,17 +72,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import tk.glucodata.Libre3NfcSettings
 import tk.glucodata.Natives
 import tk.glucodata.R
+import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.SettingsItem
+import tk.glucodata.ui.components.SettingsSwitchItem
 
-/**
- * Edit 63d / 67c: Multi-step Libre setup wizard.
- * Step 0: NFC scan to activate the sensor (primary action).
- * Step 1: LibreView credentials (optional — provides Account ID for Libre 3).
- *
- * The wizard also serves as the entry point for LibreView configuration,
- * accessible from the sensor bottom sheet / empty state / dashboard.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibreSetupWizard(
@@ -38,30 +86,51 @@ fun LibreSetupWizard(
     onScanNfc: () -> Unit
 ) {
     val ui = rememberWizardUiMetrics()
+    val coroutineScope = rememberCoroutineScope()
     var currentStep by remember { mutableIntStateOf(0) }
 
-    // LibreView state — load from Natives
     var email by remember { mutableStateOf(Natives.getlibreemail() ?: "") }
     var password by remember { mutableStateOf(Natives.getlibrepass() ?: "") }
     var isActive by remember { mutableStateOf(Natives.getuselibreview()) }
     var isRussia by remember { mutableStateOf(Natives.getLibreCountry() == 4) }
     var showPassword by remember { mutableStateOf(false) }
-    val accountId = remember { Natives.getlibreAccountIDnumber() }
-    var accountIdFetched by remember { mutableStateOf(accountId > 0L) }
+    var accountIdValue by remember { mutableLongStateOf(Natives.getlibreAccountIDnumber()) }
     var statusText by remember { mutableStateOf("") }
     var isFetchingAccountId by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
+    var nfcCommandMode by remember { mutableIntStateOf(Libre3NfcSettings.getMode()) }
+    var showAdvancedNfc by remember { mutableStateOf(false) }
 
-    // Save credentials to native on step transition or dismiss
-    fun saveCredentials() {
+    val requestingAccountIdText = stringResource(R.string.requesting_account_id)
+    val accountIdTimeoutText = stringResource(R.string.libre_setup_account_id_timeout)
+    val nfcAutoLabel = stringResource(R.string.libre3_nfc_command_auto)
+    val nfcActivateLabel = stringResource(R.string.libre3_nfc_command_activate)
+    val nfcSwitchReceiverLabel = stringResource(R.string.libre3_nfc_command_switch_receiver)
+    val nfcAutoDescription = stringResource(R.string.libre3_nfc_command_auto_desc)
+    val nfcActivateDescription = stringResource(R.string.libre3_nfc_command_activate_desc)
+    val nfcSwitchReceiverDescription = stringResource(R.string.libre3_nfc_command_switch_receiver_desc)
+    val nfcModes = remember {
+        listOf(
+            Libre3NfcSettings.MODE_AUTOMATIC,
+            Libre3NfcSettings.MODE_ACTIVATE_A0,
+            Libre3NfcSettings.MODE_SWITCH_RECEIVER_A8
+        )
+    }
+
+    fun saveSettings() {
         Natives.setlibreemail(email)
         Natives.setlibrepass(password)
         Natives.setuselibreview(isActive)
         Natives.setLibreCountry(if (isRussia) 4 else 0)
+        Libre3NfcSettings.setMode(nfcCommandMode)
+    }
+
+    fun finishLibreViewStep() {
+        saveSettings()
+        currentStep = 0
     }
 
     DisposableEffect(Unit) {
-        onDispose { saveCredentials() }
+        onDispose { saveSettings() }
     }
 
     BackHandler {
@@ -87,7 +156,6 @@ fun LibreSetupWizard(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Step indicator
             LinearProgressIndicator(
                 progress = { (currentStep + 1f) / 2f },
                 modifier = Modifier
@@ -98,324 +166,417 @@ fun LibreSetupWizard(
             )
 
             when (currentStep) {
-                0 -> NfcScanStep(
-                    ui = ui,
-                    onScanNfc = {
-                        saveCredentials()
-                        onScanNfc()
-                    },
-                    onSetupLibreView = {
-                        currentStep = 1
-                    }
-                )
-                1 -> LibreViewStep(
-                    ui = ui,
-                    email = email,
-                    onEmailChange = { email = it },
-                    password = password,
-                    onPasswordChange = { password = it },
-                    isActive = isActive,
-                    onActiveChange = { isActive = it },
-                    isRussia = isRussia,
-                    onRussiaChange = { isRussia = it },
-                    showPassword = showPassword,
-                    onShowPasswordChange = { showPassword = it },
-                    accountIdFetched = accountIdFetched,
-                    statusText = statusText,
-                    isFetching = isFetchingAccountId,
-                    onGetAccountId = {
-                        saveCredentials()
-                        Natives.askServerforAccountID()
-                        statusText = "Requesting Account ID..."
-                        isFetchingAccountId = true
-                        // Edit 64a: Poll every 500ms for up to 30s instead of blind 5s delay.
-                        // The C++ thread downloads config + authenticates asynchronously.
-                        // We watch for either: Account ID obtained, or status changed to a
-                        // terminal value (error or success).
-                        coroutineScope.launch {
-                            val initialStatus = statusText
-                            var elapsed = 0
-                            while (elapsed < 30_000) {
-                                delay(500)
-                                elapsed += 500
-                                val currentStatus = tk.glucodata.Libreview.getStatus()
-                                val gotId = Natives.getlibreAccountIDnumber() > 0L
-                                if (gotId) {
-                                    statusText = currentStatus
-                                    accountIdFetched = true
-                                    break
-                                }
-                                // Update status text so user sees progress (e.g. "libreconfig", error messages)
-                                if (currentStatus.isNotEmpty()) {
-                                    statusText = currentStatus
-                                }
-                                // If status changed to a terminal error, stop polling
-                                val isTerminal = currentStatus.contains("failed", ignoreCase = true) ||
-                                    currentStatus.contains("error", ignoreCase = true) ||
-                                    currentStatus.contains("locked", ignoreCase = true) ||
-                                    currentStatus.contains("no credentials", ignoreCase = true) ||
-                                    currentStatus.contains("ResponseCode", ignoreCase = true)
-                                if (isTerminal) break
+                0 -> {
+                    val accountReady = isActive && accountIdValue > 0L
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = ui.horizontalPadding, vertical = ui.spacerSmall),
+                        verticalArrangement = Arrangement.spacedBy(ui.spacerMedium)
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .size(if (ui.compact) 88.dp else 104.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Nfc,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(if (ui.compact) 44.dp else 52.dp)
+                                )
                             }
-                            if (!accountIdFetched) {
-                                val finalStatus = tk.glucodata.Libreview.getStatus()
-                                statusText = if (finalStatus.isNotEmpty()) finalStatus else "Timed out — check credentials and try again"
-                            }
-                            isFetchingAccountId = false
                         }
-                    },
-                    onDone = {
-                        saveCredentials()
-                        onDismiss()
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.libre_setup_step_scan),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Text(
+                                text = stringResource(R.string.libre_nfc_instruction),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                saveSettings()
+                                onScanNfc()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(ui.buttonHeight)
+                        ) {
+                            Icon(Icons.Default.Nfc, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.scan_libre_sensor))
+                        }
+
+                        SettingsItem(
+                            title = stringResource(R.string.libre_setup_step_libreview),
+                            subtitle = if (accountReady) {
+                                stringResource(R.string.libreview_account_ready)
+                            } else {
+                                stringResource(R.string.libreview_account_missing_desc)
+                            },
+                            showArrow = true,
+                            icon = Icons.Default.Cloud,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            position = CardPosition.SINGLE,
+                            onClick = { currentStep = 1 }
+                        )
+
+                        LibreSetupAdvancedSection(
+                            expanded = showAdvancedNfc,
+                            onExpandedChange = { showAdvancedNfc = it },
+                            selectedMode = nfcCommandMode,
+                            onModeSelected = { mode ->
+                                nfcCommandMode = mode
+                                Libre3NfcSettings.setMode(mode)
+                            },
+                            nfcModes = nfcModes,
+                            nfcAutoLabel = nfcAutoLabel,
+                            nfcActivateLabel = nfcActivateLabel,
+                            nfcSwitchReceiverLabel = nfcSwitchReceiverLabel,
+                            nfcAutoDescription = nfcAutoDescription,
+                            nfcActivateDescription = nfcActivateDescription,
+                            nfcSwitchReceiverDescription = nfcSwitchReceiverDescription
+                        )
                     }
-                )
+                }
+
+                1 -> {
+                    val hasCredentials = email.isNotBlank() && password.isNotBlank()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = ui.horizontalPadding, vertical = ui.spacerSmall),
+                        verticalArrangement = Arrangement.spacedBy(ui.spacerMedium)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.libre_setup_step_libreview),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Text(
+                            text = stringResource(R.string.libre_setup_step_libreview_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (accountIdValue > 0L || statusText.isNotEmpty()) {
+                            Text(
+                                text = if (accountIdValue > 0L) {
+                                    "${stringResource(R.string.libreview_account_id)}: $accountIdValue"
+                                } else {
+                                    statusText
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            SettingsSwitchItem(
+                                title = stringResource(R.string.libreview_active),
+                                subtitle = stringResource(R.string.libreview_active_desc),
+                                checked = isActive,
+                                onCheckedChange = { isActive = it },
+                                icon = Icons.Default.Cloud,
+                                iconTint = MaterialTheme.colorScheme.primary,
+                                position = CardPosition.TOP
+                            )
+                            SettingsSwitchItem(
+                                title = stringResource(R.string.libreview_russia),
+                                checked = isRussia,
+                                onCheckedChange = { isRussia = it },
+                                icon = Icons.Default.Public,
+                                iconTint = MaterialTheme.colorScheme.secondary,
+                                position = CardPosition.BOTTOM
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                label = { Text(stringResource(R.string.libreview_email)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                            )
+
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it },
+                                label = { Text(stringResource(R.string.libreview_password)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    val image = if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                                    IconButton(onClick = { showPassword = !showPassword }) {
+                                        Icon(
+                                            imageVector = image,
+                                            contentDescription = if (showPassword) {
+                                                stringResource(R.string.hide_password)
+                                            } else {
+                                                stringResource(R.string.show_password)
+                                            }
+                                        )
+                                    }
+                                }
+                            )
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                saveSettings()
+                                Natives.askServerforAccountID()
+                                statusText = requestingAccountIdText
+                                isFetchingAccountId = true
+                                coroutineScope.launch {
+                                    var elapsed = 0
+                                    while (elapsed < 30_000) {
+                                        delay(500)
+                                        elapsed += 500
+                                        val currentStatus = tk.glucodata.Libreview.getStatus()
+                                        val fetchedAccountId = Natives.getlibreAccountIDnumber()
+                                        if (fetchedAccountId > 0L) {
+                                            accountIdValue = fetchedAccountId
+                                            statusText = currentStatus
+                                            break
+                                        }
+                                        if (currentStatus.isNotEmpty()) {
+                                            statusText = currentStatus
+                                        }
+                                        val isTerminal = currentStatus.contains("failed", ignoreCase = true) ||
+                                            currentStatus.contains("error", ignoreCase = true) ||
+                                            currentStatus.contains("locked", ignoreCase = true) ||
+                                            currentStatus.contains("no credentials", ignoreCase = true) ||
+                                            currentStatus.contains("ResponseCode", ignoreCase = true)
+                                        if (isTerminal) break
+                                    }
+                                    if (accountIdValue <= 0L) {
+                                        val finalStatus = tk.glucodata.Libreview.getStatus()
+                                        statusText = if (finalStatus.isNotEmpty()) finalStatus else accountIdTimeoutText
+                                    }
+                                    isFetchingAccountId = false
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = hasCredentials && !isFetchingAccountId
+                        ) {
+                            if (isFetchingAccountId) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.libreview_get_account_id))
+                        }
+
+                        Button(
+                            onClick = ::finishLibreViewStep,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.libre_setup_done))
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun LibreViewStep(
-    ui: WizardUiMetrics,
-    email: String,
-    onEmailChange: (String) -> Unit,
-    password: String,
-    onPasswordChange: (String) -> Unit,
-    isActive: Boolean,
-    onActiveChange: (Boolean) -> Unit,
-    isRussia: Boolean,
-    onRussiaChange: (Boolean) -> Unit,
-    showPassword: Boolean,
-    onShowPasswordChange: (Boolean) -> Unit,
-    accountIdFetched: Boolean,
-    statusText: String,
-    isFetching: Boolean,
-    onGetAccountId: () -> Unit,
-    onDone: () -> Unit
+private fun LibreSetupAdvancedSection(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    selectedMode: Int,
+    onModeSelected: (Int) -> Unit,
+    nfcModes: List<Int>,
+    nfcAutoLabel: String,
+    nfcActivateLabel: String,
+    nfcSwitchReceiverLabel: String,
+    nfcAutoDescription: String,
+    nfcActivateDescription: String,
+    nfcSwitchReceiverDescription: String
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(ui.horizontalPadding),
-        verticalArrangement = Arrangement.spacedBy(ui.spacerMedium)
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "libreSetupAdvancedChevron"
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        // Header
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier
-                .size(if (ui.compact) 60.dp else 72.dp)
-                .align(Alignment.CenterHorizontally)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Cloud,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(if (ui.compact) 14.dp else 16.dp)
-            )
-        }
-
-        Text(
-            text = stringResource(R.string.libre_setup_step_libreview),
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Text(
-            text = stringResource(R.string.libre_setup_step_libreview_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(ui.spacerSmall))
-
-        // Active toggle
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.libreview_active)) },
-            supportingContent = { Text(stringResource(R.string.libreview_active_desc)) },
-            trailingContent = {
-                Switch(checked = isActive, onCheckedChange = onActiveChange)
-            }
-        )
-
-        // Email
-        OutlinedTextField(
-            value = email,
-            onValueChange = onEmailChange,
-            label = { Text(stringResource(R.string.libreview_email)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-        )
-
-        // Password
-        OutlinedTextField(
-            value = password,
-            onValueChange = onPasswordChange,
-            label = { Text(stringResource(R.string.libreview_password)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                val image = if (showPassword) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                IconButton(onClick = { onShowPasswordChange(!showPassword) }) {
-                    Icon(imageVector = image, contentDescription = null)
-                }
-            }
-        )
-
-        // Russia toggle
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.libreview_russia)) },
-            trailingContent = {
-                Switch(checked = isRussia, onCheckedChange = onRussiaChange)
-            }
-        )
-
-        // Get Account ID button
-        val hasCredentials = email.isNotBlank() && password.isNotBlank()
-        OutlinedButton(
-            onClick = onGetAccountId,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = hasCredentials && !isFetching
-        ) {
-            if (isFetching) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.libreview_get_account_id))
-        }
-
-        // Status / Account ID feedback
-        if (statusText.isNotEmpty()) {
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
-        }
-        if (accountIdFetched) {
-            Surface(
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Account ID obtained",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Bottom button
-        Button(
-            onClick = onDone,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(stringResource(R.string.libre_setup_done))
-        }
-    }
-}
-
-@Composable
-private fun NfcScanStep(
-    ui: WizardUiMetrics,
-    onScanNfc: () -> Unit,
-    onSetupLibreView: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(ui.horizontalPadding)
-            .imePadding(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(ui.heroSize)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Nfc,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(ui.heroInnerPadding)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(ui.spacerLarge))
-
-        Text(
-            text = stringResource(R.string.libre_setup_step_scan),
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(ui.spacerSmall))
-
-        Text(
-            text = stringResource(R.string.libre_nfc_instruction),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(ui.spacerLarge + ui.spacerMedium))
-
-        Button(
-            onClick = onScanNfc,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ui.buttonHeight)
+                .clickable { onExpandedChange(!expanded) }
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Nfc, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.scan_libre_sensor))
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.libre3_nfc_command_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = libreNfcModeDescription(
+                        mode = selectedMode,
+                        nfcAutoDescription = nfcAutoDescription,
+                        nfcActivateDescription = nfcActivateDescription,
+                        nfcSwitchReceiverDescription = nfcSwitchReceiverDescription
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
+            )
         }
 
-        Spacer(modifier = Modifier.height(ui.spacerMedium))
-
-        // Edit 67c: LibreView setup is optional step 2 — accessible via text button
-        TextButton(
-            onClick = onSetupLibreView,
-            modifier = Modifier.fillMaxWidth()
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
         ) {
-            Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.libre_setup_step_libreview))
+            Column {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                nfcModes.forEachIndexed { index, mode ->
+                    val isSelected = selectedMode == mode
+                    val title = libreNfcModeLabel(
+                        mode = mode,
+                        nfcAutoLabel = nfcAutoLabel,
+                        nfcActivateLabel = nfcActivateLabel,
+                        nfcSwitchReceiverLabel = nfcSwitchReceiverLabel
+                    )
+                    val description = libreNfcModeDescription(
+                        mode = mode,
+                        nfcAutoDescription = nfcAutoDescription,
+                        nfcActivateDescription = nfcActivateDescription,
+                        nfcSwitchReceiverDescription = nfcSwitchReceiverDescription
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (isSelected) {
+                                    MaterialTheme.colorScheme.inverseOnSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSecondary
+                                }
+                            )
+                            .clickable { onModeSelected(mode) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.width(48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { onModeSelected(mode) }
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                            )
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (index < nfcModes.lastIndex) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    }
+                }
+            }
         }
+    }
+}
+
+private fun libreNfcModeDescription(
+    mode: Int,
+    nfcAutoDescription: String,
+    nfcActivateDescription: String,
+    nfcSwitchReceiverDescription: String
+): String {
+    return when (mode) {
+        Libre3NfcSettings.MODE_ACTIVATE_A0 -> nfcActivateDescription
+        Libre3NfcSettings.MODE_SWITCH_RECEIVER_A8 -> nfcSwitchReceiverDescription
+        else -> nfcAutoDescription
+    }
+}
+
+private fun libreNfcModeLabel(
+    mode: Int,
+    nfcAutoLabel: String,
+    nfcActivateLabel: String,
+    nfcSwitchReceiverLabel: String
+): String {
+    return when (mode) {
+        Libre3NfcSettings.MODE_ACTIVATE_A0 -> nfcActivateLabel
+        Libre3NfcSettings.MODE_SWITCH_RECEIVER_A8 -> nfcSwitchReceiverLabel
+        else -> nfcAutoLabel
     }
 }

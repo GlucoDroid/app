@@ -31,6 +31,7 @@ import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Natives.getxDripTrendName;
 
 public class SendLikexDrip   {
+    private static final double MGDL_PER_MMOLL = 18.0182;
     public static final String ACTION = "com.eveningoutpost.dexdrip.BgEstimate";
     private static final String EXTRA_BG_ESTIMATE = "com.eveningoutpost.dexdrip.Extras.BgEstimate";
     private static final String EXTRA_BG_SLOPE_NAME = "com.eveningoutpost.dexdrip.Extras.BgSlopeName";
@@ -60,16 +61,7 @@ private static int getBatteryLevel() {
             return 50;
             }   
     } */
-private static String getSource(int sensorgen) {
-        return switch(sensorgen) {
-            case 3 -> "Libre3";
-            case 0x40 -> "G7";
-            case 0x20 -> "AccuChek";
-            case 0x10 -> "GS1Sb";
-            default -> "Libre2";
-            };
-        }
-private static Bundle mkGlucosebundle(double glucose,float rate,long timmsec,long sensorStartmsec,int sensorgen) {
+private static Bundle mkGlucosebundle(String sensorId, double glucose,float rate,long timmsec,long sensorStartmsec,int sensorgen) {
     Bundle extras = new Bundle();
     extras.putDouble(EXTRA_BG_ESTIMATE,glucose);
     extras.putString(EXTRA_BG_SLOPE_NAME,getxDripTrendName(rate));
@@ -77,23 +69,49 @@ private static Bundle mkGlucosebundle(double glucose,float rate,long timmsec,lon
     extras.putDouble(EXTRA_BG_SLOPE,(double)rate/60000.0);
     extras.putLong(EXTRA_TIMESTAMP,timmsec);
     extras.putLong(EXTRA_SENSOR_STARTED_AT,sensorStartmsec);
-    extras.putString(EXTRA_DATA_SOURCE_INFO,getSource(sensorgen));
+    extras.putString(EXTRA_DATA_SOURCE_INFO, SensorSourceResolver.resolveSourceInfo(sensorId, sensorgen));
 //        extras.putInt(EXTRA_SENSOR_BATTERY,100);
     return extras;
       }
+
+private static double resolveBroadcastMgdl(CurrentDisplaySource.Snapshot snapshot, double fallbackGlucose) {
+    if(snapshot == null) {
+        return fallbackGlucose;
+    }
+    float primary = snapshot.getPrimaryValue();
+    if(!Float.isFinite(primary) || primary <= 0f) {
+        return fallbackGlucose;
+    }
+    return Applic.unit == 1 ? primary * MGDL_PER_MMOLL : primary;
+}
 
 private static String[] names=null;
 public static  void setreceivers() {
     names=Natives.xdripRecepters();
     }
-static void broadcastglucose(double glucose,float rate,long timmsec,long sensorStartmsec,int sensorgen) {
+static void broadcastglucose(String sensorId, double glucose,float rate,long timmsec,long sensorStartmsec,int sensorgen) {
     if(names==null)
         return;
+    CurrentDisplaySource.Snapshot current = null;
+    try {
+        current = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout, sensorId);
+    } catch(Throwable th) {
+        if(doLog) {
+            Log.i(LOG_ID,"resolveCurrent failed "+th);
+        }
+    }
+    final double glucoseToSend = resolveBroadcastMgdl(current, glucose);
+    final float rateToSend = (current != null && Float.isFinite(current.getRate())) ? current.getRate() : rate;
+    final long timeToSend = (current != null && current.getTimeMillis() > 0L) ? current.getTimeMillis() : timmsec;
+    final int sensorGenToSend = (current != null && current.getSensorGen() != 0) ? current.getSensorGen() : sensorgen;
+    final String sourceSensorId = (current != null && current.getSensorId() != null && !current.getSensorId().isEmpty())
+            ? current.getSensorId()
+            : sensorId;
     {
-    if(doLog) {Log.i(LOG_ID,"broadcastglucose "+glucose);};};
+    if(doLog) {Log.i(LOG_ID,"broadcastglucose "+glucoseToSend+" sensor="+sourceSensorId);};};
     final Context context=Applic.app;
     Intent intent = new Intent(ACTION);
-    intent.putExtras(mkGlucosebundle(glucose,rate,timmsec,sensorStartmsec,sensorgen));
+    intent.putExtras(mkGlucosebundle(sourceSensorId, glucoseToSend, rateToSend, timeToSend, sensorStartmsec, sensorGenToSend));
     intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
     for(var name:names) {
         if(name!=null) {

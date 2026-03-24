@@ -473,6 +473,12 @@ static jint sensorKindForUi(const SensorGlucoseData *sens) {
   if (sens->isSibionics()) {
     return 0x10;
   }
+  if (sens->isAccuChek()) {
+    return 0x20;
+  }
+  if (sens->isAiDex()) {
+    return 0x30;
+  }
   if (sens->isDexcom()) {
     return 0x40;
   }

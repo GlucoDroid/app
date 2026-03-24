@@ -668,7 +668,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 // SendNSClient.broadcastglucose(mgdl, rate, timmsec);
             }
             if (Natives.getxbroadcast())
-                SendLikexDrip.broadcastglucose(mgdl, rate, timmsec, sensorstartmsec, sensorgen);
+                SendLikexDrip.broadcastglucose(SerialNumber, mgdl, rate, timmsec, sensorstartmsec, sensorgen);
             if (!isWearable) {
                 if (doWearInt)
                     tk.glucodata.WearInt.sendglucose(mgdl, rate, alarm, timmsec);

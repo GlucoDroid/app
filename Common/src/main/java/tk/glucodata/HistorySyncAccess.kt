@@ -87,12 +87,24 @@ object HistorySyncAccess {
 
     @JvmStatic
     fun resetBackfillFlag() {
-        runCatching { resetBackfillMethod?.invoke(null) }
+        val method = resetBackfillMethod
+        if (method == null) {
+            Log.w(TAG, "resetBackfillFlag unavailable")
+            return
+        }
+        runCatching { method.invoke(null) }
+            .onFailure { Log.w(TAG, "resetBackfillFlag failed", it) }
     }
 
     @JvmStatic
     fun storeAidexReadingAsync(timestamp: Long, valueMmol: Float) {
-        runCatching { storeReadingMethod?.invoke(null, timestamp, valueMmol, aidexSourceValue) }
+        val method = storeReadingMethod
+        if (method == null) {
+            Log.w(TAG, "storeAidexReadingAsync unavailable for timestamp=$timestamp")
+            return
+        }
+        runCatching { method.invoke(null, timestamp, valueMmol, aidexSourceValue) }
+            .onFailure { Log.w(TAG, "storeAidexReadingAsync failed for timestamp=$timestamp", it) }
     }
 
     @JvmStatic
@@ -104,8 +116,13 @@ object HistorySyncAccess {
         sensorSerial: String?
     ) {
         if (timestamp <= 0L || sensorSerial.isNullOrBlank()) return
+        val method = storeReadingWithSerialMethod
+        if (method == null) {
+            Log.w(TAG, "storeCurrentReadingAsync unavailable for serial=$sensorSerial timestamp=$timestamp")
+            return
+        }
         runCatching {
-            storeReadingWithSerialMethod?.invoke(
+            method.invoke(
                 null,
                 timestamp,
                 valueMgdl,
@@ -114,5 +131,12 @@ object HistorySyncAccess {
                 sensorSerial
             )
         }
+            .onFailure {
+                Log.w(
+                    TAG,
+                    "storeCurrentReadingAsync failed for serial=$sensorSerial timestamp=$timestamp",
+                    it
+                )
+            }
     }
 }

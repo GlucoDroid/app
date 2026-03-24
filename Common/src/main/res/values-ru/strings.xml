@@ -624,11 +624,26 @@
     <string name="scan_transmitter_button">Сканировать Трансмиттер</string>
     <!-- Libre Setup Wizard Step Strings -->
     <string name="libre_setup_step_libreview">Аккаунт LibreView</string>
-    <string name="libre_setup_step_libreview_desc">Для активации сенсоров Libre 3 необходим аккаунт LibreView. Введите свои данные для синхронизации и активации новых сенсоров.</string>
+    <string name="libre_setup_step_libreview_desc">Отправка в LibreView необязательна, но сенсорам Libre 3 нужен ID аккаунта для работы</string>
     <string name="libre_setup_step_scan">Сканировать сенсор</string>
     <string name="libre_setup_skip">Пропустить</string>
     <string name="libre_setup_next">Далее</string>
     <string name="libre_setup_done">Готово</string>
+    <string name="libre_setup_libreview_note_title">Libre 3 + LibreView</string>
+    <string name="libre_setup_advanced_options_desc">Настройте экспериментальное поведение сканирования Libre 3 перед сопряжением.</string>
+    <string name="libre3_nfc_command_title">Команда NFC для Libre 3</string>
+    <string name="libre3_nfc_command_desc">Выберите, какую команду Juggluco отправляет при NFC-сканировании Libre 3</string>
+    <string name="libre3_nfc_command_auto">Авто</string>
+    <string name="libre3_nfc_command_auto_desc">Использовать стандартное поведение Juggluco при сканировании Libre 3</string>
+    <string name="libre3_nfc_command_activate">A0 Активировать</string>
+    <string name="libre3_nfc_command_activate_desc">Принудительно отправлять команду A0 Активировать во время сканирования</string>
+    <string name="libre3_nfc_command_switch_receiver">A8 Переключить приемник</string>
+    <string name="libre3_nfc_command_switch_receiver_desc">Принудительно отправлять команду A8 Переключить приемник во время сканирования</string>
+    <string name="libreview_account_ready">ID аккаунта готов</string>
+    <string name="libreview_account_missing">ID аккаунта отсутствует</string>
+    <string name="libreview_account_missing_desc">Введите учетные данные и запросите ID аккаунта для сенсоров Libre 3</string>
+    <string name="libre_setup_account_id_obtained">ID аккаунта получен</string>
+    <string name="libre_setup_account_id_timeout">Время ожидания истекло. Проверьте учетные данные и попробуйте снова.</string>
     <string name="active_time_range_title">Активный временной диапазон</string>
     <string name="add_high_alert">Добавить высокое оповещение</string>
     <string name="add_low_alert">Добавить низкое оповещение</string>

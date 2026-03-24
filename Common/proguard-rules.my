@@ -33,6 +33,23 @@
 # Keep AiDex vendor bridge classes/fields/methods used by libblecomm-lib JNI.
 -keep class com.microtechmd.blecomm.** { *; }
 
+# Keep HistorySync/HistoryRepository names and reflected members stable.
+# HistorySyncAccess in src/main resolves these mobile-only classes by name.
+-keepnames class tk.glucodata.data.HistoryRepository
+-keepclassmembers class tk.glucodata.data.HistoryRepository {
+    public static void resetBackfillFlag();
+    public static void storeReadingAsync(long,float,int);
+    public static void storeReadingAsync(long,float,float,float);
+    public static void storeReadingAsync(long,float,float,float,java.lang.String);
+}
+
+-keepnames class tk.glucodata.data.HistorySync
+-keepclassmembers class tk.glucodata.data.HistorySync {
+    public static final tk.glucodata.data.HistorySync INSTANCE;
+    public final void syncSensorFromNative(java.lang.String,boolean);
+    public final void forceFullSyncForSensor(java.lang.String);
+}
+
 #-keep class tk.glucodata.watchface.WatchFaceService
 #-keep class tk.glucodata.watchface.WatchFaceService.editor.WatchFaceConfigActivity
 
