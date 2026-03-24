@@ -237,6 +237,16 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     private static final int LIVE_HISTORY_CONTINUITY_MAX_MISSING_BUCKETS = 10;
     private static final ConcurrentHashMap<String, Long> lastLiveReadingTimeMs = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> lastHistoryContinuitySyncBucket = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> lastCollapsedExchangeTimeMs = new ConcurrentHashMap<>();
+
+    private static boolean shouldEmitExchangeUpdate(String sensorId, long payloadTimeMs, boolean collapseChunks) {
+        if (!collapseChunks || payloadTimeMs <= 0L) {
+            return true;
+        }
+        final String key = (sensorId != null && !sensorId.isEmpty()) ? sensorId : "<unknown>";
+        final Long previous = lastCollapsedExchangeTimeMs.put(key, payloadTimeMs);
+        return previous == null || previous.longValue() != payloadTimeMs;
+    }
 
     static public void initAlarmTalk() {
         if (glucosealarms == null)
@@ -526,12 +536,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         // only reflect the main sensor's values to avoid confusing switching behavior.
         boolean isMainSensor = true;
         try {
-            String mainName = Natives.lastsensorname();
+            String mainName = SensorIdentity.resolveMainSensor();
             if (mainName != null && !mainName.isEmpty() && SerialNumber != null) {
-                // Match by equality or by checking if one contains the other
-                // (AiDex uses "X-..." prefix, Sibionics/Libre have different formats)
-                isMainSensor = mainName.equals(SerialNumber) || SerialNumber.contains(mainName)
-                        || mainName.contains(SerialNumber);
+                isMainSensor = SensorIdentity.matches(SerialNumber, mainName);
             }
         } catch (Throwable t) {
             // If we can't determine main sensor, default to allowing (safety)
@@ -664,8 +671,15 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         final ExchangeGlucosePayload exchangePayload = shouldResolveExchangePayload
                 ? ExchangeGlucosePayload.resolve(SerialNumber, gl, rate, timmsec, sensorgen, sglucose.value)
                 : null;
+        final boolean collapseExchangeUpdates =
+                DataSmoothing.getMinutes(app) > 0
+                && !DataSmoothing.isGraphOnly(app)
+                && DataSmoothing.collapseChunks(app);
+        final boolean shouldEmitExchangeUpdate =
+                exchangePayload != null
+                && shouldEmitExchangeUpdate(exchangePayload.getSensorId(), exchangePayload.getTimeMillis(), collapseExchangeUpdates);
 
-        if (Natives.getJugglucobroadcast() && exchangePayload != null)
+        if (Natives.getJugglucobroadcast() && shouldEmitExchangeUpdate)
             JugglucoSend.broadcastglucose(SerialNumber, exchangePayload, alarm);
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
@@ -674,19 +688,19 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         if (shouldBroadcastMinuteUpdate) {
             nexttime = tim + mininterval;
             if (!isWearable) {
-                if (Natives.getlibrelinkused() && exchangePayload != null)
-                    XInfuus.sendGlucoseBroadcast(exchangePayload);
-                if (Natives.geteverSensebroadcast() && exchangePayload != null)
-                    EverSense.broadcastglucose(exchangePayload);
+                if (Natives.getlibrelinkused() && shouldEmitExchangeUpdate)
+                    XInfuus.sendGlucoseBroadcast(exchangePayload.getSensorId(), exchangePayload.getPrimaryMgdl(), exchangePayload.getRate(), exchangePayload.getTimeMillis(), sensorstartmsec);
+                if (Natives.geteverSensebroadcast() && shouldEmitExchangeUpdate)
+                    EverSense.broadcastglucose(exchangePayload.getPrimaryMgdl(), exchangePayload.getRate(), exchangePayload.getTimeMillis());
                 // SendNSClient.broadcastglucose(mgdl, rate, timmsec);
             }
-            if (Natives.getxbroadcast() && exchangePayload != null)
+            if (Natives.getxbroadcast() && shouldEmitExchangeUpdate)
                 SendLikexDrip.broadcastglucose(exchangePayload, sensorstartmsec);
             if (!isWearable) {
-                if (doWearInt && exchangePayload != null)
+                if (doWearInt && shouldEmitExchangeUpdate)
                     tk.glucodata.WearInt.sendglucose(exchangePayload, alarm);
 
-                if (doGadgetbridge && exchangePayload != null)
+                if (doGadgetbridge && shouldEmitExchangeUpdate)
                     Gadgetbridge.sendglucose(exchangePayload);
             }
         }

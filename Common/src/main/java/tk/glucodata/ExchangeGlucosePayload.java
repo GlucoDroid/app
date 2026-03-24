@@ -30,6 +30,34 @@ final class ExchangeGlucosePayload {
         this.sensorGen = sensorGen;
     }
 
+    String getSensorId() {
+        return sensorId;
+    }
+
+    String getPrimaryText() {
+        return primaryText;
+    }
+
+    double getPrimaryDisplayValue() {
+        return primaryDisplayValue;
+    }
+
+    int getPrimaryMgdl() {
+        return primaryMgdl;
+    }
+
+    float getRate() {
+        return rate;
+    }
+
+    long getTimeMillis() {
+        return timeMillis;
+    }
+
+    int getSensorGen() {
+        return sensorGen;
+    }
+
     static ExchangeGlucosePayload resolve(
             String preferredSensorId,
             double fallbackDisplayValue,

@@ -19,4 +19,12 @@ public class SensorSourceResolverTests {
         assertEquals("Unknown", SensorSourceResolver.resolveSourceInfo(null, 0));
         assertEquals("Unknown", SensorSourceResolver.resolveSourceInfo(null, -1));
     }
+
+    @Test
+    public void xdripSourceInfoUsesCompatibilityFallbackForUnsupportedKinds() {
+        assertEquals("Libre2", SensorSourceResolver.resolveXdripSourceInfo(null, 0));
+        assertEquals("Libre2", SensorSourceResolver.resolveXdripSourceInfo(null, SensorSourceResolver.SENSOR_KIND_AIDEX));
+        assertEquals("Libre3", SensorSourceResolver.resolveXdripSourceInfo(null, SensorSourceResolver.SENSOR_KIND_LIBRE3));
+        assertEquals("G7", SensorSourceResolver.resolveXdripSourceInfo(null, SensorSourceResolver.SENSOR_KIND_DEXCOM));
+    }
 }

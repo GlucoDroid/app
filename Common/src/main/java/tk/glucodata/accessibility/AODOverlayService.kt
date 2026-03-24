@@ -20,6 +20,12 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
 import android.widget.TextView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import tk.glucodata.Applic
 import tk.glucodata.BatteryTrace
 import tk.glucodata.GlucosePoint
@@ -31,6 +37,7 @@ import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.TrendAccess
+import tk.glucodata.UiRefreshBus
 import java.util.Locale
 
 class AODOverlayService : AccessibilityService(), SensorEventListener {
@@ -45,6 +52,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private var overlayView: View? = null
     private var params: WindowManager.LayoutParams? = null
     private val handler = Handler(Looper.getMainLooper())
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var currentLuxAlpha = 1.0f // Default to full brightness
     private var cachedBaseOpacity = 1.0f // Cached from preferences
 
@@ -65,7 +73,10 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     }
 
     private fun shouldScheduleBroadcastFollowUp(): Boolean {
-        val current = tk.glucodata.CurrentGlucoseSource.getFresh() ?: return true
+        val current = tk.glucodata.CurrentGlucoseSource.getFresh(
+            tk.glucodata.Notify.glucosetimeout,
+            tk.glucodata.SensorIdentity.resolveMainSensor()
+        ) ?: return true
         return current.source != "callback"
     }
 
@@ -162,6 +173,14 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         lightSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_LIGHT)
+
+        serviceScope.launch {
+            UiRefreshBus.revision.collectLatest {
+                if (isLocked && overlayView?.visibility == View.VISIBLE) {
+                    updateOverlayContent()
+                }
+            }
+        }
         
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
         isLocked = keyguardManager.isKeyguardLocked
@@ -524,6 +543,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     }
 
     override fun onInterrupt() {
+        serviceScope.cancel()
         if (overlayView != null) {
             try {
                 windowManager?.removeView(overlayView)

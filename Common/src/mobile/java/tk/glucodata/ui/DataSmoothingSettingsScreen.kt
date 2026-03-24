@@ -1,16 +1,14 @@
 package tk.glucodata.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,6 +36,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +46,7 @@ import kotlin.math.roundToInt
 import tk.glucodata.DataSmoothing
 import tk.glucodata.R
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SettingsSwitchItem
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 
@@ -55,18 +56,39 @@ fun DataSmoothingSettingsScreen(
     navController: NavController,
     viewModel: DashboardViewModel
 ) {
+    val context = LocalContext.current
     val smoothingMinutes by viewModel.chartSmoothingMinutes.collectAsState()
     val graphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val collapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
-    val options = remember { DataSmoothing.allowedMinutes().toList() }
-    val selectedIndex = options.indexOf(smoothingMinutes).coerceAtLeast(0)
+
+    val isEnabled = smoothingMinutes > 0
+    val options = remember { DataSmoothing.enabledMinutesOptions().toList() }
+    val configuredMinutes = if (isEnabled) smoothingMinutes else DataSmoothing.getLastEnabledMinutes(context)
+    val selectedIndex = options.indexOf(configuredMinutes).coerceAtLeast(0)
     var sliderIndex by rememberSaveable(smoothingMinutes) { mutableFloatStateOf(selectedIndex.toFloat()) }
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (isEnabled) 1f else 0.7f,
+        label = "dataSmoothingContentAlpha"
+    )
 
     val selectedMinutes = options[sliderIndex.roundToInt().coerceIn(0, options.lastIndex)]
-    val selectedLabel = if (selectedMinutes <= 0) {
-        stringResource(R.string.graph_smoothing_none)
-    } else {
-        stringResource(R.string.minutes_short_format, selectedMinutes)
+    val selectedLabel = stringResource(R.string.minutes_short_format, selectedMinutes)
+    val collapseIntervalMinutes = DataSmoothing.collapseIntervalMinutes(configuredMinutes)
+    val enabledSummary = buildList {
+        add(stringResource(R.string.minutes_short_format, smoothingMinutes.coerceAtLeast(options.first())))
+        if (graphOnly) {
+            add(stringResource(R.string.data_smoothing_graph_only_title))
+        }
+        if (collapseChunks) {
+            add(stringResource(R.string.data_smoothing_collapse_summary_format, collapseIntervalMinutes))
+        }
+    }.joinToString(" · ")
+    val collapseSubtitle = when {
+        !collapseChunks -> stringResource(R.string.data_smoothing_collapse_desc)
+        collapseIntervalMinutes in 1 until configuredMinutes ->
+            stringResource(R.string.data_smoothing_collapse_desc_capped, configuredMinutes)
+        else ->
+            stringResource(R.string.data_smoothing_collapse_desc_match, collapseIntervalMinutes)
     }
 
     Scaffold(
@@ -82,7 +104,9 @@ fun DataSmoothingSettingsScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent
+                )
             )
         }
     ) { padding ->
@@ -94,42 +118,70 @@ fun DataSmoothingSettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            MasterSwitchCard(
+                title = stringResource(R.string.graph_smoothing_title),
+                subtitle = if (isEnabled) enabledSummary else stringResource(R.string.graph_smoothing_none),
+                checked = isEnabled,
+                onCheckedChange = { viewModel.setDataSmoothingEnabled(it) },
+                icon = Icons.AutoMirrored.Filled.TrendingUp
+            )
+
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier.alpha(contentAlpha),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isEnabled) {
+                        MaterialTheme.colorScheme.surfaceContainerLow
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerLowest
+                    }
+                ),
                 shape = MaterialTheme.shapes.extraLarge,
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .padding(horizontal = 18.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(52.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = MaterialTheme.shapes.large
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.data_smoothing_window_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            Text(
+                                text = stringResource(R.string.graph_smoothing_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isEnabled) {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            }
+                        ) {
+                            Text(
+                                text = selectedLabel,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                             )
                         }
                     }
-
-                    Text(
-                        text = selectedLabel,
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = stringResource(R.string.graph_smoothing_desc),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
 
                     Slider(
                         value = sliderIndex,
@@ -141,7 +193,8 @@ fun DataSmoothingSettingsScreen(
                             }
                         },
                         valueRange = 0f..options.lastIndex.toFloat(),
-                        steps = (options.size - 2).coerceAtLeast(0)
+                        steps = (options.size - 2).coerceAtLeast(0),
+                        enabled = isEnabled
                     )
 
                     Row(
@@ -150,7 +203,7 @@ fun DataSmoothingSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = stringResource(R.string.graph_smoothing_none),
+                            text = stringResource(R.string.minutes_short_format, options.first()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -163,7 +216,10 @@ fun DataSmoothingSettingsScreen(
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(
+                modifier = Modifier.alpha(contentAlpha),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
                 SettingsSwitchItem(
                     title = stringResource(R.string.data_smoothing_graph_only_title),
                     subtitle = stringResource(R.string.data_smoothing_graph_only_desc),
@@ -171,16 +227,18 @@ fun DataSmoothingSettingsScreen(
                     onCheckedChange = { viewModel.setDataSmoothingGraphOnly(it) },
                     icon = Icons.AutoMirrored.Filled.TrendingUp,
                     iconTint = MaterialTheme.colorScheme.primary,
-                    position = CardPosition.TOP
+                    position = CardPosition.TOP,
+                    enabled = isEnabled
                 )
                 SettingsSwitchItem(
                     title = stringResource(R.string.data_smoothing_collapse_title),
-                    subtitle = stringResource(R.string.data_smoothing_collapse_desc),
+                    subtitle = collapseSubtitle,
                     checked = collapseChunks,
                     onCheckedChange = { viewModel.setDataSmoothingCollapseChunks(it) },
                     icon = Icons.Default.FilterAlt,
                     iconTint = MaterialTheme.colorScheme.secondary,
-                    position = CardPosition.BOTTOM
+                    position = CardPosition.BOTTOM,
+                    enabled = isEnabled
                 )
             }
         }

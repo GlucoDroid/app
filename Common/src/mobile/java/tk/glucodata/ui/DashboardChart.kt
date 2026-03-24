@@ -126,6 +126,7 @@ import kotlinx.coroutines.launch
 import tk.glucodata.R
 import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
+import tk.glucodata.DataSmoothing
 import tk.glucodata.ui.getDisplayValues
 
 private const val PREVIEW_WINDOW_MODE_EXPANDED_ONLY = 0
@@ -209,7 +210,7 @@ private fun buildSmoothedChartData(
         }
     }
     return if (collapseIntoChunks) {
-        collapseSmoothedChartData(smoothed, smoothingMinutes)
+        collapseSmoothedChartData(smoothed, DataSmoothing.collapseIntervalMinutes(smoothingMinutes))
     } else {
         smoothed
     }
@@ -219,24 +220,32 @@ private fun collapseSmoothedChartData(
     points: List<GlucosePoint>,
     smoothingMinutes: Int
 ): List<GlucosePoint> {
-    if (points.size < 3 || smoothingMinutes <= 0) return points
+    if (points.isEmpty() || smoothingMinutes <= 0) return points
     val bucketDurationMs = smoothingMinutes * 60_000L
-    val firstTimestamp = points.firstOrNull()?.timestamp ?: return points
+    val openBucket = System.currentTimeMillis() / bucketDurationMs
     val collapsed = ArrayList<GlucosePoint>()
     var activeBucket = Long.MIN_VALUE
     var pending: GlucosePoint? = null
 
     points.forEach { point ->
-        val bucket = ((point.timestamp - firstTimestamp).coerceAtLeast(0L)) / bucketDurationMs
+        val bucket = point.timestamp / bucketDurationMs
         if (bucket != activeBucket) {
-            pending?.let(collapsed::add)
+            if (activeBucket < openBucket) {
+                pending?.let(collapsed::add)
+            }
             activeBucket = bucket
         }
         pending = point
     }
 
-    pending?.let(collapsed::add)
-    return if (collapsed.isEmpty()) points else collapsed
+    if (activeBucket < openBucket) {
+        pending?.let(collapsed::add)
+    }
+    return when {
+        collapsed.isNotEmpty() -> collapsed
+        points.isNotEmpty() -> listOf(points.last())
+        else -> points
+    }
 }
 
 @Composable

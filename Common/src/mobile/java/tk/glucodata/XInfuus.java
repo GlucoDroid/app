@@ -29,11 +29,7 @@ import android.os.Bundle;
 
 public class XInfuus {
 private static final String LOG_ID="XInfuus";
-private static final long SENSOR_ACTIVATE_SUPPRESS_MS=60L*60_000L;
 private static String[] librenames;
-private static String lastSensorActivateSerial=null;
-private static long lastSensorActivateStart=0L;
-private static long lastSensorActivateSentAt=0L;
     private static void sendIntent(Context context,Intent intent) {
 	intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
 	for(var name:librenames) {
@@ -67,13 +63,20 @@ static public void setlibrenames() {
 
     */
 public static final String glucoseaction="com.librelink.app.ThirdPartyIntegration.GLUCOSE_READING";
-public static void sendGlucoseBroadcast(ExchangeGlucosePayload payload) {
+public static void sendGlucoseBroadcast(String serial, double currentGlucose,float rate,long mmsec,long sensorStartmsec) {
 	final Context context=Applic.app;
+        if(sensorStartmsec>0L) {
+            sendSensorActivateBroadcast(context, serial, sensorStartmsec/1000L);
+        }
         Intent intent = new Intent(glucoseaction);
-        intent.putExtra("glucose", payload.primaryDisplayValue);
-        intent.putExtra("timestamp", payload.timeMillis);
-        intent.putExtra("bleManager", setSerial(payload.sensorId));
+        intent.putExtra("glucose", currentGlucose);
+        intent.putExtra("timestamp", mmsec);
+        intent.putExtra("bleManager", setSerial(serial));
         sendIntent(context,intent);
+    }
+
+public static void sendGlucoseBroadcast(String serial, double currentGlucose,float rate,long mmsec) {
+        sendGlucoseBroadcast(serial, currentGlucose, rate, mmsec, 0L);
     }
 
     private static Bundle getSensorFields(long startmmsec) {
@@ -82,22 +85,8 @@ public static void sendGlucoseBroadcast(ExchangeGlucosePayload payload) {
         return bundle;
     }
 
-    private static boolean shouldSkipSensorActivate(String serial,long startsec) {
-        if(serial==null||serial.isEmpty()||startsec<=0L)
-            return true;
-        final long now=System.currentTimeMillis();
-        if(serial.equals(lastSensorActivateSerial)&&startsec==lastSensorActivateStart&&(now-lastSensorActivateSentAt)<SENSOR_ACTIVATE_SUPPRESS_MS) {
-            if(doLog) {Log.i(LOG_ID,"Skip duplicate SENSOR_ACTIVATE "+serial+":"+startsec);};
-            return true;
-        }
-        lastSensorActivateSerial=serial;
-        lastSensorActivateStart=startsec;
-        lastSensorActivateSentAt=now;
-        return false;
-    }
-
     public static void sendSensorActivateBroadcast(Context context,String serial,long startsec) {
-        if(shouldSkipSensorActivate(serial,startsec)) {
+        if(serial==null||serial.isEmpty()||startsec<=0L) {
             return;
         }
         Intent intent = new Intent("com.librelink.app.ThirdPartyIntegration.SENSOR_ACTIVATE");

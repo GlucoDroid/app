@@ -349,7 +349,7 @@ void servererror(int sock) {
 
 
 
-static bool    sgvinterpret(const char *start,int len,bool headonly, bool gmt,std::string_view origin,recdata *data,bool all=true) ;
+static bool    sgvinterpret(const char *start,int len,bool headonly, bool gmt,std::string_view origin,recdata *data,bool all=false) ;
 
 
 static bool givetreatments(const char *args,int argslen, std::string_view origin,recdata *data) ;
@@ -1006,7 +1006,7 @@ bool givesgvtxt(int nr,int interval,uint32_t lowerend,uint32_t higherend,std::st
       return outofmemory(outdata);
       }
     char *start=outdata->allbuf+250,*outiter=start;
-   if(!getitems(outiter,nr,lowerend,higherend,true,interval,[sep](char *outiter,int datit, const ScanData *iter,const sensorname_t * sensorname ,const time_t starttime) {
+   if(!getitems(outiter,nr,lowerend,higherend,false,interval,[sep](char *outiter,int datit, const ScanData *iter,const sensorname_t * sensorname ,const time_t starttime) {
       return textitem(outiter,iter,sep);
    })) {
       delete[] outdata->allbuf;
@@ -1041,7 +1041,7 @@ char * givebuckets(char *start) {
    addar(outiter,startbuckets);
    int interval=settings->data()->nightinterval;
 
-   if(!getitems(outiter,4,0,UINT32_MAX,true,interval,[](char *outiter,int datit, const ScanData *iter,const sensorname_t *sensorname,const time_t starttime) {
+   if(!getitems(outiter,4,0,UINT32_MAX,false,interval,[](char *outiter,int datit, const ScanData *iter,const sensorname_t *sensorname,const time_t starttime) {
       return writebucket(outiter,datit,iter,sensorname->data());
    })) {
       return start;
@@ -2466,7 +2466,7 @@ void mkjsonheader(char *outstart,char *outiter,const bool headonly,recdata *outd
 class Sgvinterpret {
    bool briefmode=false,sensorinfo=false,alldata=false,noempty=false;
   public:
-   Sgvinterpret(bool all=true,bool gmt=true,int datnr=24): alldata(all),gmt(gmt),datnr(datnr) {}
+   Sgvinterpret(bool all=false,bool gmt=true,int datnr=24): alldata(all),gmt(gmt),datnr(datnr) {}
 
    int interval=settings->data()->nightinterval;
    bool gmt;
@@ -2975,7 +2975,7 @@ int rewriteperc(char *start,int len) {
    };
 
 static bool    currentjson(std::string_view origin,recdata *outdata) {
-   Sgvinterpret pret(true,true,1);
+   Sgvinterpret pret(false,true,1);
    return pret.getdata(false,origin,outdata);
    }
 static bool    sgvinterpret(const char *start,int len,bool headonly,bool gmt,std::string_view origin,recdata *outdata,bool all) {

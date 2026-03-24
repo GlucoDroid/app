@@ -5,13 +5,20 @@ import android.content.Context
 object DataSmoothing {
     private const val PREFS_NAME = "tk.glucodata_preferences"
     private const val MINUTES_KEY = "dashboard_chart_smoothing_minutes"
+    private const val LAST_ENABLED_MINUTES_KEY = "dashboard_data_smoothing_last_enabled_minutes"
     private const val GRAPH_ONLY_KEY = "dashboard_data_smoothing_graph_only"
     private const val COLLAPSE_CHUNKS_KEY = "dashboard_data_smoothing_collapse_chunks"
+    private const val MAX_CHUNK_INTERVAL_MINUTES = 5
+    private const val DEFAULT_ENABLED_MINUTES = MAX_CHUNK_INTERVAL_MINUTES
 
-    private val allowedMinutes = intArrayOf(0, 2, 3, 4, 5, 7, 10, 15, 20)
+    private val allowedMinutes = intArrayOf(0, 2, 3, 4, 5, 7, 10, 13)
+    private val enabledMinutes = intArrayOf(2, 3, 4, 5, 7, 10, 13)
 
     @JvmStatic
     fun allowedMinutes(): IntArray = allowedMinutes.copyOf()
+
+    @JvmStatic
+    fun enabledMinutesOptions(): IntArray = enabledMinutes.copyOf()
 
     @JvmStatic
     fun sanitizeMinutes(minutes: Int): Int {
@@ -25,9 +32,22 @@ object DataSmoothing {
     }
 
     @JvmStatic
+    fun getLastEnabledMinutes(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val current = sanitizeMinutes(prefs.getInt(MINUTES_KEY, DEFAULT_ENABLED_MINUTES))
+        val fallback = current.takeIf { it > 0 } ?: DEFAULT_ENABLED_MINUTES
+        return sanitizeMinutes(prefs.getInt(LAST_ENABLED_MINUTES_KEY, fallback))
+            .takeIf { it > 0 }
+            ?: DEFAULT_ENABLED_MINUTES
+    }
+
+    @JvmStatic
+    fun isEnabled(context: Context): Boolean = getMinutes(context) > 0
+
+    @JvmStatic
     fun isGraphOnly(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(GRAPH_ONLY_KEY, true)
+        return prefs.getBoolean(GRAPH_ONLY_KEY, false)
     }
 
     @JvmStatic
@@ -38,10 +58,22 @@ object DataSmoothing {
 
     @JvmStatic
     fun setMinutes(context: Context, minutes: Int) {
+        val sanitized = sanitizeMinutes(minutes)
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putInt(MINUTES_KEY, sanitizeMinutes(minutes))
+            .putInt(MINUTES_KEY, sanitized)
             .apply()
+        if (sanitized > 0) {
+            setLastEnabledMinutes(context, sanitized)
+        }
+    }
+
+    @JvmStatic
+    fun setEnabled(context: Context, enabled: Boolean) {
+        setMinutes(
+            context,
+            if (enabled) getLastEnabledMinutes(context) else 0
+        )
     }
 
     @JvmStatic
@@ -61,6 +93,15 @@ object DataSmoothing {
     }
 
     @JvmStatic
+    fun collapseIntervalMinutes(smoothingMinutes: Int): Int {
+        val sanitized = sanitizeMinutes(smoothingMinutes)
+        if (sanitized <= 0) {
+            return 0
+        }
+        return minOf(sanitized, MAX_CHUNK_INTERVAL_MINUTES)
+    }
+
+    @JvmStatic
     fun smoothNativePoints(
         points: List<GlucosePoint>?,
         smoothingMinutes: Int,
@@ -70,8 +111,15 @@ object DataSmoothing {
             return emptyList()
         }
         val sanitizedMinutes = sanitizeMinutes(smoothingMinutes)
-        if (sanitizedMinutes <= 0 || points.size < 3) {
+        if (sanitizedMinutes <= 0) {
             return points
+        }
+        if (points.size < 3) {
+            return if (collapseChunks) {
+                collapsePointsForDisplay(points, collapseIntervalMinutes(sanitizedMinutes))
+            } else {
+                points
+            }
         }
 
         val halfWindowMs = (sanitizedMinutes * 60_000L) / 2L
@@ -90,7 +138,7 @@ object DataSmoothing {
         }
 
         return if (collapseChunks) {
-            collapsePointList(smoothed, sanitizedMinutes)
+            collapsePointsForDisplay(smoothed, collapseIntervalMinutes(sanitizedMinutes))
         } else {
             smoothed
         }
@@ -146,27 +194,46 @@ object DataSmoothing {
         return result
     }
 
-    private fun collapsePointList(points: List<GlucosePoint>, smoothingMinutes: Int): List<GlucosePoint> {
-        if (points.size < 3 || smoothingMinutes <= 0) {
+    internal fun collapsePointsForDisplay(
+        points: List<GlucosePoint>,
+        smoothingMinutes: Int,
+        nowMillis: Long = System.currentTimeMillis()
+    ): List<GlucosePoint> {
+        if (points.isEmpty() || smoothingMinutes <= 0) {
             return points
         }
 
         val bucketDurationMs = smoothingMinutes * 60_000L
-        val firstTimestamp = points.firstOrNull()?.timestamp ?: return points
+        val openBucket = nowMillis / bucketDurationMs
         val collapsed = ArrayList<GlucosePoint>()
         var activeBucket = Long.MIN_VALUE
         var pending: GlucosePoint? = null
 
         for (point in points) {
-            val bucket = ((point.timestamp - firstTimestamp).coerceAtLeast(0L)) / bucketDurationMs
+            val bucket = point.timestamp / bucketDurationMs
             if (bucket != activeBucket) {
-                pending?.let(collapsed::add)
+                if (activeBucket < openBucket) {
+                    pending?.let(collapsed::add)
+                }
                 activeBucket = bucket
             }
             pending = point
         }
 
-        pending?.let(collapsed::add)
-        return if (collapsed.isEmpty()) points else collapsed
+        if (activeBucket < openBucket) {
+            pending?.let(collapsed::add)
+        }
+        return when {
+            collapsed.isNotEmpty() -> collapsed
+            points.isNotEmpty() -> listOf(points.last())
+            else -> points
+        }
+    }
+
+    private fun setLastEnabledMinutes(context: Context, minutes: Int) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(LAST_ENABLED_MINUTES_KEY, minutes)
+            .apply()
     }
 }

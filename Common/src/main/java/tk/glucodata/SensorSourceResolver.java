@@ -15,6 +15,19 @@ public final class SensorSourceResolver {
         return sourceForKind(resolveSensorKind(sensorId, fallbackSensorGen));
     }
 
+    public static String resolveXdripSourceInfo(String sensorId, int fallbackSensorGen) {
+        final int sensorKind = resolveSensorKind(sensorId, fallbackSensorGen);
+        return switch (sensorKind) {
+            case SENSOR_KIND_LIBRE3 -> "Libre3";
+            case SENSOR_KIND_LIBRE2 -> "Libre2";
+            case SENSOR_KIND_DEXCOM -> "G7";
+            case SENSOR_KIND_SIBIONICS -> "GS1Sb";
+            case SENSOR_KIND_ACCUCHEK -> "AccuChek";
+            case SENSOR_KIND_AIDEX, SENSOR_KIND_UNKNOWN -> "Libre2";
+            default -> "Libre2";
+        };
+    }
+
     public static int resolveSensorKind(String sensorId, int fallbackSensorGen) {
         final int snapshotKind = resolveSnapshotSensorKind(sensorId);
         if (snapshotKind != SENSOR_KIND_UNKNOWN) {
@@ -44,6 +57,7 @@ public final class SensorSourceResolver {
             case SENSOR_KIND_LIBRE3 -> SENSOR_KIND_LIBRE3;
             case SENSOR_KIND_SIBIONICS -> SENSOR_KIND_SIBIONICS;
             case SENSOR_KIND_ACCUCHEK -> SENSOR_KIND_ACCUCHEK;
+            case SENSOR_KIND_AIDEX -> SENSOR_KIND_AIDEX;
             case SENSOR_KIND_DEXCOM -> SENSOR_KIND_DEXCOM;
             default -> SENSOR_KIND_UNKNOWN;
         };

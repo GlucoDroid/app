@@ -1,5 +1,6 @@
 package tk.glucodata
 
+import kotlin.math.roundToInt
 import tk.glucodata.ui.DisplayValueResolver
 import tk.glucodata.ui.DisplayValues
 
@@ -7,6 +8,7 @@ object CurrentDisplaySource {
     private const val DEFAULT_HISTORY_WINDOW_MS = 15 * 60 * 1000L
     private const val LIVE_CONTEXT_WINDOW_MS = 2 * 60 * 1000L
     private const val MATCH_WINDOW_MS = 60 * 1000L
+    private const val MGDL_PER_MMOLL = 18.0182f
 
     data class Snapshot(
         val timeMillis: Long,
@@ -16,6 +18,10 @@ object CurrentDisplaySource {
         val index: Int,
         val viewMode: Int,
         val source: String,
+        val autoValue: Float,
+        val rawValue: Float,
+        val sharedDisplayValue: Float,
+        val sharedMgdl: Int,
         val displayValues: DisplayValues
     ) {
         val primaryValue: Float get() = displayValues.primaryValue
@@ -32,13 +38,20 @@ object CurrentDisplaySource {
         preferredSensorId: String? = null,
         historyWindowMs: Long = DEFAULT_HISTORY_WINDOW_MS
     ): Snapshot? {
-        val resolvedSensorId = NotificationHistorySource.resolveSensorSerial(preferredSensorId)
-        val current = CurrentGlucoseSource.getFresh(maxAgeMillis)
-            ?.takeIf { matchesSensor(it.sensorId, resolvedSensorId) }
+        val resolvedSensorId = preferredSensorId ?: SensorIdentity.resolveMainSensor()
+        val current = CurrentGlucoseSource.getFresh(maxAgeMillis, resolvedSensorId)
         val isMmol = Applic.unit == 1
+        val smoothingMinutes = DataSmoothing.getMinutes(Applic.app)
+        val smoothAllData = smoothingMinutes > 0 && !DataSmoothing.isGraphOnly(Applic.app)
+        val collapseChunks = smoothAllData && DataSmoothing.collapseChunks(Applic.app)
         val now = System.currentTimeMillis()
+        val liveHistoryWindowMs = if (smoothAllData) {
+            historyWindowMs.coerceAtLeast(LIVE_CONTEXT_WINDOW_MS)
+        } else {
+            LIVE_CONTEXT_WINDOW_MS
+        }
         val historyStart = when {
-            current != null && current.timeMillis > 0L -> (current.timeMillis - LIVE_CONTEXT_WINDOW_MS).coerceAtLeast(0L)
+            current != null && current.timeMillis > 0L -> (current.timeMillis - liveHistoryWindowMs).coerceAtLeast(0L)
             else -> now - historyWindowMs
         }
         val recentPoints = try {
@@ -47,13 +60,11 @@ object CurrentDisplaySource {
             emptyList()
         }
         val viewMode = resolveSensorViewMode(resolvedSensorId)
-        val smoothingMinutes = DataSmoothing.getMinutes(Applic.app)
-        val smoothAllData = smoothingMinutes > 0 && !DataSmoothing.isGraphOnly(Applic.app)
         val processedPoints = if (smoothAllData) {
             DataSmoothing.smoothNativePoints(
                 recentPoints,
                 smoothingMinutes,
-                DataSmoothing.collapseChunks(Applic.app)
+                collapseChunks
             )
         } else {
             recentPoints
@@ -67,7 +78,11 @@ object CurrentDisplaySource {
             liveValueText = current?.valueText,
             liveNumericValue = current?.numericValue ?: Float.NaN,
             rate = resolvedRate,
-            targetTimeMillis = current?.timeMillis ?: processedPoints.lastOrNull()?.timestamp ?: 0L,
+            targetTimeMillis = if (collapseChunks) {
+                processedPoints.lastOrNull()?.timestamp ?: current?.timeMillis ?: 0L
+            } else {
+                current?.timeMillis ?: processedPoints.lastOrNull()?.timestamp ?: 0L
+            },
             sensorId = resolvedSensorId,
             sensorGen = current?.sensorGen ?: 0,
             index = current?.index ?: 0,
@@ -101,17 +116,20 @@ object CurrentDisplaySource {
         viewMode: Int,
         isMmol: Boolean
     ): Snapshot? {
-        val match = findBestPoint(recentPoints, targetTimeMillis)
+        val exactMatch = findExactPoint(recentPoints, targetTimeMillis)
+        val match = exactMatch ?: recentPoints.lastOrNull()
         val isRawMode = isRawPrimary(viewMode)
         val liveValue = liveNumericValue.takeIf { it.isFinite() && it > 0.1f }
 
         var autoValue = match?.value?.takeIf { it.isFinite() && it > 0.1f } ?: Float.NaN
         var rawValue = match?.rawValue?.takeIf { it.isFinite() && it > 0.1f } ?: Float.NaN
 
-        if (!autoValue.isFinite() && !isRawMode && liveValue != null) {
+        val canUseLiveAsLaneFallback = exactMatch == null
+
+        if (canUseLiveAsLaneFallback && !autoValue.isFinite() && !isRawMode && liveValue != null) {
             autoValue = liveValue
         }
-        if (!rawValue.isFinite() && isRawMode && liveValue != null) {
+        if (canUseLiveAsLaneFallback && !rawValue.isFinite() && isRawMode && liveValue != null) {
             rawValue = liveValue
         }
 
@@ -123,8 +141,7 @@ object CurrentDisplaySource {
             sensorId = sensorId,
             viewMode = viewMode,
             targetTimeMillis = targetTimeMillis,
-            source = source,
-            isMmol = isMmol
+            allowLiveFallback = exactMatch == null
         )
 
         val displayValues = DisplayValueResolver.resolve(
@@ -146,6 +163,19 @@ object CurrentDisplaySource {
             return null
         }
 
+        val sharedMgdl = resolveSharedMgdl(
+            sensorId = sensorId,
+            autoValue = autoValue,
+            rawValue = rawValue,
+            targetTimeMillis = resolvedTime,
+            isMmol = isMmol
+        )
+        val sharedDisplayValue = if (sharedMgdl > 0) {
+            if (isMmol) sharedMgdl / MGDL_PER_MMOLL else sharedMgdl.toFloat()
+        } else {
+            0f
+        }
+
         return Snapshot(
             timeMillis = resolvedTime,
             rate = rate,
@@ -154,6 +184,10 @@ object CurrentDisplaySource {
             index = index,
             viewMode = viewMode,
             source = source,
+            autoValue = autoValue,
+            rawValue = rawValue,
+            sharedDisplayValue = sharedDisplayValue,
+            sharedMgdl = sharedMgdl,
             displayValues = displayValues
         )
     }
@@ -165,21 +199,17 @@ object CurrentDisplaySource {
         sensorId: String?,
         viewMode: Int,
         targetTimeMillis: Long,
-        source: String,
-        isMmol: Boolean
+        allowLiveFallback: Boolean
     ): Float? {
         if (!NightscoutCalibration.hasCalibrationForViewMode(sensorId, viewMode)) {
             return null
-        }
-        if (source == "callback" && liveValue != null && liveValue.isFinite() && liveValue > 0.1f) {
-            return liveValue
         }
 
         val isRawMode = isRawPrimary(viewMode)
         val baseValue = (if (isRawMode) rawValue else autoValue).takeIf { it.isFinite() && it > 0.1f }
             ?: autoValue.takeIf { it.isFinite() && it > 0.1f }
             ?: rawValue.takeIf { it.isFinite() && it > 0.1f }
-            ?: return liveValue?.takeIf { it.isFinite() && it > 0.1f }
+            ?: return liveValue?.takeIf { allowLiveFallback && it.isFinite() && it > 0.1f }
 
         val calibratedValue = CalibrationAccess.getCalibratedValue(
             baseValue,
@@ -189,7 +219,7 @@ object CurrentDisplaySource {
             sensorId
         )
         return calibratedValue.takeIf { it.isFinite() && it > 0.1f }
-            ?: liveValue?.takeIf { it.isFinite() && it > 0.1f }
+            ?: liveValue?.takeIf { allowLiveFallback && it.isFinite() && it > 0.1f }
     }
 
     private fun shouldHideInitialWhenCalibrated(): Boolean {
@@ -199,13 +229,13 @@ object CurrentDisplaySource {
     private fun isRawPrimary(viewMode: Int): Boolean = viewMode == 1 || viewMode == 3
 
     private fun matchesSensor(candidate: String?, expected: String?): Boolean {
-        if (expected.isNullOrBlank() || candidate.isNullOrBlank()) {
+        if (expected.isNullOrBlank()) {
             return true
         }
-        return candidate == expected || candidate.contains(expected) || expected.contains(candidate)
+        return SensorIdentity.matches(candidate, expected)
     }
 
-    private fun findBestPoint(points: List<GlucosePoint>, targetTimeMillis: Long): GlucosePoint? {
+    private fun findExactPoint(points: List<GlucosePoint>, targetTimeMillis: Long): GlucosePoint? {
         if (points.isEmpty()) {
             return null
         }
@@ -213,7 +243,6 @@ object CurrentDisplaySource {
             return points.lastOrNull()
         }
         return points.lastOrNull { kotlin.math.abs(it.timestamp - targetTimeMillis) <= MATCH_WINDOW_MS }
-            ?: points.lastOrNull()
     }
 
     private fun resolveSensorViewMode(sensorName: String?): Int {
@@ -226,5 +255,80 @@ object CurrentDisplaySource {
         } catch (_: Throwable) {
             0
         }
+    }
+
+    private fun resolveSharedMgdl(
+        sensorId: String?,
+        autoValue: Float,
+        rawValue: Float,
+        targetTimeMillis: Long,
+        isMmol: Boolean
+    ): Int {
+        val calibratedAuto = calibrateForShare(sensorId, autoValue, targetTimeMillis, false)
+        if (calibratedAuto > 0f) {
+            return displayToMgdl(calibratedAuto, isMmol)
+        }
+
+        val calibratedRaw = calibrateForShare(sensorId, rawValue, targetTimeMillis, true)
+        if (calibratedRaw > 0f) {
+            return displayToMgdl(calibratedRaw, isMmol)
+        }
+
+        val nativeAutoMgdl = resolveNativeAutoMgdl(sensorId, isMmol)
+        if (nativeAutoMgdl > 0) {
+            return nativeAutoMgdl
+        }
+
+        val autoMgdl = displayToMgdl(autoValue, isMmol)
+        if (autoMgdl > 0) {
+            return autoMgdl
+        }
+
+        val rawMgdl = displayToMgdl(rawValue, isMmol)
+        return rawMgdl.coerceAtLeast(0)
+    }
+
+    private fun calibrateForShare(
+        sensorId: String?,
+        baseValue: Float,
+        targetTimeMillis: Long,
+        isRawMode: Boolean
+    ): Float {
+        if (!baseValue.isFinite() || baseValue <= 0f) {
+            return 0f
+        }
+        if (!CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)) {
+            return 0f
+        }
+        val calibrated = CalibrationAccess.getCalibratedValue(
+            baseValue,
+            targetTimeMillis,
+            isRawMode,
+            false,
+            sensorId
+        )
+        return calibrated.takeIf { it.isFinite() && it > 0f } ?: 0f
+    }
+
+    private fun resolveNativeAutoMgdl(sensorId: String?, isMmol: Boolean): Int {
+        val latest = try {
+            Natives.lastglucose()
+        } catch (_: Throwable) {
+            null
+        } ?: return 0
+        if (!SensorIdentity.matches(latest.sensorid, sensorId)) {
+            return 0
+        }
+        val latestValue = GlucoseValueParser.parseFirst(latest.value)
+            ?.takeIf { it.isFinite() && it > 0f }
+            ?: return 0
+        return displayToMgdl(latestValue, isMmol)
+    }
+
+    private fun displayToMgdl(value: Float, isMmol: Boolean): Int {
+        if (!value.isFinite() || value <= 0f) {
+            return 0
+        }
+        return (if (isMmol) value * MGDL_PER_MMOLL else value).roundToInt()
     }
 }

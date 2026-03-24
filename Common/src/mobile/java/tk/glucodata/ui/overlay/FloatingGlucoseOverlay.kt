@@ -41,7 +41,11 @@ import tk.glucodata.ui.components.TrendIndicator
 import tk.glucodata.logic.TrendEngine
 import tk.glucodata.data.calibration.CalibrationManager
 import tk.glucodata.ui.getDisplayValues
+import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.Natives
+import tk.glucodata.Notify
+import tk.glucodata.SensorIdentity
+import tk.glucodata.UiRefreshBus
 
 @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
 @Composable
@@ -76,16 +80,23 @@ fun FloatingGlucoseOverlay(
 
     // Data State: History List
     val history by historyFlow.collectAsState(initial = emptyList())
+    val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
     
     // Derived Data
-    val glucosePoint = remember(history) { history.lastOrNull() }
+    val glucosePoint = history.lastOrNull()
+    val currentSensorId = SensorIdentity.resolveMainSensor()
+    val currentSnapshot = remember(refreshRevision, currentSensorId, glucosePoint?.timestamp, history.size) {
+        CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout, currentSensorId)
+    }
     
     // View Mode & Calibration
-    val viewData = remember(glucosePoint) {
-        val sName = Natives.lastsensorname()
-        val viewMode = if (!sName.isNullOrEmpty()) {
+    val viewData = remember(currentSnapshot, glucosePoint, currentSensorId) {
+        val resolvedViewMode = currentSnapshot?.viewMode
+        val viewMode = if (resolvedViewMode != null) {
+            resolvedViewMode
+        } else if (!currentSensorId.isNullOrEmpty()) {
             runCatching {
-                val snapshot = Natives.getSensorUiSnapshot(sName)
+                val snapshot = Natives.getSensorUiSnapshot(currentSensorId)
                 if (snapshot != null && snapshot.size >= 2) snapshot[1].toInt() else 0
             }.getOrDefault(0)
         } else 0
@@ -196,17 +207,19 @@ fun FloatingGlucoseOverlay(
                      if (glucosePoint != null) {
                             val point = glucosePoint!!
                             val unit = if (unitInt == 1) "mmol/L" else "mg/dL"
-                            val isRawModeForCal = viewMode == 1 || viewMode == 3
-                            val hasCalibration = CalibrationManager.hasActiveCalibration(isRawModeForCal)
-                            val calibratedValue = if (hasCalibration) {
-                                 val baseValue = if (isRawModeForCal) point.rawValue else point.value
-                                 if (baseValue.isFinite() && baseValue > 0.1f) {
-                                     CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
-                                 } else {
-                                     null
-                                 }
-                            } else null
-                             val dvs = getDisplayValues(point, viewMode, unit, calibratedValue)
+                            val dvs = currentSnapshot?.displayValues ?: run {
+                                val isRawModeForCal = viewMode == 1 || viewMode == 3
+                                val hasCalibration = CalibrationManager.hasActiveCalibration(isRawModeForCal)
+                                val calibratedValue = if (hasCalibration) {
+                                    val baseValue = if (isRawModeForCal) point.rawValue else point.value
+                                    if (baseValue.isFinite() && baseValue > 0.1f) {
+                                        CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
+                                    } else {
+                                        null
+                                    }
+                                } else null
+                                getDisplayValues(point, viewMode, unit, calibratedValue)
+                            }
                               
                              Row(verticalAlignment = Alignment.CenterVertically) {
                                  FloatingStyledText(
@@ -280,17 +293,19 @@ fun FloatingGlucoseOverlay(
                  if (glucosePoint != null) {
                     val point = glucosePoint!!
                     val unit = if (unitInt == 1) "mmol/L" else "mg/dL"
-                    val isRawModeForCal = viewMode == 1 || viewMode == 3
-                    val hasCalibration = CalibrationManager.hasActiveCalibration(isRawModeForCal)
-                    val calibratedValue = if (hasCalibration) {
-                         val baseValue = if (isRawModeForCal) point.rawValue else point.value
-                         if (baseValue.isFinite() && baseValue > 0.1f) {
-                             CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
-                         } else {
-                             null
-                         }
-                     } else null
-                     val dvs = getDisplayValues(point, viewMode, unit, calibratedValue)
+                    val dvs = currentSnapshot?.displayValues ?: run {
+                        val isRawModeForCal = viewMode == 1 || viewMode == 3
+                        val hasCalibration = CalibrationManager.hasActiveCalibration(isRawModeForCal)
+                        val calibratedValue = if (hasCalibration) {
+                            val baseValue = if (isRawModeForCal) point.rawValue else point.value
+                            if (baseValue.isFinite() && baseValue > 0.1f) {
+                                CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeForCal)
+                            } else {
+                                null
+                            }
+                        } else null
+                        getDisplayValues(point, viewMode, unit, calibratedValue)
+                    }
 
                     FloatingStyledText(
                         text = dvs.primaryStr,

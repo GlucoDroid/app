@@ -56,6 +56,7 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import tk.glucodata.DataSmoothing
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
@@ -153,13 +154,14 @@ fun ExpressiveSettingsScreen(
     val graphSmoothingLabel = if (chartSmoothingMinutes <= 0) {
         stringResource(R.string.graph_smoothing_none)
     } else {
+        val collapseIntervalMinutes = DataSmoothing.collapseIntervalMinutes(chartSmoothingMinutes)
         buildList {
             add(stringResource(R.string.minutes_short_format, chartSmoothingMinutes))
             if (dataSmoothingGraphOnly) {
                 add(stringResource(R.string.data_smoothing_graph_only_title))
             }
             if (dataSmoothingCollapseChunks) {
-                add(stringResource(R.string.data_smoothing_collapse_title))
+                add(stringResource(R.string.data_smoothing_collapse_summary_format, collapseIntervalMinutes))
             }
         }.joinToString(" · ")
     }

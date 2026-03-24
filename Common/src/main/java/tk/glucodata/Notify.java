@@ -469,7 +469,7 @@ public class Notify {
             return false;
         }
 
-        final notGlucose base = SuperGattCallback.previousglucose;
+        final notGlucose base = toLegacyGlucose(resolveNotificationCurrentSnapshot());
         final notGlucose snapshot = copyGlucoseSnapshot(base, glucoseValue);
         snapshot.time = System.currentTimeMillis();
         snapshot.value = format(usedlocale, pureglucoseformat, glucoseValue);
@@ -518,12 +518,14 @@ public class Notify {
         var noti = onenot;
         if (noti == null)
             return;
-        final var strgl = SuperGattCallback.previousglucose;
-        final var gl = SuperGattCallback.previousglucosevalue;
-        if (strgl == null || gl < 2.0f)
+        final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+        if (current == null || current.getPrimaryValue() < 2.0f)
             return;
-        noti.postForegroundGlucoseNotification(FOREGROUND_GLUCOSE_NOTIFICATION_KIND, gl,
-                format(usedlocale, glucoseformat, gl), strgl);
+        noti.postForegroundGlucoseNotification(
+                FOREGROUND_GLUCOSE_NOTIFICATION_KIND,
+                current.getPrimaryValue(),
+                format(usedlocale, glucoseformat, current.getPrimaryValue()),
+                toLegacyGlucose(current));
     }
 
     void normalglucose(notGlucose strgl, float gl, float rate, boolean waiting) {
@@ -616,6 +618,34 @@ public class Notify {
         return new notGlucose(glucose.time, glucose.value, glucose.rate, glucose.sensorgen2);
     }
 
+    private static String resolveNotificationSensorSerial() {
+        return NotificationHistorySource.resolveSensorSerial(resolvePrimarySensorName());
+    }
+
+    private static CurrentDisplaySource.Snapshot resolveNotificationCurrentSnapshot() {
+        return resolveNotificationCurrentSnapshot(resolveNotificationSensorSerial());
+    }
+
+    private static CurrentDisplaySource.Snapshot resolveNotificationCurrentSnapshot(String activeSensorSerial) {
+        try {
+            return CurrentDisplaySource.resolveCurrent(glucosetimeout, activeSensorSerial);
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "resolveNotificationCurrentSnapshot", th);
+            return null;
+        }
+    }
+
+    private static notGlucose toLegacyGlucose(CurrentDisplaySource.Snapshot snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        return new notGlucose(
+                snapshot.getTimeMillis(),
+                snapshot.getPrimaryStr(),
+                snapshot.getRate(),
+                snapshot.getSensorGen());
+    }
+
     private static boolean isScreenInteractive() {
         try {
             final PowerManager powerManager = (PowerManager) Applic.app.getSystemService(Context.POWER_SERVICE);
@@ -633,17 +663,16 @@ public class Notify {
                 if (!isScreenInteractive()) {
                     return;
                 }
-                final var snapshot = SuperGattCallback.previousglucose;
-                final var glucoseValue = SuperGattCallback.previousglucosevalue;
-                if (snapshot == null || glucoseValue < 2.0f) {
+                final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+                if (current == null || current.getPrimaryValue() < 2.0f) {
                     return;
                 }
                 BatteryTrace.bump("notify.glucose.followup", 20L, "interactive=true");
                 postForegroundGlucoseNotification(
                         FOREGROUND_GLUCOSE_NOTIFICATION_KIND,
-                        glucoseValue,
-                        format(usedlocale, glucoseformat, glucoseValue),
-                        snapshot);
+                        current.getPrimaryValue(),
+                        format(usedlocale, glucoseformat, current.getPrimaryValue()),
+                        toLegacyGlucose(current));
             } catch (Throwable th) {
                 Log.stack(LOG_ID, "glucoseRefreshRunnable", th);
             }
@@ -1308,9 +1337,9 @@ public class Notify {
         final boolean glucosealarm = kind < 2 || kind > 4;
         if (!DontTalk) {
             if (glucosealarm && Natives.speakalarms()) {
-                final var glu = SuperGattCallback.previousglucose;
-                if (glu != null) {
-                    SuperGattCallback.talker.speak(glu.value,
+                final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+                if (current != null) {
+                    SuperGattCallback.talker.speak(current.getPrimaryStr(),
                             getUSEALARM() ? ScanNfcV.audioattributes : notification_audio);
                     // Applic.scheduler.schedule( () -> SuperGattCallback.talker.speak(glu.value,
                     // getUSEALARM()?ScanNfcV.audioattributes:notification_audio), 50,
@@ -1387,10 +1416,10 @@ public class Notify {
                 }
                 if (!DontTalk) {
                     if (glucosealarm && Natives.speakalarms()) {
-                        final var glu = SuperGattCallback.previousglucose;
-                        if (glu != null) {
+                        final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+                        if (current != null) {
                             Applic.scheduler.schedule(
-                                    () -> SuperGattCallback.talker.speak(glu.value,
+                                    () -> SuperGattCallback.talker.speak(current.getPrimaryStr(),
                                             getUSEALARM() ? ScanNfcV.audioattributes : notification_audio),
                                     300, TimeUnit.MILLISECONDS);
                         } else
@@ -1895,7 +1924,7 @@ public class Notify {
         // if(wasdraw==-1) return;
         if (wasvalue < 0.1f)
             return;
-        var strgl = SuperGattCallback.previousglucose;
+        var strgl = toLegacyGlucose(resolveNotificationCurrentSnapshot());
         if (strgl == null)
             return;
         arrowglucosenotification(kind, wasvalue, wasmessage, strgl, wastype, true);
@@ -2699,21 +2728,30 @@ public class Notify {
         boolean isRawMode = (viewMode == 1 || viewMode == 3);
         boolean hasCalibration = NightscoutCalibration.hasCalibrationForViewMode(activeSensorSerial, viewMode);
 
-        final CurrentDisplaySource.Snapshot resolvedDisplay = CurrentDisplaySource.resolveFromLive(
-                glucose.value,
-                glvalue,
-                Float.NaN,
-                CurrentGlucoseSource.normalizeTimeMillis(glucose.time),
-                activeSensorSerial,
-                0,
-                0,
-                "notification",
-                nativePoints,
-                viewMode,
-                isMmol);
+        final CurrentDisplaySource.Snapshot resolvedDisplay = GLUCOSENOTIFICATION.equals(type)
+                ? resolveNotificationCurrentSnapshot(activeSensorSerial)
+                : null;
+        final CurrentDisplaySource.Snapshot fallbackDisplay = resolvedDisplay != null
+                ? resolvedDisplay
+                : CurrentDisplaySource.resolveFromLive(
+                        glucose.value,
+                        glvalue,
+                        Float.NaN,
+                        CurrentGlucoseSource.normalizeTimeMillis(glucose.time),
+                        activeSensorSerial,
+                        0,
+                        0,
+                        "notification",
+                        nativePoints,
+                        viewMode,
+                        isMmol);
 
-        CharSequence valueText = buildFormattedGlucoseText(resolvedDisplay, glvalue);
-        final float displayGlucoseValue = resolvedDisplay != null ? resolvedDisplay.getPrimaryValue() : glvalue;
+        if (resolvedDisplay != null && Float.isFinite(resolvedDisplay.getRate())) {
+            rate = resolvedDisplay.getRate();
+        }
+
+        CharSequence valueText = buildFormattedGlucoseText(fallbackDisplay, glvalue);
+        final float displayGlucoseValue = fallbackDisplay != null ? fallbackDisplay.getPrimaryValue() : glvalue;
 
         // Semantic Color
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, displayGlucoseValue, isMmol);
@@ -2998,7 +3036,7 @@ public class Notify {
 
         // Startup Text using the shared current-value resolver.
         CharSequence startupValue = "---";
-        CurrentDisplaySource.Snapshot current = CurrentDisplaySource.resolveCurrent(glucosetimeout, activeSensorSerial);
+        CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot(activeSensorSerial);
         if (current != null) {
             startupValue = current.getFullFormatted();
         } else if (!chartPoints.isEmpty()) {
@@ -3019,15 +3057,6 @@ public class Notify {
                 }
             }
         }
-        if ("---".contentEquals(startupValue)) {
-            notGlucose previous = SuperGattCallback.previousglucose;
-            float previousValue = SuperGattCallback.previousglucosevalue;
-            if (previous != null && previousValue >= 2.0f) {
-                startupValue = formatGlucoseText(previous.value, previousValue, nativePoints, viewMode, previous.time,
-                        activeSensorSerial);
-            }
-        }
-
         // Check if chart is enabled
         // Check if chart is enabled
         android.content.SharedPreferences prefs = Applic.app
@@ -3075,16 +3104,12 @@ public class Notify {
             colorVal = current.getPrimaryValue();
         } else if (!chartPoints.isEmpty()) {
             colorVal = chartPoints.get(chartPoints.size() - 1).value;
-        } else if (SuperGattCallback.previousglucose != null && SuperGattCallback.previousglucosevalue >= 2.0f) {
-            colorVal = SuperGattCallback.previousglucosevalue;
         }
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, colorVal, isMmol);
 
         float startupRate = 0f;
         if (current != null) {
             startupRate = current.getRate();
-        } else if (SuperGattCallback.previousglucose != null) {
-            startupRate = SuperGattCallback.previousglucose.rate;
         }
 
         arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, startupRate, isMmol,

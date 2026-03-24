@@ -555,7 +555,7 @@ public class Floating extends View {
             ;
         }
         ;
-        final var current = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
+        final var current = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout, SensorIdentity.resolveMainSensor());
         if (current != null) {
             final var now = System.currentTimeMillis();
             final var age = now - current.getTimeMillis();

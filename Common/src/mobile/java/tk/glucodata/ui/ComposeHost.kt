@@ -132,12 +132,17 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Download
 import kotlinx.coroutines.launch
+import tk.glucodata.CurrentDisplaySource
+import tk.glucodata.DataSmoothing
 import tk.glucodata.Libre3NfcSettings
 import tk.glucodata.Natives
+import tk.glucodata.Notify
 import tk.glucodata.SensorBluetooth
+import tk.glucodata.SensorIdentity
 import tk.glucodata.QRmake
 import tk.glucodata.R
 import tk.glucodata.MainActivity
+import tk.glucodata.UiRefreshBus
 import android.widget.Toast
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 import tk.glucodata.ui.theme.displayLargeExpressive
@@ -319,6 +324,39 @@ fun getDisplayValues(
         calibratedValue = calibratedValue,
         hideInitialWhenCalibrated = hideInitialWhenCalibrated
     )
+}
+
+private fun buildDisplayReadings(
+    points: List<GlucosePoint>,
+    smoothingMinutes: Int,
+    smoothOnlyGraph: Boolean,
+    collapseChunks: Boolean,
+    limit: Int = 10
+): List<GlucosePoint> {
+    if (points.isEmpty()) {
+        return emptyList()
+    }
+    if (smoothOnlyGraph || smoothingMinutes <= 0) {
+        return points.takeLast(limit).reversed().distinctBy { it.timestamp }
+    }
+
+    val sourceByTimestamp = points.associateBy { it.timestamp }
+    val processed = DataSmoothing.smoothNativePoints(
+        points.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) },
+        smoothingMinutes,
+        collapseChunks
+    )
+
+    return processed.takeLast(limit).asReversed().map { point ->
+        val source = sourceByTimestamp[point.timestamp]
+        GlucosePoint(
+            value = point.value,
+            time = source?.time ?: java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(point.timestamp)),
+            timestamp = point.timestamp,
+            rawValue = point.rawValue,
+            rate = source?.rate
+        )
+    }.distinctBy { it.timestamp }
 }
 
 
@@ -880,6 +918,7 @@ fun DashboardScreen(
     val targetLow by viewModel.targetLow.collectAsStateWithLifecycle()
     val targetHigh by viewModel.targetHigh.collectAsStateWithLifecycle()
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsStateWithLifecycle()
+    val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsStateWithLifecycle()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsStateWithLifecycle()
     val sensorStatus by viewModel.sensorStatus.collectAsStateWithLifecycle()
     val sensorProgress by viewModel.sensorProgress.collectAsStateWithLifecycle()
@@ -1292,8 +1331,14 @@ fun DashboardScreen(
             // --- REUSABLE UI SECTIONS ---
 
 
-            val recentReadings = remember(glucoseHistory) {
-                glucoseHistory.takeLast(10).reversed().distinctBy { it.timestamp }
+            val recentReadings = remember(glucoseHistory, chartSmoothingMinutes, dataSmoothingGraphOnly, dataSmoothingCollapseChunks) {
+                buildDisplayReadings(
+                    points = glucoseHistory,
+                    smoothingMinutes = chartSmoothingMinutes,
+                    smoothOnlyGraph = dataSmoothingGraphOnly,
+                    collapseChunks = dataSmoothingCollapseChunks,
+                    limit = 10
+                )
             }
 
             val isManualCalibrationEnabled = if (viewMode == 1 || viewMode == 3) isRawEnabled else isAutoEnabled
@@ -1660,6 +1705,14 @@ fun ReadingRow(
     val staleColor = MaterialTheme.colorScheme.surfaceContainerHighest // Slightly darker/different
 
     val ageState = remember(point.timestamp) { mutableStateOf(System.currentTimeMillis() - point.timestamp) }
+    val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
+    val activeCurrentSnapshot = if (isActive) {
+        remember(refreshRevision, point.timestamp, point.value, point.rawValue, viewMode) {
+            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout, SensorIdentity.resolveMainSensor())
+        }
+    } else {
+        null
+    }
 
     // Timer to update age for the active item
     if (isActive) {
@@ -1774,7 +1827,10 @@ fun ReadingRow(
                 val timeWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
                 
                 Text(
-                    text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(point.timestamp)),
+                    text = java.text.SimpleDateFormat(
+                        "HH:mm",
+                        java.util.Locale.getDefault()
+                    ).format(java.util.Date(activeCurrentSnapshot?.timeMillis ?: point.timestamp)),
                     style = timeStyle,
                     fontWeight = timeWeight,
                     color = timeColor
@@ -1791,7 +1847,7 @@ fun ReadingRow(
                         null
                     }
                 } else null
-                val dvs = getDisplayValues(point, viewMode, unit, calibratedValueRR)
+                val dvs = activeCurrentSnapshot?.displayValues ?: getDisplayValues(point, viewMode, unit, calibratedValueRR)
                 // Colors
                 val primaryColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha=0.8f)
                 val secondaryColor = if (isActive)  MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha=0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.8f)

@@ -99,6 +99,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 import tk.glucodata.R
 import tk.glucodata.Applic
+import tk.glucodata.CurrentDisplaySource
+import tk.glucodata.Notify
+import tk.glucodata.UiRefreshBus
 import tk.glucodata.logic.TrendEngine
 import tk.glucodata.ui.util.AdaptiveContentWidthClass
 import tk.glucodata.ui.util.adaptiveContentWidthClass
@@ -238,8 +241,15 @@ fun DashboardCombinedHeader(
     )
 
     // 1. Resolve Values using shared logic (with calibration if active)
-    val dvs = remember(latestPoint, viewMode, currentGlucose, calibratedValue) {
-        if (latestPoint != null) {
+    val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
+    val currentSnapshot = remember(refreshRevision, sensorName, currentGlucose, currentRate, latestPoint?.timestamp, history.size, viewMode) {
+        CurrentDisplaySource.resolveCurrent(
+            maxAgeMillis = Notify.glucosetimeout,
+            preferredSensorId = sensorName.ifBlank { null }
+        )
+    }
+    val dvs = remember(currentSnapshot, latestPoint, viewMode, calibratedValue) {
+        currentSnapshot?.displayValues ?: if (latestPoint != null) {
             getDisplayValues(latestPoint, viewMode, "", calibratedValue)
         } else {
             null

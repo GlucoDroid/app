@@ -25,14 +25,29 @@ object CurrentGlucoseSource {
 
     @JvmStatic
     fun getFresh(maxAgeMillis: Long = DEFAULT_MAX_AGE_MS): Snapshot? {
+        return getFresh(maxAgeMillis, null)
+    }
+
+    @JvmStatic
+    fun getFresh(maxAgeMillis: Long, preferredSensorId: String?): Snapshot? {
         val now = System.currentTimeMillis()
 
         val callback = getFromCallback(now, maxAgeMillis)
-        if (callback != null) {
-            return callback
+        val native = getFromNative(now, maxAgeMillis)
+        if (preferredSensorId.isNullOrBlank()) {
+            if (callback != null) {
+                return callback
+            }
+            return native
         }
 
-        return getFromNative(now, maxAgeMillis)
+        if (callback != null && SensorIdentity.matches(callback.sensorId, preferredSensorId)) {
+            return callback
+        }
+        if (native != null && SensorIdentity.matches(native.sensorId, preferredSensorId)) {
+            return native
+        }
+        return null
     }
 
     @JvmStatic

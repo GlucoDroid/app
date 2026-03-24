@@ -16,6 +16,7 @@ import tk.glucodata.BatteryTrace
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.DataSmoothing
 import tk.glucodata.Notify
+import tk.glucodata.SensorIdentity
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
@@ -203,6 +204,7 @@ class DashboardViewModel(
                     UiRefreshBus.Event.DataChanged -> refreshData(syncHistory = false)
                     UiRefreshBus.Event.StatusOnly -> refreshData(syncHistory = false)
                 }
+                refreshCurrentDisplayAfterSmoothingChange()
             }
         }
     }
@@ -211,15 +213,17 @@ class DashboardViewModel(
         if (currentReadingJob?.isActive == true) return
         currentReadingJob = viewModelScope.launch {
             glucoseRepository.getCurrentReading().collect { point ->
+                val preferredSensorId = SensorIdentity.resolveMainSensor()
+                val resolved = CurrentDisplaySource.resolveCurrent(
+                    maxAgeMillis = Notify.glucosetimeout,
+                    preferredSensorId = preferredSensorId
+                )
+                if (resolved != null) {
+                    _currentGlucose.value = resolved.primaryStr
+                    _currentRate.value = resolved.rate.takeIf { it.isFinite() } ?: 0f
+                    return@collect
+                }
                 if (point != null) {
-                    if (_chartSmoothingMinutes.value > 0) {
-                        val resolved = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
-                        if (resolved != null) {
-                            _currentGlucose.value = resolved.primaryStr
-                            _currentRate.value = resolved.rate.takeIf { it.isFinite() } ?: 0f
-                            return@collect
-                        }
-                    }
                     val valueToDisplay = if (viewMode.value == 1 || viewMode.value == 3) point.rawValue else point.value
                     _currentGlucose.value = if (valueToDisplay < 30) String.format("%.1f", valueToDisplay) else valueToDisplay.toInt().toString()
                     _currentRate.value = point.rate ?: 0f
@@ -377,6 +381,7 @@ class DashboardViewModel(
             }
             
             // Note: History is now collected reactively via startHistoryCollectionForMode()
+            refreshCurrentDisplayAfterSmoothingChange()
         }
     }
 
@@ -546,21 +551,28 @@ class DashboardViewModel(
         val sanitized = DataSmoothing.sanitizeMinutes(minutes)
         DataSmoothing.setMinutes(context, sanitized)
         _chartSmoothingMinutes.value = sanitized
-        refreshSmoothedCurrentDisplayIfNeeded()
+        refreshCurrentDisplayAfterSmoothingChange()
+    }
+
+    fun setDataSmoothingEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        DataSmoothing.setEnabled(context, enabled)
+        _chartSmoothingMinutes.value = DataSmoothing.getMinutes(context)
+        refreshCurrentDisplayAfterSmoothingChange()
     }
 
     fun setDataSmoothingGraphOnly(enabled: Boolean) {
         val context = tk.glucodata.Applic.app
         DataSmoothing.setGraphOnly(context, enabled)
         _dataSmoothingGraphOnly.value = enabled
-        refreshSmoothedCurrentDisplayIfNeeded()
+        refreshCurrentDisplayAfterSmoothingChange()
     }
 
     fun setDataSmoothingCollapseChunks(enabled: Boolean) {
         val context = tk.glucodata.Applic.app
         DataSmoothing.setCollapseChunks(context, enabled)
         _dataSmoothingCollapseChunks.value = enabled
-        refreshSmoothedCurrentDisplayIfNeeded()
+        refreshCurrentDisplayAfterSmoothingChange()
     }
 
     fun setPreviewWindowMode(mode: Int) {
@@ -617,12 +629,13 @@ class DashboardViewModel(
         prefs.edit().putBoolean(TARGET_RANGE_DEFAULTS_MIGRATION_KEY, true).apply()
     }
 
-    private fun refreshSmoothedCurrentDisplayIfNeeded() {
-        if (_chartSmoothingMinutes.value > 0) {
-            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)?.let { resolved ->
-                _currentGlucose.value = resolved.primaryStr
-                _currentRate.value = resolved.rate.takeIf { it.isFinite() } ?: 0f
-            }
+    private fun refreshCurrentDisplayAfterSmoothingChange() {
+        CurrentDisplaySource.resolveCurrent(
+            maxAgeMillis = Notify.glucosetimeout,
+            preferredSensorId = SensorIdentity.resolveMainSensor()
+        )?.let { resolved ->
+            _currentGlucose.value = resolved.primaryStr
+            _currentRate.value = resolved.rate.takeIf { it.isFinite() } ?: 0f
         }
     }
 }

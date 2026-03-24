@@ -68,7 +68,7 @@ private static Bundle mkGlucosebundle(ExchangeGlucosePayload payload,long sensor
     extras.putDouble(EXTRA_BG_SLOPE,(double)payload.rate/60000.0);
     extras.putLong(EXTRA_TIMESTAMP,payload.timeMillis);
     extras.putLong(EXTRA_SENSOR_STARTED_AT,sensorStartmsec);
-    extras.putString(EXTRA_DATA_SOURCE_INFO, SensorSourceResolver.resolveSourceInfo(payload.sensorId, payload.sensorGen));
+    extras.putString(EXTRA_DATA_SOURCE_INFO, SensorSourceResolver.resolveXdripSourceInfo(payload.sensorId, payload.sensorGen));
 //        extras.putInt(EXTRA_SENSOR_BATTERY,100);
     return extras;
       }

@@ -890,19 +890,17 @@ public class NotificationChartDrawer {
             ArrayList<Long> timestamps = new ArrayList<>(visibleRenderPoints.size());
             ArrayList<Float> values = new ArrayList<>(visibleRenderPoints.size());
 
-            for (int index = 0; index < visibleRenderPoints.size(); index++) {
-                GlucosePoint renderPoint = visibleRenderPoints.get(index);
-                GlucosePoint sourcePoint = visiblePoints.get(index);
+            for (GlucosePoint renderPoint : visibleRenderPoints) {
                 float baseVal = isRawModeforCal ? renderPoint.rawValue : renderPoint.value;
                 float val = baseVal > 0
                         ? CalibrationAccess.getCalibratedValue(
                                 baseVal,
-                                sourcePoint.timestamp,
+                                renderPoint.timestamp,
                                 isRawModeforCal,
                                 false,
                                 calibrationSensorId)
                         : 0f;
-                timestamps.add(sourcePoint.timestamp);
+                timestamps.add(renderPoint.timestamp);
                 values.add(val);
             }
 

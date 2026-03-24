@@ -26,6 +26,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.settings.FloatingSettingsRepository
 import tk.glucodata.ui.overlay.FloatingGlucoseOverlay
@@ -60,6 +61,7 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
         
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         settingsRepository = FloatingSettingsRepository(this)
+        glucoseRepository.refreshSensorSerial()
 
         setupOverlay()
         observeSettings()
@@ -216,6 +218,12 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
     }
 
     private fun observeSettings() {
+        serviceScope.launch {
+            UiRefreshBus.events.collectLatest {
+                glucoseRepository.refreshSensorSerial()
+            }
+        }
+
         serviceScope.launch {
             settingsRepository.isEnabled.collectLatest { enabled ->
                 if (!enabled) {
