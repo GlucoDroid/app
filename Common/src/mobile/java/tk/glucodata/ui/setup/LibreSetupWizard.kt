@@ -78,6 +78,7 @@ import tk.glucodata.Libre3NfcSettings
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.ui.components.SettingsSwitchItem
 
@@ -329,25 +330,22 @@ fun LibreSetupWizard(
                             )
                         }
 
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            SettingsSwitchItem(
-                                title = stringResource(R.string.libreview_active),
-                                subtitle = stringResource(R.string.libreview_active_desc),
-                                checked = isActive,
-                                onCheckedChange = { isActive = it },
-                                icon = Icons.Default.Cloud,
-                                iconTint = MaterialTheme.colorScheme.primary,
-                                position = CardPosition.TOP
-                            )
-                            SettingsSwitchItem(
-                                title = stringResource(R.string.libreview_russia),
-                                checked = isRussia,
-                                onCheckedChange = { isRussia = it },
-                                icon = Icons.Default.Public,
-                                iconTint = MaterialTheme.colorScheme.secondary,
-                                position = CardPosition.BOTTOM
-                            )
-                        }
+                        MasterSwitchCard(
+                            title = stringResource(R.string.libreview_active),
+                            subtitle = stringResource(R.string.libreview_active_desc),
+                            checked = isActive,
+                            onCheckedChange = { isActive = it },
+                            icon = Icons.Default.Cloud
+                        )
+
+                        SettingsSwitchItem(
+                            title = stringResource(R.string.libreview_russia),
+                            checked = isRussia,
+                            onCheckedChange = { isRussia = it },
+                            icon = Icons.Default.Public,
+                            iconTint = MaterialTheme.colorScheme.secondary,
+                            position = CardPosition.SINGLE
+                        )
 
                         Column(
                             modifier = Modifier.fillMaxWidth(),

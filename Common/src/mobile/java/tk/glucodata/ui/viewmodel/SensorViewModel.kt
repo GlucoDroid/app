@@ -1,5 +1,6 @@
 package tk.glucodata.ui.viewmodel
 
+import android.os.SystemClock
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -109,6 +110,7 @@ class SensorViewModel : ViewModel() {
 
     // Polling job - only active when screen is visible
     private var pollingJob: Job? = null
+    private var lastDeviceSyncElapsedMs: Long = 0L
 
     init {
         // Initial refresh with device sync — only time we need to call updateDevices() automatically
@@ -123,6 +125,16 @@ class SensorViewModel : ViewModel() {
         // Cancel any existing job first
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
+            // Re-entering the Sensors screen should resync the callback/device list once.
+            // ViewModels survive tab switches, and follower/mirror sensors can appear while
+            // the existing VM is alive. Without this, the screen can keep a stale callback
+            // snapshot until full app restart.
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastDeviceSyncElapsedMs > 1500L) {
+                refreshSensorsWithDeviceSync()
+            } else {
+                refreshSensors()
+            }
             while (true) {
                 // Edit 62c: Only do expensive device sync when something actually changed
                 if (tk.glucodata.drivers.aidex.AiDexDriver.deviceListDirty) {
@@ -176,6 +188,7 @@ class SensorViewModel : ViewModel() {
      * (init, set main, remove sensor, etc.), NOT on the 2-second polling loop.
      */
     private fun refreshSensorsWithDeviceSync() {
+        lastDeviceSyncElapsedMs = SystemClock.elapsedRealtime()
         refreshSensorsInternal(syncDeviceList = true)
     }
 
