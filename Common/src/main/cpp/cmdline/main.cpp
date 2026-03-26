@@ -22,10 +22,15 @@
 #include <stdlib.h>
 
 #include <signal.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "datbackup.hpp"
+#include "net/receive.hpp"
 #include "nums/numdata.hpp"
 #include "settings/settings.hpp"
+
+extern getdata filedata;
 
 //extern bool setfilesdir(const string_view filesdir,const char *country) ;
 extern int startjuggluco(std::string_view dirfiles,const char *country) ;
@@ -876,6 +881,68 @@ bool javaUpdateDevices() {
     LOGAR("javaUpdateDevices() called");
     return true;
     }
+
+extern JNIEnv *getenv();
+JNIEnv *getenv() {
+    return nullptr;
+}
+
+jclass JNINightscoutCalibration = nullptr;
+
+static std::string mirrorCalibrationPath(const char *serial) {
+    std::string relpath = "mirror/calibration/";
+    relpath += serial;
+    relpath += ".json";
+    return relpath;
+}
+
+static std::string readMirrorCalibrationFile(const char *serial) {
+    if (!serial || !*serial) {
+        return {};
+    }
+    const std::string relpath = mirrorCalibrationPath(serial);
+    int fp = filedata.openread(relpath);
+    if (fp < 0) {
+        return {};
+    }
+    destruct closer([fp]() { filedata.close(fp); });
+    struct stat st {};
+    if (fstat(fp, &st) != 0 || st.st_size <= 0) {
+        return {};
+    }
+    std::string json(static_cast<size_t>(st.st_size), '\0');
+    ssize_t got = read(fp, json.data(), json.size());
+    if (got <= 0) {
+        return {};
+    }
+    json.resize(static_cast<size_t>(got));
+    return json;
+}
+
+static void writeMirrorCalibrationFile(const char *serial, const char *json) {
+    if (!serial || !*serial || !json) {
+        return;
+    }
+    const std::string relpath = mirrorCalibrationPath(serial);
+    int fp = filedata.open(relpath);
+    if (fp < 0) {
+        return;
+    }
+    destruct closer([fp]() { filedata.close(fp); });
+    const auto len = static_cast<off_t>(strlen(json));
+    if (ftruncate(fp, len) != 0) {
+        perror("ftruncate calibration profile");
+        return;
+    }
+    if (len == 0) {
+        return;
+    }
+    if (!filedata.savedata(fp, 0, static_cast<uint32_t>(len),
+                           reinterpret_cast<const unsigned char *>(json))) {
+        LOGGER("writeMirrorCalibrationFile(%s) failed\n", serial);
+    }
+}
+
 extern void javaMirrorSyncSensor(const char *serial, bool forceFull);
 void javaMirrorSyncSensor(const char *serial, bool forceFull) {
     LOGGER("javaMirrorSyncSensor(%s,%d)\n", serial ? serial : "(null)", forceFull);
@@ -883,12 +950,13 @@ void javaMirrorSyncSensor(const char *serial, bool forceFull) {
 extern std::string javaExportCalibrationProfile(const char *serial);
 std::string javaExportCalibrationProfile(const char *serial) {
     LOGGER("javaExportCalibrationProfile(%s)\n", serial ? serial : "(null)");
-    return {};
+    return readMirrorCalibrationFile(serial);
 }
 extern void javaImportMirrorCalibrationProfile(const char *serial, const char *json);
 void javaImportMirrorCalibrationProfile(const char *serial, const char *json) {
     LOGGER("javaImportMirrorCalibrationProfile(%s,%zu)\n",
            serial ? serial : "(null)", json ? strlen(json) : 0U);
+    writeMirrorCalibrationFile(serial, json);
 }
     /*
 extern bool hour24clock;
