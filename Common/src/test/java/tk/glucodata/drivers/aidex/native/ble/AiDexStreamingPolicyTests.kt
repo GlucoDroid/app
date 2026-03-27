@@ -95,6 +95,67 @@ class AiDexStreamingPolicyTests {
     }
 
     @Test
+    fun shouldReadSessionCharacteristicsBeforeFirstLive_falseForKnownBondedReconnect() {
+        assertFalse(
+            AiDexStreamingPolicy.shouldReadSessionCharacteristicsBeforeFirstLive(
+                bondStateAtConnection = BluetoothDevice.BOND_BONDED,
+                bondBecameBondedThisConnection = false,
+                autoActivationAttemptedThisConnection = false,
+                needsPostResetActivation = false,
+                hasPersistedHistoryState = true,
+            )
+        )
+    }
+
+    @Test
+    fun shouldReadSessionCharacteristicsBeforeFirstLive_trueForBondTransition() {
+        assertTrue(
+            AiDexStreamingPolicy.shouldReadSessionCharacteristicsBeforeFirstLive(
+                bondStateAtConnection = BluetoothDevice.BOND_BONDED,
+                bondBecameBondedThisConnection = true,
+                autoActivationAttemptedThisConnection = false,
+                needsPostResetActivation = false,
+                hasPersistedHistoryState = true,
+            )
+        )
+    }
+
+    @Test
+    fun shouldReadSessionCharacteristicsBeforeFirstLive_trueWhenHistoryStateIsMissing() {
+        assertTrue(
+            AiDexStreamingPolicy.shouldReadSessionCharacteristicsBeforeFirstLive(
+                bondStateAtConnection = BluetoothDevice.BOND_BONDED,
+                bondBecameBondedThisConnection = false,
+                autoActivationAttemptedThisConnection = false,
+                needsPostResetActivation = false,
+                hasPersistedHistoryState = false,
+            )
+        )
+    }
+
+    @Test
+    fun shouldReadSessionCharacteristicsBeforeFirstLive_trueForActivationFlows() {
+        assertTrue(
+            AiDexStreamingPolicy.shouldReadSessionCharacteristicsBeforeFirstLive(
+                bondStateAtConnection = BluetoothDevice.BOND_BONDED,
+                bondBecameBondedThisConnection = false,
+                autoActivationAttemptedThisConnection = true,
+                needsPostResetActivation = false,
+                hasPersistedHistoryState = true,
+            )
+        )
+        assertTrue(
+            AiDexStreamingPolicy.shouldReadSessionCharacteristicsBeforeFirstLive(
+                bondStateAtConnection = BluetoothDevice.BOND_BONDED,
+                bondBecameBondedThisConnection = false,
+                autoActivationAttemptedThisConnection = false,
+                needsPostResetActivation = true,
+                hasPersistedHistoryState = true,
+            )
+        )
+    }
+
+    @Test
     fun resolveNoStreamWatchdogDelayMs_extendsWhenRecentHistoryExists() {
         val delayMs = AiDexStreamingPolicy.resolveNoStreamWatchdogDelayMs(
             defaultDelayMs = 25_000L,

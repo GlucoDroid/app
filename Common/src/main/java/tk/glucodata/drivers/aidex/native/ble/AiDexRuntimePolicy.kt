@@ -66,6 +66,19 @@ internal object AiDexRuntimePolicy {
         return (nowMs - anchorMs) < firstValidReadingWaitMaxMs
     }
 
+    fun shouldAcceptBroadcastFallback(
+        broadcastOnlyMode: Boolean,
+        waitingForFirstDirectLive: Boolean,
+        hadRecentLiveDataBeforeBroadcast: Boolean,
+    ): Boolean {
+        return broadcastOnlyMode || waitingForFirstDirectLive || !hadRecentLiveDataBeforeBroadcast
+    }
+
+    fun shouldContinueBroadcastScanning(
+        broadcastOnlyMode: Boolean,
+        noDirectLiveBroadcastFallbackMode: Boolean,
+    ): Boolean = broadcastOnlyMode || noDirectLiveBroadcastFallbackMode
+
     fun firstValidReadingWaitStatus(
         anchorMs: Long,
         nowMs: Long,

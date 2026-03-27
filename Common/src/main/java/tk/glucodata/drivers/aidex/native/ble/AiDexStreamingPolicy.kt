@@ -18,6 +18,22 @@ internal object AiDexStreamingPolicy {
         return bondStateAtConnection != BluetoothDevice.BOND_BONDED || bondBecameBondedThisConnection
     }
 
+    fun shouldReadSessionCharacteristicsBeforeFirstLive(
+        bondStateAtConnection: Int,
+        bondBecameBondedThisConnection: Boolean,
+        autoActivationAttemptedThisConnection: Boolean,
+        needsPostResetActivation: Boolean,
+        hasPersistedHistoryState: Boolean,
+    ): Boolean {
+        if (needsPostResetActivation || autoActivationAttemptedThisConnection) {
+            return true
+        }
+        if (bondStateAtConnection != BluetoothDevice.BOND_BONDED || bondBecameBondedThisConnection) {
+            return true
+        }
+        return !hasPersistedHistoryState
+    }
+
     fun decideNoStreamRecovery(
         hasRecentBroadcastData: Boolean,
         historyDownloading: Boolean,

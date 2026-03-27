@@ -182,4 +182,48 @@ class AiDexRuntimePolicyTests {
             )
         )
     }
+
+    @Test
+    fun shouldAcceptBroadcastFallback_trueWhileWaitingForFirstDirectLive() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldAcceptBroadcastFallback(
+                broadcastOnlyMode = false,
+                waitingForFirstDirectLive = true,
+                hadRecentLiveDataBeforeBroadcast = true,
+            )
+        )
+    }
+
+    @Test
+    fun shouldAcceptBroadcastFallback_falseWhenDirectLiveIsAlreadyHealthy() {
+        assertFalse(
+            AiDexRuntimePolicy.shouldAcceptBroadcastFallback(
+                broadcastOnlyMode = false,
+                waitingForFirstDirectLive = false,
+                hadRecentLiveDataBeforeBroadcast = true,
+            )
+        )
+    }
+
+    @Test
+    fun shouldContinueBroadcastScanning_trueForNoDirectLiveFallbackMode() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldContinueBroadcastScanning(
+                broadcastOnlyMode = false,
+                noDirectLiveBroadcastFallbackMode = true,
+            )
+        )
+        assertTrue(
+            AiDexRuntimePolicy.shouldContinueBroadcastScanning(
+                broadcastOnlyMode = true,
+                noDirectLiveBroadcastFallbackMode = false,
+            )
+        )
+        assertFalse(
+            AiDexRuntimePolicy.shouldContinueBroadcastScanning(
+                broadcastOnlyMode = false,
+                noDirectLiveBroadcastFallbackMode = false,
+            )
+        )
+    }
 }

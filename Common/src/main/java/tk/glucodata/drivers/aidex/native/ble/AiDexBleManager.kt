@@ -114,6 +114,7 @@ class AiDexBleManager(
         private const val WARMUP_DURATION_MS = 7L * 60_000L  // 7 minutes (matches Kotlin AiDex warmup gate)
         private const val FIRST_VALID_READING_WAIT_MAX_MS = 60L * 60_000L  // Total wait window for the first usable reading
         private const val POST_RESET_WAITING_STATUS = "Waiting for first valid reading"
+        private const val CONNECTED_BROADCAST_FALLBACK_STATUS = "Connected (broadcast fallback)"
         private const val BROADCAST_FALLBACK_LIVE_TIMEOUT_MS = 90_000L
         private const val LIVE_HISTORY_CONTINUITY_BUCKET_MS = 60_000L
         private const val LIVE_HISTORY_CONTINUITY_MAX_MISSING_BUCKETS = 10
@@ -496,6 +497,7 @@ class AiDexBleManager(
     @Volatile private var lastBroadcastGlucoseSeen: Int = Int.MIN_VALUE
     @Volatile private var lastBroadcastOffsetSeenAtMs: Long = 0L
     @Volatile private var broadcastScanMisses: Int = 0
+    @Volatile private var noDirectLiveBroadcastFallbackMode: Boolean = false
 
     // -- Transient Status --
     /** Temporary status message (e.g., calibration result) that auto-clears after 5 seconds. */
@@ -637,6 +639,40 @@ class AiDexBleManager(
 
     private fun hasRecentBroadcastData(now: Long = System.currentTimeMillis()): Boolean {
         return lastBroadcastTime > 0L && (now - lastBroadcastTime) < BROADCAST_FALLBACK_LIVE_TIMEOUT_MS
+    }
+
+    private fun waitingForFirstDirectLive(): Boolean {
+        return phase == Phase.STREAMING && streamingStartedAtMs > 0L && lastF003FrameTimeMs < streamingStartedAtMs
+    }
+
+    private fun shouldContinueBroadcastScanning(): Boolean {
+        return AiDexRuntimePolicy.shouldContinueBroadcastScanning(
+            broadcastOnlyMode = reconnect.isBroadcastOnlyMode,
+            noDirectLiveBroadcastFallbackMode = noDirectLiveBroadcastFallbackMode,
+        )
+    }
+
+    private fun enableNoDirectLiveBroadcastFallbackMode(reason: String) {
+        if (reconnect.isBroadcastOnlyMode || noDirectLiveBroadcastFallbackMode || !waitingForFirstDirectLive()) {
+            return
+        }
+        noDirectLiveBroadcastFallbackMode = true
+        if (constatstatusstr.isBlank() || constatstatusstr == "Connected" || constatstatusstr == CONNECTED_BROADCAST_FALLBACK_STATUS) {
+            constatstatusstr = CONNECTED_BROADCAST_FALLBACK_STATUS
+        }
+        Log.i(TAG, "No direct F003 yet — enabling broadcast fallback mode ($reason)")
+    }
+
+    private fun disableNoDirectLiveBroadcastFallbackMode(reason: String) {
+        if (!noDirectLiveBroadcastFallbackMode) return
+        noDirectLiveBroadcastFallbackMode = false
+        if (constatstatusstr == CONNECTED_BROADCAST_FALLBACK_STATUS) {
+            constatstatusstr = if (phase == Phase.STREAMING) "Connected" else ""
+        }
+        Log.i(TAG, "Direct live resumed — disabling broadcast fallback mode ($reason)")
+        if (!reconnect.isBroadcastOnlyMode) {
+            cancelBroadcastScan()
+        }
     }
 
     private fun shouldContinueAssistScanning(now: Long = System.currentTimeMillis()): Boolean {
@@ -784,10 +820,15 @@ class AiDexBleManager(
             pendingStreamingMetadataRead = false
             pendingStreamingMetadataReason = null
             lastF002FrameTimeMs = 0L
+            noDirectLiveBroadcastFallbackMode = false
             clearPendingRoomHistory("new-connection")
             handler.removeCallbacks(noStreamWatchdog)
             handler.removeCallbacks(delayedInitialHistoryRequest)
             handler.removeCallbacks(delayedStreamingMetadataRequest)
+            broadcastScanMisses = 0
+            lastBroadcastGlucose = 0f
+            lastBroadcastTime = 0L
+            lastBroadcastStoredTime = 0L
             lastBroadcastOffsetSeen = -1L
             lastBroadcastTrendSeen = Int.MIN_VALUE
             lastBroadcastGlucoseSeen = Int.MIN_VALUE
@@ -842,6 +883,8 @@ class AiDexBleManager(
             pendingStreamingMetadataRead = false
             pendingStreamingMetadataReason = null
             lastF002FrameTimeMs = 0L
+            noDirectLiveBroadcastFallbackMode = false
+            broadcastScanMisses = 0
             lastBroadcastOffsetSeen = -1L
             lastBroadcastTrendSeen = Int.MIN_VALUE
             lastBroadcastGlucoseSeen = Int.MIN_VALUE
@@ -1248,10 +1291,11 @@ class AiDexBleManager(
                 streamingStartedAtMs > 0L &&
                 lastF003FrameTimeMs < streamingStartedAtMs
             ) {
-                pendingInitialHistoryRequest = false
-                handler.removeCallbacks(delayedInitialHistoryRequest)
-                Log.i(TAG, "CGM Session Start confirmed an existing session — starting history before first live frame")
-                requestHistoryRange()
+                // Do not treat 2AAA confirmation as permission to front-load history.
+                // Clean 1.8.1 traces and later no-F003 field logs both fit a quieter
+                // startup better: keep waiting for the first live frame, and let the
+                // existing delayed history fallback fire if live never shows up.
+                Log.i(TAG, "CGM Session Start confirmed an existing session — keeping delayed history fallback; still waiting for first live frame")
             }
         }
     }
@@ -1593,7 +1637,19 @@ class AiDexBleManager(
 
         if (requestHistory) {
             pendingInitialHistoryRequest = true
-            readCGMSessionCharacteristics()
+            val shouldPrimeSessionCharacteristics = AiDexStreamingPolicy.shouldReadSessionCharacteristicsBeforeFirstLive(
+                bondStateAtConnection = bondStateAtConnection,
+                bondBecameBondedThisConnection = bondBecameBondedThisConnection,
+                autoActivationAttemptedThisConnection = autoActivationAttemptedThisConnection,
+                needsPostResetActivation = needsPostResetActivation,
+                hasPersistedHistoryState = historyRawNextIndex > 0 || historyBriefNextIndex > 0,
+            )
+            if (shouldPrimeSessionCharacteristics) {
+                Log.i(TAG, "Streaming startup: reading CGM session characteristics before first live")
+                readCGMSessionCharacteristics()
+            } else {
+                Log.i(TAG, "Streaming startup: deferring CGM session characteristics until live/history fallback")
+            }
             handler.postDelayed(delayedInitialHistoryRequest, INITIAL_HISTORY_REQUEST_DELAY_MS)
         }
     }
@@ -1648,6 +1704,7 @@ class AiDexBleManager(
             pendingInitialHistoryRequest = pendingInitialHistoryRequest,
             historyDownloading = historyDownloading,
         )
+        disableNoDirectLiveBroadcastFallbackMode("first-live-$source")
         noteValidReadingAvailable(now, "valid-$source")
         if (shouldStartHistoryNow) {
             pendingInitialHistoryRequest = false
@@ -3153,10 +3210,15 @@ class AiDexBleManager(
                     }
                 }
 
-                connectedWarmupStatus("Connected")?.let { return it }
+                val connectionPart = if (noDirectLiveBroadcastFallbackMode) {
+                    CONNECTED_BROADCAST_FALLBACK_STATUS
+                } else {
+                    "Connected"
+                }
+                connectedWarmupStatus(connectionPart)?.let { return it }
 
                 // Normal connected state
-                "Connected"
+                connectionPart
             }
         }
     }
@@ -3233,6 +3295,7 @@ class AiDexBleManager(
         Log.i(TAG, "softDisconnect: pausing sensor $SerialNumber")
         _isPaused = true  // Block external reconnection triggers (LossOfSensorAlarm, reconnectall)
         stop = true  // Prevent auto-reconnect from disconnect handler
+        noDirectLiveBroadcastFallbackMode = false
         cancelBroadcastScan()  // Stop active BLE scanner and cancel scheduled scans
         handler.removeCallbacksAndMessages(null)   // Cancel pending reconnects/timeouts
         close()  // SuperGattCallback.close() does disconnect + close + nulls mBluetoothGatt
@@ -3243,6 +3306,7 @@ class AiDexBleManager(
 
     override fun manualReconnectNow() {
         Log.i(TAG, "manualReconnectNow: forcing reconnect for $SerialNumber")
+        noDirectLiveBroadcastFallbackMode = false
         cancelBroadcastScan()
         _isPaused = false   // Clear paused flag — user explicitly wants reconnection
         isUnpaired = false // Clear unpaired flag — user explicitly wants reconnection
@@ -3475,7 +3539,8 @@ class AiDexBleManager(
 
     /**
      * Start a BLE scan for broadcast advertisements from this sensor.
-     * Used in broadcast-only mode (after unpair, or manual broadcast mode).
+     * Used in broadcast-only mode and as a no-direct-live fallback while the
+     * GATT session is still connected but F003 never started.
      *
      * Ported from AiDexSensor.kt:startBroadcastScan().
      */
@@ -3485,7 +3550,7 @@ class AiDexBleManager(
             hasRecentBroadcastData(now)
     }
 
-    private fun startBroadcastScan(reason: String, continuous: Boolean = reconnect.isBroadcastOnlyMode) {
+    private fun startBroadcastScan(reason: String, continuous: Boolean = shouldContinueBroadcastScanning()) {
         if (broadcastScanActive) return
 
         val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
@@ -3569,8 +3634,9 @@ class AiDexBleManager(
 
         broadcastScanMisses = if (found) 0 else (broadcastScanMisses + 1)
 
-        // Schedule next scan if still in broadcast-only mode
-        if (broadcastScanContinuousMode && reconnect.isBroadcastOnlyMode && !stop) {
+        // Schedule next scan if this session is intentionally staying on broadcasts.
+        val keepContinuousScanning = shouldContinueBroadcastScanning()
+        if ((broadcastScanContinuousMode || keepContinuousScanning) && keepContinuousScanning && !stop) {
             scheduleBroadcastScan("post-$reason")
         } else if (!broadcastScanContinuousMode && !found && shouldContinueAssistScanning()) {
             handler.removeCallbacks(broadcastAssistRunnable)
@@ -3598,7 +3664,7 @@ class AiDexBleManager(
      * Schedule the next broadcast scan with appropriate delay.
      */
     private fun scheduleBroadcastScan(reason: String) {
-        if (!reconnect.isBroadcastOnlyMode || stop) return
+        if (!shouldContinueBroadcastScanning() || stop) return
 
         var delay = BROADCAST_SCAN_INTERVAL_MS
         // Retry aggressively (15s) for a few attempts if we're missing broadcasts
@@ -3657,6 +3723,8 @@ class AiDexBleManager(
         if (data.size < 7) return
 
         val now = System.currentTimeMillis()
+        val waitingForFirstDirectLive = waitingForFirstDirectLive()
+        val hadRecentLiveDataBeforeBroadcast = hasRecentLiveData(now)
 
         val offsetMinutes = u32LE(data, 0) and 0xFFFF_FFFFL
         val trend = data[4].toInt()
@@ -3698,9 +3766,16 @@ class AiDexBleManager(
         lastOffsetMinutes = offsetMinutes.toInt()
         ensureSensorStartTime(now)
 
-        val fallbackActive = reconnect.isBroadcastOnlyMode || !hasRecentLiveData(now)
+        val fallbackActive = AiDexRuntimePolicy.shouldAcceptBroadcastFallback(
+            broadcastOnlyMode = reconnect.isBroadcastOnlyMode,
+            waitingForFirstDirectLive = waitingForFirstDirectLive,
+            hadRecentLiveDataBeforeBroadcast = hadRecentLiveDataBeforeBroadcast,
+        )
         if (!fallbackActive) {
             return
+        }
+        if (waitingForFirstDirectLive) {
+            enableNoDirectLiveBroadcastFallbackMode("valid-broadcast")
         }
 
         // Update notification status
@@ -3729,12 +3804,14 @@ class AiDexBleManager(
                 val mgdlPacked = (glucoseMgDlInt * 10).toLong() and 0xFFFFFFFFL
                 handleGlucoseResult(mgdlPacked, now)
                 noteValidReadingAvailable(now, "valid-broadcast-fallback")
+                lastBroadcastStoredTime = now
                 maybeRequestHistoryContinuitySyncAfterLive(now, "broadcast-fallback")
             }
         } else {
             val mgdlPacked = (glucoseMgDlInt * 10).toLong() and 0xFFFFFFFFL
             handleGlucoseResult(mgdlPacked, now)
             noteValidReadingAvailable(now, "valid-broadcast-no-dataptr")
+            lastBroadcastStoredTime = now
             maybeRequestHistoryContinuitySyncAfterLive(now, "broadcast-no-dataptr")
         }
 
