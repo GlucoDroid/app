@@ -9,6 +9,62 @@ import org.junit.Test
 class AiDexStreamingPolicyTests {
 
     @Test
+    fun decideNoStreamRecovery_keepsWaitingWhenBroadcastIsRecent() {
+        assertEquals(
+            AiDexStreamingPolicy.NoStreamRecoveryAction.KEEP_WAITING,
+            AiDexStreamingPolicy.decideNoStreamRecovery(
+                hasRecentBroadcastData = true,
+                historyDownloading = false,
+                hasSessionFallbackData = false,
+                historyRefreshAttempted = false,
+                liveCccdRefreshAttempted = false,
+            )
+        )
+    }
+
+    @Test
+    fun decideNoStreamRecovery_requestsHistoryRefreshWhenSessionFallbackAlreadyWorked() {
+        assertEquals(
+            AiDexStreamingPolicy.NoStreamRecoveryAction.REQUEST_HISTORY_REFRESH,
+            AiDexStreamingPolicy.decideNoStreamRecovery(
+                hasRecentBroadcastData = false,
+                historyDownloading = false,
+                hasSessionFallbackData = true,
+                historyRefreshAttempted = false,
+                liveCccdRefreshAttempted = false,
+            )
+        )
+    }
+
+    @Test
+    fun decideNoStreamRecovery_refreshesLiveCccdsWhenNoFallbackPathWasSeen() {
+        assertEquals(
+            AiDexStreamingPolicy.NoStreamRecoveryAction.REFRESH_LIVE_CCCDS,
+            AiDexStreamingPolicy.decideNoStreamRecovery(
+                hasRecentBroadcastData = false,
+                historyDownloading = false,
+                hasSessionFallbackData = false,
+                historyRefreshAttempted = false,
+                liveCccdRefreshAttempted = false,
+            )
+        )
+    }
+
+    @Test
+    fun decideNoStreamRecovery_reconnectsAfterBoundedRecoveryStepsAreExhausted() {
+        assertEquals(
+            AiDexStreamingPolicy.NoStreamRecoveryAction.RECONNECT,
+            AiDexStreamingPolicy.decideNoStreamRecovery(
+                hasRecentBroadcastData = false,
+                historyDownloading = false,
+                hasSessionFallbackData = true,
+                historyRefreshAttempted = true,
+                liveCccdRefreshAttempted = true,
+            )
+        )
+    }
+
+    @Test
     fun shouldRefreshLiveCccdsAfterKeyExchange_falseForAlreadyBondedReconnect() {
         assertFalse(
             AiDexStreamingPolicy.shouldRefreshLiveCccdsAfterKeyExchange(

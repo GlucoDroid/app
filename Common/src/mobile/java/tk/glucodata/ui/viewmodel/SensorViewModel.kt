@@ -169,7 +169,7 @@ class SensorViewModel : ViewModel() {
             try {
                 Natives.setcurrentsensor(serial)
                 // Ensure this sensor's data is synced into Room (non-destructive)
-                tk.glucodata.data.HistorySync.forceFullSyncForSensor(serial)
+                tk.glucodata.data.HistorySync.mergeFullSyncForSensor(serial)
                 refreshSensorsWithDeviceSync()
             } catch (e: Exception) {
                 android.util.Log.e("SensorVM", "Failed to set main sensor: ${e.message}")
@@ -499,14 +499,13 @@ class SensorViewModel : ViewModel() {
         try {
             val current = Natives.lastsensorname()
             if (current == serial) {
-                val active = Natives.activeSensors()
-                val next = active?.firstOrNull { it != serial }
+                val next = SensorBluetooth.resolveReplacementSensorSerial(serial)
                 if (next != null) {
                     Natives.setcurrentsensor(next)
                     android.util.Log.i("SensorVM", "Edit 56b: Switched lastsensorname from $serial to $next")
                     // Ensure the new main sensor's data is up-to-date in Room
                     try {
-                        tk.glucodata.data.HistorySync.forceFullSyncForSensor(next)
+                        tk.glucodata.data.HistorySync.mergeFullSyncForSensor(next)
                     } catch (t2: Throwable) {
                         android.util.Log.e("SensorVM", "switchAwayFromSensor sync failed: ${t2.message}")
                     }

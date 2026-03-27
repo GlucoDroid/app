@@ -25,6 +25,9 @@ object HistorySyncAccess {
     private val forceFullSensorMethod by lazy {
         runCatching { syncHolder?.getMethod("forceFullSyncForSensor", String::class.java) }.getOrNull()
     }
+    private val mergeFullSensorMethod by lazy {
+        runCatching { syncHolder?.getMethod("mergeFullSyncForSensor", String::class.java) }.getOrNull()
+    }
 
     private val repositoryHolder by lazy { runCatching { Class.forName(REPOSITORY_CLASS_NAME) }.getOrNull() }
     private val resetBackfillMethod by lazy {
@@ -49,6 +52,17 @@ object HistorySyncAccess {
                 Float::class.javaPrimitiveType,
                 Float::class.javaPrimitiveType,
                 String::class.java
+            )
+        }.getOrNull()
+    }
+    private val storeHistoryBatchMethod by lazy {
+        runCatching {
+            repositoryHolder?.getMethod(
+                "storeHistoryBatchAsync",
+                String::class.java,
+                LongArray::class.java,
+                FloatArray::class.java,
+                FloatArray::class.java
             )
         }.getOrNull()
     }
@@ -106,6 +120,30 @@ object HistorySyncAccess {
     }
 
     @JvmStatic
+    fun mergeFullSyncForSensor(serial: String?) {
+        if (serial.isNullOrBlank()) return
+        val instance = syncInstance
+        val mergeMethod = mergeFullSensorMethod
+        if (instance != null && mergeMethod != null) {
+            val invoked = runCatching {
+                mergeMethod.invoke(instance, serial)
+            }.onFailure {
+                Log.w(
+                    TAG,
+                    "mergeFullSyncForSensor invoke failed for serial=$serial; falling back to syncSensorFromNative(forceFull=true)",
+                    it
+                )
+            }.isSuccess
+            if (invoked) {
+                return
+            }
+        } else {
+            Log.w(TAG, "mergeFullSyncForSensor unavailable for serial=$serial; falling back to syncSensorFromNative(forceFull=true)")
+        }
+        syncSensorFromNative(serial, forceFull = true)
+    }
+
+    @JvmStatic
     fun resetBackfillFlag() {
         val method = resetBackfillMethod
         if (method == null) {
@@ -157,6 +195,37 @@ object HistorySyncAccess {
                 it
             )
         }
+    }
+
+    @JvmStatic
+    fun storeSensorHistoryBatchAsync(
+        sensorSerial: String?,
+        timestamps: LongArray,
+        valuesMgdl: FloatArray,
+        rawValuesMgdl: FloatArray
+    ): Boolean {
+        if (sensorSerial.isNullOrBlank()) return false
+        if (timestamps.isEmpty()) return true
+        val method = storeHistoryBatchMethod
+        if (method == null) {
+            Log.w(TAG, "storeSensorHistoryBatchAsync unavailable for serial=$sensorSerial")
+            return false
+        }
+        return runCatching {
+            method.invoke(
+                null,
+                sensorSerial,
+                timestamps,
+                valuesMgdl,
+                rawValuesMgdl
+            )
+        }.onFailure {
+            Log.w(
+                TAG,
+                "storeSensorHistoryBatchAsync failed for serial=$sensorSerial size=${timestamps.size}",
+                it
+            )
+        }.isSuccess
     }
 
 }

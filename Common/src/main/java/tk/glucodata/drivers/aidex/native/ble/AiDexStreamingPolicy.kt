@@ -4,11 +4,37 @@ import android.bluetooth.BluetoothDevice
 
 internal object AiDexStreamingPolicy {
 
+    enum class NoStreamRecoveryAction {
+        KEEP_WAITING,
+        REQUEST_HISTORY_REFRESH,
+        REFRESH_LIVE_CCCDS,
+        RECONNECT,
+    }
+
     fun shouldRefreshLiveCccdsAfterKeyExchange(
         bondStateAtConnection: Int,
         bondBecameBondedThisConnection: Boolean,
     ): Boolean {
         return bondStateAtConnection != BluetoothDevice.BOND_BONDED || bondBecameBondedThisConnection
+    }
+
+    fun decideNoStreamRecovery(
+        hasRecentBroadcastData: Boolean,
+        historyDownloading: Boolean,
+        hasSessionFallbackData: Boolean,
+        historyRefreshAttempted: Boolean,
+        liveCccdRefreshAttempted: Boolean,
+    ): NoStreamRecoveryAction {
+        if (hasRecentBroadcastData || historyDownloading) {
+            return NoStreamRecoveryAction.KEEP_WAITING
+        }
+        if (hasSessionFallbackData && !historyRefreshAttempted) {
+            return NoStreamRecoveryAction.REQUEST_HISTORY_REFRESH
+        }
+        if (!liveCccdRefreshAttempted) {
+            return NoStreamRecoveryAction.REFRESH_LIVE_CCCDS
+        }
+        return NoStreamRecoveryAction.RECONNECT
     }
 
     fun resolveNoStreamWatchdogDelayMs(

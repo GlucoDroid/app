@@ -725,17 +725,56 @@ public class SensorBluetooth {
         }
     }
 
-    private String firstRemainingCallbackSerial(String removedSerial) {
-        for (SuperGattCallback cb : gattcallbacks) {
-            final String serial = cb.SerialNumber;
-            if (serial != null && !serial.isEmpty() && !SensorIdentity.matches(serial, removedSerial)) {
-                return serial;
+    private static void addReplacementCandidate(
+            List<String> candidates,
+            Set<String> seen,
+            String serial,
+            String removedSerial) {
+        if (!isValidShortSensorName(serial) || SensorIdentity.matches(serial, removedSerial)) {
+            return;
+        }
+        if (seen.add(serial)) {
+            candidates.add(serial);
+        }
+    }
+
+    private static String resolveReplacementSensorSerial(String removedSerial, Iterable<String> preferredCandidates) {
+        final ArrayList<String> candidates = new ArrayList<>();
+        final HashSet<String> seen = new HashSet<>();
+        if (preferredCandidates != null) {
+            for (String serial : preferredCandidates) {
+                addReplacementCandidate(candidates, seen, serial, removedSerial);
             }
         }
-        return null;
+        try {
+            final String[] activeSensors = Natives.activeSensors();
+            if (activeSensors != null) {
+                for (String serial : activeSensors) {
+                    addReplacementCandidate(candidates, seen, serial, removedSerial);
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(LOG_ID, "resolveReplacementSensorSerial activeSensors failed: " + t.getMessage());
+        }
+
+        final SensorBluetooth currentBlue = blueone;
+        if (currentBlue != null) {
+            for (SuperGattCallback cb : currentBlue.gattcallbacks) {
+                addReplacementCandidate(candidates, seen, cb.SerialNumber, removedSerial);
+            }
+        }
+        return candidates.isEmpty() ? null : candidates.get(0);
+    }
+
+    public static String resolveReplacementSensorSerial(String removedSerial) {
+        return resolveReplacementSensorSerial(removedSerial, null);
     }
 
     private void rehomeCurrentSensorAfterRemoval(String removedSerial) {
+        rehomeCurrentSensorAfterRemoval(removedSerial, null);
+    }
+
+    private void rehomeCurrentSensorAfterRemoval(String removedSerial, Iterable<String> preferredCandidates) {
         if (removedSerial == null || removedSerial.isEmpty()) {
             return;
         }
@@ -743,7 +782,7 @@ public class SensorBluetooth {
         if (!SensorIdentity.matches(current, removedSerial)) {
             return;
         }
-        final String replacement = firstRemainingCallbackSerial(removedSerial);
+        final String replacement = resolveReplacementSensorSerial(removedSerial, preferredCandidates);
         Natives.setcurrentsensor(replacement != null ? replacement : "");
         if (doLog) {
             Log.i(LOG_ID, "rehomeCurrentSensorAfterRemoval " + removedSerial + " -> "
@@ -1133,7 +1172,7 @@ public class SensorBluetooth {
             ;
             gattcallbacks.get(weg).free();
             gattcallbacks.remove(weg);
-            rehomeCurrentSensorAfterRemoval(removedSerial);
+            rehomeCurrentSensorAfterRemoval(removedSerial, allDevs);
         }
         int index = gattcallbacks.size();
         if (devs != null) {

@@ -120,8 +120,6 @@ class AiDexBleManager(
         private const val BROADCAST_ASSIST_SCAN_DELAY_MS = 15_000L
         private const val BROADCAST_ASSIST_SCAN_WINDOW_MS = 12_000L
         private const val BROADCAST_ASSIST_SETUP_STALL_MS = 45_000L
-        private const val HISTORY_SYNC_BATCH_SIZE = 2000  // progressive sync to Room every N entries
-
         // -- Broadcast Scan --
         private const val BROADCAST_SCAN_WINDOW_MS = 12_000L  // Healthy steady-state scan window
         private const val BROADCAST_RECOVERY_SCAN_WINDOW_MS = 30_000L  // Larger window while recovering broadcasts
@@ -205,6 +203,8 @@ class AiDexBleManager(
     @Volatile private var postCccdFollowUp = PostCccdFollowUp.NONE
     private var streamingStartedAtMs: Long = 0L
     private var noStreamRecoveryAttempted = false
+    private var noStreamHistoryRecoveryAttempted = false
+    private var noStreamFallbackReadingObservedAtMs: Long = 0L
     private var postBondLiveRefreshAttempted = false
     private var pendingInitialHistoryRequest = false
     private var pendingStreamingMetadataRead = false
@@ -222,36 +222,52 @@ class AiDexBleManager(
 
     /** Watchdog: re-arm live notifications once, then reconnect if F003 never appears. */
     private val noStreamWatchdog = Runnable {
-        val gatt = mBluetoothGatt ?: return@Runnable
+        mBluetoothGatt ?: return@Runnable
         if (phase != Phase.STREAMING) return@Runnable
         if (streamingStartedAtMs <= 0L || lastF003FrameTimeMs >= streamingStartedAtMs) return@Runnable
         val now = System.currentTimeMillis()
 
-        if (hasRecentBroadcastData(now)) {
-            Log.i(TAG, "No direct F003 yet, but broadcast fallback is healthy — keeping session alive")
-            scheduleNoStreamWatchdog(EXPECTED_LIVE_INTERVAL_MS + EXPECTED_LIVE_GRACE_MS)
-            return@Runnable
+        when (
+            AiDexStreamingPolicy.decideNoStreamRecovery(
+                hasRecentBroadcastData = hasRecentBroadcastData(now),
+                historyDownloading = historyDownloading,
+                hasSessionFallbackData = noStreamFallbackReadingObservedAtMs > 0L,
+                historyRefreshAttempted = noStreamHistoryRecoveryAttempted,
+                liveCccdRefreshAttempted = noStreamRecoveryAttempted,
+            )
+        ) {
+            AiDexStreamingPolicy.NoStreamRecoveryAction.KEEP_WAITING -> {
+                if (hasRecentBroadcastData(now)) {
+                    Log.i(TAG, "No direct F003 yet, but broadcast fallback is healthy — keeping session alive")
+                    scheduleNoStreamWatchdog(EXPECTED_LIVE_INTERVAL_MS + EXPECTED_LIVE_GRACE_MS)
+                } else {
+                    Log.i(TAG, "No F003 yet, but history download is still running — extending no-stream watchdog")
+                    scheduleNoStreamWatchdog()
+                }
+            }
+            AiDexStreamingPolicy.NoStreamRecoveryAction.REQUEST_HISTORY_REFRESH -> {
+                noStreamHistoryRecoveryAttempted = true
+                Log.w(
+                    TAG,
+                    "No direct F003, but this session already produced valid fallback data — requesting bounded history refresh before CCCD recovery"
+                )
+                requestHistoryBackfill()
+                scheduleNoStreamWatchdog(EXPECTED_LIVE_INTERVAL_MS + EXPECTED_LIVE_GRACE_MS)
+            }
+            AiDexStreamingPolicy.NoStreamRecoveryAction.REFRESH_LIVE_CCCDS -> {
+                noStreamRecoveryAttempted = true
+                Log.w(TAG, "No F003 within ${NO_STREAM_WATCHDOG_MS / 1000}s of streaming start — refreshing F003/F002 CCCDs once")
+                refreshLiveCccds(PostCccdFollowUp.RESUME_STREAMING, "no-stream-watchdog")
+            }
+            AiDexStreamingPolicy.NoStreamRecoveryAction.RECONNECT -> {
+                val delay = reconnect.nextReconnectDelayMs()
+                Log.w(TAG, "No F003 after bounded no-stream recovery — reconnecting in ${delay}ms")
+                constatstatusstr = "Reconnecting"
+                setPhase(Phase.IDLE)
+                close()
+                handler.postDelayed({ connectDevice(0) }, delay)
+            }
         }
-
-        if (historyDownloading) {
-            Log.i(TAG, "No F003 yet, but history download is still running — extending no-stream watchdog")
-            scheduleNoStreamWatchdog()
-            return@Runnable
-        }
-
-        if (!noStreamRecoveryAttempted) {
-            noStreamRecoveryAttempted = true
-            Log.w(TAG, "No F003 within ${NO_STREAM_WATCHDOG_MS / 1000}s of streaming start — refreshing F003/F002 CCCDs once")
-            refreshLiveCccds(PostCccdFollowUp.RESUME_STREAMING, "no-stream-watchdog")
-            return@Runnable
-        }
-
-        val delay = reconnect.nextReconnectDelayMs()
-        Log.w(TAG, "No F003 after live CCCD refresh — reconnecting in ${delay}ms")
-        constatstatusstr = "Reconnecting"
-        setPhase(Phase.IDLE)
-        close()
-        handler.postDelayed({ connectDevice(0) }, delay)
     }
 
     private val delayedInitialHistoryRequest = Runnable {
@@ -309,6 +325,9 @@ class AiDexBleManager(
     private var historyStoredCount = 0  // entries stored via aidexProcessData this download
     private var historyDownloadStartIndex = 0  // snapshot of starting index for progress display
     private var historyPhase: HistoryPhase = HistoryPhase.IDLE
+    private val pendingRoomHistoryTimestamps = ArrayList<Long>()
+    private val pendingRoomHistoryValues = ArrayList<Float>()
+    private val pendingRoomHistoryRawValues = ArrayList<Float>()
 
     // -- Post-Reset Activation Flag --
     // Set true by resetSensor(). When the post-reset reconnect reads CGM Session
@@ -345,12 +364,45 @@ class AiDexBleManager(
         DOWNLOADING_RAW,         // 0x24 (ADC/raw data)
     }
 
+    private fun clearPendingRoomHistory(reason: String? = null) {
+        if (pendingRoomHistoryTimestamps.isEmpty()) return
+        pendingRoomHistoryTimestamps.clear()
+        pendingRoomHistoryValues.clear()
+        pendingRoomHistoryRawValues.clear()
+        if (reason != null) {
+            Log.d(TAG, "Cleared pending Room history buffer: $reason")
+        }
+    }
+
+    private fun flushPendingRoomHistoryToRoom(): Boolean {
+        if (pendingRoomHistoryTimestamps.isEmpty()) {
+            return true
+        }
+
+        val size = pendingRoomHistoryTimestamps.size
+        val timestamps = LongArray(size) { index -> pendingRoomHistoryTimestamps[index] }
+        val values = FloatArray(size) { index -> pendingRoomHistoryValues[index] }
+        val rawValues = FloatArray(size) { index -> pendingRoomHistoryRawValues[index] }
+        val stored = tk.glucodata.HistorySyncAccess.storeSensorHistoryBatchAsync(
+            sensorSerial = SerialNumber,
+            timestamps = timestamps,
+            valuesMgdl = values,
+            rawValuesMgdl = rawValues
+        )
+        if (stored) {
+            Log.i(TAG, "Queued $size history rows for direct Room merge")
+            clearPendingRoomHistory()
+        }
+        return stored
+    }
+
     /** Watchdog fires when a history page response never arrives. */
     private val historyPageWatchdog = Runnable {
         if (historyDownloading) {
             Log.e(TAG, "History page watchdog FIRED — no response in ${HISTORY_PAGE_TIMEOUT_MS}ms (phase=$historyPhase)")
             historyDownloading = false
             historyPhase = HistoryPhase.IDLE
+            clearPendingRoomHistory("history-watchdog")
             // Persist current offsets so next reconnect resumes where we stopped
             writeIntPref("historyRawNextIndex", historyRawNextIndex)
             writeIntPref("historyBriefNextIndex", historyBriefNextIndex)
@@ -535,6 +587,8 @@ class AiDexBleManager(
         handler.removeCallbacks(broadcastAssistRunnable)
         clearFirstValidReadingWait(reason)
         if (phase == Phase.STREAMING && streamingStartedAtMs > 0L && lastF003FrameTimeMs < streamingStartedAtMs) {
+            noStreamFallbackReadingObservedAtMs = System.currentTimeMillis()
+            noStreamHistoryRecoveryAttempted = false
             scheduleNoStreamWatchdog()
         }
     }
@@ -723,11 +777,14 @@ class AiDexBleManager(
             lastLiveReadingObservedTimeMs = 0L
             lastLiveContinuitySyncBucket = -1L
             noStreamRecoveryAttempted = false
+            noStreamHistoryRecoveryAttempted = false
+            noStreamFallbackReadingObservedAtMs = 0L
             postBondLiveRefreshAttempted = false
             pendingInitialHistoryRequest = false
             pendingStreamingMetadataRead = false
             pendingStreamingMetadataReason = null
             lastF002FrameTimeMs = 0L
+            clearPendingRoomHistory("new-connection")
             handler.removeCallbacks(noStreamWatchdog)
             handler.removeCallbacks(delayedInitialHistoryRequest)
             handler.removeCallbacks(delayedStreamingMetadataRequest)
@@ -778,6 +835,8 @@ class AiDexBleManager(
             streamingStartedAtMs = 0L
             lastF003FrameTimeMs = 0L
             noStreamRecoveryAttempted = false
+            noStreamHistoryRecoveryAttempted = false
+            noStreamFallbackReadingObservedAtMs = 0L
             postBondLiveRefreshAttempted = false
             pendingInitialHistoryRequest = false
             pendingStreamingMetadataRead = false
@@ -787,6 +846,7 @@ class AiDexBleManager(
             lastBroadcastTrendSeen = Int.MIN_VALUE
             lastBroadcastGlucoseSeen = Int.MIN_VALUE
             lastBroadcastOffsetSeenAtMs = 0L
+            clearPendingRoomHistory("disconnect")
 
             // Clear per-connection caches and state (bugs #6, #7, #12, #13)
             calibratedGlucoseCache.clear()
@@ -2140,6 +2200,7 @@ class AiDexBleManager(
         historyDownloading = true
         historyDownloadStartIndex = rawStart  // snapshot for progress display
         historyPhase = HistoryPhase.DOWNLOADING_CALIBRATED
+        clearPendingRoomHistory("history-range-reset")
         Log.i(TAG, "History range: briefStart=$briefStart, rawStart=$rawStart, newest=$newest")
 
         val downloadPlan = AiDexHistoryPolicy.planInitialDownload(
@@ -2839,13 +2900,15 @@ class AiDexBleManager(
     }
 
     /**
-     * Store a batch of history entries to the native C++ layer via aidexProcessData.
+     * Store a batch of history entries to the native C++ layer without triggering
+     * live-reading side effects on every row.
      *
      * Matches the vendor driver's storeHistoryRecord() logic:
      * - Requires sensorstartmsec > 0 (timestamp = sensorstartmsec + offset * 60_000)
      * - Filters: invalid entries, ADC saturation (≥1023), out of range, warmup period, future
-     * - Calls aidexProcessData with ONLY glucose/raw, NO handleGlucoseResult (no notifications)
-     * - Does progressive HistorySync every HISTORY_SYNC_BATCH_SIZE entries
+     * - Uses a quiet native history path (native persistence only)
+     * - Leaves UI/current-reading refresh to the single catch-up update after download completion
+     * - Leaves Room merge to a single non-destructive sync after download completion
      */
     private fun storeHistoryEntries(entries: List<HistoryStoreEntry>) {
         // Ensure start time is available before computing timestamps.
@@ -2903,13 +2966,13 @@ class AiDexBleManager(
             // Future-timestamp guard (2 minutes tolerance)
             if (historicalTimeMs > now + 120_000L) continue
 
-            // Store via JNI — lightweight path, no handleGlucoseResult
+            // Store via JNI — quiet history path, no per-entry UI wakeups
             try {
                 val rawForStore = if (entry.rawMgDl.isFinite() && entry.rawMgDl > 0f) entry.rawMgDl else 0f
-                Natives.aidexProcessData(
-                    dataptr, byteArrayOf(0), historicalTimeMs,
-                    entry.glucoseMgDl, rawForStore, 1.0f
-                )
+                Natives.aidexStoreHistoryData(dataptr, historicalTimeMs, entry.glucoseMgDl, rawForStore)
+                pendingRoomHistoryTimestamps.add(historicalTimeMs)
+                pendingRoomHistoryValues.add(entry.glucoseMgDl)
+                pendingRoomHistoryRawValues.add(rawForStore)
                 stored++
                 historyStoredCount++
                 if (historicalTimeMs > newestStoredTimeMs) {
@@ -2924,17 +2987,6 @@ class AiDexBleManager(
                 break  // Don't keep hammering a broken JNI
             }
 
-            // Progressive sync to Room DB every HISTORY_SYNC_BATCH_SIZE entries.
-            // Uses forceFullSyncForSensor (DELETE + re-insert) to bypass the
-            // 30-second throttle in syncFromNative(), matching vendor driver Edit 73.
-            // This allows the chart to show data incrementally during large downloads
-            // instead of waiting until the entire history is fetched.
-            if (historyStoredCount % HISTORY_SYNC_BATCH_SIZE == 0) {
-                try {
-                    tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber)
-                    Log.i(TAG, "Progressive sync at $historyStoredCount entries")
-                } catch (_: Throwable) {}
-            }
         }
 
         if (stored > 0) {
@@ -2960,16 +3012,26 @@ class AiDexBleManager(
 
         Log.i(TAG, "History download complete. Total entries stored: $historyStoredCount")
 
-        // Final sync to Room DB
+        // Ordinary AiDex history import already has the final timestamps/glucose values
+        // in Kotlin. Push that batch directly into Room instead of rereading the full
+        // native store back into Room again.
         if (historyStoredCount > 0) {
-            try {
-                tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber)
+            val storedDirectly = try {
+                flushPendingRoomHistoryToRoom()
             } catch (t: Throwable) {
-                Log.e(TAG, "HistorySync.forceFullSyncForSensor failed: $t")
-                // Fallback
+                Log.e(TAG, "Direct Room history flush failed: $t")
+                false
+            }
+            if (!storedDirectly) {
                 try {
-                    tk.glucodata.HistorySyncAccess.syncSensorFromNative(SerialNumber, forceFull = true)
-                } catch (_: Throwable) {}
+                    tk.glucodata.HistorySyncAccess.mergeFullSyncForSensor(SerialNumber)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "HistorySync.mergeFullSyncForSensor fallback failed: $t")
+                    try {
+                        tk.glucodata.HistorySyncAccess.syncSensorFromNative(SerialNumber, forceFull = true)
+                    } catch (_: Throwable) {}
+                }
+                clearPendingRoomHistory("merge-fallback")
             }
         }
 
@@ -3223,6 +3285,7 @@ class AiDexBleManager(
         writeIntPref("historyRawNextIndex", 0)
         writeIntPref("historyBriefNextIndex", 0)
         liveOffsetCutoff = 0
+        clearPendingRoomHistory("reset-sensor")
         Log.i(TAG, "resetSensor: history indices reset to 0")
 
         // Set flags BEFORE sending commands — the disconnect handler checks pendingResetReconnect,
@@ -3250,6 +3313,7 @@ class AiDexBleManager(
         writeIntPref("historyRawNextIndex", 0)
         writeIntPref("historyBriefNextIndex", 0)
         liveOffsetCutoff = 0
+        clearPendingRoomHistory("start-new-sensor")
         calibratedGlucoseCache.clear()
         lastCalibratedGlucoseFallback = null
         Log.i(TAG, "startNewSensor: history indices and caches reset")

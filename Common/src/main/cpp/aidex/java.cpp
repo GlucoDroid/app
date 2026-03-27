@@ -12,6 +12,37 @@ extern jlong glucoseback(uint32_t nu, uint32_t glval, float drate,
                          SensorGlucoseData *hist);
 extern void wakewithcurrent();
 
+static bool prepareAidexStore(jlong dataptr, jlong mmsec, jfloat glucose,
+                              jfloat rawGlucose, aidexstream *&sdata,
+                              SensorGlucoseData *&sens, uint32_t &timsec,
+                              int &internalVal, int &rawVal, int &id) {
+  sdata = reinterpret_cast<aidexstream *>(dataptr);
+  if (!sdata) {
+    LOGAR("aidex store sdata==null");
+    return false;
+  }
+  sens = sdata->hist;
+  if (!sens) {
+    LOGAR("aidex store SensorGlucoseData==null");
+    return false;
+  }
+
+  timsec = mmsec / 1000L;
+  internalVal = (glucose > 0) ? (int)std::round(glucose) : 0;
+  rawVal = 0;
+  if (rawGlucose > 0) {
+    constexpr float mgdlToMmol = 1.0f / 18.0182f;
+    rawVal = (int)std::round(rawGlucose * mgdlToMmol * 10.0f);
+  }
+
+  id = sens->getinfo()->pollcount;
+  if (id > 0) {
+    uint32_t start = sens->getinfo()->starttime;
+    id = (timsec - start + 30) / 60;
+  }
+  return true;
+}
+
 extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
     JNIEnv *env, jclass cl, jlong dataptr, jbyteArray value, jlong mmsec,
     jfloat glucose, jfloat rawGlucose, jfloat calibrationFactor) {
@@ -20,28 +51,15 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
     return 1LL;
   }
 
-  aidexstream *sdata = reinterpret_cast<aidexstream *>(dataptr);
-  if (!sdata) {
-    LOGAR("aidexProcessData sdata==null");
-    return 1LL;
-  }
-  SensorGlucoseData *sens = sdata->hist;
-  if (!sens) {
-    LOGAR("aidexProcessData SensorGlucoseData==null");
-    return 1LL;
-  }
-
-  const uint32_t timsec = mmsec / 1000L;
-  // Use the glucose value passed from Kotlin directly.
-  // This ensures consistency between the UI/Notification and the background
-  // sync.
-  int internalVal = (glucose > 0) ? (int)std::round(glucose) : 0;
-  // Raw values stored in rawpolls are expected to be in mmol/L * 10.
-  // getGlucoseHistory() converts rawpolls to mg/dL * 10 by multiplying 18.0182.
+  aidexstream *sdata = nullptr;
+  SensorGlucoseData *sens = nullptr;
+  uint32_t timsec = 0;
+  int internalVal = 0;
   int rawVal = 0;
-  if (rawGlucose > 0) {
-    constexpr float mgdlToMmol = 1.0f / 18.0182f;
-    rawVal = (int)std::round(rawGlucose * mgdlToMmol * 10.0f);
+  int id = 0;
+  if (!prepareAidexStore(dataptr, mmsec, glucose, rawGlucose, sdata, sens,
+                         timsec, internalVal, rawVal, id)) {
+    return 1LL;
   }
 
   // Trend/Rate (AiDex doesn't have a clear rate byte yet, using NAN)
@@ -51,13 +69,6 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
   time_t tim = timsec;
   LOGGER("aidexProcessData glucose=%d %s", internalVal, ctime(&tim));
 #endif
-
-  // Calculate proper ID to advance history
-  int id = sens->getinfo()->pollcount;
-  if (id > 0) {
-    uint32_t start = sens->getinfo()->starttime;
-    id = (timsec - start + 30) / 60;
-  }
 
   // Unified persistence: store in both stream and history
   // Using 60 seconds interval for AiDex
@@ -79,6 +90,23 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
   wakewithcurrent();
 
   return res;
+}
+
+extern "C" JNIEXPORT void JNICALL fromjava(aidexStoreHistoryData)(
+    JNIEnv *env, jclass cl, jlong dataptr, jlong mmsec, jfloat glucose,
+    jfloat rawGlucose) {
+  aidexstream *sdata = nullptr;
+  SensorGlucoseData *sens = nullptr;
+  uint32_t timsec = 0;
+  int internalVal = 0;
+  int rawVal = 0;
+  int id = 0;
+  if (!prepareAidexStore(dataptr, mmsec, glucose, rawGlucose, sdata, sens,
+                         timsec, internalVal, rawVal, id)) {
+    return;
+  }
+
+  sens->savepollallIDsQuiet<60>(timsec, id, internalVal, 0, NAN, rawVal);
 }
 
 extern "C" JNIEXPORT void JNICALL fromjava(aidexSetStartTime)(JNIEnv *env,

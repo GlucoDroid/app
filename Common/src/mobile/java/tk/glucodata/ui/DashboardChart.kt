@@ -195,25 +195,37 @@ private fun buildSmoothedChartData(
     val halfWindowMs = (smoothingMinutes * 60_000L) / 2L
     if (halfWindowMs <= 0L) return points
 
-    val smoothedAuto = smoothChartSeries(points, halfWindowMs) { it.value }
-    val smoothedRaw = smoothChartSeries(points, halfWindowMs) { it.rawValue }
+    val collapsedInterval = DataSmoothing.collapseIntervalMinutes(smoothingMinutes)
+    val result = ArrayList<GlucosePoint>(points.size)
 
-    val smoothed = ArrayList<GlucosePoint>(points.size).apply {
-        points.indices.forEach { index ->
-            val point = points[index]
-            add(
-                point.copy(
-                    value = smoothedAuto[index],
-                    rawValue = smoothedRaw[index]
-                )
-            )
+    GlucosePointSegments.split(points).forEach { segment ->
+        val smoothedSegment = if (segment.size < 3) {
+            segment
+        } else {
+            val smoothedAuto = smoothChartSeries(segment, halfWindowMs) { it.value }
+            val smoothedRaw = smoothChartSeries(segment, halfWindowMs) { it.rawValue }
+
+            ArrayList<GlucosePoint>(segment.size).apply {
+                segment.indices.forEach { index ->
+                    val point = segment[index]
+                    add(
+                        point.copy(
+                            value = smoothedAuto[index],
+                            rawValue = smoothedRaw[index]
+                        )
+                    )
+                }
+            }
+        }
+
+        if (collapseIntoChunks) {
+            result.addAll(collapseSmoothedChartData(smoothedSegment, collapsedInterval))
+        } else {
+            result.addAll(smoothedSegment)
         }
     }
-    return if (collapseIntoChunks) {
-        collapseSmoothedChartData(smoothed, DataSmoothing.collapseIntervalMinutes(smoothingMinutes))
-    } else {
-        smoothed
-    }
+
+    return result
 }
 
 private fun collapseSmoothedChartData(
@@ -362,6 +374,7 @@ private fun PreviewWindowNavigator(
                 val previewPath = Path()
                 var started = false
                 var lastTimestamp = 0L
+                var lastSensorSerial: String? = null
                 val gapThreshold = 15 * 60 * 1000L
                 for (index in startIdx until endExclusive) {
                     val value = activeValue(index)
@@ -370,15 +383,21 @@ private fun PreviewWindowNavigator(
                         continue
                     }
                     val timestamp = renderData[index].timestamp
+                    val sensorSerial = renderData[index].sensorSerial
                     val x = timeToX(timestamp)
                     val y = valueToY(value).coerceIn(-64f, heightPx + 64f)
-                    if (!started || (timestamp - lastTimestamp) > gapThreshold) {
+                    val sensorChanged = started &&
+                        lastSensorSerial != null &&
+                        sensorSerial != null &&
+                        sensorSerial != lastSensorSerial
+                    if (!started || (timestamp - lastTimestamp) > gapThreshold || sensorChanged) {
                         previewPath.moveTo(x, y)
                         started = true
                     } else {
                         previewPath.lineTo(x, y)
                     }
                     lastTimestamp = timestamp
+                    lastSensorSerial = sensorSerial
                 }
                 drawPath(
                     path = previewPath,
@@ -874,7 +893,10 @@ fun InteractiveGlucoseChart(
 
     // Limits
     val minDuration = 10L * 60 * 1000
-    val maxDuration = 72L * 60 * 60 * 1000
+    val maxDuration = remember(earliestDataTimestamp, latestDataTimestamp) {
+        val fullSpan = (latestDataTimestamp - earliestDataTimestamp).coerceAtLeast(0L)
+        maxOf(72L * 60L * 60L * 1000L, fullSpan + (2L * 60L * 60L * 1000L))
+    }
     val maxAllowedTime = System.currentTimeMillis() + (2 * 60 * 60 * 1000)
 
     fun cancelAutoScroll() {
@@ -1727,6 +1749,7 @@ fun InteractiveGlucoseChart(
                     var calLastX = -10000f
                     var calLastY = -10000f
                     var calLastTimestamp = 0L
+                    var lastSensorSerial: String? = null
 
                     // Optimization: Pre-calculate scaling factors to avoid repeated division in valToY/timeToDataX
                     val timeScale = dataWidth / animDur
@@ -1738,6 +1761,14 @@ fun InteractiveGlucoseChart(
 
                     for (i in startIdx until endIdx) {
                         val renderPoint = renderData[i]
+                        val sensorChanged = lastSensorSerial != null &&
+                            renderPoint.sensorSerial != null &&
+                            renderPoint.sensorSerial != lastSensorSerial
+                        if (sensorChanged) {
+                            rawFirst = true
+                            autoFirst = true
+                            calFirst = true
+                        }
                         // X is shared for all lines at this timestamp
                         val px = (renderPoint.timestamp - viewportStart) * timeScale
                         
@@ -1864,6 +1895,8 @@ fun InteractiveGlucoseChart(
                                 }
                             }
                         }
+
+                        lastSensorSerial = renderPoint.sensorSerial
                     }
 
                     // --- DRAW PATHS ---

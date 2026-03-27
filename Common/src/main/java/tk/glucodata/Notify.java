@@ -1999,6 +1999,9 @@ public class Notify {
     private void updateForegroundGlucoseNotification(int kind, float glvalue, notGlucose glucose) {
         final String currentMessage = format(usedlocale, glucoseformat, glvalue);
         postForegroundGlucoseNotification(kind, glvalue, currentMessage, glucose);
+        // Live glucose is persisted asynchronously. Repaint once shortly after the
+        // direct update so notification formatting/chart/rate can catch the Room write.
+        scheduleInteractiveNotificationRefresh();
     }
 
     private void arrowsoundalarm(int kind, float glvalue, String message, notGlucose sglucose, String type,
@@ -3546,6 +3549,9 @@ public class Notify {
             boolean once) {
         hasvalue = true;
         fornotify(makearrownotification(kind, glvalue, message, glucose, type, once));
+        if (once && GLUCOSENOTIFICATION.equals(type)) {
+            scheduleInteractiveNotificationRefresh();
+        }
 
     }
 
@@ -3570,6 +3576,9 @@ public class Notify {
         }
         ;
         fornotify(makearrownotification(kind, glvalue, message, glucose, type, once));
+        if (once && GLUCOSENOTIFICATION.equals(type)) {
+            scheduleInteractiveNotificationRefresh();
+        }
     }
 
     final private int numalarmid = 81432;

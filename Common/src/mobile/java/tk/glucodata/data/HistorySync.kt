@@ -435,6 +435,30 @@ object HistorySync {
         }
     }
 
+    /**
+     * Force a full resync of a SPECIFIC sensor without deleting existing Room rows first.
+     *
+     * Use this for ordinary sensor switching/history import completion where native history
+     * should merge into Room and overwrite only conflicting timestamps. This avoids wiping
+     * older Room history when native currently exposes only a recent tail.
+     */
+    fun mergeFullSyncForSensor(serial: String) {
+        Log.i(TAG, "mergeFullSyncForSensor($serial) — full non-destructive Room/native merge requested")
+        sensorStability.remove(serial)
+        sensorLastSyncTimeMs.remove(serial)
+        val legacyAlias = if (serial.startsWith("X-") && serial.length > 2) serial.substring(2) else null
+        if (legacyAlias != null) {
+            sensorStability.remove(legacyAlias)
+            sensorLastSyncTimeMs.remove(legacyAlias)
+        }
+        lastSyncTimeMs = 0L
+        scope.launch {
+            syncGate.withLock {
+                doSyncSensor(serial, forceFull = true)
+            }
+        }
+    }
+
     fun markSensorReset(serial: String) {
         if (serial.isBlank()) return
         val deadline = System.currentTimeMillis() + RESET_PRESERVE_WINDOW_MS

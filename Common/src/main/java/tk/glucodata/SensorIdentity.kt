@@ -17,24 +17,41 @@ object SensorIdentity {
     @JvmStatic
     fun resolveLiveMainSensor(preferredSensorId: String?): String? {
         val activeSensors = Natives.activeSensors()
+        if (activeSensors.isNullOrEmpty()) {
+            return resolveMainSensor()
+        }
+        return resolveAvailableMainSensor(
+            selectedMain = Natives.lastsensorname(),
+            preferredSensorId = preferredSensorId,
+            activeSensors = activeSensors
+        ) ?: resolveMainSensor()
+    }
+
+    @JvmStatic
+    fun resolveAvailableMainSensor(
+        selectedMain: String?,
+        preferredSensorId: String?,
+        activeSensors: Array<String?>?
+    ): String? {
+        val active = activeSensors
             ?.mapNotNull(::normalized)
             ?.distinct()
             .orEmpty()
-        if (activeSensors.isEmpty()) {
-            return resolveMainSensor()
+        if (active.isEmpty()) {
+            return normalized(selectedMain) ?: normalized(preferredSensorId)
         }
 
-        val selectedMain = normalized(Natives.lastsensorname())
-        if (selectedMain != null && activeSensors.any { matches(it, selectedMain) }) {
-            return selectedMain
+        val normalizedSelected = normalized(selectedMain)
+        if (normalizedSelected != null && active.any { matches(it, normalizedSelected) }) {
+            return normalizedSelected
         }
 
         val preferred = normalized(preferredSensorId)
-        if (preferred != null && activeSensors.any { matches(it, preferred) }) {
+        if (preferred != null && active.any { matches(it, preferred) }) {
             return preferred
         }
 
-        return activeSensors.firstOrNull()
+        return active.firstOrNull()
     }
 
     @JvmStatic

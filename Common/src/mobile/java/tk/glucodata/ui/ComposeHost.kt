@@ -287,7 +287,8 @@ data class GlucosePoint(
     val time: String,
     val timestamp: Long = 0L,
     val rawValue: Float = 0f,
-    val rate: Float? = null
+    val rate: Float? = null,
+    val sensorSerial: String? = null
 )
 
 fun getTrendIcon(rate: Float, modifier: Modifier = Modifier): ImageVector =
@@ -340,23 +341,31 @@ private fun buildDisplayReadings(
         return points.takeLast(limit).reversed().distinctBy { it.timestamp }
     }
 
-    val sourceByTimestamp = points.associateBy { it.timestamp }
-    val processed = DataSmoothing.smoothNativePoints(
-        points.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) },
-        smoothingMinutes,
-        collapseChunks
-    )
-
-    return processed.takeLast(limit).asReversed().map { point ->
-        val source = sourceByTimestamp[point.timestamp]
-        GlucosePoint(
-            value = point.value,
-            time = source?.time ?: java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(point.timestamp)),
-            timestamp = point.timestamp,
-            rawValue = point.rawValue,
-            rate = source?.rate
+    val processed = ArrayList<GlucosePoint>(points.size)
+    GlucosePointSegments.split(points).forEach { segment ->
+        val sourceByTimestamp = segment.associateBy { it.timestamp }
+        val smoothed = DataSmoothing.smoothNativePoints(
+            segment.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) },
+            smoothingMinutes,
+            collapseChunks
         )
-    }.distinctBy { it.timestamp }
+
+        smoothed.forEach { point ->
+            val source = sourceByTimestamp[point.timestamp]
+            processed.add(
+                GlucosePoint(
+                    value = point.value,
+                    time = source?.time ?: java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(point.timestamp)),
+                    timestamp = point.timestamp,
+                    rawValue = point.rawValue,
+                    rate = source?.rate,
+                    sensorSerial = source?.sensorSerial
+                )
+            )
+        }
+    }
+
+    return processed.takeLast(limit).asReversed().distinctBy { it.timestamp }
 }
 
 

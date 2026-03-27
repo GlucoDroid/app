@@ -28,7 +28,6 @@ class DashboardViewModel(
 ) : ViewModel() {
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
-        const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
@@ -311,9 +310,13 @@ class DashboardViewModel(
             _activeSensorList.value = emptyList()
         }
 
-        val fallbackSerial = _sensorName.value.takeIf { it.isNotBlank() }
+        val cachedSerial = _sensorName.value.takeIf { it.isNotBlank() }
             ?: glucoseRepository.currentSerial.value.takeIf { it.isNotBlank() }
-            ?: activeSensors?.firstOrNull { !it.isNullOrBlank() }
+        val fallbackSerial = SensorIdentity.resolveAvailableMainSensor(
+            selectedMain = sName,
+            preferredSensorId = cachedSerial,
+            activeSensors = activeSensors
+        ) ?: cachedSerial
 
         if (sName.isNullOrBlank()) {
             sName = fallbackSerial
@@ -394,7 +397,7 @@ class DashboardViewModel(
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
+            CollectionMode.DASHBOARD -> 0L
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = recoveryStartTimeMs
@@ -435,7 +438,7 @@ class DashboardViewModel(
                     rawHistory.map { p ->
                         val v = p.value / 18.0182f
                         val r = p.rawValue / 18.0182f
-                        tk.glucodata.ui.GlucosePoint(v, p.time, p.timestamp, r, p.rate)
+                        tk.glucodata.ui.GlucosePoint(v, p.time, p.timestamp, r, p.rate, p.sensorSerial)
                     }
                 } else {
                     rawHistory
@@ -688,7 +691,7 @@ class DashboardViewModel(
             return true
         }
         val oldestTimestamp = history.firstOrNull()?.timestamp ?: return true
-        if (oldestTimestamp > (startTimeMs + HISTORY_RECOVERY_TOLERANCE_MS)) {
+        if (startTimeMs > 0L && oldestTimestamp > (startTimeMs + HISTORY_RECOVERY_TOLERANCE_MS)) {
             return true
         }
         val latestTimestamp = history.lastOrNull()?.timestamp ?: return true
@@ -710,8 +713,16 @@ class DashboardViewModel(
     }
 
     private fun preferredDashboardSensorId(): String? {
-        return _sensorName.value.takeIf { it.isNotBlank() }
+        val nativeCurrent = Natives.lastsensorname()?.takeIf { it.isNotBlank() }
+        if (nativeCurrent != null) {
+            return nativeCurrent
+        }
+        val cachedSerial = _sensorName.value.takeIf { it.isNotBlank() }
             ?: glucoseRepository.currentSerial.value.takeIf { it.isNotBlank() }
-            ?: SensorIdentity.resolveMainSensor()
+        return SensorIdentity.resolveAvailableMainSensor(
+            selectedMain = nativeCurrent,
+            preferredSensorId = cachedSerial,
+            activeSensors = Natives.activeSensors()
+        ) ?: cachedSerial
     }
 }

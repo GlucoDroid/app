@@ -1853,10 +1853,53 @@ uint32_t getlastpolltime() const {
     return count;
   }
   template <int secs>
+  int savepollallIDsonlyQuiet(time_t tim, const int id, int glu, int trend,
+                              float change, int raw = 0, uint16_t temp = 0) {
+    int count = getinfo()->pollcount;
+    if (count < id) {
+      const uint32_t startiter = tim - (id - count) * secs;
+      if constexpr (secs == 60) {
+        if (!count) {
+          const auto starttime = getinfo()->starttime;
+          if (starttime > startiter || (startiter - starttime) > 60 * 60) {
+            getinfo()->starttime = startiter - 80;
+          }
+        }
+      }
+      for (uint32_t timiter = startiter; count < id; ++count, timiter += secs) {
+        if (!polls[count].t || polls[count].id != count) {
+          polls[count] = {timiter, count, 0, 0, 0};
+          rawpolls[count] = {0};
+          temppolls[count] = 0;
+        }
+      }
+      if (!count) {
+        getinfo()->pollstart = id;
+      }
+    }
+    polls[id] = {static_cast<uint32_t>(tim), id, (int32_t)glu, trend, change};
+    rawpolls[id] = {(uint16_t)raw};
+    temppolls[id] = temp;
+    return count;
+  }
+  template <int secs>
   bool savepollallIDs(time_t tim, const int id, int glu, int trend,
                       float change, int raw = 0, uint16_t temp = 0) {
     int count =
         savepollallIDsonly<secs>(tim, id, glu, trend, change, raw, temp);
+    if (id == count)
+      getinfo()->pollcount = id + 1;
+    else {
+      if (id < getinfo()->pollstart)
+        getinfo()->pollstart = id;
+    }
+    return true;
+  }
+  template <int secs>
+  bool savepollallIDsQuiet(time_t tim, const int id, int glu, int trend,
+                           float change, int raw = 0, uint16_t temp = 0) {
+    int count =
+        savepollallIDsonlyQuiet<secs>(tim, id, glu, trend, change, raw, temp);
     if (id == count)
       getinfo()->pollcount = id + 1;
     else {

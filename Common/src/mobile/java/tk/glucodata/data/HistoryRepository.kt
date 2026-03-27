@@ -62,12 +62,12 @@ class HistoryRepository(context: Context = Applic.app) {
         @JvmStatic
         fun getHistoryBlocking(startTime: Long, isMmol: Boolean): List<GlucosePoint> {
             return kotlinx.coroutines.runBlocking {
-                val raw = HistoryRepository().getHistory(startTime)
+                val raw = HistoryRepository().getDisplayHistory(Natives.lastsensorname(), startTime)
                 if (isMmol) {
                     raw.map { p ->
                         val v = p.value / 18.0182f
                         val r = p.rawValue / 18.0182f
-                        GlucosePoint(v, p.time, p.timestamp, r, p.rate)
+                        GlucosePoint(v, p.time, p.timestamp, r, p.rate, p.sensorSerial)
                     }
                 } else raw
             }
@@ -186,6 +186,50 @@ class HistoryRepository(context: Context = Applic.app) {
                 HistoryRepository().storeReading(timestamp, value, rawValue, rate, sensorSerial)
             }
         }
+
+        @JvmStatic
+        fun storeHistoryBatchAsync(
+            sensorSerial: String,
+            timestamps: LongArray,
+            values: FloatArray,
+            rawValues: FloatArray
+        ) {
+            if (sensorSerial.isBlank()) return
+            if (timestamps.isEmpty()) return
+            if (timestamps.size != values.size || timestamps.size != rawValues.size) {
+                Log.w(
+                    TAG,
+                    "storeHistoryBatchAsync rejected mismatched arrays for $sensorSerial " +
+                        "(timestamps=${timestamps.size}, values=${values.size}, raw=${rawValues.size})"
+                )
+                return
+            }
+
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val readings = ArrayList<HistoryReading>(timestamps.size)
+                    for (index in timestamps.indices) {
+                        val timestamp = timestamps[index]
+                        val value = values[index]
+                        val rawValue = rawValues[index]
+                        if (timestamp <= 0L) continue
+                        if ((!value.isFinite() || value <= 0f) && (!rawValue.isFinite() || rawValue <= 0f)) continue
+                        readings.add(
+                            HistoryReading(
+                                timestamp = timestamp,
+                                sensorSerial = sensorSerial,
+                                value = if (value.isFinite()) value else 0f,
+                                rawValue = if (rawValue.isFinite()) rawValue else 0f,
+                                rate = null
+                            )
+                        )
+                    }
+                    HistoryRepository().storeReadings(readings)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed storing history batch for $sensorSerial", e)
+                }
+            }
+        }
     }
     
     /**
@@ -302,7 +346,8 @@ class HistoryRepository(context: Context = Applic.app) {
                     time = "",
                     timestamp = reading.timestamp,
                     rawValue = reading.rawValue,
-                    rate = reading.rate
+                    rate = reading.rate,
+                    sensorSerial = reading.sensorSerial
                 )
             }
         }.flowOn(Dispatchers.IO)
@@ -319,7 +364,8 @@ class HistoryRepository(context: Context = Applic.app) {
                     time = formatTime(it.timestamp),
                     timestamp = it.timestamp,
                     rawValue = it.rawValue,
-                    rate = it.rate
+                    rate = it.rate,
+                    sensorSerial = it.sensorSerial
                 )
             }
         }.flowOn(Dispatchers.IO)
@@ -400,7 +446,8 @@ class HistoryRepository(context: Context = Applic.app) {
                     time = formatTime(it.timestamp),
                     timestamp = it.timestamp,
                     rawValue = it.rawValue,
-                    rate = it.rate
+                    rate = it.rate,
+                    sensorSerial = it.sensorSerial
                 )
             }
         }.flowOn(Dispatchers.IO)
@@ -435,6 +482,36 @@ class HistoryRepository(context: Context = Applic.app) {
                 emptyList()
             }
         }
+    }
+
+    /**
+     * Get display history as a merged multi-sensor timeline.
+     * Preserves older non-conflicting rows while preferring the currently selected
+     * sensor when multiple sensors have readings at the same timestamp.
+     */
+    suspend fun getDisplayHistory(preferredSerial: String?, startTime: Long): List<GlucosePoint> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val readings = dao.getReadingsSince(startTime)
+                mapDisplayReadings(readings, preferredSerial)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting display history", e)
+                emptyList()
+            }
+        }
+    }
+
+    /**
+     * Reactive display-history flow using the same merged multi-sensor timeline
+     * as the dashboard and chart.
+     */
+    fun getDisplayHistoryFlow(
+        preferredSerial: String?,
+        startTime: Long = 0L
+    ): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
+        return dao.getHistoryFlow(startTime).map { readings ->
+            mapDisplayReadings(readings, preferredSerial)
+        }.flowOn(Dispatchers.IO)
     }
 
     
@@ -474,9 +551,17 @@ class HistoryRepository(context: Context = Applic.app) {
                 time = formatTime(reading.timestamp),
                 timestamp = reading.timestamp,
                 rawValue = reading.rawValue,
-                rate = reading.rate
+                rate = reading.rate,
+                sensorSerial = reading.sensorSerial
             )
-        }.distinctBy { it.timestamp }
+        }
+    }
+
+    private fun mapDisplayReadings(
+        readings: List<HistoryReading>,
+        preferredSerial: String?
+    ): List<GlucosePoint> {
+        return mapReadings(HistoryDisplayMerge.mergeReadings(readings, preferredSerial))
     }
 
     private fun formatTime(timestamp: Long): String =

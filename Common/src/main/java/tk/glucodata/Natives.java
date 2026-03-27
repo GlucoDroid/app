@@ -1492,6 +1492,9 @@ public class Natives {
         public static native long aidexProcessData(long dataptr, byte[] value, long mmsec, float glucose,
                                                    float rawGlucose, float calibrationFactor);
 
+        public static native void aidexStoreHistoryData(long dataptr, long mmsec, float glucose,
+                                                        float rawGlucose);
+
         public static native void aidexSetStartTime(long dataptr, long timeMs);
 
         public static native void aidexSetWearDays(long dataptr, int days);
