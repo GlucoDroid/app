@@ -13,6 +13,7 @@ import tk.glucodata.drivers.aidex.native.crypto.AesCfb128
 import tk.glucodata.drivers.aidex.native.crypto.Crc16CcittFalse
 import tk.glucodata.drivers.aidex.native.crypto.Crc8Maxim
 import tk.glucodata.drivers.aidex.native.crypto.SerialCrypto
+import tk.glucodata.drivers.aidex.native.ble.aiDexDeviceNameMatchesSerial
 import tk.glucodata.drivers.aidex.native.data.*
 import tk.glucodata.drivers.aidex.native.protocol.AiDexCommandBuilder
 import tk.glucodata.drivers.aidex.native.protocol.AiDexKeyExchange
@@ -225,6 +226,7 @@ class SerialCryptoTests {
     fun testStripPrefix() {
         assertEquals("2222267V4E", SerialCrypto.stripPrefix("AiDEX X-2222267V4E"))
         assertEquals("2222267V4E", SerialCrypto.stripPrefix("X-2222267V4E"))
+        assertEquals("2222293NWA", SerialCrypto.stripPrefix("AiDEX x-2222293NWA"))
         assertEquals("2222267V4E", SerialCrypto.stripPrefix("2222267V4E"))
     }
 
@@ -248,6 +250,24 @@ class SerialCryptoTests {
         val s1 = SerialCrypto.deriveSecret("2222267V4E")
         val s2 = SerialCrypto.deriveSecret("22222689WH")
         assertFalse(s1.contentEquals(s2))
+    }
+}
+
+class DeviceNameMatchingTests {
+
+    @Test
+    fun testAiDexDeviceNameMatchesSerialIgnoringPrefixCase() {
+        assertTrue(aiDexDeviceNameMatchesSerial("AiDEX x-2222293NWA", "X-2222293NWA"))
+    }
+
+    @Test
+    fun testAiDexDeviceNameMatchesSerialIgnoringSerialCase() {
+        assertTrue(aiDexDeviceNameMatchesSerial("aidex x-2222293nwa", "X-2222293NWA"))
+    }
+
+    @Test
+    fun testAiDexDeviceNameRejectsDifferentSerial() {
+        assertFalse(aiDexDeviceNameMatchesSerial("AiDEX x-2222293NWA", "X-222228AWH2"))
     }
 }
 

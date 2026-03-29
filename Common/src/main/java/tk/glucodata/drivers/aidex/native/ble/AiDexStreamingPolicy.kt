@@ -6,6 +6,7 @@ internal object AiDexStreamingPolicy {
 
     enum class NoStreamRecoveryAction {
         KEEP_WAITING,
+        REQUEST_CONNECTED_BROADCAST,
         REQUEST_HISTORY_REFRESH,
         REFRESH_LIVE_CCCDS,
         RECONNECT,
@@ -37,12 +38,17 @@ internal object AiDexStreamingPolicy {
     fun decideNoStreamRecovery(
         hasRecentBroadcastData: Boolean,
         historyDownloading: Boolean,
+        allowConnectedBroadcastRequest: Boolean,
+        connectedBroadcastRequestAttempted: Boolean,
         hasSessionFallbackData: Boolean,
         historyRefreshAttempted: Boolean,
         liveCccdRefreshAttempted: Boolean,
     ): NoStreamRecoveryAction {
         if (hasRecentBroadcastData || historyDownloading) {
             return NoStreamRecoveryAction.KEEP_WAITING
+        }
+        if (allowConnectedBroadcastRequest && !connectedBroadcastRequestAttempted) {
+            return NoStreamRecoveryAction.REQUEST_CONNECTED_BROADCAST
         }
         if (hasSessionFallbackData && !historyRefreshAttempted) {
             return NoStreamRecoveryAction.REQUEST_HISTORY_REFRESH

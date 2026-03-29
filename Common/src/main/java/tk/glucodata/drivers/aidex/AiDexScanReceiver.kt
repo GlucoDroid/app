@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.PowerManager
 import tk.glucodata.Log
 import tk.glucodata.SensorBluetooth
+import tk.glucodata.drivers.aidex.native.ble.AiDexBleManager
 
 /**
  * Receiver for AiDex broadcast scan wake-up alarms.
@@ -29,23 +30,25 @@ class AiDexScanReceiver : BroadcastReceiver() {
         val wl = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AiDexSensor:ReceiverWakeup")
         wl?.acquire(10_000L) // 10s should be plenty to start the scan
 
-        // Find the sensor in the global list
-        val sensor = SensorBluetooth.gattcallbacks.find { 
-            it is AiDexSensor && it.SerialNumber == serial 
-        } as? AiDexSensor
-
-        if (sensor != null) {
-            if (sensor.broadcastScanActive) {
-                if (sensor.recoverAlarmScanIfStale("scan-alarm")) {
-                    sensor.startBroadcastScan("alarm-recovery")
+        val callback = SensorBluetooth.gattcallbacks.find { it.SerialNumber == serial }
+        when (callback) {
+            is AiDexSensor -> {
+                if (callback.broadcastScanActive) {
+                    if (callback.recoverAlarmScanIfStale("scan-alarm")) {
+                        callback.startBroadcastScan("alarm-recovery")
+                    } else {
+                        Log.d(TAG, "Legacy scan already active for $serial, skipping trigger.")
+                    }
                 } else {
-                    Log.d(TAG, "Scan already active for $serial, skipping trigger.")
+                    callback.startBroadcastScan("alarm")
                 }
-            } else {
-                sensor.startBroadcastScan("alarm")
             }
-        } else {
-            Log.w(TAG, "Sensor $serial not found in callbacks")
+            is AiDexBleManager -> {
+                callback.handleBroadcastScanAlarm("alarm")
+            }
+            else -> {
+                Log.w(TAG, "Sensor $serial not found in callbacks")
+            }
         }
     }
 }

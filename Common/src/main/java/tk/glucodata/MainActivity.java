@@ -32,7 +32,6 @@ import static tk.glucodata.Applic.app;
 import static tk.glucodata.Applic.explicit;
 import static tk.glucodata.Applic.isRelease;
 import static tk.glucodata.Applic.isWearable;
-import static tk.glucodata.Applic.scanpermissions;
 import static tk.glucodata.Applic.talkbackoff;
 import static tk.glucodata.Applic.talkbackon;
 import static tk.glucodata.Applic.useZXing;
@@ -296,7 +295,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     // static int initscreenwidth;
     // FragmentManager fragmentManager = getSupportFragmentManager();
     // public static boolean wearable=false;
-    public static MainActivity thisone = null;
+    public static volatile MainActivity thisone = null;
 
     @Keep
     public static void openSettingsPanel() {
@@ -778,6 +777,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         ;
         ;
         super.onResume();
+        thisone = this;
         if (curve != null) {
             if (!curve.waitnfc) {
                 {
@@ -804,6 +804,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     @Override
     protected void onStart() {
         super.onStart();
+        thisone = this;
         {
             if (doLog) {
                 Log.i(LOG_ID, "onStart");
@@ -1081,7 +1082,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             alert.dismiss();
             shownglucosealert = null;
         }
-        thisone = null;
+        if (thisone == this) {
+            thisone = null;
+        }
         super.onDestroy();
     }
 
@@ -1241,6 +1244,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     }
 
     private boolean gaverational = false;
+    private boolean locationPermissionRequestInFlight = false;
+
+    private void requestLocationPermissions(String[] permissions) {
+        if (locationPermissionRequestInFlight) {
+            return;
+        }
+        locationPermissionRequestInFlight = true;
+        requestPermissions(permissions, LOCATION_PERMISSION_REQUEST_CODE);
+    }
 
     boolean finepermission() {
         MainActivity act = this;
@@ -1252,26 +1264,34 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
         ;
         if (Build.VERSION.SDK_INT >= 23) {
-            var noperm = Applic.hasPermissions(act, scanpermissions);
+            if (locationPermissionRequestInFlight) {
+                return false;
+            }
+            var noperm = Applic.hasPermissions(act, Applic.foregroundscanpermissions);
             if (noperm.length == 0) {
+                if (Applic.needsBackgroundScanPermission() && !Applic.hasBackgroundScanPermission(act)) {
+                    RunOnUiThread(() -> requestLocationPermissions(
+                            new String[] { Manifest.permission.ACCESS_BACKGROUND_LOCATION }));
+                    return false;
+                }
                 return systemlocation();
             }
             RunOnUiThread(() -> {
                 for (var scanpermission : noperm) {
                     if (shouldShowRequestPermissionRationale(scanpermission)) {
                         gaverational = true;
-                        help.help(Build.VERSION.SDK_INT > 30 ? R.string.nearbypermission : R.string.locationpermission,
+                                help.help(Build.VERSION.SDK_INT > 30 ? R.string.nearbypermission : R.string.locationpermission,
                                 act, l -> {
                                     if (help.whelplayout != null && help.whelplayout.get() != null) {
                                         removeContentView(help.whelplayout.get()); // setContentView makes view
                                                                                    // inaccessable
                                         help.whelplayout = null;
                                     }
-                                    requestPermissions(noperm, LOCATION_PERMISSION_REQUEST_CODE);
+                                    requestLocationPermissions(noperm);
                                 });
                         break;
                     } else {
-                        requestPermissions(noperm, LOCATION_PERMISSION_REQUEST_CODE);
+                        requestLocationPermissions(noperm);
                         break;
                     }
                 }
@@ -1374,6 +1394,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
              * } return;
              */
             case LOCATION_PERMISSION_REQUEST_CODE: {
+                locationPermissionRequestInFlight = false;
                 if (doLog) {
                     Log.i(LOG_ID, "onRequestPermissionsResult(LOCATION_PERMISSION_REQUEST_CODE) " + granted);
                 }
@@ -1381,6 +1402,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
                 ;
                 if (granted) {
+                    if (Applic.needsBackgroundScanPermission() && Applic.hasForegroundScanPermissions(this)
+                            && !Applic.hasBackgroundScanPermission(this)) {
+                        finepermission();
+                        break;
+                    }
                     if (systemlocation())
                         hasLocationContinue();
                 } else {

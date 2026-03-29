@@ -15,6 +15,8 @@ class AiDexStreamingPolicyTests {
             AiDexStreamingPolicy.decideNoStreamRecovery(
                 hasRecentBroadcastData = true,
                 historyDownloading = false,
+                allowConnectedBroadcastRequest = true,
+                connectedBroadcastRequestAttempted = false,
                 hasSessionFallbackData = false,
                 historyRefreshAttempted = false,
                 liveCccdRefreshAttempted = false,
@@ -29,6 +31,8 @@ class AiDexStreamingPolicyTests {
             AiDexStreamingPolicy.decideNoStreamRecovery(
                 hasRecentBroadcastData = false,
                 historyDownloading = false,
+                allowConnectedBroadcastRequest = true,
+                connectedBroadcastRequestAttempted = true,
                 hasSessionFallbackData = true,
                 historyRefreshAttempted = false,
                 liveCccdRefreshAttempted = false,
@@ -37,12 +41,30 @@ class AiDexStreamingPolicyTests {
     }
 
     @Test
-    fun decideNoStreamRecovery_refreshesLiveCccdsWhenNoFallbackPathWasSeen() {
+    fun decideNoStreamRecovery_requestsConnectedBroadcastBeforeOtherRecovery() {
+        assertEquals(
+            AiDexStreamingPolicy.NoStreamRecoveryAction.REQUEST_CONNECTED_BROADCAST,
+            AiDexStreamingPolicy.decideNoStreamRecovery(
+                hasRecentBroadcastData = false,
+                historyDownloading = false,
+                allowConnectedBroadcastRequest = true,
+                connectedBroadcastRequestAttempted = false,
+                hasSessionFallbackData = false,
+                historyRefreshAttempted = false,
+                liveCccdRefreshAttempted = false,
+            )
+        )
+    }
+
+    @Test
+    fun decideNoStreamRecovery_refreshesLiveCccdsAfterConnectedBroadcastWhenNoFallbackPathWasSeen() {
         assertEquals(
             AiDexStreamingPolicy.NoStreamRecoveryAction.REFRESH_LIVE_CCCDS,
             AiDexStreamingPolicy.decideNoStreamRecovery(
                 hasRecentBroadcastData = false,
                 historyDownloading = false,
+                allowConnectedBroadcastRequest = true,
+                connectedBroadcastRequestAttempted = true,
                 hasSessionFallbackData = false,
                 historyRefreshAttempted = false,
                 liveCccdRefreshAttempted = false,
@@ -57,6 +79,8 @@ class AiDexStreamingPolicyTests {
             AiDexStreamingPolicy.decideNoStreamRecovery(
                 hasRecentBroadcastData = false,
                 historyDownloading = false,
+                allowConnectedBroadcastRequest = true,
+                connectedBroadcastRequestAttempted = true,
                 hasSessionFallbackData = true,
                 historyRefreshAttempted = true,
                 liveCccdRefreshAttempted = true,

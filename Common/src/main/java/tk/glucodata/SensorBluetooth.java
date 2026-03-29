@@ -712,6 +712,53 @@ public class SensorBluetooth {
         }
     }
 
+    private static void addSelectionCandidate(List<String> candidates, Set<String> seen, String serial) {
+        if (!isValidShortSensorName(serial)) {
+            return;
+        }
+        if (seen.add(serial)) {
+            candidates.add(serial);
+        }
+    }
+
+    public static String resolvePreferredCurrentSensor() {
+        final ArrayList<String> candidates = new ArrayList<>();
+        final HashSet<String> seen = new HashSet<>();
+        try {
+            final String[] activeSensors = Natives.activeSensors();
+            if (activeSensors != null) {
+                for (String serial : activeSensors) {
+                    addSelectionCandidate(candidates, seen, serial);
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(LOG_ID, "resolvePreferredCurrentSensor activeSensors failed: " + t.getMessage());
+        }
+        synchronized (gattcallbacks) {
+            for (SuperGattCallback cb : gattcallbacks) {
+                addSelectionCandidate(candidates, seen, cb.SerialNumber);
+            }
+        }
+        return SensorIdentity.resolveAvailableMainSensor(
+                Natives.lastsensorname(),
+                candidates.isEmpty() ? null : candidates.get(0),
+                candidates.toArray(new String[0]));
+    }
+
+    public static void ensureCurrentSensorSelection() {
+        final String current = Natives.lastsensorname();
+        if (current != null && !current.isEmpty()) {
+            return;
+        }
+        final String resolved = resolvePreferredCurrentSensor();
+        if (resolved != null && !resolved.isEmpty()) {
+            Natives.setcurrentsensor(resolved);
+            if (doLog) {
+                Log.i(LOG_ID, "ensureCurrentSensorSelection -> " + resolved);
+            }
+        }
+    }
+
     private void adoptCurrentSensorIfBlank(String serial) {
         if (serial == null || serial.isEmpty()) {
             return;

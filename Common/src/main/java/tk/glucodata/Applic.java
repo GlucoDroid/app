@@ -330,14 +330,18 @@ public class Applic extends Application implements androidx.work.Configuration.P
         }
     }
 
-    static final String[] scanpermissions = ((Build.VERSION.SDK_INT >= 31)
+    static final String[] foregroundscanpermissions = ((Build.VERSION.SDK_INT >= 31)
             ? (new String[] { Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE,
                     Manifest.permission.BLUETOOTH_CONNECT })
+            : new String[] { Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION });
+
+    static final String[] scanpermissions = ((Build.VERSION.SDK_INT >= 31)
+            ? foregroundscanpermissions
             : ((Build.VERSION.SDK_INT >= 29)
                     ? new String[] { Manifest.permission.ACCESS_COARSE_LOCATION,
                             Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION }
-                    : new String[] { Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.ACCESS_FINE_LOCATION }));
+                    : foregroundscanpermissions));
 
     static String[] hasPermissions(Context context, String[] perms) {
         var over = new ArrayList<String>();
@@ -395,6 +399,22 @@ public class Applic extends Application implements androidx.work.Configuration.P
             return Applic.hasPermissions(app, scanpermissions).length == 0;
         }
         return true;
+    }
+
+    static boolean hasForegroundScanPermissions(Context context) {
+        return hasPermissions(context, foregroundscanpermissions).length == 0;
+    }
+
+    static boolean needsBackgroundScanPermission() {
+        return Build.VERSION.SDK_INT >= 29 && Build.VERSION.SDK_INT < 31;
+    }
+
+    static boolean hasBackgroundScanPermission(Context context) {
+        if (!needsBackgroundScanPermission()) {
+            return true;
+        }
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     static boolean canBluetooth() {
@@ -1061,8 +1081,6 @@ public class Applic extends Application implements androidx.work.Configuration.P
 
     @Keep
     static boolean updateDevices() { // Rename to reset
-        syncCurrentSensorSelection();
-
         final boolean useBluetooth = Natives.getusebluetooth();
         boolean ok = false;
 
@@ -1078,29 +1096,19 @@ public class Applic extends Application implements androidx.work.Configuration.P
                     if (main != null)
                         main.finepermission();
                 }
+                tk.glucodata.SensorBluetooth.ensureCurrentSensorSelection();
                 ok = true;
             } else {
                 Log.e(LOG_ID, "tk.glucodata.SensorBluetooth.blueone==null");
             }
         } else {
             ok = tk.glucodata.SensorBluetooth.syncNativeDevicesNoBluetooth();
+            tk.glucodata.SensorBluetooth.ensureCurrentSensorSelection();
         }
 
         updatescreen();
         Notify.showoldglucose();
         return ok;
-    }
-
-    private static void syncCurrentSensorSelection() {
-        try {
-            String currentSensor = Natives.lastsensorname();
-            String[] active = Natives.activeSensors();
-            if ((currentSensor == null || currentSensor.isEmpty()) && active != null && active.length > 0) {
-                Natives.setcurrentsensor(active[0]);
-            }
-        } catch (Throwable t) {
-            Log.stack(LOG_ID, "syncCurrentSensorSelection", t);
-        }
     }
     /*
      * @Keep
