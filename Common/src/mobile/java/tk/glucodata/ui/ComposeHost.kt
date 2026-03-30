@@ -933,6 +933,7 @@ fun DashboardScreen(
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsStateWithLifecycle()
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsStateWithLifecycle()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsStateWithLifecycle()
+    val previewWindowMode by viewModel.previewWindowMode.collectAsStateWithLifecycle()
     val sensorStatus by viewModel.sensorStatus.collectAsStateWithLifecycle()
     val sensorProgress by viewModel.sensorProgress.collectAsStateWithLifecycle()
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
@@ -1485,6 +1486,7 @@ fun DashboardScreen(
                                 glucoseHistory = glucoseHistory,
                                 graphSmoothingMinutes = chartSmoothingMinutes,
                                 collapseSmoothedData = dataSmoothingCollapseChunks,
+                                previewWindowMode = previewWindowMode,
                                 targetLow = targetLow,
                                 targetHigh = targetHigh,
                                 unit = unit,
@@ -1586,6 +1588,7 @@ fun DashboardScreen(
                                 glucoseHistory = glucoseHistory,
                                 graphSmoothingMinutes = chartSmoothingMinutes,
                                 collapseSmoothedData = dataSmoothingCollapseChunks,
+                                previewWindowMode = previewWindowMode,
                                 targetLow = targetLow,
                                 targetHigh = targetHigh,
                                 unit = unit,

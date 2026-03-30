@@ -383,7 +383,7 @@ fun DangerItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(40.dp),
                 shape = RoundedCornerShape(12.dp),
                 color = iconBgColor
             ) {
@@ -396,7 +396,7 @@ fun DangerItem(
                     )
                 }
             }
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     title,

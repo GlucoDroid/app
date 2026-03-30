@@ -23,9 +23,37 @@ class AiDexCommandBuilder(private val keyExchange: AiDexKeyExchange) {
 
     // -- Convenience Methods --
 
+    /**
+     * Current native driver still uses the legacy `0x21` metadata request.
+     *
+     * Static RE proves official `getDeviceInfo()` is raw `0x10`, but the local
+     * manager/parser path still expects the `0x21` response shape. Keep the
+     * existing runtime behavior until that path is reconciled cleanly.
+     */
     fun getDeviceInfo() = buildEncrypted(AiDexOpcodes.GET_DEVICE_INFO)
 
+    fun getOfficialDeviceInfo() = buildEncrypted(AiDexOpcodes.GET_DEVICE_INFO_OFFICIAL)
+
+    fun getStartTime() = buildEncrypted(AiDexOpcodes.GET_START_TIME)
+
     fun getBroadcastData() = buildEncrypted(AiDexOpcodes.GET_BROADCAST_DATA)
+
+    fun getSensorCheck(index: Int = 0x01) = buildEncrypted(
+        AiDexOpcodes.GET_SENSOR_CHECK,
+        index and 0xFF
+    )
+
+    fun getAutoUpdateStatus() = buildEncrypted(AiDexOpcodes.GET_AUTO_UPDATE_STATUS)
+
+    /**
+     * Official native wrapper sends raw `0x31` with a one-byte start index payload.
+     * The initial query uses `0x01`, and follow-up reads continue with the next
+     * 1-based start index until the assembled DP blob is complete.
+     */
+    fun getDefaultParam(startIndex: Int = 0x01) = buildEncrypted(
+        AiDexOpcodes.GET_DEFAULT_PARAM,
+        startIndex and 0xFF
+    )
 
     fun getHistoryRange() = buildEncrypted(AiDexOpcodes.GET_HISTORY_RANGE)
 
@@ -71,6 +99,32 @@ class AiDexCommandBuilder(private val keyExchange: AiDexKeyExchange) {
         AiDexOpcodes.GET_CALIBRATION,
         index and 0xFF, (index shr 8) and 0xFF
     )
+
+    fun setAutoUpdateStatus(enabled: Boolean = true) = buildEncrypted(
+        AiDexOpcodes.SET_AUTO_UPDATE_STATUS,
+        if (enabled) 0x01 else 0x00
+    )
+
+    fun setDynamicAdvMode(mode: Int) = buildEncrypted(
+        AiDexOpcodes.SET_DYNAMIC_ADV_MODE,
+        mode and 0xFF
+    )
+
+    /**
+     * Raw `0x30` default-param chunk write.
+     *
+     * Native official flow wraps this in a `DefaultParam` long-attribute state
+     * machine and sends chunks as `[totalCount, startIndex, payload...]`.
+     */
+    fun setDefaultParamChunk(totalCount: Int, startIndex: Int, payload: ByteArray): ByteArray? {
+        val params = IntArray(payload.size + 2)
+        params[0] = totalCount and 0xFF
+        params[1] = startIndex and 0xFF
+        for (i in payload.indices) {
+            params[i + 2] = payload[i].toInt() and 0xFF
+        }
+        return buildEncrypted(AiDexOpcodes.SET_DEFAULT_PARAM, *params)
+    }
 
     fun deleteBond() = buildEncrypted(AiDexOpcodes.DELETE_BOND)
 

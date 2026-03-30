@@ -13,12 +13,16 @@ import tk.glucodata.drivers.aidex.native.crypto.AesCfb128
 import tk.glucodata.drivers.aidex.native.crypto.Crc16CcittFalse
 import tk.glucodata.drivers.aidex.native.crypto.Crc8Maxim
 import tk.glucodata.drivers.aidex.native.crypto.SerialCrypto
+import tk.glucodata.drivers.aidex.native.ble.aiDexActivationTimeZone
 import tk.glucodata.drivers.aidex.native.ble.aiDexDeviceNameMatchesSerial
 import tk.glucodata.drivers.aidex.native.data.*
 import tk.glucodata.drivers.aidex.native.protocol.AiDexCommandBuilder
+import tk.glucodata.drivers.aidex.native.protocol.AiDexDefaultParamProvisioning
 import tk.glucodata.drivers.aidex.native.protocol.AiDexKeyExchange
 import tk.glucodata.drivers.aidex.native.protocol.AiDexOpcodes
 import tk.glucodata.drivers.aidex.native.protocol.AiDexParser
+import java.util.Calendar
+import java.util.TimeZone
 
 // ============================================================================
 // MARK: - CRC-8/MAXIM Tests
@@ -904,6 +908,166 @@ class CommandBuilderTests {
         assertNull(builder.getHistories(14400))
         assertNull(builder.deleteBond())
         assertNull(builder.reset())
+    }
+
+    @Test
+    fun testGetDefaultParamUsesRequestedStartIndex() {
+        val ke = AiDexKeyExchange("2222267V4E")
+        val sessionKeyField = ke.javaClass.getDeclaredField("sessionKey")
+        sessionKeyField.isAccessible = true
+        sessionKeyField.set(ke, ByteArray(16) { (it + 1).toByte() })
+
+        val builder = AiDexCommandBuilder(ke)
+        val encrypted = builder.getDefaultParam(startIndex = 0x0A)
+        assertNotNull(encrypted)
+
+        val plaintext = ke.decrypt(encrypted!!)
+        assertNotNull(plaintext)
+        assertEquals(AiDexOpcodes.GET_DEFAULT_PARAM, plaintext!![0].toInt() and 0xFF)
+        assertEquals(0x0A, plaintext[1].toInt() and 0xFF)
+        assertTrue(Crc16CcittFalse.validateResponse(plaintext))
+    }
+}
+
+class ActivationTimeZoneTests {
+
+    @Test
+    fun testActivationTimeZoneSeparatesRawOffsetAndDst() {
+        val tz = TimeZone.getTimeZone("Europe/Berlin")
+        val cal = Calendar.getInstance(tz).apply {
+            set(2026, Calendar.JULY, 1, 12, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        val encoded = aiDexActivationTimeZone(cal, tz)
+        val quarterHourMs = 15 * 60 * 1000
+
+        assertEquals(tz.rawOffset / quarterHourMs, encoded.tzQuarters)
+        assertEquals(tz.dstSavings / quarterHourMs, encoded.dstQuarters)
+        assertEquals(tz.getOffset(cal.timeInMillis) / quarterHourMs, encoded.tzQuarters + encoded.dstQuarters)
+    }
+}
+
+// ============================================================================
+// MARK: - Default Param (0x31) Parsing Tests
+// ============================================================================
+
+class DefaultParamParsingTests {
+
+    @Test
+    fun testParseDefaultParamChunk() {
+        val payload = byteArrayOf(
+            0x01,
+            0x04,
+            0x01,
+            0x11,
+            0x22,
+            0x33,
+            0x44,
+        )
+
+        val chunk = AiDexParser.parseDefaultParamChunk(payload)
+        assertNotNull(chunk)
+        assertEquals(0x01, chunk!!.leadByte)
+        assertEquals(4, chunk.totalWords)
+        assertEquals(1, chunk.startIndex)
+        assertArrayEquals(byteArrayOf(0x11, 0x22, 0x33, 0x44), chunk.rawChunk)
+        assertEquals(3, chunk.nextStartIndex)
+        assertFalse(chunk.isComplete)
+    }
+
+    @Test
+    fun testAssembleDefaultParamChunks() {
+        val first = AiDexParser.parseDefaultParamChunk(
+            byteArrayOf(
+                0x01,
+                0x04,
+                0x01,
+                0x01,
+                0x06,
+                0x00,
+                0x03,
+            )
+        )!!
+        val second = AiDexParser.parseDefaultParamChunk(
+            byteArrayOf(
+                0x01,
+                0x04,
+                0x03,
+                0x80.toByte(),
+                0xC6.toByte(),
+                0x13,
+                0x00,
+            )
+        )!!
+
+        val buffer1 = AiDexParser.appendDefaultParamChunk(null, first)
+        assertEquals("010106000300000000", AiDexParser.defaultParamRawHex(buffer1, first.totalWords))
+
+        val buffer2 = AiDexParser.appendDefaultParamChunk(buffer1, second)
+        assertEquals("010106000380C61300", AiDexParser.defaultParamRawHex(buffer2, second.totalWords))
+        assertTrue(second.isComplete)
+    }
+}
+
+// ============================================================================
+// MARK: - Default Param Catalog Compare Tests
+// ============================================================================
+
+class DefaultParamCatalogCompareTests {
+
+    @Test
+    fun testNormalizeCatalogModelName() {
+        assertEquals("1034_GX01S", AiDexDefaultParamProvisioning.normalizeCatalogModelName("GX-01S"))
+        assertEquals("1034_GX02S", AiDexDefaultParamProvisioning.normalizeCatalogModelName("gx02s"))
+        assertEquals("1034_GX03S", AiDexDefaultParamProvisioning.normalizeCatalogModelName("1034_GX03S"))
+        assertNull(AiDexDefaultParamProvisioning.normalizeCatalogModelName("mystery"))
+    }
+
+    @Test
+    fun testWorking171NormalizationFromFreshProbeNoLongerPretendsToExactMatch() {
+        val currentRawHex = "010105000080C613008303BFFE68006700650068006B00100E302AD06BB0FFC4FFECFF00000000100E302AD06B0A0000000000C4092800FA00740E2003EE020A000A000800FA0019007D000802AA009CFF640000001100E803B80B32005500D501280046001E0032006400020014002003B004050014001E005A005A00F401F4019033B04F000000000000000000000000000000000000000000000000000000000000000000000000"
+
+        val comparisons = AiDexDefaultParamProvisioning.compareKnownCatalog(currentRawHex, "GX-01S", "1.7.1")
+        assertFalse(comparisons.isEmpty())
+
+        val best = comparisons.first()
+        assertEquals("1034_GX01S", best.entry.settingType)
+        assertFalse(best.current.headerSwapApplied)
+        assertEquals(168, best.current.byteCount)
+        assertEquals("01050000", best.current.versionHex)
+        assertFalse(best.exactMatch)
+    }
+
+    @Test
+    fun testWorking181MatchesCapturedOfficial1610Candidate() {
+        val currentRawHex = "010106010080C61300D103D1FE6E006D006B006E007100100E302AD06BB0FFC4FFECFF00000000100E302AD06B0A0000000000C4092800FA00740E2003EE020A000A000800FA0019007D000802AA009CFF640000001100E803B80B32005500D601280046001E0032006400020014002003B004050014005A003200EE021E005A005A00F401F4019033B04F000000000000000000000000000000000000000000000000000000000000"
+
+        val comparisons = AiDexDefaultParamProvisioning.compareKnownCatalog(currentRawHex, "GX-01S", "1.8.1")
+        assertFalse(comparisons.isEmpty())
+
+        val best = comparisons.first()
+        assertEquals("1.8.1", best.entry.version)
+        assertEquals("parameters_x_1.6.1.0.ini", best.entry.settingVersion)
+        assertEquals(168, best.current.byteCount)
+        assertFalse(best.current.headerSwapApplied)
+        assertEquals("01060100", best.current.versionHex)
+        assertTrue(best.exactMatch)
+        assertEquals(0, best.diffByteCount)
+    }
+
+    @Test
+    fun testLongDpShapeUsesElsePreserveRangeLikeOfficialOtaManager() {
+        val currentRawHex = "010105000080C613008303BFFE68006700650068006B00100E302AD06BB0FFC4FFECFF00000000100E302AD06B0A0000000000C4092800FA00740E2003EE020A000A000800FA0019007D000802AA009CFF640000001100E803B80B32005500D501280046001E0032006400020014002003B004050014001E005A005A00F401F4019033B04F000000000000000000000000000000000000000000000000000000000000000000000000"
+
+        val comparisons = AiDexDefaultParamProvisioning.compareKnownCatalog(currentRawHex, "GX-01S", "1.7.1")
+        val candidate120 = comparisons.first { it.entry.version == "1.2.0" }
+
+        assertEquals(336, candidate120.current.hex.length)
+        assertEquals(
+            candidate120.current.hex.substring(16, 24),
+            candidate120.candidate.candidateHex.substring(16, 24)
+        )
     }
 }
 

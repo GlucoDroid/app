@@ -9,6 +9,16 @@ import tk.glucodata.drivers.aidex.native.data.*
 
 object AiDexParser {
 
+    data class DefaultParamChunk(
+        val leadByte: Int,
+        val totalWords: Int,
+        val startIndex: Int,
+        val rawChunk: ByteArray,
+    ) {
+        val nextStartIndex: Int get() = startIndex + (rawChunk.size / 2)
+        val isComplete: Boolean get() = nextStartIndex > totalWords
+    }
+
     // -- F003 Frame Classification --
 
     enum class FrameType { DATA, STATUS, UNKNOWN }
@@ -208,6 +218,60 @@ object AiDexParser {
         return sent[0] == received[0]
     }
 
+    // -- Default Param Parsing (0x31) --
+
+    /**
+     * Parse a GET_DEFAULT_PARAM payload after stripping the opcode byte and any CRC.
+     *
+     * Static RE of `AidexXController::LongAttribute::queryResp()` shows the payload
+     * shape is:
+     *   byte[0]    = lead byte (preserved separately on the first chunk)
+     *   byte[1]    = total DP word count
+     *   byte[2]    = 1-based start index for this chunk
+     *   byte[3..]  = raw binary chunk bytes
+     *
+     * Continuation progresses in 2-byte words, so the next query start index is
+     * `startIndex + rawChunk.size / 2`.
+     */
+    fun parseDefaultParamChunk(payload: ByteArray): DefaultParamChunk? {
+        if (payload.size < 5) return null
+
+        val totalWords = payload[1].toInt() and 0xFF
+        val startIndex = payload[2].toInt() and 0xFF
+        val rawChunk = payload.copyOfRange(3, payload.size)
+
+        if (totalWords <= 0 || startIndex <= 0 || startIndex > totalWords) return null
+        if (rawChunk.isEmpty() || (rawChunk.size % 2) != 0) return null
+
+        return DefaultParamChunk(
+            leadByte = payload[0].toInt() and 0xFF,
+            totalWords = totalWords,
+            startIndex = startIndex,
+            rawChunk = rawChunk,
+        )
+    }
+
+    fun appendDefaultParamChunk(buffer: ByteArray?, chunk: DefaultParamChunk): ByteArray {
+        val requiredSize = 1 + (chunk.totalWords * 2)
+        val target = buffer?.takeIf { it.size >= requiredSize } ?: ByteArray(requiredSize)
+        if (chunk.startIndex == 1) {
+            target[0] = chunk.leadByte.toByte()
+        }
+        val destOffset = if (chunk.startIndex == 1) 1 else ((chunk.startIndex * 2) - 1).coerceAtLeast(1)
+        val copyLen = minOf(chunk.rawChunk.size, target.size - destOffset)
+        if (copyLen > 0) {
+            System.arraycopy(chunk.rawChunk, 0, target, destOffset, copyLen)
+        }
+        return target
+    }
+
+    fun defaultParamRawHex(buffer: ByteArray?, totalWords: Int): String? {
+        if (buffer == null || totalWords <= 0) return null
+        val expectedLen = 1 + (totalWords * 2)
+        if (buffer.size < expectedLen) return null
+        return compactHex(buffer.copyOf(expectedLen))
+    }
+
     // -- Hex Utilities --
 
     fun hexString(data: ByteArray): String =
@@ -241,4 +305,5 @@ object AiDexParser {
         val unsigned = u16LE(data, offset)
         return if (unsigned >= 0x8000) unsigned - 0x10000 else unsigned
     }
+
 }

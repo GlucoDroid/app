@@ -77,6 +77,25 @@ internal fun aiDexExtractLocalName(scanRecord: ByteArray): String? {
     return null
 }
 
+internal data class AiDexActivationTimeZone(
+    val tzQuarters: Int,
+    val dstQuarters: Int,
+)
+
+internal fun aiDexActivationTimeZone(calendar: Calendar, timeZone: TimeZone): AiDexActivationTimeZone {
+    val quarterHourMs = 15 * 60 * 1000
+    val tzQuarters = timeZone.rawOffset / quarterHourMs
+    val dstQuarters = if (timeZone.inDaylightTime(calendar.time)) {
+        timeZone.dstSavings / quarterHourMs
+    } else {
+        0
+    }
+    return AiDexActivationTimeZone(
+        tzQuarters = tzQuarters,
+        dstQuarters = dstQuarters,
+    )
+}
+
 /**
  * Per-sensor BLE connection manager for AiDex sensors.
  *
@@ -142,6 +161,8 @@ class AiDexBleManager(
         private const val CONNECTED_BROADCAST_REQUEST_WAIT_MS = 30_000L
         private const val INITIAL_HISTORY_REQUEST_DELAY_MS = 65_000L
         private const val POST_KEY_CCCD_REFRESH_DELAY_MS = 250L
+        private const val DEFERRED_BOND_CHECK_DELAY_MS = 2_500L
+        private const val DEFERRED_BOND_CHECK_MAX_ATTEMPTS = 4
         private const val STARTUP_CONTROL_ACK_TIMEOUT_MS = 3_000L
         private const val STREAMING_METADATA_REQUEST_DELAY_MS = 400L
 
@@ -261,6 +282,8 @@ class AiDexBleManager(
     private var pendingStreamingMetadataRead = false
     private var pendingStreamingMetadataReason: String? = null
     private var lastF002FrameTimeMs: Long = 0L
+    private var defaultParamProbeTotalWords = 0
+    private var defaultParamProbeRawBuffer: ByteArray? = null
 
     /** Watchdog: force-disconnect if key exchange doesn't complete within timeout. */
     private val keyExchangeWatchdog = Runnable {
@@ -1331,6 +1354,7 @@ class AiDexBleManager(
                     // The sensor ignores writes on an unencrypted link.
                     Log.i(TAG, "Bonding in progress. Deferring key exchange until BOND_BONDED...")
                     keyExchangePendingBond = true
+                    scheduleDeferredBondCompletionCheck(gatt, attempt = 1)
                 }
                 else -> {
                     // BOND_NONE — no bonding happened (unusual for AiDex).
@@ -1340,6 +1364,40 @@ class AiDexBleManager(
                 }
             }
         }
+    }
+
+    private fun scheduleDeferredBondCompletionCheck(gatt: BluetoothGatt, attempt: Int) {
+        handler.postDelayed({
+            if (mBluetoothGatt !== gatt || !cccdChainComplete || !keyExchangePendingBond) {
+                return@postDelayed
+            }
+
+            when (gatt.device.bondState) {
+                BluetoothDevice.BOND_BONDED -> {
+                    keyExchangePendingBond = false
+                    if (bondStateAtConnection != BluetoothDevice.BOND_BONDED) {
+                        bondBecameBondedThisConnection = true
+                    }
+                    Log.w(TAG, "BOND_BONDED observed via fallback check — starting deferred key exchange")
+                    startKeyExchange(gatt)
+                }
+                BluetoothDevice.BOND_BONDING -> {
+                    if (attempt < DEFERRED_BOND_CHECK_MAX_ATTEMPTS) {
+                        Log.i(
+                            TAG,
+                            "Deferred bond check: still bonding after ${attempt * DEFERRED_BOND_CHECK_DELAY_MS}ms " +
+                                "(attempt $attempt/$DEFERRED_BOND_CHECK_MAX_ATTEMPTS)"
+                        )
+                        scheduleDeferredBondCompletionCheck(gatt, attempt + 1)
+                    } else {
+                        Log.w(TAG, "Deferred bond check exhausted while still bonding — waiting for disconnect/retry")
+                    }
+                }
+                else -> {
+                    Log.w(TAG, "Deferred bond check observed state=${gatt.device.bondState} — not starting key exchange")
+                }
+            }
+        }, DEFERRED_BOND_CHECK_DELAY_MS)
     }
 
     override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
@@ -1850,6 +1908,8 @@ class AiDexBleManager(
         pendingInitialHistoryRequest = false
         pendingStreamingMetadataRead = true
         startupControlStage = StartupControlStage.IDLE
+        defaultParamProbeTotalWords = 0
+        defaultParamProbeRawBuffer = null
         handler.removeCallbacks(startupControlAckTimeout)
         handler.removeCallbacks(delayedInitialHistoryRequest)
         Log.i(
@@ -2133,6 +2193,15 @@ class AiDexBleManager(
         enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
     }
 
+    private fun requestDefaultParamProbe(startIndex: Int, reason: String) {
+        val cmd = commandBuilder.getDefaultParam(startIndex) ?: run {
+            Log.w(TAG, "requestDefaultParamProbe($reason): session key not ready")
+            return
+        }
+        Log.i(TAG, "Requesting read-only default params (0x31, start=$startIndex, $reason)")
+        enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
     // =========================================================================
     // F003 Data Handling
     // =========================================================================
@@ -2341,6 +2410,7 @@ class AiDexBleManager(
             0x27 -> handleCalibrationResponse(plaintext)
             0x11 -> handleBroadcastDataResponse(plaintext)
             0x20 -> handleNewSensorAck(plaintext)
+            0x31 -> handleDefaultParamResponse(plaintext)
             0x34 -> handleAutoUpdateStatusAck(plaintext)
             0x35 -> handleDynamicAdvModeAck(plaintext)
             0xF3 -> handleClearStorageResponse(plaintext)
@@ -2545,6 +2615,75 @@ class AiDexBleManager(
         }
         markStartupControlComplete("auto-update-ready")
         requestConnectedBroadcastData("startup-control-ready")
+    }
+
+    private fun handleDefaultParamResponse(data: ByteArray) {
+        val payloadEndExclusive = if (data.size >= 4 && Crc16CcittFalse.validateResponse(data)) {
+            data.size - 2
+        } else {
+            data.size
+        }
+        if (payloadEndExclusive <= 1) {
+            Log.w(TAG, "Default param response too short: len=${data.size}")
+            return
+        }
+
+        val payload = data.copyOfRange(1, payloadEndExclusive)
+        val chunk = AiDexParser.parseDefaultParamChunk(payload)
+        if (chunk == null) {
+            Log.w(
+                TAG,
+                "Default param response parse failed: raw=${AiDexParser.hexString(data.copyOfRange(0, minOf(data.size, 24)))}"
+            )
+            defaultParamProbeRawBuffer = null
+            defaultParamProbeTotalWords = 0
+            return
+        }
+
+        defaultParamProbeTotalWords = chunk.totalWords
+        defaultParamProbeRawBuffer = AiDexParser.appendDefaultParamChunk(defaultParamProbeRawBuffer, chunk)
+
+        val chunkPreview = AiDexParser.hexString(chunk.rawChunk.copyOfRange(0, minOf(chunk.rawChunk.size, 24)))
+        Log.i(
+            TAG,
+            "Default param chunk: lead=0x${"%02X".format(chunk.leadByte)} totalWords=${chunk.totalWords} " +
+                "start=${chunk.startIndex} next=${chunk.nextStartIndex} complete=${chunk.isComplete} raw=$chunkPreview"
+        )
+
+        if (chunk.isComplete) {
+            val hex = AiDexParser.defaultParamRawHex(defaultParamProbeRawBuffer, chunk.totalWords)
+            if (hex == null) {
+                Log.w(TAG, "Default param probe completed but assembled raw blob is invalid")
+                defaultParamProbeRawBuffer = null
+                defaultParamProbeTotalWords = 0
+                return
+            }
+            val packedVariant = AiDexDefaultParamProvisioning.normalizeCurrentVariants(hex).firstOrNull()
+            val packedVersionHex = packedVariant?.versionHex
+            Log.i(
+                TAG,
+                "Default param probe complete: totalWords=${chunk.totalWords} lead=0x${"%02X".format(chunk.leadByte)} " +
+                    "rawHex=$hex packedVersion=${packedVersionHex ?: "?"}"
+            )
+            if (_modelName.isNotBlank() || _firmwareVersion.isNotBlank()) {
+                AiDexDefaultParamProvisioning.compareKnownCatalog(hex, _modelName, _firmwareVersion)
+                    .firstOrNull()
+                    ?.let { best ->
+                        Log.i(
+                            TAG,
+                            "Default param catalog compare: model=${_modelName.ifBlank { "?" }} " +
+                                "fw=${_firmwareVersion.ifBlank { "?" }} " +
+                                "${best.entry.settingType}@${best.entry.version}/${best.entry.settingVersion} " +
+                                "diff=${best.diffByteCount} exact=${best.exactMatch}"
+                        )
+                    }
+            }
+            defaultParamProbeRawBuffer = null
+            defaultParamProbeTotalWords = 0
+            return
+        }
+
+        requestDefaultParamProbe(chunk.nextStartIndex, "continuation")
     }
 
     private fun handleHistoryRangeResponse(data: ByteArray) {
@@ -3480,7 +3619,15 @@ class AiDexBleManager(
                     else -> "Discovering services..."
                 }
             }
-            Phase.CCCD_CHAIN -> "Configuring notifications..."
+            Phase.CCCD_CHAIN -> {
+                val bondState = mBluetoothGatt?.device?.bondState
+                    ?: android.bluetooth.BluetoothDevice.BOND_NONE
+                if (cccdChainComplete && keyExchangePendingBond && bondState == android.bluetooth.BluetoothDevice.BOND_BONDING) {
+                    "Bonding..."
+                } else {
+                    "Configuring notifications..."
+                }
+            }
             Phase.KEY_EXCHANGE -> "Key exchange..."
             Phase.STREAMING -> {
                 if (reconnect.isBroadcastOnlyMode) return "Broadcast Mode"
@@ -3685,11 +3832,7 @@ class AiDexBleManager(
         Log.i(TAG, "startNewSensor: history indices and caches reset")
 
         val cal = Calendar.getInstance(TimeZone.getDefault())
-        val tz = TimeZone.getDefault()
-        val tzOffsetMs = tz.getOffset(cal.timeInMillis)
-        val tzQuarters = (tzOffsetMs / (15 * 60 * 1000))
-        val dstMs = tz.getDSTSavings()
-        val dstQuarters = if (tz.inDaylightTime(cal.time)) (dstMs / (15 * 60 * 1000)) else 0
+        val timeZone = aiDexActivationTimeZone(cal, TimeZone.getDefault())
 
         activateSensor(
             year = cal.get(Calendar.YEAR),
@@ -3698,8 +3841,8 @@ class AiDexBleManager(
             hour = cal.get(Calendar.HOUR_OF_DAY),
             minute = cal.get(Calendar.MINUTE),
             second = cal.get(Calendar.SECOND),
-            tzQuarters = tzQuarters,
-            dstQuarters = dstQuarters,
+            tzQuarters = timeZone.tzQuarters,
+            dstQuarters = timeZone.dstQuarters,
         )
         return true
     }
@@ -3795,7 +3938,14 @@ class AiDexBleManager(
 
     override fun sendMaintenanceCommand(opCode: Int): Boolean {
         Log.i(TAG, "sendMaintenanceCommand(0x${"%02X".format(opCode)}) for $SerialNumber")
-        val cmd = commandBuilder.buildEncrypted(opCode) ?: run {
+        val cmd = when (opCode) {
+            AiDexOpcodes.GET_DEFAULT_PARAM -> {
+                defaultParamProbeTotalWords = 0
+                defaultParamProbeRawBuffer = null
+                commandBuilder.getDefaultParam(0x01)
+            }
+            else -> commandBuilder.buildEncrypted(opCode)
+        } ?: run {
             Log.e(TAG, "sendMaintenanceCommand: session key not available")
             return false
         }
@@ -4296,7 +4446,6 @@ class AiDexBleManager(
         if (waitingForFirstDirectLive) {
             enableNoDirectLiveBroadcastFallbackMode("valid-$source")
         }
-
         // Update notification status
         if (reconnect.isBroadcastOnlyMode) {
             constatstatusstr = "Receiving"

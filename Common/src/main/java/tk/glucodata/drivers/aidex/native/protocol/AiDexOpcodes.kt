@@ -10,8 +10,20 @@ object AiDexOpcodes {
 
     // -- F002 Wire Opcodes --
 
-    /** Post-BOND configuration (always sent after session key extraction) */
-    const val POST_BOND_CONFIG: Int = 0x10
+    /**
+     * Get device info.
+     *
+     * Confirmed from official native `AidexXController.getDeviceInfo()`.
+     */
+    const val GET_DEVICE_INFO_OFFICIAL: Int = 0x10
+
+    /**
+     * Legacy alias kept until manager/device-info parsing is reconciled.
+     *
+     * Older local notes treated `0x10` as a generic post-bond config step, but
+     * native RE shows the official wrapper names it as `getDeviceInfo()`.
+     */
+    const val POST_BOND_CONFIG: Int = GET_DEVICE_INFO_OFFICIAL
 
     /** Get broadcast data (live glucose from advertisement-style query) */
     const val GET_BROADCAST_DATA: Int = 0x11
@@ -19,8 +31,20 @@ object AiDexOpcodes {
     /** Start new sensor (set activation datetime) */
     const val SET_NEW_SENSOR: Int = 0x20
 
-    /** Get device info (activation date, firmware, model) */
+    /**
+     * Legacy combined metadata query used by the current native driver.
+     *
+     * Local parsing/runtime still expects `0x21` here. Static RE says the
+     * official native wrapper names raw `0x21` as `getStartTime()`, so this
+     * alias remains intentionally unresolved until the manager/parser path is
+     * reconciled against fresh traces.
+     */
     const val GET_DEVICE_INFO: Int = 0x21
+
+    /**
+     * Official native wrapper name for raw `0x21`.
+     */
+    const val GET_START_TIME: Int = GET_DEVICE_INFO
 
     /** Get history range (briefStart, rawStart, newest offset) */
     const val GET_HISTORY_RANGE: Int = 0x22
@@ -39,6 +63,52 @@ object AiDexOpcodes {
 
     /** Get calibration record by index */
     const val GET_CALIBRATION: Int = 0x27
+
+    /**
+     * Set default params.
+     *
+     * Confirmed from official native `AidexXController.DefaultParam` long-write
+     * object. Raw command byte is `0x30`, wrapper operation id is `0x300`.
+     */
+    const val SET_DEFAULT_PARAM: Int = 0x30
+
+    /**
+     * Get default params.
+     *
+     * Confirmed from official native `AidexXController.DefaultParam` query path.
+     * Raw command byte is `0x31`, wrapper operation id is `0x301`.
+     */
+    const val GET_DEFAULT_PARAM: Int = 0x31
+
+    /**
+     * Get sensor check.
+     *
+     * Confirmed from official native `AidexXController.getSensorCheck(index)`.
+     */
+    const val GET_SENSOR_CHECK: Int = 0x32
+
+    /**
+     * Get auto-update status.
+     *
+     * Confirmed from official native `AidexXController.getAutoUpdateStatus()`.
+     */
+    const val GET_AUTO_UPDATE_STATUS: Int = 0x33
+
+    /**
+     * Enable sensor auto-update push mode.
+     *
+     * Confirmed from official `AidexXController.setAutoUpdateStatus()` native path:
+     * controller opcode `0x34`, 1-byte payload set to `0x01`.
+     */
+    const val SET_AUTO_UPDATE_STATUS: Int = 0x34
+
+    /**
+     * Enable dynamic advertisement mode.
+     *
+     * Confirmed from official `AidexXController.setDynamicAdvMode(mode)` native path:
+     * controller opcode `0x35`, 1-byte payload carrying the requested mode.
+     */
+    const val SET_DYNAMIC_ADV_MODE: Int = 0x35
 
     /** Delete vendor bond (clears sensor's internal bond state) */
     const val DELETE_BOND: Int = 0xF2
