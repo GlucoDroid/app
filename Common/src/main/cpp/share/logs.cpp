@@ -316,6 +316,10 @@ void LOGGERN(const char *buf,int len) {
 
 #else
 
+#ifdef __APPLE__
+#include <pthread.h>
+#include <unistd.h>
+#else
 #ifndef INCLUDE_NR
 #define INCLUDE_NR
 #include <asm-generic/unistd.h> /*Headers in this order*/
@@ -323,10 +327,19 @@ void LOGGERN(const char *buf,int len) {
 #endif
 
 #include <unistd.h>
+#endif
 extern bool dolog;
 bool dolog=false;
 extern "C" pid_t getTid();
 #endif
 pid_t getTid() {
+#ifdef __APPLE__
+	uint64_t tid = 0;
+	if (pthread_threadid_np(nullptr, &tid) == 0) {
+		return static_cast<pid_t>(tid);
+	}
+	return getpid();
+#else
 	return syscall(SYS_gettid);
+#endif
 	}

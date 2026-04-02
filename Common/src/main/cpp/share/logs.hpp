@@ -52,6 +52,20 @@
 #ifndef _WIN32
 #undef _GNU_SOURCE
 #define _GNU_SOURCE 1
+#ifdef __APPLE__
+#include <sys/wait.h>
+#include <unistd.h>
+
+#define sys_opener(...) open(__VA_ARGS__)
+#define sys_close(...) close(__VA_ARGS__)
+#define sys_write(handle, data, siz) write(handle, data, siz)
+#define sys_read(...) read(__VA_ARGS__)
+#define sys_exit(...) _exit(__VA_ARGS__)
+#define sys_mkdir(...) mkdir(__VA_ARGS__)
+#define sys_wait4(...) wait4(__VA_ARGS__)
+#define sys_pipe2(pipefd, flags) ((flags) == 0 ? pipe(pipefd) : (errno = ENOTSUP, -1))
+#define sys_stat(f, st) stat(f, st)
+#else
 #ifndef INCLUDE_NR
 #define INCLUDE_NR
 #include <asm-generic/unistd.h> /*Headers in this order*/
@@ -74,6 +88,7 @@
 #define sys_stat(f, st) syscall(__NR_stat, f, st) wrong
 #endif
 #endif // __NR_newfstatat
+#endif // __APPLE__
 
 #endif //__WIN32
 

@@ -23,6 +23,7 @@
 #if !defined(WEAROS)
 #include "datbackup.hpp"
 #include <algorithm>
+#include <cstdlib>
 #include <string>
 using namespace std::literals;
 template <typename OUTTYPE>
@@ -59,20 +60,29 @@ std::string mkbackjson(int pos) {
   uit.reserve(1024);
   auto inserter = std::back_inserter(uit);
   const passhost_t &host = back.allhosts[pos];
+  const char *publicHost = std::getenv("JUGGLUCO_MIRROR_PUBLIC_HOST");
+  const char *publicPort = std::getenv("JUGGLUCO_MIRROR_PUBLIC_PORT");
+  const bool hasPublicHost = publicHost && *publicHost;
   if (!host.hashostname()) {
-    const int maxi = passhost_t::maxip - host.hasname;
-    alignas(namehost) uint8_t buf[maxi * sizeof(namehost)];
-    namehost *ips = reinterpret_cast<namehost *>(buf); // skip constructor
-    bool haswlan;
-    int ipnr = getownips(ips, maxi, haswlan);
-    inserter = std::format_to(inserter, R"({{"nr":{},"names":[)", ipnr);
-    if (ipnr > 0) {
-      for (int i = 0;;) {
-        const char *start = ips[i].data();
-        inserter = std::format_to(inserter, R"("{}")", start);
-        if (++i >= ipnr)
-          break;
-        *inserter++ = ',';
+    int ipnr = 0;
+    if (hasPublicHost) {
+      ipnr = 1;
+      inserter = std::format_to(inserter, R"({{"nr":1,"names":["{}")", escape(publicHost));
+    } else {
+      const int maxi = passhost_t::maxip - host.hasname;
+      alignas(namehost) uint8_t buf[maxi * sizeof(namehost)];
+      namehost *ips = reinterpret_cast<namehost *>(buf); // skip constructor
+      bool haswlan;
+      ipnr = getownips(ips, maxi, haswlan);
+      inserter = std::format_to(inserter, R"({{"nr":{},"names":[)", ipnr);
+      if (ipnr > 0) {
+        for (int i = 0;;) {
+          const char *start = ips[i].data();
+          inserter = std::format_to(inserter, R"("{}")", start);
+          if (++i >= ipnr)
+            break;
+          *inserter++ = ',';
+        }
       }
     }
     if (ipnr || host.getActive()) {
@@ -88,7 +98,10 @@ std::string mkbackjson(int pos) {
     inserter = std::copy(std::begin(empty), std::end(empty) - 1, inserter);
     inserter = insertbool(inserter, "hasname", true);
   }
-  inserter = std::format_to(inserter, R"(,"port":{})", (char *)back.port);
+  inserter = std::format_to(inserter, R"(,"port":{})",
+                            (hasPublicHost && publicPort && *publicPort)
+                                ? publicPort
+                                : (char *)back.port);
   if (host.receivedatafrom()) {
     int sendindex = host.index;
     if (sendindex >= 0) {

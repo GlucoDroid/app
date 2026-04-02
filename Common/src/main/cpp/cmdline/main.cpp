@@ -330,6 +330,9 @@ template <int N> bool setlabeltype(bool night,const int (&types)[N]) {
 extern bool dumpQR(int pos);
 extern bool mkAutodumpQRReceiver() ;
 extern bool mkAutodumpQRSender() ;
+extern bool dumpJSON(int pos);
+extern bool mkAutodumpJSONReceiver() ;
+extern bool mkAutodumpJSONSender() ;
 int readconfig(int argc, char **argv) {
     bool receive=false,detect=false,signal=false,nums=false,scans=false,stream=false;
     bool list=false,clear=false;
@@ -361,8 +364,9 @@ D E F I J K O Q T U V Y
 f j q u y 
 */
 const char *autoQR=nullptr;
+const char *autoJSON=nullptr;
 char *api_secret=nullptr,*sslport=nullptr;
-           for(int opt;(opt = getopt(argc, argv, "W:k::q:V::Z:o:e::g:p:d:lcX::x::ransvibAPw:hN:S:B:H:m:GMR:L:C:0:1:2:3:4:5:6:7:8:9:t::")) != -1;) {
+           for(int opt;(opt = getopt(argc, argv, "W:k::q:Q:V::Z:o:e::g:p:d:lcX::x::ransvibAPw:hN:S:B:H:m:GMR:L:C:0:1:2:3:4:5:6:7:8:9:t::")) != -1;) {
            if(opt>='0'&&opt<='9') {
             int num=opt-'0';
             if(optarg[0]>='0'&&optarg[0]<='9') {
@@ -451,6 +455,9 @@ char *api_secret=nullptr,*sslport=nullptr;
 
                case 'q': 
                 autoQR=optarg;
+                break;
+               case 'Q':
+                autoJSON=optarg;
                 break;
             case 'L': label=optarg;break;
                case 'M': unit=1;break;
@@ -682,6 +689,40 @@ static constexpr const    char defaultname[]="jugglucodata";
                 cerr<<"Wrong option to q ("<<autoQR<<"). Should be:\ns to generate a sender\nr to generate a receiver\nor a number to generate the QR of an existing connection"<<endl;
                 return 14;
                 }
+            }
+        did=true;
+        }
+    if(autoJSON) {
+        const char type=tolower(*autoJSON);
+        switch(type) {
+            case 's':
+                if(!mkAutodumpJSONSender()) {
+                    cerr<<"Autogenerate Sender JSON failed"<<endl;
+                    return 14;
+                    }
+                break;
+            case 'r':
+                if(!mkAutodumpJSONReceiver()) {
+                    cerr<<"Autogenerate Receiver JSON failed"<<endl;
+                    return 14;
+                    }
+                break;
+            default:
+                if(isdigit(type)) {
+                    int jsonpos=atoi(autoJSON)-1;
+                    if(jsonpos<0||jsonpos>=backup->gethostnr()) {
+                        cerr<<autoJSON<<" is larger than last connection number"<<endl;
+                        return 14;
+                        }
+                    if(!dumpJSON(jsonpos)) {
+                        cerr<<"Generation JSON for "<<jsonpos<<" failed"<<endl;
+                        return 14;
+                        }
+                    }
+                else {
+                    cerr<<"Wrong option to Q ("<<autoJSON<<"). Should be:\ns to generate a sender JSON\nr to generate a receiver JSON\nor a number to dump the JSON of an existing connection"<<endl;
+                    return 14;
+                    }
             }
         did=true;
         }
