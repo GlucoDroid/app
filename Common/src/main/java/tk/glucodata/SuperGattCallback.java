@@ -395,6 +395,24 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         return existingAlarm;
     }
 
+    public static void processExternalCurrentReading(String sensorSerial, float glucoseValue, float rate,
+            long timmsec, int sensorgen) {
+        if (!Float.isFinite(glucoseValue) || glucoseValue <= 0f || timmsec <= 0L) {
+            return;
+        }
+        if (glucosealarms == null) {
+            glucosealarms = new tk.glucodata.GlucoseAlarms(Applic.app);
+        }
+        final String resolvedSensorSerial = (sensorSerial != null && !sensorSerial.isEmpty())
+                ? sensorSerial
+                : Natives.lastsensorname();
+        final int mgdlValue = Math.round(glucoseValue * (Applic.unit == 1 ? mgdLmult : 1.0f));
+        final int alertCode = reconcileAlertCodeWithCalibratedValue(0, glucoseValue, rate);
+        dowithglucose(resolvedSensorSerial, mgdlValue, glucoseValue, rate, alertCode, timmsec,
+                0L, Notify.glucosetimeout, sensorgen);
+        CustomAlertAccess.checkAndTrigger(Applic.app, glucoseValue, rate, timmsec);
+    }
+
     private static long[] loadRecentSensorHistory(String sensorSerial, long startTimeSec) {
         long[] history = null;
         if (sensorSerial != null && !sensorSerial.isEmpty()) {

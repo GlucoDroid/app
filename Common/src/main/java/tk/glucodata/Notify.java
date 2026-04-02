@@ -71,6 +71,7 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.provider.DocumentsContract;
 import android.util.DisplayMetrics;
 import android.widget.RemoteViews;
 
@@ -150,6 +151,190 @@ public class Notify {
         // setLooping(true) causes the ringtone to loop forever and prevents proper
         // stopping.
         return ring;
+    }
+
+    private static final class AlertSoundHandle {
+        private final Ringtone ringtone;
+        private final MediaPlayer mediaPlayer;
+        private final String title;
+        private boolean released = false;
+
+        AlertSoundHandle(Ringtone ringtone, MediaPlayer mediaPlayer, String title) {
+            this.ringtone = ringtone;
+            this.mediaPlayer = mediaPlayer;
+            this.title = title;
+        }
+
+        boolean isPresent() {
+            return ringtone != null || mediaPlayer != null;
+        }
+
+        String getTitle() {
+            return (title != null && !title.isEmpty()) ? title : "alert sound";
+        }
+
+        synchronized void play() {
+            if (released) {
+                return;
+            }
+            try {
+                if (ringtone != null) {
+                    ringtone.play();
+                    return;
+                }
+                if (mediaPlayer != null) {
+                    try {
+                        mediaPlayer.seekTo(0);
+                    } catch (Throwable ignored) {
+                    }
+                    mediaPlayer.start();
+                }
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "AlertSoundHandle.play()", th);
+            }
+        }
+
+        synchronized void stop() {
+            if (released) {
+                return;
+            }
+            released = true;
+            if (ringtone != null) {
+                try {
+                    ringtone.stop();
+                } catch (Throwable th) {
+                    Log.stack(LOG_ID, "AlertSoundHandle.ringtone.stop()", th);
+                }
+            }
+            if (mediaPlayer != null) {
+                try {
+                    if (mediaPlayer.isPlaying()) {
+                        mediaPlayer.stop();
+                    }
+                } catch (Throwable ignored) {
+                }
+                try {
+                    mediaPlayer.reset();
+                } catch (Throwable ignored) {
+                }
+                try {
+                    mediaPlayer.release();
+                } catch (Throwable th) {
+                    Log.stack(LOG_ID, "AlertSoundHandle.mediaPlayer.release()", th);
+                }
+            }
+        }
+    }
+
+    private static String defaultAlertSoundUri(int res) {
+        return "android.resource://" + Applic.app.getPackageName() + "/" + res;
+    }
+
+    private static String resolveSoundTitle(Uri uri, Ringtone ringtone) {
+        if (ringtone != null) {
+            try {
+                final String title = ringtone.getTitle(Applic.app);
+                if (title != null && !title.isEmpty()) {
+                    return title;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (uri != null) {
+            final String lastSegment = uri.getLastPathSegment();
+            if (lastSegment != null && !lastSegment.isEmpty()) {
+                return lastSegment;
+            }
+        }
+        return "alert sound";
+    }
+
+    private static boolean shouldPreferMediaPlayer(Uri uri) {
+        if (uri == null) {
+            return false;
+        }
+        final String scheme = uri.getScheme();
+        if ("file".equalsIgnoreCase(scheme)) {
+            return true;
+        }
+        if (!"content".equalsIgnoreCase(scheme)) {
+            return false;
+        }
+        try {
+            return DocumentsContract.isDocumentUri(Applic.app, uri);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private AlertSoundHandle buildMediaPlayerHandle(Uri uri, boolean useAlarmStream) {
+        MediaPlayer player = null;
+        try {
+            player = new MediaPlayer();
+            if (Build.VERSION.SDK_INT >= 21) {
+                player.setAudioAttributes(useAlarmStream ? ScanNfcV.audioattributes : notification_audio);
+            }
+            player.setDataSource(Applic.app, uri);
+            player.prepare();
+            return new AlertSoundHandle(null, player, resolveSoundTitle(uri, null));
+        } catch (Throwable th) {
+            if (player != null) {
+                try {
+                    player.release();
+                } catch (Throwable ignored) {
+                }
+            }
+            Log.stack(LOG_ID, "buildMediaPlayerHandle(" + uri + ")", th);
+            return null;
+        }
+    }
+
+    private AlertSoundHandle buildAlertSoundHandle(String uristr, int kind, boolean disturb) {
+        final int fallbackRes = defaults[Math.max(0, Math.min(kind, defaults.length - 1))];
+        final String fallbackUri = defaultAlertSoundUri(fallbackRes);
+        final String requestedUriString = (uristr == null || uristr.length() == 0) ? fallbackUri : uristr;
+        final boolean useAlarmStream = (!AlertType.Companion.isLegacyOnlyId(kind) && getUSEALARM() && disturb);
+        final Uri requestedUri = Uri.parse(requestedUriString);
+
+        if (shouldPreferMediaPlayer(requestedUri)) {
+            final AlertSoundHandle mediaHandle = buildMediaPlayerHandle(requestedUri, useAlarmStream);
+            if (mediaHandle != null) {
+                return mediaHandle;
+            }
+        }
+
+        Ringtone ringtone = RingtoneManager.getRingtone(Applic.app, requestedUri);
+        if (ringtone != null) {
+            if (Build.VERSION.SDK_INT >= 21) {
+                try {
+                    ringtone.setAudioAttributes(useAlarmStream ? ScanNfcV.audioattributes : notification_audio);
+                } catch (Throwable e) {
+                    Log.stack(LOG_ID, "buildAlertSoundHandle.ringtone", e);
+                }
+            }
+            return new AlertSoundHandle(ringtone, null, resolveSoundTitle(requestedUri, ringtone));
+        }
+
+        if (!shouldPreferMediaPlayer(requestedUri)) {
+            final AlertSoundHandle mediaHandle = buildMediaPlayerHandle(requestedUri, useAlarmStream);
+            if (mediaHandle != null) {
+                return mediaHandle;
+            }
+        }
+
+        final Uri fallbackParsedUri = Uri.parse(fallbackUri);
+        ringtone = RingtoneManager.getRingtone(Applic.app, fallbackParsedUri);
+        if (ringtone != null) {
+            if (Build.VERSION.SDK_INT >= 21) {
+                try {
+                    ringtone.setAudioAttributes(useAlarmStream ? ScanNfcV.audioattributes : notification_audio);
+                } catch (Throwable e) {
+                    Log.stack(LOG_ID, "buildAlertSoundHandle.fallback", e);
+                }
+            }
+            return new AlertSoundHandle(ringtone, null, resolveSoundTitle(fallbackParsedUri, ringtone));
+        }
+        return new AlertSoundHandle(null, null, "alert sound");
     }
 
     static public String alarmtext(int kind) {
@@ -1377,16 +1562,28 @@ public class Notify {
     private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
             boolean disturb, int kind) {
         // Default: use global profile from SharedPrefs
-        playringhier(ring, duration, sound, flash, vibrate, disturb, kind, null, -1L);
+        playringhier(new AlertSoundHandle(ring, null, resolveSoundTitle(null, ring)),
+                duration, sound, flash, vibrate, disturb, kind, null, -1L);
     }
 
     private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
             boolean disturb, int kind, String intensityProfile) {
-        playringhier(ring, duration, sound, flash, vibrate, disturb, kind, intensityProfile, -1L);
+        playringhier(new AlertSoundHandle(ring, null, resolveSoundTitle(null, ring)),
+                duration, sound, flash, vibrate, disturb, kind, intensityProfile, -1L);
     }
 
-    private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
-            boolean disturb, int kind, String intensityProfile, long effectDurationMs) {
+    private synchronized void playringhier(AlertSoundHandle soundHandle, int duration, boolean sound, boolean flash,
+            boolean vibrate, boolean disturb, int kind) {
+        playringhier(soundHandle, duration, sound, flash, vibrate, disturb, kind, null, -1L);
+    }
+
+    private synchronized void playringhier(AlertSoundHandle soundHandle, int duration, boolean sound, boolean flash,
+            boolean vibrate, boolean disturb, int kind, String intensityProfile) {
+        playringhier(soundHandle, duration, sound, flash, vibrate, disturb, kind, intensityProfile, -1L);
+    }
+
+    private synchronized void playringhier(AlertSoundHandle soundHandle, int duration, boolean sound, boolean flash,
+            boolean vibrate, boolean disturb, int kind, String intensityProfile, long effectDurationMs) {
         final int sanitizedDuration = sanitizeAlarmDurationSeconds(duration);
         if (sanitizedDuration != duration) {
             duration = sanitizedDuration;
@@ -1414,7 +1611,14 @@ public class Notify {
             }
         }
         final boolean[] doplaysound = { true };
+        final boolean hasSoundHandle = soundHandle != null && soundHandle.isPresent();
         if (sound) {
+            if (!hasSoundHandle) {
+                doplaysound[0] = false;
+                if (doLog) {
+                    Log.w(LOG_ID, "playringhier: no playable sound handle");
+                }
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 int filt = notificationManager.getCurrentInterruptionFilter();
                 if (doLog) {
@@ -1437,8 +1641,8 @@ public class Notify {
                     }
                 }
             }
-            if (doLog && doplaysound[0]) {
-                Log.d(LOG_ID, "play " + ring.getTitle(app));
+            if (doLog && doplaysound[0] && hasSoundHandle) {
+                Log.d(LOG_ID, "play " + soundHandle.getTitle());
             }
         }
         runstopalarm = () -> {
@@ -1455,20 +1659,20 @@ public class Notify {
                 }
                 ;
                 if (sound) {
-                    if (doplaysound[0]) {
+                    if (hasSoundHandle) {
                         try {
                             if (doLog) {
                                 {
                                     if (doLog) {
-                                        Log.d(LOG_ID, "stop sound " + ring.getTitle(app));
+                                        Log.d(LOG_ID, "stop sound " + soundHandle.getTitle());
                                     }
                                     ;
                                 }
                                 ;
                             }
-                            ring.stop();
+                            soundHandle.stop();
                         } catch (Throwable th) {
-                            Log.stack(LOG_ID, "ring.stop()", th);
+                            Log.stack(LOG_ID, "soundHandle.stop()", th);
                         }
                     }
                 }
@@ -1502,10 +1706,13 @@ public class Notify {
                 scheduleRetryAfterStop(kind);
 
             } else {
+                if (sound && hasSoundHandle) {
+                    soundHandle.stop();
+                }
                 if (doLog) {
                     {
                         if (doLog) {
-                            Log.d(LOG_ID, "runstopalarm not isalarm " + ring.getTitle(app));
+                            Log.d(LOG_ID, "runstopalarm not isalarm " + (hasSoundHandle ? soundHandle.getTitle() : "alert sound"));
                         }
                         ;
                     }
@@ -1528,11 +1735,11 @@ public class Notify {
         final String profile = (intensityProfile != null) ? intensityProfile : getVolumeProfile(kind);
 
         if (sound) {
-            if (doplaysound[0]) {
-                if (ring != null) {
-                    ring.play();
+            if (doplaysound[0] && hasSoundHandle) {
+                if (soundHandle != null) {
+                    soundHandle.play();
                 } else if (doLog) {
-                    Log.w(LOG_ID, "playringhier: ringtone is null");
+                    Log.w(LOG_ID, "playringhier: sound handle is null");
                 }
             }
         }
@@ -1638,9 +1845,6 @@ public class Notify {
             ringUri = Natives.readring(kind);
         }
 
-        final Ringtone ring = // rings[kind];
-                mkring(ringUri, kind);
-
         // Read settings from Prefs (AlertRepository) to support new Alert Types that
         // Natives doesn't know about
         android.content.SharedPreferences p = Applic.app.getSharedPreferences("tk.glucodata.alerts",
@@ -1669,15 +1873,16 @@ public class Notify {
 
         final boolean dist = isWearable || getalarmdisturb(kind); // DND might need Prefs too, but keeping Natives for
                                                                   // now
+        final AlertSoundHandle soundHandle = sound ? buildAlertSoundHandle(ringUri, kind, dist) : null;
 
         // DEBUG LOGGING
-        Log.i(LOG_ID, "mksound DEBUG: kind=" + kind + " ring=" + (ring != null ? ring.getTitle(app) : "NULL")
+        Log.i(LOG_ID, "mksound DEBUG: kind=" + kind + " ring=" + (soundHandle != null ? soundHandle.getTitle() : "NULL")
                 + " duration=" + duration + " sound=" + sound + " flash=" + flash + " vibration=" + vibration);
 
         final String profileName = getVolumeProfile(kind);
         final long effectDurationMs = estimateAlertEffectDurationMs(ringUri, kind, sound, flash, vibration,
                 profileName, duration);
-        playringhier(ring, duration, sound, flash, vibration, dist, kind, profileName, effectDurationMs);
+        playringhier(soundHandle, duration, sound, flash, vibration, dist, kind, profileName, effectDurationMs);
     }
 
     /**
@@ -1859,13 +2064,13 @@ public class Notify {
                             + " disturb=" + disturb + " intensity=" + volumeProfile);
 
                     // Pass disturb to mkring so it uses the correct audio stream
-                    Ringtone ring = onenot.mkring(actualUri, kind, disturb);
+                    AlertSoundHandle soundHandle = onenot.buildAlertSoundHandle(actualUri, kind, disturb);
                     final long effectDurationMs = estimateAlertEffectDurationMs(actualUri, kind, sound, flash,
                             vibrate, volumeProfile, finalDuration);
 
                     // playringhier with intensity profile - uses custom alert's intensity not
                     // global
-                    onenot.playringhier(ring, finalDuration, sound, flash, vibrate, disturb, kind, volumeProfile,
+                    onenot.playringhier(soundHandle, finalDuration, sound, flash, vibrate, disturb, kind, volumeProfile,
                             effectDurationMs);
 
                     if (doLog)

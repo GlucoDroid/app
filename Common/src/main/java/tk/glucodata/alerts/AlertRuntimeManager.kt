@@ -9,10 +9,11 @@ import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.Notify
 import tk.glucodata.R
+import tk.glucodata.SuperGattCallback
 
 object AlertRuntimeManager {
     private const val LOG_ID = "AlertRuntimeManager"
-    private const val CHECK_INTERVAL_MS = 60_000L
+    private const val CHECK_INTERVAL_MS = 15_000L
     private const val SENSOR_EXPIRY_WARNING_MS = 24L * 60L * 60L * 1000L
 
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
@@ -20,6 +21,7 @@ object AlertRuntimeManager {
     private var monitorTask: ScheduledFuture<*>? = null
 
     private var lastReadingTimeMs: Long = 0L
+    private var lastDeliveredReadingTimeMs: Long = 0L
     private var lastGlucoseValue: Float = Float.NaN
     private var lastRate: Float = Float.NaN
     private var persistentHighStartedAtMs: Long = 0L
@@ -35,6 +37,7 @@ object AlertRuntimeManager {
     fun onNewReading(glucoseValue: Float, rate: Float, readingTimeMs: Long) {
         synchronized(lock) {
             lastReadingTimeMs = readingTimeMs
+            lastDeliveredReadingTimeMs = maxOf(lastDeliveredReadingTimeMs, readingTimeMs)
             lastGlucoseValue = glucoseValue
             lastRate = rate
             ensureTaskLocked()
@@ -59,10 +62,51 @@ object AlertRuntimeManager {
 
     private fun evaluateLocked(nowMs: Long) {
         bootstrapLastReadingLocked()
+        syncCurrentReadingLocked()
 
         evaluateMissedReadingLocked(nowMs)
         evaluatePersistentHighLocked(nowMs)
         evaluateSensorExpiryLocked(nowMs)
+    }
+
+    private fun syncCurrentReadingLocked() {
+        val latest = try {
+            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
+        } catch (t: Throwable) {
+            null
+        } ?: return
+
+        if (latest.timeMillis <= 0L || !latest.primaryValue.isFinite()) {
+            return
+        }
+
+        if (latest.timeMillis > lastReadingTimeMs || !lastGlucoseValue.isFinite()) {
+            lastReadingTimeMs = latest.timeMillis
+            lastGlucoseValue = latest.primaryValue
+            lastRate = latest.rate
+        }
+
+        if (latest.timeMillis <= lastDeliveredReadingTimeMs) {
+            return
+        }
+
+        lastDeliveredReadingTimeMs = latest.timeMillis
+        if (latest.source == "callback") {
+            return
+        }
+
+        try {
+            SuperGattCallback.processExternalCurrentReading(
+                latest.sensorId,
+                latest.primaryValue,
+                latest.rate,
+                latest.timeMillis,
+                latest.sensorGen
+            )
+            Log.i(LOG_ID, "Processed external reading source=${latest.source} time=${latest.timeMillis}")
+        } catch (t: Throwable) {
+            Log.stack(LOG_ID, "syncCurrentReadingLocked", t)
+        }
     }
 
     private fun evaluateMissedReadingLocked(nowMs: Long) {
@@ -186,6 +230,9 @@ object AlertRuntimeManager {
 
         if (lastReadingTimeMs <= 0L) {
             lastReadingTimeMs = latest.timeMillis
+        }
+        if (lastDeliveredReadingTimeMs <= 0L) {
+            lastDeliveredReadingTimeMs = latest.timeMillis
         }
         if (!lastGlucoseValue.isFinite()) {
             lastGlucoseValue = latest.primaryValue
