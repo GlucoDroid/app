@@ -1,5 +1,6 @@
 package tk.glucodata.drivers.aidex.native.ble
 
+import android.bluetooth.BluetoothDevice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -223,6 +224,86 @@ class AiDexRuntimePolicyTests {
             AiDexRuntimePolicy.shouldContinueBroadcastScanning(
                 broadcastOnlyMode = false,
                 noDirectLiveBroadcastFallbackMode = false,
+            )
+        )
+    }
+
+    @Test
+    fun shouldRecoverFromSetupStall_forBondedCccdChainAfterTimeout() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldRecoverFromSetupStall(
+                phase = AiDexBleManager.Phase.CCCD_CHAIN,
+                phaseAgeMs = 25_000L,
+                bondState = BluetoothDevice.BOND_BONDED,
+                keyExchangePendingBond = false,
+                setupTimeoutMs = 25_000L,
+                bondingTimeoutMs = 35_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldRecoverFromSetupStall_waitsLongerWhileBonding() {
+        assertFalse(
+            AiDexRuntimePolicy.shouldRecoverFromSetupStall(
+                phase = AiDexBleManager.Phase.CCCD_CHAIN,
+                phaseAgeMs = 25_000L,
+                bondState = BluetoothDevice.BOND_BONDING,
+                keyExchangePendingBond = true,
+                setupTimeoutMs = 25_000L,
+                bondingTimeoutMs = 35_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldRecoverFromPreAuthEncryptedTraffic_whenBondedTrafficPersistsBeforeAuth() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldRecoverFromPreAuthEncryptedTraffic(
+                phase = AiDexBleManager.Phase.CCCD_CHAIN,
+                bondState = BluetoothDevice.BOND_BONDED,
+                keyExchangePendingBond = false,
+                encryptedFrameCount = 4,
+                firstEncryptedFrameAtMs = 10_000L,
+                nowMs = 15_500L,
+                minFrames = 3,
+                timeoutMs = 5_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldRecoverFromPreAuthEncryptedTraffic_ignoresBondingTraffic() {
+        assertFalse(
+            AiDexRuntimePolicy.shouldRecoverFromPreAuthEncryptedTraffic(
+                phase = AiDexBleManager.Phase.CCCD_CHAIN,
+                bondState = BluetoothDevice.BOND_BONDING,
+                keyExchangePendingBond = true,
+                encryptedFrameCount = 6,
+                firstEncryptedFrameAtMs = 10_000L,
+                nowMs = 20_000L,
+                minFrames = 3,
+                timeoutMs = 5_000L,
+            )
+        )
+    }
+
+    @Test
+    fun decideInvalidSetupRecoveryAction_escalatesToBondResetAfterRepeatedBondedFailures() {
+        assertEquals(
+            AiDexRuntimePolicy.InvalidSetupRecoveryAction.RECONNECT,
+            AiDexRuntimePolicy.decideInvalidSetupRecoveryAction(
+                consecutiveRecoveries = 1,
+                bondState = BluetoothDevice.BOND_BONDED,
+                bondResetThreshold = 2,
+            )
+        )
+        assertEquals(
+            AiDexRuntimePolicy.InvalidSetupRecoveryAction.REMOVE_BOND_AND_RECONNECT,
+            AiDexRuntimePolicy.decideInvalidSetupRecoveryAction(
+                consecutiveRecoveries = 2,
+                bondState = BluetoothDevice.BOND_BONDED,
+                bondResetThreshold = 2,
             )
         )
     }

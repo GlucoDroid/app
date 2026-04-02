@@ -153,6 +153,11 @@ class AiDexBleManager(
         private const val HISTORY_PAGE_TIMEOUT_MS = 25_000L
         private const val HISTORY_REQUEST_DELAY_MS = 80L
         private const val KEY_EXCHANGE_TIMEOUT_MS = 35_000L
+        private const val SETUP_STALL_TIMEOUT_MS = 25_000L
+        private const val SETUP_BONDING_STALL_TIMEOUT_MS = 35_000L
+        private const val PRE_AUTH_ENCRYPTED_TRAFFIC_TIMEOUT_MS = 5_000L
+        private const val PRE_AUTH_ENCRYPTED_TRAFFIC_MIN_FRAMES = 3
+        private const val INVALID_SETUP_BOND_RESET_THRESHOLD = 2
         private const val GATT_OP_TIMEOUT_MS = 15_000L    // Watchdog for stuck GATT operations
         private const val GATT_OP_WATCHDOG_RETRIES = 2  // Max retries on watchdog timeout before dropping op
         private const val EXPECTED_LIVE_INTERVAL_MS = 60_000L
@@ -209,6 +214,7 @@ class AiDexBleManager(
 
     @Volatile var phase: Phase = Phase.IDLE
         private set
+    @Volatile private var phaseStartedAtMs: Long = 0L
 
     // -- Handler --
     private val handlerThread = HandlerThread("AiDex-$serial").also { it.start() }
@@ -255,6 +261,16 @@ class AiDexBleManager(
     private var keyExchangePendingBond = false
     private var bondStateAtConnection: Int = BluetoothDevice.BOND_NONE
     private var bondBecameBondedThisConnection = false
+    private var preAuthEncryptedFrameCount = 0
+    private var preAuthFirstEncryptedFrameAtMs = 0L
+    private var preAuthLastEncryptedFrameAtMs = 0L
+    @Volatile private var consecutiveInvalidSetupRecoveries = 0
+
+    private enum class PendingInvalidSetupRecovery {
+        NONE,
+        RECONNECT,
+        REMOVE_BOND_AND_RECONNECT,
+    }
 
     private enum class PostCccdFollowUp {
         NONE,
@@ -272,6 +288,7 @@ class AiDexBleManager(
 
     @Volatile private var postCccdFollowUp = PostCccdFollowUp.NONE
     @Volatile private var startupControlStage = StartupControlStage.IDLE
+    @Volatile private var pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
     private var streamingStartedAtMs: Long = 0L
     private var noStreamConnectedBroadcastAttempted = false
     private var noStreamRecoveryAttempted = false
@@ -292,6 +309,57 @@ class AiDexBleManager(
             constatstatusstr = "Key exchange timeout"
             try { mBluetoothGatt?.disconnect() } catch (_: Throwable) {}
         }
+    }
+
+    /** Watchdog: setup must progress out of DISCOVERING_SERVICES/CCCD_CHAIN within a bounded time. */
+    private val setupProgressWatchdog = Runnable {
+        val now = System.currentTimeMillis()
+        val phaseAgeMs = (now - phaseStartedAtMs).coerceAtLeast(0L)
+        val bondState = currentBondState()
+        if (
+            AiDexRuntimePolicy.shouldRecoverFromSetupStall(
+                phase = phase,
+                phaseAgeMs = phaseAgeMs,
+                bondState = bondState,
+                keyExchangePendingBond = keyExchangePendingBond,
+                setupTimeoutMs = SETUP_STALL_TIMEOUT_MS,
+                bondingTimeoutMs = SETUP_BONDING_STALL_TIMEOUT_MS,
+            )
+        ) {
+            recoverFromInvalidSetupState(
+                reason = "setup-stall phase=$phase age=${phaseAgeMs}ms bondState=$bondState pendingBond=$keyExchangePendingBond"
+            )
+        }
+    }
+
+    /** Watchdog: encrypted pre-auth traffic must not persist before key exchange starts. */
+    private val preAuthEncryptedTrafficWatchdog = Runnable {
+        val now = System.currentTimeMillis()
+        val bondState = currentBondState()
+        if (
+            AiDexRuntimePolicy.shouldRecoverFromPreAuthEncryptedTraffic(
+                phase = phase,
+                bondState = bondState,
+                keyExchangePendingBond = keyExchangePendingBond,
+                encryptedFrameCount = preAuthEncryptedFrameCount,
+                firstEncryptedFrameAtMs = preAuthFirstEncryptedFrameAtMs,
+                nowMs = now,
+                minFrames = PRE_AUTH_ENCRYPTED_TRAFFIC_MIN_FRAMES,
+                timeoutMs = PRE_AUTH_ENCRYPTED_TRAFFIC_TIMEOUT_MS,
+            )
+        ) {
+            val trafficAgeMs = (now - preAuthFirstEncryptedFrameAtMs).coerceAtLeast(0L)
+            recoverFromInvalidSetupState(
+                reason = "pre-auth-encrypted-traffic phase=$phase frames=$preAuthEncryptedFrameCount age=${trafficAgeMs}ms bondState=$bondState"
+            )
+        }
+    }
+
+    /** Fallback: if an intentional recovery disconnect never yields a callback, force cleanup anyway. */
+    private val invalidSetupRecoveryFallback = Runnable {
+        if (pendingInvalidSetupRecovery == PendingInvalidSetupRecovery.NONE) return@Runnable
+        Log.w(TAG, "Invalid setup recovery disconnect did not callback — forcing cleanup")
+        handlePendingInvalidSetupRecovery(mBluetoothGatt?.device)
     }
 
     /** Watchdog: try bounded startup recovery steps, then reconnect if direct F003 never appears. */
@@ -822,6 +890,138 @@ class AiDexBleManager(
         )
     }
 
+    private fun currentBondState(): Int {
+        return mBluetoothGatt?.device?.bondState ?: BluetoothDevice.BOND_NONE
+    }
+
+    private fun scheduleSetupProgressWatchdog() {
+        handler.removeCallbacks(setupProgressWatchdog)
+        if (phase == Phase.DISCOVERING_SERVICES || phase == Phase.CCCD_CHAIN) {
+            val timeoutMs = if (currentBondState() == BluetoothDevice.BOND_BONDING || keyExchangePendingBond) {
+                SETUP_BONDING_STALL_TIMEOUT_MS
+            } else {
+                SETUP_STALL_TIMEOUT_MS
+            }
+            val phaseAgeMs = (System.currentTimeMillis() - phaseStartedAtMs).coerceAtLeast(0L)
+            val remainingMs = (timeoutMs - phaseAgeMs).coerceAtLeast(500L)
+            handler.postDelayed(setupProgressWatchdog, remainingMs)
+        }
+    }
+
+    private fun clearInvalidSetupTracking(resetRecoveryCounter: Boolean, reason: String) {
+        handler.removeCallbacks(setupProgressWatchdog)
+        handler.removeCallbacks(preAuthEncryptedTrafficWatchdog)
+        handler.removeCallbacks(invalidSetupRecoveryFallback)
+        preAuthEncryptedFrameCount = 0
+        preAuthFirstEncryptedFrameAtMs = 0L
+        preAuthLastEncryptedFrameAtMs = 0L
+        if (resetRecoveryCounter) {
+            consecutiveInvalidSetupRecoveries = 0
+        }
+        Log.d(TAG, "Invalid-setup tracking cleared ($reason, resetCounter=$resetRecoveryCounter)")
+    }
+
+    private fun notePreAuthEncryptedTraffic(source: String, now: Long = System.currentTimeMillis()) {
+        if (phase != Phase.DISCOVERING_SERVICES && phase != Phase.CCCD_CHAIN) return
+        if (keyExchange.isComplete || keyExchangePendingBond) return
+        val bondState = currentBondState()
+        if (bondState != BluetoothDevice.BOND_BONDED) return
+        if (preAuthEncryptedFrameCount == 0) {
+            preAuthFirstEncryptedFrameAtMs = now
+        }
+        preAuthEncryptedFrameCount += 1
+        preAuthLastEncryptedFrameAtMs = now
+        Log.w(
+            TAG,
+            "Encrypted pre-auth traffic observed from $source while $phase " +
+                "(count=$preAuthEncryptedFrameCount age=${(now - preAuthFirstEncryptedFrameAtMs).coerceAtLeast(0L)}ms)"
+        )
+        handler.removeCallbacks(preAuthEncryptedTrafficWatchdog)
+        handler.postDelayed(preAuthEncryptedTrafficWatchdog, PRE_AUTH_ENCRYPTED_TRAFFIC_TIMEOUT_MS)
+    }
+
+    private fun removeBondSafely(device: BluetoothDevice?, reason: String) {
+        try {
+            if (device?.bondState == BluetoothDevice.BOND_BONDED) {
+                val removeBond = device.javaClass.getMethod("removeBond")
+                removeBond.invoke(device)
+                Log.i(TAG, "$reason: BLE bond removed")
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "$reason: removeBond failed: ${t.message}")
+        }
+    }
+
+    private fun recoverFromInvalidSetupState(reason: String) {
+        if (stop || isPaused || isUnpaired || reconnect.isBroadcastOnlyMode) {
+            Log.w(TAG, "Invalid setup recovery ignored ($reason) stop=$stop paused=$isPaused unpaired=$isUnpaired broadcastOnly=${reconnect.isBroadcastOnlyMode}")
+            return
+        }
+        val bondState = currentBondState()
+        consecutiveInvalidSetupRecoveries += 1
+        val action = AiDexRuntimePolicy.decideInvalidSetupRecoveryAction(
+            consecutiveRecoveries = consecutiveInvalidSetupRecoveries,
+            bondState = bondState,
+            bondResetThreshold = INVALID_SETUP_BOND_RESET_THRESHOLD,
+        )
+        pendingInvalidSetupRecovery = when (action) {
+            AiDexRuntimePolicy.InvalidSetupRecoveryAction.RECONNECT -> PendingInvalidSetupRecovery.RECONNECT
+            AiDexRuntimePolicy.InvalidSetupRecoveryAction.REMOVE_BOND_AND_RECONNECT -> PendingInvalidSetupRecovery.REMOVE_BOND_AND_RECONNECT
+        }
+        clearInvalidSetupTracking(resetRecoveryCounter = false, reason = "recover:$reason")
+        constatstatusstr = when (pendingInvalidSetupRecovery) {
+            PendingInvalidSetupRecovery.RECONNECT -> "Recovering connection"
+            PendingInvalidSetupRecovery.REMOVE_BOND_AND_RECONNECT -> "Recovering bond"
+            PendingInvalidSetupRecovery.NONE -> constatstatusstr
+        } ?: "Recovering"
+        Log.w(
+            TAG,
+            "Invalid setup state detected — scheduling ${pendingInvalidSetupRecovery.name.lowercase()} " +
+                "(attempt=$consecutiveInvalidSetupRecoveries reason=$reason)"
+        )
+        UiRefreshBus.requestStatusRefresh()
+        try {
+            mBluetoothGatt?.disconnect()
+            handler.removeCallbacks(invalidSetupRecoveryFallback)
+            handler.postDelayed(invalidSetupRecoveryFallback, 3_000L)
+        } catch (_: Throwable) {
+            close()
+            handler.post { handlePendingInvalidSetupRecovery(null) }
+        }
+    }
+
+    private fun handlePendingInvalidSetupRecovery(device: BluetoothDevice?) {
+        val recovery = pendingInvalidSetupRecovery
+        if (recovery == PendingInvalidSetupRecovery.NONE) return
+        handler.removeCallbacks(invalidSetupRecoveryFallback)
+        pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
+        keyExchange.reset()
+        challengeWritten = false
+        bondDataRead = false
+        keyExchangePendingBond = false
+        cccdWriteInProgress = false
+        cccdChainComplete = false
+        when (recovery) {
+            PendingInvalidSetupRecovery.RECONNECT -> {
+                val delay = reconnect.nextReconnectDelayMs()
+                Log.w(TAG, "Invalid setup recovery: reconnecting in ${delay}ms")
+                close()
+                handler.postDelayed({ connectDevice(0) }, delay)
+            }
+            PendingInvalidSetupRecovery.REMOVE_BOND_AND_RECONNECT -> {
+                Log.w(TAG, "Invalid setup recovery: removing BLE bond and reconnecting fresh")
+                removeBondSafely(device, "invalidSetupRecovery")
+                close()
+                reconnect.reset()
+                handler.postDelayed({
+                    stop = false
+                    connectDevice(0)
+                }, 1_500L)
+            }
+            PendingInvalidSetupRecovery.NONE -> Unit
+        }
+    }
+
     // -- Listeners --
     /** Called when a live glucose reading is parsed from F003. */
     var onGlucoseReading: ((GlucoseReading) -> Unit)? = null
@@ -1025,6 +1225,8 @@ class AiDexBleManager(
             handler.removeCallbacks(delayedInitialHistoryRequest)
             handler.removeCallbacks(delayedStreamingMetadataRequest)
             handler.removeCallbacks(startupControlAckTimeout)
+            pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
+            clearInvalidSetupTracking(resetRecoveryCounter = false, reason = "new-connection")
             broadcastScanMisses = 0
             lastBroadcastGlucose = 0f
             lastBroadcastTime = 0L
@@ -1100,6 +1302,7 @@ class AiDexBleManager(
             lastBroadcastGlucoseSeen = Int.MIN_VALUE
             lastBroadcastOffsetSeenAtMs = 0L
             clearPendingRoomHistory("disconnect")
+            clearInvalidSetupTracking(resetRecoveryCounter = false, reason = "disconnect")
 
             // Clear per-connection caches and state (bugs #6, #7, #12, #13)
             calibratedGlucoseCache.clear()
@@ -1109,6 +1312,12 @@ class AiDexBleManager(
             lastHistoryNewestGlucose = 0f
             lastHistoryNewestOffset = 0
             deviceInfoComplete = false
+
+            if (pendingInvalidSetupRecovery != PendingInvalidSetupRecovery.NONE) {
+                Log.w(TAG, "Disconnect is owned by invalid-setup recovery (${pendingInvalidSetupRecovery.name})")
+                handlePendingInvalidSetupRecovery(gatt.device)
+                return
+            }
 
             // Handle specific failure cases
             when (status) {
@@ -1390,7 +1599,8 @@ class AiDexBleManager(
                         )
                         scheduleDeferredBondCompletionCheck(gatt, attempt + 1)
                     } else {
-                        Log.w(TAG, "Deferred bond check exhausted while still bonding — waiting for disconnect/retry")
+                        Log.w(TAG, "Deferred bond check exhausted while still bonding — forcing setup recovery")
+                        recoverFromInvalidSetupState("bonding-stall attempts=$attempt")
                     }
                 }
                 else -> {
@@ -1588,6 +1798,7 @@ class AiDexBleManager(
         val gatt = mBluetoothGatt ?: return
         val bondState = gatt.device.bondState
         Log.i(TAG, "bonded() callback: bondState=$bondState")
+        scheduleSetupProgressWatchdog()
 
         if (bondState == BluetoothDevice.BOND_BONDED) {
             if (bondStateAtConnection != BluetoothDevice.BOND_BONDED) {
@@ -1728,6 +1939,7 @@ class AiDexBleManager(
     // =========================================================================
 
     private fun startKeyExchange(gatt: BluetoothGatt) {
+        clearInvalidSetupTracking(resetRecoveryCounter = false, reason = "start-key-exchange")
         setPhase(Phase.KEY_EXCHANGE)
 
         // Start watchdog timer — force disconnect if key exchange doesn't complete
@@ -1897,6 +2109,7 @@ class AiDexBleManager(
      */
     private fun enterStreamingPhase(requestHistory: Boolean) {
         handler.removeCallbacks(keyExchangeWatchdog)  // Cancel watchdog — key exchange succeeded
+        clearInvalidSetupTracking(resetRecoveryCounter = true, reason = "enter-streaming")
         consecutiveSetupDisconnects = 0
         setPhase(Phase.STREAMING)
         reconnect.onConnectionSuccess()
@@ -2238,6 +2451,7 @@ class AiDexBleManager(
         // Decrypt
         val decrypted = keyExchange.decrypt(encryptedData)
         if (decrypted == null) {
+            notePreAuthEncryptedTraffic("F003", now)
             Log.w(TAG, "F003: Cannot decrypt — session key not available")
             return
         }
@@ -2315,6 +2529,7 @@ class AiDexBleManager(
     private fun handleStatusFrame(encryptedData: ByteArray) {
         val decrypted = keyExchange.decrypt(encryptedData)
         if (decrypted == null) {
+            notePreAuthEncryptedTraffic("F003-status")
             Log.d(TAG, "F003: Status frame — cannot decrypt (no session key)")
             return
         }
@@ -2345,6 +2560,7 @@ class AiDexBleManager(
     private fun handleCalibrationNotificationFrame(encryptedData: ByteArray) {
         val decrypted = keyExchange.decrypt(encryptedData)
         if (decrypted == null) {
+            notePreAuthEncryptedTraffic("F003-13-byte")
             Log.d(TAG, "F003: 13-byte frame — cannot decrypt (no session key)")
             return
         }
@@ -3570,6 +3786,13 @@ class AiDexBleManager(
     private fun setPhase(newPhase: Phase) {
         if (phase == newPhase) return
         phase = newPhase
+        phaseStartedAtMs = System.currentTimeMillis()
+        when (newPhase) {
+            Phase.DISCOVERING_SERVICES,
+            Phase.CCCD_CHAIN,
+            -> scheduleSetupProgressWatchdog()
+            else -> handler.removeCallbacks(setupProgressWatchdog)
+        }
         Log.i(TAG, "Phase: $newPhase")
         onPhaseChange?.invoke(newPhase)
     }
@@ -3718,6 +3941,7 @@ class AiDexBleManager(
     override fun forgetVendor() {
         Log.i(TAG, "forgetVendor: tearing down native driver for $SerialNumber")
         stop = true
+        pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
         cancelBroadcastScan()
         keyExchange.reset()
         // Notify C++ layer that this sensor is being removed — prevents zombie resurrection
@@ -3745,6 +3969,7 @@ class AiDexBleManager(
     override fun softDisconnect() {
         Log.i(TAG, "softDisconnect: pausing sensor $SerialNumber")
         consecutiveSetupDisconnects = 0
+        pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
         _isPaused = true  // Block external reconnection triggers (LossOfSensorAlarm, reconnectall)
         stop = true  // Prevent auto-reconnect from disconnect handler
         noDirectLiveBroadcastFallbackMode = false

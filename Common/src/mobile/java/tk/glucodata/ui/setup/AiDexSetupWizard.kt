@@ -569,7 +569,7 @@ private fun scanRecordAdvertises16BitService(scanRecord: ByteArray?, serviceShor
     return false
 }
 
-private fun requiredBleScanPermissions(): Array<String> {
+internal fun requiredBleScanPermissions(): Array<String> {
     return when {
         Build.VERSION.SDK_INT >= 31 -> arrayOf(
             Manifest.permission.BLUETOOTH_SCAN,
@@ -580,7 +580,7 @@ private fun requiredBleScanPermissions(): Array<String> {
     }
 }
 
-private fun hasBleScanPermissions(context: Context): Boolean {
+internal fun hasBleScanPermissions(context: Context): Boolean {
     return requiredBleScanPermissions().all { permission ->
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     }

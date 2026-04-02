@@ -1,6 +1,13 @@
 package tk.glucodata.drivers.aidex.native.ble
 
+import android.bluetooth.BluetoothDevice
+
 internal object AiDexRuntimePolicy {
+
+    enum class InvalidSetupRecoveryAction {
+        RECONNECT,
+        REMOVE_BOND_AND_RECONNECT,
+    }
 
     fun connectedWarmupStatus(
         connectionPart: String,
@@ -105,4 +112,57 @@ internal object AiDexRuntimePolicy {
         pendingInitialHistoryRequest: Boolean,
         historyDownloading: Boolean,
     ): Boolean = pendingInitialHistoryRequest && !historyDownloading
+
+    fun shouldRecoverFromSetupStall(
+        phase: AiDexBleManager.Phase,
+        phaseAgeMs: Long,
+        bondState: Int,
+        keyExchangePendingBond: Boolean,
+        setupTimeoutMs: Long,
+        bondingTimeoutMs: Long,
+    ): Boolean {
+        if (phase != AiDexBleManager.Phase.DISCOVERING_SERVICES && phase != AiDexBleManager.Phase.CCCD_CHAIN) {
+            return false
+        }
+        val timeoutMs = if (bondState == BluetoothDevice.BOND_BONDING || keyExchangePendingBond) {
+            bondingTimeoutMs
+        } else {
+            setupTimeoutMs
+        }
+        return phaseAgeMs >= timeoutMs
+    }
+
+    fun shouldRecoverFromPreAuthEncryptedTraffic(
+        phase: AiDexBleManager.Phase,
+        bondState: Int,
+        keyExchangePendingBond: Boolean,
+        encryptedFrameCount: Int,
+        firstEncryptedFrameAtMs: Long,
+        nowMs: Long,
+        minFrames: Int,
+        timeoutMs: Long,
+    ): Boolean {
+        if (phase != AiDexBleManager.Phase.DISCOVERING_SERVICES && phase != AiDexBleManager.Phase.CCCD_CHAIN) {
+            return false
+        }
+        if (bondState != BluetoothDevice.BOND_BONDED || keyExchangePendingBond) {
+            return false
+        }
+        if (encryptedFrameCount < minFrames || firstEncryptedFrameAtMs <= 0L || nowMs < firstEncryptedFrameAtMs) {
+            return false
+        }
+        return (nowMs - firstEncryptedFrameAtMs) >= timeoutMs
+    }
+
+    fun decideInvalidSetupRecoveryAction(
+        consecutiveRecoveries: Int,
+        bondState: Int,
+        bondResetThreshold: Int,
+    ): InvalidSetupRecoveryAction {
+        return if (bondState == BluetoothDevice.BOND_BONDED && consecutiveRecoveries >= bondResetThreshold) {
+            InvalidSetupRecoveryAction.REMOVE_BOND_AND_RECONNECT
+        } else {
+            InvalidSetupRecoveryAction.RECONNECT
+        }
+    }
 }
