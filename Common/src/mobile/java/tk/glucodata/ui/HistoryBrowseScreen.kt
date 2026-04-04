@@ -1,109 +1,277 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package tk.glucodata.ui
 
-import androidx.compose.foundation.background
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.rounded.Circle
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDateRangePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import tk.glucodata.R
+import tk.glucodata.UiRefreshBus
+import tk.glucodata.ui.stats.StatsDateRange
+import tk.glucodata.ui.stats.StatsDateRangePickerHeadline
+import tk.glucodata.ui.stats.StatsRangeSelectorControl
+import tk.glucodata.ui.stats.StatsTimeRange
+import tk.glucodata.ui.stats.clampStatsDateRangeToAvailable
+import tk.glucodata.ui.stats.pickerUtcDateMillisToLocalEnd
+import tk.glucodata.ui.stats.pickerUtcDateMillisToLocalStart
+import tk.glucodata.ui.stats.toPickerUtcDateMillis
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 
-private enum class HistoryBrowseRange(val days: Int, val labelRes: Int) {
-    DAY_1(1, R.string.range_1d),
-    DAY_7(7, R.string.range_7d),
-    DAY_14(14, R.string.range_14d),
-    DAY_30(30, R.string.range_30d),
-    DAY_90(90, R.string.range_90d)
+private data class HistoryDateSection(
+    val date: LocalDate,
+    val label: String,
+    val points: List<GlucosePoint>
+)
+
+private fun List<GlucosePoint>.sliceByTimestampRange(startMillis: Long, endMillis: Long): List<GlucosePoint> {
+    if (isEmpty()) return emptyList()
+    val startIndex = binarySearchBy(startMillis) { it.timestamp }
+        .let { if (it >= 0) it else (-it - 1).coerceAtLeast(0) }
+    val endInsertionPoint = binarySearchBy(endMillis) { it.timestamp }
+        .let { if (it >= 0) it + 1 else (-it - 1) }
+        .coerceAtMost(size)
+    if (startIndex >= endInsertionPoint) return emptyList()
+    return subList(startIndex, endInsertionPoint)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun resolveHistoryActiveRange(
+    selectedRange: StatsTimeRange?,
+    customRange: StatsDateRange?,
+    availableRange: StatsDateRange?
+): StatsDateRange? {
+    val boundedAvailableRange = availableRange ?: return customRange
+    return when {
+        selectedRange == null -> clampStatsDateRangeToAvailable(customRange, boundedAvailableRange)
+        selectedRange == StatsTimeRange.DAY_ALL -> boundedAvailableRange
+        else -> {
+            val endMillis = boundedAvailableRange.endMillis
+            val startMillis = endMillis - (selectedRange.days * 24L * 60L * 60L * 1000L) + 1L
+            clampStatsDateRangeToAvailable(
+                StatsDateRange(startMillis = startMillis, endMillis = endMillis),
+                boundedAvailableRange
+            )
+        }
+    }
+}
+
+private fun defaultViewportPoints(
+    points: List<GlucosePoint>,
+    selectedRange: TimeRange
+): List<GlucosePoint> {
+    if (points.isEmpty()) return emptyList()
+    val endMillis = points.last().timestamp
+    val startMillis = endMillis - (selectedRange.hours * 60L * 60L * 1000L)
+    return points.sliceByTimestampRange(startMillis, endMillis)
+}
+
+private fun buildHistorySections(points: List<GlucosePoint>): List<HistoryDateSection> {
+    if (points.isEmpty()) return emptyList()
+    val formatter = SimpleDateFormat("MMM d", Locale.getDefault())
+    val zone = ZoneId.systemDefault()
+    val sections = ArrayList<HistoryDateSection>()
+    var currentDate: LocalDate? = null
+    var currentPoints = ArrayList<GlucosePoint>()
+
+    fun flushSection() {
+        val date = currentDate ?: return
+        if (currentPoints.isEmpty()) return
+        sections.add(
+            HistoryDateSection(
+                date = date,
+                label = formatter.format(Date(currentPoints.first().timestamp)),
+                points = currentPoints.toList()
+            )
+        )
+    }
+
+    for (point in points.sortedByDescending { it.timestamp }) {
+        val pointDate = Instant.ofEpochMilli(point.timestamp).atZone(zone).toLocalDate()
+        if (currentDate == null || pointDate != currentDate) {
+            flushSection()
+            currentDate = pointDate
+            currentPoints = ArrayList()
+        }
+        currentPoints.add(point)
+    }
+    flushSection()
+    return sections
+}
+
 @Composable
 fun HistoryBrowseScreen(
     glucoseHistory: List<GlucosePoint>,
     unit: String,
     viewMode: Int,
+    sensorId: String,
     targetLow: Float,
     targetHigh: Float,
+    graphSmoothingMinutes: Int,
+    collapseSmoothedData: Boolean,
+    previewWindowMode: Int,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity>,
     onBack: () -> Unit,
     onPointClick: ((GlucosePoint) -> Unit)? = null
 ) {
-    var selectedHistoryRange by rememberSaveable { mutableStateOf(HistoryBrowseRange.DAY_30) }
-    var selectedChartRange by rememberSaveable { mutableStateOf(TimeRange.H24) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val sortedHistory = remember(glucoseHistory) { glucoseHistory.sortedBy { it.timestamp } }
+    val availableRange = remember(sortedHistory) {
+        if (sortedHistory.isEmpty()) {
+            null
+        } else {
+            StatsDateRange(
+                startMillis = sortedHistory.first().timestamp,
+                endMillis = sortedHistory.last().timestamp
+            )
+        }
+    }
 
-    val now = System.currentTimeMillis()
-    val cutoff = remember(selectedHistoryRange, now) {
-        now - selectedHistoryRange.days * 24L * 60L * 60L * 1000L
+    var selectedHistoryRange by rememberSaveable { mutableStateOf<StatsTimeRange?>(StatsTimeRange.DAY_30) }
+    var customRangeStartMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var customRangeEndMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedChartRange by rememberSaveable { mutableStateOf(TimeRange.H24) }
+    var showDateRangePicker by rememberSaveable { mutableStateOf(false) }
+    var showExportSheet by rememberSaveable { mutableStateOf(false) }
+    var viewportSnapshot by remember { mutableStateOf<ChartViewportSnapshot?>(null) }
+
+    val customRange = remember(customRangeStartMillis, customRangeEndMillis) {
+        val startMillis = customRangeStartMillis
+        val endMillis = customRangeEndMillis
+        if (startMillis != null && endMillis != null) {
+            StatsDateRange(startMillis = startMillis, endMillis = endMillis)
+        } else {
+            null
+        }
     }
-    val filteredHistory = remember(glucoseHistory, cutoff) {
-        val source = glucoseHistory.filter { it.timestamp >= cutoff }
-        source.sortedByDescending { it.timestamp }
+    val activeRange = remember(selectedHistoryRange, customRange, availableRange) {
+        resolveHistoryActiveRange(selectedHistoryRange, customRange, availableRange)
     }
-    val chartHistory = remember(filteredHistory) { filteredHistory.asReversed() }
+    val activeHistory = remember(sortedHistory, activeRange) {
+        activeRange?.let { sortedHistory.sliceByTimestampRange(it.startMillis, it.endMillis) } ?: sortedHistory
+    }
+    val initialViewportPoints = remember(activeHistory, selectedChartRange) {
+        defaultViewportPoints(activeHistory, selectedChartRange)
+    }
+    val viewportPoints = viewportSnapshot?.visiblePoints ?: initialViewportPoints
+    val visibleSections = remember(viewportPoints) { buildHistorySections(viewportPoints) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
+                if (result.success) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.imported_readings_count, result.successCount),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    UiRefreshBus.requestDataRefresh()
+                } else {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.import_failed_with_error, result.errorMessage ?: ""),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.historyname)) },
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.historyname),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showExportSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.CloudUpload,
+                            contentDescription = stringResource(R.string.export_data)
+                        )
+                    }
+                    IconButton(onClick = { importLauncher.launch(arrayOf("text/csv", "text/plain", "*/*")) }) {
+                        Icon(
+                            imageVector = Icons.Filled.FolderOpen,
+                            contentDescription = stringResource(R.string.import_data)
+                        )
                     }
                 }
             )
         }
     ) { innerPadding ->
-        if (filteredHistory.isEmpty()) {
+        if (sortedHistory.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .background(MaterialTheme.colorScheme.background),
+                    .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = stringResource(R.string.no_data_available), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = stringResource(R.string.no_data_available),
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
             return@Scaffold
         }
@@ -112,49 +280,36 @@ fun HistoryBrowseScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    HistoryBrowseRange.entries.forEach { range ->
-                        AssistChip(
-                            onClick = { selectedHistoryRange = range },
-                            label = { Text(stringResource(range.labelRes)) },
-                            leadingIcon = if (selectedHistoryRange == range) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Circle,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(10.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            } else {
-                                null
-                            }
-                        )
-                    }
+            item(key = "history-range-selector") {
+                Box(modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp)) {
+                    StatsRangeSelectorControl(
+                        selectedRange = selectedHistoryRange,
+                        activeRange = activeRange,
+                        isLoading = false,
+                        hasData = activeHistory.isNotEmpty(),
+                        readingCount = activeHistory.size,
+                        countLabelResId = R.string.readings,
+                        onRangeSelected = { range ->
+                            selectedHistoryRange = range
+                            viewportSnapshot = null
+                        },
+                        onCustomRangeClick = { showDateRangePicker = true }
+                    )
                 }
             }
 
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
+            item(key = "history-chart") {
+                Box(modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)) {
                     DashboardChartSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(420.dp),
-                        glucoseHistory = chartHistory,
+                        glucoseHistory = activeHistory,
+                        graphSmoothingMinutes = graphSmoothingMinutes,
+                        collapseSmoothedData = collapseSmoothedData,
+                        previewWindowMode = previewWindowMode,
                         targetLow = targetLow,
                         targetHigh = targetHigh,
                         unit = unit,
@@ -166,100 +321,149 @@ fun HistoryBrowseScreen(
                         expandedProgress = 0f,
                         onToggleExpanded = null,
                         onPointClick = onPointClick,
-                        onCalibrationClick = null
+                        onCalibrationClick = null,
+                        onViewportSnapshotChanged = { viewportSnapshot = it }
                     )
                 }
             }
 
-            item {
-                Text(
-                    text = "${filteredHistory.size} ${stringResource(R.string.readings)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-
-            itemsIndexed(filteredHistory, key = { _, item -> item.timestamp }) { index, item ->
-                HistoryReadingRow(
-                    point = item,
-                    unit = unit,
-                    isFirst = index == 0,
-                    isLast = index == filteredHistory.lastIndex,
-                    onClick = {
-                        if (onPointClick != null) {
-                            onPointClick(item)
-                        }
+            if (visibleSections.isEmpty()) {
+                item(key = "history-empty-window") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.no_data_available),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                )
+                }
+            } else {
+                item(key = "history-list-gap") {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                visibleSections.forEachIndexed { sectionIndex, section ->
+                    item(key = "history-date-${section.date.toEpochDay()}") {
+                        HistoryDateMarker(
+                            label = section.label,
+                            modifier = Modifier
+                                .padding(start = 32.dp, top = if (sectionIndex == 0) 0.dp else 12.dp, end = 16.dp, bottom = 8.dp)
+                                .animateItem()
+                        )
+                    }
+
+                    itemsIndexed(
+                        items = section.points,
+                        key = { _, item -> item.timestamp }
+                    ) { index, item ->
+                        ReadingRow(
+                            point = item,
+                            unit = unit,
+                            viewMode = viewMode,
+                            index = index,
+                            totalCount = section.points.size,
+                            history = section.points,
+                            sensorId = sensorId,
+                            calibrations = calibrations,
+                            highlightLeadRow = false,
+                            isGroupStart = index == 0,
+                            isGroupEnd = index == section.points.lastIndex,
+                            dividerHorizontalInset = 0.dp,
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .animateItem()
+                                .clickable(enabled = onPointClick != null) {
+                                    onPointClick?.invoke(item)
+                                }
+                        )
+                    }
+                }
             }
         }
+    }
+
+    if (showDateRangePicker) {
+        val initialRange = clampStatsDateRangeToAvailable(activeRange, availableRange) ?: availableRange
+        val availableStartDateMillis = availableRange?.startMillis?.let(::toPickerUtcDateMillis)
+        val availableEndDateMillis = availableRange?.endMillis?.let(::toPickerUtcDateMillis)
+        val dateRangePickerState = rememberDateRangePickerState(
+            initialSelectedStartDateMillis = initialRange?.startMillis?.let(::toPickerUtcDateMillis),
+            initialSelectedEndDateMillis = initialRange?.endMillis?.let(::toPickerUtcDateMillis),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val earliest = availableStartDateMillis ?: 0L
+                    val latest = availableEndDateMillis ?: toPickerUtcDateMillis(System.currentTimeMillis())
+                    return utcTimeMillis in earliest..latest
+                }
+            }
+        )
+        val canSaveRange =
+            dateRangePickerState.selectedStartDateMillis != null &&
+                dateRangePickerState.selectedEndDateMillis != null
+
+        DatePickerDialog(
+            onDismissRequest = { showDateRangePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val start = dateRangePickerState.selectedStartDateMillis
+                            ?.let { pickerUtcDateMillisToLocalStart(it) }
+                            ?: return@TextButton
+                        val end = dateRangePickerState.selectedEndDateMillis
+                            ?.let { pickerUtcDateMillisToLocalEnd(it) }
+                            ?: return@TextButton
+                        customRangeStartMillis = start
+                        customRangeEndMillis = end
+                        selectedHistoryRange = null
+                        viewportSnapshot = null
+                        showDateRangePicker = false
+                    },
+                    enabled = canSaveRange
+                ) {
+                    Text(text = stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDateRangePicker = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        ) {
+            DateRangePicker(
+                state = dateRangePickerState,
+                modifier = Modifier.height(448.dp),
+                title = {},
+                headline = {
+                    StatsDateRangePickerHeadline(dateRangePickerState)
+                },
+                showModeToggle = true
+            )
+        }
+    }
+
+    if (showExportSheet) {
+        HistoryExportSheet(
+            onDismiss = { showExportSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        )
     }
 }
 
 @Composable
-private fun HistoryReadingRow(
-    point: GlucosePoint,
-    unit: String,
-    isFirst: Boolean,
-    isLast: Boolean,
-    onClick: () -> Unit
+private fun HistoryDateMarker(
+    label: String,
+    modifier: Modifier = Modifier
 ) {
-    val dateLabel = remember(point.timestamp) {
-        SimpleDateFormat("MMM d · HH:mm", Locale.getDefault()).format(Date(point.timestamp))
-    }
-    val valueLabel = remember(point.value, unit) {
-        if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
-            String.format(Locale.getDefault(), "%.1f", point.value)
-        } else {
-            point.value.toInt().toString()
-        }
-    }
-
-    val shape = when {
-        isFirst && isLast -> RoundedCornerShape(16.dp)
-        isFirst -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 6.dp, bottomEnd = 6.dp)
-        isLast -> RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
-        else -> RoundedCornerShape(6.dp)
-    }
-
-    Column {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onClick() },
-            shape = shape,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = dateLabel,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = valueLabel,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-        if (!isLast) {
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
-            )
-        }
-    }
+    Text(
+        text = label,
+        modifier = modifier,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }

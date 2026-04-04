@@ -171,6 +171,8 @@
  <string name="connectwithsensor">Łączenie z sensorem</string>
  <string name="exchangedata">Przesył danych</string>
  <string name="nonewvalue">&quot;Brak nowej wartości od &quot;</string>
+ <string name="status_no_new_value_for_duration">Brak nowej wartości przez %1$s</string>
+ <string name="status_no_new_value_since_time">Brak nowej wartości od %1$s</string>
  <string name="lowglucose">&quot; Hipoglikemia!&quot;</string>
  <string name="highglucose">&quot; Hiperglikemia!&quot;</string>
  <string name="sendto">Wysyłaj</string>

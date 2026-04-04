@@ -40,6 +40,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -125,7 +126,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import tk.glucodata.R
 import kotlin.math.abs
-import androidx.compose.foundation.layout.Arrangement
 import tk.glucodata.DataSmoothing
 import tk.glucodata.ui.getDisplayValues
 
@@ -446,6 +446,24 @@ private fun PreviewWindowNavigator(
     }
 }
 
+data class ChartViewportSnapshot(
+    val startMillis: Long,
+    val endMillis: Long,
+    val visiblePoints: List<GlucosePoint>,
+    val selectedPoint: GlucosePoint?
+)
+
+private fun List<GlucosePoint>.sliceByTimestampRange(startMillis: Long, endMillis: Long): List<GlucosePoint> {
+    if (isEmpty()) return emptyList()
+    val startIndex = binarySearchBy(startMillis) { it.timestamp }
+        .let { if (it >= 0) it else (-it - 1).coerceAtLeast(0) }
+    val endInsertionPoint = binarySearchBy(endMillis) { it.timestamp }
+        .let { if (it >= 0) it + 1 else (-it - 1) }
+        .coerceAtMost(size)
+    if (startIndex >= endInsertionPoint) return emptyList()
+    return subList(startIndex, endInsertionPoint)
+}
+
 @Composable
 fun DashboardChartSection(
     modifier: Modifier,
@@ -466,7 +484,8 @@ fun DashboardChartSection(
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
-    chartBoostProgress: Float = 0f
+    chartBoostProgress: Float = 0f,
+    onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
     val chartContent: @Composable () -> Unit = {
         Column(modifier = Modifier.padding(bottom = 0.dp)) {
@@ -490,10 +509,11 @@ fun DashboardChartSection(
                         onToggleExpanded = onToggleExpanded,
                         onPointClick = onPointClick,
                         onCalibrationClick = onCalibrationClick,
-                        chartBoostProgress = chartBoostProgress
+                        chartBoostProgress = chartBoostProgress,
+                        onViewportSnapshotChanged = onViewportSnapshotChanged
                     )
                 } else {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_data_available)) }
+                    Box(Modifier.fillMaxSize())
                 }
                 }
         }
@@ -538,7 +558,8 @@ fun InteractiveGlucoseChart(
     onToggleExpanded: (() -> Unit)? = null,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
-    chartBoostProgress: Float = 0f
+    chartBoostProgress: Float = 0f,
+    onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
     // --- THEME & PAINTS ---
     val isDark = isSystemInDarkTheme()
@@ -1038,6 +1059,24 @@ fun InteractiveGlucoseChart(
         } else {
             after
         }
+    }
+
+    LaunchedEffect(interactionData, centerTime, visibleDuration, selectedPoint, onViewportSnapshotChanged) {
+        val callback = onViewportSnapshotChanged ?: return@LaunchedEffect
+        val viewportStart = centerTime - visibleDuration / 2
+        val viewportEnd = centerTime + visibleDuration / 2
+        val visiblePoints = interactionData
+            .sliceByTimestampRange(viewportStart, viewportEnd)
+            .mapNotNull { renderPoint -> getSourcePointAt(renderPoint.timestamp) }
+            .distinctBy { it.timestamp }
+        callback(
+            ChartViewportSnapshot(
+                startMillis = viewportStart,
+                endMillis = viewportEnd,
+                visiblePoints = visiblePoints,
+                selectedPoint = selectedPoint?.let { getSourcePointAt(it.timestamp) ?: it }
+            )
+        )
     }
 
     fun performScrubHaptic(point: GlucosePoint?) {

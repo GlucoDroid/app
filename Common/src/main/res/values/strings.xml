@@ -172,6 +172,8 @@
  <string name="connectwithsensor">Connecting</string>
  <string name="exchangedata">Runs to exchange data</string>
  <string name="nonewvalue">"No new value since "</string>
+ <string name="status_no_new_value_for_duration">No new value for %1$s</string>
+ <string name="status_no_new_value_since_time">No new value since %1$s</string>
  <string name="lowglucose">" Low Glucose!"</string>
  <string name="highglucose">" High Glucose!"</string>
  <string name="lowglucoseshort">@string/lowglucose</string>

@@ -171,6 +171,8 @@
  <string name="connectwithsensor">Sensöre bağlanmaya çalışılıyor</string>
  <string name="exchangedata">Veri alışverişi için çalışıyor</string>
  <string name="nonewvalue">"Veri yok. Son veri zamanı:"</string>
+ <string name="status_no_new_value_for_duration">%1$s süredir yeni değer yok</string>
+ <string name="status_no_new_value_since_time">%1$s zamanından beri yeni değer yok</string>
  <string name="lowglucose">" Düşük Glikoz!"</string>
  <string name="highglucose">" Yüksek Glikoz!"</string>
  <string name="sendto">Gönder</string>

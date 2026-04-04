@@ -175,6 +175,8 @@
  <string name="connectwithsensor">Connessione al sensore</string>
 <string name="exchangedata">Scambio dati</string>
 <string name="nonewvalue">"Nessun valore dalle "</string>
+<string name="status_no_new_value_for_duration">Nessun nuovo valore per %1$s</string>
+<string name="status_no_new_value_since_time">Nessun nuovo valore da %1$s</string>
 <string name="lowglucose">" Glucosio BASSO!"</string>
 <string name="highglucose">" Glucosio ALTO!"</string>
  <string name="lowglucoseshort">" IPO!"</string>

@@ -156,6 +156,8 @@
     <string name="new_amount">Новое значение</string>
     <string name="newname">Создать</string>
     <string name="nonewvalue">"Нет нового значения с "</string>
+    <string name="status_no_new_value_for_duration">Нет новых данных %1$s</string>
+    <string name="status_no_new_value_since_time">Нет новых данных с %1$s</string>
     <string name="newport">Новый порт =</string>
     <string name="newsecret">"Новый api секрет: "</string>
     <string name="nextpage">Новая страница</string>

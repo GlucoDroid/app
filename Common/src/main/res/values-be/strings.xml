@@ -171,6 +171,8 @@
  <string name="connectwithsensor">Каб злучыцца з датчыкам</string>
  <string name="exchangedata">Для абмену дадзенымі</string>
  <string name="nonewvalue">"Няма новага значэння "</string>
+ <string name="status_no_new_value_for_duration">Няма новых даных %1$s</string>
+ <string name="status_no_new_value_since_time">Няма новых даных з %1$s</string>
  <string name="lowglucose">" Нізкі ўзровень глюкозы!"</string>
  <string name="highglucose">" Высокі ўзровень глюкозы!"</string>
  <string name="sendto">Адправіць</string>

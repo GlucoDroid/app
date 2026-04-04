@@ -134,6 +134,7 @@ import androidx.compose.material.icons.filled.Download
 import kotlinx.coroutines.launch
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.DataSmoothing
+import tk.glucodata.DisplayDataState
 import tk.glucodata.Libre3NfcSettings
 import tk.glucodata.Natives
 import tk.glucodata.Notify
@@ -521,16 +522,24 @@ private fun HistoryRoute(
     val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
     val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
     val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
+    val sensorName by dashboardViewModel.sensorName.collectAsStateWithLifecycle()
     val targetLow by dashboardViewModel.targetLow.collectAsStateWithLifecycle()
     val targetHigh by dashboardViewModel.targetHigh.collectAsStateWithLifecycle()
+    val chartSmoothingMinutes by dashboardViewModel.chartSmoothingMinutes.collectAsStateWithLifecycle()
+    val dataSmoothingCollapseChunks by dashboardViewModel.dataSmoothingCollapseChunks.collectAsStateWithLifecycle()
+    val previewWindowMode by dashboardViewModel.previewWindowMode.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
 
     HistoryBrowseScreen(
         glucoseHistory = glucoseHistory,
         unit = unit,
         viewMode = viewMode,
+        sensorId = sensorName,
         targetLow = targetLow,
         targetHigh = targetHigh,
+        graphSmoothingMinutes = chartSmoothingMinutes,
+        collapseSmoothedData = dataSmoothingCollapseChunks,
+        previewWindowMode = previewWindowMode,
         calibrations = calibrations,
         onBack = onBack,
         onPointClick = { point ->
@@ -1074,6 +1083,45 @@ fun DashboardScreen(
                     if (tail.timestamp >= previous.timestamp) tail else glucoseHistory.maxByOrNull { it.timestamp }
                 }
             }
+            val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
+            val hasSensorContext = sensorName.isNotBlank() || activeSensorList.isNotEmpty() || sensorStatus.isNotBlank()
+            val dashboardCurrentSnapshot = remember(
+                refreshRevision,
+                sensorName,
+                activeSensorList,
+                latestPoint?.timestamp,
+                viewMode
+            ) {
+                CurrentDisplaySource.resolveCurrent(
+                    maxAgeMillis = Notify.glucosetimeout,
+                    preferredSensorId = sensorName.ifBlank { activeSensorList.firstOrNull() }
+                )
+            }
+            val freshnessTick by produceState(
+                initialValue = System.currentTimeMillis(),
+                key1 = hasSensorContext,
+                key2 = dashboardCurrentSnapshot?.timeMillis,
+                key3 = latestPoint?.timestamp
+            ) {
+                if (!hasSensorContext) return@produceState
+                while (true) {
+                    delay(15_000L)
+                    value = System.currentTimeMillis()
+                }
+            }
+            val dashboardDataState = remember(
+                hasSensorContext,
+                dashboardCurrentSnapshot?.timeMillis,
+                latestPoint?.timestamp,
+                freshnessTick
+            ) {
+                DisplayDataState.resolve(
+                    sensorPresent = hasSensorContext,
+                    currentTimestampMillis = dashboardCurrentSnapshot?.timeMillis ?: 0L,
+                    latestHistoryTimestampMillis = latestPoint?.timestamp ?: 0L,
+                    nowMillis = freshnessTick
+                )
+            }
             val adaptiveMetrics = rememberAdaptiveWindowMetrics()
             val isLandscape = adaptiveMetrics.isLandscape
             val topContentInset = padding.calculateTopPadding()
@@ -1394,7 +1442,7 @@ fun DashboardScreen(
         // Empty state check
             if (isLoading) {
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
-            } else if (glucoseHistory.isEmpty()) {
+            } else if (glucoseHistory.isEmpty() && !hasSensorContext) {
             tk.glucodata.ui.components.DashboardEmptyState(
                 onSensorSelected = { type ->
                     when (type) {
@@ -1442,6 +1490,8 @@ fun DashboardScreen(
                             currentDay = currentDay,
                             history = glucoseHistory, // Advanced Trend
                             calibratedValue = calibratedValue,
+                            currentSnapshot = dashboardCurrentSnapshot,
+                            dataState = dashboardDataState,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
@@ -1542,6 +1592,8 @@ fun DashboardScreen(
                             currentDay = currentDay,
                             history = glucoseHistory, // Advanced Trend
                             calibratedValue = calibratedValue,
+                            currentSnapshot = dashboardCurrentSnapshot,
+                            dataState = dashboardDataState,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
@@ -1656,6 +1708,7 @@ fun DashboardScreen(
                         CalibrationsCard(
                             viewMode = viewMode,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
+                            showEmptyAction = dashboardCurrentSnapshot != null || glucoseHistory.isNotEmpty(),
                             onAddCalibration = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1725,6 +1778,10 @@ fun ReadingRow(
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
     sensorId: String? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
+    highlightLeadRow: Boolean = true,
+    isGroupStart: Boolean = index == 0,
+    isGroupEnd: Boolean = index == totalCount - 1,
+    dividerHorizontalInset: androidx.compose.ui.unit.Dp = 16.dp,
     modifier: Modifier = Modifier
 ) {
     // --- DYNAMIC COLOR LOGIC ---
@@ -1733,9 +1790,7 @@ fun ReadingRow(
     // 2. Normal (60-90s): Stock Color.
     // 3. Stale (>90s): Stock Color -> Darker Shade.
 
-    val isActive = index == 0
-    val isHistoryStart = index == 1
-    val isHistoryEnd = index == totalCount - 1
+    val isActive = highlightLeadRow && index == 0
 
     val activeColor = MaterialTheme.colorScheme.secondaryContainer
     val stockColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -1804,10 +1859,13 @@ fun ReadingRow(
     // Shape:
     // Active (Hero): "4dp bottom radius" to imply continuity. Top matches parent (16dp).
     // History: Rectangle (relies on parent clipping for its 4dp bottom).
-    val shape = if (isActive) {
-        RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 8.dp, bottomEnd = 8.dp)
-    } else {
-        RectangleShape
+    val shape = when {
+        isActive && isGroupStart && isGroupEnd -> RoundedCornerShape(16.dp)
+        isActive -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 8.dp, bottomEnd = 8.dp)
+        isGroupStart && isGroupEnd -> RoundedCornerShape(16.dp)
+        isGroupStart -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+        isGroupEnd -> RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+        else -> RectangleShape
     }
 
     // Divider Alpha Logic
@@ -1842,16 +1900,15 @@ fun ReadingRow(
         tk.glucodata.logic.TrendEngine.calculateTrend(nativeList, useRaw = (viewMode == 1 || viewMode == 3), isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit))
     }
 
-    // Wrap in Column to place Divider below the Surface
-    Column(modifier = modifier.fillMaxWidth()) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = shape,
-            color = containerColor,
-            // User Request: Kill shadows (0dp)
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp
-        ) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = shape,
+        color = containerColor,
+        // User Request: Kill shadows (0dp)
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1935,15 +1992,14 @@ fun ReadingRow(
                     )
                 }
             }
-        }
-        
-        // Render Divider
-        if (index < totalCount - 1) {
-             HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = dividerAlpha), 
-                thickness = 1.dp
-            )
+
+            if (index < totalCount - 1) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = dividerHorizontalInset),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = dividerAlpha),
+                    thickness = 1.dp
+                )
+            }
         }
     }
 }

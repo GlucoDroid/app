@@ -170,6 +170,8 @@
  <string name="cantextract">Не вдається розпакувати %s, спробуйте інший apk</string>
  <string name="connectwithsensor">Для підключення до датчика</string>
  <string name="nonewvalue">"Відтоді немає нового значення "</string>
+ <string name="status_no_new_value_for_duration">Немає нових даних %1$s</string>
+ <string name="status_no_new_value_since_time">Немає нових даних з %1$s</string>
  <string name="lowglucose">" Низький рівень глюкози!"</string>
  <string name="highglucose">" Високий рівень глюкози!"</string>
  <string name="sendto">Відправити</string>

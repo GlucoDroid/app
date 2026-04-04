@@ -168,6 +168,8 @@
   <string name="connectwithsensor">Aktiv für Sensorverbindung</string>
   <string name="exchangedata">Aktiv für Datenverbindung</string>
   <string name="nonewvalue">"Kein neuer Wert seit "</string>
+  <string name="status_no_new_value_for_duration">Seit %1$s kein neuer Wert</string>
+  <string name="status_no_new_value_since_time">Kein neuer Wert seit %1$s</string>
   <string name="lowglucose">" Niedriger Glukosewert!"</string>
   <string name="highglucose">" Hoher Glukosewert!"</string>
   <string name="sendto">Senden an</string>

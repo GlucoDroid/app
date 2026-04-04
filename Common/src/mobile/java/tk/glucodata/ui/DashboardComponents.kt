@@ -30,6 +30,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import tk.glucodata.ui.theme.displayLargeExpressive
 import tk.glucodata.ui.theme.labelSmallPrim
@@ -100,6 +101,7 @@ import kotlin.math.sin
 import tk.glucodata.R
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
+import tk.glucodata.DisplayDataState
 import tk.glucodata.Notify
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.logic.TrendEngine
@@ -160,6 +162,8 @@ fun DashboardCombinedHeader(
     currentDay: Int = 0,
     history: List<GlucosePoint> = emptyList(),
     calibratedValue: Float? = null,
+    currentSnapshot: CurrentDisplaySource.Snapshot? = null,
+    dataState: DisplayDataState.Status? = null,
     isMmol: Boolean,
     onHeroClick: () -> Unit = {}
 ) {
@@ -242,17 +246,38 @@ fun DashboardCombinedHeader(
 
     // 1. Resolve Values using shared logic (with calibration if active)
     val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
-    val currentSnapshot = remember(refreshRevision, sensorName, currentGlucose, currentRate, latestPoint?.timestamp, viewMode) {
+    val resolvedCurrentSnapshot = currentSnapshot ?: remember(refreshRevision, sensorName, currentGlucose, currentRate, latestPoint?.timestamp, viewMode) {
         CurrentDisplaySource.resolveCurrent(
             maxAgeMillis = Notify.glucosetimeout,
             preferredSensorId = sensorName.ifBlank { null }
         )
     }
-    val dvs = remember(currentSnapshot, latestPoint, viewMode, calibratedValue) {
-        currentSnapshot?.displayValues ?: if (latestPoint != null) {
+    val sensorPresent = sensorName.isNotBlank() || activeSensors.isNotEmpty()
+    val resolvedDataState = dataState ?: remember(
+        resolvedCurrentSnapshot?.timeMillis,
+        latestPoint?.timestamp,
+        sensorPresent
+    ) {
+        DisplayDataState.resolve(
+            sensorPresent = sensorPresent,
+            currentTimestampMillis = resolvedCurrentSnapshot?.timeMillis ?: 0L,
+            latestHistoryTimestampMillis = latestPoint?.timestamp ?: 0L
+        )
+    }
+    val statusCopy = rememberDashboardDataStatusText(
+        dataState = resolvedDataState,
+        sensorStatus = sensorStatus
+    )
+    val isFreshData = resolvedDataState.isFresh
+    val dvs = remember(resolvedCurrentSnapshot, latestPoint, viewMode, calibratedValue, isFreshData) {
+        if (!isFreshData) {
+            null
+        } else {
+            resolvedCurrentSnapshot?.displayValues ?: if (latestPoint != null) {
             getDisplayValues(latestPoint, viewMode, "", calibratedValue)
         } else {
             null
+        }
         }
     }
 
@@ -263,21 +288,7 @@ fun DashboardCombinedHeader(
     val hasTertiary = tertiaryText != null
     val hasThreeValues = hasSecondary && hasTertiary
 
-    val heroCard: @Composable (Modifier) -> Unit = { modifier ->
-        Card(
-            onClick = onHeroClick,
-            modifier = modifier,
-            colors = CardDefaults.cardColors(
-                containerColor = glucoseContainerColor,
-                contentColor = glucoseContentColor
-            ),
-            shape = RoundedCornerShape(
-                topStart = heroTopStart,
-                topEnd = heroTopEnd,
-                bottomEnd = heroBottomEnd,
-                bottomStart = heroBottomStart
-            )
-        ) {
+    val heroCardContent: @Composable () -> Unit = {
             var heroContentWidthPx by remember { mutableStateOf(0) }
             val density = LocalDensity.current
 
@@ -356,8 +367,45 @@ fun DashboardCombinedHeader(
                         )
                     }
                 ).copy(fontFeatureSettings = "tnum")
+                val statusTitleStyle = when (heroWidthClass) {
+                    AdaptiveContentWidthClass.Compact -> MaterialTheme.typography.titleMedium
+                    AdaptiveContentWidthClass.Medium -> MaterialTheme.typography.titleLarge
+                    AdaptiveContentWidthClass.Expanded -> MaterialTheme.typography.headlineSmall
+                }.copy(
+                    fontFeatureSettings = "tnum",
+                    fontWeight = FontWeight.Medium
+                )
 
-                if (isLandscape) {
+                if (statusCopy != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                start = resolvedStartPadding,
+                                end = resolvedEndPadding,
+                                top = resolvedVerticalPadding,
+                                bottom = resolvedVerticalPadding
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = statusCopy.title,
+                            style = statusTitleStyle,
+                            color = glucoseContentColor,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Start
+                        )
+
+                        Spacer(modifier = Modifier.width(resolvedClusterGap))
+
+                        DataStatusPulse(
+                            color = glucoseContentColor,
+                            subdued = statusCopy.isStale
+                        )
+                    }
+                } else if (isLandscape) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -474,6 +522,41 @@ fun DashboardCombinedHeader(
                     }
                 }
             }
+    }
+
+    val heroCard: @Composable (Modifier) -> Unit = { modifier ->
+        val heroShape = RoundedCornerShape(
+            topStart = heroTopStart,
+            topEnd = heroTopEnd,
+            bottomEnd = heroBottomEnd,
+            bottomStart = heroBottomStart
+        )
+        val heroColors = CardDefaults.cardColors(
+            containerColor = glucoseContainerColor,
+            contentColor = glucoseContentColor
+        )
+        val stabilizedModifier = if (statusCopy != null) {
+            modifier.heightIn(min = 96.dp)
+        } else {
+            modifier
+        }
+        if (statusCopy == null) {
+            Card(
+                onClick = onHeroClick,
+                modifier = stabilizedModifier,
+                colors = heroColors,
+                shape = heroShape
+            ) {
+                heroCardContent()
+            }
+        } else {
+            Card(
+                modifier = stabilizedModifier,
+                colors = heroColors,
+                shape = heroShape
+            ) {
+                heroCardContent()
+            }
         }
     }
 
@@ -553,12 +636,14 @@ fun DashboardCombinedHeader(
 
                     // 2. Main Status / Days (Hero Value)
                     // Priority: Status if critical, else Days "1 / 14"
-                    val showingStatus = sensorStatus.isNotEmpty() && sensorStatus != "Ready"
-                    val mainText = if (showingStatus) sensorStatus
-                                   else {
-                                       if (sensorHoursRemaining <= 24) "$sensorHoursRemaining" + "h"
-                                       else daysRemaining
-                                   }
+                    val lifecycleText = if (sensorHoursRemaining <= 24) "$sensorHoursRemaining" + "h" else daysRemaining
+                    val heroOwnsAwaitingStatus = resolvedDataState.isAwaitingData &&
+                        statusCopy != null &&
+                        lifecycleText.isNotEmpty()
+                    val showingStatus = sensorStatus.isNotEmpty() &&
+                        sensorStatus != "Ready" &&
+                        !heroOwnsAwaitingStatus
+                    val mainText = if (showingStatus) sensorStatus else lifecycleText
                     if (mainText.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1173,6 +1258,7 @@ private fun SwipeableDeleteRow(
 fun CalibrationsCard(
     viewMode: Int,
     isMmol: Boolean,
+    showEmptyAction: Boolean = true,
     onAddCalibration: () -> Unit,
     onEditCalibration: (tk.glucodata.data.calibration.CalibrationEntity) -> Unit,
     onViewHistory: () -> Unit,
@@ -1208,6 +1294,9 @@ fun CalibrationsCard(
     
     // EMPTY STATE: No card shown at all - just the button floating (Full Width, Tonal)
     if (calibrations.isEmpty()) {
+        if (!showEmptyAction) {
+            return
+        }
         androidx.compose.material3.FilledTonalButton(
             onClick = onAddCalibration,
             enabled = isCalibrationEnabled,

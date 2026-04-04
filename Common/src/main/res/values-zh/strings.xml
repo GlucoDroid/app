@@ -171,6 +171,8 @@
  <string name="cantextract">无法提取 %s，尝试另一个 apk</string>
  <string name="connectwithsensor">与传感器连接</string>
  <string name="nonewvalue">"自 "</string>
+ <string name="status_no_new_value_for_duration">连续 %1$s 无新数值</string>
+ <string name="status_no_new_value_since_time">自 %1$s 起无新数值</string>
  <string name="lowglucose">"血糖低"</string>
  <string name="highglucose">"血糖高"</string>
  <string name="sendto">发送数据</string>

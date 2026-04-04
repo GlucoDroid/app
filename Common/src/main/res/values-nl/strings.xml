@@ -173,6 +173,8 @@
 <string name="connectwithsensor">Actief v. sensorverbinding</string>
 <string name="exchangedata">Actief voor dataconnectie</string>
  <string name="nonewvalue">"Geen nieuwe waarde since "</string>
+ <string name="status_no_new_value_for_duration">Al %1$s geen nieuwe waarde</string>
+ <string name="status_no_new_value_since_time">Geen nieuwe waarde sinds %1$s</string>
  <string name="lowglucose">" Laag Glucose!"</string>
  <string name="highglucose">" Hoog Glucose!"</string>
  <string name="sendto">Zend naar</string>

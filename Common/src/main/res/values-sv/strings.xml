@@ -166,6 +166,8 @@
   <string name="cantextract">Kan inte extrahera %s. Prova en annan apk.</string>
   <string name="connectwithsensor">För att ansluta till sensorn</string>
   <string name="nonewvalue">"Inget nytt värde sedan "</string>
+  <string name="status_no_new_value_for_duration">Inget nytt värde under %1$s</string>
+  <string name="status_no_new_value_since_time">Inget nytt värde sedan %1$s</string>
   <string name="lowglucose">" Lågt glukosvärde!"</string>
   <string name="highglucose">" Högt glukosvärde!"</string>
   <string name="sendto">Skicka till</string>
