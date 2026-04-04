@@ -1,6 +1,9 @@
 ![Logo-icon](Common/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp)
 # JugglucoNG
   ![Screenshot](https://github.com/ctqwa/JugglucoNG/blob/primary/alpha0.3.1.png?raw=true)
+## 0.8.4-Alpha
+History screen redesign, Statistics screen refinement, improved reconnect/recovery for Aidex, various Alarms and alerts fixes, notification trendarrow unstuck, Dashboard hero card initial connect status and stale value handling.
+
 ## 0.8.3-Alpha
 
 <…>
