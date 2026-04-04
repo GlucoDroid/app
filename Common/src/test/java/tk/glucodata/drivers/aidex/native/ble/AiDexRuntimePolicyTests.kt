@@ -257,6 +257,24 @@ class AiDexRuntimePolicyTests {
     }
 
     @Test
+    fun shouldRecoverFromConnectAttemptStall_whenConnectCallbackNeverArrives() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldRecoverFromConnectAttemptStall(
+                phase = AiDexBleManager.Phase.GATT_CONNECTING,
+                phaseAgeMs = 20_000L,
+                connectTimeoutMs = 20_000L,
+            )
+        )
+        assertFalse(
+            AiDexRuntimePolicy.shouldRecoverFromConnectAttemptStall(
+                phase = AiDexBleManager.Phase.DISCOVERING_SERVICES,
+                phaseAgeMs = 20_000L,
+                connectTimeoutMs = 20_000L,
+            )
+        )
+    }
+
+    @Test
     fun shouldRecoverFromPreAuthEncryptedTraffic_whenBondedTrafficPersistsBeforeAuth() {
         assertTrue(
             AiDexRuntimePolicy.shouldRecoverFromPreAuthEncryptedTraffic(
@@ -284,6 +302,41 @@ class AiDexRuntimePolicyTests {
                 nowMs = 20_000L,
                 minFrames = 3,
                 timeoutMs = 5_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldRecoverFromBlockedReconnect_whenStaleGattExistsWithoutConnectionCallback() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
+                phase = AiDexBleManager.Phase.IDLE,
+                hasGatt = true,
+                connectTimeMs = 0L,
+                hasRecentLiveData = false,
+                lastLiveReadingObservedTimeMs = 0L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldRecoverFromBlockedReconnect_whenStreamingStateIsStaleWithoutRecentLive() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
+                phase = AiDexBleManager.Phase.STREAMING,
+                hasGatt = false,
+                connectTimeMs = 1_000L,
+                hasRecentLiveData = false,
+                lastLiveReadingObservedTimeMs = 500L,
+            )
+        )
+        assertFalse(
+            AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
+                phase = AiDexBleManager.Phase.STREAMING,
+                hasGatt = false,
+                connectTimeMs = 1_000L,
+                hasRecentLiveData = true,
+                lastLiveReadingObservedTimeMs = 500L,
             )
         )
     }

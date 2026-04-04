@@ -1429,6 +1429,16 @@ class HistoryMergeEntryTests {
     }
 
     @Test
+    fun testImplausibleRawValueDropped() {
+        val cache = mutableMapOf(100 to 80)
+        val adcEntries = listOf(adcEntry(100, i1 = 135f)) // raw=1350 mg/dL (~75 mmol/L)
+        val result = HistoryMerge.mergeHistoryEntries(adcEntries, cache, null)
+
+        assertEquals(0f, result.entries[0].rawMgDl, 0.01f)
+        assertEquals(80f, result.entries[0].glucoseMgDl, 0.01f)
+    }
+
+    @Test
     fun testInvalidAdcEntry() {
         // All-zero ADC values produce isValid=false
         val cache = mutableMapOf(100 to 80)
@@ -1743,6 +1753,18 @@ class HistoryFilterTests {
             sensorStart, now
         )
         assertEquals(84.7f, result.passed[0].rawMgDl, 0.01f)
+    }
+
+    @Test
+    fun testNormalizeRawValueRejectsImplausibleSpike() {
+        val rawMgDl = 75f * HistoryMerge.MGDL_PER_MMOL
+        assertNull(HistoryMerge.normalizeRawMgDl(rawMgDl))
+    }
+
+    @Test
+    fun testNormalizeRawValueKeepsPlausibleReading() {
+        val rawMgDl = 12.5f * HistoryMerge.MGDL_PER_MMOL
+        assertEquals(rawMgDl, HistoryMerge.normalizeRawMgDl(rawMgDl)!!, 0.01f)
     }
 }
 

@@ -160,6 +160,8 @@ class AiDexBleManager(
         private const val INVALID_SETUP_BOND_RESET_THRESHOLD = 2
         private const val GATT_OP_TIMEOUT_MS = 15_000L    // Watchdog for stuck GATT operations
         private const val GATT_OP_WATCHDOG_RETRIES = 2  // Max retries on watchdog timeout before dropping op
+        private const val CONNECT_ATTEMPT_TIMEOUT_MS = 20_000L
+        private const val STALE_CONNECTION_RECOVERY_FALLBACK_MS = 3_000L
         private const val EXPECTED_LIVE_INTERVAL_MS = 60_000L
         private const val EXPECTED_LIVE_GRACE_MS = 20_000L
         private const val NO_STREAM_WATCHDOG_MS = EXPECTED_LIVE_INTERVAL_MS + EXPECTED_LIVE_GRACE_MS
@@ -293,6 +295,7 @@ class AiDexBleManager(
     @Volatile private var postCccdFollowUp = PostCccdFollowUp.NONE
     @Volatile private var startupControlStage = StartupControlStage.IDLE
     @Volatile private var pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
+    @Volatile private var pendingStaleConnectionRecovery = false
     private var streamingStartedAtMs: Long = 0L
     private var noStreamConnectedBroadcastAttempted = false
     private var noStreamRecoveryAttempted = false
@@ -317,6 +320,21 @@ class AiDexBleManager(
             Log.e(TAG, "Key exchange watchdog FIRED — timeout after ${KEY_EXCHANGE_TIMEOUT_MS}ms. Force-disconnecting.")
             constatstatusstr = "Key exchange timeout"
             try { mBluetoothGatt?.disconnect() } catch (_: Throwable) {}
+        }
+    }
+
+    /** Watchdog: connectGatt() must produce a callback within a bounded time. */
+    private val connectAttemptWatchdog = Runnable {
+        val now = System.currentTimeMillis()
+        val phaseAgeMs = (now - phaseStartedAtMs).coerceAtLeast(0L)
+        if (
+            AiDexRuntimePolicy.shouldRecoverFromConnectAttemptStall(
+                phase = phase,
+                phaseAgeMs = phaseAgeMs,
+                connectTimeoutMs = CONNECT_ATTEMPT_TIMEOUT_MS,
+            )
+        ) {
+            recoverFromStaleConnectionState("connect-attempt-timeout age=${phaseAgeMs}ms gatt=${mBluetoothGatt != null}")
         }
     }
 
@@ -369,6 +387,13 @@ class AiDexBleManager(
         if (pendingInvalidSetupRecovery == PendingInvalidSetupRecovery.NONE) return@Runnable
         Log.w(TAG, "Invalid setup recovery disconnect did not callback — forcing cleanup")
         handlePendingInvalidSetupRecovery(mBluetoothGatt?.device)
+    }
+
+    /** Fallback: stale runtime recovery requested a disconnect but Android never called back. */
+    private val staleConnectionRecoveryFallback = Runnable {
+        if (!pendingStaleConnectionRecovery) return@Runnable
+        Log.w(TAG, "Stale connection recovery disconnect did not callback — forcing cleanup")
+        completeStaleConnectionRecovery("disconnect-timeout", stateAlreadyReset = false)
     }
 
     /** Watchdog: try bounded startup recovery steps, then reconnect if direct F003 never appears. */
@@ -918,9 +943,11 @@ class AiDexBleManager(
     }
 
     private fun clearInvalidSetupTracking(resetRecoveryCounter: Boolean, reason: String) {
+        handler.removeCallbacks(connectAttemptWatchdog)
         handler.removeCallbacks(setupProgressWatchdog)
         handler.removeCallbacks(preAuthEncryptedTrafficWatchdog)
         handler.removeCallbacks(invalidSetupRecoveryFallback)
+        handler.removeCallbacks(staleConnectionRecoveryFallback)
         preAuthEncryptedFrameCount = 0
         preAuthFirstEncryptedFrameAtMs = 0L
         preAuthLastEncryptedFrameAtMs = 0L
@@ -928,6 +955,107 @@ class AiDexBleManager(
             consecutiveInvalidSetupRecoveries = 0
         }
         Log.d(TAG, "Invalid-setup tracking cleared ($reason, resetCounter=$resetRecoveryCounter)")
+    }
+
+    private fun resetConnectionRuntimeState(reason: String, resetInvalidSetupCounter: Boolean) {
+        handler.removeCallbacksAndMessages(null)
+        cancelBroadcastScan()
+
+        gattQueue.clear()
+        gattOpActive = false
+        queuePausedForBonding = false
+        currentGattOp = null
+        servicesReady = false
+        cccdChainComplete = false
+        keyExchangePendingBond = false
+        postCccdFollowUp = PostCccdFollowUp.NONE
+        historyDownloading = false
+        cccdRetryCount = 0
+        discoveryRetryAttempt = 0
+        streamingStartedAtMs = 0L
+        lastF003FrameTimeMs = 0L
+        noStreamConnectedBroadcastAttempted = false
+        noStreamRecoveryAttempted = false
+        noStreamHistoryRecoveryAttempted = false
+        noStreamFallbackReadingObservedAtMs = 0L
+        postBondLiveRefreshAttempted = false
+        pendingInitialHistoryRequest = false
+        pendingStreamingMetadataRead = false
+        pendingStreamingMetadataReason = null
+        startupControlStage = StartupControlStage.IDLE
+        lastF002FrameTimeMs = 0L
+        noDirectLiveBroadcastFallbackMode = false
+        broadcastScanMisses = 0
+        lastBroadcastGlucose = 0f
+        lastBroadcastTime = 0L
+        lastBroadcastStoredTime = 0L
+        lastBroadcastStoredOffsetMinutes = -1
+        broadcastScanStartedAtElapsed = 0L
+        lastBroadcastOffsetSeen = -1L
+        lastBroadcastTrendSeen = Int.MIN_VALUE
+        lastBroadcastGlucoseSeen = Int.MIN_VALUE
+        lastBroadcastOffsetSeenAtMs = 0L
+        clearPendingRoomHistory(reason)
+        clearInvalidSetupTracking(resetRecoveryCounter = resetInvalidSetupCounter, reason = reason)
+
+        calibratedGlucoseCache.clear()
+        lastCalibratedGlucoseFallback = null
+        lastOffsetMinutes = 0
+        liveOffsetCutoff = 0
+        lastHistoryNewestGlucose = 0f
+        lastHistoryNewestOffset = 0
+        startupMetadataComplete = false
+    }
+
+    private fun shouldRecoverBlockedReconnectNow(now: Long = System.currentTimeMillis()): Boolean {
+        return AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
+            phase = phase,
+            hasGatt = mBluetoothGatt != null,
+            connectTimeMs = connectTime,
+            hasRecentLiveData = hasRecentLiveData(now),
+            lastLiveReadingObservedTimeMs = lastLiveReadingObservedTimeMs,
+        )
+    }
+
+    private fun recoverFromStaleConnectionState(reason: String) {
+        if (stop || isPaused || isUnpaired || reconnect.isBroadcastOnlyMode) {
+            Log.w(TAG, "Stale connection recovery ignored ($reason) stop=$stop paused=$isPaused unpaired=$isUnpaired broadcastOnly=${reconnect.isBroadcastOnlyMode}")
+            return
+        }
+        if (pendingStaleConnectionRecovery) {
+            Log.w(TAG, "Stale connection recovery already pending ($reason)")
+            return
+        }
+        pendingStaleConnectionRecovery = true
+        constatstatusstr = "Reconnecting"
+        Log.w(TAG, "Stale connection state detected — forcing cleanup ($reason)")
+        UiRefreshBus.requestStatusRefresh()
+        if (mBluetoothGatt != null) {
+            try {
+                mBluetoothGatt?.disconnect()
+                handler.removeCallbacks(staleConnectionRecoveryFallback)
+                handler.postDelayed(staleConnectionRecoveryFallback, STALE_CONNECTION_RECOVERY_FALLBACK_MS)
+            } catch (_: Throwable) {
+                completeStaleConnectionRecovery("disconnect-throw", stateAlreadyReset = false)
+            }
+        } else {
+            completeStaleConnectionRecovery("no-gatt", stateAlreadyReset = false)
+        }
+    }
+
+    private fun completeStaleConnectionRecovery(trigger: String, stateAlreadyReset: Boolean) {
+        if (!pendingStaleConnectionRecovery) return
+        handler.removeCallbacks(staleConnectionRecoveryFallback)
+        pendingStaleConnectionRecovery = false
+        if (!stateAlreadyReset) {
+            connectTime = 0L
+            setPhase(Phase.IDLE)
+            resetConnectionRuntimeState(reason = "stale-recovery:$trigger", resetInvalidSetupCounter = false)
+        }
+        close()
+        val delay = reconnect.nextReconnectDelayMs()
+        Log.w(TAG, "Stale connection recovery: reconnecting in ${delay}ms ($trigger)")
+        handler.postDelayed({ connectDevice(0) }, delay)
     }
 
     private fun notePreAuthEncryptedTraffic(source: String, now: Long = System.currentTimeMillis()) {
@@ -1093,6 +1221,12 @@ class AiDexBleManager(
             Log.d(TAG, "connectDevice: skip — broadcast-only mode")
             return false  // Return false: we don't want GATT, but scanning is ok
         }
+        if (shouldRecoverBlockedReconnectNow()) {
+            recoverFromStaleConnectionState(
+                reason = "blocked-reconnect phase=$phase gatt=${mBluetoothGatt != null} connectTime=$connectTime recentLive=${hasRecentLiveData()}"
+            )
+            return true
+        }
         if (phase != Phase.IDLE) {
             Log.d(TAG, "connectDevice: skip — already in phase $phase")
             return true
@@ -1101,7 +1235,11 @@ class AiDexBleManager(
             Log.d(TAG, "connectDevice: skip — GATT already exists")
             return true
         }
-        return super.connectDevice(delayMillis)
+        val scheduled = super.connectDevice(delayMillis)
+        if (scheduled) {
+            setPhase(Phase.GATT_CONNECTING)
+        }
+        return scheduled
     }
 
     private fun hasRecentNoStreamFallbackProgress(now: Long = System.currentTimeMillis()): Boolean {
@@ -1240,6 +1378,7 @@ class AiDexBleManager(
             handler.removeCallbacks(delayedStreamingMetadataRequest)
             handler.removeCallbacks(startupControlAckTimeout)
             pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
+            pendingStaleConnectionRecovery = false
             clearInvalidSetupTracking(resetRecoveryCounter = false, reason = "new-connection")
             broadcastScanMisses = 0
             lastBroadcastGlucose = 0f
@@ -1274,62 +1413,16 @@ class AiDexBleManager(
             constatstatusstr = "Disconnected"
             connectTime = 0L
             setPhase(Phase.IDLE)
-
-            // Cancel ALL pending handler callbacks from the old connection.
-            // Key exchange delays, CCCD retries, post-bond config, history timeouts, etc.
-            // must not fire on a stale or new connection.
-            handler.removeCallbacksAndMessages(null)
-
-            // Clear GATT state
-            gattQueue.clear()
-            gattOpActive = false
-            queuePausedForBonding = false
-            currentGattOp = null
-            servicesReady = false
-            cccdChainComplete = false
-            keyExchangePendingBond = false
-            postCccdFollowUp = PostCccdFollowUp.NONE
-            historyDownloading = false
-            cccdRetryCount = 0
-            discoveryRetryAttempt = 0
-            streamingStartedAtMs = 0L
-            lastF003FrameTimeMs = 0L
-            noStreamConnectedBroadcastAttempted = false
-            noStreamRecoveryAttempted = false
-            noStreamHistoryRecoveryAttempted = false
-            noStreamFallbackReadingObservedAtMs = 0L
-            postBondLiveRefreshAttempted = false
-            pendingInitialHistoryRequest = false
-            pendingStreamingMetadataRead = false
-            pendingStreamingMetadataReason = null
-            startupControlStage = StartupControlStage.IDLE
-            lastF002FrameTimeMs = 0L
-            noDirectLiveBroadcastFallbackMode = false
-            broadcastScanMisses = 0
-            lastBroadcastGlucose = 0f
-            lastBroadcastTime = 0L
-            lastBroadcastStoredTime = 0L
-            lastBroadcastStoredOffsetMinutes = -1
-            broadcastScanStartedAtElapsed = 0L
-            lastBroadcastOffsetSeen = -1L
-            lastBroadcastTrendSeen = Int.MIN_VALUE
-            lastBroadcastGlucoseSeen = Int.MIN_VALUE
-            lastBroadcastOffsetSeenAtMs = 0L
-            clearPendingRoomHistory("disconnect")
-            clearInvalidSetupTracking(resetRecoveryCounter = false, reason = "disconnect")
-
-            // Clear per-connection caches and state (bugs #6, #7, #12, #13)
-            calibratedGlucoseCache.clear()
-            lastCalibratedGlucoseFallback = null
-            lastOffsetMinutes = 0
-            liveOffsetCutoff = 0
-            lastHistoryNewestGlucose = 0f
-            lastHistoryNewestOffset = 0
-            startupMetadataComplete = false
+            resetConnectionRuntimeState(reason = "disconnect", resetInvalidSetupCounter = false)
 
             if (pendingInvalidSetupRecovery != PendingInvalidSetupRecovery.NONE) {
                 Log.w(TAG, "Disconnect is owned by invalid-setup recovery (${pendingInvalidSetupRecovery.name})")
                 handlePendingInvalidSetupRecovery(gatt.device)
+                return
+            }
+            if (pendingStaleConnectionRecovery) {
+                Log.w(TAG, "Disconnect is owned by stale-connection recovery")
+                completeStaleConnectionRecovery("disconnect-callback", stateAlreadyReset = true)
                 return
             }
 
@@ -2251,6 +2344,11 @@ class AiDexBleManager(
             stopBroadcastScan("live-reading", found = true)
         }
 
+        val normalizedRawValue = HistoryMerge.normalizeRawMgDl(rawValue)
+        if (rawValue != null && normalizedRawValue == null) {
+            Log.w(TAG, "Dropping implausible raw value from $source: rawMgDl=$rawValue")
+        }
+
         ensureSensorStartTime(now, trustedTimeOffsetMinutes)
         val sampleTimestampMs = AiDexHistoryPolicy.resolveOffsetBackedTimestampMs(
             observedAtMs = now,
@@ -2264,7 +2362,7 @@ class AiDexBleManager(
             timestamp = sampleTimestampMs,
             sensorSerial = bareSerial,
             autoValue = autoValue,
-            rawValue = rawValue,
+            rawValue = normalizedRawValue,
             sensorGlucose = sensorGlucose,
             rawI1 = rawI1,
             rawI2 = rawI2,
@@ -2279,10 +2377,10 @@ class AiDexBleManager(
                     byteArrayOf(0),
                     sampleTimestampMs,
                     autoValue,
-                    rawValue ?: 0f,
+                    normalizedRawValue ?: 0f,
                     1.0f
                 )
-                handleGlucoseResult(res, sampleTimestampMs, rawValue ?: Float.NaN)
+                handleGlucoseResult(res, sampleTimestampMs, normalizedRawValue ?: Float.NaN)
                 if (constatstatusstr == "Connected") {
                     constatstatusstr = ""
                 }
@@ -2290,18 +2388,18 @@ class AiDexBleManager(
             } catch (e: UnsatisfiedLinkError) {
                 Log.e(TAG, "F003($source): Native library mismatch: $e")
                 val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
-                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, sampleTimestampMs, rawValue ?: Float.NaN)
+                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, sampleTimestampMs, normalizedRawValue ?: Float.NaN)
                 maybeRequestHistoryContinuitySyncAfterLive(sampleTimestampMs, "$source-fallback")
             } catch (e: Throwable) {
                 Log.e(TAG, "F003($source): aidexProcessData failed: $e")
                 val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
-                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, sampleTimestampMs, rawValue ?: Float.NaN)
+                handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, sampleTimestampMs, normalizedRawValue ?: Float.NaN)
                 maybeRequestHistoryContinuitySyncAfterLive(sampleTimestampMs, "$source-fallback")
             }
         } else {
             Log.w(TAG, "F003($source): dataptr is 0 — cannot store reading")
             val mgdlInt = autoValue.toInt().coerceIn(0, 0xFFFF) * 10
-            handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, sampleTimestampMs, rawValue ?: Float.NaN)
+            handleGlucoseResult(mgdlInt.toLong() and 0xFFFFFFFFL, sampleTimestampMs, normalizedRawValue ?: Float.NaN)
             maybeRequestHistoryContinuitySyncAfterLive(sampleTimestampMs, "$source-no-dataptr")
         }
     }
@@ -3669,12 +3767,11 @@ class AiDexBleManager(
     private fun recoverFromServiceDiscoveryFailure() {
         Log.w(TAG, "recoverFromServiceDiscoveryFailure: closing GATT and scheduling reconnect")
         constatstatusstr = "Reconnecting"
+        connectTime = 0L
         setPhase(Phase.IDLE)
-        // Cancel all pending retry/watchdog callbacks on worker handler
-        // (discovery retries, key exchange watchdog, etc. are all on handler)
-        // Close the GATT cleanly
+        pendingStaleConnectionRecovery = false
+        resetConnectionRuntimeState(reason = "service-discovery-failure", resetInvalidSetupCounter = false)
         close()
-        // Schedule reconnect on the worker handler
         val delay = reconnect.nextReconnectDelayMs()
         Log.i(TAG, "Scheduling reconnect after service discovery failure in ${delay}ms")
         handler.postDelayed({ connectDevice(0) }, delay)
@@ -3800,7 +3897,7 @@ class AiDexBleManager(
 
             // Store via JNI — quiet history path, no per-entry UI wakeups
             try {
-                val rawForStore = if (entry.rawMgDl.isFinite() && entry.rawMgDl > 0f) entry.rawMgDl else 0f
+                val rawForStore = HistoryMerge.normalizeRawMgDl(entry.rawMgDl) ?: 0f
                 Natives.aidexStoreHistoryData(dataptr, historicalTimeMs, entry.glucoseMgDl, rawForStore)
                 pendingRoomHistoryTimestamps.add(historicalTimeMs)
                 pendingRoomHistoryValues.add(entry.glucoseMgDl)
@@ -3904,10 +4001,21 @@ class AiDexBleManager(
         phase = newPhase
         phaseStartedAtMs = System.currentTimeMillis()
         when (newPhase) {
+            Phase.GATT_CONNECTING -> {
+                handler.removeCallbacks(connectAttemptWatchdog)
+                handler.postDelayed(connectAttemptWatchdog, CONNECT_ATTEMPT_TIMEOUT_MS)
+                handler.removeCallbacks(setupProgressWatchdog)
+            }
             Phase.DISCOVERING_SERVICES,
             Phase.CCCD_CHAIN,
-            -> scheduleSetupProgressWatchdog()
-            else -> handler.removeCallbacks(setupProgressWatchdog)
+            -> {
+                handler.removeCallbacks(connectAttemptWatchdog)
+                scheduleSetupProgressWatchdog()
+            }
+            else -> {
+                handler.removeCallbacks(connectAttemptWatchdog)
+                handler.removeCallbacks(setupProgressWatchdog)
+            }
         }
         Log.i(TAG, "Phase: $newPhase")
         onPhaseChange?.invoke(newPhase)
@@ -4058,6 +4166,7 @@ class AiDexBleManager(
         Log.i(TAG, "forgetVendor: tearing down native driver for $SerialNumber")
         stop = true
         pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
+        pendingStaleConnectionRecovery = false
         cancelBroadcastScan()
         keyExchange.reset()
         // Notify C++ layer that this sensor is being removed — prevents zombie resurrection
@@ -4086,6 +4195,7 @@ class AiDexBleManager(
         Log.i(TAG, "softDisconnect: pausing sensor $SerialNumber")
         consecutiveSetupDisconnects = 0
         pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
+        pendingStaleConnectionRecovery = false
         _isPaused = true  // Block external reconnection triggers (LossOfSensorAlarm, reconnectall)
         stop = true  // Prevent auto-reconnect from disconnect handler
         noDirectLiveBroadcastFallbackMode = false

@@ -52,9 +52,24 @@ object HistoryMerge {
     // Constants matching AiDexBleManager companion object
     const val MIN_VALID_GLUCOSE_MGDL = 20
     const val MAX_VALID_GLUCOSE_MGDL = 500
+    const val MAX_PLAUSIBLE_RAW_MMOL = 30f
+    const val MGDL_PER_MMOL = 18.0182f
+    const val MAX_PLAUSIBLE_RAW_MGDL = MAX_PLAUSIBLE_RAW_MMOL * MGDL_PER_MMOL
     const val MAX_OFFSET_DAYS = 30
     const val WARMUP_DURATION_MS = 7L * 60_000L  // 7 minutes
     private const val CONTROL_VALUE_DEVIATION_THRESHOLD = 50
+
+    /**
+     * Raw AiDex values can spike briefly after physical sensor disturbance.
+     * Treat implausible values as absent so they do not poison raw stats/charts.
+     */
+    fun normalizeRawMgDl(rawMgDl: Float?): Float? {
+        val value = rawMgDl ?: return null
+        if (!value.isFinite()) return null
+        if (value <= 0f) return null
+        if (value > MAX_PLAUSIBLE_RAW_MGDL) return null
+        return value
+    }
 
     /**
      * Cache 0x23 calibrated history entries, skipping sentinels and control values.
@@ -134,7 +149,7 @@ object HistoryMerge {
             HistoryStoreEntry(
                 offsetMinutes = entry.timeOffsetMinutes,
                 glucoseMgDl = glucose,
-                rawMgDl = entry.rawValue,
+                rawMgDl = normalizeRawMgDl(entry.rawValue) ?: 0f,
                 isValid = !(entry.i1 == 0f && entry.i2 == 0f && entry.vc == 0f),
             )
         }

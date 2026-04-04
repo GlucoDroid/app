@@ -132,6 +132,14 @@ internal object AiDexRuntimePolicy {
         return phaseAgeMs >= timeoutMs
     }
 
+    fun shouldRecoverFromConnectAttemptStall(
+        phase: AiDexBleManager.Phase,
+        phaseAgeMs: Long,
+        connectTimeoutMs: Long,
+    ): Boolean {
+        return phase == AiDexBleManager.Phase.GATT_CONNECTING && phaseAgeMs >= connectTimeoutMs
+    }
+
     fun shouldRecoverFromPreAuthEncryptedTraffic(
         phase: AiDexBleManager.Phase,
         bondState: Int,
@@ -152,6 +160,22 @@ internal object AiDexRuntimePolicy {
             return false
         }
         return (nowMs - firstEncryptedFrameAtMs) >= timeoutMs
+    }
+
+    fun shouldRecoverFromBlockedReconnect(
+        phase: AiDexBleManager.Phase,
+        hasGatt: Boolean,
+        connectTimeMs: Long,
+        hasRecentLiveData: Boolean,
+        lastLiveReadingObservedTimeMs: Long,
+    ): Boolean {
+        if (phase == AiDexBleManager.Phase.IDLE && hasGatt && connectTimeMs <= 0L) {
+            return true
+        }
+        if (phase == AiDexBleManager.Phase.STREAMING && lastLiveReadingObservedTimeMs > 0L && !hasRecentLiveData) {
+            return true
+        }
+        return false
     }
 
     fun decideInvalidSetupRecoveryAction(
