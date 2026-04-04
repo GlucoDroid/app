@@ -820,6 +820,24 @@ public class Notify {
         }
     }
 
+    private static long latestNotificationTimestamp(List<GlucosePoint> historyPoints) {
+        if (historyPoints == null || historyPoints.isEmpty()) {
+            return 0L;
+        }
+        final GlucosePoint latest = historyPoints.get(historyPoints.size() - 1);
+        return latest != null ? latest.timestamp : 0L;
+    }
+
+    private static DisplayDataState.Status resolveNotificationDataState(
+            CurrentDisplaySource.Snapshot current,
+            List<GlucosePoint> historyPoints,
+            String activeSensorSerial) {
+        return DisplayDataState.resolve(
+                activeSensorSerial != null && !activeSensorSerial.isEmpty(),
+                current != null ? current.getTimeMillis() : 0L,
+                latestNotificationTimestamp(historyPoints));
+    }
+
     private static java.util.List<GlucosePoint> augmentNotificationChartPoints(
             java.util.List<GlucosePoint> historyPoints,
             CurrentDisplaySource.Snapshot current,
@@ -1088,6 +1106,51 @@ public class Notify {
             return isHigh ? 1.2f : -1.2f;
         }
         return Float.NaN;
+    }
+
+    private static boolean hasNotificationTrendHistory(List<GlucosePoint> points, boolean useRaw) {
+        if (points == null || points.isEmpty()) {
+            return false;
+        }
+        int usablePoints = 0;
+        long previousTimestamp = 0L;
+        for (GlucosePoint point : points) {
+            if (point == null) {
+                continue;
+            }
+            final float value = useRaw ? point.rawValue : point.value;
+            if (!Float.isFinite(value) || value <= 0.1f) {
+                continue;
+            }
+            if (usablePoints > 0 && point.timestamp != previousTimestamp) {
+                return true;
+            }
+            usablePoints++;
+            previousTimestamp = point.timestamp;
+        }
+        return false;
+    }
+
+    private static float resolveNotificationArrowRate(
+            List<GlucosePoint> recentPoints,
+            CurrentDisplaySource.Snapshot current,
+            int viewMode,
+            boolean isMmol,
+            float fallbackRate) {
+        final boolean useRaw = (viewMode == 1 || viewMode == 3);
+        if (hasNotificationTrendHistory(recentPoints, useRaw)) {
+            try {
+                final float historyRate = TrendAccess.calculateVelocity(recentPoints, useRaw, isMmol);
+                if (Float.isFinite(historyRate)) {
+                    return historyRate;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (current != null && Float.isFinite(current.getRate())) {
+            return current.getRate();
+        }
+        return fallbackRate;
     }
 
     private static void cancelRetryScheduleLocked() {
@@ -2973,6 +3036,7 @@ public class Notify {
             // Fall back to chart points if native fails
             nativePoints = chartPoints;
         }
+        nativePoints = augmentNotificationChartPoints(nativePoints, resolvedDisplay, activeSensorSerial, recentStartT);
 
         // Status Logic & ViewMode extraction
         String statusText = "";
@@ -2992,14 +3056,10 @@ public class Notify {
             viewMode = resolveSensorViewMode(activeSensorSerial);
         }
 
-        // Get Consistently Formatted Text using NATIVE points (fresh data)
-        // Recalculate rate using shared TrendEngine for consistency
-        try {
-            boolean useRaw = (viewMode == 1 || viewMode == 3);
-            rate = TrendAccess.calculateVelocity(nativePoints, useRaw, isMmol);
-        } catch (Throwable t) {
-            // keep original rate if fails
-        }
+        // Keep the notification arrow aligned with the same recent history window that
+        // feeds the notification chart, including the appended live point before Room
+        // persistence catches up.
+        rate = resolveNotificationArrowRate(nativePoints, resolvedDisplay, viewMode, isMmol, rate);
 
         // If ViewMode == 3 (Combined), we force appending Raw if available
         boolean isRawMode = (viewMode == 1 || viewMode == 3);
@@ -3019,10 +3079,6 @@ public class Notify {
                         nativePoints,
                         viewMode,
                         isMmol);
-
-        if (resolvedDisplay != null && Float.isFinite(resolvedDisplay.getRate())) {
-            rate = resolvedDisplay.getRate();
-        }
 
         CharSequence valueText = buildFormattedGlucoseText(fallbackDisplay, glvalue);
         final float displayGlucoseValue = fallbackDisplay != null ? fallbackDisplay.getPrimaryValue() : glvalue;
@@ -3288,6 +3344,7 @@ public class Notify {
         } catch (Exception e) {
             nativePoints = chartPoints;
         }
+        nativePoints = augmentNotificationChartPoints(nativePoints, current, activeSensorSerial, recentStartT);
 
         // Identify ViewMode for Startup
         int viewMode = 0;
@@ -3383,10 +3440,7 @@ public class Notify {
         }
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, colorVal, isMmol);
 
-        float startupRate = 0f;
-        if (current != null) {
-            startupRate = current.getRate();
-        }
+        float startupRate = resolveNotificationArrowRate(nativePoints, current, viewMode, isMmol, 0f);
 
         arrowBitmap = NotificationChartDrawer.drawArrow(Applic.app, startupRate, isMmol,
                 glucoseColor);
