@@ -1410,6 +1410,7 @@ fun DashboardScreen(
                     limit = 10
                 )
             }
+            val hasVisibleReadingContent = dashboardDataState.isFresh || recentReadings.isNotEmpty()
 
             val isManualCalibrationEnabled = if (viewMode == 1 || viewMode == 3) isRawEnabled else isAutoEnabled
             val triggerCalibrationIfEnabled: (CalibrationSheetState) -> Unit = { state ->
@@ -1708,7 +1709,7 @@ fun DashboardScreen(
                         CalibrationsCard(
                             viewMode = viewMode,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
-                            showEmptyAction = dashboardCurrentSnapshot != null || glucoseHistory.isNotEmpty(),
+                            showEmptyAction = hasVisibleReadingContent,
                             onAddCalibration = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal

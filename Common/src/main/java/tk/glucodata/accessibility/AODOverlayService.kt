@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import tk.glucodata.Applic
 import tk.glucodata.BatteryTrace
+import tk.glucodata.DisplayTrendSource
 import tk.glucodata.GlucosePoint
 import tk.glucodata.Natives
 import tk.glucodata.NotificationHistorySource
@@ -36,7 +37,6 @@ import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SuperGattCallback
-import tk.glucodata.TrendAccess
 import tk.glucodata.UiRefreshBus
 import java.util.Locale
 
@@ -427,26 +427,27 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
 
         val resolvedDisplay = tk.glucodata.CurrentDisplaySource.resolveCurrent(
             maxAgeMillis = tk.glucodata.Notify.glucosetimeout,
-            preferredSensorId = activeSensorSerial
+            preferredSensorId = activeSensorSerial,
+            historyWindowMs = DisplayTrendSource.TREND_WINDOW_MS
         )
         if (viewMode == 0 && resolvedDisplay != null) {
             viewMode = resolvedDisplay.viewMode
         }
+        val overlayChartPoints = DisplayTrendSource.augmentHistory(chartPoints, resolvedDisplay, activeSensorSerial, startT)
         val hasCalibration = tk.glucodata.NightscoutCalibration.hasCalibrationForViewMode(activeSensorSerial, viewMode)
 
         if (resolvedDisplay != null) {
             time = resolvedDisplay.timeMillis
             glvalue = resolvedDisplay.primaryValue
             valStr = if (showSecondary) resolvedDisplay.fullFormatted else resolvedDisplay.primaryStr
-        } else if (chartPoints.isNotEmpty()) {
-            val p = chartPoints[chartPoints.size - 1]
+        } else if (overlayChartPoints.isNotEmpty()) {
+            val p = overlayChartPoints[overlayChartPoints.size - 1]
             glvalue = p.value
             valStr = if (isMmol) String.format(Locale.getDefault(), "%.1f", glvalue)
             else String.format(Locale.getDefault(), "%.0f", glvalue)
         }
 
-        val displayRate = resolvedDisplay?.rate?.takeIf { it.isFinite() }
-            ?: TrendAccess.calculateVelocity(chartPoints, useRaw = (viewMode == 1 || viewMode == 3), isMmol = isMmol)
+        val displayRate = DisplayTrendSource.resolveArrowRate(overlayChartPoints, resolvedDisplay, viewMode, isMmol)
 
         val glucoseColor = NotificationChartDrawer.getGlucoseColor(this, glvalue, isMmol)
 
@@ -495,7 +496,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
 
             val chartBitmap = NotificationChartDrawer.drawChart(
                 this,
-                chartPoints,
+                overlayChartPoints,
                 renderWidth,
                 renderHeight,
                 isMmol,

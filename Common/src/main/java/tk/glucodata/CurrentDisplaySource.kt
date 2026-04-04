@@ -5,7 +5,7 @@ import tk.glucodata.ui.DisplayValueResolver
 import tk.glucodata.ui.DisplayValues
 
 object CurrentDisplaySource {
-    private const val DEFAULT_HISTORY_WINDOW_MS = 15 * 60 * 1000L
+    private const val DEFAULT_HISTORY_WINDOW_MS = DisplayTrendSource.TREND_WINDOW_MS
     private const val LIVE_CONTEXT_WINDOW_MS = 2 * 60 * 1000L
     private const val MATCH_WINDOW_MS = 60 * 1000L
     private const val MGDL_PER_MMOLL = 18.0182f
@@ -45,11 +45,7 @@ object CurrentDisplaySource {
         val smoothAllData = smoothingMinutes > 0 && !DataSmoothing.isGraphOnly(Applic.app)
         val collapseChunks = smoothAllData && DataSmoothing.collapseChunks(Applic.app)
         val now = System.currentTimeMillis()
-        val liveHistoryWindowMs = if (smoothAllData) {
-            historyWindowMs.coerceAtLeast(LIVE_CONTEXT_WINDOW_MS)
-        } else {
-            LIVE_CONTEXT_WINDOW_MS
-        }
+        val liveHistoryWindowMs = historyWindowMs.coerceAtLeast(LIVE_CONTEXT_WINDOW_MS)
         val historyStart = when {
             current != null && current.timeMillis > 0L -> (current.timeMillis - liveHistoryWindowMs).coerceAtLeast(0L)
             else -> now - historyWindowMs
@@ -69,15 +65,10 @@ object CurrentDisplaySource {
         } else {
             recentPoints
         }
-        val resolvedRate = if (smoothAllData && processedPoints.size >= 2) {
-            TrendAccess.calculateVelocity(processedPoints, useRaw = isRawPrimary(viewMode), isMmol = isMmol)
-        } else {
-            current?.rate ?: Float.NaN
-        }
-        return resolveFromLive(
+        val initialSnapshot = resolveFromLive(
             liveValueText = current?.valueText,
             liveNumericValue = current?.numericValue ?: Float.NaN,
-            rate = resolvedRate,
+            rate = current?.rate ?: Float.NaN,
             targetTimeMillis = if (collapseChunks) {
                 processedPoints.lastOrNull()?.timestamp ?: current?.timeMillis ?: 0L
             } else {
@@ -91,6 +82,23 @@ object CurrentDisplaySource {
             viewMode = viewMode,
             isMmol = isMmol
         )
+        if (initialSnapshot == null) {
+            return null
+        }
+        val trendPoints = DisplayTrendSource.augmentHistory(
+            historyPoints = processedPoints,
+            current = initialSnapshot,
+            activeSensorSerial = resolvedSensorId,
+            startTimeMs = historyStart
+        )
+        val canonicalRate = DisplayTrendSource.resolveArrowRate(
+            recentPoints = trendPoints,
+            current = initialSnapshot,
+            viewMode = viewMode,
+            isMmol = isMmol,
+            fallbackRate = current?.rate ?: Float.NaN
+        )
+        return initialSnapshot.copy(rate = canonicalRate)
     }
 
     @JvmStatic
