@@ -909,7 +909,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="aidex_selectable_unrecognized">%1$s • dispositivo da família AiDex selecionável</string>
     <string name="aidex_detected_via_ff30">%1$s • selecionável via detecção FF30</string>
     <string name="psg_title">Estado glicêmico pessoal</string>
-    <string name="psg_description">Sua linha de base e tendências pessoais de glicose</string>
+    <string name="psg_description">Estado glicêmico pessoal: sua linha de base típica de glicose neste intervalo, com contexto de confiança e tendência.</string>
+    <string name="iqr_description">Amplitude interquartil: a dispersão dos 50% centrais das leituras de glicose (P25-P75). Valores mais baixos indicam uma faixa de glicose mais estreita e estável.</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">12h</string>
     <string name="time_6am">6h</string>
@@ -1227,4 +1228,27 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_sync_actions_title">Ações de sincronização</string>
     <string name="expand_action">Expandir</string>
     <string name="collapse_action">Recolher</string>
+    <string name="range_custom">Personalizado</string>
+    <string name="stats_patterns">Padroes</string>
+    <string name="stats_no_readings_in_range">Nenhuma leitura disponivel neste intervalo de tempo.</string>
+    <string name="stats_agp_no_sample">Nenhuma amostra AGP</string>
+    <string name="stats_no_agp_data">Leituras insuficientes para desenhar o AGP</string>
+    <string name="stats_no_daily_data">Dados diarios insuficientes</string>
+    <string name="stats_coverage">Cobertura %1$d/24</string>
+    <string name="stats_selected">Selecionado</string>
+    <string name="stats_temperature_title">Temperatura do sensor</string>
+    <string name="stats_current_reading">Leitura atual</string>
+    <string name="stats_selected_reading">Leitura selecionada</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C vs media</string>
+    <string name="stats_trend">Tendencia</string>
+    <string name="insight_variability_rising">Variabilidade em alta</string>
+    <string name="insight_variability_rising_desc">CV de %1$s%% indica oscilacoes mais amplas.</string>
+    <string name="insight_hypoglycemia_exposure">Exposicao a hipoglicemia</string>
+    <string name="insight_hypoglycemia_exposure_desc">%1$s%% na faixa de hipoglicemia grave precisa de reducao urgente.</string>
+    <string name="insight_prolonged_hyperglycemia">Hiperglicemia prolongada</string>
+    <string name="insight_prolonged_hyperglycemia_desc">%1$s%% na faixa de hiperglicemia grave sugere janelas de correcao perdidas.</string>
+    <string name="insight_overnight_drift">Deriva noturna detectada</string>
+    <string name="insight_overnight_drift_desc">A mediana noturna da glicose esta mais alta do que durante o dia. Verifique o horario da insulina noturna ou dos carboidratos.</string>
+    <string name="insight_unstable_days">Dias instaveis frequentes</string>
+    <string name="insight_unstable_days_desc">Nesta janela, %1$d dias tiveram menos de 50%% do tempo no intervalo.</string>
 </resources>

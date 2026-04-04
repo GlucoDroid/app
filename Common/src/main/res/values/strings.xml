@@ -966,7 +966,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="gvi_title">Glucose Variability Index</string>
     <string name="gvi_description">Measures glucose stability and variability patterns</string>
     <string name="psg_title">Personal Glycemic State</string>
-    <string name="psg_description">Your personal glucose baseline and trends</string>
+    <string name="psg_description">Personal Glycemic State: your typical glucose baseline in this range, with confidence and trend context.</string>
+    <string name="iqr_description">Interquartile range: the spread of the middle 50% of glucose readings (P25-P75). Lower values mean a tighter, steadier glucose range.</string>
     <string name="gvi_excellent">Excellent Stability</string>
     <string name="gvi_good">Good Stability</string>
     <string name="gvi_moderate">Moderate Variability</string>
@@ -1393,4 +1394,27 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Waiting for connection</string>
     <string name="status_ready_in_minutes">Sensor ready in %1$d minutes.</string>
+    <string name="range_custom">Custom</string>
+    <string name="stats_patterns">Patterns</string>
+    <string name="stats_no_readings_in_range">No readings available in this time range.</string>
+    <string name="stats_agp_no_sample">No AGP sample</string>
+    <string name="stats_no_agp_data">Not enough readings to draw AGP</string>
+    <string name="stats_no_daily_data">Not enough daily data</string>
+    <string name="stats_coverage">Coverage %1$d/24</string>
+    <string name="stats_selected">Selected</string>
+    <string name="stats_temperature_title">Sensor temperature</string>
+    <string name="stats_current_reading">Current reading</string>
+    <string name="stats_selected_reading">Selected reading</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C vs avg</string>
+    <string name="stats_trend">Trend</string>
+    <string name="insight_variability_rising">Variability Rising</string>
+    <string name="insight_variability_rising_desc">CV %1$s%% indicates wider swings.</string>
+    <string name="insight_hypoglycemia_exposure">Hypoglycemia Exposure</string>
+    <string name="insight_hypoglycemia_exposure_desc">%1$s%% in the severe low range needs urgent reduction.</string>
+    <string name="insight_prolonged_hyperglycemia">Prolonged Hyperglycemia</string>
+    <string name="insight_prolonged_hyperglycemia_desc">%1$s%% in the severe high range suggests missed correction windows.</string>
+    <string name="insight_overnight_drift">Overnight Drift Detected</string>
+    <string name="insight_overnight_drift_desc">Median overnight glucose is elevated versus daytime. Check evening insulin or carbohydrate timing.</string>
+    <string name="insight_unstable_days">Frequent Unstable Days</string>
+    <string name="insight_unstable_days_desc">%1$d days in this window had less than 50%% time in range.</string>
 </resources>

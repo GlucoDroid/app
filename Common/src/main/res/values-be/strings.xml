@@ -902,7 +902,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="gvi_title">Індэкс варыябельнасці глюкозы</string>
     <string name="gvi_description">Вымярае стабільнасць і варыябельнасць глюкозы</string>
     <string name="psg_title">Персанальны стан глікеміі</string>
-    <string name="psg_description">Ваш асабісты базавы ўзровень і тэндэнцыі ўзроўню глюкозы</string>
+    <string name="psg_description">Персанальны глікемічны стан: ваш тыповы базавы ўзровень глюкозы ў гэтым дыяпазоне з кантэкстам упэўненасці і трэнду.</string>
+    <string name="iqr_description">Інтэрквартыльны размах: шырыня сярэдніх 50% паказанняў глюкозы (P25-P75). Ніжэйшыя значэнні азначаюць больш вузкі і стабільны дыяпазон глюкозы.</string>
     <string name="show_sensors_only">Паказваць толькі датчыкі</string>
     <string name="see_all_devices">Паказаць усе прылады</string>
     <string name="aidex_not_recognized">%1$s • не распазнана як AiDex</string>
@@ -1225,4 +1226,27 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_sync_actions_title">Дзеянні сінхранізацыі</string>
     <string name="expand_action">Разгарнуць</string>
     <string name="collapse_action">Згарнуць</string>
+    <string name="range_custom">Уласны</string>
+    <string name="stats_patterns">Узоры</string>
+    <string name="stats_no_readings_in_range">У гэтым часовым дыяпазоне няма паказанняў.</string>
+    <string name="stats_agp_no_sample">Няма кропкі AGP</string>
+    <string name="stats_no_agp_data">Недастаткова паказанняў для AGP</string>
+    <string name="stats_no_daily_data">Недастаткова штодзённых даных</string>
+    <string name="stats_coverage">Пакрыццё %1$d/24</string>
+    <string name="stats_selected">Выбрана</string>
+    <string name="stats_temperature_title">Тэмпература датчыка</string>
+    <string name="stats_current_reading">Бягучае значэнне</string>
+    <string name="stats_selected_reading">Выбранае значэнне</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C ад сярэдняга</string>
+    <string name="stats_trend">Трэнд</string>
+    <string name="insight_variability_rising">Варыябельнасць расце</string>
+    <string name="insight_variability_rising_desc">CV %1$s%% паказвае на больш шырокія ваганні.</string>
+    <string name="insight_hypoglycemia_exposure">Уздзеянне гіпаглікеміі</string>
+    <string name="insight_hypoglycemia_exposure_desc">%1$s%% у дыяпазоне цяжкай гіпаглікеміі патрабуе тэрміновага скарачэння.</string>
+    <string name="insight_prolonged_hyperglycemia">Працяглая гіперглікемія</string>
+    <string name="insight_prolonged_hyperglycemia_desc">%1$s%% у дыяпазоне моцнай гіперглікеміі паказвае на прапушчаныя акны карэкцыі.</string>
+    <string name="insight_overnight_drift">Выяўлены начны дрэйф</string>
+    <string name="insight_overnight_drift_desc">Начная медыяна глюкозы вышэйшая за дзённую. Праверце час вячэрняга інсуліну або вугляводаў.</string>
+    <string name="insight_unstable_days">Частыя нестабільныя дні</string>
+    <string name="insight_unstable_days_desc">У гэтым акне %1$d дзён мелі менш за 50%% часу ў дыяпазоне.</string>
 </resources>

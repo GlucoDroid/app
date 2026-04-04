@@ -943,7 +943,8 @@
     <string name="gvi_title">Indeks zmienności glukozy</string>
     <string name="gvi_description">Mierzy stabilność i zmienność glukozy</string>
     <string name="psg_title">Osobisty stan glikemiczny</string>
-    <string name="psg_description">Twoje osobiste wartości bazowe i trendy dotyczące poziomu glukozy</string>
+    <string name="psg_description">Osobisty stan glikemii: typowa bazowa glukoza w tym zakresie wraz z kontekstem pewności i trendu.</string>
+    <string name="iqr_description">Rozstęp międzykwartylowy: rozpiętość środkowych 50% odczytów glukozy (P25-P75). Niższe wartości oznaczają węższy i stabilniejszy zakres glukozy.</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">12 rano</string>
     <string name="time_6am">6 rano</string>
@@ -1261,4 +1262,27 @@
     <string name="nightscout_sync_actions_title">Akcje synchronizacji</string>
     <string name="expand_action">Rozwiń</string>
     <string name="collapse_action">Zwiń</string>
+    <string name="range_custom">Niestandardowy</string>
+    <string name="stats_patterns">Wzorce</string>
+    <string name="stats_no_readings_in_range">Brak odczytow w tym zakresie czasu.</string>
+    <string name="stats_agp_no_sample">Brak probki AGP</string>
+    <string name="stats_no_agp_data">Za malo odczytow, aby narysowac AGP</string>
+    <string name="stats_no_daily_data">Za malo danych dziennych</string>
+    <string name="stats_coverage">Pokrycie %1$d/24</string>
+    <string name="stats_selected">Zaznaczone</string>
+    <string name="stats_temperature_title">Temperatura sensora</string>
+    <string name="stats_current_reading">Biezacy odczyt</string>
+    <string name="stats_selected_reading">Wybrany odczyt</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C wzgledem sredniej</string>
+    <string name="stats_trend">Trend</string>
+    <string name="insight_variability_rising">Zmiennosc rosnie</string>
+    <string name="insight_variability_rising_desc">CV %1$s%% wskazuje na wieksze wahania.</string>
+    <string name="insight_hypoglycemia_exposure">Ekspozycja na hipoglikemie</string>
+    <string name="insight_hypoglycemia_exposure_desc">%1$s%% w zakresie ciezkiej hipoglikemii wymaga pilnego ograniczenia.</string>
+    <string name="insight_prolonged_hyperglycemia">Przedluzona hiperglikemia</string>
+    <string name="insight_prolonged_hyperglycemia_desc">%1$s%% w zakresie ciezkiej hiperglikemii sugeruje pominiete okna korekty.</string>
+    <string name="insight_overnight_drift">Wykryto nocny dryf</string>
+    <string name="insight_overnight_drift_desc">Mediana nocnej glukozy jest wyzsza niz w dzien. Sprawdz czas wieczornej insuliny lub weglowodanow.</string>
+    <string name="insight_unstable_days">Czeste niestabilne dni</string>
+    <string name="insight_unstable_days_desc">W tym oknie %1$d dni mialo mniej niz 50%% czasu w zakresie.</string>
 </resources>

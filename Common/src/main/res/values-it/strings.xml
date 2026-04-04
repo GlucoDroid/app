@@ -893,7 +893,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="gvi_title">Indice di variabilità del glucosio</string>
     <string name="gvi_description">Misura la stabilità del glucosio e i modelli di variabilità</string>
     <string name="psg_title">Stato glicemico personale</string>
-    <string name="psg_description">Il tuo valore basale e le tendenze personali del tuo glucosio</string>
+    <string name="psg_description">Stato glicemico personale: il tuo livello basale tipico di glucosio in questo intervallo, con contesto di affidabilità e tendenza.</string>
+    <string name="iqr_description">Intervallo interquartile: l\'ampiezza del 50% centrale delle letture di glucosio (P25-P75). Valori più bassi indicano un intervallo di glucosio più stretto e stabile.</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">12:00</string>
     <string name="time_6am">6 del mattino</string>
@@ -1216,4 +1217,27 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_sync_actions_title">Azioni di sincronizzazione</string>
     <string name="expand_action">Espandi</string>
     <string name="collapse_action">Comprimi</string>
+    <string name="range_custom">Personalizzato</string>
+    <string name="stats_patterns">Profili</string>
+    <string name="stats_no_readings_in_range">Nessuna lettura disponibile in questo intervallo di tempo.</string>
+    <string name="stats_agp_no_sample">Nessun campione AGP</string>
+    <string name="stats_no_agp_data">Letture insufficienti per tracciare l’AGP</string>
+    <string name="stats_no_daily_data">Dati giornalieri insufficienti</string>
+    <string name="stats_coverage">Copertura %1$d/24</string>
+    <string name="stats_selected">Selezionato</string>
+    <string name="stats_temperature_title">Temperatura del sensore</string>
+    <string name="stats_current_reading">Valore corrente</string>
+    <string name="stats_selected_reading">Valore selezionato</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C rispetto alla media</string>
+    <string name="stats_trend">Tendenza</string>
+    <string name="insight_variability_rising">Variabilita in aumento</string>
+    <string name="insight_variability_rising_desc">Un CV del %1$s%% indica oscillazioni piu ampie.</string>
+    <string name="insight_hypoglycemia_exposure">Esposizione all’ipoglicemia</string>
+    <string name="insight_hypoglycemia_exposure_desc">Il %1$s%% nell’intervallo di ipoglicemia severa richiede una riduzione urgente.</string>
+    <string name="insight_prolonged_hyperglycemia">Iperglicemia prolungata</string>
+    <string name="insight_prolonged_hyperglycemia_desc">Il %1$s%% nell’intervallo di iperglicemia severa suggerisce finestre di correzione mancate.</string>
+    <string name="insight_overnight_drift">Deriva notturna rilevata</string>
+    <string name="insight_overnight_drift_desc">La mediana notturna del glucosio e piu alta di quella diurna. Controlla il timing dell’insulina serale o dei carboidrati.</string>
+    <string name="insight_unstable_days">Giorni instabili frequenti</string>
+    <string name="insight_unstable_days_desc">In questa finestra %1$d giorni hanno avuto meno del 50%% di tempo nell’intervallo.</string>
 </resources>

@@ -946,7 +946,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="gvi_title">Glukosevariabilitätsindex</string>
     <string name="gvi_description">Misst Glukosestabilität und Variabilitätsmuster</string>
     <string name="psg_title">Persönlicher glykämischer Zustand</string>
-    <string name="psg_description">Ihr persönlicher Glukose-Basiswert und Ihre Trends</string>
+    <string name="psg_description">Persönlicher glykämischer Zustand: Ihr typischer Glukose-Basiswert in diesem Bereich mit Kontext zu Vertrauen und Trend.</string>
+    <string name="iqr_description">Interquartilsabstand: die Streuung der mittleren 50 % der Glukosewerte (P25-P75). Niedrigere Werte bedeuten einen engeren, stabileren Glukosebereich.</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">12 Uhr</string>
     <string name="time_6am">6 Uhr morgens</string>
@@ -1264,4 +1265,27 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="nightscout_sync_actions_title">Synchronisierungsaktionen</string>
     <string name="expand_action">Erweitern</string>
     <string name="collapse_action">Einklappen</string>
+    <string name="range_custom">Benutzerdef.</string>
+    <string name="stats_patterns">Muster</string>
+    <string name="stats_no_readings_in_range">Für diesen Zeitraum sind keine Messwerte verfügbar.</string>
+    <string name="stats_agp_no_sample">Keine AGP-Probe</string>
+    <string name="stats_no_agp_data">Nicht genügend Messwerte für AGP</string>
+    <string name="stats_no_daily_data">Nicht genügend Tagesdaten</string>
+    <string name="stats_coverage">Abdeckung %1$d/24</string>
+    <string name="stats_selected">Ausgewählt</string>
+    <string name="stats_temperature_title">Sensortemperatur</string>
+    <string name="stats_current_reading">Aktueller Wert</string>
+    <string name="stats_selected_reading">Ausgewählter Wert</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C gegenüber dem Durchschnitt</string>
+    <string name="stats_trend">Trend</string>
+    <string name="insight_variability_rising">Variabilität steigt</string>
+    <string name="insight_variability_rising_desc">Ein CV von %1$s%% weist auf stärkere Schwankungen hin.</string>
+    <string name="insight_hypoglycemia_exposure">Hypoglykämie-Exposition</string>
+    <string name="insight_hypoglycemia_exposure_desc">%1$s%% im stark niedrigen Bereich müssen dringend reduziert werden.</string>
+    <string name="insight_prolonged_hyperglycemia">Anhaltende Hyperglykämie</string>
+    <string name="insight_prolonged_hyperglycemia_desc">%1$s%% im stark hohen Bereich deuten auf verpasste Korrekturfenster hin.</string>
+    <string name="insight_overnight_drift">Nächtliche Abweichung erkannt</string>
+    <string name="insight_overnight_drift_desc">Der nächtliche Glukose-Median ist höher als tagsüber. Prüfen Sie den Zeitpunkt von Abendinsulin oder Kohlenhydraten.</string>
+    <string name="insight_unstable_days">Häufig instabile Tage</string>
+    <string name="insight_unstable_days_desc">%1$d Tage in diesem Zeitraum hatten weniger als 50%% Zeit im Zielbereich.</string>
 </resources>

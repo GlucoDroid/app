@@ -936,7 +936,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="gvi_title">Glikoz Değişkenlik İndeksi</string>
     <string name="gvi_description">Glikoz stabilitesini ve değişkenlik modellerini ölçer</string>
     <string name="psg_title">Kişisel Glisemik Durum</string>
-    <string name="psg_description">Kişisel glikoz referansınız ve eğilimleriniz</string>
+    <string name="psg_description">Kişisel glisemik durum: bu aralıktaki tipik glikoz taban çizginiz, güven ve eğilim bağlamıyla birlikte.</string>
+    <string name="iqr_description">Çeyrekler arası açıklık: glikoz okumalarının ortadaki %50\'sinin yayılımı (P25-P75). Daha düşük değerler daha dar ve daha dengeli bir glikoz aralığı anlamına gelir.</string>
     <string name="range_3d">3 boyutlu</string>
     <string name="time_12am">12:00</string>
     <string name="time_6am">sabah 6</string>
@@ -1254,4 +1255,27 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="nightscout_sync_actions_title">Senkronizasyon işlemleri</string>
     <string name="expand_action">Genişlet</string>
     <string name="collapse_action">Daralt</string>
+    <string name="range_custom">Ozel</string>
+    <string name="stats_patterns">Desenler</string>
+    <string name="stats_no_readings_in_range">Bu zaman araliginda okuma yok.</string>
+    <string name="stats_agp_no_sample">AGP ornegi yok</string>
+    <string name="stats_no_agp_data">AGP cizmek icin yeterli okuma yok</string>
+    <string name="stats_no_daily_data">Yeterli gunluk veri yok</string>
+    <string name="stats_coverage">Kapsama %1$d/24</string>
+    <string name="stats_selected">Secili</string>
+    <string name="stats_temperature_title">Sensor sicakligi</string>
+    <string name="stats_current_reading">Guncel okuma</string>
+    <string name="stats_selected_reading">Secilen okuma</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C ortalamaya gore</string>
+    <string name="stats_trend">Trend</string>
+    <string name="insight_variability_rising">Degiskenlik artiyor</string>
+    <string name="insight_variability_rising_desc">%1$s%% CV daha genis dalgalanmalara isaret ediyor.</string>
+    <string name="insight_hypoglycemia_exposure">Hipoglisemi maruziyeti</string>
+    <string name="insight_hypoglycemia_exposure_desc">Siddetli dusuk araliktaki %1$s%% acil azaltim gerektirir.</string>
+    <string name="insight_prolonged_hyperglycemia">Uzamis hiperglisemi</string>
+    <string name="insight_prolonged_hyperglycemia_desc">Siddetli yuksek araliktaki %1$s%% kacirilan duzeltme pencerelerine isaret eder.</string>
+    <string name="insight_overnight_drift">Gece kaymasi tespit edildi</string>
+    <string name="insight_overnight_drift_desc">Gece glukoz medyani gunduze gore daha yuksek. Aksam insulini veya karbonhidrat zamanlamasini kontrol edin.</string>
+    <string name="insight_unstable_days">Sik dengesiz gunler</string>
+    <string name="insight_unstable_days_desc">Bu pencerede %1$d gunde zaman araliginda gecirilen sure 50%%\'nin altindaydi.</string>
 </resources>

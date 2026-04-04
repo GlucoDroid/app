@@ -951,7 +951,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="gvi_title">Glucosevariabiliteitsindex</string>
     <string name="gvi_description">Meet glucosestabiliteit en variabiliteitspatronen</string>
     <string name="psg_title">Persoonlijke glycemische toestand</string>
-    <string name="psg_description">Uw persoonlijke glucosebasislijn en trends</string>
+    <string name="psg_description">Persoonlijke glykemische toestand: uw typische glucosebasislijn in dit bereik, met context voor betrouwbaarheid en trend.</string>
+    <string name="iqr_description">Interkwartielafstand: de spreiding van de middelste 50% van de glucosemetingen (P25-P75). Lagere waarden betekenen een nauwer en stabieler glucosebereik.</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">12.00 uur</string>
     <string name="time_6am">6 uur</string>
@@ -1269,4 +1270,27 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="nightscout_sync_actions_title">Synchronisatieacties</string>
     <string name="expand_action">Uitklappen</string>
     <string name="collapse_action">Inklappen</string>
+    <string name="range_custom">Aangepast</string>
+    <string name="stats_patterns">Patronen</string>
+    <string name="stats_no_readings_in_range">Geen metingen beschikbaar in dit tijdsbereik.</string>
+    <string name="stats_agp_no_sample">Geen AGP-punt</string>
+    <string name="stats_no_agp_data">Onvoldoende metingen om AGP te tekenen</string>
+    <string name="stats_no_daily_data">Onvoldoende dagelijkse gegevens</string>
+    <string name="stats_coverage">Dekking %1$d/24</string>
+    <string name="stats_selected">Geselecteerd</string>
+    <string name="stats_temperature_title">Sensortemperatuur</string>
+    <string name="stats_current_reading">Huidige waarde</string>
+    <string name="stats_selected_reading">Geselecteerde waarde</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C t.o.v. gemiddeld</string>
+    <string name="stats_trend">Trend</string>
+    <string name="insight_variability_rising">Variabiliteit neemt toe</string>
+    <string name="insight_variability_rising_desc">CV %1$s%% wijst op grotere schommelingen.</string>
+    <string name="insight_hypoglycemia_exposure">Blootstelling aan hypoglykemie</string>
+    <string name="insight_hypoglycemia_exposure_desc">%1$s%% in het ernstig lage bereik moet dringend worden verlaagd.</string>
+    <string name="insight_prolonged_hyperglycemia">Langdurige hyperglykemie</string>
+    <string name="insight_prolonged_hyperglycemia_desc">%1$s%% in het ernstig hoge bereik wijst op gemiste correctiemomenten.</string>
+    <string name="insight_overnight_drift">Nachtelijke drift gedetecteerd</string>
+    <string name="insight_overnight_drift_desc">De mediane nachtglucose ligt hoger dan overdag. Controleer de timing van avondinsuline of koolhydraten.</string>
+    <string name="insight_unstable_days">Vaak instabiele dagen</string>
+    <string name="insight_unstable_days_desc">In dit venster hadden %1$d dagen minder dan 50%% tijd in bereik.</string>
 </resources>

@@ -304,7 +304,9 @@ object StatsReportExporter {
         context: Context,
         uri: Uri,
         uiState: StatsUiState,
-        reportDays: Int = uiState.selectedRange.days.takeIf { it > 0 } ?: 90,
+        reportDays: Int = uiState.selectedRange?.days?.takeIf { it > 0 }
+            ?: uiState.activeRange?.daySpan?.takeIf { it > 0 }
+            ?: 90,
         patientInfo: PatientInfo? = null,
         reportStyle: PdfVisualStyle = PdfVisualStyle.CURRENT
     ): Result<Unit> = withContext(Dispatchers.IO) {
@@ -1715,7 +1717,10 @@ object StatsReportExporter {
 
     private fun buildInteractivePayload(uiState: StatsUiState, reportDays: Int?, patientInfo: PatientInfo?): String {
         val summary = uiState.summary
-        val payloadRangeDays = reportDays ?: uiState.selectedRange.days.takeIf { it > 0 } ?: 0
+        val payloadRangeDays = reportDays
+            ?: uiState.selectedRange?.days?.takeIf { it > 0 }
+            ?: uiState.activeRange?.daySpan
+            ?: 0
         val payloadPatientInfo = patientInfo?.sanitized()?.takeIf { it.hasContent() }
         val root = JSONObject()
             .put("generatedAt", System.currentTimeMillis())

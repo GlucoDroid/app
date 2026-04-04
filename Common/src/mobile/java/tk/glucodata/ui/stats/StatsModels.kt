@@ -3,7 +3,10 @@ package tk.glucodata.ui.stats
 import androidx.annotation.StringRes
 import tk.glucodata.R
 import tk.glucodata.ui.GlucosePoint
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 enum class StatsTimeRange(val labelResId: Int, val days: Int) {
     DAY_1(R.string.range_1d, 1),
@@ -74,6 +77,19 @@ data class TemperaturePoint(
     val temperatureCelsius: Float
 )
 
+data class StatsDateRange(
+    val startMillis: Long,
+    val endMillis: Long
+) {
+    val daySpan: Int
+        get() {
+            val zone = ZoneId.systemDefault()
+            val startDate = Instant.ofEpochMilli(startMillis).atZone(zone).toLocalDate()
+            val endDate = Instant.ofEpochMilli(endMillis).atZone(zone).toLocalDate()
+            return (ChronoUnit.DAYS.between(startDate, endDate).coerceAtLeast(0L) + 1L).toInt()
+        }
+}
+
 data class GviScore(
     val value: Float = 1f,
     @param:StringRes val labelResId: Int = R.string.gvi_excellent,
@@ -91,7 +107,9 @@ data class PsgScore(
 data class StatsSummary(
     val readingCount: Int = 0,
     val avgMgDl: Float = 0f,
+    val p25MgDl: Float = 0f,
     val medianMgDl: Float = 0f,
+    val p75MgDl: Float = 0f,
     val stdDevMgDl: Float = 0f,
     val cvPercent: Float = 0f,
     val gmiPercent: Float = 0f,
@@ -108,7 +126,9 @@ data class StatsSummary(
 )
 
 data class StatsUiState(
-    val selectedRange: StatsTimeRange = StatsTimeRange.DAY_14,
+    val selectedRange: StatsTimeRange? = StatsTimeRange.DAY_14,
+    val activeRange: StatsDateRange? = null,
+    val availableRange: StatsDateRange? = null,
     val unit: GlucoseUnit = GlucoseUnit.MGDL,
     val targets: StatsTargets = StatsTargets(),
     val isLoading: Boolean = true,

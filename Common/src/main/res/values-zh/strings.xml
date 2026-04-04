@@ -924,7 +924,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="gvi_title">血糖变异指数</string>
     <string name="gvi_description">测量葡萄糖稳定性和变异模式</string>
     <string name="psg_title">个人血糖状态</string>
-    <string name="psg_description">您的个人血糖基线和趋势</string>
+    <string name="psg_description">个人血糖状态：您在该时间范围内的典型血糖基线，并附带置信度和趋势背景。</string>
+    <string name="iqr_description">四分位距：中间50%葡萄糖读数的跨度（P25-P75）。数值越低，表示葡萄糖范围越窄、越稳定。</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">上午 12 点</string>
     <string name="time_6am">上午 6 点</string>
@@ -1242,4 +1243,27 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_sync_actions_title">同步操作</string>
     <string name="expand_action">展开</string>
     <string name="collapse_action">收起</string>
+    <string name="range_custom">自定义</string>
+    <string name="stats_patterns">模式</string>
+    <string name="stats_no_readings_in_range">此时间范围内暂无读数。</string>
+    <string name="stats_agp_no_sample">无 AGP 样本</string>
+    <string name="stats_no_agp_data">读数不足，无法绘制 AGP</string>
+    <string name="stats_no_daily_data">每日数据不足</string>
+    <string name="stats_coverage">覆盖 %1$d/24</string>
+    <string name="stats_selected">已选</string>
+    <string name="stats_temperature_title">传感器温度</string>
+    <string name="stats_current_reading">当前读数</string>
+    <string name="stats_selected_reading">已选读数</string>
+    <string name="stats_temperature_vs_avg">%1$s · Δ %2$s °C，相比平均值</string>
+    <string name="stats_trend">趋势</string>
+    <string name="insight_variability_rising">变异性上升</string>
+    <string name="insight_variability_rising_desc">CV %1$s%% 表明波动更大。</string>
+    <string name="insight_hypoglycemia_exposure">低血糖暴露</string>
+    <string name="insight_hypoglycemia_exposure_desc">严重低血糖范围占比 %1$s%%，需要尽快降低。</string>
+    <string name="insight_prolonged_hyperglycemia">持续高血糖</string>
+    <string name="insight_prolonged_hyperglycemia_desc">严重高血糖范围占比 %1$s%%，提示可能错过了纠正窗口。</string>
+    <string name="insight_overnight_drift">检测到夜间漂移</string>
+    <string name="insight_overnight_drift_desc">夜间葡萄糖中位数高于白天。请检查晚间胰岛素或碳水摄入时间。</string>
+    <string name="insight_unstable_days">频繁不稳定日</string>
+    <string name="insight_unstable_days_desc">在此时间窗口中，有 %1$d 天的达标时间低于 50%%。</string>
 </resources>
