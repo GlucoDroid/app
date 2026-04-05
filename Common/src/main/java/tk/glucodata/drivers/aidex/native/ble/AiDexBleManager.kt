@@ -957,6 +957,47 @@ class AiDexBleManager(
         Log.d(TAG, "Invalid-setup tracking cleared ($reason, resetCounter=$resetRecoveryCounter)")
     }
 
+    private fun ageSinceLabel(eventTimeMs: Long, nowMs: Long): String {
+        return if (eventTimeMs > 0L && nowMs >= eventTimeMs) {
+            "${nowMs - eventTimeMs}ms"
+        } else {
+            "n/a"
+        }
+    }
+
+    private fun describeGattOp(op: GattOp?): String {
+        return when (op) {
+            is GattOp.Write -> "Write(${op.charUuid}, len=${op.data.size}, retry=${op.retryCount})"
+            is GattOp.Read -> "Read(${op.serviceUuid}/${op.charUuid}, retry=${op.retryCount})"
+            null -> "none"
+        }
+    }
+
+    private fun logDisconnectContext(
+        gatt: BluetoothGatt,
+        status: Int,
+        disconnectPhase: Phase,
+        nowMs: Long = System.currentTimeMillis(),
+    ) {
+        Log.w(
+            TAG,
+            "Disconnect context: status=$status phase=$disconnectPhase " +
+                "address=${gatt.device?.address ?: "?"} " +
+                "sessionAge=${ageSinceLabel(connectTime, nowMs)} " +
+                "lastF003Age=${ageSinceLabel(lastF003FrameTimeMs, nowMs)} " +
+                "lastLiveAge=${ageSinceLabel(lastLiveReadingObservedTimeMs, nowMs)} " +
+                "lastF002Age=${ageSinceLabel(lastF002FrameTimeMs, nowMs)} " +
+                "gattOpActive=$gattOpActive currentOp=${describeGattOp(currentGattOp)} queueSize=${gattQueue.size} " +
+                "connectAttemptInFlight=$connectAttemptInFlight servicesReady=$servicesReady cccdComplete=$cccdChainComplete " +
+                "historyDownloading=$historyDownloading pendingInitialHistory=$pendingInitialHistoryRequest " +
+                "pendingMetadata=$pendingStreamingMetadataRead/$pendingStreamingMetadataReason " +
+                "startupControl=$startupControlStage keyExchangeComplete=${keyExchange.isComplete} " +
+                "challengeWritten=$challengeWritten bondDataRead=$bondDataRead keyExchangePendingBond=$keyExchangePendingBond " +
+                "broadcastScanActive=$broadcastScanActive broadcastContinuous=$broadcastScanContinuousMode " +
+                "noDirectFallback=$noDirectLiveBroadcastFallbackMode"
+        )
+    }
+
     private fun resetConnectionRuntimeState(reason: String, resetInvalidSetupCounter: Boolean) {
         handler.removeCallbacksAndMessages(null)
         cancelBroadcastScan()
@@ -1424,6 +1465,7 @@ class AiDexBleManager(
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             val disconnectPhase = phase
             Log.i(TAG, "Disconnected. status=$status")
+            logDisconnectContext(gatt, status, disconnectPhase)
             lastLiveReadingObservedTimeMs = 0L
             lastLiveContinuitySyncBucket = -1L
             constatstatusstr = "Disconnected"

@@ -172,7 +172,13 @@ internal object AiDexRuntimePolicy {
         if (phase == AiDexBleManager.Phase.IDLE && (hasGatt || connectAttemptInFlight)) {
             return true
         }
-        if (phase == AiDexBleManager.Phase.STREAMING && lastLiveReadingObservedTimeMs > 0L && !hasRecentLiveData) {
+        if (
+            phase == AiDexBleManager.Phase.STREAMING &&
+            !hasGatt &&
+            !connectAttemptInFlight &&
+            lastLiveReadingObservedTimeMs > 0L &&
+            !hasRecentLiveData
+        ) {
             return true
         }
         return false

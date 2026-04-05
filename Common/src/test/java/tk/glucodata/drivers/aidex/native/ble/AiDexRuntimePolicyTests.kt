@@ -346,6 +346,15 @@ class AiDexRuntimePolicyTests {
         assertFalse(
             AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
                 phase = AiDexBleManager.Phase.STREAMING,
+                hasGatt = true,
+                connectAttemptInFlight = false,
+                hasRecentLiveData = false,
+                lastLiveReadingObservedTimeMs = 500L,
+            )
+        )
+        assertFalse(
+            AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
+                phase = AiDexBleManager.Phase.STREAMING,
                 hasGatt = false,
                 connectAttemptInFlight = false,
                 hasRecentLiveData = true,
