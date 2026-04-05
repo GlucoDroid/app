@@ -17,6 +17,7 @@ import tk.glucodata.drivers.aidex.native.ble.aiDexActivationTimeZone
 import tk.glucodata.drivers.aidex.native.ble.aiDexDeviceNameMatchesSerial
 import tk.glucodata.drivers.aidex.native.data.*
 import tk.glucodata.drivers.aidex.native.protocol.AiDexCommandBuilder
+import tk.glucodata.drivers.aidex.native.protocol.AiDexDpCatalogProvider
 import tk.glucodata.drivers.aidex.native.protocol.AiDexDefaultParamProvisioning
 import tk.glucodata.drivers.aidex.native.protocol.AiDexKeyExchange
 import tk.glucodata.drivers.aidex.native.protocol.AiDexOpcodes
@@ -1135,6 +1136,63 @@ class DefaultParamCatalogCompareTests {
             candidate120.current.hex.substring(16, 24),
             candidate120.candidate.candidateHex.substring(16, 24)
         )
+    }
+
+    @Test
+    fun testImportedCatalogOverlaysSnapshotEntry() {
+        val storage = AiDexDpCatalogProvider.InMemoryStorage()
+        AiDexDpCatalogProvider.setStorageForTests(storage)
+        try {
+            val importJson = """
+                {
+                  "otaFileId": 25,
+                  "fileType": 1,
+                  "settingType": "1034_GX01S",
+                  "version": "1.5.1",
+                  "aidexVersion": "X",
+                  "settingVersion": "parameters_x_contact.ini",
+                  "settingContent": "0102020080C61300840338FF65006400640064006400100EF03CD06B00000000000000000000100EF03CD06B0A0000000000DC052800FA00740E20032E002800F4016E0078000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000BD"
+                }
+            """.trimIndent()
+
+            val result = AiDexDpCatalogProvider.importCatalogJson(importJson)
+            assertEquals(1, result.importedCount)
+            assertEquals(1, result.replacedKeys)
+            assertEquals(1, result.catalogState.importedEntryCount)
+
+            val comparisons = AiDexDefaultParamProvisioning.compareKnownCatalog(
+                currentRawHex = "010102020080C61300840338FF65006400640064006400100EF03CD06B00000000000000000000100EF03CD06B0A0000000000DC052800FA00740E20032E002800F4016E0078000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000BD",
+                modelName = "GX-01S",
+                firmwareVersion = "1.5.1",
+            )
+            val best = comparisons.first()
+            assertEquals(AiDexDefaultParamProvisioning.CatalogSource.IMPORTED, best.entry.source)
+            assertEquals("parameters_x_contact.ini", best.entry.settingVersion)
+        } finally {
+            AiDexDpCatalogProvider.setStorageForTests(null)
+        }
+    }
+
+    @Test
+    fun testPlanGuardedApplySplitsChunksUsingRequestedPayloadLimit() {
+        val currentRawHex = "010105000080C613008303BFFE68006700650068006B00100E302AD06BB0FFC4FFECFF00000000100E302AD06B0A0000000000C4092800FA00740E2003EE020A000A000800FA0019007D000802AA009CFF640000001100E803B80B32005500D501280046001E0032006400020014002003B004050014001E005A005A00F401F4019033B04F000000000000000000000000000000000000000000000000000000000000000000000000"
+
+        val plan = AiDexDefaultParamProvisioning.planGuardedApply(
+            currentRawHex = currentRawHex,
+            modelName = "GX-01S",
+            firmwareVersion = "1.8.1",
+            maxChunkPayloadBytes = 32,
+        )
+
+        assertNotNull(plan)
+        assertEquals(6, plan!!.chunks.size)
+        assertEquals(84, plan.totalWords)
+        assertEquals(1, plan.chunks[0].startIndex)
+        assertEquals(17, plan.chunks[1].startIndex)
+        assertEquals(81, plan.chunks.last().startIndex)
+        assertEquals(32, plan.chunks.first().payloadByteCount)
+        assertEquals(8, plan.chunks.last().payloadByteCount)
+        assertFalse(plan.comparison.exactMatch)
     }
 }
 

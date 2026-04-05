@@ -170,12 +170,15 @@ class AiDexBleManager(
         private const val DEFERRED_BOND_CHECK_DELAY_MS = 2_500L
         private const val DEFERRED_BOND_CHECK_MAX_ATTEMPTS = 4
         private const val STARTUP_CONTROL_ACK_TIMEOUT_MS = 3_000L
+        private const val OPTIONAL_DEFAULT_PARAM_PROVISIONING_DELAY_MS = 15_000L
         private const val OPTIONAL_STREAMING_METADATA_DELAY_MS = 5_000L
         private const val OPTIONAL_CALIBRATION_REFRESH_DELAY_MS = EXPECTED_LIVE_INTERVAL_MS + 5_000L
         private const val STARTUP_DEVICE_INFO_REQUEST_DELAY_MS = 2_000L
         private const val START_TIME_REPAIR_REQUERY_DELAY_MS = 1_000L
         private const val START_TIME_REPAIR_MAX_ATTEMPTS = 1
         private const val START_TIME_REPAIR_RESPONSE_MAX_BYTES = 12
+        private const val DEFAULT_PARAM_WRITE_ACK_TIMEOUT_MS = 10_000L
+        private const val DEFAULT_PARAM_MAX_CHUNK_PAYLOAD_BYTES = 160
 
         // -- History Storage --
         private const val MIN_VALID_GLUCOSE_MGDL = 20
@@ -304,18 +307,51 @@ class AiDexBleManager(
     private var noStreamFallbackReadingObservedAtMs: Long = 0L
     private var postBondLiveRefreshAttempted = false
     private var pendingInitialHistoryRequest = false
+    private var pendingDefaultParamAutoProvisioning = false
+    private var pendingDefaultParamAutoProvisioningReason: String? = null
+    private var pendingDefaultParamAutoProvisioningScheduled = false
+    private var defaultParamAutoProvisioningAttemptedThisConnection = false
     private var pendingStreamingMetadataRead = false
     private var pendingStreamingMetadataReason: String? = null
+    private var pendingStreamingMetadataScheduled = false
     private var pendingCalibrationRefresh = false
     private var pendingCalibrationRefreshReason: String? = null
+    private var pendingCalibrationRefreshScheduled = false
     private var lastF002FrameTimeMs: Long = 0L
+    private var negotiatedMtu: Int = 23
     private var defaultParamProbeTotalWords = 0
     private var defaultParamProbeRawBuffer: ByteArray? = null
+    @Volatile private var lastDefaultParamRawHex: String? = null
+    @Volatile private var lastDefaultParamDiagnostics: AiDexDefaultParamProvisioning.Diagnostics? = null
+    private var defaultParamProbeUserInitiated = false
+    private var defaultParamAutoProvisioning = false
+    private var pendingDefaultParamApplyAfterProbe = false
+    private var defaultParamApplyVerifying = false
     private var startupDeviceInfoRequested = false
     private var legacyStartTimeRequested = false
     private var startTimeRepairProbePending = false
     private var startTimeRepairWritePending = false
     private var startTimeRepairAttempts = 0
+
+    private data class DefaultParamApplyState(
+        val plan: AiDexDefaultParamProvisioning.ApplyPlan,
+        var nextChunkIndex: Int = 0,
+    )
+
+    private var defaultParamApplyState: DefaultParamApplyState? = null
+
+    private val defaultParamWriteAckWatchdog = Runnable {
+        val state = defaultParamApplyState ?: return@Runnable
+        Log.e(
+            TAG,
+            "Default param write ACK timeout after ${DEFAULT_PARAM_WRITE_ACK_TIMEOUT_MS}ms " +
+                "(chunk ${state.nextChunkIndex + 1}/${state.plan.chunks.size})"
+        )
+        abortDefaultParamApply(
+            reason = "ack-timeout",
+            statusMessage = "DP apply timed out",
+        )
+    }
 
     /** Watchdog: force-disconnect if key exchange doesn't complete within timeout. */
     private val keyExchangeWatchdog = Runnable {
@@ -486,12 +522,21 @@ class AiDexBleManager(
     }
 
     private val delayedStreamingMetadataRequest = Runnable {
+        pendingStreamingMetadataScheduled = false
         val reason = pendingStreamingMetadataReason ?: "scheduled"
         pendingStreamingMetadataReason = null
         requestStreamingMetadataIfNeeded(reason)
     }
 
+    private val delayedDefaultParamAutoProvisioningRequest = Runnable {
+        pendingDefaultParamAutoProvisioningScheduled = false
+        val reason = pendingDefaultParamAutoProvisioningReason ?: "scheduled"
+        pendingDefaultParamAutoProvisioningReason = null
+        requestAutomaticDefaultParamProvisioningIfNeeded(reason)
+    }
+
     private val delayedCalibrationRefreshRequest = Runnable {
+        pendingCalibrationRefreshScheduled = false
         val reason = pendingCalibrationRefreshReason ?: "scheduled"
         pendingCalibrationRefreshReason = null
         requestRoutineCalibrationRefreshIfNeeded(reason)
@@ -529,6 +574,15 @@ class AiDexBleManager(
 
     private fun writeLongPref(name: String, value: Long) {
         prefs.edit().putLong(prefKey(name), value).apply()
+    }
+
+    private fun readStringPref(name: String, default: String = ""): String {
+        val key = prefKey(name)
+        return if (prefs.contains(key)) prefs.getString(key, default) ?: default else default
+    }
+
+    private fun writeStringPref(name: String, value: String) {
+        prefs.edit().putString(prefKey(name), value).apply()
     }
 
     // -- History State --
@@ -1013,6 +1067,7 @@ class AiDexBleManager(
         handler.removeCallbacksAndMessages(null)
         cancelBroadcastScan()
         connectAttemptInFlight = false
+        negotiatedMtu = 23
 
         gattQueue.clear()
         gattOpActive = false
@@ -1033,10 +1088,16 @@ class AiDexBleManager(
         noStreamFallbackReadingObservedAtMs = 0L
         postBondLiveRefreshAttempted = false
         pendingInitialHistoryRequest = false
+        pendingDefaultParamAutoProvisioning = false
+        pendingDefaultParamAutoProvisioningReason = null
+        pendingDefaultParamAutoProvisioningScheduled = false
+        defaultParamAutoProvisioningAttemptedThisConnection = false
         pendingStreamingMetadataRead = false
         pendingStreamingMetadataReason = null
+        pendingStreamingMetadataScheduled = false
         pendingCalibrationRefresh = false
         pendingCalibrationRefreshReason = null
+        pendingCalibrationRefreshScheduled = false
         startupControlStage = StartupControlStage.IDLE
         lastF002FrameTimeMs = 0L
         noDirectLiveBroadcastFallbackMode = false
@@ -1050,6 +1111,9 @@ class AiDexBleManager(
         lastBroadcastTrendSeen = Int.MIN_VALUE
         lastBroadcastGlucoseSeen = Int.MIN_VALUE
         lastBroadcastOffsetSeenAtMs = 0L
+        clearDefaultParamProbeState()
+        clearDefaultParamApplyState()
+        defaultParamProbeUserInitiated = false
         clearPendingRoomHistory(reason)
         clearInvalidSetupTracking(resetRecoveryCounter = resetInvalidSetupCounter, reason = reason)
 
@@ -1451,12 +1515,22 @@ class AiDexBleManager(
             noStreamFallbackReadingObservedAtMs = 0L
             postBondLiveRefreshAttempted = false
             pendingInitialHistoryRequest = false
+            pendingDefaultParamAutoProvisioning = false
+            pendingDefaultParamAutoProvisioningReason = null
+            pendingDefaultParamAutoProvisioningScheduled = false
+            defaultParamAutoProvisioningAttemptedThisConnection = false
             pendingStreamingMetadataRead = false
             pendingStreamingMetadataReason = null
+            pendingStreamingMetadataScheduled = false
             pendingCalibrationRefresh = false
             pendingCalibrationRefreshReason = null
+            pendingCalibrationRefreshScheduled = false
             startupControlStage = StartupControlStage.IDLE
             lastF002FrameTimeMs = 0L
+            negotiatedMtu = 23
+            clearDefaultParamProbeState()
+            clearDefaultParamApplyState()
+            defaultParamProbeUserInitiated = false
             noDirectLiveBroadcastFallbackMode = false
             clearPendingRoomHistory("new-connection")
             handler.removeCallbacks(noStreamWatchdog)
@@ -1646,6 +1720,20 @@ class AiDexBleManager(
                 UiRefreshBus.requestStatusRefresh()
                 handler.postDelayed({ startBroadcastScan("post-disconnect") }, 2_000L)
             }
+        }
+    }
+
+    override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+        super.onMtuChanged(gatt, mtu, status)
+        if (gatt !== mBluetoothGatt) {
+            Log.w(TAG, "onMtuChanged: stale callback, ignoring")
+            return
+        }
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            negotiatedMtu = mtu
+            Log.i(TAG, "MTU negotiated: $mtu")
+        } else {
+            Log.w(TAG, "onMtuChanged: status=$status mtu=$mtu")
         }
     }
 
@@ -2624,7 +2712,12 @@ class AiDexBleManager(
             pendingCalibrationRefreshReason = reason
         }
         if (!pendingStreamingMetadataRead && !pendingCalibrationRefresh) {
-            return
+            if (
+                !pendingDefaultParamAutoProvisioning ||
+                pendingDefaultParamAutoProvisioningScheduled
+            ) {
+                return
+            }
         }
         if (!shouldRunOptionalStreamingSync()) {
             Log.i(
@@ -2635,13 +2728,59 @@ class AiDexBleManager(
             return
         }
         if (pendingStreamingMetadataRead) {
-            handler.removeCallbacks(delayedStreamingMetadataRequest)
-            handler.postDelayed(delayedStreamingMetadataRequest, OPTIONAL_STREAMING_METADATA_DELAY_MS)
+            if (!pendingStreamingMetadataScheduled) {
+                pendingStreamingMetadataScheduled = true
+                handler.postDelayed(delayedStreamingMetadataRequest, OPTIONAL_STREAMING_METADATA_DELAY_MS)
+            }
+        }
+        if (pendingDefaultParamAutoProvisioning) {
+            if (!pendingDefaultParamAutoProvisioningScheduled) {
+                pendingDefaultParamAutoProvisioningScheduled = true
+                handler.postDelayed(
+                    delayedDefaultParamAutoProvisioningRequest,
+                    OPTIONAL_DEFAULT_PARAM_PROVISIONING_DELAY_MS
+                )
+            }
         }
         if (pendingCalibrationRefresh) {
-            handler.removeCallbacks(delayedCalibrationRefreshRequest)
-            handler.postDelayed(delayedCalibrationRefreshRequest, OPTIONAL_CALIBRATION_REFRESH_DELAY_MS)
+            if (!pendingCalibrationRefreshScheduled) {
+                pendingCalibrationRefreshScheduled = true
+                handler.postDelayed(delayedCalibrationRefreshRequest, OPTIONAL_CALIBRATION_REFRESH_DELAY_MS)
+            }
         }
+    }
+
+    private fun shouldAutoProvisionDefaultParam(): Boolean {
+        if (defaultParamAutoProvisioningAttemptedThisConnection) return false
+        if (_modelName.isBlank() || _firmwareVersion.isBlank()) return false
+        if (!keyExchange.isComplete) return false
+        return true
+    }
+
+    private fun requestAutomaticDefaultParamProvisioningIfNeeded(reason: String) {
+        if (!pendingDefaultParamAutoProvisioning) return
+        if (!shouldRunOptionalStreamingSync()) {
+            pendingDefaultParamAutoProvisioningReason = reason
+            return
+        }
+        if (!shouldAutoProvisionDefaultParam()) {
+            pendingDefaultParamAutoProvisioning = false
+            pendingDefaultParamAutoProvisioningReason = null
+            pendingDefaultParamAutoProvisioningScheduled = false
+            return
+        }
+
+        pendingDefaultParamAutoProvisioning = false
+        pendingDefaultParamAutoProvisioningReason = null
+        pendingDefaultParamAutoProvisioningScheduled = false
+        defaultParamAutoProvisioningAttemptedThisConnection = true
+        clearDefaultParamProbeState()
+        clearDefaultParamApplyState()
+        defaultParamProbeUserInitiated = false
+        defaultParamAutoProvisioning = true
+        pendingDefaultParamApplyAfterProbe = true
+        Log.i(TAG, "Requesting automatic default-param provisioning probe ($reason)")
+        requestDefaultParamProbe(0x01, "auto-provision-$reason")
     }
 
     private fun requestStreamingMetadataIfNeeded(reason: String) {
@@ -2655,12 +2794,14 @@ class AiDexBleManager(
         if (!needsModelMetadata && !needsSessionMetadata) {
             pendingStreamingMetadataRead = false
             pendingStreamingMetadataReason = null
+            pendingStreamingMetadataScheduled = false
             startupMetadataComplete = true
             Log.i(TAG, "Skipping routine streaming metadata ($reason): metadata already known")
             return
         }
         pendingStreamingMetadataRead = false
         pendingStreamingMetadataReason = null
+        pendingStreamingMetadataScheduled = false
         Log.i(TAG, "Requesting streaming metadata ($reason)")
         // Keep non-essential reads out of the reconnect/bootstrap critical path.
         // Only request the specific metadata still missing for this sensor.
@@ -2686,11 +2827,13 @@ class AiDexBleManager(
         if (!shouldRequestRoutineCalibrationRefresh()) {
             pendingCalibrationRefresh = false
             pendingCalibrationRefreshReason = null
+            pendingCalibrationRefreshScheduled = false
             Log.i(TAG, "Skipping routine calibration refresh ($reason): calibration data already available")
             return
         }
         pendingCalibrationRefresh = false
         pendingCalibrationRefreshReason = null
+        pendingCalibrationRefreshScheduled = false
         val cmd = commandBuilder.getCalibrationRange() ?: return
         Log.i(TAG, "Requesting routine calibration refresh ($reason)")
         enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
@@ -2754,6 +2897,26 @@ class AiDexBleManager(
         enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
     }
 
+    private fun clearDefaultParamProbeState() {
+        defaultParamProbeTotalWords = 0
+        defaultParamProbeRawBuffer = null
+    }
+
+    private fun clearDefaultParamApplyState() {
+        handler.removeCallbacks(defaultParamWriteAckWatchdog)
+        pendingDefaultParamApplyAfterProbe = false
+        defaultParamApplyVerifying = false
+        defaultParamApplyState = null
+    }
+
+    private fun beginManualDefaultParamProbe(applyAfterProbe: Boolean, reason: String) {
+        clearDefaultParamProbeState()
+        clearDefaultParamApplyState()
+        defaultParamProbeUserInitiated = true
+        pendingDefaultParamApplyAfterProbe = applyAfterProbe
+        requestDefaultParamProbe(0x01, reason)
+    }
+
     private fun requestDefaultParamProbe(startIndex: Int, reason: String) {
         val cmd = commandBuilder.getDefaultParam(startIndex) ?: run {
             Log.w(TAG, "requestDefaultParamProbe($reason): session key not ready")
@@ -2761,6 +2924,107 @@ class AiDexBleManager(
         }
         Log.i(TAG, "Requesting read-only default params (0x31, start=$startIndex, $reason)")
         enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    private fun defaultParamChunkPayloadBytes(): Int {
+        val maxGattPayloadBytes = (negotiatedMtu - 3).coerceAtLeast(20)
+        val maxCommandPayloadBytes = (maxGattPayloadBytes - 5).coerceAtLeast(2)
+        val capped = minOf(DEFAULT_PARAM_MAX_CHUNK_PAYLOAD_BYTES, maxCommandPayloadBytes)
+        return if (capped % 2 == 0) capped else capped - 1
+    }
+
+    private fun maybeStartDefaultParamApplyAfterProbe(rawHex: String, diagnostics: AiDexDefaultParamProvisioning.Diagnostics) {
+        if (!pendingDefaultParamApplyAfterProbe) {
+            if (defaultParamProbeUserInitiated) {
+                val statusMessage = when {
+                    diagnostics.bestComparison == null -> "DP compare unavailable"
+                    diagnostics.exactMatch -> "DP OK: ${diagnostics.bestComparison.entry.settingVersion}"
+                    else -> "DP diff ${diagnostics.bestComparison.diffByteCount}: ${diagnostics.bestComparison.entry.settingVersion}"
+                }
+                showTransientStatus(statusMessage)
+            }
+            defaultParamProbeUserInitiated = false
+            defaultParamAutoProvisioning = false
+            return
+        }
+
+        pendingDefaultParamApplyAfterProbe = false
+        val autoApplyFingerprint = if (defaultParamAutoProvisioning) {
+            diagnostics.bestComparison?.let { comparison ->
+                val importedAt = diagnostics.catalog.importedUpdatedAtMs
+                "${comparison.entry.settingType}|${comparison.entry.aidexVersion}|${comparison.entry.version}|" +
+                    "${comparison.entry.settingVersion}|${comparison.entry.source.name}|" +
+                    "curr=${comparison.current.versionHex}|cand=${comparison.candidate.versionHex}|importedAt=$importedAt"
+            }
+        } else {
+            null
+        }
+        if (defaultParamAutoProvisioning && autoApplyFingerprint != null) {
+            val lastAttemptFingerprint = readStringPref("defaultParamAutoAttemptFingerprint")
+            if (!diagnostics.exactMatch && lastAttemptFingerprint == autoApplyFingerprint) {
+                Log.i(TAG, "Skipping automatic default-param apply — identical fingerprint was already attempted")
+                defaultParamAutoProvisioning = false
+                defaultParamProbeUserInitiated = false
+                return
+            }
+        }
+        val plan = AiDexDefaultParamProvisioning.planGuardedApply(
+            currentRawHex = rawHex,
+            modelName = _modelName,
+            firmwareVersion = _firmwareVersion,
+            maxChunkPayloadBytes = defaultParamChunkPayloadBytes(),
+        )
+        if (plan == null) {
+            val statusMessage = when {
+                diagnostics.bestComparison == null -> "DP apply unavailable"
+                diagnostics.exactMatch -> "DP already matches"
+                else -> "DP apply blocked"
+            }
+            showTransientStatus(statusMessage)
+            defaultParamProbeUserInitiated = false
+            defaultParamAutoProvisioning = false
+            return
+        }
+
+        if (defaultParamAutoProvisioning && autoApplyFingerprint != null) {
+            writeStringPref("defaultParamAutoAttemptFingerprint", autoApplyFingerprint)
+        }
+        defaultParamApplyState = DefaultParamApplyState(plan = plan)
+        Log.i(TAG, "Starting guarded default-param apply: ${plan.summaryLine()}")
+        showTransientStatus("Applying DP...")
+        sendNextDefaultParamApplyChunk("manual-start")
+    }
+
+    private fun sendNextDefaultParamApplyChunk(reason: String) {
+        val state = defaultParamApplyState ?: return
+        val chunk = state.plan.chunks.getOrNull(state.nextChunkIndex) ?: return
+        val cmd = commandBuilder.setDefaultParamChunk(
+            totalCount = chunk.totalWords,
+            startIndex = chunk.startIndex,
+            payload = chunk.payload,
+        ) ?: run {
+            abortDefaultParamApply(
+                reason = "session-key-unavailable",
+                statusMessage = "DP apply failed",
+            )
+            return
+        }
+        Log.i(
+            TAG,
+            "Sending default-param chunk ${state.nextChunkIndex + 1}/${state.plan.chunks.size} " +
+                "start=${chunk.startIndex} bytes=${chunk.payloadByteCount} ($reason)"
+        )
+        handler.removeCallbacks(defaultParamWriteAckWatchdog)
+        handler.postDelayed(defaultParamWriteAckWatchdog, DEFAULT_PARAM_WRITE_ACK_TIMEOUT_MS)
+        enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    private fun abortDefaultParamApply(reason: String, statusMessage: String) {
+        Log.w(TAG, "Aborting default-param apply: $reason")
+        clearDefaultParamApplyState()
+        defaultParamProbeUserInitiated = false
+        defaultParamAutoProvisioning = false
+        showTransientStatus(statusMessage)
     }
 
     private fun maybeRequestStartTimeRepairProbe(reason: String) {
@@ -3013,6 +3277,7 @@ class AiDexBleManager(
             0x25 -> handleCalibrationAck(plaintext)
             0x26 -> handleCalibrationRangeResponse(plaintext)
             0x27 -> handleCalibrationResponse(plaintext)
+            0x30 -> handleSetDefaultParamResponse(plaintext)
             0x11 -> handleBroadcastDataResponse(plaintext)
             0x20 -> handleNewSensorAck(plaintext)
             0x31 -> handleDefaultParamResponse(plaintext)
@@ -3235,8 +3500,7 @@ class AiDexBleManager(
                     "Zero-start-time repair probe resolved to default-param payload (len=${data.size}) — " +
                         "skipping local time rewrite"
                 )
-                defaultParamProbeRawBuffer = null
-                defaultParamProbeTotalWords = 0
+                clearDefaultParamProbeState()
             }
             return
         }
@@ -3245,8 +3509,13 @@ class AiDexBleManager(
                 TAG,
                 "Default param response parse failed: raw=${AiDexParser.hexString(data.copyOfRange(0, minOf(data.size, 24)))}"
             )
-            defaultParamProbeRawBuffer = null
-            defaultParamProbeTotalWords = 0
+            clearDefaultParamProbeState()
+            if (pendingDefaultParamApplyAfterProbe || defaultParamApplyVerifying || defaultParamProbeUserInitiated) {
+                abortDefaultParamApply(
+                    reason = "probe-parse-failed",
+                    statusMessage = "DP probe failed",
+                )
+            }
             return
         }
 
@@ -3264,10 +3533,16 @@ class AiDexBleManager(
             val hex = AiDexParser.defaultParamRawHex(defaultParamProbeRawBuffer, chunk.totalWords)
             if (hex == null) {
                 Log.w(TAG, "Default param probe completed but assembled raw blob is invalid")
-                defaultParamProbeRawBuffer = null
-                defaultParamProbeTotalWords = 0
+                clearDefaultParamProbeState()
+                if (pendingDefaultParamApplyAfterProbe || defaultParamApplyVerifying || defaultParamProbeUserInitiated) {
+                    abortDefaultParamApply(
+                        reason = "probe-invalid-assembly",
+                        statusMessage = "DP probe failed",
+                    )
+                }
                 return
             }
+            lastDefaultParamRawHex = hex
             val packedVariant = AiDexDefaultParamProvisioning.normalizeCurrentVariants(hex).firstOrNull()
             val packedVersionHex = packedVariant?.versionHex
             Log.i(
@@ -3275,25 +3550,77 @@ class AiDexBleManager(
                 "Default param probe complete: totalWords=${chunk.totalWords} lead=0x${"%02X".format(chunk.leadByte)} " +
                     "rawHex=$hex packedVersion=${packedVersionHex ?: "?"}"
             )
-            if (_modelName.isNotBlank() || _firmwareVersion.isNotBlank()) {
-                AiDexDefaultParamProvisioning.compareKnownCatalog(hex, _modelName, _firmwareVersion)
-                    .firstOrNull()
-                    ?.let { best ->
-                        Log.i(
-                            TAG,
-                            "Default param catalog compare: model=${_modelName.ifBlank { "?" }} " +
-                                "fw=${_firmwareVersion.ifBlank { "?" }} " +
-                                "${best.entry.settingType}@${best.entry.version}/${best.entry.settingVersion} " +
-                                "diff=${best.diffByteCount} exact=${best.exactMatch}"
-                        )
-                    }
+            val diagnostics = AiDexDefaultParamProvisioning.diagnoseCurrentDefaultParam(
+                currentRawHex = hex,
+                modelName = _modelName,
+                firmwareVersion = _firmwareVersion,
+            )
+            lastDefaultParamDiagnostics = diagnostics
+            if (diagnostics.bestComparison != null) {
+                Log.i(TAG, "Default param catalog compare: ${diagnostics.summaryLine()}")
+            } else {
+                Log.w(TAG, "Default param catalog compare unavailable: ${diagnostics.summaryLine()}")
             }
-            defaultParamProbeRawBuffer = null
-            defaultParamProbeTotalWords = 0
+            clearDefaultParamProbeState()
+            if (defaultParamApplyVerifying) {
+                val statusMessage = if (diagnostics.exactMatch) {
+                    "DP apply verified"
+                } else {
+                    "DP verify diff ${diagnostics.bestComparison?.diffByteCount ?: "?"}"
+                }
+                if (defaultParamAutoProvisioning && diagnostics.exactMatch) {
+                    diagnostics.bestComparison?.let { comparison ->
+                        val importedAt = diagnostics.catalog.importedUpdatedAtMs
+                        val fingerprint =
+                            "${comparison.entry.settingType}|${comparison.entry.aidexVersion}|${comparison.entry.version}|" +
+                                "${comparison.entry.settingVersion}|${comparison.entry.source.name}|" +
+                                "curr=${comparison.current.versionHex}|cand=${comparison.candidate.versionHex}|importedAt=$importedAt"
+                        writeStringPref("defaultParamAutoVerifiedFingerprint", fingerprint)
+                    }
+                }
+                clearDefaultParamApplyState()
+                defaultParamProbeUserInitiated = false
+                defaultParamAutoProvisioning = false
+                showTransientStatus(statusMessage)
+                return
+            }
+            maybeStartDefaultParamApplyAfterProbe(hex, diagnostics)
             return
         }
 
         requestDefaultParamProbe(chunk.nextStartIndex, "continuation")
+    }
+
+    private fun handleSetDefaultParamResponse(data: ByteArray) {
+        val state = defaultParamApplyState ?: run {
+            val status = data.getOrNull(1)?.toInt()?.and(0xFF)
+            Log.i(
+                TAG,
+                "Default param write ACK without active apply: len=${data.size}" +
+                    (status?.let { " status=0x${"%02X".format(it)}" } ?: "")
+            )
+            return
+        }
+
+        handler.removeCallbacks(defaultParamWriteAckWatchdog)
+
+        val status = data.getOrNull(1)?.toInt()?.and(0xFF)
+        Log.i(
+            TAG,
+            "Default param write ACK: chunk=${state.nextChunkIndex + 1}/${state.plan.chunks.size} len=${data.size}" +
+                (status?.let { " status=0x${"%02X".format(it)}" } ?: "")
+        )
+
+        state.nextChunkIndex += 1
+        if (state.nextChunkIndex < state.plan.chunks.size) {
+            sendNextDefaultParamApplyChunk("ack")
+            return
+        }
+
+        Log.i(TAG, "Default-param apply ACKed — re-reading 0x31 for verification")
+        defaultParamApplyVerifying = true
+        clearDefaultParamProbeState()
+        requestDefaultParamProbe(0x01, "post-apply-verify")
     }
 
     private fun handleHistoryRangeResponse(data: ByteArray) {
@@ -4212,6 +4539,8 @@ class AiDexBleManager(
     // AiDexDriver Interface Implementation
     // =========================================================================
 
+    fun getLastDefaultParamDiagnosticsSummary(): String? = lastDefaultParamDiagnostics?.summaryLine()
+
     override fun getDetailedBleStatus(): String {
         val now = System.currentTimeMillis()
 
@@ -4574,14 +4903,32 @@ class AiDexBleManager(
 
     override fun sendMaintenanceCommand(opCode: Int): Boolean {
         Log.i(TAG, "sendMaintenanceCommand(0x${"%02X".format(opCode)}) for $SerialNumber")
-        val cmd = when (opCode) {
+        when (opCode) {
             AiDexOpcodes.GET_DEFAULT_PARAM -> {
-                defaultParamProbeTotalWords = 0
-                defaultParamProbeRawBuffer = null
-                commandBuilder.getDefaultParam(0x01)
+                if (!keyExchange.isComplete) {
+                    Log.e(TAG, "sendMaintenanceCommand: session key not available")
+                    return false
+                }
+                beginManualDefaultParamProbe(
+                    applyAfterProbe = false,
+                    reason = "manual-maintenance-read",
+                )
+                return true
             }
-            else -> commandBuilder.buildEncrypted(opCode)
-        } ?: run {
+            AiDexOpcodes.SET_DEFAULT_PARAM -> {
+                if (!keyExchange.isComplete) {
+                    Log.e(TAG, "sendMaintenanceCommand: session key not available")
+                    return false
+                }
+                beginManualDefaultParamProbe(
+                    applyAfterProbe = true,
+                    reason = "manual-maintenance-apply",
+                )
+                return true
+            }
+        }
+
+        val cmd = commandBuilder.buildEncrypted(opCode) ?: run {
             Log.e(TAG, "sendMaintenanceCommand: session key not available")
             return false
         }

@@ -14,6 +14,7 @@ import android.content.Context
 import tk.glucodata.Log
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.native.ble.AiDexBleManager
+import tk.glucodata.drivers.aidex.native.protocol.AiDexDpCatalogProvider
 
 /**
  * Factory bridge that SensorBluetooth.java can call without importing from
@@ -79,5 +80,46 @@ object AiDexNativeFactory {
     fun isBroadcastOnly(callback: SuperGattCallback?): Boolean {
         val mgr = callback as? AiDexBleManager ?: return false
         return mgr.broadcastOnlyConnection
+    }
+
+    /**
+     * Import one or more official OTA/default-param rows into the local overlay
+     * catalog. Accepts a single JSON object, an array, or an envelope that
+     * contains such objects recursively.
+     */
+    @JvmStatic
+    fun importDefaultParamCatalogJson(json: String): String {
+        return try {
+            AiDexDpCatalogProvider.importCatalogJson(json).summaryLine()
+        } catch (t: Throwable) {
+            "import-failed: ${t.message ?: t.javaClass.simpleName}"
+        }
+    }
+
+    /**
+     * Clear any imported OTA/default-param overlay rows, falling back to the
+     * baked snapshot catalog only.
+     */
+    @JvmStatic
+    fun clearImportedDefaultParamCatalog(): String {
+        return AiDexDpCatalogProvider.clearImportedCatalog().summaryLine()
+    }
+
+    /**
+     * Return a short catalog summary for diagnostics/logging.
+     */
+    @JvmStatic
+    fun defaultParamCatalogSummary(): String {
+        return AiDexDpCatalogProvider.catalogState().summaryLine()
+    }
+
+    /**
+     * Return the last native `0x31` compare summary for a specific AiDex manager,
+     * or null if the callback is not native or no probe has completed yet.
+     */
+    @JvmStatic
+    fun getDefaultParamDiagnostics(callback: SuperGattCallback?): String? {
+        val mgr = callback as? AiDexBleManager ?: return null
+        return mgr.getLastDefaultParamDiagnosticsSummary()
     }
 }
