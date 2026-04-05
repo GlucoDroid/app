@@ -140,10 +140,14 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private fun cancelQuickLockCheck() {
         handler.removeCallbacks(quickLockCheckRunnable)
     }
-    
-    private fun checkAndUpdateLockState() {
+
+    private fun resolveDeviceLocked(): Boolean {
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-        isLocked = keyguardManager.isKeyguardLocked
+        return keyguardManager.isDeviceLocked || keyguardManager.isKeyguardLocked
+    }
+
+    private fun checkAndUpdateLockState() {
+        isLocked = resolveDeviceLocked()
         updateVisibility()
     }
 
@@ -182,8 +186,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             }
         }
         
-        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-        isLocked = keyguardManager.isKeyguardLocked
+        isLocked = resolveDeviceLocked()
         updateVisibility()
     }
 
@@ -192,9 +195,10 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     }
 
     private fun updateVisibility() {
-        // Only show while the device is actually locked. Showing on mere screen-off can
-        // leave stale overlays hanging around during unlock transitions.
-        val shouldShow = isLocked
+        // Timeout-driven AOD can arrive before the full keyguard UI is considered "showing".
+        // Keep the historical screen-off behavior so ambient mode still appears, and rely on
+        // the unlock/window-state path to hide again as soon as the user returns to an app.
+        val shouldShow = isLocked || !isScreenOn
         
         if (shouldShow) {
             showOverlay()
