@@ -165,11 +165,11 @@ internal object AiDexRuntimePolicy {
     fun shouldRecoverFromBlockedReconnect(
         phase: AiDexBleManager.Phase,
         hasGatt: Boolean,
-        connectTimeMs: Long,
+        connectAttemptInFlight: Boolean,
         hasRecentLiveData: Boolean,
         lastLiveReadingObservedTimeMs: Long,
     ): Boolean {
-        if (phase == AiDexBleManager.Phase.IDLE && hasGatt && connectTimeMs <= 0L) {
+        if (phase == AiDexBleManager.Phase.IDLE && (hasGatt || connectAttemptInFlight)) {
             return true
         }
         if (phase == AiDexBleManager.Phase.STREAMING && lastLiveReadingObservedTimeMs > 0L && !hasRecentLiveData) {

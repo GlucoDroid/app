@@ -296,6 +296,7 @@ class AiDexBleManager(
     @Volatile private var startupControlStage = StartupControlStage.IDLE
     @Volatile private var pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
     @Volatile private var pendingStaleConnectionRecovery = false
+    @Volatile private var connectAttemptInFlight = false
     private var streamingStartedAtMs: Long = 0L
     private var noStreamConnectedBroadcastAttempted = false
     private var noStreamRecoveryAttempted = false
@@ -317,9 +318,8 @@ class AiDexBleManager(
     /** Watchdog: force-disconnect if key exchange doesn't complete within timeout. */
     private val keyExchangeWatchdog = Runnable {
         if (phase == Phase.KEY_EXCHANGE) {
-            Log.e(TAG, "Key exchange watchdog FIRED — timeout after ${KEY_EXCHANGE_TIMEOUT_MS}ms. Force-disconnecting.")
-            constatstatusstr = "Key exchange timeout"
-            try { mBluetoothGatt?.disconnect() } catch (_: Throwable) {}
+            Log.e(TAG, "Key exchange watchdog FIRED — timeout after ${KEY_EXCHANGE_TIMEOUT_MS}ms. Escalating invalid-setup recovery.")
+            recoverFromInvalidSetupState("key-exchange-timeout")
         }
     }
 
@@ -960,6 +960,7 @@ class AiDexBleManager(
     private fun resetConnectionRuntimeState(reason: String, resetInvalidSetupCounter: Boolean) {
         handler.removeCallbacksAndMessages(null)
         cancelBroadcastScan()
+        connectAttemptInFlight = false
 
         gattQueue.clear()
         gattOpActive = false
@@ -1011,7 +1012,7 @@ class AiDexBleManager(
         return AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
             phase = phase,
             hasGatt = mBluetoothGatt != null,
-            connectTimeMs = connectTime,
+            connectAttemptInFlight = connectAttemptInFlight,
             hasRecentLiveData = hasRecentLiveData(now),
             lastLiveReadingObservedTimeMs = lastLiveReadingObservedTimeMs,
         )
@@ -1047,6 +1048,7 @@ class AiDexBleManager(
         if (!pendingStaleConnectionRecovery) return
         handler.removeCallbacks(staleConnectionRecoveryFallback)
         pendingStaleConnectionRecovery = false
+        connectAttemptInFlight = false
         if (!stateAlreadyReset) {
             connectTime = 0L
             setPhase(Phase.IDLE)
@@ -1221,9 +1223,19 @@ class AiDexBleManager(
             Log.d(TAG, "connectDevice: skip — broadcast-only mode")
             return false  // Return false: we don't want GATT, but scanning is ok
         }
+        if (connectAttemptInFlight) {
+            if (shouldRecoverBlockedReconnectNow()) {
+                recoverFromStaleConnectionState(
+                    reason = "blocked-unresolved-connect phase=$phase gatt=${mBluetoothGatt != null} recentLive=${hasRecentLiveData()}"
+                )
+            } else {
+                Log.d(TAG, "connectDevice: skip — unresolved connect attempt already in flight")
+            }
+            return true
+        }
         if (shouldRecoverBlockedReconnectNow()) {
             recoverFromStaleConnectionState(
-                reason = "blocked-reconnect phase=$phase gatt=${mBluetoothGatt != null} connectTime=$connectTime recentLive=${hasRecentLiveData()}"
+                reason = "blocked-reconnect phase=$phase gatt=${mBluetoothGatt != null} recentLive=${hasRecentLiveData()}"
             )
             return true
         }
@@ -1237,6 +1249,7 @@ class AiDexBleManager(
         }
         val scheduled = super.connectDevice(delayMillis)
         if (scheduled) {
+            connectAttemptInFlight = true
             setPhase(Phase.GATT_CONNECTING)
         }
         return scheduled
@@ -1322,6 +1335,9 @@ class AiDexBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         super.onConnectionStateChange(gatt, status, newState)
+        if (newState == BluetoothProfile.STATE_CONNECTED || newState == BluetoothProfile.STATE_DISCONNECTED) {
+            connectAttemptInFlight = false
+        }
 
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             val now = System.currentTimeMillis()
@@ -4167,6 +4183,7 @@ class AiDexBleManager(
         stop = true
         pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
         pendingStaleConnectionRecovery = false
+        connectAttemptInFlight = false
         cancelBroadcastScan()
         keyExchange.reset()
         // Notify C++ layer that this sensor is being removed — prevents zombie resurrection
@@ -4196,6 +4213,7 @@ class AiDexBleManager(
         consecutiveSetupDisconnects = 0
         pendingInvalidSetupRecovery = PendingInvalidSetupRecovery.NONE
         pendingStaleConnectionRecovery = false
+        connectAttemptInFlight = false
         _isPaused = true  // Block external reconnection triggers (LossOfSensorAlarm, reconnectall)
         stop = true  // Prevent auto-reconnect from disconnect handler
         noDirectLiveBroadcastFallbackMode = false

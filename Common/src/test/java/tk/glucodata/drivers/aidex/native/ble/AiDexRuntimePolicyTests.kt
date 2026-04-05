@@ -312,7 +312,20 @@ class AiDexRuntimePolicyTests {
             AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
                 phase = AiDexBleManager.Phase.IDLE,
                 hasGatt = true,
-                connectTimeMs = 0L,
+                connectAttemptInFlight = false,
+                hasRecentLiveData = false,
+                lastLiveReadingObservedTimeMs = 0L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldRecoverFromBlockedReconnect_whenIdleAttemptRemainsInFlightWithoutGatt() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
+                phase = AiDexBleManager.Phase.IDLE,
+                hasGatt = false,
+                connectAttemptInFlight = true,
                 hasRecentLiveData = false,
                 lastLiveReadingObservedTimeMs = 0L,
             )
@@ -325,7 +338,7 @@ class AiDexRuntimePolicyTests {
             AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
                 phase = AiDexBleManager.Phase.STREAMING,
                 hasGatt = false,
-                connectTimeMs = 1_000L,
+                connectAttemptInFlight = false,
                 hasRecentLiveData = false,
                 lastLiveReadingObservedTimeMs = 500L,
             )
@@ -334,7 +347,7 @@ class AiDexRuntimePolicyTests {
             AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
                 phase = AiDexBleManager.Phase.STREAMING,
                 hasGatt = false,
-                connectTimeMs = 1_000L,
+                connectAttemptInFlight = false,
                 hasRecentLiveData = true,
                 lastLiveReadingObservedTimeMs = 500L,
             )
