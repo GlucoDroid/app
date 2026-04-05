@@ -1083,18 +1083,23 @@ class DefaultParamCatalogCompareTests {
         assertEquals("1034_GX01S", AiDexDefaultParamProvisioning.normalizeCatalogModelName("GX-01S"))
         assertEquals("1034_GX02S", AiDexDefaultParamProvisioning.normalizeCatalogModelName("gx02s"))
         assertEquals("1034_GX03S", AiDexDefaultParamProvisioning.normalizeCatalogModelName("1034_GX03S"))
+        assertEquals("1034_GXXXS_7", AiDexDefaultParamProvisioning.normalizeCatalogModelName("1034_GXXXS_7"))
+        assertEquals("1034_GXXXS_14", AiDexDefaultParamProvisioning.normalizeCatalogModelName("GXXXS14"))
+        assertEquals("1034_GXXXS_16", AiDexDefaultParamProvisioning.normalizeCatalogModelName("1034GXXXS16"))
         assertNull(AiDexDefaultParamProvisioning.normalizeCatalogModelName("mystery"))
     }
 
     @Test
-    fun testWorking171NormalizationFromFreshProbeNoLongerPretendsToExactMatch() {
+    fun testWorking171UsesOfficialTrimmedFirmwareKey() {
         val currentRawHex = "010105000080C613008303BFFE68006700650068006B00100E302AD06BB0FFC4FFECFF00000000100E302AD06B0A0000000000C4092800FA00740E2003EE020A000A000800FA0019007D000802AA009CFF640000001100E803B80B32005500D501280046001E0032006400020014002003B004050014001E005A005A00F401F4019033B04F000000000000000000000000000000000000000000000000000000000000000000000000"
 
-        val comparisons = AiDexDefaultParamProvisioning.compareKnownCatalog(currentRawHex, "GX-01S", "1.7.1")
+        val comparisons = AiDexDefaultParamProvisioning.compareKnownCatalog(currentRawHex, "GX-01S", "1.7.1.3")
         assertFalse(comparisons.isEmpty())
 
         val best = comparisons.first()
         assertEquals("1034_GX01S", best.entry.settingType)
+        assertEquals("1.7.1", best.entry.version)
+        assertEquals("parameters_x_1.5.0.0.ini", best.entry.settingVersion)
         assertFalse(best.current.headerSwapApplied)
         assertEquals(168, best.current.byteCount)
         assertEquals("01050000", best.current.versionHex)

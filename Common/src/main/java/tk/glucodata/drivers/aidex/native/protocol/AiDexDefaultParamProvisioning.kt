@@ -3,17 +3,15 @@
 //
 // This mirrors the safe/read-only half of the official OtaManager default-param
 // pipeline:
-//   - use captured OTA settingContent resources as candidate sources
-//   - normalize the captured 0x31 blob into a broad comparable shape
+//   - use official OTA settingContent resources as candidate sources
+//   - normalize the captured 0x31 blob into the packed compare shape
+//   - derive the same firmware version key the official app uses
 //   - validate CRC-8/MAXIM on settingContent
 //   - build candidate DP and compare without writing anything back yet
 //
-// Important: the compare path is still diagnostic/read-only, but the 2026-03-31
-// forced official probe gave one grounded reference point:
-//   GX-01S / 1.8.1 -> parameters_x_1.6.1.0.ini
-// with packed 0x301 payload compare and preserve range 16..23.
-// Older 1.7.x / 1.2.x / 1.3.x entries remain best-effort until we capture the
-// same official branch for those families.
+// The current catalog snapshot comes from the rooted official mgdl app's local
+// ObjectBox OTA cache. It is still a snapshot, not a live server-backed fetch,
+// but it is no longer a hand-picked seed list.
 
 package tk.glucodata.drivers.aidex.native.protocol
 
@@ -59,54 +57,7 @@ object AiDexDefaultParamProvisioning {
         val entry: CatalogEntry get() = candidate.entry
     }
 
-    // Seeded from the captured official endpoint response in
-    // c-logs/nonroot-livepair-probe2.log. This is intentionally limited to the
-    // known GX0xS families we have actually observed, and is used only for
-    // compare/diagnostics until the write-side path is justified.
-    private val knownCatalog = listOf(
-        CatalogEntry(
-            settingType = "1034_GX01S",
-            version = "1.8.1",
-            aidexVersion = "X",
-            settingVersion = "parameters_x_1.6.1.0.ini",
-            settingContent = "0106010080C61300840338FF6E006D006B006E007100100E302AD06BB0FFC4FFECFF00000000100E302AD06B0A0000000000C4092800FA00740E2003EE020A000A000800FA0019007D000802AA009CFF640000001100E803B80B32005500D601280046001E0032006400020014002003B004050014005A003200EE021E005A005A00F401F4019033B04F000000000000000000000000000000000000000000000000000000000000000000B7",
-        ),
-        CatalogEntry(
-            settingType = "1034_GX01S",
-            version = "1.2.0",
-            aidexVersion = "X",
-            settingVersion = "parameters_x_1.0.5.0.ini",
-            settingContent = "0100050080C61300840338FF78006900610062006200D020F03CD06B92FFA6FFB0FFBAFFC4FFD020F03CD06B0A0000000000E8032800FA00E40CF4010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003E",
-        ),
-        CatalogEntry(
-            settingType = "1034_GX02S",
-            version = "1.2.0",
-            aidexVersion = "X",
-            settingVersion = "parameters_x_1.0.5.0.ini",
-            settingContent = "01000500002F0D00840338FF78006900610062006200D020F03CD06B92FFA6FFB0FFBAFFC4FFD020F03CD06B0A0000000000E8032800FA00E40CF40100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000052",
-        ),
-        CatalogEntry(
-            settingType = "1034_GX03S",
-            version = "1.2.0",
-            aidexVersion = "X",
-            settingVersion = "parameters_x_1.0.5.0.ini",
-            settingContent = "01000500008C0A00840338FF78006900610062006200D020F03CD06B92FFA6FFB0FFBAFFC4FFD020F03CD06B0A0000000000E8032800FA00E40CF401000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000F0",
-        ),
-        CatalogEntry(
-            settingType = "1034_GX01S",
-            version = "1.3.0",
-            aidexVersion = "X",
-            settingVersion = "parameters_x_1.0.11.0.ini",
-            settingContent = "01000B0080C61300840338FF62006100610061006300100EF03CD06B00000000000014001E00100EF03CD06B0A0000000000E8032800FA00740E8A022A003200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000081",
-        ),
-        CatalogEntry(
-            settingType = "1034_GX02S",
-            version = "1.3.0",
-            aidexVersion = "X",
-            settingVersion = "parameters_x_1.0.11.0.ini",
-            settingContent = "01000B00002F0D00840338FF62006100610061006300100EF03CD06B00000000000014001E00100EF03CD06B0A0000000000E8032800FA00740E8A022A0032000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ED",
-        ),
-    )
+    private val officialCatalog = AiDexOfficialDpCatalogSnapshot.entries
 
     fun normalizeCatalogModelName(modelName: String?): String? {
         if (modelName.isNullOrBlank()) return null
@@ -115,9 +66,15 @@ object AiDexDefaultParamProvisioning {
             normalized.contains("GX01S") -> "1034_GX01S"
             normalized.contains("GX02S") -> "1034_GX02S"
             normalized.contains("GX03S") -> "1034_GX03S"
+            normalized.contains("GXXXS14") -> "1034_GXXXS_14"
+            normalized.contains("GXXXS16") -> "1034_GXXXS_16"
+            normalized.contains("GXXXS7") -> "1034_GXXXS_7"
             normalized.startsWith("1034GX01S") -> "1034_GX01S"
             normalized.startsWith("1034GX02S") -> "1034_GX02S"
             normalized.startsWith("1034GX03S") -> "1034_GX03S"
+            normalized.startsWith("1034GXXXS14") -> "1034_GXXXS_14"
+            normalized.startsWith("1034GXXXS16") -> "1034_GXXXS_16"
+            normalized.startsWith("1034GXXXS7") -> "1034_GXXXS_7"
             else -> null
         }
     }
@@ -211,20 +168,28 @@ object AiDexDefaultParamProvisioning {
     }
 
     private fun candidateCatalogEntries(settingType: String, firmwareVersion: String?): List<CatalogEntry> {
-        val matches = knownCatalog.filter { it.settingType == settingType && it.aidexVersion == "X" }
-        val normalizedFw = normalizeFirmwareVersion(firmwareVersion)
-        if (normalizedFw == null) return matches
-        return matches.sortedWith(
-            compareBy<CatalogEntry> { versionPriority(it.version, normalizedFw) }
-                .thenByDescending { it.version == normalizedFw }
-                .thenByDescending { majorMinorMatches(it.version, normalizedFw) }
-                .thenBy { it.version }
-        )
+        val matches = officialCatalog.filter { it.settingType == settingType && it.aidexVersion == "X" }
+        val versionKey = deriveCatalogVersionKey(firmwareVersion) ?: return matches.sortedBy { it.version }
+        val exact = matches.filter { it.version == versionKey }
+        val remainder = matches.filterNot { it.version == versionKey }
+            .sortedWith(
+                compareBy<CatalogEntry> { versionPriority(it.version, versionKey) }
+                    .thenByDescending { majorMinorMatches(it.version, versionKey) }
+                    .thenBy { it.version }
+            )
+        return exact + remainder
     }
 
-    private fun normalizeFirmwareVersion(firmwareVersion: String?): String? {
+    private fun deriveCatalogVersionKey(firmwareVersion: String?): String? {
         if (firmwareVersion.isNullOrBlank()) return null
-        return firmwareVersion.trim().substringBefore(' ').substringBefore('(')
+        val token = firmwareVersion.trim().substringBefore(' ').substringBefore('(')
+        val parts = token.split('.').filter { it.isNotBlank() }
+        val numeric = parts.isNotEmpty() && parts.all { part -> part.all(Char::isDigit) }
+        return when {
+            token.isBlank() -> null
+            numeric && parts.size >= 4 -> parts.dropLast(1).joinToString(".")
+            else -> token
+        }
     }
 
     private fun versionPriority(entryVersion: String, firmwareVersion: String): Int {
