@@ -1953,10 +1953,16 @@ class AiDexBleManager(
                 _modelName = String(data, Charsets.UTF_8).trim('\u0000', ' ')
                 Log.i(TAG, "DIS Model Number: $_modelName")
                 applyWearProfileFromModel(_modelName)
+                if (phase == Phase.STREAMING && _firmwareVersion.isNotBlank()) {
+                    scheduleOptionalStreamingSync("dis-model-ready")
+                }
             }
             CHAR_SOFTWARE_REV -> {
                 _firmwareVersion = String(data, Charsets.UTF_8).trim('\u0000', ' ')
                 Log.i(TAG, "DIS Software Revision: $_firmwareVersion")
+                if (phase == Phase.STREAMING && _modelName.isNotBlank()) {
+                    scheduleOptionalStreamingSync("dis-fw-ready")
+                }
             }
             CHAR_MANUFACTURER -> {
                 val manufacturer = String(data, Charsets.UTF_8).trim('\u0000', ' ')
@@ -2703,6 +2709,7 @@ class AiDexBleManager(
     }
 
     private fun scheduleOptionalStreamingSync(reason: String) {
+        armAutomaticDefaultParamProvisioning(reason)
         if (shouldRequestRoutineStreamingMetadata()) {
             pendingStreamingMetadataRead = true
             pendingStreamingMetadataReason = reason
@@ -2757,6 +2764,14 @@ class AiDexBleManager(
         return true
     }
 
+    private fun armAutomaticDefaultParamProvisioning(reason: String) {
+        if (defaultParamAutoProvisioningAttemptedThisConnection) return
+        if (pendingDefaultParamAutoProvisioning) return
+        if (defaultParamAutoProvisioning || pendingDefaultParamApplyAfterProbe || defaultParamApplyVerifying) return
+        pendingDefaultParamAutoProvisioning = true
+        pendingDefaultParamAutoProvisioningReason = reason
+    }
+
     private fun requestAutomaticDefaultParamProvisioningIfNeeded(reason: String) {
         if (!pendingDefaultParamAutoProvisioning) return
         if (!shouldRunOptionalStreamingSync()) {
@@ -2764,8 +2779,7 @@ class AiDexBleManager(
             return
         }
         if (!shouldAutoProvisionDefaultParam()) {
-            pendingDefaultParamAutoProvisioning = false
-            pendingDefaultParamAutoProvisioningReason = null
+            pendingDefaultParamAutoProvisioningReason = reason
             pendingDefaultParamAutoProvisioningScheduled = false
             return
         }
@@ -2884,6 +2898,17 @@ class AiDexBleManager(
         startupDeviceInfoRequested = true
         Log.i(TAG, "Requesting startup device info (0x10, $reason)")
         enqueueGattOp(GattOp.Write(CHAR_F002, cmd))
+    }
+
+    private fun mergedFirmwareVersion(existing: String?, candidate: String?): String {
+        val current = existing.orEmpty().trim()
+        val incoming = candidate.orEmpty().trim()
+        if (current.isBlank()) return incoming
+        if (incoming.isBlank()) return current
+        if (current == incoming) return incoming
+        if (current.startsWith("$incoming.")) return current
+        if (incoming.startsWith("$current.")) return incoming
+        return incoming
     }
 
     private fun requestLegacyStartTime(reason: String) {
@@ -3323,16 +3348,22 @@ class AiDexBleManager(
         }
 
         startupMetadataComplete = true
-        _firmwareVersion = parsed.firmwareVersion
+        val resolvedFirmwareVersion = mergedFirmwareVersion(_firmwareVersion, parsed.firmwareVersion)
+        _firmwareVersion = resolvedFirmwareVersion
         _hardwareVersion = parsed.hardwareVersion
         _wearDays = parsed.wearDays
         _modelName = parsed.modelName
         applyWearProfileFromModel(_modelName)
         Log.i(
             TAG,
-            "Startup device info 0x10: fw=$_firmwareVersion hw=$_hardwareVersion " +
+            "Startup device info 0x10: fw=${parsed.firmwareVersion}" +
+                if (resolvedFirmwareVersion != parsed.firmwareVersion) " mergedFw=$resolvedFirmwareVersion" else "" +
+                " hw=$_hardwareVersion " +
                 "days=$_wearDays model=$_modelName"
         )
+        if (phase == Phase.STREAMING) {
+            scheduleOptionalStreamingSync("startup-0x10-ready")
+        }
 
         if (!hasAuthoritativeSessionStart) {
             requestLegacyStartTime("post-0x10")
@@ -3383,7 +3414,7 @@ class AiDexBleManager(
             val fwMinor = data[4].toInt() and 0xFF
             val hwMajor = data[5].toInt() and 0xFF
             val hwMinor = data[6].toInt() and 0xFF
-            _firmwareVersion = "$fwMajor.$fwMinor"
+            _firmwareVersion = mergedFirmwareVersion(_firmwareVersion, "$fwMajor.$fwMinor")
             _hardwareVersion = "$hwMajor.$hwMinor"
 
             val modelBytes = data.copyOfRange(9, 17)
@@ -3395,6 +3426,9 @@ class AiDexBleManager(
                 applyWearProfileFromModel(_modelName)
             }
             Log.i(TAG, "Legacy combined metadata 0x21: fw=$_firmwareVersion hw=$_hardwareVersion model=$_modelName")
+            if (phase == Phase.STREAMING && _modelName.isNotBlank() && _firmwareVersion.isNotBlank()) {
+                scheduleOptionalStreamingSync("legacy-0x21-ready")
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "Legacy combined metadata 0x21 parse failed: ${t.message}")
         }

@@ -70,9 +70,26 @@ object AiDexDefaultParamProvisioning {
         val candidate: Candidate,
         val diffByteCount: Int,
         val exactMatch: Boolean,
+        val diffSample: List<ByteDiff>,
     ) {
         val entry: CatalogEntry get() = candidate.entry
+
+        fun diffSummary(): String {
+            if (diffSample.isEmpty()) return "none"
+            return diffSample.joinToString(separator = ",") { diff ->
+                val index = diff.byteIndex
+                val currentHex = diff.currentHex ?: "--"
+                val candidateHex = diff.candidateHex ?: "--"
+                "b$index:$currentHex->$candidateHex"
+            }
+        }
     }
+
+    data class ByteDiff(
+        val byteIndex: Int,
+        val currentHex: String?,
+        val candidateHex: String?,
+    )
 
     data class Diagnostics(
         val modelName: String?,
@@ -99,6 +116,9 @@ object AiDexDefaultParamProvisioning {
                 append("(snapshot=${catalog.snapshotEntryCount} imported=${catalog.importedEntryCount}) ")
                 append("${best.entry.source.label}:${best.entry.settingType}@${best.entry.version}/${best.entry.settingVersion} ")
                 append("diff=${best.diffByteCount} exact=${best.exactMatch}")
+                if (!best.exactMatch) {
+                    append(" sample=${best.diffSummary()}")
+                }
             }
         }
     }
@@ -123,6 +143,9 @@ object AiDexDefaultParamProvisioning {
             return buildString {
                 append("${entry.source.label}:${entry.settingType}@${entry.version}/${entry.settingVersion} ")
                 append("diff=${comparison.diffByteCount} ")
+                if (!comparison.exactMatch) {
+                    append("sample=${comparison.diffSummary()} ")
+                }
                 append("chunks=${chunks.size} totalWords=$totalWords")
             }
         }
@@ -278,11 +301,13 @@ object AiDexDefaultParamProvisioning {
                 currentVariants.mapNotNull { variant ->
                     val candidate = buildCandidate(variant.hex, entry) ?: return@mapNotNull null
                     val diffBytes = diffByteCount(variant.hex, candidate.candidateHex)
+                    val diffSample = diffSample(variant.hex, candidate.candidateHex)
                     Comparison(
                         current = variant,
                         candidate = candidate,
                         diffByteCount = diffBytes,
                         exactMatch = diffBytes == 0 && variant.hex.length == candidate.candidateHex.length,
+                        diffSample = diffSample,
                     )
                 }.minWithOrNull(
                     compareBy<Comparison> { it.diffByteCount }
@@ -384,6 +409,38 @@ object AiDexDefaultParamProvisioning {
         }
         diffs += kotlin.math.abs((a.length / 2) - (b.length / 2))
         return diffs
+    }
+
+    private fun diffSample(a: String, b: String, maxEntries: Int = 4): List<ByteDiff> {
+        val result = ArrayList<ByteDiff>(maxEntries)
+        val sharedByteCount = minOf(a.length, b.length) / 2
+        for (index in 0 until sharedByteCount) {
+            if (result.size >= maxEntries) break
+            val off = index * 2
+            if (!a.regionMatches(off, b, off, 2, ignoreCase = true)) {
+                result += ByteDiff(
+                    byteIndex = index,
+                    currentHex = a.substring(off, off + 2),
+                    candidateHex = b.substring(off, off + 2),
+                )
+            }
+        }
+        if (result.size < maxEntries) {
+            val aBytes = a.length / 2
+            val bBytes = b.length / 2
+            val longer = maxOf(aBytes, bBytes)
+            for (index in sharedByteCount until longer) {
+                if (result.size >= maxEntries) break
+                val aOff = index * 2
+                val bOff = index * 2
+                result += ByteDiff(
+                    byteIndex = index,
+                    currentHex = if (aOff + 2 <= a.length) a.substring(aOff, aOff + 2) else null,
+                    candidateHex = if (bOff + 2 <= b.length) b.substring(bOff, bOff + 2) else null,
+                )
+            }
+        }
+        return result
     }
 
     internal fun hexToBytes(hex: String): ByteArray? {
