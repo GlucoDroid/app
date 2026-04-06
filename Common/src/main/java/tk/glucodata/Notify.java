@@ -509,8 +509,29 @@ public class Notify {
     public static final String CHANNEL_LOW = "LOW";
     public static final String CHANNEL_HIGH = "HIGH";
     public static final String CHANNEL_LOSS = "LOSS";
+    public static final String CHANNEL_MISSED_READING = "MISSED_READING";
+    public static final String CHANNEL_SENSOR_EXPIRY = "SENSOR_EXPIRY";
     // private static final String LOSSALARM = "LossofSensorAlarm";
     private static String GLUCOSENOTIFICATION = "glucoseNotification";
+
+    private static String alertChannelForKind(int kind) {
+        switch (kind) {
+            case 0:
+                return CHANNEL_LOW;
+            case 1:
+                return CHANNEL_HIGH;
+            case 4:
+                return CHANNEL_LOSS;
+            case 9:
+                return CHANNEL_MISSED_READING;
+            case 10:
+                return CHANNEL_HIGH;
+            case 11:
+                return CHANNEL_SENSOR_EXPIRY;
+            default:
+                return GLUCOSEALARM;
+        }
+    }
 
     private void createNotificationChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -584,6 +605,26 @@ public class Notify {
             channelLoss.setShowBadge(false);
             channelLoss.setLockscreenVisibility(VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(channelLoss);
+
+            NotificationChannel channelMissedReading = new NotificationChannel(
+                    CHANNEL_MISSED_READING,
+                    context.getString(R.string.alert_missed_reading),
+                    NotificationManager.IMPORTANCE_HIGH);
+            channelMissedReading.setDescription(context.getString(R.string.missed_reading_channel_description));
+            channelMissedReading.setSound(null, null);
+            channelMissedReading.setShowBadge(false);
+            channelMissedReading.setLockscreenVisibility(VISIBILITY_PUBLIC);
+            notificationManager.createNotificationChannel(channelMissedReading);
+
+            NotificationChannel channelSensorExpiry = new NotificationChannel(
+                    CHANNEL_SENSOR_EXPIRY,
+                    context.getString(R.string.alert_sensor_expiry),
+                    NotificationManager.IMPORTANCE_HIGH);
+            channelSensorExpiry.setDescription(context.getString(R.string.sensor_expiry_channel_description));
+            channelSensorExpiry.setSound(null, null);
+            channelSensorExpiry.setShowBadge(false);
+            channelSensorExpiry.setLockscreenVisibility(VISIBILITY_PUBLIC);
+            notificationManager.createNotificationChannel(channelSensorExpiry);
         }
 
     }
@@ -592,7 +633,7 @@ public class Notify {
     // channel.setShowBadge(false);
     boolean lowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_low) + " " + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(0, gl, msg, strgl, CHANNEL_LOW, alarm);
+        final boolean triggered = arrowglucosealarm(0, gl, msg, strgl, alertChannelForKind(0), alarm);
         if (!isWearable) {
             if (triggered) {
                 tk.glucodata.WearInt.alarm("LOW " + strgl.value);
@@ -603,7 +644,7 @@ public class Notify {
 
     boolean highglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_high) + " " + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(1, gl, msg, strgl, CHANNEL_HIGH, alarm);
+        final boolean triggered = arrowglucosealarm(1, gl, msg, strgl, alertChannelForKind(1), alarm);
         if (!isWearable) {
             if (triggered) {
                 tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
@@ -615,7 +656,7 @@ public class Notify {
     boolean veryhighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_very_high) + " "
                 + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(6, gl, msg, strgl, GLUCOSEALARM, alarm);
+        final boolean triggered = arrowglucosealarm(6, gl, msg, strgl, alertChannelForKind(6), alarm);
         if (!isWearable) {
             if (triggered) {
                 tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
@@ -627,7 +668,7 @@ public class Notify {
     boolean verylowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_very_low) + " "
                 + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(5, gl, msg, strgl, GLUCOSEALARM, alarm);
+        final boolean triggered = arrowglucosealarm(5, gl, msg, strgl, alertChannelForKind(5), alarm);
         if (!isWearable) {
             if (triggered) {
                 tk.glucodata.WearInt.alarm("LOW " + strgl.value);
@@ -639,13 +680,13 @@ public class Notify {
     boolean prehighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_forecast_high) + " "
                 + format(usedlocale, glucoseformat, gl);
-        return arrowglucosealarm(8, gl, msg, strgl, GLUCOSEALARM, alarm);
+        return arrowglucosealarm(8, gl, msg, strgl, alertChannelForKind(8), alarm);
     }
 
     boolean prelowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_forecast_low) + " "
                 + format(usedlocale, glucoseformat, gl);
-        return arrowglucosealarm(7, gl, msg, strgl, GLUCOSEALARM, alarm);
+        return arrowglucosealarm(7, gl, msg, strgl, alertChannelForKind(7), alarm);
     }
 
     public static boolean triggerSupplementalGlucoseAlert(int kind, float glucoseValue, float rate, String message) {
@@ -659,7 +700,7 @@ public class Notify {
         snapshot.time = System.currentTimeMillis();
         snapshot.value = format(usedlocale, pureglucoseformat, glucoseValue);
         snapshot.rate = rate;
-        return notify.arrowglucosealarm(kind, glucoseValue, message, snapshot, GLUCOSEALARM, true);
+        return notify.arrowglucosealarm(kind, glucoseValue, message, snapshot, alertChannelForKind(kind), true);
     }
 
     static private final int glucosenotificationid = 81431;
@@ -1860,22 +1901,22 @@ public class Notify {
             switch (kind) {
                 case 0: // Low
                     dummyValue = isMmol ? 3.5f : 63f;
-                    typeStr = "glucoseNotification"; // Revert to legacy channel to avoid startForeground crash
+                    typeStr = alertChannelForKind(kind);
                     message = isMmol ? "LOW 3.5" : "LOW 63";
                     break;
                 case 1: // High
                     dummyValue = isMmol ? 12.0f : 216f;
-                    typeStr = "glucoseNotification"; // Revert to legacy channel
+                    typeStr = alertChannelForKind(kind);
                     message = isMmol ? "HIGH 12.0" : "HIGH 216";
                     break;
                 case 4: // Loss (AlertType.LOSS.id = 4)
                     dummyValue = 0f;
-                    typeStr = "glucoseNotification"; // Revert to legacy channel
+                    typeStr = alertChannelForKind(kind);
                     message = "Signal Loss";
                     break;
                 default:
                     dummyValue = isMmol ? 3.5f : 63f;
-                    typeStr = "glucoseNotification";
+                    typeStr = alertChannelForKind(kind);
                     message = "Test Alert";
             }
 
@@ -1956,7 +1997,7 @@ public class Notify {
                         ? customAlertName
                         : defaultName;
 
-                String typeStr = "glucoseNotification";
+                String typeStr = alertChannelForKind(kind);
                 final float resolvedRate = resolveAlarmRate(rate, isHigh, isTest);
                 notGlucose glucoseStr = new notGlucose(System.currentTimeMillis(), String.valueOf(glucoseValue),
                         resolvedRate, 0);
@@ -2488,9 +2529,11 @@ public class Notify {
                     intent = mkpending(customAlertId);
                 }
                 var GluNotBuilder = mkbuilderintent(type, intent, false);
-                // Swipe away means ignore this surface, not dismiss the whole episode.
+                // Wearables and companion apps often map "dismiss" to the notification's
+                // delete intent. Keep that aligned with the alarm screen's primary Stop
+                // action, which ends the current alert episode rather than snoozing it.
                 Intent swipeDismissIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmActionReceiver.class);
-                swipeDismissIntent.setAction(tk.glucodata.receivers.AlarmActionReceiver.ACTION_IGNORE);
+                swipeDismissIntent.setAction(tk.glucodata.receivers.AlarmActionReceiver.ACTION_DISMISS);
                 swipeDismissIntent.putExtra("alert_type_id", alertTypeId);
                 if (customAlertId != null && !customAlertId.isEmpty()) {
                     swipeDismissIntent.putExtra(EXTRA_CUSTOM_ALERT_ID, customAlertId);
@@ -3810,7 +3853,7 @@ public class Notify {
         final String message = "***  " + Applic.getContext().getString(R.string.nonewvalue) + tformat + " ***";
 
         // oldfloatmessage(tformat, true) ;
-        lossofsignalalarm(4, R.drawable.loss, message, CHANNEL_LOSS, true);
+        lossofsignalalarm(4, R.drawable.loss, message, alertChannelForKind(4), true);
     }
 
 }
