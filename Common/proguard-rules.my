@@ -68,6 +68,20 @@
 
 -keep class tk.glucodata.CalibrationProfileAccess { *; }
 
+# Keep TrendEngine names and reflected members stable.
+# TrendAccess in src/main resolves these mobile-only methods by name for
+# notification/dashboard/AOD trend arrows in minified builds.
+-keepnames class tk.glucodata.logic.TrendEngine
+-keepclassmembers class tk.glucodata.logic.TrendEngine {
+    public static final tk.glucodata.logic.TrendEngine INSTANCE;
+    public final tk.glucodata.logic.TrendEngine$TrendResult calculateTrend(java.util.List,boolean,boolean);
+}
+
+-keepnames class tk.glucodata.logic.TrendEngine$TrendResult
+-keepclassmembers class tk.glucodata.logic.TrendEngine$TrendResult {
+    public final float getVelocity();
+}
+
 #-keep class tk.glucodata.watchface.WatchFaceService
 #-keep class tk.glucodata.watchface.WatchFaceService.editor.WatchFaceConfigActivity
 
