@@ -300,6 +300,7 @@ static public String changehostError(MainActivity act,int pos) {
                case -4 : yield act.getString(R.string.senthosts);
                case -5 : yield "Hostname too long";
                case -6 : yield "Database busy, try again";
+               case -16 : yield "ICE label should be at least 16 characters";
                default : yield "Error";
             };
             return mess;
@@ -583,7 +584,12 @@ CheckBox ICE;
          int struse=0;
          String[] names=null;
          final boolean dodetect= detect.isChecked()&&!activeonly.isChecked();
+         final var ICEstring=ICElabel.getText().toString();
          if(ice) {
+            if(ICEstring.length()<16) {
+                Applic.argToaster(act,changehostError(act, -16),Toast.LENGTH_LONG);
+                return -16;
+                }
             }
          else {
              names=new String[editIPs.length];
@@ -609,7 +615,7 @@ CheckBox ICE;
 
          long starttime=(alldata.getVisibility()!=VISIBLE||alldata.isChecked())?0L:(fromnow.isChecked()? System.currentTimeMillis():Natives.getstarttime())/1000L;
 
-         int pos=Natives.changebackuphost(hostindex,names,struse,dodetect,portedit.getText().toString(), Amounts.isChecked(),Stream.isChecked(),Scans.isChecked(),restore.isChecked(),receiver,activeonly.isChecked(),passiveonly.isChecked(),Password.isChecked()?editpass.getText().toString():null,starttime,haslabel.isChecked()?label.getText().toString():null,testip.isChecked(),checkhostname.isChecked(),ICElabel.getText().toString(),one.isChecked());
+         int pos=Natives.changebackuphost(hostindex,names,struse,dodetect,portedit.getText().toString(), Amounts.isChecked(),Stream.isChecked(),Scans.isChecked(),restore.isChecked(),receiver,activeonly.isChecked(),passiveonly.isChecked(),Password.isChecked()?editpass.getText().toString():null,starttime,haslabel.isChecked()?label.getText().toString():null,testip.isChecked(),checkhostname.isChecked(),ice?ICEstring:null,one.isChecked());
 
          if(pos<0) {
             String mess=changehostError(act, pos);

@@ -905,6 +905,9 @@ public:
       thehost.index = -1;
     }
 
+    thehost.side = false;
+    thehost.ICE = false;
+
     if (!newhost && thehost.activereceive)
       endactivereceive(index);
     int res;
@@ -1027,6 +1030,119 @@ public:
 #endif
     LOGGER("changehost=%d\n", ret);
     return ret;
+  }
+
+  int changeICEhost(const char *ICElabel, int index, const bool sendnums,
+                    const bool sendstream, const bool sendscans,
+                    const bool receive, string_view pass, uint32_t starttime,
+                    const char *label = nullptr, bool side = false,
+                    bool startthreads = true) {
+    const int iceLabelLen = ICElabel ? strlen(ICElabel) : 0;
+    if (iceLabelLen < 16) {
+      LOGGER("changeICEhost invalid ICE label length=%d\n", iceLabelLen);
+      return -16;
+    }
+
+    const int hostnr = getupdatedata()->hostnr;
+    LOGGER("hostnr=%d changeICEhost(%d,sendnums=%d,sendstream=%d,"
+           "sendscans=%d,receive=%d,label=%s)\n",
+           hostnr, index, sendnums, sendstream, sendscans, receive, label);
+    if (index < 0)
+      index = hostnr;
+    if (index >= maxallhosts) {
+      LOGAR("changeICEhost: index>=maxallhosts");
+      return -3;
+    }
+
+    struct oldnet {
+      bool wasnet = networkpresent;
+      oldnet() { networkpresent = false; }
+      ~oldnet() {
+        if (!networkpresent)
+          networkpresent = wasnet;
+      };
+    };
+    struct oldnet desnet;
+
+    const bool newhost = (index == hostnr);
+    const bool sendto = sendnums || sendstream || sendscans;
+    int tohost = 0;
+    bool newthread = false;
+    auto &thehost = getupdatedata()->allhosts[index];
+    LOGGER("changeICEhost newhost=%d thehost.index=%d\n", newhost,
+           thehost.index);
+
+    if (sendto) {
+      if (newhost || thehost.index == -1) {
+        tohost = getupdatedata()->sendnr;
+        if (tohost >= maxsendtohost) {
+          LOGGER("changeICEhost: tohost(%d)>=maxsendtohost(%d)\n", tohost,
+                 maxsendtohost);
+          return -4;
+        }
+        thehost.index = tohost;
+        newthread = true;
+      } else {
+        tohost = thehost.index;
+      }
+
+      changereceiver(index, tohost, sendnums, sendstream, sendscans, false,
+                     pass.size(), starttime);
+      thehost.sendpassive = false;
+    } else {
+      thehost.sendpassive = false;
+      int sendindex = thehost.index;
+      if (!newhost && sendindex >= 0) {
+        deletestart(sendindex);
+        thehost.index = -1;
+        deleteend(sendindex);
+        setindices(index);
+      }
+      thehost.index = -1;
+    }
+
+    if (!newhost && thehost.activereceive)
+      endactivereceive(index);
+
+    thehost.hostname = false;
+    thehost.nr = 0;
+    thehost.detect = false;
+    thehost.noip = true;
+    thehost.side = side;
+    thehost.ICE = true;
+    thehost.receivefrom = receive ? 3 : 1;
+    thehost.deactivated = false;
+    thehost.wearos = false;
+    thehost.activereceive = 0;
+    if (label) {
+      thehost.setname(label);
+    } else {
+      thehost.hasname = false;
+    }
+    thehost.setICEname(ICElabel);
+    setpass(thehost.pass, pass);
+    lastuptodate[index] = 0;
+
+    if (newhost) {
+      ++(getupdatedata()->hostnr);
+      LOGGER("new ICE host %s ++hostnr=%d\n", thehost.getnameif(),
+             getupdatedata()->hostnr);
+      thehost.newconnection = true;
+    } else {
+      LOGGER("updated ICE host %s\n", thehost.getnameif());
+    }
+
+    deupdated();
+    closesocksone(index, getupdatedata()->allhosts + index);
+    if (startthreads && newthread)
+      startthread(index, tohost);
+    shouldaskfordata = getshouldaskfordata();
+#ifdef WEAROS_MESSAGES
+    extern void clearnetworkcache();
+    clearnetworkcache();
+#endif
+    LOGGER("changeICEhost=%d\n", index);
+    return index;
   }
 
   bool isreceiving() const {

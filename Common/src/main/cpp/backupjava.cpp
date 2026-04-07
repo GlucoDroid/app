@@ -167,7 +167,7 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(resetbylabel)(JNIEnv *env,
 }
 #endif
 const char *gethostlabel(int pos) {
-  if (!backup || pos >= backup->gethostnr())
+  if (!backup || pos < 0 || pos >= backup->gethostnr())
     return nullptr;
   const passhost_t &host = backup->getupdatedata()->allhosts[pos];
   if (!host.hasname)
@@ -353,30 +353,47 @@ extern "C" JNIEXPORT jint JNICALL fromjava(changebackuphost)(
          pos, jnames, nr, detect, jport, nums, stream, scans, recover, receive,
          activeonly, passiveonly, jpass, starttime, jlabel, testip,
          hashostname);
-  const char *port = env->GetStringUTFChars(jport, nullptr);
-  if (!port)
-    return -1;
-  int portlen = strlen(port);
-
   const char *passptr = nullptr;
   if (jpass) {
     passptr = env->GetStringUTFChars(jpass, nullptr);
   }
   const char *label = jlabel ? env->GetStringUTFChars(jlabel, NULL) : nullptr;
+  jint res = -1;
+  const bool hasicelabel =
+      jicelabel && env->GetStringUTFLength(jicelabel) > 0;
 
-  const int arlen = std::min(env->GetArrayLength(jnames), nr);
-  // Note: Existing backup->changehost likely doesn't support jicelabel/side
-  // yet. We pass hashostname which was previous Arg 17.
-  jint res = backup->changehost(
-      pos, env, jnames, arlen, detect, std::string_view(port, portlen), nums,
-      stream, scans, recover, receive, activeonly,
-      passptr ? std::string_view(passptr) : std::string_view(), starttime,
-      passiveonly, label, testip, true, hashostname);
+  if (hasicelabel) {
+    const char *ICElabel = env->GetStringUTFChars(jicelabel, nullptr);
+    if (ICElabel) {
+      res = backup->changeICEhost(
+          ICElabel, pos, nums, stream, scans, receive,
+          passptr ? std::string_view(passptr) : std::string_view(), starttime,
+          label, side, true);
+      env->ReleaseStringUTFChars(jicelabel, ICElabel);
+    }
+  } else {
+    const char *port = env->GetStringUTFChars(jport, nullptr);
+    if (!port) {
+      if (jlabel)
+        env->ReleaseStringUTFChars(jlabel, label);
+      if (jpass)
+        env->ReleaseStringUTFChars(jpass, passptr);
+      return -1;
+    }
+    int portlen = strlen(port);
+
+    const int arlen = jnames ? std::min(env->GetArrayLength(jnames), nr) : 0;
+    res = backup->changehost(
+        pos, env, jnames, arlen, detect, std::string_view(port, portlen), nums,
+        stream, scans, recover, receive, activeonly,
+        passptr ? std::string_view(passptr) : std::string_view(), starttime,
+        passiveonly, label, testip, true, hashostname);
+    env->ReleaseStringUTFChars(jport, port);
+  }
   if (jlabel)
     env->ReleaseStringUTFChars(jlabel, label);
   if (jpass)
     env->ReleaseStringUTFChars(jpass, passptr);
-  env->ReleaseStringUTFChars(jport, port);
   return res;
 }
 extern "C" JNIEXPORT jboolean JNICALL fromjava(isreceiving)(JNIEnv *env,
@@ -456,15 +473,21 @@ extern "C" JNIEXPORT void JNICALL fromjava(networkabsent)(JNIEnv *env,
 extern "C" JNIEXPORT jboolean JNICALL fromjava(getICEside)(JNIEnv *env,
                                                            jclass cl,
                                                            jint pos) {
-  // Stub implementation as ICE support appears to be missing in C++ headers
-  return false;
+  if (!backup || pos < 0 || pos >= backup->gethostnr())
+    return false;
+  const passhost_t &host = backup->getupdatedata()->allhosts[pos];
+  return host.side;
 }
 
 extern "C" JNIEXPORT jstring JNICALL fromjava(getICElabel)(JNIEnv *env,
                                                            jclass cl,
                                                            jint pos) {
-  // Stub implementation
-  return env->NewStringUTF("");
+  if (!backup || pos < 0 || pos >= backup->gethostnr())
+    return nullptr;
+  const passhost_t &host = backup->getupdatedata()->allhosts[pos];
+  if (!host.ICE)
+    return nullptr;
+  return myNewStringUTF(env, host.getICEname());
 }
 
 extern int makeICEBackupSender();

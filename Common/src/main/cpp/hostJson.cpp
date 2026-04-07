@@ -63,7 +63,11 @@ std::string mkbackjson(int pos) {
   const char *publicHost = std::getenv("JUGGLUCO_MIRROR_PUBLIC_HOST");
   const char *publicPort = std::getenv("JUGGLUCO_MIRROR_PUBLIC_PORT");
   const bool hasPublicHost = publicHost && *publicHost;
-  if (!host.hashostname()) {
+  if (host.ICE) {
+    inserter = std::format_to(inserter, R"({{"ICElabel":"{}")",
+                              escape(host.getICEname()));
+    inserter = insertbool(inserter, "side", !host.side);
+  } else if (!host.hashostname()) {
     int ipnr = 0;
     if (hasPublicHost) {
       ipnr = 1;
@@ -98,10 +102,12 @@ std::string mkbackjson(int pos) {
     inserter = std::copy(std::begin(empty), std::end(empty) - 1, inserter);
     inserter = insertbool(inserter, "hasname", true);
   }
-  inserter = std::format_to(inserter, R"(,"port":{})",
-                            (hasPublicHost && publicPort && *publicPort)
-                                ? publicPort
-                                : (char *)back.port);
+  if (!host.ICE) {
+    inserter = std::format_to(inserter, R"(,"port":{})",
+                              (hasPublicHost && publicPort && *publicPort)
+                                  ? publicPort
+                                  : (char *)back.port);
+  }
   if (host.receivedatafrom()) {
     int sendindex = host.index;
     if (sendindex >= 0) {
@@ -126,10 +132,12 @@ std::string mkbackjson(int pos) {
     inserter = insertbool(inserter, "receive", true);
   }
 
-  LOGGER("getActive=%d getPassive=%d\n", host.getActive(), host.getPassive());
-  inserter = insertbool(inserter, "activeonly",
-                        !host.getActive() && host.getPassive());
-  inserter = insertbool(inserter, "passiveonly", host.getActive());
+  if (!host.ICE) {
+    LOGGER("getActive=%d getPassive=%d\n", host.getActive(), host.getPassive());
+    inserter = insertbool(inserter, "activeonly",
+                          !host.getActive() && host.getPassive());
+    inserter = insertbool(inserter, "passiveonly", host.getActive());
+  }
   if (host.haspass())
     inserter = std::format_to(inserter, R"(,"pass":"{}")",
                               escape(Backup::passback(host.pass).data()));
@@ -198,45 +206,43 @@ int makeHomeBackupReceiver() {
 }
 
 int makeICEBackupSender() {
-  int pos = -1;
-  bool nums = true, scans = true, stream = true;
-  bool receiver = false, activeonly = false, passiveonly = true;
   const int passlen = 16;
   char passstr[passlen + 1];
   makepass(passstr, passlen);
-  passstr[passlen] = '\0';
+  char label[17] = "ICE";
+  makepass(label + 3, 13);
+  label[16] = '\0';
+  char ICElabel[33];
+  makepass(ICElabel, 32);
+  ICElabel[32] = '\0';
+  int pos = -1;
+  bool nums = true, scans = true, stream = true;
+  bool receive = false;
   uint32_t starttime = 0L;
-  bool testip = false, hashostname = false;
-  char label[10] = "ice";
-  makepass(label + 3, 5);
-  constexpr const bool detect = true;
-  jint res = backup->changehost(pos, nullptr, nullptr, 0, detect,
-                                std::string_view(nullptr, 0), nums, stream,
-                                scans, false, receiver, activeonly,
-                                std::string_view(passstr, passlen), starttime,
-                                passiveonly, label, testip, true, hashostname);
-  return res;
+  bool side = false;
+  return backup->changeICEhost(ICElabel, pos, nums, stream, scans, receive,
+                               std::string_view(passstr, passlen), starttime,
+                               label, side, true);
 }
 
 int makeICEBackupReceiver() {
-  int pos = -1;
-  bool nums = false, scans = false, stream = false;
-  bool receiver = true, activeonly = false, passiveonly = true;
   const int passlen = 16;
   char passstr[passlen + 1];
   makepass(passstr, passlen);
-  passstr[passlen] = '\0';
+  char label[17] = "ICE";
+  makepass(label + 3, 13);
+  label[16] = '\0';
+  char ICElabel[33];
+  makepass(ICElabel, 32);
+  ICElabel[32] = '\0';
+  int pos = -1;
+  bool nums = false, scans = false, stream = false;
+  bool receive = true;
   uint32_t starttime = 0L;
-  bool testip = false, hashostname = false;
-  char label[10] = "ice";
-  makepass(label + 3, 5);
-  constexpr const bool detect = true;
-  jint res = backup->changehost(pos, nullptr, nullptr, 0, detect,
-                                std::string_view(nullptr, 0), nums, stream,
-                                scans, false, receiver, activeonly,
-                                std::string_view(passstr, passlen), starttime,
-                                passiveonly, label, testip, true, hashostname);
-  return res;
+  bool side = true;
+  return backup->changeICEhost(ICElabel, pos, nums, stream, scans, receive,
+                               std::string_view(passstr, passlen), starttime,
+                               label, side, true);
 }
 
 #endif

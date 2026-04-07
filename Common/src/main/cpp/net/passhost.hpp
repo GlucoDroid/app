@@ -74,7 +74,9 @@ false	  	false	  	0
 	bool sendpassive:1;  // send to named host passive only
 	bool hasname:1;
 	bool noip:1;
-	uint16_t reserved:15;
+	uint16_t reserved:13;
+	bool side:1;
+	bool ICE:1;
 	bool deactivated:1;
 	bool hashostname() const {
 		return hostname;
@@ -94,6 +96,16 @@ false	  	false	  	0
 	void setportwithhostname(int port)  {	
 		 reinterpret_cast<hostnamedata*>(ips)->port=port;
 		 }
+	void setICEname(std::string_view name) {
+		int len=std::min(name.size(),sizeof(hostnamedata::name)-1);
+		char *doel=reinterpret_cast<hostnamedata*>(ips)->name;
+		memcpy(doel,name.data(),len);
+		doel[len]='\0';
+		reinterpret_cast<hostnamedata*>(ips)->port=len;
+		}
+	std::string_view getICEname() const {
+		return {reinterpret_cast<const hostnamedata*>(ips)->name, reinterpret_cast<const hostnamedata*>(ips)->port};
+		}
 	uint16_t getport() const {	
 		if(hostname) {
 			return reinterpret_cast<const hostnamedata*>(ips)->port;

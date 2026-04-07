@@ -76,20 +76,28 @@ fun injectMirrorJson(jsonstr: String, context: Context): Boolean {
     try {
         val jsonClean = if (jsonstr.endsWith(" MirrorJuggluco")) jsonstr.dropLast(15) else jsonstr
         val json = JSONObject(jsonClean)
-        val namesArray = json.getJSONArray("names")
-        val names = Array(namesArray.length()) { i -> namesArray.getString(i) }
+        val iceLabel = json.optString("ICElabel").takeIf { it.isNotEmpty() }
+        val namesArray = json.optJSONArray("names")
+        val names = if (namesArray != null) {
+            Array(namesArray.length()) { i -> namesArray.getString(i) }
+        } else {
+            emptyArray()
+        }
         val pos = Natives.changebackuphost(
-            -1, names, json.getInt("nr"),
-            json.optBoolean("detect", false), json.getString("port"),
+            -1, names, json.optInt("nr", names.size),
+            json.optBoolean("detect", false), json.optString("port", "8795"),
             json.optBoolean("nums", false), json.optBoolean("stream", false),
             json.optBoolean("scans", false), false, json.optBoolean("receive", false),
             json.optBoolean("activeonly", false), json.optBoolean("passiveonly", false),
             if (json.isNull("pass")) null else json.getString("pass"), 0L,
             if (json.isNull("label")) null else json.getString("label"),
             json.optBoolean("testip", false), json.optBoolean("hasname", false),
-            null, false
+            iceLabel, json.optBoolean("side", false)
         )
-        if (pos < 0) { Toast.makeText(context, "Failed to save", Toast.LENGTH_SHORT).show(); return false }
+        if (pos < 0) {
+            Toast.makeText(context, changeHostErrorMessage(context, pos), Toast.LENGTH_SHORT).show()
+            return false
+        }
         Toast.makeText(context, context.getString(R.string.mirrorscansucces), Toast.LENGTH_SHORT).show()
         tk.glucodata.Applic.wakemirrors()
         return true
@@ -106,6 +114,7 @@ private fun changeHostErrorMessage(context: Context, code: Int): String = when (
     -4 -> context.getString(R.string.senthosts)
     -5 -> "Hostname too long"
     -6 -> "Database busy, try again"
+    -16 -> "ICE label should be at least 16 characters"
     else -> context.getString(R.string.mirror_error_with_code, code)
 }
 
@@ -628,6 +637,10 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             Toast.makeText(context, context.getString(R.string.specifyip), Toast.LENGTH_SHORT).show()
             return false
         }
+        if (isICE && iceLabel.length < 16) {
+            Toast.makeText(context, changeHostErrorMessage(context, -16), Toast.LENGTH_SHORT).show()
+            return false
+        }
 
         // Build names array
         val finalNames: Array<String>
@@ -670,7 +683,7 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             /* label */ connectionLabel.ifEmpty { null },
             /* testip */ isICE || isDirect,
             /* hasname */ isDirect,
-            /* icelabel */ if (isICE) iceLabel else "",
+            /* icelabel */ if (isICE) iceLabel else null,
             /* side */ iceSide
         )
         if (result < 0) {
