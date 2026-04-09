@@ -171,8 +171,15 @@ static private void addgraph(Settings settings,Bundle bundle,long now) {
     int inrangecolor=WHITE;
     var inrange=new GraphLine(inrangecolor);
     var high=new GraphLine(highcolor);
-    if(!Natives.mkWearIntgraph(start,end,low,inrange,high)) {
-    	Log.e(LOG_ID,"Natives.mkWearIntgraph(start,end,low,inrange,high)==false");
+    final boolean nativeGraph = Natives.mkWearIntgraph(start,end,low,inrange,high);
+    if((!nativeGraph || !hasGraphPoints(low,inrange,high))
+            && populateGraphFromDisplayHistory(start,end,low,inrange,high,targetlow,targethigh)) {
+        if(Log.doLog) {
+            Log.i(LOG_ID,"Using display-history fallback for watch graph");
+        }
+    }
+    if(!nativeGraph && !hasGraphPoints(low,inrange,high)) {
+    	Log.e(LOG_ID,"No native or fallback points for watch graph");
     	}
 
     bundle.putParcelable("graph.low", low);
@@ -185,6 +192,74 @@ static private void addgraph(Settings settings,Bundle bundle,long now) {
 //    bundle.putParcelable("graph.cob", new GraphLine());  //cobValues
 //    bundle.putParcelable("graph.polyBg", new GraphLine());  //poly predict ;
             }
+
+private static boolean hasGraphPoints(GraphLine low, GraphLine inrange, GraphLine high) {
+    return !low.values.isEmpty() || !inrange.values.isEmpty() || !high.values.isEmpty();
+}
+
+private static boolean populateGraphFromDisplayHistory(
+        long start,
+        long end,
+        GraphLine low,
+        GraphLine inrange,
+        GraphLine high,
+        float targetlow,
+        float targethigh) {
+    final CurrentDisplaySource.Snapshot current;
+    try {
+        current = CurrentDisplaySource.resolveCurrent(glucosetimeout);
+    } catch (Throwable th) {
+        Log.stack(LOG_ID, "resolveCurrent for graph fallback", th);
+        return false;
+    }
+    final String sensorId = current != null ? current.getSensorId() : null;
+    final int viewMode = current != null ? current.getViewMode() : 0;
+    final boolean rawPrimary = viewMode == 1 || viewMode == 3;
+    final var points = NotificationHistorySource.getDisplayHistory(start, Applic.unit == 1, sensorId);
+    boolean added = false;
+    for (final var point : points) {
+        if (point == null || point.timestamp < start || point.timestamp > end) {
+            continue;
+        }
+        final float value = resolveFallbackGraphValue(point, rawPrimary);
+        if (!Float.isFinite(value) || value <= 0f) {
+            continue;
+        }
+        addGraphPoint(low, inrange, high, point.timestamp, value, targetlow, targethigh);
+        added = true;
+    }
+    if (!added && current != null) {
+        final long currentTime = current.getTimeMillis();
+        final float currentValue = current.getPrimaryValue();
+        if (currentTime >= start && currentTime <= end && Float.isFinite(currentValue) && currentValue > 0f) {
+            addGraphPoint(low, inrange, high, currentTime, currentValue, targetlow, targethigh);
+            added = true;
+        }
+    }
+    return added;
+}
+
+private static float resolveFallbackGraphValue(GlucosePoint point, boolean rawPrimary) {
+    final float primary = rawPrimary ? point.rawValue : point.value;
+    if (Float.isFinite(primary) && primary > 0f) {
+        return primary;
+    }
+    final float fallback = rawPrimary ? point.value : point.rawValue;
+    return (Float.isFinite(fallback) && fallback > 0f) ? fallback : Float.NaN;
+}
+
+private static void addGraphPoint(
+        GraphLine low,
+        GraphLine inrange,
+        GraphLine high,
+        long timestampMillis,
+        float value,
+        float targetlow,
+        float targethigh) {
+    final GraphLine line = value < targetlow ? low : (value > targethigh ? high : inrange);
+    line.add((float)(timestampMillis/(double)FUZZER), value);
+}
+
 static void sendglucose(int mgdl,float rate, int alarm, long timmsec)  {
 //    mapsettings.forEach((pack, settings) -> {
 
