@@ -21,6 +21,7 @@ import tk.glucodata.SensorIdentity
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
+import tk.glucodata.alerts.CustomAlertRepository
 import tk.glucodata.ui.util.resolveDashboardSensorStatus
 
 class DashboardViewModel(
@@ -297,6 +298,7 @@ class DashboardViewModel(
         _highAlarmSoundMode.value = if (Natives.alarmhassound(1)) 1 else 0
 
         val anyActive = AlertRepository.loadAllConfigs().any { it.enabled }
+            || CustomAlertRepository.getAll().any { it.enabled }
         _alertsSummary.value = if (anyActive) "Active" else "All Alerts Disabled"
     }
 

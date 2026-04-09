@@ -410,7 +410,6 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         final int alertCode = reconcileAlertCodeWithCalibratedValue(0, glucoseValue, rate);
         dowithglucose(resolvedSensorSerial, mgdlValue, glucoseValue, rate, alertCode, timmsec,
                 0L, Notify.glucosetimeout, sensorgen);
-        CustomAlertAccess.checkAndTrigger(Applic.app, glucoseValue, rate, timmsec);
     }
 
     private static long[] loadRecentSensorHistory(String sensorSerial, long startTimeSec) {
@@ -633,6 +632,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         } catch (Throwable e) {
             Log.stack(LOG_ID, SerialNumber, e);
         }
+        CustomAlertAccess.checkAndTrigger(Applic.app, gl, rate, timmsec);
         {
             if (doLog) {
                 Log.v(LOG_ID, SerialNumber + " " + tim + " glucose=" + gl + " " + rate);
@@ -775,7 +775,6 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 }
 
                 dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime, sensorgen);
-                CustomAlertAccess.checkAndTrigger(tk.glucodata.Applic.app, glucoseToUse, rate, timmsec);
                 charcha[0] = timmsec;
 
                 if (!isWearable && Natives.gethealthConnect() && Build.VERSION.SDK_INT >= 28) {
@@ -854,8 +853,6 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
                     sensorgen);
-            // Hook for Custom Alerts
-            CustomAlertAccess.checkAndTrigger(tk.glucodata.Applic.app, glucoseToUse, rate, timmsec);
 
             charcha[0] = timmsec;
 

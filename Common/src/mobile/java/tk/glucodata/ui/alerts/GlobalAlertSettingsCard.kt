@@ -54,13 +54,14 @@ import tk.glucodata.ui.components.StyledSwitch
 @Composable
 fun GlobalAlertSettingsCard(
     allConfigs: Map<AlertType, AlertConfig>,
+    hasCustomAlertsEnabled: Boolean,
     onMasterToggle: (Boolean) -> Unit,
     onApplyToAll: (AlertConfig) -> Unit,
     onPickSound: (AlertConfig, (AlertConfig) -> Unit) -> Unit
 ) {
     var isExpanded by rememberSaveable { mutableStateOf(false) }
-    val isMasterEnabled = allConfigs.values.any { it.enabled }
-    val seedConfig = remember(allConfigs) {
+    val isMasterEnabled = allConfigs.values.any { it.enabled } || hasCustomAlertsEnabled
+    val seedConfig = remember(allConfigs, hasCustomAlertsEnabled) {
         allConfigs[AlertType.LOW] ?: allConfigs.values.firstOrNull() ?: AlertConfig(AlertType.LOW)
     }
 

@@ -185,6 +185,7 @@ fun AlertSettingsScreen(
             item {
                 GlobalAlertSettingsCard(
                     allConfigs = configs,
+                    hasCustomAlertsEnabled = customAlerts.any { it.enabled },
                     onMasterToggle = { enabled ->
                          // Update ALL configs to enabled/disabled
                          configs.forEach { (type, config) ->
