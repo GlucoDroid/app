@@ -5534,6 +5534,38 @@ class AiDexBleManager(
             return
         }
 
+        // A connected 0x11 sample during live bootstrap is only a temporary bridge
+        // until history/direct F003 catches up. Persisting it through the shared
+        // current-reading path creates a raw-less AiDex row for that same minute,
+        // which can outlive the later authoritative history row. Keep this path
+        // ephemeral; true broadcast-only mode still persists broadcasts because it
+        // has no connected history/live backfill to rely on.
+        if (source == "connected-broadcast" && waitingForFirstDirectLive && !reconnect.isBroadcastOnlyMode) {
+            val displayGlucose = if (Applic.unit == 1) {
+                sample.glucoseMgDl / 18.0f
+            } else {
+                sample.glucoseMgDl.toFloat()
+            }
+            Log.i(
+                TAG,
+                "Connected broadcast bootstrap bridge: offset=${sample.offsetMinutes} glucose=${sample.glucoseMgDl} mg/dL (ephemeral; persistence deferred to history/direct live)"
+            )
+            SuperGattCallback.processExternalCurrentReading(
+                SerialNumber,
+                displayGlucose,
+                0f,
+                sampleTimestampMs,
+                sensorgen
+            )
+            maybePromoteFallbackReadingToHistory(now, source)
+            lastBroadcastStoredTime = now
+            lastBroadcastStoredOffsetMinutes = sample.offsetMinutes
+            if (stopActiveScanAfterHandling) {
+                stopBroadcastScan("broadcast-bridge", found = true)
+            }
+            return
+        }
+
         // Store via JNI
         if (dataptr != 0L) {
             try {
