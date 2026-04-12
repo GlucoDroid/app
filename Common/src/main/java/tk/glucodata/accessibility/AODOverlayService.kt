@@ -44,6 +44,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     companion object {
         private const val PERIODIC_REFRESH_MS = 60_000L
         private const val BROADCAST_FOLLOW_UP_MS = 750L
+        const val ACTION_IMMEDIATE_REFRESH = "tk.glucodata.action.AOD_IMMEDIATE_REFRESH"
     }
 
     private var windowManager: WindowManager? = null
@@ -83,6 +84,12 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                ACTION_IMMEDIATE_REFRESH -> {
+                    if (overlayView?.visibility == View.VISIBLE) {
+                        BatteryTrace.bump("aod.overlay.refresh.immediate", logEvery = 20L)
+                        updateOverlayContent()
+                    }
+                }
                 "tk.glucodata.action.GLUCOSE_UPDATE" -> {
                     if (isLocked && overlayView?.visibility == View.VISIBLE) {
                         BatteryTrace.bump("aod.overlay.refresh.broadcast", logEvery = 20L)
@@ -171,6 +178,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction(ACTION_IMMEDIATE_REFRESH)
             addAction("tk.glucodata.action.GLUCOSE_UPDATE")
         }
         androidx.core.content.ContextCompat.registerReceiver(this, screenStateReceiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -397,7 +405,9 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val endT = System.currentTimeMillis()
         val startT = endT - 3 * 60 * 60 * 1000L
         val isMmol = Applic.unit == 1
-        val activeSensorSerial = NotificationHistorySource.resolveSensorSerial(Natives.lastsensorname())
+        val activeSensorSerial = NotificationHistorySource.resolveSensorSerial(
+            SuperGattCallback.previousglucosesensorid ?: Natives.lastsensorname()
+        )
 
         var chartPoints: List<GlucosePoint>
         try {

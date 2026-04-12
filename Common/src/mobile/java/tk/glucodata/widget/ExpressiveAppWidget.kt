@@ -45,6 +45,13 @@ import tk.glucodata.WidgetDisplaySource
 import tk.glucodata.ui.util.GlucoseFormatter
 
 class ExpressiveAppWidget : GlanceAppWidget() {
+    private companion object {
+        val HeaderHeight = 78.dp
+        val CardGap = 10.dp
+        val DividerHeight = 3.dp
+        val DividerInset = 26.dp
+        const val ChartReservedHeightDp = 122f
+    }
 
     override val sizeMode = SizeMode.Exact
 
@@ -125,14 +132,14 @@ class ExpressiveAppWidget : GlanceAppWidget() {
             }
         }
 
-        val showChart = history.size >= 2 && size.height >= 132.dp
+        val showChart = history.size >= 2 && size.height >= 144.dp
         val density = context.resources.displayMetrics.density
         val chartBitmap = remember(history, showChart, size, isMmol, viewMode, hasCalibration, activeSensorSerial) {
             if (!showChart) {
                 null
             } else {
                 val widthPx = ((size.width.value - 24f).coerceAtLeast(96f) * density).roundToInt()
-                val heightPx = ((size.height.value - 104f).coerceAtLeast(60f) * density).roundToInt()
+                val heightPx = ((size.height.value - ChartReservedHeightDp).coerceAtLeast(60f) * density).roundToInt()
                 NotificationChartDrawer.drawChart(
                     context,
                     history,
@@ -168,7 +175,7 @@ class ExpressiveAppWidget : GlanceAppWidget() {
             Box(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .height(78.dp)
+                    .height(HeaderHeight)
                     .background(GlanceTheme.colors.surface)
                     .cornerRadius(24.dp)
                     .padding(horizontal = 18.dp, vertical = 12.dp),
@@ -208,11 +215,24 @@ class ExpressiveAppWidget : GlanceAppWidget() {
             }
 
             if (chartBitmap != null) {
+                Spacer(GlanceModifier.height(8.dp))
+
+//                Box(
+//                    modifier = GlanceModifier
+//                        .fillMaxWidth()
+//                        .padding(horizontal = DividerInset)
+//                        .height(DividerHeight)
+//                        .background(GlanceTheme.colors.onSurfaceVariant)
+//                        .cornerRadius(99.dp)
+//                ) {}
+//
+//                Spacer(GlanceModifier.height(CardGap))
+
                 Box(
                     modifier = GlanceModifier
                         .fillMaxWidth()
                         .defaultWeight()
-                        .padding(top = 6.dp)
+                        .padding(top = 8.dp)
                         .background(GlanceTheme.colors.surface)
                         .cornerRadius(24.dp)
                         .padding(horizontal = 8.dp, vertical = 10.dp),

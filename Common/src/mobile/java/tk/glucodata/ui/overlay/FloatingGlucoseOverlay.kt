@@ -56,6 +56,7 @@ fun FloatingGlucoseOverlay(
     repository: FloatingSettingsRepository,
     historyFlow: Flow<List<GlucosePoint>>,
     onUpdatePosition: (Int, Int) -> Unit,
+    onDragFinished: () -> Unit,
     cutoutDataFlow: Flow<tk.glucodata.service.FloatingGlucoseService.CutoutData>
 ) {
     val context = LocalContext.current
@@ -134,12 +135,33 @@ fun FloatingGlucoseOverlay(
         offset = Offset(0f, 1.5f),
         blurRadius = 5f
     )
+    var pendingDragX by remember { mutableFloatStateOf(0f) }
+    var pendingDragY by remember { mutableFloatStateOf(0f) }
     
     // Drag Modifier
     val dragModifier = if (isDynamicIsland) Modifier else Modifier.pointerInput(Unit) {
-        detectDragGestures(onDragEnd = { }) { change, dragAmount ->
+        detectDragGestures(
+            onDragEnd = {
+                pendingDragX = 0f
+                pendingDragY = 0f
+                onDragFinished()
+            },
+            onDragCancel = {
+                pendingDragX = 0f
+                pendingDragY = 0f
+                onDragFinished()
+            }
+        ) { change, dragAmount ->
             change.consume()
-            onUpdatePosition(dragAmount.x.toInt(), dragAmount.y.toInt())
+            pendingDragX += dragAmount.x
+            pendingDragY += dragAmount.y
+            val wholeX = pendingDragX.toInt()
+            val wholeY = pendingDragY.toInt()
+            if (wholeX != 0 || wholeY != 0) {
+                pendingDragX -= wholeX
+                pendingDragY -= wholeY
+                onUpdatePosition(wholeX, wholeY)
+            }
         }
     }
 

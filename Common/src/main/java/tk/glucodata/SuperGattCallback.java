@@ -27,6 +27,7 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
 
 import java.util.UUID;
@@ -563,6 +564,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         previousglucose = sglucose;
         previousglucosevalue = gl;
         previousglucosesensorid = SerialNumber;
+        Applic.app.sendBroadcast(new Intent("tk.glucodata.action.AOD_IMMEDIATE_REFRESH"));
         final var fview = Floating.floatview;
         // MainActivity.showmessage=null;
         boolean[] alarmspeak = { false };

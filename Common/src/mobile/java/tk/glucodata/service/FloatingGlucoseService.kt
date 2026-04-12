@@ -130,6 +130,8 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
     )
     private val cutoutData = kotlinx.coroutines.flow.MutableStateFlow(CutoutData(0.dp, CutoutEdge.NONE))
     private var dynamicIslandEnabled = false
+    private var freeformX = 0
+    private var freeformY = 0
     
     // ...
 
@@ -145,7 +147,9 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
             setOnApplyWindowInsetsListener { v, insets ->
                 if (android.os.Build.VERSION.SDK_INT >= 28) {
                     cutoutData.value = resolveCutoutData(v, insets.displayCutout)
-                    applyOverlayPlacement()
+                    if (dynamicIslandEnabled) {
+                        applyOverlayPlacement()
+                    }
                 }
                 insets
             }
@@ -158,6 +162,7 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
                         Natives.getunit() == 1
                     ),
                     onUpdatePosition = { x, y -> updateViewPosition(x, y) },
+                    onDragFinished = { persistViewPosition() },
                     cutoutDataFlow = cutoutData
                 )
             }
@@ -181,6 +186,8 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
         
         // Initial position
         val (startX, startY) = settingsRepository.getPosition()
+        freeformX = startX
+        freeformY = startY
         layoutParams.gravity = Gravity.TOP or Gravity.START
         layoutParams.x = startX
         layoutParams.y = startY
@@ -198,15 +205,20 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
         
         layoutParams.x += xDelta
         layoutParams.y += yDelta
+        freeformX = layoutParams.x
+        freeformY = layoutParams.y
         
         try {
             windowManager?.updateViewLayout(composeView, layoutParams)
-            
-            serviceScope.launch {
-                settingsRepository.savePosition(layoutParams.x, layoutParams.y)
-            }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun persistViewPosition() {
+        if (dynamicIslandEnabled) return
+        serviceScope.launch {
+            settingsRepository.savePosition(freeformX, freeformY)
         }
     }
 
@@ -299,10 +311,9 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
                 }
             }
         } else {
-            val (x, y) = settingsRepository.getPosition()
             layoutParams.gravity = Gravity.TOP or Gravity.START
-            layoutParams.x = x
-            layoutParams.y = y
+            layoutParams.x = freeformX
+            layoutParams.y = freeformY
         }
 
         try {
@@ -316,7 +327,9 @@ class FloatingGlucoseService : Service(), LifecycleOwner, ViewModelStoreOwner, S
         super.onConfigurationChanged(newConfig)
         composeView?.post {
             composeView?.requestApplyInsets()
-            applyOverlayPlacement()
+            if (dynamicIslandEnabled) {
+                applyOverlayPlacement()
+            }
         }
     }
 
