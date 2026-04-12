@@ -193,6 +193,23 @@ internal object AiDexRuntimePolicy {
         return (nowMs - firstEncryptedFrameAtMs) >= timeoutMs
     }
 
+    fun shouldAdvanceBondedReconnectToKeyExchange(
+        phase: AiDexBleManager.Phase,
+        bondState: Int,
+        keyExchangePendingBond: Boolean,
+        cccdQueueEmpty: Boolean,
+        cccdWriteInProgress: Boolean,
+        cccdChainComplete: Boolean,
+        challengeWritten: Boolean,
+        bondDataRead: Boolean,
+    ): Boolean {
+        if (phase != AiDexBleManager.Phase.CCCD_CHAIN) return false
+        if (bondState != BluetoothDevice.BOND_BONDED || keyExchangePendingBond) return false
+        if (!cccdQueueEmpty || cccdWriteInProgress || cccdChainComplete) return false
+        if (challengeWritten || bondDataRead) return false
+        return true
+    }
+
     fun shouldRecoverFromBlockedReconnect(
         phase: AiDexBleManager.Phase,
         hasGatt: Boolean,
@@ -219,8 +236,13 @@ internal object AiDexRuntimePolicy {
         consecutiveRecoveries: Int,
         bondState: Int,
         bondResetThreshold: Int,
+        bondValidatedByStreaming: Boolean,
     ): InvalidSetupRecoveryAction {
-        return if (bondState == BluetoothDevice.BOND_BONDED && consecutiveRecoveries >= bondResetThreshold) {
+        return if (
+            bondState == BluetoothDevice.BOND_BONDED &&
+            !bondValidatedByStreaming &&
+            consecutiveRecoveries >= bondResetThreshold
+        ) {
             InvalidSetupRecoveryAction.REMOVE_BOND_AND_RECONNECT
         } else {
             InvalidSetupRecoveryAction.RECONNECT

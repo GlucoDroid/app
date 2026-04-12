@@ -271,6 +271,7 @@ class AiDexBleManager(
     private var keyExchangePendingBond = false
     private var bondStateAtConnection: Int = BluetoothDevice.BOND_NONE
     private var bondBecameBondedThisConnection = false
+    @Volatile private var bondValidatedByStreaming = false
     private var preAuthEncryptedFrameCount = 0
     private var preAuthFirstEncryptedFrameAtMs = 0L
     private var preAuthLastEncryptedFrameAtMs = 0L
@@ -418,6 +419,23 @@ class AiDexBleManager(
             )
         ) {
             val trafficAgeMs = (now - preAuthFirstEncryptedFrameAtMs).coerceAtLeast(0L)
+            val gatt = mBluetoothGatt
+            if (
+                gatt != null &&
+                AiDexRuntimePolicy.shouldAdvanceBondedReconnectToKeyExchange(
+                    phase = phase,
+                    bondState = bondState,
+                    keyExchangePendingBond = keyExchangePendingBond,
+                    cccdQueueEmpty = cccdQueue.isEmpty(),
+                    cccdWriteInProgress = cccdWriteInProgress,
+                    cccdChainComplete = cccdChainComplete,
+                    challengeWritten = challengeWritten,
+                    bondDataRead = bondDataRead,
+                )
+            ) {
+                advanceBondedReconnectToKeyExchange(gatt, trafficAgeMs)
+                return@Runnable
+            }
             recoverFromInvalidSetupState(
                 reason = "pre-auth-encrypted-traffic phase=$phase frames=$preAuthEncryptedFrameCount age=${trafficAgeMs}ms bondState=$bondState"
             )
@@ -625,6 +643,10 @@ class AiDexBleManager(
         }
         postResetWarmupExtensionActive = readBoolPref("postResetWarmupExtensionActive", false)
         firstValidReadingAnchorMs = readLongPref("firstValidReadingAnchorMs", 0L)
+        bondValidatedByStreaming = readBoolPref("bondValidatedByStreaming", false)
+        if (bondValidatedByStreaming) {
+            Log.i(TAG, "Restored bondValidatedByStreaming=true from prefs")
+        }
     }
 
     private enum class HistoryPhase {
@@ -1023,6 +1045,13 @@ class AiDexBleManager(
         Log.d(TAG, "Invalid-setup tracking cleared ($reason, resetCounter=$resetRecoveryCounter)")
     }
 
+    private fun setBondValidatedByStreaming(validated: Boolean, reason: String) {
+        if (bondValidatedByStreaming == validated) return
+        bondValidatedByStreaming = validated
+        writeBoolPref("bondValidatedByStreaming", validated)
+        Log.i(TAG, "Bond validation state -> $validated ($reason)")
+    }
+
     private fun ageSinceLabel(eventTimeMs: Long, nowMs: Long): String {
         return if (eventTimeMs > 0L && nowMs >= eventTimeMs) {
             "${nowMs - eventTimeMs}ms"
@@ -1055,6 +1084,7 @@ class AiDexBleManager(
                 "lastF002Age=${ageSinceLabel(lastF002FrameTimeMs, nowMs)} " +
                 "gattOpActive=$gattOpActive currentOp=${describeGattOp(currentGattOp)} queueSize=${gattQueue.size} " +
                 "connectAttemptInFlight=$connectAttemptInFlight servicesReady=$servicesReady cccdComplete=$cccdChainComplete " +
+                "bondValidated=$bondValidatedByStreaming " +
                 "historyDownloading=$historyDownloading pendingInitialHistory=$pendingInitialHistoryRequest " +
                 "pendingMetadata=$pendingStreamingMetadataRead/$pendingStreamingMetadataReason " +
                 "startupControl=$startupControlStage keyExchangeComplete=${keyExchange.isComplete} " +
@@ -1204,11 +1234,24 @@ class AiDexBleManager(
             if (device?.bondState == BluetoothDevice.BOND_BONDED) {
                 val removeBond = device.javaClass.getMethod("removeBond")
                 removeBond.invoke(device)
+                setBondValidatedByStreaming(false, "$reason-removeBond")
                 Log.i(TAG, "$reason: BLE bond removed")
             }
         } catch (t: Throwable) {
             Log.w(TAG, "$reason: removeBond failed: ${t.message}")
         }
+    }
+
+    private fun advanceBondedReconnectToKeyExchange(gatt: BluetoothGatt, trafficAgeMs: Long) {
+        Log.w(
+            TAG,
+            "Bonded pre-auth traffic persisted for ${trafficAgeMs}ms with empty CCCD queue; " +
+                "forcing key exchange instead of waiting for a missing final descriptor callback"
+        )
+        pendingBondedCccdUuid = null
+        cccdWriteInProgress = false
+        cccdChainComplete = true
+        startKeyExchange(gatt)
     }
 
     private fun recoverFromInvalidSetupState(reason: String) {
@@ -1222,6 +1265,7 @@ class AiDexBleManager(
             consecutiveRecoveries = consecutiveInvalidSetupRecoveries,
             bondState = bondState,
             bondResetThreshold = INVALID_SETUP_BOND_RESET_THRESHOLD,
+            bondValidatedByStreaming = bondValidatedByStreaming,
         )
         pendingInvalidSetupRecovery = when (action) {
             AiDexRuntimePolicy.InvalidSetupRecoveryAction.RECONNECT -> PendingInvalidSetupRecovery.RECONNECT
@@ -1236,7 +1280,7 @@ class AiDexBleManager(
         Log.w(
             TAG,
             "Invalid setup state detected — scheduling ${pendingInvalidSetupRecovery.name.lowercase()} " +
-                "(attempt=$consecutiveInvalidSetupRecoveries reason=$reason)"
+                "(attempt=$consecutiveInvalidSetupRecoveries validatedBond=$bondValidatedByStreaming reason=$reason)"
         )
         UiRefreshBus.requestStatusRefresh()
         try {
@@ -1484,6 +1528,9 @@ class AiDexBleManager(
             // Reset per-connection state
             bondStateAtConnection = gatt.device?.bondState ?: BluetoothDevice.BOND_NONE
             bondBecameBondedThisConnection = false
+            if (bondStateAtConnection != BluetoothDevice.BOND_BONDED) {
+                setBondValidatedByStreaming(false, "new-connection-unbonded")
+            }
             keyExchange.reset()
             challengeWritten = false
             bondDataRead = false
@@ -1784,6 +1831,16 @@ class AiDexBleManager(
         }
 
         val charUuid = descriptor.characteristic.uuid
+
+        if (
+            phase == Phase.KEY_EXCHANGE &&
+            postCccdFollowUp == PostCccdFollowUp.NONE &&
+            challengeWritten &&
+            cccdQueue.isEmpty()
+        ) {
+            Log.i(TAG, "onDescriptorWrite: late initial CCCD callback for $charUuid after key exchange start — ignoring")
+            return
+        }
 
         if (isAuthRelatedCccdFailure(status)) {
             Log.i(TAG, "onDescriptorWrite: CCCD $charUuid auth/perm fail (status=$status) — re-queuing for retry after bond")
@@ -2190,6 +2247,7 @@ class AiDexBleManager(
         } else if (bondState == BluetoothDevice.BOND_BONDING) {
             Log.d(TAG, "bonded() callback: BOND_BONDING — waiting for BOND_BONDED")
         } else if (bondState == BluetoothDevice.BOND_NONE) {
+            setBondValidatedByStreaming(false, "bonded-callback-none")
             pendingBondedCccdUuid = null
             // User cancelled pairing dialog or bonding failed
             Log.w(TAG, "bonded() callback: BOND_NONE — pairing cancelled/failed")
@@ -3200,6 +3258,10 @@ class AiDexBleManager(
             return
         }
 
+        if (currentBondState() == BluetoothDevice.BOND_BONDED) {
+            setBondValidatedByStreaming(true, "direct-live")
+        }
+
         val (trustedOffsetMinutes, offsetResolutionNote) = resolveTrustedLiveOffsetMinutes(frame, now)
         offsetResolutionNote?.let {
             Log.w(
@@ -4063,6 +4125,7 @@ class AiDexBleManager(
                 if (device?.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED) {
                     val removeBond = device.javaClass.getMethod("removeBond")
                     removeBond.invoke(device)
+                    setBondValidatedByStreaming(false, "delete-bond-response")
                     Log.i(TAG, "unpairSensor: BLE bond removed")
                 }
             } catch (t: Throwable) {
@@ -4772,6 +4835,7 @@ class AiDexBleManager(
             if (device?.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED) {
                 val removeBond = device.javaClass.getMethod("removeBond")
                 removeBond.invoke(device)
+                setBondValidatedByStreaming(false, "forget-vendor")
                 Log.i(TAG, "forgetVendor: BLE bond removed")
             }
         } catch (t: Throwable) {
@@ -4948,6 +5012,7 @@ class AiDexBleManager(
                 if (device?.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED) {
                     val removeBond = device.javaClass.getMethod("removeBond")
                     removeBond.invoke(device)
+                    setBondValidatedByStreaming(false, "unpair-no-session-key")
                 }
             } catch (_: Throwable) {}
             keyExchange.reset()

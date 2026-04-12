@@ -391,6 +391,34 @@ class AiDexRuntimePolicyTests {
     }
 
     @Test
+    fun shouldAdvanceBondedReconnectToKeyExchange_whenCccdQueueIsDrained() {
+        assertTrue(
+            AiDexRuntimePolicy.shouldAdvanceBondedReconnectToKeyExchange(
+                phase = AiDexBleManager.Phase.CCCD_CHAIN,
+                bondState = BluetoothDevice.BOND_BONDED,
+                keyExchangePendingBond = false,
+                cccdQueueEmpty = true,
+                cccdWriteInProgress = false,
+                cccdChainComplete = false,
+                challengeWritten = false,
+                bondDataRead = false,
+            )
+        )
+        assertFalse(
+            AiDexRuntimePolicy.shouldAdvanceBondedReconnectToKeyExchange(
+                phase = AiDexBleManager.Phase.CCCD_CHAIN,
+                bondState = BluetoothDevice.BOND_BONDED,
+                keyExchangePendingBond = false,
+                cccdQueueEmpty = false,
+                cccdWriteInProgress = false,
+                cccdChainComplete = false,
+                challengeWritten = false,
+                bondDataRead = false,
+            )
+        )
+    }
+
+    @Test
     fun shouldRecoverFromBlockedReconnect_whenStaleGattExistsWithoutConnectionCallback() {
         assertTrue(
             AiDexRuntimePolicy.shouldRecoverFromBlockedReconnect(
@@ -448,13 +476,14 @@ class AiDexRuntimePolicyTests {
     }
 
     @Test
-    fun decideInvalidSetupRecoveryAction_escalatesToBondResetAfterRepeatedBondedFailures() {
+    fun decideInvalidSetupRecoveryAction_escalatesToBondResetOnlyForUnvalidatedBond() {
         assertEquals(
             AiDexRuntimePolicy.InvalidSetupRecoveryAction.RECONNECT,
             AiDexRuntimePolicy.decideInvalidSetupRecoveryAction(
                 consecutiveRecoveries = 1,
                 bondState = BluetoothDevice.BOND_BONDED,
                 bondResetThreshold = 2,
+                bondValidatedByStreaming = false,
             )
         )
         assertEquals(
@@ -463,6 +492,16 @@ class AiDexRuntimePolicyTests {
                 consecutiveRecoveries = 2,
                 bondState = BluetoothDevice.BOND_BONDED,
                 bondResetThreshold = 2,
+                bondValidatedByStreaming = false,
+            )
+        )
+        assertEquals(
+            AiDexRuntimePolicy.InvalidSetupRecoveryAction.RECONNECT,
+            AiDexRuntimePolicy.decideInvalidSetupRecoveryAction(
+                consecutiveRecoveries = 2,
+                bondState = BluetoothDevice.BOND_BONDED,
+                bondResetThreshold = 2,
+                bondValidatedByStreaming = true,
             )
         )
     }
