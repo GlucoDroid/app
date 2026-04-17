@@ -397,7 +397,7 @@ object ICanHealthConstants {
     fun canonicalSensorId(sensorId: String?): String {
         val trimmed = sensorId?.trim().orEmpty()
         if (trimmed.isEmpty()) return ""
-        return if (Regex("^[0-9A-F]{17,32}$", RegexOption.IGNORE_CASE).matches(trimmed)) {
+        return if (Regex("^[0-9A-F]{16,32}$", RegexOption.IGNORE_CASE).matches(trimmed)) {
             trimmed.uppercase().take(MAX_NATIVE_SENSOR_ID_CHARS)
         } else {
             trimmed
