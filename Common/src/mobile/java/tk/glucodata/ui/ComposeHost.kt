@@ -965,6 +965,7 @@ fun DashboardScreen(
     var showAccuChekWizard by remember { mutableStateOf(false) }
     var showCareSensAirWizard by remember { mutableStateOf(false) }
     var showAiDexWizard by remember { mutableStateOf(false) }
+    var showICanHealthWizard by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -1449,12 +1450,13 @@ fun DashboardScreen(
                     when (type) {
                         tk.glucodata.ui.components.SensorType.SIBIONICS -> showSibionicsWizard = true
                         tk.glucodata.ui.components.SensorType.LIBRE -> showLibreWizard = true
-                        tk.glucodata.ui.components.SensorType.DEXCOM -> showDexcomWizard = true
-                        tk.glucodata.ui.components.SensorType.ACCUCHEK -> showAccuChekWizard = true
-                        tk.glucodata.ui.components.SensorType.CARESENS_AIR -> showCareSensAirWizard = true
-                        tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
-                    }
-                },
+                    tk.glucodata.ui.components.SensorType.DEXCOM -> showDexcomWizard = true
+                    tk.glucodata.ui.components.SensorType.ACCUCHEK -> showAccuChekWizard = true
+                    tk.glucodata.ui.components.SensorType.CARESENS_AIR -> showCareSensAirWizard = true
+                    tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
+                    tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
+                }
+            },
                 onImportHistory = {
                     importLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
                 },
@@ -3073,6 +3075,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
     var showAccuChekWizard by remember { mutableStateOf(false) }
     var showCareSensAirWizard by remember { mutableStateOf(false) }
     var showAiDexWizard by remember { mutableStateOf(false) }
+    var showICanHealthWizard by remember { mutableStateOf(false) }
     
     // Sensor Type Picker Bottom Sheet
     if (showSensorPicker) {
@@ -3087,6 +3090,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                     tk.glucodata.ui.components.SensorType.ACCUCHEK -> showAccuChekWizard = true
                     tk.glucodata.ui.components.SensorType.CARESENS_AIR -> showCareSensAirWizard = true
                     tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
+                    tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                 }
             }
         )
@@ -3170,6 +3174,17 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
         return
     }
 
+    if (showICanHealthWizard) {
+        tk.glucodata.ui.setup.ICanHealthSetupWizard(
+            onDismiss = { showICanHealthWizard = false },
+            onComplete = {
+                showICanHealthWizard = false
+                viewModel.refreshSensors()
+            }
+        )
+        return
+    }
+
     // Use Box instead of Scaffold to avoid double padding from parent nav
     Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         if (sensors.isEmpty()) {
@@ -3197,6 +3212,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                             tk.glucodata.ui.components.SensorType.ACCUCHEK -> showAccuChekWizard = true
                             tk.glucodata.ui.components.SensorType.CARESENS_AIR -> showCareSensAirWizard = true
                             tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
+                            tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                         }
                     }
                 )
@@ -4444,13 +4460,11 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                        DataRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEnd))
                     }
 
-                    // AiDex: Battery voltage (from AUTO_UPDATE_BATTERY_VOLTAGE)
-                    if (sensor.isAidex && sensor.batteryMillivolts > 0) {
+                    if (sensor.batteryMillivolts > 0) {
                         DataRow(stringResource(R.string.sensor_battery_voltage), String.format(java.util.Locale.getDefault(), "%.3f V", sensor.batteryMillivolts / 1000.0))
                     }
 
-                    // Edit 58b: AiDex sensor remaining life
-                    if (sensor.isAidex && sensor.sensorRemainingHours >= 0) {
+                    if (sensor.sensorRemainingHours >= 0) {
                         val remainText = when {
                             sensor.isSensorExpired -> stringResource(R.string.expired)
                             sensor.sensorRemainingHours <= 0 -> stringResource(R.string.expired)
@@ -4480,23 +4494,25 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
                         }
                     }
 
-                    // Edit 58b: AiDex sensor age
-                    if (sensor.isAidex && sensor.sensorAgeHours >= 0) {
+                    if (sensor.sensorAgeHours >= 0) {
                         val ageText = if (sensor.sensorAgeHours < 24) "${sensor.sensorAgeHours}h"
                                       else "${sensor.sensorAgeHours / 24}d ${sensor.sensorAgeHours % 24}h"
                         DataRow(stringResource(R.string.sensor_age), ageText)
                     }
 
-                    // Edit 58c: AiDex device metadata (firmware, hardware, model)
-                    if (sensor.isAidex && sensor.vendorModel.isNotEmpty()) {
+                    if (sensor.vendorModel.isNotEmpty()) {
                         DataRow(stringResource(R.string.model), sensor.vendorModel)
                     }
-                    if (sensor.isAidex && sensor.vendorFirmware.isNotEmpty()) {
-                        DataRow(stringResource(R.string.firmware), "v${sensor.vendorFirmware}")
+                    if (sensor.vendorFirmware.isNotEmpty()) {
+                        val firmwareText = if (sensor.vendorFirmware.startsWith("v", ignoreCase = true)) {
+                            sensor.vendorFirmware
+                        } else {
+                            "v${sensor.vendorFirmware}"
+                        }
+                        DataRow(stringResource(R.string.firmware), firmwareText)
                     }
 
-                    // AiDex: Sensor expired warning
-                    if (sensor.isAidex && sensor.isSensorExpired) {
+                    if (sensor.isSensorExpired) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -4543,7 +4559,7 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
 //            Spacer(modifier = Modifier.height(16.dp))
 
             // Edit 79 rev: Sensor Data Mode — ConnectedButtonGroup
-            if (sensor.isSibionics || sensor.isAidex) {
+            if (sensor.isSibionics || sensor.supportsDisplayModes) {
                 Text(
                     stringResource(R.string.data_mode),
                     style = MaterialTheme.typography.titleMedium,

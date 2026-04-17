@@ -66,6 +66,11 @@ object HistorySyncAccess {
             )
         }.getOrNull()
     }
+    private val getLatestTimestampMethod by lazy {
+        runCatching {
+            repositoryHolder?.getMethod("getLatestTimestampForSensorBlocking", String::class.java)
+        }.getOrNull()
+    }
     private val aidexSourceValue by lazy {
         runCatching {
             repositoryHolder?.getField("GLUCODATA_SOURCE_AIDEX")?.getInt(null)
@@ -226,6 +231,21 @@ object HistorySyncAccess {
                 it
             )
         }.isSuccess
+    }
+
+    @JvmStatic
+    fun getLatestTimestampForSensor(sensorSerial: String?): Long {
+        if (sensorSerial.isNullOrBlank()) return 0L
+        val method = getLatestTimestampMethod
+        if (method == null) {
+            Log.w(TAG, "getLatestTimestampForSensor unavailable for serial=$sensorSerial")
+            return 0L
+        }
+        return runCatching {
+            (method.invoke(null, sensorSerial) as? Long) ?: 0L
+        }.onFailure {
+            Log.w(TAG, "getLatestTimestampForSensor failed for serial=$sensorSerial", it)
+        }.getOrDefault(0L)
     }
 
 }

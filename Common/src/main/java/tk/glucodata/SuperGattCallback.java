@@ -35,6 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import tk.glucodata.drivers.ManagedBluetoothSensorDriver;
+
 import static android.bluetooth.BluetoothDevice.BOND_BONDED;
 import static android.bluetooth.BluetoothDevice.BOND_BONDING;
 import static android.bluetooth.BluetoothDevice.BOND_NONE;
@@ -232,6 +234,17 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     // Optional pre-replay sync hook for drivers that can actively request
     // latest pending sensor data (Sibionics FF30 path).
     public boolean requestLatestDataForReplay() {
+        return false;
+    }
+
+    protected boolean allowConnectWithoutDataptr() {
+        if (this instanceof ManagedBluetoothSensorDriver managed) {
+            try {
+                return managed.canConnectWithoutDataptr();
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, SerialNumber + " allowConnectWithoutDataptr", th);
+            }
+        }
         return false;
     }
 
@@ -504,12 +517,8 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         HistorySyncAccess.storeCurrentReadingAsync(storedTimestamp, storedAuto, storedRaw, rate, sensorSerial);
     }
 
-    private static boolean isAiDexSerial(String sensorSerial) {
-        return sensorSerial != null && sensorSerial.startsWith("X-");
-    }
-
     private static void syncLegacyRoomHistoryAfterLive(String sensorSerial, long timmsec) {
-        if (sensorSerial == null || sensorSerial.isEmpty() || timmsec <= 0L || isAiDexSerial(sensorSerial)) {
+        if (sensorSerial == null || sensorSerial.isEmpty() || timmsec <= 0L) {
             return;
         }
         HistorySyncAccess.syncRecentSensorFromNative(sensorSerial, timmsec);
@@ -539,8 +548,6 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             // If we can't determine main sensor, default to allowing (safety)
             isMainSensor = true;
         }
-        final boolean isAiDexSerial = isAiDexSerial(SerialNumber);
-
         if (!isMainSensor) {
             if (doLog) {
                 Log.i(LOG_ID, "Multi-sensor: Skipping notifications/broadcasts for non-main sensor "
@@ -549,9 +556,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             }
             // Still update the screen so charts/history reflect all sensors
             Applic.updatescreen();
-            if (!isAiDexSerial) {
-                UiRefreshBus.requestDataRefresh();
-            }
+            UiRefreshBus.requestDataRefresh();
             return;
         }
 
@@ -644,9 +649,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         ;
 
         Applic.updatescreen();
-        if (!isAiDexSerial) {
-            UiRefreshBus.requestDataRefresh();
-        }
+        UiRefreshBus.requestDataRefresh();
 
         if (!DontTalk) {
             if (dotalk && !alarmspeak[0]) {
@@ -743,6 +746,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         int alarm = (int) ((res >> 48) & 0xFFL);
         short ratein = (short) ((res >> 32) & 0xFFFFL);
         float rate = ratein / 1000.0f;
+        final boolean liveRoomStorage = this instanceof ManagedBluetoothSensorDriver managed
+                && managed.managesLiveRoomStorage()
+                && SerialNumber != null
+                && !SerialNumber.isEmpty();
 
         // Check viewMode early - RAW modes may have data even when calibrated glucose is 0
         int viewMode = Natives.getViewMode(dataptr);
@@ -763,7 +770,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 if (Applic.unit == 1) {
                     glucoseToUse = glucoseToUse / (float) mgdLmult;
                 }
-                if (isAiDexSerial(SerialNumber)) {
+                if (liveRoomStorage) {
                     storeLiveReadingInRoom(SerialNumber, timmsec, 0f, rawMgdl, rate);
                 } else {
                     syncLegacyRoomHistoryAfterLive(SerialNumber, timmsec);
@@ -842,7 +849,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 }
             }
 
-            if (isAiDexSerial(SerialNumber)) {
+            if (liveRoomStorage) {
                 storeLiveReadingInRoom(SerialNumber, timmsec, autoMgdl, rawMgdl, rate);
             } else {
                 syncLegacyRoomHistoryAfterLive(SerialNumber, timmsec);
@@ -1043,7 +1050,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 ;
             }
             ;
-            if (stop || dataptr == 0L) {
+            if (stop || (dataptr == 0L && !allowConnectWithoutDataptr())) {
                 if (doLog) {
                     Log.i(LOG_ID, SerialNumber + " getConnectDevice: cancelled (stop=" + stop + ", dataptr=" + dataptr + ")");
                 }
@@ -1146,7 +1153,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             Log.i(LOG_ID, "connectDevice(" + delayMillis + ") " + SerialNumber);
         }
         ;
-        if (stop || dataptr == 0L) {
+        if (stop || (dataptr == 0L && !allowConnectWithoutDataptr())) {
             return false;
         }
         if (connectPending) {

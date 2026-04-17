@@ -833,6 +833,30 @@ extern "C" JNIEXPORT jstring JNICALL fromjava(sensorptr2str)(JNIEnv *envin,
   return envin->NewStringUTF(name);
 }
 
+extern "C" JNIEXPORT jstring JNICALL fromjava(resolveFullSensorName)(
+    JNIEnv *envin, jclass cl, jstring sensorId) {
+  if (!sensors || !sensorId)
+    return nullptr;
+  const char *str = envin->GetStringUTFChars(sensorId, nullptr);
+  if (!str)
+    return nullptr;
+
+  int ind = sensors->sensorindex(str);
+  if (ind < 0) {
+    ind = sensors->sensorindexshort(str);
+  }
+  if (ind < 0) {
+    envin->ReleaseStringUTFChars(sensorId, str);
+    return nullptr;
+  }
+
+  const sensor *sens = sensors->getsensor(ind);
+  const char *name = sens ? sens->fullname().data() : nullptr;
+  jstring result = (name && name[0]) ? envin->NewStringUTF(name) : nullptr;
+  envin->ReleaseStringUTFChars(sensorId, str);
+  return result;
+}
+
 /*
 extern "C" JNIEXPORT jstring JNICALL   fromjava(getUsedSensorName)(JNIEnv
 *envin, jclass cl,jlong dataptr) { if(!dataptr) return nullptr; const
@@ -1263,6 +1287,53 @@ extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStream)(
     }
   }
   env->ReleaseStringUTFChars(sensorId, str);
+}
+
+extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
+    JNIEnv *env, jclass cl, jstring sensorId, jlong startTimeSec) {
+  if (!sensors || !sensorId)
+    return 0LL;
+  const char *str = env->GetStringUTFChars(sensorId, NULL);
+  if (!str)
+    return 0LL;
+
+  int ind = sensors->sensorindex(str);
+  if (ind < 0) {
+    ind = sensors->sensorindexshort(str);
+  }
+  if (ind < 0) {
+    ind = sensors->addsensor(std::string_view(str));
+  }
+  if (ind < 0) {
+    env->ReleaseStringUTFChars(sensorId, str);
+    return 0LL;
+  }
+
+  SensorGlucoseData *hist = sensors->getSensorData(ind);
+  if (!hist || hist->error()) {
+    env->ReleaseStringUTFChars(sensorId, str);
+    return 0LL;
+  }
+
+  hist->sensorerror = false;
+  if (auto *sens = sensors->getsensor(ind)) {
+    sens->finished = 0;
+    if (startTimeSec > 0 &&
+        (sens->starttime == 0 ||
+         static_cast<uint32_t>(startTimeSec) < sens->starttime)) {
+      sens->starttime = static_cast<uint32_t>(startTimeSec);
+    }
+  }
+  if (auto *info = hist->getinfo()) {
+    if (startTimeSec > 0 &&
+        (info->starttime == 0 ||
+         static_cast<uint32_t>(startTimeSec) < info->starttime)) {
+      info->starttime = static_cast<uint32_t>(startTimeSec);
+    }
+  }
+
+  env->ReleaseStringUTFChars(sensorId, str);
+  return reinterpret_cast<jlong>(hist);
 }
 
 extern "C" JNIEXPORT void JNICALL

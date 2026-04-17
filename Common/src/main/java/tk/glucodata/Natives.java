@@ -148,6 +148,8 @@ public class Natives {
 
         public static native String getSensorName(long dataptr);
 
+        public static native String resolveFullSensorName(String sensorId);
+
         public static native void freedataptr(long dataptr);
 
         public static native void setDeviceAddress(long dataptr, String deviceAddress);
@@ -727,6 +729,8 @@ public class Natives {
         public static native void addGlucoseInjection(long time, float glucose, String sensorId);
 
         public static native void addGlucoseStream(long time, float glucose, String sensorId);
+
+        public static native long ensureSensorShell(String sensorId, long startTimeSec);
 
         public static native void addRawGlucoseStream(long time, float rawGlucose, String sensorId);
 
