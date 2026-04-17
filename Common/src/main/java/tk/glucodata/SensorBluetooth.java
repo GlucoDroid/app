@@ -42,12 +42,14 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Collections;
 import java.util.List;
+import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import androidx.annotation.RequiresApi;
 
+import tk.glucodata.drivers.ManagedBluetoothSensorDriver;
 import tk.glucodata.drivers.ManagedSensorIdentityRegistry;
 
 import static android.bluetooth.BluetoothDevice.ACTION_BOND_STATE_CHANGED;
@@ -963,7 +965,7 @@ public class SensorBluetooth {
     // static boolean nullKAuth=false;
 
     private void setDevices(String[] names) {
-        for (String name : names) {
+        for (String name : SensorIdentity.distinctLogicalSensorIds(Arrays.asList(names))) {
             if (name != null) {
                 if (!isValidShortSensorName(name)) {
                     if (doLog) {
@@ -1184,6 +1186,33 @@ public class SensorBluetooth {
         return -1;
     }
 
+    private static boolean callbackMatchesSensorId(SuperGattCallback callback, String sensorId) {
+        if (callback == null || sensorId == null) {
+            return false;
+        }
+        if (SensorIdentity.matches(sensorId, callback.SerialNumber)) {
+            return true;
+        }
+        if (callback instanceof ManagedBluetoothSensorDriver managed) {
+            return managed.matchesManagedSensorId(sensorId);
+        }
+        return false;
+    }
+
+    private static int consumeMatchingDeviceIds(String[] sensors, SuperGattCallback callback) {
+        if (sensors == null || callback == null) {
+            return 0;
+        }
+        int consumed = 0;
+        for (int i = 0; i < sensors.length; i++) {
+            if (sensors[i] != null && callbackMatchesSensorId(callback, sensors[i])) {
+                sensors[i] = null;
+                consumed++;
+            }
+        }
+        return consumed;
+    }
+
     private static boolean isValidShortSensorName(String name) {
         // Accept any non-null, non-blank name. Sensor name formats vary by vendor:
         //   Libre: 11 alphanumeric chars
@@ -1235,19 +1264,20 @@ public class SensorBluetooth {
         }
         String[] nativeDevs = Natives.activeSensors();
 
-        ArrayList<String> allDevs = new ArrayList<>();
-        HashSet<String> added = new HashSet<>();
+        ArrayList<String> candidateDevs = new ArrayList<>();
         if (nativeDevs != null) {
             for (String s : nativeDevs) {
-                if (isValidShortSensorName(s) && added.add(s))
-                    allDevs.add(s);
+                if (isValidShortSensorName(s)) {
+                    candidateDevs.add(s);
+                }
             }
         }
         for (String serial : ManagedSensorIdentityRegistry.INSTANCE.persistedSensorIds(Applic.app)) {
-            if (isValidShortSensorName(serial) && added.add(serial)) {
-                allDevs.add(serial);
+            if (isValidShortSensorName(serial)) {
+                candidateDevs.add(serial);
             }
         }
+        ArrayList<String> allDevs = new ArrayList<>(SensorIdentity.distinctLogicalSensorIds(candidateDevs));
 
         String[] devs = allDevs.toArray(new String[0]);
         ArrayList<Integer> rem = new ArrayList<>();
@@ -1267,13 +1297,12 @@ public class SensorBluetooth {
             for (int i = 0; i < gatnr; i++) {
                 var gatt = gattcallbacks.get(i);
                 String was = gatt.SerialNumber;
-                int instr = was == null ? -1 : indexOfMatching(devs, was);
-                if (instr < 0) {
+                int matched = consumeMatchingDeviceIds(devs, gatt);
+                if (matched == 0) {
                     rem.add(i);
                 } else {
                     gatt.stopHealth = false;
-                    heb++;
-                    devs[instr] = null;
+                    heb += matched;
                 }
             }
             if (devs.length == heb && rem.size() == 0) {
@@ -1450,7 +1479,7 @@ public class SensorBluetooth {
         }
         for (int i = 0; i < gattcallbacks.size(); i++) {
             SuperGattCallback cb = gattcallbacks.get(i);
-            if (serial.equals(cb.SerialNumber)) {
+            if (callbackMatchesSensorId(cb, serial)) {
                 return i;
             }
         }

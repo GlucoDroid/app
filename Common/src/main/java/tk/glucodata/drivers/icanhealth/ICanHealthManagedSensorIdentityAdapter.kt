@@ -11,10 +11,33 @@ import tk.glucodata.drivers.ManagedSensorIdentityAdapter
 object ICanHealthManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
 
     override fun matchesCallbackId(callbackId: String?, sensorId: String): Boolean =
-        ICanHealthConstants.matchesCanonicalOrKnownNativeAlias(callbackId, sensorId)
+        run {
+            val normalizedCallbackId = callbackId?.trim().takeIf { !it.isNullOrEmpty() } ?: return@run false
+            if (normalizedCallbackId.equals(sensorId, ignoreCase = true) ||
+                ICanHealthConstants.matchesCanonicalOrKnownNativeAlias(normalizedCallbackId, sensorId)
+            ) {
+                return@run true
+            }
+            SensorBluetooth.mygatts().any { callback ->
+                val managed = callback as? ManagedBluetoothSensorDriver ?: return@any false
+                managed.matchesManagedSensorId(normalizedCallbackId) &&
+                    managed.matchesManagedSensorId(sensorId)
+            }
+        }
 
     override fun resolveCanonicalSensorId(sensorId: String?): String? {
         val raw = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return null
+        SensorBluetooth.mygatts()
+            .firstOrNull { callback ->
+                val managed = callback as? ManagedBluetoothSensorDriver ?: return@firstOrNull false
+                managed.matchesManagedSensorId(raw)
+            }
+            ?.SerialNumber
+            ?.takeIf { it.isNotBlank() }
+            ?.let(ICanHealthConstants::canonicalSensorId)
+            ?.takeIf { it.isNotEmpty() && !ICanHealthConstants.isProvisionalSensorId(it) }
+            ?.let { return it }
+
         if (ICanHealthConstants.isProvisionalSensorId(raw)) {
             return raw
         }

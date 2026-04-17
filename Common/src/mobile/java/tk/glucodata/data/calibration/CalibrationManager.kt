@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import tk.glucodata.Natives
+import tk.glucodata.SensorIdentity
 import tk.glucodata.UiRefreshBus
 import java.util.LinkedHashMap
 import kotlin.math.abs
@@ -201,7 +202,8 @@ object CalibrationManager {
     }
 
     private fun normalizeSensorId(sensorId: String?): String {
-        return sensorId?.trim()?.takeIf { it.isNotEmpty() } ?: ""
+        val normalized = sensorId?.trim()?.takeIf { it.isNotEmpty() } ?: return ""
+        return SensorIdentity.resolveAppSensorId(normalized) ?: normalized
     }
 
     private inline fun <T> withoutMirrorSync(block: () -> T): T {
@@ -240,7 +242,7 @@ object CalibrationManager {
     private fun sensorMatches(calibrationSensorId: String, sensorId: String): Boolean {
         if (calibrationSensorId.isBlank()) return true
         if (sensorId.isBlank()) return false
-        return calibrationSensorId.trim().equals(sensorId, ignoreCase = true)
+        return SensorIdentity.matches(calibrationSensorId, sensorId)
     }
 
     private fun getValidPoints(isRawMode: Boolean, sensorId: String): List<CalPoint> {
@@ -396,7 +398,7 @@ object CalibrationManager {
         if (sensorId.isBlank()) return null
 
         val rows = _calibrations.value
-            .filter { it.sensorId == sensorId || it.sensorId.isEmpty() }
+            .filter { sensorMatches(it.sensorId, sensorId) }
             .sortedByDescending { it.timestamp }
 
         val root = JSONObject()
@@ -487,7 +489,7 @@ object CalibrationManager {
 
         val replaced = if (replaceExisting) dao.deleteForSensor(targetSensorId) else 0
 
-        val existing = if (replaceExisting) emptyList() else dao.getAllSync().filter { it.sensorId == targetSensorId }
+        val existing = if (replaceExisting) emptyList() else dao.getAllSync().filter { sensorMatches(it.sensorId, targetSensorId) }
         val deduped = mutableListOf<CalibrationEntity>()
         var skipped = 0
         incoming.forEach { row ->
@@ -1262,7 +1264,7 @@ object CalibrationManager {
         return _calibrations.value.any { cal ->
             cal.isEnabled &&
             cal.isRawMode == isRawMode &&
-            (cal.sensorId == currentSensor || cal.sensorId.isEmpty()) &&
+            sensorMatches(cal.sensorId, currentSensor) &&
             kotlin.math.abs(cal.timestamp - timestamp) <= 30_000L
         }
     }
@@ -1272,7 +1274,7 @@ object CalibrationManager {
         val currentSensor = Natives.lastsensorname() ?: ""
         return _calibrations.value.find { cal ->
             cal.isRawMode == isRawMode &&
-            (cal.sensorId == currentSensor || cal.sensorId.isEmpty()) &&
+            sensorMatches(cal.sensorId, currentSensor) &&
             kotlin.math.abs(cal.timestamp - timestamp) <= 30_000L
         }
     }
@@ -1284,7 +1286,7 @@ object CalibrationManager {
         return _calibrations.value.filter { cal ->
             cal.isEnabled &&
             cal.isRawMode == isRawMode &&
-            (cal.sensorId == currentSensor || cal.sensorId.isEmpty())
+            sensorMatches(cal.sensorId, currentSensor)
         }
     }
 

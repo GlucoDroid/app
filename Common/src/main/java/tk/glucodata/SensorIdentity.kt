@@ -7,6 +7,15 @@ object SensorIdentity {
         return sensorId?.trim()?.takeIf { it.isNotEmpty() }
     }
 
+    private fun managedMatches(left: String?, right: String?): Boolean {
+        val normalizedLeft = normalized(left) ?: return false
+        val normalizedRight = normalized(right) ?: return false
+        return ManagedSensorIdentityRegistry.all.any { adapter ->
+            adapter.matchesCallbackId(normalizedLeft, normalizedRight) ||
+                adapter.matchesCallbackId(normalizedRight, normalizedLeft)
+        }
+    }
+
     private fun canonicalOrRaw(sensorId: String?): String? {
         val raw = normalized(sensorId) ?: return null
         return resolveAppSensorId(raw) ?: raw
@@ -105,8 +114,44 @@ object SensorIdentity {
         if (expected.isNullOrBlank()) {
             return true
         }
-        val left = resolveAppSensorId(candidate) ?: return false
-        val right = resolveAppSensorId(expected) ?: return false
-        return left.equals(right, ignoreCase = true)
+        val normalizedCandidate = normalized(candidate) ?: return false
+        val normalizedExpected = normalized(expected) ?: return false
+        if (normalizedCandidate.equals(normalizedExpected, ignoreCase = true)) {
+            return true
+        }
+        if (managedMatches(normalizedCandidate, normalizedExpected)) {
+            return true
+        }
+        val left = resolveAppSensorId(normalizedCandidate)
+        val right = resolveAppSensorId(normalizedExpected)
+        if (!left.isNullOrBlank() && !right.isNullOrBlank()) {
+            return left.equals(right, ignoreCase = true)
+        }
+        return false
+    }
+
+    private fun prefersLogicalCandidate(candidate: String, existing: String): Boolean {
+        val candidateResolved = resolveAppSensorId(candidate)
+        val existingResolved = resolveAppSensorId(existing)
+        val candidateScore = (if (!candidateResolved.isNullOrBlank() && candidateResolved.equals(candidate, ignoreCase = true)) 2 else 0) +
+            candidate.length
+        val existingScore = (if (!existingResolved.isNullOrBlank() && existingResolved.equals(existing, ignoreCase = true)) 2 else 0) +
+            existing.length
+        return candidateScore > existingScore
+    }
+
+    @JvmStatic
+    fun distinctLogicalSensorIds(sensorIds: Iterable<String?>): List<String> {
+        val distinct = ArrayList<String>()
+        sensorIds.forEach { sensorId ->
+            val normalized = canonicalOrRaw(sensorId) ?: return@forEach
+            val existingIndex = distinct.indexOfFirst { matches(it, normalized) }
+            if (existingIndex < 0) {
+                distinct.add(normalized)
+            } else if (prefersLogicalCandidate(normalized, distinct[existingIndex])) {
+                distinct[existingIndex] = normalized
+            }
+        }
+        return distinct
     }
 }
