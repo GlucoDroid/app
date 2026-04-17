@@ -34,6 +34,7 @@ class DashboardViewModel(
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
+        const val DASHBOARD_HISTORY_WINDOW_MS = 3L * 24L * 60L * 60L * 1000L
     }
 
     enum class CollectionMode {
@@ -392,9 +393,10 @@ class DashboardViewModel(
     }
 
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
+        val nowMs = System.currentTimeMillis()
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> 0L
+            CollectionMode.DASHBOARD -> (nowMs - DASHBOARD_HISTORY_WINDOW_MS).coerceAtLeast(0L)
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = recoveryStartTimeMs

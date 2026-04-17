@@ -100,6 +100,20 @@ class HistoryRepository(context: Context = Applic.app) {
                 }
             }
         }
+
+        /**
+         * Blocking bridge for main/shared code that needs the persisted tail for one sensor.
+         * Used by HistorySyncAccess from non-suspending Java/main paths.
+         */
+        @JvmStatic
+        fun getLatestTimestampForSensorBlocking(sensorSerial: String): Long {
+            val resolvedSerial = SensorIdentity.resolveAppSensorId(sensorSerial)
+                ?: sensorSerial.takeIf { it.isNotBlank() }
+                ?: return 0L
+            return kotlinx.coroutines.runBlocking {
+                HistoryRepository().getLatestTimestampForSensor(resolvedSerial)
+            }
+        }
         
         /**
          * Blocking version for Notify.java that returns tk.glucodata.GlucosePoint.
