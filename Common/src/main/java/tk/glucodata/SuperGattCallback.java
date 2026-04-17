@@ -255,6 +255,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     static float previousglucosevalue = 0.0f;
     public static String previousglucosesensorid = null;
     private static final ConcurrentHashMap<String, Long> lastCollapsedExchangeTimeMs = new ConcurrentHashMap<>();
+    private static final Object liveDispatchLock = new Object();
+    private static String lastLiveDispatchSensorId = null;
+    private static long lastLiveDispatchTimestampMs = 0L;
+    private static int lastLiveDispatchMgdl = Integer.MIN_VALUE;
 
     private static boolean shouldEmitExchangeUpdate(String sensorId, long payloadTimeMs, boolean collapseChunks) {
         if (!collapseChunks || payloadTimeMs <= 0L) {
@@ -263,6 +267,23 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         final String key = (sensorId != null && !sensorId.isEmpty()) ? sensorId : "<unknown>";
         final Long previous = lastCollapsedExchangeTimeMs.put(key, payloadTimeMs);
         return previous == null || previous.longValue() != payloadTimeMs;
+    }
+
+    private static boolean shouldSkipDuplicateLiveDispatch(String sensorId, long timestampMs, int mgdl) {
+        if (sensorId == null || sensorId.isEmpty() || timestampMs <= 0L) {
+            return false;
+        }
+        synchronized (liveDispatchLock) {
+            if (lastLiveDispatchTimestampMs == timestampMs
+                    && lastLiveDispatchMgdl == mgdl
+                    && SensorIdentity.matches(lastLiveDispatchSensorId, sensorId)) {
+                return true;
+            }
+            lastLiveDispatchSensorId = sensorId;
+            lastLiveDispatchTimestampMs = timestampMs;
+            lastLiveDispatchMgdl = mgdl;
+            return false;
+        }
     }
 
     static public void initAlarmTalk() {
@@ -555,6 +576,15 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         + ", selectedMain=" + Natives.lastsensorname() + ")");
             }
             // Still update the screen so charts/history reflect all sensors
+            Applic.updatescreen();
+            UiRefreshBus.requestDataRefresh();
+            return;
+        }
+
+        if (shouldSkipDuplicateLiveDispatch(SerialNumber, timmsec, mgdl)) {
+            if (doLog) {
+                Log.i(LOG_ID, "Skipping duplicate live dispatch for " + SerialNumber + " @" + timmsec + " mgdl=" + mgdl);
+            }
             Applic.updatescreen();
             UiRefreshBus.requestDataRefresh();
             return;

@@ -65,6 +65,7 @@ object WidgetDisplaySource {
         return CurrentDisplaySource.resolveFromLive(
             liveValueText = null,
             liveNumericValue = Float.NaN,
+            liveRawValue = Float.NaN,
             rate = Float.NaN,
             targetTimeMillis = targetTimeMillis,
             sensorId = sensorSerial,

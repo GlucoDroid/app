@@ -68,6 +68,7 @@ object CurrentDisplaySource {
         val initialSnapshot = resolveFromLive(
             liveValueText = current?.valueText,
             liveNumericValue = current?.numericValue ?: Float.NaN,
+            liveRawValue = current?.rawNumericValue ?: Float.NaN,
             rate = current?.rate ?: Float.NaN,
             targetTimeMillis = if (collapseChunks) {
                 processedPoints.lastOrNull()?.timestamp ?: current?.timeMillis ?: 0L
@@ -114,6 +115,7 @@ object CurrentDisplaySource {
     fun resolveFromLive(
         liveValueText: String?,
         liveNumericValue: Float,
+        liveRawValue: Float,
         rate: Float,
         targetTimeMillis: Long,
         sensorId: String?,
@@ -137,8 +139,12 @@ object CurrentDisplaySource {
         if (canUseLiveAsLaneFallback && !autoValue.isFinite() && !isRawMode && liveValue != null) {
             autoValue = liveValue
         }
-        if (canUseLiveAsLaneFallback && !rawValue.isFinite() && isRawMode && liveValue != null) {
-            rawValue = liveValue
+        if (canUseLiveAsLaneFallback && !rawValue.isFinite()) {
+            rawValue = when {
+                liveRawValue.isFinite() && liveRawValue > 0.1f -> liveRawValue
+                isRawMode && liveValue != null -> liveValue
+                else -> rawValue
+            }
         }
 
         val displayValues = exactMatch?.let {

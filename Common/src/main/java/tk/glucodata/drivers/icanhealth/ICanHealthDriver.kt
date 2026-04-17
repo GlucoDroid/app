@@ -10,6 +10,7 @@ import tk.glucodata.drivers.ManagedSensorUiFamily
 data class ICanHealthCurrentSnapshot(
     val timeMillis: Long,
     val glucoseValue: Float,
+    val rawValue: Float = Float.NaN,
     val rate: Float = Float.NaN,
     val sensorGen: Int = 0,
 )
@@ -35,6 +36,7 @@ interface ICanHealthDriver : ManagedBluetoothSensorDriver {
         return ManagedSensorCurrentSnapshot(
             timeMillis = snapshot.timeMillis,
             glucoseValue = snapshot.glucoseValue,
+            rawGlucoseValue = snapshot.rawValue,
             rate = snapshot.rate,
             sensorGen = snapshot.sensorGen,
         )

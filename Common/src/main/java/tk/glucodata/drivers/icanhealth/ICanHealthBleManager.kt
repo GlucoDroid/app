@@ -591,9 +591,13 @@ class ICanHealthBleManager(
         } else {
             glucoseMgdl
         }
+        val rawDisplay = latestCurrentRaw.takeIf { it.isFinite() && it > 0f }?.let {
+            if (Applic.unit == 1) it / ICanHealthConstants.MMOL_TO_MGDL else it
+        } ?: Float.NaN
         return ICanHealthCurrentSnapshot(
             timeMillis = timestampMs,
             glucoseValue = glucoseDisplay,
+            rawValue = rawDisplay,
             rate = Float.NaN,
             sensorGen = SENSOR_GEN,
         )
