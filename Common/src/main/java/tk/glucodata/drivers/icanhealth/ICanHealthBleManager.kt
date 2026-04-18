@@ -66,7 +66,9 @@ class ICanHealthBleManager(
         private const val SEQUENCE_UNIT_MS = 60_000L
         private const val SENSOR_INFO_TIMEOUT_MS = 1_500L
         private const val LIVE_SEQUENCE_LAG_ALLOWANCE = 3
-        private const val MAX_HISTORY_SEQUENCE_DELTA_MINUTES = 21 * 24 * 60
+        private const val MAX_OPERATIONAL_LIFETIME_DAYS =
+            ICanHealthConstants.ADVISORY_EXPECTED_LIFETIME_DAYS + 7
+        private const val MAX_HISTORY_SEQUENCE_DELTA_MINUTES = MAX_OPERATIONAL_LIFETIME_DAYS * 24 * 60
         private const val MAX_SESSION_TIMESTAMP_PAST_DRIFT_MS = 6 * 60 * 60 * 1000L
         private const val MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS = 2 * 60 * 1000L
         private const val RECENT_GLUCOSE_WINDOW_SIZE = 24
@@ -95,6 +97,14 @@ class ICanHealthBleManager(
         var glucoseMgdl: Float = Float.NaN,
         var rawCurrent: Float = Float.NaN,
         var temperatureC: Float = Float.NaN,
+    )
+
+    private data class DeferredLiveReading(
+        val sequenceNumber: Int,
+        val timestampMs: Long,
+        val glucoseMgdl: Float,
+        val rawCurrent: Float,
+        val temperatureC: Float,
     )
 
     @Volatile
@@ -174,6 +184,7 @@ class ICanHealthBleManager(
     @Volatile private var authRetryCount = 0
     @Volatile private var lastHandledLiveSequence = -1
     @Volatile private var lastHandledLiveTimestampMs = 0L
+    @Volatile private var deferredLiveReading: DeferredLiveReading? = null
     @Volatile private var persistedHistoryTailTimestampMs = 0L
     @Volatile private var persistedCoveredSequence = -1
     @Volatile private var persistedCoveredTimestampMs = 0L
@@ -482,6 +493,7 @@ class ICanHealthBleManager(
         awaitingFreshStatusForHistoryBackfill = false
         pendingHistoryBackfillReason = null
         pendingHistoryBatch.clear()
+        deferredLiveReading = null
         awaitingMtuNegotiation = false
         serviceDiscoveryStarted = false
         serviceDiscoveryHandled = false
@@ -1053,6 +1065,7 @@ class ICanHealthBleManager(
                 glucoseHistoryImportedRecordCount = 0
                 pendingHistoryBackfillReason = null
                 pendingHistoryBatch.clear()
+                deferredLiveReading = null
                 lastAuthChallenge = null
                 receivedGlucoseThisConnection = false
                 currentSequenceObservedAtMs = 0L
@@ -1392,6 +1405,20 @@ class ICanHealthBleManager(
             ) {
                 currentSequenceNumber = reading.sequenceNumber
                 currentSequenceObservedAtMs = nowMs
+            }
+            if (historyBackfillRequested && historyBackfillPhase == HistoryBackfillPhase.GLUCOSE) {
+                deferredLiveReading = DeferredLiveReading(
+                    sequenceNumber = reading.sequenceNumber,
+                    timestampMs = sampleTimeMs,
+                    glucoseMgdl = reading.glucoseMgdl,
+                    rawCurrent = reading.currentValue,
+                    temperatureC = reading.temperatureC,
+                )
+                rememberDriverCurrentReading(reading.glucoseMgdl, sampleTimeMs)
+                phase = Phase.STREAMING
+                setUiStatus(UiStatusKind.SYNCING)
+                scheduleNoDataWatchdog()
+                return
             }
             val historyCoveredLiveEdge = shouldSkipHistoryOverlap(reading.sequenceNumber, historySampleTimeMs)
             if (reading.sequenceNumber == lastHandledLiveSequence) {
@@ -2065,6 +2092,41 @@ class ICanHealthBleManager(
             }
             UiRefreshBus.requestDataRefresh()
         }
+        applyDeferredLiveReadingAfterHistoryImport()
+    }
+
+    private fun applyDeferredLiveReadingAfterHistoryImport() {
+        val deferred = deferredLiveReading ?: return
+        deferredLiveReading = null
+        if (deferred.sequenceNumber == lastHandledLiveSequence) {
+            return
+        }
+        if (shouldSkipHistoryOverlap(deferred.sequenceNumber, deferred.timestampMs)) {
+            phase = Phase.STREAMING
+            setUiStatus(UiStatusKind.CONNECTED)
+            lastHandledLiveSequence = deferred.sequenceNumber
+            lastHandledLiveTimestampMs = maxOf(deferred.timestampMs, persistedCoveredTimestampMs)
+            scheduleForegroundNotificationRefresh()
+            scheduleNoDataWatchdog()
+            return
+        }
+        rememberDriverCurrentReading(deferred.glucoseMgdl, deferred.timestampMs)
+        storeMeasurement(deferred.glucoseMgdl, deferred.timestampMs)
+        phase = Phase.STREAMING
+        setUiStatus(UiStatusKind.CONNECTED)
+        val packed = packGlucoseResult(deferred.glucoseMgdl)
+        handleGlucoseResult(
+            packed,
+            deferred.timestampMs,
+            resolveRawLaneValue(deferred.rawCurrent, deferred.glucoseMgdl)
+        )
+        lastHandledLiveSequence = deferred.sequenceNumber
+        lastHandledLiveTimestampMs = deferred.timestampMs
+        rememberRecentGlucose(deferred.glucoseMgdl)
+        updatePersistedHistoryTailTimestamp(deferred.timestampMs)
+        rememberCoveredEdge(deferred.sequenceNumber, deferred.timestampMs)
+        scheduleForegroundNotificationRefresh()
+        scheduleNoDataWatchdog()
     }
 
     private fun handleRacpPhaseCompletion(noData: Boolean) {
@@ -2319,6 +2381,36 @@ class ICanHealthBleManager(
         return null
     }
 
+    private fun maxHistoryWindowMs(): Long =
+        MAX_HISTORY_SEQUENCE_DELTA_MINUTES.toLong() * SEQUENCE_UNIT_MS
+
+    private fun isPlausibleHistoryAnchor(candidateTimeMs: Long, fallbackNowMs: Long): Boolean {
+        if (candidateTimeMs <= 0L) {
+            return false
+        }
+        val earliestAllowed = fallbackNowMs - maxHistoryWindowMs() - MAX_SESSION_TIMESTAMP_PAST_DRIFT_MS
+        val latestAllowed = fallbackNowMs + MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS
+        return candidateTimeMs in earliestAllowed..latestAllowed
+    }
+
+    private fun invalidatePersistedCoveredEdge(reason: String) {
+        val sensorId = SerialNumber.takeIf {
+            it.isNotBlank() && !ICanHealthConstants.isProvisionalSensorId(it)
+        } ?: return
+        Log.w(TAG, "Dropping persisted covered edge for $sensorId: $reason")
+        persistedCoveredEdgeLoaded = true
+        persistedCoveredEdgeSensorId = sensorId
+        persistedCoveredSequence = -1
+        persistedCoveredTimestampMs = 0L
+        persistedHistoryTailTimestampMs = HistorySyncAccess.getLatestTimestampForSensor(sensorId)
+        val context = Applic.app ?: return
+        context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+            .edit()
+            .remove("${ICanHealthConstants.PREF_HISTORY_EDGE_SEQUENCE_PREFIX}$sensorId")
+            .remove("${ICanHealthConstants.PREF_HISTORY_EDGE_TIMESTAMP_PREFIX}$sensorId")
+            .commit()
+    }
+
     private fun resolveSequenceAnchorTimeMs(fallbackNowMs: Long): Long {
         loadPersistedCoveredEdge()
         if (currentSequenceNumber >= 0 &&
@@ -2326,7 +2418,14 @@ class ICanHealthBleManager(
             persistedCoveredTimestampMs > 0L &&
             currentSequenceNumber >= persistedCoveredSequence) {
             val deltaMinutes = currentSequenceNumber - persistedCoveredSequence
-            return persistedCoveredTimestampMs + deltaMinutes.toLong() * SEQUENCE_UNIT_MS
+            val persistedAnchorTimeMs = persistedCoveredTimestampMs + deltaMinutes.toLong() * SEQUENCE_UNIT_MS
+            if (isPlausibleHistoryAnchor(persistedAnchorTimeMs, fallbackNowMs)) {
+                return persistedAnchorTimeMs
+            }
+            invalidatePersistedCoveredEdge(
+                "persisted seq=$persistedCoveredSequence time=$persistedCoveredTimestampMs " +
+                    "reconstructed anchor=$persistedAnchorTimeMs current=$currentSequenceNumber now=$fallbackNowMs"
+            )
         }
         return when {
             lastHandledLiveSequence == currentSequenceNumber && lastHandledLiveTimestampMs > 0L ->
@@ -2420,7 +2519,12 @@ class ICanHealthBleManager(
     private fun estimatePersistedTailSequence(anchorTimeMs: Long): Int? {
         loadPersistedCoveredEdge()
         if (persistedCoveredSequence >= readingIntervalMinutes()) {
-            return persistedCoveredSequence
+            if (isPlausibleHistoryAnchor(persistedCoveredTimestampMs, anchorTimeMs)) {
+                return persistedCoveredSequence
+            }
+            invalidatePersistedCoveredEdge(
+                "persisted covered timestamp $persistedCoveredTimestampMs is outside the active history window for anchor=$anchorTimeMs"
+            )
         }
         val readingInterval = readingIntervalMinutes()
         if (currentSequenceNumber < readingInterval) {
@@ -2434,7 +2538,7 @@ class ICanHealthBleManager(
         if (deltaMs < -MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS) {
             return null
         }
-        val maxHistoryWindowMs = MAX_HISTORY_SEQUENCE_DELTA_MINUTES.toLong() * SEQUENCE_UNIT_MS
+        val maxHistoryWindowMs = maxHistoryWindowMs()
         if (deltaMs > maxHistoryWindowMs + MAX_SESSION_TIMESTAMP_PAST_DRIFT_MS) {
             return null
         }
@@ -3034,6 +3138,7 @@ class ICanHealthBleManager(
         glucoseHistoryImportedRecordCount = 0
         pendingHistoryBackfillReason = null
         pendingHistoryBatch.clear()
+        deferredLiveReading = null
         lastAuthChallenge = null
         authRetryCount = 0
         receivedGlucoseThisConnection = false

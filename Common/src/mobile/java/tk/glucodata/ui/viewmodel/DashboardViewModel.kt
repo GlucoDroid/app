@@ -408,7 +408,11 @@ class DashboardViewModel(
             CollectionMode.DASHBOARD -> (nowMs - DASHBOARD_HISTORY_WINDOW_MS).coerceAtLeast(0L)
             CollectionMode.FULL_HISTORY -> 0L
         }
-        val queryStartTimeMs = recoveryStartTimeMs
+        val queryStartTimeMs = when (mode) {
+            CollectionMode.INACTIVE -> return
+            CollectionMode.DASHBOARD,
+            CollectionMode.FULL_HISTORY -> 0L
+        }
 
         if (historyJob?.isActive == true && activeHistoryStartTimeMs == recoveryStartTimeMs) return
 
