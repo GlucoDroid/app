@@ -3,6 +3,20 @@ package tk.glucodata
 import tk.glucodata.drivers.ManagedSensorIdentityRegistry
 
 object SensorIdentity {
+    private const val ID_CACHE_LIMIT = 256
+    private const val MATCH_CACHE_LIMIT = 512
+
+    private val canonicalIdCache = object : LinkedHashMap<String, String>(ID_CACHE_LIMIT, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
+            return size > ID_CACHE_LIMIT
+        }
+    }
+    private val logicalMatchCache = object : LinkedHashMap<String, Boolean>(MATCH_CACHE_LIMIT, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean {
+            return size > MATCH_CACHE_LIMIT
+        }
+    }
+
     private fun normalized(sensorId: String?): String? {
         return sensorId?.trim()?.takeIf { it.isNotEmpty() }
     }
@@ -23,18 +37,39 @@ object SensorIdentity {
 
     @JvmStatic
     fun invalidateCaches() {
-        // main keeps no identity cache by default; managed adapters call this
-        // when persisted identity state changes.
+        synchronized(canonicalIdCache) {
+            canonicalIdCache.clear()
+        }
+        synchronized(logicalMatchCache) {
+            logicalMatchCache.clear()
+        }
+    }
+
+    private fun matchCacheKey(left: String, right: String): String {
+        return if (left <= right) "$left|$right" else "$right|$left"
+    }
+
+    private fun resolveCachedCanonicalSensorId(raw: String): String? {
+        synchronized(canonicalIdCache) {
+            canonicalIdCache[raw]?.let { return it }
+        }
+        val resolved = ManagedSensorIdentityRegistry.all
+            .asSequence()
+            .mapNotNull { it.resolveCanonicalSensorId(raw) }
+            .firstOrNull { it.isNotBlank() }
+        if (!resolved.isNullOrBlank()) {
+            synchronized(canonicalIdCache) {
+                canonicalIdCache[raw] = resolved
+            }
+            return resolved
+        }
+        return raw
     }
 
     @JvmStatic
     fun resolveAppSensorId(sensorId: String?): String? {
         val raw = normalized(sensorId) ?: return null
-        return ManagedSensorIdentityRegistry.all
-            .asSequence()
-            .mapNotNull { it.resolveCanonicalSensorId(raw) }
-            .firstOrNull { it.isNotBlank() }
-            ?: raw
+        return resolveCachedCanonicalSensorId(raw)
     }
 
     @JvmStatic
@@ -119,15 +154,22 @@ object SensorIdentity {
         if (normalizedCandidate.equals(normalizedExpected, ignoreCase = true)) {
             return true
         }
-        if (managedMatches(normalizedCandidate, normalizedExpected)) {
-            return true
+        val cacheKey = matchCacheKey(normalizedCandidate.uppercase(), normalizedExpected.uppercase())
+        synchronized(logicalMatchCache) {
+            logicalMatchCache[cacheKey]?.let { return it }
         }
-        val left = resolveAppSensorId(normalizedCandidate)
-        val right = resolveAppSensorId(normalizedExpected)
-        if (!left.isNullOrBlank() && !right.isNullOrBlank()) {
-            return left.equals(right, ignoreCase = true)
+        val resolved = when {
+            managedMatches(normalizedCandidate, normalizedExpected) -> true
+            else -> {
+                val left = resolveAppSensorId(normalizedCandidate)
+                val right = resolveAppSensorId(normalizedExpected)
+                !left.isNullOrBlank() && !right.isNullOrBlank() && left.equals(right, ignoreCase = true)
+            }
         }
-        return false
+        synchronized(logicalMatchCache) {
+            logicalMatchCache[cacheKey] = resolved
+        }
+        return resolved
     }
 
     private fun prefersLogicalCandidate(candidate: String, existing: String): Boolean {

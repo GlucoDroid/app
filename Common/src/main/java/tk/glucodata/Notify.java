@@ -86,8 +86,6 @@ import tk.glucodata.alerts.SnoozeManager;
 import tk.glucodata.alerts.AlertConfig;
 import tk.glucodata.alerts.AlertRepository;
 import tk.glucodata.alerts.AlertStateTracker;
-import tk.glucodata.drivers.ManagedSensorRuntime;
-import tk.glucodata.drivers.ManagedSensorStatusPolicy;
 import java.util.Collections;
 import java.util.List;
 
@@ -850,26 +848,6 @@ public class Notify {
         return NotificationHistorySource.resolveSensorSerial(resolvePrimarySensorName());
     }
 
-    private static String resolveNotificationStatusText(String activeSensorSerial, String fallbackStatus) {
-        try {
-            final var managedSnapshot = ManagedSensorRuntime.resolveUiSnapshot(activeSensorSerial, activeSensorSerial);
-            if (managedSnapshot != null) {
-                final String detailed = ManagedSensorStatusPolicy.collapseSummaryStatus(managedSnapshot.getDetailedStatus());
-                if (!detailed.isEmpty()) {
-                    return detailed;
-                }
-                final String subtitle = ManagedSensorStatusPolicy.collapseSummaryStatus(managedSnapshot.getSubtitleStatus());
-                if (!subtitle.isEmpty()) {
-                    return subtitle;
-                }
-                return "";
-            }
-        } catch (Throwable th) {
-            Log.stack(LOG_ID, "resolveNotificationStatusText", th);
-        }
-        return fallbackStatus != null ? fallbackStatus : "";
-    }
-
     private static CurrentDisplaySource.Snapshot resolveNotificationCurrentSnapshot() {
         return resolveNotificationCurrentSnapshot(resolveNotificationSensorSerial());
     }
@@ -1338,18 +1316,12 @@ public class Notify {
 
     private static String resolvePrimarySensorName() {
         try {
-            final String mainName = SensorIdentity.resolveAppSensorId(Natives.lastsensorname());
+            final String mainName = Natives.lastsensorname();
             if (mainName != null && !mainName.isEmpty()) {
                 return mainName;
             }
             final String[] activeSensors = Natives.activeSensors();
             if (activeSensors != null && activeSensors.length > 0) {
-                for (final String sensor : activeSensors) {
-                    final String resolved = SensorIdentity.resolveAppSensorId(sensor);
-                    if (resolved != null && !resolved.isEmpty()) {
-                        return resolved;
-                    }
-                }
                 return activeSensors[0];
             }
         } catch (Throwable th) {
@@ -2935,7 +2907,6 @@ public class Notify {
                 value,
                 glvalue,
                 Float.NaN,
-                Float.NaN,
                 CurrentGlucoseSource.normalizeTimeMillis(targetTime),
                 calibrationSensorId,
                 0,
@@ -3033,7 +3004,6 @@ public class Notify {
                         glucose.value,
                         glvalue,
                         Float.NaN,
-                        Float.NaN,
                         CurrentGlucoseSource.normalizeTimeMillis(glucose.time),
                         activeSensorSerial,
                         0,
@@ -3103,7 +3073,20 @@ public class Notify {
 
         CharSequence finalText = ssb;
 
-        String newStatusText = resolveNotificationStatusText(activeSensorSerial, statusText);
+        // Fetch Status from Natives (Line under sensor name logic)
+        String newStatusText = statusText;
+        try {
+            // Priority: Main sensor (lastsensorname) or first active
+            String sensorName = resolvePrimarySensorName();
+            if (sensorName != null && !sensorName.isEmpty()) {
+                String nativeStatus = Natives.getSensorStatusByName(sensorName);
+                if (nativeStatus != null && !nativeStatus.isEmpty()) {
+                    newStatusText = nativeStatus;
+                }
+            }
+        } catch (Throwable t) {
+            // Fallback to passed statusText
+        }
 
         // Apply Style to Status Text too
         CharSequence styledStatus = newStatusText;

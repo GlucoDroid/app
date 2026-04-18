@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
-import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.distinctUntilChanged
 import tk.glucodata.Natives
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.BatteryTrace
@@ -22,28 +22,16 @@ import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.alerts.AlertRepository
 import tk.glucodata.alerts.CustomAlertRepository
-import tk.glucodata.drivers.ManagedSensorRuntime
-import tk.glucodata.drivers.ManagedSensorStatusPolicy
 import tk.glucodata.ui.util.resolveDashboardSensorStatus
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository()
 ) : ViewModel() {
-    private data class HistoryEdgeSignature(
-        val size: Int,
-        val firstTimestamp: Long,
-        val lastTimestamp: Long,
-        val lastValueBits: Int,
-        val lastRawBits: Int,
-        val lastSerial: String?
-    )
-
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
-        const val DASHBOARD_HISTORY_WINDOW_MS = 3L * 24L * 60L * 60L * 1000L
     }
 
     enum class CollectionMode {
@@ -170,9 +158,14 @@ class DashboardViewModel(
      * re-subscribe to the correct sensor's data.
      */
     fun onResume() {
-        refreshStatusOnly()
+        refreshData()
         if (collectionMode != CollectionMode.INACTIVE) {
-            viewModelScope.launch { requestUiRecoverySync() }
+            ensureUiRefreshCollection()
+            ensureCurrentReadingCollection()
+            startHistoryCollectionForMode(collectionMode)
+            viewModelScope.launch {
+                requestUiRecoverySync()
+            }
         }
     }
 
@@ -310,13 +303,11 @@ class DashboardViewModel(
     }
 
     private fun refreshSensorSnapshot() {
-        var sName = SensorIdentity.resolveAppSensorId(Natives.lastsensorname())
+        var sName = Natives.lastsensorname()
         val activeSensors = Natives.activeSensors()
 
         if (activeSensors != null && activeSensors.isNotEmpty()) {
-            _activeSensorList.value = activeSensors
-                .mapNotNull { SensorIdentity.resolveAppSensorId(it) ?: it }
-                .distinct()
+            _activeSensorList.value = activeSensors.toList()
         } else {
             _activeSensorList.value = emptyList()
         }
@@ -348,7 +339,6 @@ class DashboardViewModel(
                 android.util.Log.e("DashboardVM", "getSensorUiSnapshot failed for '$sName'", t)
                 null
             }
-            val managedSnapshot = ManagedSensorRuntime.resolveUiSnapshot(sName, sName)
             if (snapshot != null && snapshot.size >= 5) {
                 val sensorKind = snapshot[0].toInt()
                 val vm = snapshot[1].toInt()
@@ -357,35 +347,40 @@ class DashboardViewModel(
                 val officialEnd = snapshot[4]
                 _sensorStatus.value = resolveDashboardSensorStatus(sName, sensorKind, startMsec, nativeStatus)
 
-                _viewMode.value = managedSnapshot?.viewMode ?: vm
+                _viewMode.value = vm
 
-                val lifecycle = ManagedSensorStatusPolicy.resolveLifecycleSummary(
-                    startTimeMs = managedSnapshot?.startTimeMs ?: startMsec,
-                    officialEndMs = managedSnapshot?.officialEndMs ?: officialEnd,
-                    expectedEndMs = managedSnapshot?.expectedEndMs ?: expectedEnd,
-                    sensorRemainingHours = managedSnapshot?.sensorRemainingHours ?: -1,
-                    sensorAgeHours = managedSnapshot?.sensorAgeHours ?: -1,
-                    nowMs = System.currentTimeMillis()
-                )
-                _sensorProgress.value = lifecycle.progress
-                _sensorHoursRemaining.value = lifecycle.remainingHours
-                _daysRemaining.value = lifecycle.daysText
-                _currentDay.value = lifecycle.currentDay
+                if (startMsec > 0) {
+                    val now = System.currentTimeMillis()
+                    val endMs = if (expectedEnd > 0) expectedEnd
+                    else if (officialEnd > 0) officialEnd
+                    else startMsec + (14L * 24 * 3600 * 1000)
+                    val totalDur = (endMs - startMsec).coerceAtLeast(1)
+                    val usedDur = (now - startMsec).coerceAtLeast(0)
+                    _sensorProgress.value = (usedDur.toFloat() / totalDur).coerceIn(0f, 1f)
+
+                    if (endMs > startMsec) {
+                        val oneDayMs = 86400000L
+                        val totalMs = endMs - startMsec
+                        val currentDay = (usedDur / oneDayMs) + 1
+                        val totalDays = (totalMs / oneDayMs)
+                        _daysRemaining.value = "$currentDay / $totalDays"
+                        _currentDay.value = currentDay.toInt()
+                        _sensorHoursRemaining.value = (totalMs - usedDur) / 3600000L
+                    } else {
+                        _daysRemaining.value = ""
+                        _sensorHoursRemaining.value = 999L
+                    }
+                } else {
+                    _sensorProgress.value = 0f
+                    _sensorHoursRemaining.value = 999L
+                    _daysRemaining.value = ""
+                }
             } else {
                 _sensorStatus.value = resolveDashboardSensorStatus(sName, nativeStatus)
-                _viewMode.value = managedSnapshot?.viewMode ?: 0
-                val lifecycle = ManagedSensorStatusPolicy.resolveLifecycleSummary(
-                    startTimeMs = managedSnapshot?.startTimeMs ?: 0L,
-                    officialEndMs = managedSnapshot?.officialEndMs ?: 0L,
-                    expectedEndMs = managedSnapshot?.expectedEndMs ?: 0L,
-                    sensorRemainingHours = managedSnapshot?.sensorRemainingHours ?: -1,
-                    sensorAgeHours = managedSnapshot?.sensorAgeHours ?: -1,
-                    nowMs = System.currentTimeMillis()
-                )
-                _sensorProgress.value = lifecycle.progress
-                _sensorHoursRemaining.value = lifecycle.remainingHours
-                _daysRemaining.value = lifecycle.daysText
-                _currentDay.value = lifecycle.currentDay
+                _viewMode.value = 0
+                _sensorProgress.value = 0f
+                _sensorHoursRemaining.value = 999L
+                _daysRemaining.value = ""
             }
         } else {
             _sensorName.value = ""
@@ -402,30 +397,24 @@ class DashboardViewModel(
     }
 
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
-        val nowMs = System.currentTimeMillis()
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> (nowMs - DASHBOARD_HISTORY_WINDOW_MS).coerceAtLeast(0L)
+            CollectionMode.DASHBOARD -> 0L
             CollectionMode.FULL_HISTORY -> 0L
         }
-        val queryStartTimeMs = when (mode) {
-            CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD,
-            CollectionMode.FULL_HISTORY -> 0L
-        }
+        val queryStartTimeMs = recoveryStartTimeMs
 
         if (historyJob?.isActive == true && activeHistoryStartTimeMs == recoveryStartTimeMs) return
 
         historyJob?.cancel()
         activeHistoryStartTimeMs = recoveryStartTimeMs
-        _isLoading.value = _glucoseHistory.value.isEmpty()
+        _isLoading.value = true
 
         historyJob = viewModelScope.launch {
             var lastRecoveryRequestSerial: String? = null
             combine(
                 _unit,
-                glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
-                    .distinctUntilChangedBy(::historyEdgeSignature)
+                glucoseRepository.getHistoryFlowRaw(queryStartTimeMs).distinctUntilChanged()
             ) { unitStr, rawHistory ->
                 unitStr to rawHistory
             }.conflate().collect { (unitStr, rawHistory) ->
@@ -459,19 +448,6 @@ class DashboardViewModel(
                 _isLoading.value = false
             }
         }
-    }
-
-    private fun historyEdgeSignature(points: List<tk.glucodata.ui.GlucosePoint>): HistoryEdgeSignature {
-        val first = points.firstOrNull()
-        val last = points.lastOrNull()
-        return HistoryEdgeSignature(
-            size = points.size,
-            firstTimestamp = first?.timestamp ?: 0L,
-            lastTimestamp = last?.timestamp ?: 0L,
-            lastValueBits = java.lang.Float.floatToRawIntBits(last?.value ?: 0f),
-            lastRawBits = java.lang.Float.floatToRawIntBits(last?.rawValue ?: 0f),
-            lastSerial = last?.sensorSerial
-        )
     }
 
     private fun stopCollectionJobs() {
@@ -689,9 +665,6 @@ class DashboardViewModel(
     }
 
     private fun requestHistoryRecoverySync(serial: String, reason: String) {
-        if (!SensorIdentity.shouldUseNativeHistorySync(serial)) {
-            return
-        }
         val nowMs = SystemClock.elapsedRealtime()
         synchronized(this) {
             if (serial == lastHistoryRecoverySerial &&
@@ -742,8 +715,7 @@ class DashboardViewModel(
     }
 
     private fun preferredDashboardSensorId(): String? {
-        val nativeCurrent = SensorIdentity.resolveAppSensorId(Natives.lastsensorname())
-            ?.takeIf { it.isNotBlank() }
+        val nativeCurrent = Natives.lastsensorname()?.takeIf { it.isNotBlank() }
         if (nativeCurrent != null) {
             return nativeCurrent
         }

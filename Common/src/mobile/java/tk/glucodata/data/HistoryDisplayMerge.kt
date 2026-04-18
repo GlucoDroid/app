@@ -12,7 +12,15 @@ internal object HistoryDisplayMerge {
     ): List<HistoryReading> {
         if (readings.isEmpty()) return emptyList()
 
-        val filtered = applyPreferredOverlapDominance(readings, preferredSerial)
+        val preferredMatchCache = HashMap<String?, Boolean>()
+        fun matchesPreferred(sensorSerial: String?): Boolean {
+            if (preferredSerial.isNullOrBlank()) return false
+            return preferredMatchCache.getOrPut(sensorSerial) {
+                SensorIdentity.matches(sensorSerial, preferredSerial)
+            }
+        }
+
+        val filtered = applyPreferredOverlapDominance(readings, preferredSerial, ::matchesPreferred)
         val merged = ArrayList<HistoryReading>(readings.size)
         var currentTimestamp = Long.MIN_VALUE
         var currentBest: HistoryReading? = null
@@ -23,7 +31,7 @@ internal object HistoryDisplayMerge {
                 currentTimestamp = reading.timestamp
                 currentBest = reading
             } else {
-                currentBest = choosePreferred(currentBest, reading, preferredSerial)
+                currentBest = choosePreferred(currentBest, reading, preferredSerial, ::matchesPreferred)
             }
         }
 
@@ -33,19 +41,20 @@ internal object HistoryDisplayMerge {
 
     private fun applyPreferredOverlapDominance(
         readings: List<HistoryReading>,
-        preferredSerial: String?
+        preferredSerial: String?,
+        matchesPreferred: (String?) -> Boolean
     ): List<HistoryReading> {
         if (preferredSerial.isNullOrBlank()) return readings
 
         val preferredReadings = readings
-            .filter { SensorIdentity.matches(it.sensorSerial, preferredSerial) }
+            .filter { matchesPreferred(it.sensorSerial) }
             .sortedBy { it.timestamp }
         if (preferredReadings.isEmpty()) return readings
 
         val coverageSegments = buildCoverageSegments(preferredReadings)
 
         return readings.filter { reading ->
-            SensorIdentity.matches(reading.sensorSerial, preferredSerial) ||
+            matchesPreferred(reading.sensorSerial) ||
                 coverageSegments.none { segment ->
                     reading.timestamp >= (segment.start - OVERLAP_PADDING_MS) &&
                         reading.timestamp <= (segment.last + OVERLAP_PADDING_MS)
@@ -76,19 +85,24 @@ internal object HistoryDisplayMerge {
     private fun choosePreferred(
         current: HistoryReading,
         candidate: HistoryReading,
-        preferredSerial: String?
+        preferredSerial: String?,
+        matchesPreferred: (String?) -> Boolean
     ): HistoryReading {
-        val currentScore = score(current, preferredSerial)
-        val candidateScore = score(candidate, preferredSerial)
+        val currentScore = score(current, preferredSerial, matchesPreferred)
+        val candidateScore = score(candidate, preferredSerial, matchesPreferred)
         if (candidateScore != currentScore) {
             return if (candidateScore > currentScore) candidate else current
         }
         return if (candidate.id > current.id) candidate else current
     }
 
-    private fun score(reading: HistoryReading, preferredSerial: String?): Int {
+    private fun score(
+        reading: HistoryReading,
+        preferredSerial: String?,
+        matchesPreferred: (String?) -> Boolean
+    ): Int {
         var score = 0
-        if (!preferredSerial.isNullOrBlank() && SensorIdentity.matches(reading.sensorSerial, preferredSerial)) {
+        if (!preferredSerial.isNullOrBlank() && matchesPreferred(reading.sensorSerial)) {
             score += 100
         }
         if (reading.value.isFinite() && reading.value > 0f) {

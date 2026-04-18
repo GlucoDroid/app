@@ -35,17 +35,6 @@ class StatsViewModel : ViewModel() {
     private val tag = "StatsViewModel"
     private val historyRepository = HistoryRepository()
 
-    private data class StatsDisplayHistoryCacheKey(
-        val size: Int,
-        val firstTimestamp: Long,
-        val lastTimestamp: Long,
-        val lastValueBits: Int,
-        val lastRawBits: Int,
-        val viewMode: Int,
-        val calibrationRevision: Long,
-        val activeSerial: String?
-    )
-
     private val _selectedRange = MutableStateFlow<StatsTimeRange?>(StatsTimeRange.DAY_1)
     val selectedRange: StateFlow<StatsTimeRange?> = _selectedRange.asStateFlow()
     private val _customRange = MutableStateFlow<StatsDateRange?>(null)
@@ -65,8 +54,6 @@ class StatsViewModel : ViewModel() {
     private var cachedTemperatureSerial: String? = null
     private var cachedTemperaturePoints: List<TemperaturePoint> = emptyList()
     private var lastTemperatureRefreshMs: Long = 0L
-    @Volatile private var statsDisplayHistoryCacheKey: StatsDisplayHistoryCacheKey? = null
-    @Volatile private var statsDisplayHistoryCacheValue: List<GlucosePoint> = emptyList()
 
     private val baseState = combine(
         _selectedRange,
@@ -259,8 +246,8 @@ class StatsViewModel : ViewModel() {
 
     private fun resolveStatsSensorSerial(): String? {
         return SensorIdentity.resolveAvailableMainSensor(
-            selectedMain = SensorIdentity.resolveAppSensorId(Natives.lastsensorname()),
-            preferredSensorId = SensorIdentity.resolveAppSensorId(activeSerial) ?: activeSerial,
+            selectedMain = Natives.lastsensorname(),
+            preferredSensorId = activeSerial,
             activeSensors = Natives.activeSensors()
         ) ?: SensorIdentity.resolveMainSensor()
     }
@@ -342,28 +329,12 @@ class StatsViewModel : ViewModel() {
     ): List<GlucosePoint> {
         if (history.isEmpty()) return emptyList()
 
-        val cacheKey = StatsDisplayHistoryCacheKey(
-            size = history.size,
-            firstTimestamp = history.firstOrNull()?.timestamp ?: 0L,
-            lastTimestamp = history.lastOrNull()?.timestamp ?: 0L,
-            lastValueBits = history.lastOrNull()?.value?.toRawBits() ?: 0,
-            lastRawBits = history.lastOrNull()?.rawValue?.toRawBits() ?: 0,
-            viewMode = viewMode,
-            calibrationRevision = CalibrationAccess.getRevision(),
-            activeSerial = activeSerial
-        )
-        if (statsDisplayHistoryCacheKey == cacheKey) {
-            return statsDisplayHistoryCacheValue
-        }
-
         val isRawMode = viewMode == 1 || viewMode == 3
         val hideInitialWhenCalibrated = CalibrationAccess.shouldHideInitialWhenCalibrated()
-        val sensorSerial = activeSerial ?: history.firstOrNull()?.sensorSerial
-        val hasCalibration = sensorSerial != null && CalibrationAccess.hasActiveCalibration(isRawMode, sensorSerial)
 
-        val resolved = history.mapNotNull { point ->
-            val pointSensorSerial = point.sensorSerial ?: sensorSerial
-            val calibratedValue = if (hasCalibration && pointSensorSerial != null) {
+        return history.mapNotNull { point ->
+            val sensorSerial = point.sensorSerial ?: activeSerial
+            val calibratedValue = if (sensorSerial != null && CalibrationAccess.hasActiveCalibration(isRawMode, sensorSerial)) {
                 val baseValue = (if (isRawMode) point.rawValue else point.value)
                     .takeIf { it.isFinite() && it > 0f }
                 baseValue?.let {
@@ -372,7 +343,7 @@ class StatsViewModel : ViewModel() {
                         timestamp = point.timestamp,
                         isRawMode = isRawMode,
                         emitDiagnostics = false,
-                        sensorIdOverride = pointSensorSerial
+                        sensorIdOverride = sensorSerial
                     ).takeIf { calibrated -> calibrated.isFinite() && calibrated > 0f }
                 }
             } else {
@@ -394,9 +365,6 @@ class StatsViewModel : ViewModel() {
                 point.copy(value = primaryValue, rawValue = primaryValue)
             }
         }
-        statsDisplayHistoryCacheKey = cacheKey
-        statsDisplayHistoryCacheValue = resolved
-        return resolved
     }
 
     private fun maybeRefreshTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {

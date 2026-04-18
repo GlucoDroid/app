@@ -1,13 +1,22 @@
 package tk.glucodata.ui.util
 
-import tk.glucodata.Applic
-import tk.glucodata.drivers.ManagedSensorRuntime
-import tk.glucodata.drivers.ManagedSensorStatusPolicy
+import tk.glucodata.SensorBluetooth
 
-private fun managedDashboardStatus(serial: String): String {
-    val snapshot = ManagedSensorRuntime.resolveUiSnapshot(serial, serial) ?: return ""
-    return ManagedSensorStatusPolicy.collapseSummaryStatus(snapshot.detailedStatus)
-        .ifBlank { ManagedSensorStatusPolicy.collapseSummaryStatus(snapshot.subtitleStatus) }
+private fun getDriverDashboardStatus(serial: String): String? {
+    return try {
+        (SensorBluetooth.mygatts().firstOrNull { it.SerialNumber == serial } as? tk.glucodata.drivers.aidex.AiDexDriver)
+            ?.getDetailedBleStatus()
+            ?.takeIf {
+                it.isNotBlank() &&
+                    !it.equals("Connected", ignoreCase = true) &&
+                    !it.equals("Disconnected", ignoreCase = true) &&
+                    !it.equals("Receiving", ignoreCase = true) &&
+                    !it.equals("Broadcast", ignoreCase = true) &&
+                    !it.equals("Broadcast Mode", ignoreCase = true)
+            }
+    } catch (_: Throwable) {
+        null
+    }
 }
 
 fun resolveDashboardSensorStatus(
@@ -16,21 +25,10 @@ fun resolveDashboardSensorStatus(
     startMsec: Long,
     nativeStatus: String
 ): String {
-    val warmupStatus = getLegacyWarmupStatus(Applic.app, sensorKind, startMsec, nativeStatus)
-    if (warmupStatus != null) {
-        return warmupStatus
-    }
-    val managedStatus = managedDashboardStatus(serial)
-    if (managedStatus.isNotBlank() || ManagedSensorRuntime.resolveUiSnapshot(serial, serial) != null) {
-        return managedStatus
-    }
-    return nativeStatus
+    val warmupStatus = getLegacyWarmupStatus(tk.glucodata.Applic.app, sensorKind, startMsec, nativeStatus)
+    return warmupStatus ?: nativeStatus.ifBlank { getDriverDashboardStatus(serial).orEmpty() }
 }
 
 fun resolveDashboardSensorStatus(serial: String, nativeStatus: String): String {
-    val managedStatus = managedDashboardStatus(serial)
-    if (managedStatus.isNotBlank() || ManagedSensorRuntime.resolveUiSnapshot(serial, serial) != null) {
-        return managedStatus
-    }
-    return nativeStatus
+    return nativeStatus.ifBlank { getDriverDashboardStatus(serial).orEmpty() }
 }
