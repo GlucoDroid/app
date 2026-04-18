@@ -255,6 +255,11 @@ object CalibrationManager {
         requestMirrorCalibrationSyncForSensors(_calibrations.value.map { it.sensorId })
     }
 
+    private fun requestUiRefreshAfterCalibrationChange() {
+        UiRefreshBus.requestDataRefresh()
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     private fun sensorMatches(calibrationSensorId: String, sensorId: String): Boolean {
         if (calibrationSensorId.isBlank()) return true
         if (sensorId.isBlank()) return false
@@ -314,7 +319,7 @@ object CalibrationManager {
             }
         }
         invalidateComputationCache("setEnabledForMode(${if (isRawMode) "raw" else "auto"})")
-        UiRefreshBus.requestStatusRefresh()
+        requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Calibration enabled for ${if (isRawMode) "Raw" else "Auto"}: $enabled")
     }
@@ -329,7 +334,7 @@ object CalibrationManager {
         if (::prefs.isInitialized) {
             prefs.edit().putBoolean(KEY_HIDE_INITIAL_WHEN_CALIBRATED, enabled).apply()
         }
-        UiRefreshBus.requestStatusRefresh()
+        requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Hide initial when calibrated: $enabled")
     }
@@ -344,7 +349,7 @@ object CalibrationManager {
         }
         runCatching { Natives.setCalibratePast(enabled) }
         invalidateComputationCache("setApplyToPast")
-        UiRefreshBus.requestStatusRefresh()
+        requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Apply calibration to past: $enabled")
     }
@@ -358,7 +363,7 @@ object CalibrationManager {
             prefs.edit().putBoolean(KEY_LOCK_PAST_HISTORY, enabled).apply()
         }
         invalidateComputationCache("setLockPastHistory")
-        UiRefreshBus.requestStatusRefresh()
+        requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Lock past history calibration rewrite: $enabled")
     }
@@ -371,7 +376,7 @@ object CalibrationManager {
         if (::prefs.isInitialized) {
             prefs.edit().putBoolean(KEY_OVERWRITE_SENSOR_VALUES, enabled).apply()
         }
-        UiRefreshBus.requestStatusRefresh()
+        requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Overwrite sensor values in history DB: $enabled")
     }
@@ -384,7 +389,7 @@ object CalibrationManager {
         if (::prefs.isInitialized) {
             prefs.edit().putBoolean(KEY_VISUAL_CONTINUITY, enabled).apply()
         }
-        UiRefreshBus.requestStatusRefresh()
+        requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Visual continuity mode: $enabled")
     }
@@ -407,7 +412,7 @@ object CalibrationManager {
         }
         invalidateComputationCache("setAlgorithmForMode(${if (isRawMode) "raw" else "auto"})")
         refreshDiagnosticsPreview(isRawMode = isRawMode, force = true)
-        UiRefreshBus.requestStatusRefresh()
+        requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Calibration algorithm for ${if (isRawMode) "Raw" else "Auto"}: ${algorithm.title}")
     }
@@ -576,7 +581,7 @@ object CalibrationManager {
             val list = withContext(Dispatchers.IO) { dao.getAllSync() }
             _calibrations.value = list
             invalidateComputationCache("loadCalibrations")
-            UiRefreshBus.requestStatusRefresh()
+            requestUiRefreshAfterCalibrationChange()
         }
     }
 

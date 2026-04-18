@@ -77,6 +77,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -124,6 +125,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import tk.glucodata.UiRefreshBus
 import tk.glucodata.R
 import kotlin.math.abs
 import tk.glucodata.DataSmoothing
@@ -746,8 +748,9 @@ fun InteractiveGlucoseChart(
     val interactionData = remember(safeData, renderData, graphSmoothingMinutes) {
         if (graphSmoothingMinutes > 0) renderData else safeData
     }
+    val uiRefreshRevision by UiRefreshBus.revision.collectAsState()
     val calibrationRevision = tk.glucodata.CalibrationAccess.getRevision()
-    val calibratedValueResolver = remember(renderData, calibrationRevision) {
+    val calibratedValueResolver = remember(renderData, calibrationRevision, uiRefreshRevision) {
         CalibratedValueResolver(renderData)
     }
 
