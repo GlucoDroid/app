@@ -260,10 +260,74 @@ private fun collapseSmoothedChartData(
     }
 }
 
+private class CalibratedValueResolver(private val points: List<GlucosePoint>) {
+    private val rawComputed = BooleanArray(points.size)
+    private val autoComputed = BooleanArray(points.size)
+    private val rawValues = FloatArray(points.size)
+    private val autoValues = FloatArray(points.size)
+    private val rawCalibrationActive = HashMap<String?, Boolean>()
+    private val autoCalibrationActive = HashMap<String?, Boolean>()
+
+    fun hasCalibration(isRawMode: Boolean, sensorId: String? = null): Boolean {
+        val cache = if (isRawMode) rawCalibrationActive else autoCalibrationActive
+        return cache.getOrPut(sensorId) {
+            tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawMode, sensorId)
+        }
+    }
+
+    fun valueAt(index: Int, isRawMode: Boolean): Float {
+        if (index !in points.indices) return Float.NaN
+        val computed = if (isRawMode) rawComputed else autoComputed
+        val values = if (isRawMode) rawValues else autoValues
+        if (computed[index]) {
+            return values[index]
+        }
+        val point = points[index]
+        val baseValue = if (isRawMode) point.rawValue else point.value
+        val resolved = if (
+            baseValue.isFinite() &&
+            baseValue > 0.1f &&
+            hasCalibration(isRawMode, point.sensorSerial)
+        ) {
+            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                baseValue,
+                point.timestamp,
+                isRawMode
+            )
+        } else {
+            baseValue
+        }
+        values[index] = resolved
+        computed[index] = true
+        return resolved
+    }
+
+    fun valueForPoint(point: GlucosePoint, isRawMode: Boolean): Float {
+        val pointIndex = points.indexOf(point)
+        return if (pointIndex >= 0) valueAt(pointIndex, isRawMode) else {
+            val baseValue = if (isRawMode) point.rawValue else point.value
+            if (
+                baseValue.isFinite() &&
+                baseValue > 0.1f &&
+                hasCalibration(isRawMode, point.sensorSerial)
+            ) {
+                tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                    baseValue,
+                    point.timestamp,
+                    isRawMode
+                )
+            } else {
+                baseValue
+            }
+        }
+    }
+}
+
 @Composable
 private fun PreviewWindowNavigator(
     modifier: Modifier = Modifier,
     renderData: List<GlucosePoint>,
+    calibratedValueResolver: CalibratedValueResolver,
     previewCenterTime: Long,
     viewMode: Int,
     targetLow: Float,
@@ -283,20 +347,15 @@ private fun PreviewWindowNavigator(
     val windowStrokeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)
     val minimumWindowWidthPx = with(LocalDensity.current) { 12.dp.toPx() }
-    val hasCalibration = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(viewMode == 1 || viewMode == 3)
+    val isRawMode = viewMode == 1 || viewMode == 3
+    val hasCalibration = calibratedValueResolver.hasCalibration(isRawMode)
 
     fun activeValue(index: Int): Float {
-        val renderPoint = renderData[index]
-        val isRawMode = viewMode == 1 || viewMode == 3
-        val baseValue = if (isRawMode) renderPoint.rawValue else renderPoint.value
-        return if (hasCalibration && baseValue.isFinite() && baseValue > 0.1f) {
-            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
-                baseValue,
-                renderPoint.timestamp,
-                isRawMode
-            )
+        return if (hasCalibration) {
+            calibratedValueResolver.valueAt(index, isRawMode)
         } else {
-            baseValue
+            val renderPoint = renderData[index]
+            if (isRawMode) renderPoint.rawValue else renderPoint.value
         }
     }
 
@@ -686,6 +745,10 @@ fun InteractiveGlucoseChart(
     }
     val interactionData = remember(safeData, renderData, graphSmoothingMinutes) {
         if (graphSmoothingMinutes > 0) renderData else safeData
+    }
+    val calibrationRevision = tk.glucodata.CalibrationAccess.getRevision()
+    val calibratedValueResolver = remember(renderData, calibrationRevision) {
+        CalibratedValueResolver(renderData)
     }
 
     // --- FORMATTERS & TOOLS (Hoisted for Performance) ---
@@ -1269,22 +1332,9 @@ fun InteractiveGlucoseChart(
                                 if (timeDiff > 15 * 60 * 1000) false else {
                                     // When calibration is on and is primary, use calibrated value for touch target
                                     val isRawMode = currentViewMode == 1 || currentViewMode == 3
-                                    val hasCalibration =
-                                        tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(
-                                            isRawMode
-                                        )
+                                    val hasCalibration = calibratedValueResolver.hasCalibration(isRawMode)
                                     val v = if (hasCalibration) {
-                                        val baseV =
-                                            if (isRawMode) pointAtTouch.rawValue else pointAtTouch.value
-                                        if (baseV.isFinite() && baseV > 0.1f) {
-                                            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
-                                                baseV,
-                                                pointAtTouch.timestamp,
-                                                isRawMode
-                                            )
-                                        } else {
-                                            if (isRawMode) pointAtTouch.rawValue else pointAtTouch.value
-                                        }
+                                        calibratedValueResolver.valueForPoint(pointAtTouch, isRawMode)
                                     } else if (isRawMode) {
                                         pointAtTouch.rawValue
                                     } else {
@@ -1722,7 +1772,7 @@ fun InteractiveGlucoseChart(
                 }
 
                 val isRawModeChart = viewMode == 1 || viewMode == 3
-                val hasCalibration = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeChart)
+                val hasCalibration = calibratedValueResolver.hasCalibration(isRawModeChart)
                 val hideInitialWhenCalibrated = hasCalibration &&
                     tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
 
@@ -1903,11 +1953,7 @@ fun InteractiveGlucoseChart(
                                 }
                             }
 
-                            val v = tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
-                                baseV,
-                                renderPoint.timestamp,
-                                isRawModeChart
-                            )
+                            val v = calibratedValueResolver.valueAt(i, isRawModeChart)
                             
                             if (v.isNaN() || v < 0.1f) {
                                 calFirst = true
@@ -1978,16 +2024,7 @@ fun InteractiveGlucoseChart(
                         // If showing Raw (Mode 1) or Raw-Primary (Mode 3), prioritize Raw
                         val useRaw = viewMode == 1 || viewMode == 3
                         val v = if (hideInitialWhenCalibrated) {
-                            val baseValue = if (useRaw) p.rawValue else p.value
-                            if (baseValue.isFinite() && baseValue > 0.1f) {
-                                tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
-                                    baseValue,
-                                    p.timestamp,
-                                    useRaw
-                                )
-                            } else {
-                                baseValue
-                            }
+                            calibratedValueResolver.valueAt(i, useRaw)
                         } else {
                             if (useRaw) p.rawValue else p.value
                         }
@@ -2069,7 +2106,7 @@ fun InteractiveGlucoseChart(
                     selectedPoint?.let { p ->
                         val dotRadius = 5.dp.toPx()
                         val isRawModeDot = viewMode == 1 || viewMode == 3
-                        val hasCalibrationDot = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeDot)
+                        val hasCalibrationDot = calibratedValueResolver.hasCalibration(isRawModeDot)
                         val hideRawDot = hideInitialWhenCalibrated && isRawModeDot
                         val hideAutoDot = hideInitialWhenCalibrated && !isRawModeDot
 
@@ -2087,9 +2124,8 @@ fun InteractiveGlucoseChart(
 
                          // Draw calibrated dot on top (primary when active)
                          if (hasCalibrationDot) {
-                             val baseValue = if (viewMode == 1 || viewMode == 3) p.rawValue else p.value
-                             if (baseValue.isFinite() && baseValue > 0.1f) {
-                                 val calibratedV = tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, p.timestamp, isRawModeDot)
+                             val calibratedV = calibratedValueResolver.valueForPoint(p, isRawModeDot)
+                             if (calibratedV.isFinite() && calibratedV > 0.1f) {
                                  val py = valToY(calibratedV)
                                  if (py.isFinite()) drawCircle(primaryColor, dotRadius, Offset(cursorX, py))
                              }
@@ -2136,14 +2172,9 @@ fun InteractiveGlucoseChart(
 
                 // Compute calibrated value for tooltip
                 val isRawModeTT = viewMode == 1 || viewMode == 3
-                val hasCalibrationTT = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeTT)
+                val hasCalibrationTT = calibratedValueResolver.hasCalibration(isRawModeTT)
                 val calibratedValueTT = if (hasCalibrationTT) {
-                    val baseValue = if (isRawModeTT) point.rawValue else point.value
-                    if (baseValue > 0.1f) {
-                        tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(baseValue, point.timestamp, isRawModeTT)
-                    } else {
-                        null
-                    }
+                    calibratedValueResolver.valueForPoint(point, isRawModeTT).takeIf { it > 0.1f }
                 } else null
                 val dvs = getDisplayValues(point, viewMode, unit, calibratedValueTT)
 
@@ -2496,6 +2527,7 @@ fun InteractiveGlucoseChart(
                 PreviewWindowNavigator(
                     modifier = Modifier.fillMaxWidth(),
                     renderData = renderData,
+                    calibratedValueResolver = calibratedValueResolver,
                     previewCenterTime = previewCenterTime,
                     viewMode = viewMode,
                     targetLow = targetLow,
