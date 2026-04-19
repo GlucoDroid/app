@@ -9,16 +9,17 @@ object NotificationHistorySource {
 
     @JvmStatic
     fun resolveSensorSerial(preferredSerial: String? = null): String? {
-        if (!preferredSerial.isNullOrBlank()) {
-            return SensorIdentity.resolveAppSensorId(preferredSerial) ?: preferredSerial
+        val preferred = SensorIdentity.resolveAppSensorId(preferredSerial) ?: preferredSerial
+        if (!preferred.isNullOrBlank()) {
+            return preferred
         }
-        val lastSensor = Natives.lastsensorname()
+        val lastSensor = SensorIdentity.resolveAppSensorId(Natives.lastsensorname()) ?: Natives.lastsensorname()
         if (!lastSensor.isNullOrBlank()) {
-            return SensorIdentity.resolveAppSensorId(lastSensor) ?: lastSensor
+            return lastSensor
         }
         return Natives.activeSensors()
+            ?.mapNotNull { SensorIdentity.resolveAppSensorId(it) ?: it }
             ?.firstOrNull { !it.isNullOrBlank() }
-            ?.let { SensorIdentity.resolveAppSensorId(it) ?: it }
     }
 
     @JvmStatic
@@ -41,11 +42,13 @@ object NotificationHistorySource {
         if (resolvedSerial.isNullOrBlank()) {
             return emptyList()
         }
-        val nativeSerial = SensorIdentity.resolveNativeSensorName(resolvedSerial) ?: resolvedSerial
+        if (!SensorIdentity.shouldUseNativeHistorySync(resolvedSerial)) {
+            return emptyList()
+        }
         val history = try {
-            Natives.getGlucoseHistoryForSensor(nativeSerial, startSec)
+            Natives.getGlucoseHistoryForSensor(resolvedSerial, startSec)
         } catch (t: Throwable) {
-            Log.w(TAG, "loadHistory(${nativeSerial ?: "main"}, $startSec) failed", t)
+            Log.w(TAG, "loadHistory(${resolvedSerial ?: "main"}, $startSec) failed", t)
             null
         } ?: return emptyList()
 

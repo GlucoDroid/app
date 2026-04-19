@@ -28,7 +28,7 @@ object ICanHealthConstants {
     const val DEFAULT_NEW_AUTH_AES_KEY_ASCII = "px@9k5K*23cV%YDc"
     const val DEFAULT_GLUCOSE_AES_KEY_ASCII = DEFAULT_OLD_GLUCOSE_AES_KEY_ASCII
     const val DEFAULT_AUTH_USER_ID = ""
-    const val ADVISORY_EXPECTED_LIFETIME_DAYS = 21
+    const val ADVISORY_EXPECTED_LIFETIME_DAYS = 31
     private const val STANDALONE_USER_ID_LENGTH = 12
 
     // ---- BLE Service UUIDs ----
