@@ -837,8 +837,13 @@ fun InteractiveGlucoseChart(
 
     // TRACKING INACTIVITY FOR GRAPH RESET
     var lastActiveTime by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    var localResumeAnimationBoundaryTimestampMs by rememberSaveable { mutableLongStateOf(0L) }
     val currentLatestDataTimestamp by rememberUpdatedState(latestDataTimestamp)
     val currentSelectedTimeRange by rememberUpdatedState(selectedTimeRange)
+    val resumeCatchUpBoundaryTimestampMs = maxOf(
+        resumeAnimationBoundaryTimestampMs,
+        localResumeAnimationBoundaryTimestampMs
+    )
 
     fun applyResumeBaseline(latestTimestamp: Long) {
         if (latestTimestamp <= 0L) return
@@ -856,6 +861,7 @@ fun InteractiveGlucoseChart(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isResumed = true
+                localResumeAnimationBoundaryTimestampMs = System.currentTimeMillis()
 
                 val currentTime = System.currentTimeMillis()
                 val latestTimestamp = currentLatestDataTimestamp
@@ -869,7 +875,7 @@ fun InteractiveGlucoseChart(
                     }
                 } else if (
                     latestTimestamp > lastAutoScrolledTimestamp &&
-                    latestTimestamp <= resumeAnimationBoundaryTimestampMs
+                    latestTimestamp <= resumeCatchUpBoundaryTimestampMs
                 ) {
                     applyResumeBaseline(latestTimestamp)
                 }
@@ -935,8 +941,19 @@ fun InteractiveGlucoseChart(
         }
     }
 
-    LaunchedEffect(latestDataTimestamp, isResumed, isUserInteracting, autoScrollJob, lastInteractionTimestamp) {
+    LaunchedEffect(
+        latestDataTimestamp,
+        isResumed,
+        isUserInteracting,
+        autoScrollJob,
+        lastInteractionTimestamp,
+        resumeCatchUpBoundaryTimestampMs
+    ) {
         if (isResumed && latestDataTimestamp > lastAutoScrolledTimestamp) {
+            if (latestDataTimestamp <= resumeCatchUpBoundaryTimestampMs) {
+                applyResumeBaseline(latestDataTimestamp)
+                return@LaunchedEffect
+            }
             if (isUserInteracting || autoScrollJob != null || System.currentTimeMillis() - lastInteractionTimestamp < 1200L) {
                 return@LaunchedEffect
             }
