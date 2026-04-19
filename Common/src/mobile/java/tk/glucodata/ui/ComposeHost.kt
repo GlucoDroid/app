@@ -52,8 +52,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
@@ -5021,56 +5023,99 @@ fun SensorCard(sensor: tk.glucodata.ui.viewmodel.SensorInfo, viewModel: tk.gluco
             // Edit 63b: All sensors get the same 2-button row: Reconnect | Disconnect.
             // AiDex-specific behavior is handled in the dialogs (terminate dialog routes
             // AiDex through disconnectSensor instead of terminateSensor).
-            // Edit 65b: Reconnect (left, no modifier = wraps content, small) | Disconnect (right, weight 1f = large).
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Reconnect - Left side (no modifier = wraps content, stays small)
-                FilledTonalButton(
-                    onClick = { showReconnectDialog = true },
-                    shape = RoundedCornerShape(
-                        topStart = 12.dp,
-                        bottomStart = 12.dp,
-                        topEnd = 4.dp,
-                        bottomEnd = 4.dp
-                    ),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BluetoothConnected,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.reconnect), maxLines = 1)
-                }
+            // Edit 65c: Keep the old full-width 50/50 row when both labels fit, then let
+            // Disconnect keep priority only on genuinely tight localized layouts.
+            val reconnectLabel = stringResource(R.string.reconnect)
+            val disconnectLabel = stringResource(R.string.disconnect)
+            val layoutDirection = LocalLayoutDirection.current
+            val density = LocalDensity.current
+            val textMeasurer = rememberTextMeasurer()
+            val buttonTextStyle = MaterialTheme.typography.labelLarge
+            val buttonChromeWidth = 16.dp +
+                8.dp +
+                ButtonDefaults.ContentPadding.calculateLeftPadding(layoutDirection) +
+                ButtonDefaults.ContentPadding.calculateRightPadding(layoutDirection)
+            val reconnectPreferredWidth = with(density) {
+                textMeasurer.measure(
+                    text = reconnectLabel,
+                    style = buttonTextStyle,
+                    maxLines = 1
+                ).size.width.toDp() + buttonChromeWidth
+            }
+            val disconnectPreferredWidth = with(density) {
+                textMeasurer.measure(
+                    text = disconnectLabel,
+                    style = buttonTextStyle,
+                    maxLines = 1
+                ).size.width.toDp() + buttonChromeWidth
+            }
 
-                // Disconnect - Right side (weight 1f = fills remaining space, large)
-                FilledTonalButton(
-                    onClick = { showTerminateDialog = true },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(
-                        topStart = 4.dp,
-                        bottomStart = 4.dp,
-                        topEnd = 12.dp,
-                        bottomEnd = 12.dp
-                    ),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val buttonSpacing = 8.dp
+                val equalButtonWidth = (maxWidth - buttonSpacing) / 2
+                val prioritizeDisconnect =
+                    reconnectPreferredWidth > equalButtonWidth ||
+                    disconnectPreferredWidth > equalButtonWidth
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(buttonSpacing)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteForever,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.disconnect), maxLines = 1)
+                    // Reconnect always stays flexible so it can either match the old 50/50
+                    // layout or yield first when Disconnect needs more room.
+                    FilledTonalButton(
+                        onClick = { showReconnectDialog = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(
+                            topStart = 12.dp,
+                            bottomStart = 12.dp,
+                            topEnd = 4.dp,
+                            bottomEnd = 4.dp
+                        ),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BluetoothConnected,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            reconnectLabel,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+
+                    FilledTonalButton(
+                        onClick = { showTerminateDialog = true },
+                        modifier = if (prioritizeDisconnect) Modifier else Modifier.weight(1f),
+                        shape = RoundedCornerShape(
+                            topStart = 4.dp,
+                            bottomStart = 4.dp,
+                            topEnd = 12.dp,
+                            bottomEnd = 12.dp
+                        ),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            disconnectLabel,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
             }
