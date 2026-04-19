@@ -929,14 +929,12 @@ fun DashboardScreen(
     LaunchedEffect(timeRange) {
         dashboardPrefs.edit().putString("dashboard_chart_time_range", timeRange.name).apply()
     }
-    var recentReadingsAnimateAfterTimestampMs by rememberSaveable {
-        mutableLongStateOf(Long.MAX_VALUE)
+    var dashboardResumeAnimationBoundaryMs by rememberSaveable {
+        mutableLongStateOf(0L)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        recentReadingsAnimateAfterTimestampMs = System.currentTimeMillis()
+        dashboardResumeAnimationBoundaryMs = System.currentTimeMillis()
     }
-
-
     val currentGlucose by viewModel.currentGlucose.collectAsStateWithLifecycle()
     val currentRate by viewModel.currentRate.collectAsStateWithLifecycle()
     val sensorName by viewModel.sensorName.collectAsStateWithLifecycle()
@@ -1066,6 +1064,18 @@ fun DashboardScreen(
             onDismiss = { showAiDexWizard = false },
             onComplete = {
                 showAiDexWizard = false
+                viewModel.refreshData()
+            }
+        )
+        return
+    }
+
+    // iCan Health Setup Wizard
+    if (showICanHealthWizard) {
+        tk.glucodata.ui.setup.ICanHealthSetupWizard(
+            onDismiss = { showICanHealthWizard = false },
+            onComplete = {
+                showICanHealthWizard = false
                 viewModel.refreshData()
             }
         )
@@ -1501,6 +1511,7 @@ fun DashboardScreen(
                             calibratedValue = calibratedValue,
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
+                            resumeAnimationBoundaryTimestampMs = dashboardResumeAnimationBoundaryMs,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
@@ -1515,7 +1526,7 @@ fun DashboardScreen(
                             recentReadings = recentReadings,
                             unit = unit,
                             viewMode = viewMode,
-                            animateNewReadingsAfterTimestampMs = recentReadingsAnimateAfterTimestampMs,
+                            resumeAnimationBoundaryTimestampMs = dashboardResumeAnimationBoundaryMs,
                             onViewHistory = onNavigateToHistory
                         ) { index, item ->
                             ReadingRow(
@@ -1552,6 +1563,7 @@ fun DashboardScreen(
                                 unit = unit,
                                 calibrations = calibrations,
                                 viewMode = viewMode,
+                                resumeAnimationBoundaryTimestampMs = dashboardResumeAnimationBoundaryMs,
                                 onTimeRangeSelected = { timeRange = it },
                                 selectedTimeRange = timeRange,
                                 isExpanded = false,
@@ -1604,6 +1616,7 @@ fun DashboardScreen(
                             calibratedValue = calibratedValue,
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
+                            resumeAnimationBoundaryTimestampMs = dashboardResumeAnimationBoundaryMs,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
@@ -1656,6 +1669,7 @@ fun DashboardScreen(
                                 unit = unit,
                                 calibrations = calibrations,
                                 viewMode = viewMode,
+                                resumeAnimationBoundaryTimestampMs = dashboardResumeAnimationBoundaryMs,
                                 onTimeRangeSelected = { timeRange = it },
                                 selectedTimeRange = timeRange,
                                 isExpanded = isChartExpanded,
@@ -1684,7 +1698,7 @@ fun DashboardScreen(
                             recentReadings = recentReadings,
                             unit = unit,
                             viewMode = viewMode,
-                            animateNewReadingsAfterTimestampMs = recentReadingsAnimateAfterTimestampMs,
+                            resumeAnimationBoundaryTimestampMs = dashboardResumeAnimationBoundaryMs,
                             onViewHistory = onNavigateToHistory
                         ) { index, item ->
                             ReadingRow(

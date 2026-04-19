@@ -543,6 +543,7 @@ fun DashboardChartSection(
     expandedUnderlayBottom: androidx.compose.ui.unit.Dp = 116.dp,
     onToggleExpanded: (() -> Unit)? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
+    resumeAnimationBoundaryTimestampMs: Long = 0L,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
@@ -562,6 +563,7 @@ fun DashboardChartSection(
                         unit = unit,
                         viewMode = viewMode,
                         calibrations = calibrations,
+                        resumeAnimationBoundaryTimestampMs = resumeAnimationBoundaryTimestampMs,
                         onTimeRangeSelected = onTimeRangeSelected,
                         selectedTimeRange = selectedTimeRange,
                         isExpanded = isExpanded,
@@ -610,6 +612,7 @@ fun InteractiveGlucoseChart(
     unit: String,
     viewMode: Int = 0,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
+    resumeAnimationBoundaryTimestampMs: Long = 0L,
     onDateSelected: (Long) -> Unit = {},
     onTimeRangeSelected: ((TimeRange) -> Unit)? = null,
     selectedTimeRange: TimeRange? = null,
@@ -828,31 +831,47 @@ fun InteractiveGlucoseChart(
     val lifecycleOwner = LocalLifecycleOwner.current
     var isResumed by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
-    // Flag to detect immediate Resume/Startup so we can FORCE snap to latest
-    // (ignoring the 1h check initially) as per User Request.
-    var justResumed by remember { mutableStateOf(true) }
     var isUserInteracting by remember { mutableStateOf(false) }
     var lastInteractionTimestamp by rememberSaveable { mutableLongStateOf(0L) }
     var suppressDoubleTapUntil by rememberSaveable { mutableLongStateOf(0L) }
 
     // TRACKING INACTIVITY FOR GRAPH RESET
     var lastActiveTime by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    val currentLatestDataTimestamp by rememberUpdatedState(latestDataTimestamp)
+    val currentSelectedTimeRange by rememberUpdatedState(selectedTimeRange)
+
+    fun applyResumeBaseline(latestTimestamp: Long) {
+        if (latestTimestamp <= 0L) return
+        val currentEnd = centerTime + visibleDuration / 2
+        val dist = kotlin.math.abs(lastAutoScrolledTimestamp - currentEnd)
+        val wasMonitoring = lastAutoScrolledTimestamp == 0L || dist < 60 * 60 * 1000L
+        if (wasMonitoring) {
+            centerTime = latestTimestamp - visibleDuration / 2
+            previewCenterTime = centerTime
+        }
+        lastAutoScrolledTimestamp = latestTimestamp
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isResumed = true
-                justResumed = true
 
                 val currentTime = System.currentTimeMillis()
+                val latestTimestamp = currentLatestDataTimestamp
                 // Check for 10-minute timeout (10 * 60 * 1000 = 600000 ms)
                 if (currentTime - lastActiveTime > 600000) {
                     // TIMEOUT EXCEEDED: Reset Graph State
-                    if (latestDataTimestamp > 0) {
-                        visibleDuration = (selectedTimeRange?.hours?.toLong() ?: 3L) * 60 * 60 * 1000
-                        lastAutoScrolledTimestamp = 0L // Reset auto-scroll memory
-                        centerTime = latestDataTimestamp - visibleDuration / 2 // Snap to live
+                    if (latestTimestamp > 0) {
+                        visibleDuration = (currentSelectedTimeRange?.hours?.toLong() ?: 3L) * 60 * 60 * 1000
+                        lastAutoScrolledTimestamp = 0L
+                        applyResumeBaseline(latestTimestamp)
                     }
+                } else if (
+                    latestTimestamp > lastAutoScrolledTimestamp &&
+                    latestTimestamp <= resumeAnimationBoundaryTimestampMs
+                ) {
+                    applyResumeBaseline(latestTimestamp)
                 }
             }
             else if (event == Lifecycle.Event.ON_PAUSE) {
@@ -890,12 +909,9 @@ fun InteractiveGlucoseChart(
             return@LaunchedEffect
         }
 
-        val viewportStart = centerTime - visibleDuration / 2
-        val viewportEnd = centerTime + visibleDuration / 2
-        val hasVisibleOverlap = latestDataTimestamp >= viewportStart && earliestDataTimestamp <= viewportEnd
         val switchedToOlderSeries = lastAutoScrolledTimestamp > 0L && latestDataTimestamp + 60_000L < lastAutoScrolledTimestamp
 
-        if (!hasVisibleOverlap || lastAutoScrolledTimestamp == 0L || switchedToOlderSeries) {
+        if (lastAutoScrolledTimestamp == 0L || switchedToOlderSeries) {
             centerTime = latestDataTimestamp - visibleDuration / 2
             previewCenterTime = centerTime
             lastAutoScrolledTimestamp = latestDataTimestamp
@@ -940,9 +956,6 @@ fun InteractiveGlucoseChart(
                 centerTime = latestDataTimestamp - visibleDuration / 2
             }
             lastAutoScrolledTimestamp = latestDataTimestamp
-
-            // Clear flag after processing the "Resume" frame
-            justResumed = false
         }
     }
 
@@ -1076,6 +1089,7 @@ fun InteractiveGlucoseChart(
     val currentSafeData by rememberUpdatedState(safeData)
     val currentInteractionData by rememberUpdatedState(interactionData)
     val currentViewMode by rememberUpdatedState(viewMode)
+    val currentCalibratedValueResolver by rememberUpdatedState(calibratedValueResolver)
 
     // --- DATA HELPER (Fixed Interpolation) ---
     fun getPointAt(timeAtTapRaw: Double): GlucosePoint? {
@@ -1335,9 +1349,9 @@ fun InteractiveGlucoseChart(
                                 if (timeDiff > 15 * 60 * 1000) false else {
                                     // When calibration is on and is primary, use calibrated value for touch target
                                     val isRawMode = currentViewMode == 1 || currentViewMode == 3
-                                    val hasCalibration = calibratedValueResolver.hasCalibration(isRawMode)
+                                    val hasCalibration = currentCalibratedValueResolver.hasCalibration(isRawMode)
                                     val v = if (hasCalibration) {
-                                        calibratedValueResolver.valueForPoint(pointAtTouch, isRawMode)
+                                        currentCalibratedValueResolver.valueForPoint(pointAtTouch, isRawMode)
                                     } else if (isRawMode) {
                                         pointAtTouch.rawValue
                                     } else {
