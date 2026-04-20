@@ -5,11 +5,13 @@ import tk.glucodata.SensorIdentity
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.AiDexManagedSensorIdentityAdapter
 import tk.glucodata.drivers.icanhealth.ICanHealthManagedSensorIdentityAdapter
+import tk.glucodata.drivers.mq.MQManagedSensorIdentityAdapter
 
 object ManagedSensorIdentityRegistry {
     val all: List<ManagedSensorIdentityAdapter> = listOf(
         AiDexManagedSensorIdentityAdapter,
         ICanHealthManagedSensorIdentityAdapter,
+        MQManagedSensorIdentityAdapter,
     )
 
     fun persistedSensorIds(context: Context): List<String> =

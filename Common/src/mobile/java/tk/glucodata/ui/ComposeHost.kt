@@ -974,6 +974,7 @@ fun DashboardScreen(
     var showCareSensAirWizard by remember { mutableStateOf(false) }
     var showAiDexWizard by remember { mutableStateOf(false) }
     var showICanHealthWizard by remember { mutableStateOf(false) }
+    var showMQWizard by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -1080,6 +1081,18 @@ fun DashboardScreen(
             onDismiss = { showICanHealthWizard = false },
             onComplete = {
                 showICanHealthWizard = false
+                viewModel.refreshData()
+            }
+        )
+        return
+    }
+
+    // MQ / Glutec Setup Wizard
+    if (showMQWizard) {
+        tk.glucodata.ui.setup.MQSetupWizard(
+            onDismiss = { showMQWizard = false },
+            onComplete = {
+                showMQWizard = false
                 viewModel.refreshData()
             }
         )
@@ -1475,6 +1488,7 @@ fun DashboardScreen(
                     tk.glucodata.ui.components.SensorType.CARESENS_AIR -> showCareSensAirWizard = true
                     tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
                     tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
+                    tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                 }
             },
                 onImportHistory = {
@@ -3102,7 +3116,8 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
     var showCareSensAirWizard by remember { mutableStateOf(false) }
     var showAiDexWizard by remember { mutableStateOf(false) }
     var showICanHealthWizard by remember { mutableStateOf(false) }
-    
+    var showMQWizard by remember { mutableStateOf(false) }
+
     // Sensor Type Picker Bottom Sheet
     if (showSensorPicker) {
         tk.glucodata.ui.components.SensorTypePicker(
@@ -3117,11 +3132,12 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                     tk.glucodata.ui.components.SensorType.CARESENS_AIR -> showCareSensAirWizard = true
                     tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
                     tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
+                    tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                 }
             }
         )
     }
-    
+
     // Sibionics Setup Wizard (Full Screen)
     if (showSibionicsWizard) {
         tk.glucodata.ui.setup.SibionicsSetupWizard(
@@ -3211,6 +3227,18 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
         return
     }
 
+    // MQ / Glutec Setup Wizard
+    if (showMQWizard) {
+        tk.glucodata.ui.setup.MQSetupWizard(
+            onDismiss = { showMQWizard = false },
+            onComplete = {
+                showMQWizard = false
+                viewModel.refreshSensors()
+            }
+        )
+        return
+    }
+
     // Use Box instead of Scaffold to avoid double padding from parent nav
     Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         if (sensors.isEmpty()) {
@@ -3239,6 +3267,7 @@ fun SensorScreen(viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewMode
                             tk.glucodata.ui.components.SensorType.CARESENS_AIR -> showCareSensAirWizard = true
                             tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
                             tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
+                            tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                         }
                     }
                 )
