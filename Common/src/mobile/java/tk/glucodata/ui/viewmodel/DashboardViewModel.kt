@@ -19,6 +19,11 @@ import tk.glucodata.Notify
 import tk.glucodata.SensorIdentity
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
+import tk.glucodata.data.journal.JournalEntry
+import tk.glucodata.data.journal.JournalEntryInput
+import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.journal.JournalInsulinPresetInput
+import tk.glucodata.data.journal.JournalRepository
 import tk.glucodata.alerts.AlertRepository
 import tk.glucodata.alerts.CustomAlertRepository
 import tk.glucodata.drivers.ManagedSensorRuntime
@@ -26,7 +31,8 @@ import tk.glucodata.drivers.ManagedSensorStatusPolicy
 import tk.glucodata.ui.util.resolveDashboardSensorStatus
 
 class DashboardViewModel(
-    private val glucoseRepository: GlucoseRepository = GlucoseRepository()
+    private val glucoseRepository: GlucoseRepository = GlucoseRepository(),
+    private val journalRepository: JournalRepository = JournalRepository()
 ) : ViewModel() {
     private data class HistoryEdgeSignature(
         val size: Int,
@@ -142,6 +148,15 @@ class DashboardViewModel(
     private val _previewWindowMode = MutableStateFlow(0)
     val previewWindowMode = _previewWindowMode.asStateFlow()
 
+    private val _journalEnabled = MutableStateFlow(false)
+    val journalEnabled = _journalEnabled.asStateFlow()
+
+    private val _journalEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
+    val journalEntries = _journalEntries.asStateFlow()
+
+    private val _journalInsulinPresets = MutableStateFlow<List<JournalInsulinPreset>>(emptyList())
+    val journalInsulinPresets = _journalInsulinPresets.asStateFlow()
+
     private val _lowAlarmSoundMode = MutableStateFlow(0)
     val lowAlarmSoundMode = _lowAlarmSoundMode.asStateFlow()
 
@@ -155,13 +170,51 @@ class DashboardViewModel(
     private var currentReadingJob: Job? = null
     private var historyJob: Job? = null
     private var uiRefreshJob: Job? = null
+    private var journalEntriesJob: Job? = null
+    private var journalPresetsJob: Job? = null
     private var activeHistoryMode: CollectionMode? = null
     private var activeHistoryStartTimeMs: Long? = null
 
     init {
+        _journalEnabled.value = readJournalEnabledPreference()
+        observeJournalState()
         // Keep initial UI boot light. Room backfill/targeted sensor sync now cover cold start,
         // so do not force a full native history rebuild during app startup.
         refreshData()
+    }
+
+    private fun observeJournalState() {
+        ensureJournalPresetsObserved()
+        if (_journalEnabled.value) {
+            ensureJournalEntriesObserved()
+        }
+    }
+
+    private fun ensureJournalEntriesObserved() {
+        if (journalEntriesJob?.isActive == true) return
+        journalEntriesJob = viewModelScope.launch {
+            journalRepository.observeEntries().collect { _journalEntries.value = it }
+        }
+    }
+
+    private fun stopJournalEntriesObservation() {
+        journalEntriesJob?.cancel()
+        journalEntriesJob = null
+        _journalEntries.value = emptyList()
+    }
+
+    private fun ensureJournalPresetsObserved() {
+        if (journalPresetsJob?.isActive == true) return
+        journalPresetsJob = viewModelScope.launch {
+            journalRepository.ensureDefaultInsulinPresets()
+            journalRepository.observeInsulinPresets().collect { _journalInsulinPresets.value = it }
+        }
+    }
+
+    private fun readJournalEnabledPreference(): Boolean {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        return prefs.getBoolean("dashboard_journal_enabled", false)
     }
     
     /**
@@ -295,6 +348,13 @@ class DashboardViewModel(
         _dataSmoothingGraphOnly.value = DataSmoothing.isGraphOnly(context)
         _dataSmoothingCollapseChunks.value = DataSmoothing.collapseChunks(context)
         _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
+        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", false)
+        _journalEnabled.value = journalEnabled
+        if (journalEnabled) {
+            ensureJournalEntriesObserved()
+        } else if (journalEntriesJob != null) {
+            stopJournalEntriesObservation()
+        }
 
         _targetLow.value = Natives.targetlow()
         _targetHigh.value = Natives.targethigh()
@@ -655,6 +715,42 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putInt("dashboard_chart_preview_window_mode", sanitized).apply()
         _previewWindowMode.value = sanitized
+    }
+
+    fun setJournalEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("dashboard_journal_enabled", enabled).apply()
+        _journalEnabled.value = enabled
+        if (enabled) {
+            ensureJournalEntriesObserved()
+        } else {
+            stopJournalEntriesObservation()
+        }
+    }
+
+    fun saveJournalEntry(input: JournalEntryInput) {
+        viewModelScope.launch {
+            journalRepository.upsertEntry(input)
+        }
+    }
+
+    fun deleteJournalEntry(entryId: Long) {
+        viewModelScope.launch {
+            journalRepository.deleteEntry(entryId)
+        }
+    }
+
+    fun saveJournalInsulinPreset(input: JournalInsulinPresetInput) {
+        viewModelScope.launch {
+            journalRepository.upsertInsulinPreset(input)
+        }
+    }
+
+    fun deleteJournalInsulinPreset(presetId: Long) {
+        viewModelScope.launch {
+            journalRepository.deleteInsulinPreset(presetId)
+        }
     }
 
     // Floating Glucose Logic

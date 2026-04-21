@@ -97,6 +97,8 @@ fun ExpressiveSettingsScreen(
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
+    val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val journalInsulinPresets by viewModel.journalInsulinPresets.collectAsState()
     val alertsSummary by viewModel.alertsSummary.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
@@ -242,6 +244,15 @@ fun ExpressiveSettingsScreen(
                     modeLabel = calibrationModeLabel,
                     onToggleEnabled = { CalibrationManager.setEnabledForMode(isRawCalibrationMode, it) },
                     onOpenCalibration = { navController.navigate("settings/calibrations") },
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE
+                )
+
+                JournalSettingsItem(
+                    journalEnabled = journalEnabled,
+                    activePresetCount = journalInsulinPresets.count { !it.isArchived },
+                    onToggleEnabled = { viewModel.setJournalEnabled(it) },
+                    onOpenJournal = { navController.navigate("settings/journal") },
                     iconTint = glucoseColor,
                     position = CardPosition.BOTTOM
                 )
@@ -783,6 +794,68 @@ private fun ManualCalibrationSettingsItem(
                 Spacer(modifier = Modifier.width(8.dp))
                 StyledSwitch(
                     checked = calibrationEnabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun JournalSettingsItem(
+    journalEnabled: Boolean,
+    activePresetCount: Int,
+    onToggleEnabled: (Boolean) -> Unit,
+    onOpenJournal: () -> Unit,
+    iconTint: Color,
+    position: CardPosition
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpenJournal,
+        shape = cardShape(position),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SettingsLeadingIcon(icon = Icons.Default.Vaccines, tint = iconTint)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.journal_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = stringResource(
+                        R.string.journal_settings_summary,
+                        stringResource(if (journalEnabled) R.string.enabled_status else R.string.disabled_status),
+                        activePresetCount
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                VerticalDivider(
+                    modifier = Modifier.height(30.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                StyledSwitch(
+                    checked = journalEnabled,
                     onCheckedChange = onToggleEnabled
                 )
             }

@@ -1103,11 +1103,12 @@ class SensorViewModel : ViewModel() {
         }
     }
 
-    fun fetchMqBootstrap(serial: String, qrCode: String?, account: String?, password: String?) {
+    fun fetchMqBootstrap(serial: String, qrCode: String?, account: String?, password: String?, apiBaseUrl: String?) {
         val context = Applic.app ?: return
         val gatts = SensorBluetooth.mygatts()
         val gatt = gatts.find { it.SerialNumber == serial }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            MQRegistry.saveApiBaseUrl(context, apiBaseUrl)
             if (gatt is MQDriver) {
                 val success = gatt.refreshVendorBootstrap(
                     context = context,

@@ -5,7 +5,6 @@ package tk.glucodata.ui
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -49,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import tk.glucodata.R
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.data.journal.JournalEntry
+import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.ui.journal.buildJournalChartMarkers
 import tk.glucodata.ui.stats.StatsDateRange
 import tk.glucodata.ui.stats.StatsDateRangePickerHeadline
 import tk.glucodata.ui.stats.StatsRangeSelectorControl
@@ -63,12 +65,20 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 private data class HistoryDateSection(
     val date: LocalDate,
     val label: String,
     val points: List<GlucosePoint>
 )
+
+enum class TimelineBrowseMode {
+    HISTORY,
+    JOURNAL
+}
 
 private fun List<GlucosePoint>.sliceByTimestampRange(startMillis: Long, endMillis: Long): List<GlucosePoint> {
     if (isEmpty()) return emptyList()
@@ -144,6 +154,43 @@ private fun buildHistorySections(points: List<GlucosePoint>): List<HistoryDateSe
     return sections
 }
 
+fun groupJournalEntriesByReading(
+    points: List<GlucosePoint>,
+    entries: List<JournalEntry>,
+    maxDistanceMillis: Long = 20L * 60L * 1000L
+): Map<Long, List<JournalEntry>> {
+    if (points.isEmpty() || entries.isEmpty()) return emptyMap()
+    val sortedPoints = points.sortedBy { it.timestamp }
+    val grouped = linkedMapOf<Long, MutableList<JournalEntry>>()
+
+    entries.forEach { entry ->
+        val insertionIndex = sortedPoints.binarySearchBy(entry.timestamp) { it.timestamp }
+            .let { if (it >= 0) it else (-it - 1) }
+            .coerceIn(0, sortedPoints.lastIndex)
+
+        var closestPoint: GlucosePoint? = null
+        var closestDistance = Long.MAX_VALUE
+
+        for (candidateIndex in max(0, insertionIndex - 1)..min(sortedPoints.lastIndex, insertionIndex + 1)) {
+            val candidate = sortedPoints[candidateIndex]
+            val distance = abs(candidate.timestamp - entry.timestamp)
+            if (distance < closestDistance) {
+                closestPoint = candidate
+                closestDistance = distance
+            }
+        }
+
+        val targetPoint = closestPoint ?: return@forEach
+        if (closestDistance <= maxDistanceMillis) {
+            grouped.getOrPut(targetPoint.timestamp) { mutableListOf() }.add(entry)
+        }
+    }
+
+    return grouped.mapValues { (_, groupedEntries) ->
+        groupedEntries.sortedByDescending { it.timestamp }
+    }
+}
+
 @Composable
 fun HistoryBrowseScreen(
     glucoseHistory: List<GlucosePoint>,
@@ -156,12 +203,19 @@ fun HistoryBrowseScreen(
     collapseSmoothedData: Boolean,
     previewWindowMode: Int,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity>,
-    onBack: () -> Unit,
-    onPointClick: ((GlucosePoint) -> Unit)? = null
+    title: String,
+    browseMode: TimelineBrowseMode = TimelineBrowseMode.HISTORY,
+    journalEntries: List<JournalEntry> = emptyList(),
+    journalInsulinPresets: List<JournalInsulinPreset> = emptyList(),
+    onBack: (() -> Unit)? = null,
+    onPointClick: ((GlucosePoint) -> Unit)? = null,
+    onJournalEntryClick: ((JournalEntry) -> Unit)? = null,
+    showTransferActions: Boolean = true
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val sortedHistory = remember(glucoseHistory) { glucoseHistory.sortedBy { it.timestamp } }
+    val journalPresetsById = remember(journalInsulinPresets) { journalInsulinPresets.associateBy { it.id } }
     val availableRange = remember(sortedHistory) {
         if (sortedHistory.isEmpty()) {
             null
@@ -196,11 +250,31 @@ fun HistoryBrowseScreen(
     val activeHistory = remember(sortedHistory, activeRange) {
         activeRange?.let { sortedHistory.sliceByTimestampRange(it.startMillis, it.endMillis) } ?: sortedHistory
     }
+    val activeJournalEntries = remember(journalEntries, activeRange) {
+        activeRange?.let { range ->
+            journalEntries.filter { entry -> entry.timestamp in range.startMillis..range.endMillis }
+        } ?: journalEntries
+    }
+    val journalEntriesByPoint = remember(activeHistory, activeJournalEntries) {
+        groupJournalEntriesByReading(activeHistory, activeJournalEntries)
+    }
     val initialViewportPoints = remember(activeHistory, selectedChartRange) {
         defaultViewportPoints(activeHistory, selectedChartRange)
     }
     val viewportPoints = viewportSnapshot?.visiblePoints ?: initialViewportPoints
-    val visibleSections = remember(viewportPoints) { buildHistorySections(viewportPoints) }
+    val visibleTimelinePoints = remember(viewportPoints, journalEntriesByPoint, browseMode) {
+        when (browseMode) {
+            TimelineBrowseMode.HISTORY -> viewportPoints
+            TimelineBrowseMode.JOURNAL -> viewportPoints.filter { point ->
+                !journalEntriesByPoint[point.timestamp].isNullOrEmpty()
+            }
+        }
+    }
+    val visibleSections = remember(visibleTimelinePoints) { buildHistorySections(visibleTimelinePoints) }
+    val journalMarkers = remember(activeJournalEntries, journalPresetsById, unit) {
+        buildJournalChartMarkers(activeJournalEntries, journalPresetsById, unit)
+    }
+    val journalEntriesById = remember(activeJournalEntries) { activeJournalEntries.associateBy { it.id } }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -231,31 +305,35 @@ fun HistoryBrowseScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.historyname),
+                        text = title,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null
-                        )
+                    onBack?.let { handleBack ->
+                        IconButton(onClick = handleBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null
+                            )
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showExportSheet = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.CloudUpload,
-                            contentDescription = stringResource(R.string.export_data)
-                        )
-                    }
-                    IconButton(onClick = { importLauncher.launch(arrayOf("text/csv", "text/plain", "*/*")) }) {
-                        Icon(
-                            imageVector = Icons.Filled.FolderOpen,
-                            contentDescription = stringResource(R.string.import_data)
-                        )
+                    if (showTransferActions) {
+                        IconButton(onClick = { showExportSheet = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.CloudUpload,
+                                contentDescription = stringResource(R.string.export_data)
+                            )
+                        }
+                        IconButton(onClick = { importLauncher.launch(arrayOf("text/csv", "text/plain", "*/*")) }) {
+                            Icon(
+                                imageVector = Icons.Filled.FolderOpen,
+                                contentDescription = stringResource(R.string.import_data)
+                            )
+                        }
                     }
                 }
             )
@@ -307,6 +385,7 @@ fun HistoryBrowseScreen(
                             .fillMaxWidth()
                             .height(420.dp),
                         glucoseHistory = activeHistory,
+                        journalMarkers = journalMarkers,
                         graphSmoothingMinutes = graphSmoothingMinutes,
                         collapseSmoothedData = collapseSmoothedData,
                         previewWindowMode = previewWindowMode,
@@ -322,6 +401,9 @@ fun HistoryBrowseScreen(
                         onToggleExpanded = null,
                         onPointClick = onPointClick,
                         onCalibrationClick = null,
+                        onJournalMarkerClick = { entryId ->
+                            journalEntriesById[entryId]?.let { onJournalEntryClick?.invoke(it) }
+                        },
                         onViewportSnapshotChanged = { viewportSnapshot = it }
                     )
                 }
@@ -336,7 +418,13 @@ fun HistoryBrowseScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = stringResource(R.string.no_data_available),
+                            text = stringResource(
+                                if (browseMode == TimelineBrowseMode.JOURNAL) {
+                                    R.string.journal_empty
+                                } else {
+                                    R.string.no_data_available
+                                }
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -371,15 +459,16 @@ fun HistoryBrowseScreen(
                             sensorId = sensorId,
                             calibrations = calibrations,
                             highlightLeadRow = false,
+                            journalEntries = journalEntriesByPoint[item.timestamp].orEmpty(),
+                            journalPresetsById = journalPresetsById,
+                            onJournalEntryClick = onJournalEntryClick,
                             isGroupStart = index == 0,
                             isGroupEnd = index == section.points.lastIndex,
                             dividerHorizontalInset = 0.dp,
+                            onValueClick = { onPointClick?.invoke(item) },
                             modifier = Modifier
                                 .padding(horizontal = 16.dp)
                                 .animateItem()
-                                .clickable(enabled = onPointClick != null) {
-                                    onPointClick?.invoke(item)
-                                }
                         )
                     }
                 }
@@ -446,7 +535,7 @@ fun HistoryBrowseScreen(
         }
     }
 
-    if (showExportSheet) {
+    if (showExportSheet && showTransferActions) {
         HistoryExportSheet(
             onDismiss = { showExportSheet = false },
             sheetState = rememberModalBottomSheetState()

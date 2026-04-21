@@ -58,10 +58,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.automirrored.filled.LastPage
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Bloodtype
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -127,9 +132,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.R
-import kotlin.math.abs
 import tk.glucodata.DataSmoothing
+import tk.glucodata.data.journal.JournalActiveInsulinSummary
+import tk.glucodata.data.journal.JournalChartMarker
+import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.ui.getDisplayValues
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private const val PREVIEW_WINDOW_MODE_EXPANDED_ONLY = 0
 private const val PREVIEW_WINDOW_MODE_ALWAYS = 1
@@ -529,6 +538,8 @@ private fun List<GlucosePoint>.sliceByTimestampRange(startMillis: Long, endMilli
 fun DashboardChartSection(
     modifier: Modifier,
     glucoseHistory: List<GlucosePoint>,
+    journalMarkers: List<JournalChartMarker> = emptyList(),
+    activeInsulinSummary: JournalActiveInsulinSummary? = null,
     graphSmoothingMinutes: Int = 0,
     collapseSmoothedData: Boolean = false,
     previewWindowMode: Int = 0,
@@ -545,6 +556,9 @@ fun DashboardChartSection(
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
+    onTimelineTap: ((Long) -> Unit)? = null,
+    journalActionTimestamp: Long? = null,
+    onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
@@ -554,6 +568,8 @@ fun DashboardChartSection(
                 if (glucoseHistory.isNotEmpty()) {
                     InteractiveGlucoseChart(
                         fullData = glucoseHistory,
+                        journalMarkers = journalMarkers,
+                        activeInsulinSummary = activeInsulinSummary,
                         graphSmoothingMinutes = graphSmoothingMinutes,
                         collapseSmoothedData = collapseSmoothedData,
                         previewWindowMode = previewWindowMode,
@@ -570,6 +586,9 @@ fun DashboardChartSection(
                         onToggleExpanded = onToggleExpanded,
                         onPointClick = onPointClick,
                         onCalibrationClick = onCalibrationClick,
+                        onTimelineTap = onTimelineTap,
+                        journalActionTimestamp = journalActionTimestamp,
+                        onJournalMarkerClick = onJournalMarkerClick,
                         chartBoostProgress = chartBoostProgress,
                         onViewportSnapshotChanged = onViewportSnapshotChanged
                     )
@@ -602,6 +621,8 @@ fun DashboardChartSection(
 @Composable
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
+    journalMarkers: List<JournalChartMarker> = emptyList(),
+    activeInsulinSummary: JournalActiveInsulinSummary? = null,
     graphSmoothingMinutes: Int = 0,
     collapseSmoothedData: Boolean = false,
     previewWindowMode: Int = 0,
@@ -619,6 +640,9 @@ fun InteractiveGlucoseChart(
     onToggleExpanded: (() -> Unit)? = null,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
+    onTimelineTap: ((Long) -> Unit)? = null,
+    journalActionTimestamp: Long? = null,
+    onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
@@ -957,6 +981,7 @@ fun InteractiveGlucoseChart(
     var selectedPoint by remember { mutableStateOf<GlucosePoint?>(null) }
     var isScrubbing by remember { mutableStateOf(false) } // Touching the line?
     var lastScrubHapticTimestamp by remember { mutableLongStateOf(Long.MIN_VALUE) }
+    var isActiveInsulinExpanded by rememberSaveable { mutableStateOf(false) }
 
     // Auto-dismiss selection if off-screen (User Request)
     LaunchedEffect(centerTime, visibleDuration, selectedPoint) {
@@ -1487,8 +1512,15 @@ fun InteractiveGlucoseChart(
                                                 pointAtTouch.timestamp == currentSafeData.lastOrNull()?.timestamp &&
                                                 timeAtTouch > pointAtTouch.timestamp
 
-                                        if (isFutureTap) selectedPoint =
-                                            pointAtTouch else selectedPoint = null
+                                        if (isFutureTap) {
+                                            selectedPoint = pointAtTouch
+                                        } else {
+                                            if (selectedPoint != null) {
+                                                selectedPoint = null
+                                            } else if (down.position.y <= chartHeight) {
+                                                onTimelineTap?.invoke(timeAtTouch.toLong())
+                                            }
+                                        }
                                     }
                                 } else if (!isOneFingerZoom) {
                                     // FLING - simple defaults
@@ -2099,6 +2131,74 @@ fun InteractiveGlucoseChart(
                     }
                 }
 
+                val visibleJournalMarkers = journalMarkers.filter { marker ->
+                    val bandStart = marker.activeStartMillis ?: marker.timestamp
+                    val bandEnd = marker.activeEndMillis ?: marker.timestamp
+                    bandEnd >= viewportStart && bandStart <= viewportEnd
+                }
+                if (visibleJournalMarkers.isNotEmpty()) {
+                    val curveHeight = 18.dp.toPx()
+                    val strokeWidth = 2.dp.toPx()
+                    val offscreenPaddingPx = 32.dp.toPx()
+                    val curveBottomInset = 10.dp.toPx()
+                    val curveLaneOffset = 8.dp.toPx()
+
+                    visibleJournalMarkers.forEachIndexed { markerIndex, marker ->
+                        val tint = Color(marker.accentColor)
+                        val startTime = marker.activeStartMillis ?: marker.timestamp
+                        val endTime = marker.activeEndMillis ?: marker.timestamp
+                        val lane = markerIndex % 3
+                        val curveBaseY = (chartHeight - curveBottomInset - (lane * curveLaneOffset)).coerceAtLeast(18.dp.toPx())
+                        val markerX = timeToDataX(marker.timestamp)
+
+                        if (marker.curvePoints.isNotEmpty() && endTime > startTime) {
+                            val path = Path()
+                            val fillPath = Path()
+                            marker.curvePoints.forEachIndexed { index, point ->
+                                val pointTime = marker.timestamp + (point.minute * 60_000L)
+                                val x = timeToDataX(pointTime).coerceIn(-offscreenPaddingPx, dataWidth + offscreenPaddingPx)
+                                val y = curveBaseY - (point.activity.coerceIn(0f, 1f) * curveHeight)
+                                if (index == 0) {
+                                    path.moveTo(x, y)
+                                    fillPath.moveTo(x, curveBaseY)
+                                    fillPath.lineTo(x, y)
+                                } else {
+                                    path.lineTo(x, y)
+                                    fillPath.lineTo(x, y)
+                                }
+                            }
+                            fillPath.lineTo(timeToDataX(endTime).coerceIn(-offscreenPaddingPx, dataWidth + offscreenPaddingPx), curveBaseY)
+                            fillPath.close()
+                            drawPath(fillPath, tint.copy(alpha = 0.14f))
+                            drawPath(path, tint, style = Stroke(width = strokeWidth))
+                        } else if (markerX in 0f..dataWidth) {
+                            drawCircle(
+                                color = tint,
+                                radius = 4.dp.toPx(),
+                                center = Offset(markerX, curveBaseY - 2.dp.toPx())
+                            )
+                        }
+                    }
+                }
+
+                if (journalActionTimestamp != null && selectedPoint == null && journalActionTimestamp in viewportStart..viewportEnd) {
+                    val actionX = timeToDataX(journalActionTimestamp)
+                    if (actionX in 0f..width) {
+                        drawLine(
+                            color = primaryColor.copy(alpha = 0.3f),
+                            start = Offset(actionX, 0f),
+                            end = Offset(actionX, chartHeight),
+                            strokeWidth = 1.5.dp.toPx(),
+                            pathEffect = dashEffect
+                        )
+                        drawCircle(
+                            color = primaryColor.copy(alpha = 0.92f),
+                            radius = 4.dp.toPx(),
+                            center = Offset(actionX, chartHeight - 12.dp.toPx())
+                        )
+                    }
+                }
+
                 // --- 7. CURSOR ---
                 val cursorX = selectedPoint?.let { timeToDataX(it.timestamp) }
                 if (cursorX != null && cursorX in 0f..width) {
@@ -2138,6 +2238,164 @@ fun InteractiveGlucoseChart(
             // --- INFO CARD ---
             val overlayRightPaddingPx = 16f * density * safeExpandedProgress
             val overlayDataWidthPx = (constraints.maxWidth.toFloat() - overlayRightPaddingPx).coerceAtLeast(1f)
+            val overlayViewportStart = centerTime - visibleDuration / 2
+            val overlayViewportEnd = centerTime + visibleDuration / 2
+            val journalChipLaneStepPx = with(LocalDensity.current) { 26.dp.toPx() }
+            val journalChipTopInsetPx = with(LocalDensity.current) { 18.dp.toPx() }
+            val journalChipMinTopPx = with(LocalDensity.current) { 8.dp.toPx() }
+            val journalActionChipYOffsetPx = with(LocalDensity.current) { (chartHeightPx - 34.dp.toPx()).coerceAtLeast(12.dp.toPx()) }
+
+            journalMarkers
+                .filter { marker -> marker.timestamp in overlayViewportStart..overlayViewportEnd }
+                .forEachIndexed { markerIndex, marker ->
+                    val lane = markerIndex % 3
+                    val xFraction = (marker.timestamp - overlayViewportStart).toFloat() / visibleDuration.toFloat()
+                    val markerX = (overlayDataWidthPx * xFraction).coerceIn(0f, overlayDataWidthPx)
+                    val markerTop = (chartHeightPx - ((lane + 1) * journalChipLaneStepPx) - journalChipTopInsetPx)
+                        .coerceAtLeast(journalChipMinTopPx)
+                    JournalMarkerChip(
+                        marker = marker,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .zIndex(1.5f)
+                            .offset {
+                                androidx.compose.ui.unit.IntOffset(
+                                    x = markerX.toInt(),
+                                    y = markerTop.toInt()
+                                )
+                            }
+                            .graphicsLayer { translationX = -size.width / 2f },
+                        onClick = { onJournalMarkerClick?.invoke(marker.entryId) }
+                    )
+                }
+
+            journalActionTimestamp
+                ?.takeIf { selectedPoint == null && it in overlayViewportStart..overlayViewportEnd }
+                ?.let { actionTimestamp ->
+                    val xFraction = (actionTimestamp - overlayViewportStart).toFloat() / visibleDuration.toFloat()
+                    val actionX = (overlayDataWidthPx * xFraction).coerceIn(0f, overlayDataWidthPx)
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .zIndex(1.45f)
+                            .offset {
+                                androidx.compose.ui.unit.IntOffset(
+                                    x = actionX.toInt(),
+                                    y = journalActionChipYOffsetPx.toInt()
+                                )
+                            }
+                            .graphicsLayer { translationX = -size.width / 2f },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.94f),
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccessTime,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                                    .format(java.util.Date(actionTimestamp)),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+            activeInsulinSummary?.let { summary ->
+                val totalUnitsLabel = if (summary.totalUnits % 1f < 0.05f) {
+                    summary.totalUnits.roundToInt().toString()
+                } else {
+                    String.format(java.util.Locale.getDefault(), "%.1f", summary.totalUnits)
+                }
+                val remainingLabel = summary.nextEndingAt
+                    ?.let { formatRemainingDuration(it - System.currentTimeMillis()) }
+                    ?.takeIf { it.isNotBlank() }
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 12.dp, top = 12.dp)
+                        .zIndex(1.6f)
+                        .clickable { isActiveInsulinExpanded = !isActiveInsulinExpanded },
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${totalUnitsLabel}U",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${summary.weightedActivityPercent}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            remainingLabel?.let { label ->
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Icon(
+                                    imageVector = Icons.Default.AccessTime,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        AnimatedVisibility(visible = isActiveInsulinExpanded) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = stringResource(R.string.journal_active_insulin),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = stringResource(
+                                        R.string.journal_active_insulin_summary,
+                                        summary.activeEntryCount,
+                                        totalUnitsLabel,
+                                        summary.weightedActivityPercent
+                                    ),
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                summary.nextEndingAt?.let { nextEndingAt ->
+                                    Text(
+                                        text = stringResource(
+                                            R.string.journal_active_insulin_until,
+                                            java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                                                .format(java.util.Date(nextEndingAt))
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             selectedPoint?.let { point ->
                 // Calculate X position to follow cursor
@@ -2845,4 +3103,61 @@ fun InteractiveGlucoseChart(
             DatePicker(state = datePickerState)
         }
     }
+}
+
+@Composable
+private fun JournalMarkerChip(
+    marker: JournalChartMarker,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val tint = Color(marker.accentColor)
+    Surface(
+        modifier = modifier,
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(24.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = tint.copy(alpha = 0.18f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = when (marker.type) {
+                            JournalEntryType.INSULIN -> Icons.Default.Vaccines
+                            JournalEntryType.CARBS -> Icons.Default.Restaurant
+                            JournalEntryType.FINGERSTICK -> Icons.Default.Bloodtype
+                            JournalEntryType.ACTIVITY -> Icons.Default.DirectionsRun
+                            JournalEntryType.NOTE -> Icons.AutoMirrored.Filled.Label
+                        },
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = marker.detailText.ifBlank { marker.title.take(10) },
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+private fun formatRemainingDuration(remainingMillis: Long): String {
+    if (remainingMillis <= 0L) return ""
+    val totalMinutes = (remainingMillis / 60_000L).coerceAtLeast(0L)
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+    return String.format(java.util.Locale.getDefault(), "%02d:%02d", hours, minutes)
 }
