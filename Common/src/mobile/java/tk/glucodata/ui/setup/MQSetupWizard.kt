@@ -1,7 +1,7 @@
 // JugglucoNG — MQ/Glutec Setup Wizard
 // BLE-scan onboarding: scan for Nordic UART advertisers, let the user pick a
-// transmitter, register it via MQRegistry, and optionally capture the vendor
-// login needed to refresh bootstrap tokens when the Glutec backend expires them.
+// transmitter, register it via MQRegistry, and optionally use the shared
+// MQ / Glutec account layer for vendor bootstrap.
 
 package tk.glucodata.ui.setup
 
@@ -25,11 +25,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -57,24 +57,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
 import tk.glucodata.Log
 import tk.glucodata.R
 import tk.glucodata.drivers.mq.MQBootstrapClient
 import tk.glucodata.drivers.mq.MQConstants
 import tk.glucodata.drivers.mq.MQRegistry
+import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.ui.util.BleDeviceScanner
 import tk.glucodata.ui.util.rememberBleScanner
 
@@ -97,7 +95,8 @@ private data class MQScanCandidate(
 @Composable
 fun MQSetupWizard(
     onDismiss: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    onManageAccount: () -> Unit,
 ) {
     val tag = "MQSetupWizard"
     val ui = rememberWizardUiMetrics()
@@ -106,9 +105,6 @@ fun MQSetupWizard(
     var currentStep by remember { mutableStateOf(MQSetupStep.SCAN) }
     var selectedLabel by remember { mutableStateOf("") }
     var qrCodeContent by remember { mutableStateOf("") }
-    var authPhone by remember { mutableStateOf(MQRegistry.loadAuthPhone(context).orEmpty()) }
-    var authPassword by remember { mutableStateOf(MQRegistry.loadAuthPassword(context).orEmpty()) }
-    var apiBaseUrl by remember { mutableStateOf(MQRegistry.loadApiBaseUrl(context)) }
     var showManualQrEntry by remember { mutableStateOf(false) }
 
     if (showManualQrEntry) {
@@ -154,14 +150,9 @@ fun MQSetupWizard(
                 MQSetupStep.SCAN -> MQScanStep(
                     ui = ui,
                     qrCodeContent = qrCodeContent,
-                    authPhone = authPhone,
-                    authPassword = authPassword,
-                    apiBaseUrl = apiBaseUrl,
                     onQrCodeChanged = { qrCodeContent = normalizeMqQrCode(it) },
-                    onAuthPhoneChanged = { authPhone = it },
-                    onAuthPasswordChanged = { authPassword = it },
-                    onApiBaseUrlChanged = { apiBaseUrl = it },
                     onShowManualQrEntry = { showManualQrEntry = true },
+                    onManageAccount = onManageAccount,
                     onDeviceSelected = { candidate ->
                         val addressCanonical = candidate.address
                         selectedLabel = candidate.displayName.ifBlank { addressCanonical }
@@ -169,18 +160,11 @@ fun MQSetupWizard(
                         scope.launch {
                             try {
                                 val normalizedQr = normalizeMqQrCode(qrCodeContent).takeIf { it.isNotBlank() }
-                                val normalizedPhone = authPhone.trim()
-                                val password = authPassword
-                                if (normalizedPhone.isNotEmpty() && password.isNotBlank()) {
-                                    MQRegistry.saveAuthCredentials(context, normalizedPhone, password)
-                                }
-                                MQRegistry.saveApiBaseUrl(context, apiBaseUrl)
-                                val storedToken = MQRegistry.loadAuthToken(context)
-                                val storedCredentials = MQRegistry.loadAuthCredentials(context)
+                                val accountState = MQRegistry.loadAccountState(context)
                                 val shouldAttemptVendorRestore =
                                     normalizedQr != null ||
-                                        !storedToken.isNullOrBlank() ||
-                                        storedCredentials != null
+                                        accountState.hasToken ||
+                                        accountState.hasCredentials
                                 val bootstrapConfig = if (shouldAttemptVendorRestore) {
                                     withContext(Dispatchers.IO) {
                                         runCatching {
@@ -188,8 +172,8 @@ fun MQSetupWizard(
                                                 context = context,
                                                 bleId = addressCanonical,
                                                 qrCode = normalizedQr,
-                                                authToken = storedToken,
-                                                credentials = storedCredentials,
+                                                authToken = accountState.authToken,
+                                                credentials = accountState.credentials,
                                             )
                                             result.refreshedToken?.let { MQRegistry.saveAuthToken(context, it) }
                                             result.config
@@ -259,20 +243,12 @@ fun MQSetupWizard(
 private fun MQScanStep(
     ui: WizardUiMetrics,
     qrCodeContent: String,
-    authPhone: String,
-    authPassword: String,
-    apiBaseUrl: String,
     onQrCodeChanged: (String) -> Unit,
-    onAuthPhoneChanged: (String) -> Unit,
-    onAuthPasswordChanged: (String) -> Unit,
-    onApiBaseUrlChanged: (String) -> Unit,
     onShowManualQrEntry: () -> Unit,
+    onManageAccount: () -> Unit,
     onDeviceSelected: (MQScanCandidate) -> Unit,
 ) {
     val context = LocalContext.current
-    val phoneLabel = stringResource(R.string.phone).replaceFirstChar {
-        if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
-    }
     var devices by remember { mutableStateOf<List<MQScanCandidate>>(emptyList()) }
     val scanner = rememberBleScanner()
     var scanPermissionGranted by remember { mutableStateOf(hasBleScanPermissions(context)) }
@@ -281,7 +257,6 @@ private fun MQScanStep(
     var scanError by remember { mutableStateOf<BleDeviceScanner.ScanStartError?>(null) }
     var requestedPermissionOnce by remember { mutableStateOf(false) }
     var showAllDevices by remember { mutableStateOf(false) }
-    var showPassword by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
@@ -454,56 +429,21 @@ private fun MQScanStep(
                             Text(stringResource(R.string.enter_code_manually))
                         }
                         Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = stringResource(R.string.mq_bootstrap_dialog_title),
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        Text(
-                            text = stringResource(R.string.mq_fetch_calibration_on_add_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = authPhone,
-                            onValueChange = onAuthPhoneChanged,
+                        val accountState = MQRegistry.loadAccountState(context)
+                        val accountSubtitle = when {
+                            accountState.hasToken -> stringResource(R.string.mq_account_status_signed_in)
+                            accountState.hasCredentials -> stringResource(R.string.mq_account_status_saved)
+                            else -> stringResource(R.string.mq_account_linked_desc)
+                        }
+                        SettingsItem(
+                            title = stringResource(R.string.mq_account_title),
+                            subtitle = accountSubtitle,
+                            showArrow = true,
+                            icon = Icons.Default.Cloud,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            position = CardPosition.SINGLE,
+                            onClick = onManageAccount,
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text(phoneLabel) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = authPassword,
-                            onValueChange = onAuthPasswordChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text(stringResource(R.string.password)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                IconButton(onClick = { showPassword = !showPassword }) {
-                                    Icon(
-                                        imageVector = if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                        contentDescription = if (showPassword) {
-                                            stringResource(R.string.hide_password)
-                                        } else {
-                                            stringResource(R.string.show_password)
-                                        },
-                                    )
-                                }
-                            },
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = apiBaseUrl,
-                            onValueChange = onApiBaseUrlChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text(stringResource(R.string.mq_api_url_label)) },
-                            singleLine = true,
-                            supportingText = {
-                                Text(stringResource(R.string.mq_api_url_desc))
-                            },
                         )
                     }
                 }
