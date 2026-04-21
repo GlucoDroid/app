@@ -404,6 +404,18 @@ class AiDexRuntimePolicyTests {
                 bondDataRead = false,
             )
         )
+        assertTrue(
+            AiDexRuntimePolicy.shouldAdvanceBondedReconnectToKeyExchange(
+                phase = AiDexBleManager.Phase.CCCD_CHAIN,
+                bondState = BluetoothDevice.BOND_BONDED,
+                keyExchangePendingBond = false,
+                cccdQueueEmpty = true,
+                cccdWriteInProgress = true,
+                cccdChainComplete = false,
+                challengeWritten = false,
+                bondDataRead = false,
+            )
+        )
         assertFalse(
             AiDexRuntimePolicy.shouldAdvanceBondedReconnectToKeyExchange(
                 phase = AiDexBleManager.Phase.CCCD_CHAIN,
