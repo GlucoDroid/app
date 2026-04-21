@@ -22,10 +22,16 @@ import tk.glucodata.data.journal.JournalInsulinPresetEntity
  *   v5 — dashboard journal entries and insulin presets
  *   v6 — insulin preset curves for richer activity modeling
  *   v7 — per-preset active-insulin participation flag
+ *   v8 — per-reading delete tombstones to keep manual Room deletes durable
  */
 @Database(
-    entities = [HistoryReading::class, JournalEntryEntity::class, JournalInsulinPresetEntity::class],
-    version = 7,
+    entities = [
+        HistoryReading::class,
+        DeletedHistoryReading::class,
+        JournalEntryEntity::class,
+        JournalInsulinPresetEntity::class
+    ],
+    version = 8,
     exportSchema = false
 )
 abstract class HistoryDatabase : RoomDatabase() {
@@ -138,6 +144,25 @@ abstract class HistoryDatabase : RoomDatabase() {
                 db.execSQL("UPDATE journal_insulin_presets SET countsTowardIob = 0 WHERE sortOrder IN (1, 10)")
             }
         }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS history_deleted_readings (
+                        timestamp INTEGER NOT NULL,
+                        sensorSerial TEXT NOT NULL,
+                        deletedAt INTEGER NOT NULL,
+                        PRIMARY KEY(timestamp, sensorSerial)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_history_deleted_readings_sensorSerial " +
+                        "ON history_deleted_readings (sensorSerial)"
+                )
+            }
+        }
         
         fun getInstance(context: Context): HistoryDatabase =
             INSTANCE ?: synchronized(this) {
@@ -146,7 +171,14 @@ abstract class HistoryDatabase : RoomDatabase() {
                     HistoryDatabase::class.java,
                     "glucose_history.db"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8
+                )
                 .fallbackToDestructiveMigration()  // Fallback if migration chain is broken
                 .build().also { INSTANCE = it }
             }

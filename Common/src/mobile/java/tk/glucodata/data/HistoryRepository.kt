@@ -46,6 +46,7 @@ class HistoryRepository(context: Context = Applic.app) {
     companion object {
         private const val TAG = "HistoryRepo"
         private const val SENSOR_MINUTE_BUCKET_MS = 60_000L
+        private const val DELETED_TIMESTAMP_QUERY_CHUNK = 900
         private val TIME_FORMATTER = object : ThreadLocal<SimpleDateFormat>() {
             override fun initialValue(): SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         }
@@ -293,6 +294,10 @@ class HistoryRepository(context: Context = Applic.app) {
         )
         withContext(Dispatchers.IO) {
             try {
+                if (dao.isReadingDeleted(serial, timestamp) > 0) {
+                    Log.d(TAG, "Skipped tombstoned reading for $serial at $timestamp")
+                    return@withContext
+                }
                 dao.insert(reading)
             } catch (e: Exception) {
                 Log.e(TAG, "Error storing reading", e)
@@ -343,11 +348,16 @@ class HistoryRepository(context: Context = Applic.app) {
         
         withContext(Dispatchers.IO) {
             try {
-                dao.insertAll(readings)
-                BatteryTrace.bump("room.history.insert_batch", logEvery = 20L, detail = "size=${readings.size}")
+                val filteredReadings = filterDeletedReadings(readings)
+                if (filteredReadings.isEmpty()) {
+                    Log.d(TAG, "Skipped ${readings.size} tombstoned readings")
+                    return@withContext
+                }
+                dao.insertAll(filteredReadings)
+                BatteryTrace.bump("room.history.insert_batch", logEvery = 20L, detail = "size=${filteredReadings.size}")
                 // Only log small batches (likely genuine new data, not re-syncs)
-                if (readings.size <= 10) {
-                    Log.d(TAG, "Stored ${readings.size} readings")
+                if (filteredReadings.size <= 10) {
+                    Log.d(TAG, "Stored ${filteredReadings.size} readings")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error storing readings batch", e)
@@ -366,13 +376,18 @@ class HistoryRepository(context: Context = Applic.app) {
         bucketDurationMs: Long,
     ) {
         if (sensorSerial.isBlank() || readings.isEmpty()) return
-        val plan = HistoryBucketReplacement.plan(
-            readings = readings,
-            bucketDurationMs = bucketDurationMs,
-        ) ?: return
 
         withContext(Dispatchers.IO) {
             try {
+                val filteredReadings = filterDeletedReadings(readings)
+                if (filteredReadings.isEmpty()) {
+                    Log.d(TAG, "Skipped bucket replace for $sensorSerial — all readings were tombstoned")
+                    return@withContext
+                }
+                val plan = HistoryBucketReplacement.plan(
+                    readings = filteredReadings,
+                    bucketDurationMs = bucketDurationMs,
+                ) ?: return@withContext
                 database.withTransaction {
                     dao.deleteConflictingSensorRowsForBuckets(
                         sensorSerial = sensorSerial,
@@ -380,16 +395,41 @@ class HistoryRepository(context: Context = Applic.app) {
                         bucketIds = plan.bucketIds,
                         protectedTimestamps = plan.protectedTimestamps
                     )
-                    dao.insertAll(readings)
+                    dao.insertAll(filteredReadings)
                 }
                 BatteryTrace.bump(
                     "room.history.replace_bucket_batch",
                     logEvery = 20L,
-                    detail = "serial=$sensorSerial size=${readings.size} bucket=${bucketDurationMs}"
+                    detail = "serial=$sensorSerial size=${filteredReadings.size} bucket=${bucketDurationMs}"
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Error replacing bucket history batch for $sensorSerial", e)
             }
+        }
+    }
+
+    private suspend fun filterDeletedReadings(readings: List<HistoryReading>): List<HistoryReading> {
+        if (readings.isEmpty()) return emptyList()
+
+        val deletedBySensor = mutableMapOf<String, MutableSet<Long>>()
+        readings.groupBy(HistoryReading::sensorSerial).forEach { (sensorSerial, sensorReadings) ->
+            val timestamps = sensorReadings.map(HistoryReading::timestamp).distinct()
+            if (timestamps.isEmpty()) return@forEach
+            val deletedTimestamps = LinkedHashSet<Long>()
+            timestamps.chunked(DELETED_TIMESTAMP_QUERY_CHUNK).forEach { chunk ->
+                deletedTimestamps.addAll(dao.getDeletedTimestampsForSensor(sensorSerial, chunk))
+            }
+            if (deletedTimestamps.isNotEmpty()) {
+                deletedBySensor[sensorSerial] = deletedTimestamps
+            }
+        }
+
+        if (deletedBySensor.isEmpty()) {
+            return readings
+        }
+
+        return readings.filterNot { reading ->
+            deletedBySensor[reading.sensorSerial]?.contains(reading.timestamp) == true
         }
     }
 
@@ -745,8 +785,13 @@ class HistoryRepository(context: Context = Applic.app) {
             }
 
             if (readings.isNotEmpty()) {
-                dao.insertAll(readings)
-                Log.d(TAG, "Backfilled ${readings.size} readings from native for sensor $serial")
+                val filteredReadings = filterDeletedReadings(readings)
+                if (filteredReadings.isNotEmpty()) {
+                    dao.insertAll(filteredReadings)
+                    Log.d(TAG, "Backfilled ${filteredReadings.size} readings from native for sensor $serial")
+                } else {
+                    Log.d(TAG, "Backfill for $serial skipped — all readings were tombstoned")
+                }
             } else {
                 Log.d(TAG, "Backfill for $serial completed with 0 readings")
             }
@@ -786,6 +831,37 @@ class HistoryRepository(context: Context = Applic.app) {
                 Log.d(TAG, "Deleted Room data for sensor $serial")
             } catch (e: Exception) {
                 Log.e(TAG, "Error deleting data for sensor $serial", e)
+            }
+        }
+    }
+
+    suspend fun deleteReading(timestamp: Long, sensorSerial: String): Int {
+        if (timestamp <= 0L || sensorSerial.isBlank()) return 0
+        val serials = resolveQuerySensorSerials(sensorSerial).ifEmpty { listOf(sensorSerial) }
+        if (serials.isEmpty()) return 0
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val deletedAt = System.currentTimeMillis()
+                var removedCount = 0
+                database.withTransaction {
+                    dao.insertDeletedReadings(
+                        serials.map { serial ->
+                            DeletedHistoryReading(
+                                timestamp = timestamp,
+                                sensorSerial = serial,
+                                deletedAt = deletedAt
+                            )
+                        }
+                    )
+                    removedCount = dao.deleteReadingsAtTimestamp(serials, timestamp)
+                }
+                UiRefreshBus.requestDataRefresh()
+                Log.d(TAG, "Deleted reading at $timestamp for serials=$serials removed=$removedCount")
+                removedCount
+            } catch (e: Exception) {
+                Log.e(TAG, "Error deleting reading at $timestamp for $sensorSerial", e)
+                0
             }
         }
     }

@@ -20,6 +20,9 @@ interface HistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(readings: List<HistoryReading>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertDeletedReadings(readings: List<DeletedHistoryReading>)
+
     // ── Per-sensor queries (used for dashboard, chart, current reading) ──
 
     @Query("SELECT * FROM history_readings WHERE sensorSerial = :serial AND timestamp >= :startTime ORDER BY timestamp ASC")
@@ -85,6 +88,27 @@ interface HistoryDao {
 
     @Query("DELETE FROM history_readings WHERE sensorSerial = :serial")
     suspend fun deleteForSensor(serial: String)
+
+    @Query("""
+        DELETE FROM history_readings
+        WHERE sensorSerial IN (:serials) AND timestamp = :timestamp
+    """)
+    suspend fun deleteReadingsAtTimestamp(serials: List<String>, timestamp: Long): Int
+
+    @Query("""
+        SELECT COUNT(*) FROM history_deleted_readings
+        WHERE sensorSerial = :sensorSerial AND timestamp = :timestamp
+    """)
+    suspend fun isReadingDeleted(sensorSerial: String, timestamp: Long): Int
+
+    @Query("""
+        SELECT timestamp FROM history_deleted_readings
+        WHERE sensorSerial = :sensorSerial AND timestamp IN (:timestamps)
+    """)
+    suspend fun getDeletedTimestampsForSensor(
+        sensorSerial: String,
+        timestamps: List<Long>
+    ): List<Long>
 
     @Query("""
         UPDATE history_readings
