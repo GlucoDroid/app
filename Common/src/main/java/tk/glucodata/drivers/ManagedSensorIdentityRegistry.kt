@@ -1,5 +1,6 @@
 package tk.glucodata.drivers
 
+import tk.glucodata.Applic
 import android.content.Context
 import tk.glucodata.SensorIdentity
 import tk.glucodata.SuperGattCallback
@@ -14,6 +15,25 @@ object ManagedSensorIdentityRegistry {
         MQManagedSensorIdentityAdapter,
     )
 
+    private fun orderedAdapters(sensorId: String?, context: Context?): Sequence<ManagedSensorIdentityAdapter> {
+        val normalized = sensorId?.trim().takeIf { !it.isNullOrEmpty() }
+        if (normalized == null || context == null) {
+            return all.asSequence()
+        }
+        val preferred = all.filter { adapter -> adapter.hasPersistedManagedRecord(normalized) }
+        if (preferred.isEmpty()) {
+            return all.asSequence()
+        }
+        return sequence {
+            preferred.forEach { yield(it) }
+            all.forEach { adapter ->
+                if (!preferred.contains(adapter)) {
+                    yield(adapter)
+                }
+            }
+        }
+    }
+
     fun persistedSensorIds(context: Context): List<String> =
         all.asSequence()
             .flatMap { it.persistedSensorIds(context).asSequence() }
@@ -21,25 +41,28 @@ object ManagedSensorIdentityRegistry {
             .toList()
 
     fun createManagedCallback(context: Context, sensorId: String, dataptr: Long): SuperGattCallback? =
-        all.asSequence()
+        orderedAdapters(sensorId, context)
             .mapNotNull { it.createManagedCallback(context, sensorId, dataptr) }
             .firstOrNull()
 
     fun resolveManagedCallbackDataptr(sensorId: String?): Long? =
-        all.asSequence()
+        orderedAdapters(sensorId, Applic.app)
             .mapNotNull { it.resolveCallbackDataptr(sensorId) }
             .firstOrNull()
 
     fun resolveManagedNativeSensorName(sensorId: String?): String? =
-        all.asSequence()
+        orderedAdapters(sensorId, Applic.app)
             .mapNotNull { it.resolveNativeSensorName(sensorId) }
             .firstOrNull { it.isNotBlank() }
 
     fun isExternallyManagedBleSensor(sensorId: String?): Boolean =
-        all.any { it.isExternallyManagedBleSensor(sensorId) }
+        orderedAdapters(sensorId, Applic.app).any { it.isExternallyManagedBleSensor(sensorId) }
+
+    fun usesNativeDirectStreamShell(sensorId: String?): Boolean =
+        orderedAdapters(sensorId, Applic.app).any { it.usesNativeDirectStreamShell(sensorId) }
 
     fun shouldUseNativeHistorySync(sensorId: String?): Boolean? =
-        all.asSequence()
+        orderedAdapters(sensorId, Applic.app)
             .mapNotNull { it.shouldUseNativeHistorySync(sensorId) }
             .firstOrNull()
 

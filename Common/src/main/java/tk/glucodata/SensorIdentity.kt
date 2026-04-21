@@ -129,6 +129,14 @@ object SensorIdentity {
     }
 
     @JvmStatic
+    fun usesNativeDirectStreamShell(sensorId: String?): Boolean {
+        val raw = normalized(sensorId) ?: return false
+        val canonical = canonicalOrRaw(raw) ?: raw
+        return ManagedSensorIdentityRegistry.usesNativeDirectStreamShell(canonical) ||
+            ManagedSensorIdentityRegistry.usesNativeDirectStreamShell(raw)
+    }
+
+    @JvmStatic
     fun resolveMainSensor(): String? {
         val main = resolveAppSensorId(Natives.lastsensorname())
         if (!main.isNullOrBlank()) {

@@ -38,5 +38,7 @@ interface ManagedSensorIdentityAdapter {
 
     fun isExternallyManagedBleSensor(sensorId: String?): Boolean = false
 
+    fun usesNativeDirectStreamShell(sensorId: String?): Boolean = false
+
     fun shouldUseNativeHistorySync(sensorId: String?): Boolean? = null
 }

@@ -82,6 +82,9 @@ object MQManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
     override fun isExternallyManagedBleSensor(sensorId: String?): Boolean =
         resolveCanonicalSensorId(sensorId) != null
 
+    override fun usesNativeDirectStreamShell(sensorId: String?): Boolean =
+        resolveCanonicalSensorId(sensorId) != null
+
     override fun shouldUseNativeHistorySync(sensorId: String?): Boolean? {
         val canonical = resolveCanonicalSensorId(sensorId) ?: return null
         val hasPersisted = MQRegistry.findRecord(Applic.app, canonical) != null

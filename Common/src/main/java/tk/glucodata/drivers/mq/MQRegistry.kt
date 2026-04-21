@@ -93,6 +93,56 @@ object MQRegistry {
     }
 
     @JvmStatic
+    fun ensureSensorRecord(
+        context: Context,
+        sensorId: String?,
+        address: String? = null,
+        displayName: String? = null,
+    ): String? {
+        val canonicalId = MQConstants.canonicalSensorId(sensorId)
+        if (canonicalId.isEmpty()) return null
+        val normalizedAddress = address?.trim().orEmpty()
+        val safeDisplayName = displayName?.trim().takeUnless { it.isNullOrEmpty() }
+            ?: MQConstants.DEFAULT_DISPLAY_NAME
+
+        val updated = LinkedHashSet<SensorRecord>()
+        var changed = false
+        var matched = false
+
+        readAll(context).forEach { existing ->
+            if (existing.matchesId(canonicalId)) {
+                matched = true
+                val merged = existing.copy(
+                    sensorId = canonicalId,
+                    address = if (normalizedAddress.isNotEmpty()) normalizedAddress else existing.address,
+                    displayName = existing.displayName.takeUnless { it.isBlank() }
+                        ?: safeDisplayName,
+                )
+                if (merged != existing) changed = true
+                updated.add(merged)
+            } else {
+                updated.add(existing)
+            }
+        }
+
+        if (!matched) {
+            updated.add(
+                SensorRecord(
+                    sensorId = canonicalId,
+                    address = normalizedAddress,
+                    displayName = safeDisplayName,
+                ),
+            )
+            changed = true
+        }
+
+        if (changed) {
+            writeAll(context, updated)
+        }
+        return canonicalId
+    }
+
+    @JvmStatic
     fun createRestoredCallback(context: Context?, sensorId: String, dataptr: Long): SuperGattCallback? {
         if (context == null) return null
         val record = findRecord(context, sensorId) ?: return null

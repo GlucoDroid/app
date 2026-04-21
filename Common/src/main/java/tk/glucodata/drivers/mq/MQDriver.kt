@@ -98,6 +98,7 @@ interface MQDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDrive
             vendorFirmware = runCatching { vendorFirmwareVersion }.getOrDefault(""),
             vendorModel = runCatching { vendorModelName }.getOrDefault(""),
             batteryMillivolts = runCatching { batteryMillivolts }.getOrDefault(0),
+            batteryPercent = runCatching { batteryPercent }.getOrDefault(-1),
         )
     }
 
@@ -113,4 +114,5 @@ interface MQDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDrive
     val vendorFirmwareVersion: String
     val vendorModelName: String
     val batteryMillivolts: Int
+    val batteryPercent: Int get() = -1
 }

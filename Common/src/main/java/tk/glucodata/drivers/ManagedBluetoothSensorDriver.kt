@@ -51,6 +51,7 @@ data class ManagedSensorUiSnapshot(
     val vendorCalibrations: List<ManagedSensorCalibrationRecord> = emptyList(),
     val isVendorConnected: Boolean = false,
     val batteryMillivolts: Int = 0,
+    val batteryPercent: Int = -1,
     val isSensorExpired: Boolean = false,
     val sensorRemainingHours: Int = -1,
     val sensorAgeHours: Int = -1,

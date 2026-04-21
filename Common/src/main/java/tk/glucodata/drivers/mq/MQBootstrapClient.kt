@@ -49,6 +49,13 @@ data class MQBootstrapFetchResult(
     val failure: MQBootstrapFailure = MQBootstrapFailure.NONE,
     val message: String? = null,
     val refreshedToken: String? = null,
+    val history: List<MQBootstrapHistoryPoint> = emptyList(),
+)
+
+data class MQBootstrapHistoryPoint(
+    val timestampMs: Long,
+    val packetIndex: Int,
+    val glucoseMgdl: Float,
 )
 
 object MQBootstrapClient {
@@ -165,6 +172,7 @@ object MQBootstrapClient {
             config = merged,
             failure = failure,
             message = message,
+            history = emptyList(),
         )
     }
 
@@ -228,12 +236,13 @@ object MQBootstrapClient {
             return MQBootstrapFetchResult(
                 config = config,
                 message = root.message,
+                history = emptyList(),
             )
         }
         if (root.failure != MQBootstrapFailure.NONE) {
             return MQBootstrapFetchResult(failure = root.failure, message = root.message)
         }
-        return MQBootstrapFetchResult(config = config)
+        return MQBootstrapFetchResult(config = config, history = emptyList())
     }
 
     private fun fetchContinueWearConfig(
@@ -302,6 +311,7 @@ object MQBootstrapClient {
             config = mergedConfig,
             failure = if (usable) historyResult.failure else mergeFailure(root.failure, historyResult.failure),
             message = historyResult.message ?: root.message,
+            history = historyResult.history,
         )
     }
 
@@ -329,6 +339,7 @@ object MQBootstrapClient {
         }
 
         var best: SnapshotRestore? = null
+        val history = ArrayList<SnapshotRestore>(result.length())
         for (i in 0 until result.length()) {
             val item = result.optJSONObject(i) ?: continue
             val restore = parseSnapshotRestore(
@@ -337,6 +348,7 @@ object MQBootstrapClient {
                 packages = packages.toDouble(),
                 multiplier = multiplier.toDouble(),
             ) ?: continue
+            history.add(restore)
             if (best == null ||
                 restore.recordedAtMs > best.recordedAtMs ||
                 (restore.recordedAtMs == best.recordedAtMs && restore.packetIndex > best.packetIndex)
@@ -358,6 +370,18 @@ object MQBootstrapClient {
             ),
             failure = MQBootstrapFailure.NONE,
             message = root.message,
+            history = history
+                .asSequence()
+                .filter { it.recordedAtMs > 0L }
+                .sortedWith(compareBy<SnapshotRestore> { it.recordedAtMs }.thenBy { it.packetIndex })
+                .map {
+                    MQBootstrapHistoryPoint(
+                        timestampMs = it.recordedAtMs,
+                        packetIndex = it.packetIndex,
+                        glucoseMgdl = (it.glucoseTimes10Mmol / 10.0 * MQConstants.MMOL_TO_MGDL).toFloat(),
+                    )
+                }
+                .toList(),
         )
     }
 
