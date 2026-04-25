@@ -42,4 +42,26 @@ class ICanHealthConstantsTests {
             )
         )
     }
+
+    @Test
+    fun isEndedStatusSequenceCap_onlyMatchesEndedStateAtVendorCap() {
+        assertFalse(
+            ICanHealthConstants.isEndedStatusSequenceCap(
+                ICanHealthConstants.LAUNCHER_STATE_ENDED,
+                ICanHealthConstants.LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES - 1
+            )
+        )
+        assertFalse(
+            ICanHealthConstants.isEndedStatusSequenceCap(
+                ICanHealthConstants.LAUNCHER_STATE_RUNNING,
+                ICanHealthConstants.LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES
+            )
+        )
+        assertTrue(
+            ICanHealthConstants.isEndedStatusSequenceCap(
+                ICanHealthConstants.LAUNCHER_STATE_ENDED,
+                ICanHealthConstants.LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES
+            )
+        )
+    }
 }

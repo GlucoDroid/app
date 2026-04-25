@@ -670,17 +670,24 @@ class ICanHealthBleManager(
     override fun getExpectedEndMs(): Long {
         val start = getStartTimeMs()
         if (start <= 0L) return 0L
+        observedEndedStatusEndMs(start)?.let { return it }
         return start + resolvedProfile().expectedLifetimeMs()
     }
 
-    override fun isSensorExpired(): Boolean =
-        launcherState == ICanHealthConstants.LAUNCHER_STATE_ENDED
+    override fun isSensorExpired(): Boolean {
+        val nowMs = System.currentTimeMillis()
+        if (ICanHealthConstants.isEndedStatusSequenceCap(launcherState, currentSequenceNumber)) {
+            return !hasRecentOperationalData(nowMs)
+        }
+        return launcherState == ICanHealthConstants.LAUNCHER_STATE_ENDED
+    }
 
     override fun getSensorRemainingHours(): Int {
         if (isSensorExpired()) return 0
         val expectedEnd = getExpectedEndMs()
         if (expectedEnd <= 0L) return -1
-        return ((expectedEnd - System.currentTimeMillis()).coerceAtLeast(0L) / (60L * 60L * 1000L)).toInt()
+        val remainingHours = (expectedEnd - System.currentTimeMillis()) / (60L * 60L * 1000L)
+        return if (remainingHours > 0L) remainingHours.toInt() else -1
     }
 
     override fun getSensorAgeHours(): Int {
@@ -893,9 +900,11 @@ class ICanHealthBleManager(
 
     private fun shouldSkipHistoryOverlap(sequenceNumber: Int, sampleTimeMs: Long): Boolean {
         loadPersistedCoveredEdge()
-        val coveredSequence = maxOf(lastHandledLiveSequence, persistedCoveredSequence)
-        if (coveredSequence >= 0 && sequenceNumber >= 0 && sequenceNumber <= coveredSequence) {
-            return true
+        if (!canUseHistoryPastEndedStatusCap()) {
+            val coveredSequence = maxOf(lastHandledLiveSequence, persistedCoveredSequence)
+            if (coveredSequence >= 0 && sequenceNumber >= 0 && sequenceNumber <= coveredSequence) {
+                return true
+            }
         }
         val coveredTimestampMs = maxOf(persistedHistoryTailTimestampMs, persistedCoveredTimestampMs)
         return coveredTimestampMs > 0L &&
@@ -1408,7 +1417,12 @@ class ICanHealthBleManager(
         val anchoredCurrentSequence = currentSequenceNumber
         val sampleTimeMs = resolveSampleTimestampMs(reading.sequenceNumber, nowMs)
         val historySampleTimeMs = resolveHistoryTimestampMs(reading.sequenceNumber, nowMs)
-        val liveSequence = isLiveSequence(reading.sequenceNumber, sampleTimeMs, nowMs, anchoredCurrentSequence)
+        val cappedHistoryTransfer =
+            historyBackfillRequested &&
+                historyBackfillPhase == HistoryBackfillPhase.GLUCOSE &&
+                canUseHistoryPastEndedStatusCap()
+        val liveSequence = !cappedHistoryTransfer &&
+            isLiveSequence(reading.sequenceNumber, sampleTimeMs, nowMs, anchoredCurrentSequence)
         if (historyBackfillRequested && historyBackfillPhase == HistoryBackfillPhase.GLUCOSE && !liveSequence) {
             if (!shouldSkipHistoryOverlap(reading.sequenceNumber, historySampleTimeMs)) {
                 recordHistoryBackfillSample(
@@ -1992,8 +2006,12 @@ class ICanHealthBleManager(
     }
 
     private fun resolveAutomaticGlucoseHistoryStartSequence(): Int? {
+        val nowMs = System.currentTimeMillis()
         val readingInterval = readingIntervalMinutes()
-        val anchorTimeMs = resolveSequenceAnchorTimeMs(System.currentTimeMillis())
+        if (canUseHistoryPastEndedStatusCap()) {
+            return resolveCappedEndedHistoryStartSequence(nowMs, readingInterval)
+        }
+        val anchorTimeMs = resolveSequenceAnchorTimeMs(nowMs)
         val persistedTailSequence = estimatePersistedTailSequence(anchorTimeMs)
         val latestKnownSequence = maxOf(lastHandledLiveSequence, persistedTailSequence ?: -1)
         if (latestKnownSequence >= readingInterval) {
@@ -2012,6 +2030,37 @@ class ICanHealthBleManager(
         return readingInterval
     }
 
+    private fun resolveCappedEndedHistoryStartSequence(nowMs: Long, readingInterval: Int): Int? {
+        val capSequence = currentSequenceNumber.coerceAtLeast(readingInterval)
+        val latestTailTimestamp = refreshPersistedHistoryTailTimestamp()
+        if (latestTailTimestamp <= 0L) {
+            Log.i(TAG, "Requesting capped iCan glucose history from first slot; no persisted tail is available")
+            return readingInterval
+        }
+
+        val intervalMs = readingIntervalMs()
+        val elapsedMs = nowMs - latestTailTimestamp
+        if (elapsedMs < intervalMs - MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS) {
+            Log.d(
+                TAG,
+                "Skipping capped iCan history read; latest tail is still current (tail=$latestTailTimestamp now=$nowMs)"
+            )
+            return null
+        }
+
+        val missedIntervals = ((elapsedMs.coerceAtLeast(0L) + intervalMs - 1L) / intervalMs)
+            .coerceAtLeast(1L)
+            .toInt()
+        val startSequence = (capSequence - (missedIntervals + 1) * readingInterval)
+            .coerceAtLeast(readingInterval)
+        Log.i(
+            TAG,
+            "Requesting capped iCan history window from seq=$startSequence " +
+                "(cap=$capSequence tail=$latestTailTimestamp now=$nowMs)"
+        )
+        return startSequence
+    }
+
     private fun continuePendingHistoryBackfill(reasonSuffix: String) {
         if (!awaitingFreshStatusForHistoryBackfill) {
             return
@@ -2023,7 +2072,7 @@ class ICanHealthBleManager(
         val startSequence = resolveAutomaticGlucoseHistoryStartSequence()
         if (startSequence == null) {
             historyBackfillAttemptedThisConnection = false
-            shouldRequestAuthenticatedHistoryBackfill = false
+            shouldRequestAuthenticatedHistoryBackfill = canUseHistoryPastEndedStatusCap()
             return
         }
         pendingGlucoseHistoryStartSequence = startSequence
@@ -2044,7 +2093,9 @@ class ICanHealthBleManager(
             HistoryBackfillPhase.GLUCOSE -> {
                 val startSequence = pendingGlucoseHistoryStartSequence
                 pendingGlucoseHistoryStartSequence = startSequence
-                if (currentSequenceNumber in 0 until startSequence) {
+                if (currentSequenceNumber in 0 until startSequence &&
+                    !canUseHistoryPastEndedStatusCap()
+                ) {
                     Log.i(
                         TAG,
                         "Skipping glucose-history read from seq=$startSequence because current end index=$currentSequenceNumber; chaining original-history phase"
@@ -2100,9 +2151,21 @@ class ICanHealthBleManager(
         val unsupportedBatch = sawUnsupportedSnHistoryBatch
         sawUnsupportedSnHistoryBatch = false
         if (importedGlucoseHistory > 0) {
+            val cappedHistoryPolling = canUseHistoryPastEndedStatusCap()
             suppressAutomaticHistoryBackfill = false
-            shouldRequestAuthenticatedHistoryBackfill = false
-            Log.i(TAG, "Authenticated glucose-history cycle completed with $importedGlucoseHistory imported records")
+            shouldRequestAuthenticatedHistoryBackfill = cappedHistoryPolling
+            if (cappedHistoryPolling) {
+                lastGlucoseReceiptRealtimeMs = System.currentTimeMillis()
+                phase = Phase.STREAMING
+                setUiStatus(UiStatusKind.CONNECTED)
+                scheduleForegroundNotificationRefresh()
+                scheduleNoDataWatchdog()
+            }
+            Log.i(
+                TAG,
+                "Authenticated glucose-history cycle completed with $importedGlucoseHistory imported records" +
+                    if (cappedHistoryPolling) "; capped history polling remains enabled" else ""
+            )
         } else if (unsupportedBatch) {
             suppressAutomaticHistoryBackfill = true
             shouldRequestAuthenticatedHistoryBackfill = false
@@ -2520,6 +2583,9 @@ class ICanHealthBleManager(
 
     private fun resolveSequenceAnchorTimeMs(fallbackNowMs: Long): Long {
         loadPersistedCoveredEdge()
+        if (canUseHistoryPastEndedStatusCap()) {
+            return fallbackNowMs
+        }
         if (currentSequenceNumber >= 0 &&
             persistedCoveredSequence >= 0 &&
             persistedCoveredTimestampMs > 0L &&
@@ -2540,6 +2606,34 @@ class ICanHealthBleManager(
             currentSequenceObservedAtMs > 0L -> currentSequenceObservedAtMs
             else -> fallbackNowMs
         }
+    }
+
+    private fun canUseHistoryPastEndedStatusCap(): Boolean {
+        return ICanHealthConstants.isEndedStatusSequenceCap(launcherState, currentSequenceNumber)
+    }
+
+    private fun observedEndedStatusEndMs(startMs: Long): Long? {
+        if (startMs <= 0L || !canUseHistoryPastEndedStatusCap()) {
+            return null
+        }
+        val endedSequence = currentSequenceNumber
+            .coerceAtLeast(ICanHealthConstants.LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES)
+        return startMs + endedSequence.toLong() * SEQUENCE_UNIT_MS
+    }
+
+    private fun hasRecentOperationalData(nowMs: Long = System.currentTimeMillis()): Boolean {
+        val latestReadingTimeMs = maxOf(
+            latestDriverReadingTimestampMs,
+            lastHandledLiveTimestampMs,
+            persistedHistoryTailTimestampMs,
+            persistedCoveredTimestampMs
+        )
+        if (latestReadingTimeMs <= 0L) {
+            return false
+        }
+        val maxAgeMs = maxOf(ICAN_LOSS_SIGNAL_SHOWTIME_MS, readingIntervalMs() * 3)
+        return latestReadingTimeMs <= nowMs + MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS &&
+            nowMs - latestReadingTimeMs <= maxAgeMs
     }
 
     private fun refreshPersistedHistoryTailTimestamp(): Long {
@@ -2993,6 +3087,14 @@ class ICanHealthBleManager(
     }
 
     private fun computeReconnectPlan(nowMs: Long): ReconnectPlan {
+        if (canUseHistoryPastEndedStatusCap() && !hasRecentOperationalData(nowMs)) {
+            return ReconnectPlan(
+                delayMs = ICAN_LOSS_SIGNAL_SHOWTIME_MS,
+                exactAlarm = false,
+                reason = "iCan reports vendor-ended capped status; probing periodically",
+                refreshSessionMetadata = true
+            )
+        }
         if (shouldUseAuthenticatedContinuousReconnect()) {
             return ReconnectPlan(
                 delayMs = AUTHENTICATED_RECONNECT_DELAY_MS,

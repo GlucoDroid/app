@@ -244,9 +244,19 @@ object ICanHealthConstants {
     const val LAUNCHER_STATE_ENDED = 0x40
     const val LAUNCHER_STATE_RUNNING = 0x80
 
+    // Observed late-life iCan firmware reports ENDED and freezes the CGM status
+    // offset here. Treat it as an observed vendor end for UI/backoff, not as a
+    // cross-firmware hard stop.
+    const val LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES = 28 * 24 * 60
+
     @JvmStatic
     fun isActiveLauncherState(state: Int): Boolean =
         state == LAUNCHER_STATE_RUNNING || state == LAUNCHER_STATE_WARMUP
+
+    @JvmStatic
+    fun isEndedStatusSequenceCap(state: Int, sequenceNumber: Int): Boolean =
+        state == LAUNCHER_STATE_ENDED &&
+            sequenceNumber >= LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES
 
     const val RACP_RESULT_SUCCESS = 0x01
     const val RACP_RESULT_NOT_SUPPORTED = 0x02

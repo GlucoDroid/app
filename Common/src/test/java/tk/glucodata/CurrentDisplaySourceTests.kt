@@ -6,14 +6,13 @@ import org.junit.Test
 class CurrentDisplaySourceTests {
 
     @Test
-    fun resolveFromLive_usesLiveRawWhenExactHistoryPointLacksRawLane() {
+    fun resolveFromLive_usesMatchedHistoryRawInRawPrimaryMode() {
         val timestamp = 1_700_000_000_000L
-        val recentPoints = listOf(GlucosePoint(timestamp, 75f, 0f))
+        val recentPoints = listOf(GlucosePoint(timestamp, 75f, 31f))
 
         val snapshot = CurrentDisplaySource.resolveFromLive(
             liveValueText = null,
             liveNumericValue = 75f,
-            liveRawValue = 31f,
             rate = 0f,
             targetTimeMillis = timestamp,
             sensorId = "8760080A00070000",
