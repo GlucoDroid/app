@@ -130,6 +130,8 @@ data class JournalChartMarker(
     val accentColor: Int,
     val badgeText: String,
     val detailText: String,
+    val amount: Float? = null,
+    val chartGlucoseValue: Float? = null,
     val curvePoints: List<JournalCurvePoint> = emptyList(),
     val activeStartMillis: Long? = null,
     val activeEndMillis: Long? = null

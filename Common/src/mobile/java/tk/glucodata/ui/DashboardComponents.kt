@@ -1117,6 +1117,7 @@ fun RecentReadingsCard(
     recentReadings: List<GlucosePoint>,
     unit: String,
     viewMode: Int,
+    footerLabel: String,
     onViewHistory: (() -> Unit)? = null,
     content: @Composable (Int, GlucosePoint) -> Unit // Rendering the row with Index
 ) {
@@ -1181,7 +1182,7 @@ fun RecentReadingsCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = stringResource(R.string.historyname),
+                            text = footerLabel,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary
                         )

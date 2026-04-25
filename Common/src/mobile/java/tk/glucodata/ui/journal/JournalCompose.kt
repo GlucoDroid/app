@@ -55,6 +55,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,6 +120,14 @@ fun buildJournalChartMarkers(
             accentColor = preset?.accentColor ?: journalTypeColor(entry.type).toArgb(),
             badgeText = journalMarkerBadge(entry.type),
             detailText = journalMarkerDetail(entry, preset, unit),
+            amount = entry.amount,
+            chartGlucoseValue = if (entry.type == JournalEntryType.FINGERSTICK) {
+                entry.glucoseValueMgDl?.let {
+                    GlucoseFormatter.displayFromMgDl(it, GlucoseFormatter.isMmol(unit))
+                }
+            } else {
+                null
+            },
             curvePoints = if (entry.type == JournalEntryType.INSULIN && preset != null) {
                 preset.curvePoints
             } else {
@@ -234,6 +243,8 @@ fun JournalQuickDock(
 fun JournalEntrySheet(
     unit: String,
     selectedTimestamp: Long,
+    suggestedGlucoseMgDl: Float? = null,
+    suggestedAmountFraction: Float? = null,
     insulinPresets: List<JournalInsulinPreset>,
     initialType: JournalEntryType,
     existingEntry: JournalEntry? = null,
@@ -246,13 +257,27 @@ fun JournalEntrySheet(
     val context = LocalContext.current
     val activeInsulinPresets = remember(insulinPresets) { insulinPresets.filter { !it.isArchived } }
     val presetsById = remember(insulinPresets) { insulinPresets.associateBy { it.id } }
-    var draft by remember(existingEntry?.id, initialType, selectedTimestamp, unit, insulinPresets) {
-        mutableStateOf(buildDraft(existingEntry, initialType, selectedTimestamp, unit))
+    val initialDraft = remember(existingEntry?.id, initialType, selectedTimestamp, suggestedGlucoseMgDl, suggestedAmountFraction, unit, insulinPresets) {
+        buildDraft(existingEntry, initialType, selectedTimestamp, unit, suggestedGlucoseMgDl, suggestedAmountFraction)
+    }
+    var draft by remember(existingEntry?.id, initialType, selectedTimestamp, suggestedGlucoseMgDl, suggestedAmountFraction, unit, insulinPresets) {
+        mutableStateOf(initialDraft)
     }
     var showDatePicker by remember(existingEntry?.id, initialType, selectedTimestamp) { mutableStateOf(false) }
     var showTimePicker by remember(existingEntry?.id, initialType, selectedTimestamp) { mutableStateOf(false) }
     val canSave = remember(draft, unit, presetsById) {
         draft.toInput(unit, sensorSerialProvider(), presetsById) != null
+    }
+    LaunchedEffect(existingEntry?.id, draft.type, activeInsulinPresets) {
+        if (existingEntry != null || draft.type != JournalEntryType.INSULIN || draft.insulinPresetId != null) {
+            return@LaunchedEffect
+        }
+        preferredInsulinPreset(activeInsulinPresets)?.let { preset ->
+            draft = draft.copy(
+                insulinPresetId = preset.id,
+                title = preset.displayName
+            )
+        }
     }
 
     ModalBottomSheet(
@@ -286,12 +311,12 @@ fun JournalEntrySheet(
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            text = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-                                .format(Date(draft.timestamp)),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+//                        Text(
+//                            text = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+//                                .format(Date(draft.timestamp)),
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = MaterialTheme.colorScheme.onSurfaceVariant
+//                        )
                     }
                     existingEntry?.id?.let { entryId ->
                         IconButton(onClick = { onDelete?.invoke(entryId) }) {
@@ -308,7 +333,9 @@ fun JournalEntrySheet(
             item(key = "type_selector") {
                 JournalTypeSelector(
                     selectedType = draft.type,
-                    onTypeSelected = { draft = draft.copy(type = it).normalizedForType(unit) }
+                    onTypeSelected = {
+                        draft = draft.copy(type = it).normalizedForType(unit, suggestedGlucoseMgDl, suggestedAmountFraction)
+                    }
                 )
             }
 
@@ -566,13 +593,25 @@ private fun buildDraft(
     existingEntry: JournalEntry?,
     initialType: JournalEntryType,
     selectedTimestamp: Long,
-    unit: String
+    unit: String,
+    suggestedGlucoseMgDl: Float? = null,
+    suggestedAmountFraction: Float? = null
 ): JournalEntryDraft {
     if (existingEntry == null) {
         return JournalEntryDraft(
             type = initialType,
             timestamp = selectedTimestamp,
-            title = if (initialType == JournalEntryType.ACTIVITY) Applic.app.getString(R.string.journal_type_activity) else ""
+            title = if (initialType == JournalEntryType.ACTIVITY) Applic.app.getString(R.string.journal_type_activity) else "",
+            amountText = when (initialType) {
+                JournalEntryType.INSULIN -> suggestedAmountFraction?.let(::suggestedInsulinAmountForFraction).orEmpty()
+                JournalEntryType.CARBS -> suggestedAmountFraction?.let(::suggestedCarbAmountForFraction).orEmpty()
+                else -> ""
+            },
+            glucoseText = if (initialType == JournalEntryType.FINGERSTICK) {
+                suggestedGlucoseMgDl?.let { formatGlucoseForEditor(it, unit) }.orEmpty()
+            } else {
+                ""
+            }
         )
     }
     return JournalEntryDraft(
@@ -589,9 +628,23 @@ private fun buildDraft(
     )
 }
 
-private fun JournalEntryDraft.normalizedForType(unit: String): JournalEntryDraft {
+private fun preferredInsulinPreset(
+    presets: List<JournalInsulinPreset>
+): JournalInsulinPreset? {
+    val sortedPresets = presets.sortedBy { it.sortOrder }
+    return sortedPresets.firstOrNull { it.countsTowardIob } ?: sortedPresets.firstOrNull()
+}
+
+private fun JournalEntryDraft.normalizedForType(
+    unit: String,
+    suggestedGlucoseMgDl: Float? = null,
+    suggestedAmountFraction: Float? = null
+): JournalEntryDraft {
     return when (type) {
         JournalEntryType.INSULIN -> copy(
+            amountText = amountText.ifBlank {
+                suggestedAmountFraction?.let(::suggestedInsulinAmountForFraction).orEmpty()
+            },
             glucoseText = "",
             durationText = "",
             intensity = null
@@ -599,6 +652,9 @@ private fun JournalEntryDraft.normalizedForType(unit: String): JournalEntryDraft
 
         JournalEntryType.CARBS -> copy(
             title = "",
+            amountText = amountText.ifBlank {
+                suggestedAmountFraction?.let(::suggestedCarbAmountForFraction).orEmpty()
+            },
             glucoseText = "",
             durationText = "",
             intensity = null,
@@ -611,7 +667,10 @@ private fun JournalEntryDraft.normalizedForType(unit: String): JournalEntryDraft
             durationText = "",
             intensity = null,
             insulinPresetId = null,
-            glucoseText = glucoseText.ifBlank { if (GlucoseFormatter.isMmol(unit)) "5.6" else "100" }
+            glucoseText = glucoseText.ifBlank {
+                suggestedGlucoseMgDl?.let { formatGlucoseForEditor(it, unit) }
+                    ?: if (GlucoseFormatter.isMmol(unit)) "5.6" else "100"
+            }
         )
 
         JournalEntryType.ACTIVITY -> copy(
@@ -772,18 +831,21 @@ private fun JournalTypeSelector(
     selectedType: JournalEntryType,
     onTypeSelected: (JournalEntryType) -> Unit
 ) {
+    val selectedContentColor = MaterialTheme.colorScheme.onSurface
     ConnectedButtonGroup(
         options = JournalEntryType.entries,
         selectedOption = selectedType,
         onOptionSelected = onTypeSelected,
         label = { _ -> },
         icon = { journalTypeIcon(it) },
+        iconOnly = true,
         modifier = Modifier.fillMaxWidth(),
         itemHeight = 48.dp,
-        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-        selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        unselectedContentColor = MaterialTheme.colorScheme.onSurface
+        selectedContainerColorFor = { type -> journalTypeColor(type).copy(alpha = 0.22f) },
+        selectedContentColorFor = { selectedContentColor },
+        iconTint = { type, _ -> journalTypeColor(type) },
+        unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f),
+        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
@@ -846,6 +908,7 @@ fun JournalInlineChip(
     entry: JournalEntry,
     unit: String,
     insulinPreset: JournalInsulinPreset?,
+    expanded: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -855,10 +918,13 @@ fun JournalInlineChip(
         modifier = modifier,
         onClick = onClick,
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.94f),
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(if (expanded) 16.dp else 14.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            modifier = Modifier.padding(
+                horizontal = if (expanded) 12.dp else 10.dp,
+                vertical = if (expanded) 8.dp else 7.dp
+            ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -866,11 +932,11 @@ fun JournalInlineChip(
                 imageVector = journalTypeIcon(entry.type),
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(if (expanded) 16.dp else 14.dp)
             )
             Text(
                 text = inlineLabel,
-                style = MaterialTheme.typography.labelMedium,
+                style = if (expanded) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1118,7 +1184,11 @@ private fun journalMarkerDetail(
 
 private fun formatGlucoseForEditor(glucoseMgDl: Float, unit: String): String {
     val value = if (GlucoseFormatter.isMmol(unit)) glucoseMgDl / 18.0182f else glucoseMgDl
-    return formatFloatForEditor(value)
+    return if (GlucoseFormatter.isMmol(unit)) {
+        DecimalFormat("0.#", DecimalFormatSymbols(Locale.getDefault())).format(value)
+    } else {
+        formatFloatForEditor(value)
+    }
 }
 
 private fun parseGlucoseToMgDl(value: String, unit: String): Float? {
@@ -1188,6 +1258,18 @@ private fun adjustDecimalDraft(value: String, direction: Int, step: Float): Stri
     val current = value.parseFloatOrNull() ?: 0f
     val next = (current + (direction * step)).coerceAtLeast(0f)
     return formatFloatForEditor(next)
+}
+
+private fun suggestedInsulinAmountForFraction(fraction: Float): String {
+    val normalized = fraction.coerceIn(0f, 1f)
+    val stepped = ((normalized * 20f) / 0.5f).roundToInt() * 0.5f
+    return formatFloatForEditor(stepped.coerceAtLeast(0.5f))
+}
+
+private fun suggestedCarbAmountForFraction(fraction: Float): String {
+    val normalized = fraction.coerceIn(0f, 1f)
+    val stepped = ((normalized * 100f) / 5f).roundToInt() * 5f
+    return formatFloatForEditor(stepped.coerceAtLeast(5f))
 }
 
 private fun adjustIntegerDraft(value: String, delta: Int, minValue: Int = 0): String {

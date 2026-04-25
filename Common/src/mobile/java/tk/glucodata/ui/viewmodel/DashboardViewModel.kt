@@ -32,7 +32,8 @@ import tk.glucodata.ui.util.resolveDashboardSensorStatus
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository(),
-    private val journalRepository: JournalRepository = JournalRepository()
+    private val journalRepository: JournalRepository = JournalRepository(),
+    private val historyRepository: tk.glucodata.data.HistoryRepository = tk.glucodata.data.HistoryRepository()
 ) : ViewModel() {
     private data class HistoryEdgeSignature(
         val size: Int,
@@ -109,6 +110,12 @@ class DashboardViewModel(
 
     private val _targetHigh = MutableStateFlow(180f)
     val targetHigh = _targetHigh.asStateFlow()
+
+    private val _graphLow = MutableStateFlow(40f)
+    val graphLow = _graphLow.asStateFlow()
+
+    private val _graphHigh = MutableStateFlow(240f)
+    val graphHigh = _graphHigh.asStateFlow()
 
     private val _viewMode = MutableStateFlow(0)
     val viewMode = _viewMode.asStateFlow()
@@ -356,6 +363,8 @@ class DashboardViewModel(
             stopJournalEntriesObservation()
         }
 
+        _graphLow.value = Natives.graphlow()
+        _graphHigh.value = Natives.graphhigh()
         _targetLow.value = Natives.targetlow()
         _targetHigh.value = Natives.targethigh()
         _xDripBroadcastEnabled.value = Natives.getxbroadcast()
@@ -372,11 +381,15 @@ class DashboardViewModel(
 
         val anyActive = AlertRepository.loadAllConfigs().any { it.enabled }
             || CustomAlertRepository.getAll().any { it.enabled }
-        _alertsSummary.value = if (anyActive) "Active" else "All Alerts Disabled"
+        _alertsSummary.value = if (anyActive) {
+            context.getString(tk.glucodata.R.string.global_active)
+        } else {
+            context.getString(tk.glucodata.R.string.global_all_alerts_disabled)
+        }
     }
 
     private fun refreshSensorSnapshot() {
-        var sName = SensorIdentity.resolveAppSensorId(Natives.lastsensorname())
+        var sName = SensorIdentity.resolveMainSensor()
         val activeSensors = Natives.activeSensors()
 
         if (activeSensors != null && activeSensors.isNotEmpty()) {
@@ -402,19 +415,28 @@ class DashboardViewModel(
         if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
             glucoseRepository.refreshSensorSerial(sName)
             _sensorName.value = sName
-            val nativeStatus = try {
-                Natives.getSensorStatusByName(sName).orEmpty()
-            } catch (t: Throwable) {
-                android.util.Log.e("DashboardVM", "getSensorStatusByName failed for '$sName'", t)
+            val hasNativeBacking = SensorIdentity.hasNativeSensorBacking(sName)
+            val managedSnapshot = ManagedSensorRuntime.resolveUiSnapshot(sName, sName)
+            val nativeStatus = if (hasNativeBacking) {
+                try {
+                    Natives.getSensorStatusByName(sName).orEmpty()
+                } catch (t: Throwable) {
+                    android.util.Log.e("DashboardVM", "getSensorStatusByName failed for '$sName'", t)
+                    ""
+                }
+            } else {
                 ""
             }
-            val snapshot = try {
-                Natives.getSensorUiSnapshot(sName)
-            } catch (t: Throwable) {
-                android.util.Log.e("DashboardVM", "getSensorUiSnapshot failed for '$sName'", t)
+            val snapshot = if (hasNativeBacking) {
+                try {
+                    Natives.getSensorUiSnapshot(sName)
+                } catch (t: Throwable) {
+                    android.util.Log.e("DashboardVM", "getSensorUiSnapshot failed for '$sName'", t)
+                    null
+                }
+            } else {
                 null
             }
-            val managedSnapshot = ManagedSensorRuntime.resolveUiSnapshot(sName, sName)
             if (snapshot != null && snapshot.size >= 5) {
                 val sensorKind = snapshot[0].toInt()
                 val vm = snapshot[1].toInt()
@@ -612,16 +634,28 @@ class DashboardViewModel(
     }
     
     fun setTargetLow(value: Float) {
-        // Natives.targethigh() returns value in User Unit
-        val high = Natives.targethigh()
-        Natives.setTargetRange(value, high)
-        refreshData()
+        setTargetRange(value, Natives.targethigh())
     }
 
     fun setTargetHigh(value: Float) {
-        // Natives.targetlow() returns value in User Unit
-        val low = Natives.targetlow()
-        Natives.setTargetRange(low, value)
+        setTargetRange(Natives.targetlow(), value)
+    }
+
+    fun setTargetRange(low: Float, high: Float) {
+        Natives.setTargetRange(low, high)
+        refreshData()
+    }
+
+    fun setGraphLow(value: Float) {
+        setGraphRange(value, Natives.graphhigh())
+    }
+
+    fun setGraphHigh(value: Float) {
+        setGraphRange(Natives.graphlow(), value)
+    }
+
+    fun setGraphRange(low: Float, high: Float) {
+        Natives.setGraphRange(low, high)
         refreshData()
     }
 
@@ -738,6 +772,26 @@ class DashboardViewModel(
     fun deleteJournalEntry(entryId: Long) {
         viewModelScope.launch {
             journalRepository.deleteEntry(entryId)
+        }
+    }
+
+    fun deleteHistoryReading(point: tk.glucodata.ui.GlucosePoint, fallbackSensorSerial: String? = null) {
+        if (point.timestamp <= 0L) return
+        val pointSerial = point.sensorSerial?.takeIf { it.isNotBlank() }
+        val targetSerial = when {
+            !fallbackSensorSerial.isNullOrBlank() &&
+                !pointSerial.isNullOrBlank() &&
+                SensorIdentity.matches(pointSerial, fallbackSensorSerial) -> fallbackSensorSerial
+            !pointSerial.isNullOrBlank() -> pointSerial
+            !fallbackSensorSerial.isNullOrBlank() -> fallbackSensorSerial
+            else -> null
+        } ?: return
+
+        viewModelScope.launch {
+            historyRepository.deleteReading(
+                timestamp = point.timestamp,
+                sensorSerial = targetSerial
+            )
         }
     }
 
@@ -863,7 +917,7 @@ class DashboardViewModel(
     }
 
     private fun preferredDashboardSensorId(): String? {
-        val nativeCurrent = SensorIdentity.resolveAppSensorId(Natives.lastsensorname())
+        val nativeCurrent = SensorIdentity.resolveMainSensor()
             ?.takeIf { it.isNotBlank() }
         if (nativeCurrent != null) {
             return nativeCurrent

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import tk.glucodata.ui.util.findActivity
 import tk.glucodata.ui.util.fullRestart
 import tk.glucodata.ui.util.hardRestart
@@ -67,6 +69,7 @@ import tk.glucodata.ui.theme.labelLargeExpressive
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 //import tk.glucodata.ui.components.ExportDataDialog
 import tk.glucodata.ui.components.*
+import kotlin.math.roundToInt
 import java.util.Locale
 
 /**
@@ -87,6 +90,12 @@ fun ExpressiveSettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val mqAccountState = tk.glucodata.drivers.mq.MQRegistry.loadAccountState(context)
+    val showMqAccount =
+        tk.glucodata.drivers.mq.MQRegistry.persistedRecords(context).isNotEmpty() ||
+            mqAccountState.hasCredentials ||
+            mqAccountState.hasToken ||
+            tk.glucodata.drivers.mq.MQRegistry.isCloudSyncEnabled(context)
 
     // States
     val unit by viewModel.unit.collectAsState()
@@ -125,6 +134,8 @@ fun ExpressiveSettingsScreen(
     val hasHighAlarm by viewModel.hasHighAlarm.collectAsState()
     val highAlarmValue by viewModel.highAlarmThreshold.collectAsState()
     val highAlarmSoundMode by viewModel.highAlarmSoundMode.collectAsState()
+    val graphLowValue by viewModel.graphLow.collectAsState()
+    val graphHighValue by viewModel.graphHigh.collectAsState()
     val targetLowValue by viewModel.targetLow.collectAsState()
     val targetHighValue by viewModel.targetHigh.collectAsState()
 
@@ -138,7 +149,7 @@ fun ExpressiveSettingsScreen(
     var showPreviewWindowDialog by remember { mutableStateOf(false) }
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
-    var targetRangeExpanded by rememberSaveable { mutableStateOf(false) }
+    var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
 
 
 
@@ -227,14 +238,16 @@ fun ExpressiveSettingsScreen(
                     onClick = { showUnitDialog = true }
                 )
 
-                TargetRangeExpandableSettingsItem(
-                    lowValue = targetLowValue,
-                    highValue = targetHighValue,
+                GlucoseRangeExpandableSettingsItem(
+                    targetLowValue = targetLowValue,
+                    targetHighValue = targetHighValue,
+                    chartLowValue = graphLowValue,
+                    chartHighValue = graphHighValue,
                     isMmol = isMmol,
-                    expanded = targetRangeExpanded,
-                    onExpandedChange = { targetRangeExpanded = it },
-                    onLowValueChange = { viewModel.setTargetLow(it) },
-                    onHighValueChange = { viewModel.setTargetHigh(it) },
+                    expanded = glucoseRangeExpanded,
+                    onExpandedChange = { glucoseRangeExpanded = it },
+                    onTargetRangeChange = { low, high -> viewModel.setTargetRange(low, high) },
+                    onChartRangeChange = { low, high -> viewModel.setGraphRange(low, high) },
                     iconTint = glucoseColor,
                     position = CardPosition.MIDDLE
                 )
@@ -277,8 +290,8 @@ fun ExpressiveSettingsScreen(
                 )
 
                 SettingsItem(
-                    title = "Notification Settings",
-                    subtitle = "Customize notification shade",
+                    title = stringResource(R.string.notification_settings_title),
+                    subtitle = stringResource(R.string.notification_settings_subtitle),
                     icon = Icons.Default.ClearAll,
                     iconTint = notifColor,
                     position = CardPosition.MIDDLE,
@@ -286,15 +299,15 @@ fun ExpressiveSettingsScreen(
                 )
                 SettingsItem(
                     title = stringResource(R.string.floatglucose),
-                    subtitle = "Display overlay on other apps",
+                    subtitle = stringResource(R.string.enable_overlay_desc),
                     icon = Icons.Default.PictureInPicture,
                     iconTint = notifColor,
                     position = CardPosition.MIDDLE,
                     onClick = { navController.navigate("settings/floating-display") }
                 )
                 SettingsItem(
-                    title = "Lock screen (AOD)",
-                    subtitle = "Customize always-on display",
+                    title = stringResource(R.string.lock_screen_aod),
+                    subtitle = stringResource(R.string.customize_always_on_display),
                     icon = Icons.Default.Visibility,
                     iconTint = notifColor,
                     position = CardPosition.BOTTOM,
@@ -375,6 +388,17 @@ fun ExpressiveSettingsScreen(
                         iconTint = exchangeColor,
                         position = CardPosition.MIDDLE,
                         onClick = { navController.navigate("settings/libreview") }
+                    )
+                }
+                if (showMqAccount) {
+                    SettingsItem(
+                        title = stringResource(R.string.mq_account_title),
+                        subtitle = stringResource(R.string.mq_account_linked_desc),
+                        showArrow = true,
+                        icon = Icons.Default.Cloud,
+                        iconTint = exchangeColor,
+                        position = CardPosition.MIDDLE,
+                        onClick = { navController.navigate("settings/mq-account") }
                     )
                 }
                 SettingsItem(
@@ -644,26 +668,82 @@ private fun SettingsLeadingIcon(
 }
 
 @Composable
-private fun TargetRangeExpandableSettingsItem(
-    lowValue: Float,
-    highValue: Float,
+private fun GlucoseRangeExpandableSettingsItem(
+    targetLowValue: Float,
+    targetHighValue: Float,
+    chartLowValue: Float,
+    chartHighValue: Float,
     isMmol: Boolean,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    onLowValueChange: (Float) -> Unit,
-    onHighValueChange: (Float) -> Unit,
+    onTargetRangeChange: (Float, Float) -> Unit,
+    onChartRangeChange: (Float, Float) -> Unit,
     iconTint: Color,
     position: CardPosition
 ) {
+    val valueStep = if (isMmol) 0.1f else 1f
+    val targetLowBounds = if (isMmol) 2.0f..8.0f else 40f..140f
+    val targetHighBounds = if (isMmol) 6.0f..16.0f else 100f..350f
+    val chartLowBounds = if (isMmol) 0.0f..12.0f else 0f..216f
+    val chartHighBounds = if (isMmol) 4.0f..30.0f else 72f..540f
+    val normalizedTargetLow = clampLowerRangeValue(
+        value = targetLowValue,
+        upperValue = targetHighValue,
+        bounds = targetLowBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
+    val normalizedTargetHigh = clampUpperRangeValue(
+        value = targetHighValue,
+        lowerValue = normalizedTargetLow,
+        bounds = targetHighBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
+    val normalizedChartLow = clampLowerRangeValue(
+        value = chartLowValue,
+        upperValue = chartHighValue,
+        bounds = chartLowBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
+    val normalizedChartHigh = clampUpperRangeValue(
+        value = chartHighValue,
+        lowerValue = normalizedChartLow,
+        bounds = chartHighBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        label = "targetRangeChevron"
+        label = "glucoseRangeChevron"
     )
-    var lowSlider by remember(lowValue) { mutableFloatStateOf(lowValue) }
-    var highSlider by remember(highValue) { mutableFloatStateOf(highValue) }
+    var targetLowSlider by remember(targetLowValue, targetHighValue, isMmol) {
+        mutableFloatStateOf(normalizedTargetLow)
+    }
+    var targetHighSlider by remember(targetLowValue, targetHighValue, isMmol) {
+        mutableFloatStateOf(normalizedTargetHigh)
+    }
+    var chartLowSlider by remember(chartLowValue, chartHighValue, isMmol) {
+        mutableFloatStateOf(normalizedChartLow)
+    }
+    var chartHighSlider by remember(chartLowValue, chartHighValue, isMmol) {
+        mutableFloatStateOf(normalizedChartHigh)
+    }
 
-    val lowText = if (isMmol) String.format(Locale.getDefault(), "%.1f", lowSlider) else lowSlider.toInt().toString()
-    val highText = if (isMmol) String.format(Locale.getDefault(), "%.1f", highSlider) else highSlider.toInt().toString()
+    val targetSummary = remember(targetLowSlider, targetHighSlider, isMmol) {
+        formatRangeSummary(targetLowSlider, targetHighSlider, isMmol)
+    }
+    val chartSummary = remember(chartLowSlider, chartHighSlider, isMmol) {
+        formatRangeSummary(chartLowSlider, chartHighSlider, isMmol)
+    }
+    val targetShortTitle = stringResource(R.string.target_short_title)
+    val chartShortTitle = stringResource(R.string.chart_short_title)
+    val targetTitle = stringResource(R.string.target_range_title)
+    val chartTitle = stringResource(R.string.chart_limits_title)
+    val collapsedSummary = remember(targetShortTitle, chartShortTitle, targetSummary, chartSummary) {
+        "$targetShortTitle $targetSummary • $chartShortTitle $chartSummary"
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -683,13 +763,16 @@ private fun TargetRangeExpandableSettingsItem(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.target_range_title),
+                        text = stringResource(R.string.glucose_range_title),
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "$lowText-$highText",
+                        modifier = Modifier.padding(top = 2.dp),
+                        text = collapsedSummary,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -711,35 +794,177 @@ private fun TargetRangeExpandableSettingsItem(
 
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            text = "Low: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", lowSlider) else lowSlider.toInt()}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Slider(
-                            value = lowSlider,
-                            onValueChange = { lowSlider = it },
-                            onValueChangeFinished = { onLowValueChange(lowSlider) },
-                            valueRange = if (isMmol) 2.0f..8.0f else 40f..140f
+                        GlucoseRangeEditorSection(
+                            title = targetTitle,
+                            lowLabel = stringResource(R.string.low_label),
+                            highLabel = stringResource(R.string.high_label),
+                            lowValue = targetLowSlider,
+                            highValue = targetHighSlider,
+                            lowBounds = targetLowBounds,
+                            highBounds = targetHighBounds,
+                            isMmol = isMmol,
+                            onLowValueChange = { candidate ->
+                                targetLowSlider = clampLowerRangeValue(
+                                    value = candidate,
+                                    upperValue = targetHighSlider,
+                                    bounds = targetLowBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onHighValueChange = { candidate ->
+                                targetHighSlider = clampUpperRangeValue(
+                                    value = candidate,
+                                    lowerValue = targetLowSlider,
+                                    bounds = targetHighBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onLowValueChangeFinished = {
+                                onTargetRangeChange(targetLowSlider, targetHighSlider)
+                            },
+                            onHighValueChangeFinished = {
+                                onTargetRangeChange(targetLowSlider, targetHighSlider)
+                            }
                         )
 
-                        Text(
-                            text = "High: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", highSlider) else highSlider.toInt()}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Slider(
-                            value = highSlider,
-                            onValueChange = { highSlider = it },
-                            onValueChangeFinished = { onHighValueChange(highSlider) },
-                            valueRange = if (isMmol) 6.0f..16.0f else 100f..350f
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                        GlucoseRangeEditorSection(
+                            title = chartTitle,
+                            lowLabel = stringResource(R.string.low_label),
+                            highLabel = stringResource(R.string.high_label),
+                            lowValue = chartLowSlider,
+                            highValue = chartHighSlider,
+                            lowBounds = chartLowBounds,
+                            highBounds = chartHighBounds,
+                            isMmol = isMmol,
+                            onLowValueChange = { candidate ->
+                                chartLowSlider = clampLowerRangeValue(
+                                    value = candidate,
+                                    upperValue = chartHighSlider,
+                                    bounds = chartLowBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onHighValueChange = { candidate ->
+                                chartHighSlider = clampUpperRangeValue(
+                                    value = candidate,
+                                    lowerValue = chartLowSlider,
+                                    bounds = chartHighBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onLowValueChangeFinished = {
+                                onChartRangeChange(chartLowSlider, chartHighSlider)
+                            },
+                            onHighValueChangeFinished = {
+                                onChartRangeChange(chartLowSlider, chartHighSlider)
+                            }
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GlucoseRangeEditorSection(
+    title: String,
+    lowLabel: String,
+    highLabel: String,
+    lowValue: Float,
+    highValue: Float,
+    lowBounds: ClosedFloatingPointRange<Float>,
+    highBounds: ClosedFloatingPointRange<Float>,
+    isMmol: Boolean,
+    onLowValueChange: (Float) -> Unit,
+    onHighValueChange: (Float) -> Unit,
+    onLowValueChangeFinished: () -> Unit,
+    onHighValueChangeFinished: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = "$lowLabel: ${formatRangeValue(lowValue, isMmol)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Slider(
+            value = lowValue,
+            onValueChange = onLowValueChange,
+            onValueChangeFinished = onLowValueChangeFinished,
+            valueRange = lowBounds
+        )
+        Text(
+            text = "$highLabel: ${formatRangeValue(highValue, isMmol)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Slider(
+            value = highValue,
+            onValueChange = onHighValueChange,
+            onValueChangeFinished = onHighValueChangeFinished,
+            valueRange = highBounds
+        )
+    }
+}
+
+private fun formatRangeSummary(lowValue: Float, highValue: Float, isMmol: Boolean): String {
+    return "${formatRangeValue(lowValue, isMmol)}-${formatRangeValue(highValue, isMmol)}"
+}
+
+private fun formatRangeValue(value: Float, isMmol: Boolean): String {
+    return if (isMmol) {
+        String.format(Locale.getDefault(), "%.1f", value)
+    } else {
+        value.roundToInt().toString()
+    }
+}
+
+private fun clampLowerRangeValue(
+    value: Float,
+    upperValue: Float,
+    bounds: ClosedFloatingPointRange<Float>,
+    step: Float,
+    isMmol: Boolean
+): Float {
+    val maxValue = minOf(bounds.endInclusive, upperValue - step)
+    if (maxValue < bounds.start) {
+        return snapRangeValue(bounds.start, isMmol)
+    }
+    return snapRangeValue(value, isMmol).coerceIn(bounds.start, maxValue)
+}
+
+private fun clampUpperRangeValue(
+    value: Float,
+    lowerValue: Float,
+    bounds: ClosedFloatingPointRange<Float>,
+    step: Float,
+    isMmol: Boolean
+): Float {
+    val minValue = maxOf(bounds.start, lowerValue + step)
+    if (minValue > bounds.endInclusive) {
+        return snapRangeValue(bounds.endInclusive, isMmol)
+    }
+    return snapRangeValue(value, isMmol).coerceIn(minValue, bounds.endInclusive)
+}
+
+private fun snapRangeValue(value: Float, isMmol: Boolean): Float {
+    return if (isMmol) {
+        (value * 10f).roundToInt() / 10f
+    } else {
+        value.roundToInt().toFloat()
     }
 }
 

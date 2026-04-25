@@ -22,6 +22,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -119,6 +120,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
@@ -138,6 +140,7 @@ import tk.glucodata.data.journal.JournalChartMarker
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.ui.getDisplayValues
 import kotlin.math.abs
+import kotlin.math.ln
 import kotlin.math.roundToInt
 
 private const val PREVIEW_WINDOW_MODE_EXPANDED_ONLY = 0
@@ -523,6 +526,13 @@ data class ChartViewportSnapshot(
     val selectedPoint: GlucosePoint?
 )
 
+data class ChartTimelineTapSuggestion(
+    val timestamp: Long,
+    val suggestedDisplayGlucose: Float? = null,
+    val normalizedYFraction: Float? = null,
+    val forceMenu: Boolean = false
+)
+
 private fun List<GlucosePoint>.sliceByTimestampRange(startMillis: Long, endMillis: Long): List<GlucosePoint> {
     if (isEmpty()) return emptyList()
     val startIndex = binarySearchBy(startMillis) { it.timestamp }
@@ -543,6 +553,8 @@ fun DashboardChartSection(
     graphSmoothingMinutes: Int = 0,
     collapseSmoothedData: Boolean = false,
     previewWindowMode: Int = 0,
+    graphLow: Float,
+    graphHigh: Float,
     targetLow: Float,
     targetHigh: Float,
     unit: String,
@@ -556,8 +568,10 @@ fun DashboardChartSection(
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
-    onTimelineTap: ((Long) -> Unit)? = null,
+    onTimelineTap: ((ChartTimelineTapSuggestion) -> Unit)? = null,
     journalActionTimestamp: Long? = null,
+    journalActionDisplayValue: Float? = null,
+    onDismissJournalAction: (() -> Unit)? = null,
     onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
@@ -573,6 +587,8 @@ fun DashboardChartSection(
                         graphSmoothingMinutes = graphSmoothingMinutes,
                         collapseSmoothedData = collapseSmoothedData,
                         previewWindowMode = previewWindowMode,
+                        graphLow = graphLow,
+                        graphHigh = graphHigh,
                         targetLow = targetLow,
                         targetHigh = targetHigh,
                         unit = unit,
@@ -588,6 +604,8 @@ fun DashboardChartSection(
                         onCalibrationClick = onCalibrationClick,
                         onTimelineTap = onTimelineTap,
                         journalActionTimestamp = journalActionTimestamp,
+                        journalActionDisplayValue = journalActionDisplayValue,
+                        onDismissJournalAction = onDismissJournalAction,
                         onJournalMarkerClick = onJournalMarkerClick,
                         chartBoostProgress = chartBoostProgress,
                         onViewportSnapshotChanged = onViewportSnapshotChanged
@@ -626,6 +644,8 @@ fun InteractiveGlucoseChart(
     graphSmoothingMinutes: Int = 0,
     collapseSmoothedData: Boolean = false,
     previewWindowMode: Int = 0,
+    graphLow: Float,
+    graphHigh: Float,
     targetLow: Float,
     targetHigh: Float,
     unit: String,
@@ -640,8 +660,10 @@ fun InteractiveGlucoseChart(
     onToggleExpanded: (() -> Unit)? = null,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
     onCalibrationClick: ((tk.glucodata.data.calibration.CalibrationEntity) -> Unit)? = null,
-    onTimelineTap: ((Long) -> Unit)? = null,
+    onTimelineTap: ((ChartTimelineTapSuggestion) -> Unit)? = null,
     journalActionTimestamp: Long? = null,
+    journalActionDisplayValue: Float? = null,
+    onDismissJournalAction: (() -> Unit)? = null,
     onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
@@ -969,19 +991,36 @@ fun InteractiveGlucoseChart(
 
     // --- Y-AXIS STATE (Manual Scaling) ---
     val isMmol = if (unit.isNotEmpty()) tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit) else tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
-    val defaultMin = if (isMmol) 0.1f else 2f
-    val defaultMax = if (isMmol) 13.5f else 236f
+    val fallbackMin = if (isMmol) 0.1f else 2f
+    val fallbackMax = if (isMmol) 13.5f else 236f
+    val graphRangeDefaults = resolveGraphRangeDefaults(
+        requestedLow = graphLow,
+        requestedHigh = graphHigh,
+        fallbackLow = fallbackMin,
+        fallbackHigh = fallbackMax
+    )
     val minYAxisSpan = if (isMmol) 6f else 108f
 
     // --- Y-AXIS SCALING ---
-    var yMin by rememberSaveable { mutableFloatStateOf(defaultMin) }
-    var yMax by rememberSaveable { mutableFloatStateOf(defaultMax) }
+    var yMin by rememberSaveable { mutableFloatStateOf(graphRangeDefaults.first) }
+    var yMax by rememberSaveable { mutableFloatStateOf(graphRangeDefaults.second) }
+
+    LaunchedEffect(graphRangeDefaults) {
+        yMin = graphRangeDefaults.first
+        yMax = graphRangeDefaults.second
+    }
 
     // --- INTERACTION STATE ---
     var selectedPoint by remember { mutableStateOf<GlucosePoint?>(null) }
     var isScrubbing by remember { mutableStateOf(false) } // Touching the line?
     var lastScrubHapticTimestamp by remember { mutableLongStateOf(Long.MIN_VALUE) }
     var isActiveInsulinExpanded by rememberSaveable { mutableStateOf(false) }
+    var pendingTimelineTapJob by remember { mutableStateOf<Job?>(null) }
+
+    fun cancelPendingTimelineTap() {
+        pendingTimelineTapJob?.cancel()
+        pendingTimelineTapJob = null
+    }
 
     // Auto-dismiss selection if off-screen (User Request)
     LaunchedEffect(centerTime, visibleDuration, selectedPoint) {
@@ -1197,6 +1236,13 @@ fun InteractiveGlucoseChart(
                     var lastTapPos = Offset.Zero
 
                     awaitEachGesture {
+                        var dismissedJournalActionForGesture = false
+                        fun dismissJournalActionIfNeeded() {
+                            if (!dismissedJournalActionForGesture) {
+                                onDismissJournalAction?.invoke()
+                                dismissedJournalActionForGesture = true
+                            }
+                        }
                         isUserInteracting = true
                         try {
                             // FIX: Use requireUnconsumed = true (default) to respect z-order.
@@ -1219,6 +1265,7 @@ fun InteractiveGlucoseChart(
                                 down.position.x in previewLeft..previewRight &&
                                 down.position.y in previewTop..previewBottom
                             if (isPreviewTouch) {
+                                dismissJournalActionIfNeeded()
                                 val previewSafeWidth =
                                     (previewRight - previewLeft).coerceAtLeast(1f)
                                 val previewDuration = PREVIEW_WINDOW_DURATION_MS
@@ -1327,6 +1374,10 @@ fun InteractiveGlucoseChart(
                                     (gestureStartTime - lastTapTime < 300) &&
                                     (down.position - lastTapPos).getDistance() < 100.dp.toPx()
 
+                            if (isDoubleTapStart) {
+                                cancelPendingTimelineTap()
+                            }
+
                             var isOneFingerZoom = isDoubleTapStart
 
                             // Kill inertia
@@ -1351,6 +1402,45 @@ fun InteractiveGlucoseChart(
                                 viewportStart + ((downX / usefulWidth).toDouble() * downDuration)
                             val pointAtTouch = getPointAt(timeAtTouch)
                             var touchThreshold = 32.dp.toPx()
+                            fun buildTimelineTapSuggestion(position: Offset, forceMenu: Boolean): ChartTimelineTapSuggestion? {
+                                if (position.y > chartHeight) return null
+                                val clampedX = position.x.coerceIn(0f, usefulWidth)
+                                val tapTime = viewportStart + ((clampedX / usefulWidth).toDouble() * downDuration)
+                                val normalizedY = 1f - (position.y / chartHeight).coerceIn(0f, 1f)
+                                val suggestedValue = if (yMax - yMin < 0.001f) {
+                                    yMin
+                                } else {
+                                    (normalizedY * (yMax - yMin)) + yMin
+                                }
+                                return ChartTimelineTapSuggestion(
+                                    timestamp = tapTime.toLong(),
+                                    suggestedDisplayGlucose = suggestedValue,
+                                    normalizedYFraction = normalizedY.coerceIn(0f, 1f),
+                                    forceMenu = forceMenu
+                                )
+                            }
+
+                            var latestTouchPosition = down.position
+                            var longPressTriggered = false
+                            var change = down
+                            var totalDragDistance = 0f
+                            var lastPointerCount = 1
+                            val longPressJob = if (onTimelineTap != null && !isDoubleTapStart) {
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(viewConfiguration.longPressTimeoutMillis.toLong())
+                                    if (!longPressTriggered && totalDragDistance < viewConfiguration.touchSlop) {
+                                        buildTimelineTapSuggestion(latestTouchPosition, forceMenu = true)?.let { suggestion ->
+                                            dismissJournalActionIfNeeded()
+                                            cancelPendingTimelineTap()
+                                            selectedPoint = null
+                                            onTimelineTap.invoke(suggestion)
+                                            longPressTriggered = true
+                                        }
+                                    }
+                                }
+                            } else {
+                                null
+                            }
 
                             // Only allow scrubbing if purely single tap start (not double tap sequence)
                             isScrubbing = if (pointAtTouch != null && !isOneFingerZoom) {
@@ -1377,27 +1467,32 @@ fun InteractiveGlucoseChart(
                             }
 
                             if (isScrubbing) {
+                                dismissJournalActionIfNeeded()
                                 selectedPoint = pointAtTouch
                                 performScrubHaptic(pointAtTouch)
                             }
-
-                            var change = down
-                            var totalDragDistance = 0f
-                            var lastPointerCount = 1
 
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val pointerCount = event.changes.count { it.pressed }
                                 val newChange = event.changes.firstOrNull { it.pressed }
                                     ?: event.changes.firstOrNull() ?: break
+                                latestTouchPosition = newChange.position
                                 if (pointerCount == 0 || newChange.changedToUp()) break
                                 if (pointerCount != lastPointerCount) {
+                                    longPressJob?.cancel()
                                     change = newChange
                                     lastPointerCount = pointerCount
                                     velocityTracker.resetTracking()
                                     continue
                                 }
                                 if (isAdjustingScrubLabel) {
+                                    longPressJob?.cancel()
+                                    event.changes.forEach { it.consume() }
+                                    change = newChange
+                                    continue
+                                }
+                                if (longPressTriggered) {
                                     event.changes.forEach { it.consume() }
                                     change = newChange
                                     continue
@@ -1405,15 +1500,18 @@ fun InteractiveGlucoseChart(
 
                                 velocityTracker.addPointerInputChange(newChange)
                                 if (pointerCount > 1) {
+                                    longPressJob?.cancel()
                                     isOneFingerZoom = false
                                 }
 
                                 if (isOneFingerZoom && pointerCount == 1) {
+                                    longPressJob?.cancel()
                                     // ONE FINGER ZOOM MODE (Double-Tap-Drag)
                                     val panY = newChange.position.y - change.position.y
 
                                     // Only apply zoom if there's meaningful vertical movement
                                     if (abs(panY) > 2f) {
+                                        dismissJournalActionIfNeeded()
                                         // EXPONENTIAL ZOOM (Smoother feel)
                                         // panY > 0 (Down) -> Zoom IN (Duration shrinks)
                                         // Form: newDur = oldDur * exp(-panY * sensitivity)
@@ -1429,6 +1527,8 @@ fun InteractiveGlucoseChart(
                                     newChange.consume()
 
                                 } else if (pointerCount > 1) {
+                                    longPressJob?.cancel()
+                                    dismissJournalActionIfNeeded()
                                     // 2-FINGER ZOOM
                                     totalDragDistance += viewConfiguration.touchSlop
                                     val zoomChange = event.calculateZoom()
@@ -1442,6 +1542,12 @@ fun InteractiveGlucoseChart(
                                 } else {
                                     // 1-FINGER PAN / SCRUB
                                     if (isScrubbing) {
+                                        val scrubDx = newChange.position.x - change.position.x
+                                        val scrubDy = newChange.position.y - change.position.y
+                                        totalDragDistance += kotlin.math.sqrt(scrubDx * scrubDx + scrubDy * scrubDy)
+                                        if (totalDragDistance > viewConfiguration.touchSlop) {
+                                            longPressJob?.cancel()
+                                        }
                                         val clampedX =
                                             newChange.position.x.coerceIn(0f, usefulWidth)
                                         val currentFrac = (clampedX / usefulWidth).toDouble()
@@ -1456,6 +1562,11 @@ fun InteractiveGlucoseChart(
                                         val panY = newChange.position.y - change.position.y
                                         val dragDist = kotlin.math.sqrt(panX * panX + panY * panY)
                                         totalDragDistance += dragDist
+
+                                        if (totalDragDistance > viewConfiguration.touchSlop) {
+                                            longPressJob?.cancel()
+                                            dismissJournalActionIfNeeded()
+                                        }
 
                                         if (abs(panX) > abs(panY)) {
                                             // Horizontal pan
@@ -1486,7 +1597,8 @@ fun InteractiveGlucoseChart(
 
                             // ON UP
                             val wasTap = totalDragDistance < viewConfiguration.touchSlop
-                            lastGestureWasTap = wasTap && !isOneFingerZoom && !isScrubbing
+                            longPressJob?.cancel()
+                            lastGestureWasTap = wasTap && !isOneFingerZoom && !isScrubbing && !longPressTriggered
 
                             if (wasTap) {
                                 lastTapTime = System.currentTimeMillis()
@@ -1494,9 +1606,10 @@ fun InteractiveGlucoseChart(
                             }
 
                             if (!isScrubbing) {
-                                if (wasTap) {
+                                if (wasTap && !longPressTriggered) {
                                     // TAP DETECTED
                                     if (isOneFingerZoom) {
+                                        cancelPendingTimelineTap()
                                         // DOUBLE TAP TOGGLE ZOOM
                                         if (preZoomDuration > 0) {
                                             visibleDuration = preZoomDuration
@@ -1513,12 +1626,20 @@ fun InteractiveGlucoseChart(
                                                 timeAtTouch > pointAtTouch.timestamp
 
                                         if (isFutureTap) {
+                                            dismissJournalActionIfNeeded()
                                             selectedPoint = pointAtTouch
                                         } else {
                                             if (selectedPoint != null) {
+                                                cancelPendingTimelineTap()
                                                 selectedPoint = null
-                                            } else if (down.position.y <= chartHeight) {
-                                                onTimelineTap?.invoke(timeAtTouch.toLong())
+                                            } else {
+                                                buildTimelineTapSuggestion(down.position, forceMenu = false)?.let { suggestion ->
+                                                    cancelPendingTimelineTap()
+                                                    pendingTimelineTapJob = coroutineScope.launch {
+                                                        kotlinx.coroutines.delay(280L)
+                                                        onTimelineTap?.invoke(suggestion)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1568,6 +1689,14 @@ fun InteractiveGlucoseChart(
                 targetValue = visibleDuration.toFloat(),
                 animationSpec = spring<Float>(stiffness = Spring.StiffnessMedium),
                 label = "ChartZoomAnimation"
+            )
+            val journalActionIndicatorProgress by animateFloatAsState(
+                targetValue = if (journalActionTimestamp != null && selectedPoint == null) 1f else 0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessLow
+                ),
+                label = "JournalActionIndicatorProgress"
             )
 
             // Calculate gradient brush logic outside Canvas (Optimized)
@@ -1713,6 +1842,11 @@ fun InteractiveGlucoseChart(
                     if (cYRange < 0.001f) return chartHeight / 2 // Prevent div/0
                     val y = chartHeight - ((v - cYMin) / cYRange) * chartHeight
                     return y.coerceIn(-2000f, chartHeight + 2000f) // Clamp for safety against huge values
+                }
+                fun yToVal(y: Float): Float {
+                    if (cYRange < 0.001f) return cYMin
+                    val normalized = 1f - (y / chartHeight).coerceIn(0f, 1f)
+                    return (normalized * cYRange) + cYMin
                 }
 
                 // --- 1. DRAW Y-AXIS GRID ---
@@ -2137,46 +2271,134 @@ fun InteractiveGlucoseChart(
                     bandEnd >= viewportStart && bandStart <= viewportEnd
                 }
                 if (visibleJournalMarkers.isNotEmpty()) {
-                    val curveHeight = 18.dp.toPx()
-                    val strokeWidth = 2.dp.toPx()
-                    val offscreenPaddingPx = 32.dp.toPx()
-                    val curveBottomInset = 10.dp.toPx()
-                    val curveLaneOffset = 8.dp.toPx()
+                    val visibleInsulinMarkers = visibleJournalMarkers.filter { it.type == JournalEntryType.INSULIN }
+                    val visibleEventMarkers = visibleJournalMarkers.filter { it.type != JournalEntryType.INSULIN }
 
-                    visibleJournalMarkers.forEachIndexed { markerIndex, marker ->
-                        val tint = Color(marker.accentColor)
-                        val startTime = marker.activeStartMillis ?: marker.timestamp
-                        val endTime = marker.activeEndMillis ?: marker.timestamp
-                        val lane = markerIndex % 3
-                        val curveBaseY = (chartHeight - curveBottomInset - (lane * curveLaneOffset)).coerceAtLeast(18.dp.toPx())
-                        val markerX = timeToDataX(marker.timestamp)
+                    if (visibleInsulinMarkers.isNotEmpty()) {
+                        val baseCurveHeight = (chartHeight * 0.018f).coerceIn(5.dp.toPx(), 12.dp.toPx())
+                        val extraCurveHeight = (chartHeight * 0.20f).coerceIn(72.dp.toPx(), 156.dp.toPx())
+                        val strokeWidth = 1.8.dp.toPx()
+                        val offscreenPaddingPx = 32.dp.toPx()
+                        val curveBottomInset = 0.5.dp.toPx()
+                        val curveReferenceY = chartHeight - curveBottomInset
+                        val referenceDoseUnits = 18f
 
-                        if (marker.curvePoints.isNotEmpty() && endTime > startTime) {
-                            val path = Path()
-                            val fillPath = Path()
-                            marker.curvePoints.forEachIndexed { index, point ->
-                                val pointTime = marker.timestamp + (point.minute * 60_000L)
-                                val x = timeToDataX(pointTime).coerceIn(-offscreenPaddingPx, dataWidth + offscreenPaddingPx)
-                                val y = curveBaseY - (point.activity.coerceIn(0f, 1f) * curveHeight)
-                                if (index == 0) {
-                                    path.moveTo(x, y)
-                                    fillPath.moveTo(x, curveBaseY)
-                                    fillPath.lineTo(x, y)
+                        visibleInsulinMarkers.forEach { marker ->
+                            val tint = Color(marker.accentColor)
+                            val startTime = marker.timestamp
+                            val endTime = marker.activeEndMillis ?: marker.timestamp
+                            val doseUnits = (marker.amount ?: 0.5f).coerceAtLeast(0.05f)
+                            val amountFactor = (ln(1f + doseUnits) / ln(1f + referenceDoseUnits)).coerceIn(0.08f, 1f)
+                            val curveHeight = baseCurveHeight + (extraCurveHeight * amountFactor)
+                            val curveBaseY = curveReferenceY.coerceAtLeast(curveHeight + 1.dp.toPx())
+                            val markerX = timeToDataX(marker.timestamp)
+
+                            if (marker.curvePoints.isNotEmpty() && endTime > startTime) {
+                                val fillPath = Path()
+                                val curveStartX = timeToDataX(startTime).coerceIn(-offscreenPaddingPx, dataWidth + offscreenPaddingPx)
+                                val curveEndX = timeToDataX(endTime).coerceIn(-offscreenPaddingPx, dataWidth + offscreenPaddingPx)
+                                val resolvedCurveEndX = if (abs(curveEndX - curveStartX) < 1f) {
+                                    curveStartX + 1f
                                 } else {
-                                    path.lineTo(x, y)
-                                    fillPath.lineTo(x, y)
+                                    curveEndX
                                 }
+                                val fillBrush = Brush.horizontalGradient(
+                                    colorStops = arrayOf(
+                                        0f to tint.copy(alpha = 0f),
+                                        0.18f to tint.copy(alpha = tint.alpha * 0.18f),
+                                        0.82f to tint.copy(alpha = tint.alpha * 0.15f),
+                                        1f to tint.copy(alpha = 0f)
+                                    ),
+                                    startX = curveStartX,
+                                    endX = resolvedCurveEndX
+                                )
+                                val curveSamples = buildList {
+                                    add(Triple(curveStartX, curveBaseY, 0f))
+                                    marker.curvePoints.forEach { point ->
+                                        val pointTime = marker.timestamp + (point.minute * 60_000L)
+                                        val x = timeToDataX(pointTime).coerceIn(-offscreenPaddingPx, dataWidth + offscreenPaddingPx)
+                                        val activity = point.activity.coerceIn(0f, 1f)
+                                        val y = curveBaseY - (activity * curveHeight)
+                                        add(Triple(x, y, activity))
+                                    }
+                                    add(Triple(resolvedCurveEndX, curveBaseY, 0f))
+                                }.sortedBy { it.first }
+                                val span = (resolvedCurveEndX - curveStartX).takeIf { abs(it) > 0.001f } ?: 1f
+                                fun edgeFadeFor(x: Float): Float {
+                                    val progress = ((x - curveStartX) / span).coerceIn(0f, 1f)
+                                    val startFade = (progress / 0.22f).coerceIn(0f, 1f)
+                                    val endFade = ((1f - progress) / 0.24f).coerceIn(0f, 1f)
+                                    return minOf(startFade, endFade)
+                                }
+                                fillPath.moveTo(curveSamples.first().first, curveSamples.first().second)
+                                drawLine(
+                                    color = tint.copy(alpha = tint.alpha * 0.08f),
+                                    start = Offset(curveStartX, curveBaseY),
+                                    end = Offset(resolvedCurveEndX, curveBaseY),
+                                    strokeWidth = 0.8.dp.toPx()
+                                )
+                                curveSamples.drop(1).forEach { sample ->
+                                    fillPath.lineTo(sample.first, sample.second)
+                                }
+                                fillPath.lineTo(resolvedCurveEndX, curveBaseY)
+                                fillPath.close()
+                                drawPath(fillPath, fillBrush)
+                                for (sampleIndex in 0 until curveSamples.lastIndex) {
+                                    val startSample = curveSamples[sampleIndex]
+                                    val endSample = curveSamples[sampleIndex + 1]
+                                    val averageActivity = ((startSample.third + endSample.third) * 0.5f).coerceIn(0f, 1f)
+                                    val averageX = (startSample.first + endSample.first) * 0.5f
+                                    val segmentAlpha = tint.alpha * (0.08f + (0.84f * averageActivity)) * edgeFadeFor(averageX)
+                                    if (segmentAlpha <= 0.01f) continue
+                                    drawLine(
+                                        color = tint.copy(alpha = segmentAlpha),
+                                        start = Offset(startSample.first, startSample.second),
+                                        end = Offset(endSample.first, endSample.second),
+                                        strokeWidth = strokeWidth,
+                                        cap = StrokeCap.Round
+                                    )
+                                }
+                            } else if (markerX in 0f..dataWidth) {
+                                drawCircle(
+                                    color = tint.copy(alpha = tint.alpha * 0.72f),
+                                    radius = 3.5.dp.toPx(),
+                                    center = Offset(markerX, curveBaseY)
+                                )
                             }
-                            fillPath.lineTo(timeToDataX(endTime).coerceIn(-offscreenPaddingPx, dataWidth + offscreenPaddingPx), curveBaseY)
-                            fillPath.close()
-                            drawPath(fillPath, tint.copy(alpha = 0.14f))
-                            drawPath(path, tint, style = Stroke(width = strokeWidth))
-                        } else if (markerX in 0f..dataWidth) {
-                            drawCircle(
-                                color = tint,
-                                radius = 4.dp.toPx(),
-                                center = Offset(markerX, curveBaseY - 2.dp.toPx())
-                            )
+                        }
+                    }
+
+                    if (visibleEventMarkers.isNotEmpty()) {
+                        val eventRailY = (chartHeight - 10.dp.toPx()).coerceAtLeast(8.dp.toPx())
+                        visibleEventMarkers.forEach { marker ->
+                            val markerX = timeToDataX(marker.timestamp)
+                            if (markerX !in 0f..dataWidth) return@forEach
+                            val tint = Color(marker.accentColor)
+                            val markerY = when (marker.type) {
+                                JournalEntryType.FINGERSTICK -> marker.chartGlucoseValue
+                                    ?.let(::valToY)
+                                    ?.takeIf { it.isFinite() }
+                                    ?: eventRailY
+                                else -> eventRailY
+                            }
+                            if (marker.type == JournalEntryType.FINGERSTICK) {
+                                drawCircle(
+                                    color = tint.copy(alpha = 0.18f),
+                                    radius = 6.dp.toPx(),
+                                    center = Offset(markerX, markerY)
+                                )
+                                drawCircle(
+                                    color = tint,
+                                    radius = 3.25.dp.toPx(),
+                                    center = Offset(markerX, markerY)
+                                )
+                            } else {
+                                drawCircle(
+                                    color = tint.copy(alpha = 0.88f),
+                                    radius = 4.5.dp.toPx(),
+                                    center = Offset(markerX, markerY)
+                                )
+                            }
                         }
                     }
                 }
@@ -2184,17 +2406,27 @@ fun InteractiveGlucoseChart(
                 if (journalActionTimestamp != null && selectedPoint == null && journalActionTimestamp in viewportStart..viewportEnd) {
                     val actionX = timeToDataX(journalActionTimestamp)
                     if (actionX in 0f..width) {
+                        val actionMarkerY = journalActionDisplayValue
+                            ?.let(::valToY)
+                            ?.takeIf { it.isFinite() }
+                            ?.coerceIn(12.dp.toPx(), chartHeight - 12.dp.toPx())
+                            ?: (chartHeight - 12.dp.toPx())
                         drawLine(
-                            color = primaryColor.copy(alpha = 0.3f),
+                            color = primaryColor.copy(alpha = 0.22f + (0.14f * journalActionIndicatorProgress)),
                             start = Offset(actionX, 0f),
                             end = Offset(actionX, chartHeight),
                             strokeWidth = 1.5.dp.toPx(),
                             pathEffect = dashEffect
                         )
                         drawCircle(
-                            color = primaryColor.copy(alpha = 0.92f),
-                            radius = 4.dp.toPx(),
-                            center = Offset(actionX, chartHeight - 12.dp.toPx())
+                            color = primaryColor.copy(alpha = 0.18f * journalActionIndicatorProgress),
+                            radius = (10.dp.toPx() * (0.72f + (0.28f * journalActionIndicatorProgress))),
+                            center = Offset(actionX, actionMarkerY)
+                        )
+                        drawCircle(
+                            color = primaryColor.copy(alpha = 0.96f),
+                            radius = 4.5.dp.toPx(),
+                            center = Offset(actionX, actionMarkerY)
                         )
                     }
                 }
@@ -2240,34 +2472,178 @@ fun InteractiveGlucoseChart(
             val overlayDataWidthPx = (constraints.maxWidth.toFloat() - overlayRightPaddingPx).coerceAtLeast(1f)
             val overlayViewportStart = centerTime - visibleDuration / 2
             val overlayViewportEnd = centerTime + visibleDuration / 2
-            val journalChipLaneStepPx = with(LocalDensity.current) { 26.dp.toPx() }
-            val journalChipTopInsetPx = with(LocalDensity.current) { 18.dp.toPx() }
+            val journalChipLaneStepPx = with(LocalDensity.current) { 30.dp.toPx() }
             val journalChipMinTopPx = with(LocalDensity.current) { 8.dp.toPx() }
+            val journalChipMinGapPx = with(LocalDensity.current) { 90.dp.toPx() }
             val journalActionChipYOffsetPx = with(LocalDensity.current) { (chartHeightPx - 34.dp.toPx()).coerceAtLeast(12.dp.toPx()) }
+            val overlayValueToY: (Float) -> Float = { value ->
+                val range = (yMax - yMin).takeIf { it > 0.001f } ?: 1f
+                (chartHeightPx - ((value - yMin) / range) * chartHeightPx).coerceIn(0f, chartHeightPx)
+            }
+            fun laneAssignments(markers: List<Pair<JournalChartMarker, Float>>): Map<Long, Int> {
+                val laneEndXs = mutableListOf<Float>()
+                val assignments = mutableMapOf<Long, Int>()
+                markers.sortedBy { it.second }.forEach { (marker, markerX) ->
+                    val laneIndex = laneEndXs.indexOfFirst { markerX - it >= journalChipMinGapPx }
+                    val resolvedLane = if (laneIndex >= 0) laneIndex else laneEndXs.size.also {
+                        laneEndXs.add(Float.NEGATIVE_INFINITY)
+                    }
+                    laneEndXs[resolvedLane] = markerX
+                    assignments[marker.entryId] = resolvedLane
+                }
+                return assignments
+            }
+            val visibleOverlayMarkers = journalMarkers.filter { marker ->
+                marker.timestamp in overlayViewportStart..overlayViewportEnd
+            }
+            val markerXById = visibleOverlayMarkers.associate { marker ->
+                val xFraction = (marker.timestamp - overlayViewportStart).toFloat() / visibleDuration.toFloat()
+                marker.entryId to (overlayDataWidthPx * xFraction).coerceIn(0f, overlayDataWidthPx)
+            }
+            val fingerstickLanes = laneAssignments(
+                visibleOverlayMarkers
+                    .filter { it.type == JournalEntryType.FINGERSTICK }
+                    .mapNotNull { marker -> markerXById[marker.entryId]?.let { marker to it } }
+            )
+            val insulinLanes = laneAssignments(
+                visibleOverlayMarkers
+                    .filter { it.type == JournalEntryType.INSULIN }
+                    .mapNotNull { marker -> markerXById[marker.entryId]?.let { marker to it } }
+            )
+            val eventLanes = laneAssignments(
+                visibleOverlayMarkers
+                    .filter { it.type != JournalEntryType.INSULIN && it.type != JournalEntryType.FINGERSTICK }
+                    .mapNotNull { marker -> markerXById[marker.entryId]?.let { marker to it } }
+            )
+            val fingerstickLiftPx = with(LocalDensity.current) { 48.dp.toPx() }
+            val journalChipSideOffsetPx = with(LocalDensity.current) { 10.dp.toPx() }
+            val eventBaseTopPx = (chartHeightPx - with(LocalDensity.current) { 44.dp.toPx() }).coerceAtLeast(journalChipMinTopPx)
+            val insulinLabelGapPx = with(LocalDensity.current) { 34.dp.toPx() }
+            val insulinBaseCurveHeightPx = (chartHeightPx * 0.018f).coerceIn(
+                with(LocalDensity.current) { 5.dp.toPx() },
+                with(LocalDensity.current) { 12.dp.toPx() }
+            )
+            val insulinExtraCurveHeightPx = (chartHeightPx * 0.20f).coerceIn(
+                with(LocalDensity.current) { 72.dp.toPx() },
+                with(LocalDensity.current) { 156.dp.toPx() }
+            )
+            val insulinReferenceDoseUnits = 18f
+            fun insulinCurveHeightFor(amount: Float?): Float {
+                val doseUnits = (amount ?: 0.5f).coerceAtLeast(0.05f)
+                val amountFactor = (ln(1f + doseUnits) / ln(1f + insulinReferenceDoseUnits)).coerceIn(0.08f, 1f)
+                return insulinBaseCurveHeightPx + (insulinExtraCurveHeightPx * amountFactor)
+            }
+            val journalChipMaxTopPx = (chartHeightPx - with(LocalDensity.current) { 34.dp.toPx() }).coerceAtLeast(journalChipMinTopPx)
+            val connectorStrokePx = with(LocalDensity.current) { 0.7.dp.toPx() }
+            val connectorLabelCenterOffsetPx = with(LocalDensity.current) { 16.dp.toPx() }
+            val insulinConnectorY = chartHeightPx - with(LocalDensity.current) { 1.dp.toPx() }
 
-            journalMarkers
-                .filter { marker -> marker.timestamp in overlayViewportStart..overlayViewportEnd }
-                .forEachIndexed { markerIndex, marker ->
-                    val lane = markerIndex % 3
-                    val xFraction = (marker.timestamp - overlayViewportStart).toFloat() / visibleDuration.toFloat()
-                    val markerX = (overlayDataWidthPx * xFraction).coerceIn(0f, overlayDataWidthPx)
-                    val markerTop = (chartHeightPx - ((lane + 1) * journalChipLaneStepPx) - journalChipTopInsetPx)
-                        .coerceAtLeast(journalChipMinTopPx)
-                    JournalMarkerChip(
-                        marker = marker,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .zIndex(1.5f)
-                            .offset {
-                                androidx.compose.ui.unit.IntOffset(
-                                    x = markerX.toInt(),
-                                    y = markerTop.toInt()
-                                )
-                            }
-                            .graphicsLayer { translationX = -size.width / 2f },
-                        onClick = { onJournalMarkerClick?.invoke(marker.entryId) }
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(1.35f)
+            ) {
+                visibleOverlayMarkers.forEach { marker ->
+                    val markerX = markerXById[marker.entryId] ?: return@forEach
+                    val preferLeadingAnchor = markerX > (overlayDataWidthPx * 0.58f)
+                    val markerTop = when (marker.type) {
+                        JournalEntryType.FINGERSTICK -> {
+                            val lane = fingerstickLanes[marker.entryId] ?: 0
+                            (
+                                (marker.chartGlucoseValue?.let(overlayValueToY) ?: eventBaseTopPx) -
+                                    fingerstickLiftPx -
+                                    (lane * journalChipLaneStepPx)
+                                ).coerceIn(journalChipMinTopPx, journalChipMaxTopPx)
+                        }
+
+                        JournalEntryType.INSULIN -> {
+                            val lane = insulinLanes[marker.entryId] ?: 0
+                            (
+                                chartHeightPx -
+                                    insulinCurveHeightFor(marker.amount) -
+                                    insulinLabelGapPx -
+                                    (lane * journalChipLaneStepPx)
+                                ).coerceAtLeast(journalChipMinTopPx)
+                        }
+
+                        else -> {
+                            val lane = eventLanes[marker.entryId] ?: 0
+                            (eventBaseTopPx - (lane * journalChipLaneStepPx)).coerceAtLeast(journalChipMinTopPx)
+                        }
+                    }
+                    val sourceY = when (marker.type) {
+                        JournalEntryType.FINGERSTICK -> marker.chartGlucoseValue
+                            ?.let(overlayValueToY)
+                            ?.takeIf { it.isFinite() }
+                            ?: eventBaseTopPx
+                        JournalEntryType.INSULIN -> insulinConnectorY
+                        else -> eventBaseTopPx
+                    }
+                    val labelEdgeX = if (preferLeadingAnchor) {
+                        markerX - journalChipSideOffsetPx
+                    } else {
+                        markerX + journalChipSideOffsetPx
+                    }.coerceIn(0f, size.width)
+                    val labelCenterY = (markerTop + connectorLabelCenterOffsetPx).coerceIn(0f, chartHeightPx)
+                    drawLine(
+                        color = Color(marker.accentColor).copy(alpha = 0.16f),
+                        start = Offset(markerX, sourceY.coerceIn(0f, chartHeightPx)),
+                        end = Offset(labelEdgeX, labelCenterY),
+                        strokeWidth = connectorStrokePx,
+                        cap = StrokeCap.Round
                     )
                 }
+            }
+
+            visibleOverlayMarkers.forEach { marker ->
+                val markerX = markerXById[marker.entryId] ?: return@forEach
+                val preferLeadingAnchor = markerX > (overlayDataWidthPx * 0.58f)
+                val markerTop = when (marker.type) {
+                    JournalEntryType.FINGERSTICK -> {
+                        val lane = fingerstickLanes[marker.entryId] ?: 0
+                        (
+                            (marker.chartGlucoseValue?.let(overlayValueToY) ?: eventBaseTopPx) -
+                                fingerstickLiftPx -
+                                (lane * journalChipLaneStepPx)
+                            ).coerceIn(journalChipMinTopPx, journalChipMaxTopPx)
+                    }
+
+                    JournalEntryType.INSULIN -> {
+                        val lane = insulinLanes[marker.entryId] ?: 0
+                        (
+                            chartHeightPx -
+                                insulinCurveHeightFor(marker.amount) -
+                                insulinLabelGapPx -
+                                (lane * journalChipLaneStepPx)
+                            ).coerceAtLeast(journalChipMinTopPx)
+                    }
+
+                    else -> {
+                        val lane = eventLanes[marker.entryId] ?: 0
+                        (eventBaseTopPx - (lane * journalChipLaneStepPx)).coerceAtLeast(journalChipMinTopPx)
+                    }
+                }
+                JournalMarkerChip(
+                    marker = marker,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .zIndex(1.5f)
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                x = markerX.toInt(),
+                                y = markerTop.toInt()
+                            )
+                        }
+                        .graphicsLayer {
+                            translationX = if (preferLeadingAnchor) {
+                                -size.width - journalChipSideOffsetPx
+                            } else {
+                                journalChipSideOffsetPx
+                            }
+                        },
+                    onClick = { onJournalMarkerClick?.invoke(marker.entryId) }
+                )
+            }
 
             journalActionTimestamp
                 ?.takeIf { selectedPoint == null && it in overlayViewportStart..overlayViewportEnd }
@@ -3115,40 +3491,35 @@ private fun JournalMarkerChip(
     Surface(
         modifier = modifier,
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.18f)),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(24.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = tint.copy(alpha = 0.18f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = when (marker.type) {
-                            JournalEntryType.INSULIN -> Icons.Default.Vaccines
-                            JournalEntryType.CARBS -> Icons.Default.Restaurant
-                            JournalEntryType.FINGERSTICK -> Icons.Default.Bloodtype
-                            JournalEntryType.ACTIVITY -> Icons.Default.DirectionsRun
-                            JournalEntryType.NOTE -> Icons.AutoMirrored.Filled.Label
-                        },
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
+            Icon(
+                imageVector = when (marker.type) {
+                    JournalEntryType.INSULIN -> Icons.Default.Vaccines
+                    JournalEntryType.CARBS -> Icons.Default.Restaurant
+                    JournalEntryType.FINGERSTICK -> Icons.Default.Bloodtype
+                    JournalEntryType.ACTIVITY -> Icons.Default.DirectionsRun
+                    JournalEntryType.NOTE -> Icons.AutoMirrored.Filled.Label
+                },
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(14.dp)
+            )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = marker.detailText.ifBlank { marker.title.take(10) },
                 style = MaterialTheme.typography.labelMedium,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 88.dp)
             )
         }
     }
@@ -3160,4 +3531,19 @@ private fun formatRemainingDuration(remainingMillis: Long): String {
     val hours = totalMinutes / 60L
     val minutes = totalMinutes % 60L
     return String.format(java.util.Locale.getDefault(), "%02d:%02d", hours, minutes)
+}
+
+private fun resolveGraphRangeDefaults(
+    requestedLow: Float,
+    requestedHigh: Float,
+    fallbackLow: Float,
+    fallbackHigh: Float
+): Pair<Float, Float> {
+    val safeLow = requestedLow.takeIf { it.isFinite() && it >= 0f } ?: fallbackLow
+    val safeHigh = requestedHigh.takeIf { it.isFinite() && it > safeLow + 0.1f } ?: fallbackHigh
+    return if (safeHigh > safeLow + 0.1f) {
+        safeLow to safeHigh
+    } else {
+        fallbackLow to fallbackHigh
+    }
 }

@@ -3,6 +3,7 @@
 package tk.glucodata.ui.journal
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Vaccines
@@ -32,35 +34,42 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -72,8 +81,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import tk.glucodata.R
 import tk.glucodata.data.journal.JournalBuiltInCurveProfile
 import tk.glucodata.data.journal.JournalCurvePoint
@@ -86,6 +98,7 @@ import tk.glucodata.ui.alerts.AddCustomAlertButton
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SectionLabel
+import tk.glucodata.ui.components.StyledSwitch
 import tk.glucodata.ui.components.cardShape
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 
@@ -144,6 +157,21 @@ fun JournalSettingsScreen(
                     icon = Icons.Default.Vaccines,
                     iconTint = MaterialTheme.colorScheme.tertiary
                 )
+            }
+
+            item(key = "open_journal") {
+                FilledTonalButton(
+                    onClick = { navController.navigate("history") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.historyname))
+                }
             }
 
             item(key = "active_label") {
@@ -316,7 +344,8 @@ private fun JournalInsulinPresetSheet(
     onDelete: (() -> Unit)?
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var draft by remember(preset?.id) { mutableStateOf(buildPresetDraft(preset)) }
+    val initialDraft = remember(preset?.id) { buildPresetDraft(preset) }
+    var draft by remember(preset?.id) { mutableStateOf(initialDraft) }
     var selectedPointIndex by rememberSaveable(preset?.id) {
         mutableIntStateOf(defaultSelectedPointIndex(draft.curvePoints))
     }
@@ -328,22 +357,51 @@ private fun JournalInsulinPresetSheet(
 
     val selectedPoint = draft.curvePoints.getOrNull(selectedPointIndex)
     val canSave = draft.displayName.trim().isNotBlank() && draft.curvePoints.size >= 3
+    val hasChanges = draft != initialDraft
+    val usesExplicitActions = draft.id == null || !draft.isBuiltIn
+    val latestDraft by rememberUpdatedState(draft)
+    val latestInitialDraft by rememberUpdatedState(initialDraft)
+    val latestCanSave by rememberUpdatedState(canSave)
+    val latestUsesExplicitActions by rememberUpdatedState(usesExplicitActions)
+    val latestOnSave by rememberUpdatedState(onSave)
+    var dismissalHandled by remember(preset?.id) { mutableStateOf(false) }
+    fun saveBuiltInDraftIfNeeded(): Boolean {
+        if (latestUsesExplicitActions || !latestCanSave || latestDraft == latestInitialDraft) {
+            return false
+        }
+        val input = buildPresetInput(latestDraft) ?: return false
+        latestOnSave(input)
+        return true
+    }
+    fun dismissSheet() {
+        dismissalHandled = true
+        if (!saveBuiltInDraftIfNeeded()) {
+            onDismiss()
+        }
+    }
+    DisposableEffect(preset?.id) {
+        onDispose {
+            if (!dismissalHandled) {
+                saveBuiltInDraftIfNeeded()
+            }
+        }
+    }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { dismissSheet() },
         sheetState = sheetState
     ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+                .padding(horizontal = 24.dp),
+            contentPadding = PaddingValues(top = 0.dp, bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item(key = "header") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -353,187 +411,135 @@ private fun JournalInsulinPresetSheet(
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            text = stringResource(R.string.journal_curve_title),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                     if (preset != null) {
-                        TextButton(
-                            onClick = {
-                                buildPresetInput(draft, overrideArchived = !draft.isArchived)?.let(onSave)
-                            }
-                        ) {
+                        TextButton(onClick = { draft = draft.copy(isArchived = !draft.isArchived) }) {
                             Text(
                                 text = stringResource(
-                                    if (draft.isArchived) R.string.journal_enable_preset else R.string.journal_disable_preset
-                                )
-                            )
-                        }
-                    }
-                    onDelete?.let {
-                        IconButton(onClick = it) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = stringResource(R.string.delete),
-                                tint = MaterialTheme.colorScheme.error
+                                    if (draft.isArchived) R.string.enable else R.string.disable
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
             }
 
-            item(key = "name_and_color") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = draft.displayName,
-                        onValueChange = { draft = draft.copy(displayName = it) },
-                        modifier = Modifier.weight(1f),
-                        label = { Text(text = stringResource(R.string.name).trimTrailingLabel()) },
-                        singleLine = true
-                    )
-                    OutlinedButton(
-                        onClick = { showColorDialog = true },
-                        modifier = Modifier.heightIn(min = 56.dp)
+            item(key = "meta_card") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(14.dp)
-                                .alpha(1f)
-                                .padding(0.dp)
+                        OutlinedTextField(
+                            value = draft.displayName,
+                            onValueChange = { draft = draft.copy(displayName = it) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        FilledTonalIconButton(
+                            onClick = { showColorDialog = true },
+                            modifier = Modifier.size(50.dp),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                            )
                         ) {
                             Surface(
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(18.dp),
                                 shape = CircleShape,
                                 color = Color(draft.accentColor)
                             ) {}
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = stringResource(R.string.colors))
                     }
-                }
-            }
-
-            item(key = "iob_toggle") {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.journal_active_insulin),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Switch(
-                            checked = draft.countsTowardIob,
-                            onCheckedChange = { draft = draft.copy(countsTowardIob = it) }
-                        )
-                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    CompactPresetToggleRow(
+                        title = stringResource(R.string.journal_active_insulin),
+                        checked = draft.countsTowardIob,
+                        enabled = !draft.isArchived,
+                        onCheckedChange = { draft = draft.copy(countsTowardIob = it) }
+                    )
                 }
             }
 
             item(key = "editor") {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.journal_curve_preview),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = curveWindowSummary(draft.curvePoints),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Text(
+                            text = stringResource(R.string.journal_curve_preview),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = curveWindowSummary(draft.curvePoints),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    InteractiveJournalCurveEditor(
+                        points = draft.curvePoints,
+                        selectedPointIndex = selectedPointIndex,
+                        color = Color(draft.accentColor),
+                        onSelectedPointChange = { selectedPointIndex = it },
+                        onPointChange = { index, minute, activity ->
+                            draft = draft.copy(
+                                curvePoints = updateCurvePoint(
+                                    points = draft.curvePoints,
+                                    index = index,
+                                    minute = minute,
+                                    activity = activity
+                                )
                             )
                         }
-                        InteractiveJournalCurveEditor(
-                            points = draft.curvePoints,
-                            selectedPointIndex = selectedPointIndex,
-                            color = Color(draft.accentColor),
-                            onSelectedPointChange = { selectedPointIndex = it },
-                            onPointChange = { index, minute, activity ->
+                    )
+                    selectedPoint?.let { point ->
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                        SelectedCurvePointEditor(
+                            index = selectedPointIndex,
+                            point = point,
+                            canEditMinute = selectedPointIndex != 0,
+                            canEditActivity = selectedPointIndex in 1 until draft.curvePoints.lastIndex,
+                            canDelete = canDeleteCurvePoint(draft.curvePoints, selectedPointIndex),
+                            onMinuteChange = { minute ->
                                 draft = draft.copy(
                                     curvePoints = updateCurvePoint(
                                         points = draft.curvePoints,
-                                        index = index,
+                                        index = selectedPointIndex,
                                         minute = minute,
+                                        activity = point.activity
+                                    )
+                                )
+                            },
+                            onActivityChange = { activity ->
+                                draft = draft.copy(
+                                    curvePoints = updateCurvePoint(
+                                        points = draft.curvePoints,
+                                        index = selectedPointIndex,
+                                        minute = point.minute,
                                         activity = activity
                                     )
                                 )
+                            },
+                            onDelete = {
+                                draft = draft.copy(
+                                    curvePoints = deleteCurvePoint(draft.curvePoints, selectedPointIndex)
+                                )
+                                selectedPointIndex = (selectedPointIndex - 1).coerceAtLeast(1)
                             }
                         )
                     }
                 }
             }
 
-            if (selectedPoint != null) {
-                item(key = "selected_point_editor") {
-                    SelectedCurvePointEditor(
-                        index = selectedPointIndex,
-                        point = selectedPoint,
-                        canEditMinute = selectedPointIndex != 0,
-                        canEditActivity = selectedPointIndex in 1 until draft.curvePoints.lastIndex,
-                        canDelete = canDeleteCurvePoint(draft.curvePoints, selectedPointIndex),
-                        onMinuteChange = { minute ->
-                            draft = draft.copy(
-                                curvePoints = updateCurvePoint(
-                                    points = draft.curvePoints,
-                                    index = selectedPointIndex,
-                                    minute = minute,
-                                    activity = selectedPoint.activity
-                                )
-                            )
-                        },
-                        onActivityChange = { activity ->
-                            draft = draft.copy(
-                                curvePoints = updateCurvePoint(
-                                    points = draft.curvePoints,
-                                    index = selectedPointIndex,
-                                    minute = selectedPoint.minute,
-                                    activity = activity
-                                )
-                            )
-                        },
-                        onDelete = {
-                            draft = draft.copy(curvePoints = deleteCurvePoint(draft.curvePoints, selectedPointIndex))
-                            selectedPointIndex = (selectedPointIndex - 1).coerceAtLeast(1)
-                        }
-                    )
-                }
-            }
-
             item(key = "actions") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(
                         onClick = {
                             val updatedPoints = insertCurvePoint(draft.curvePoints, selectedPointIndex)
@@ -541,7 +547,7 @@ private fun JournalInsulinPresetSheet(
                             draft = draft.copy(curvePoints = updatedPoints)
                             selectedPointIndex = insertedIndex
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
@@ -551,22 +557,32 @@ private fun JournalInsulinPresetSheet(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = stringResource(R.string.journal_curve_add_point))
                     }
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    Button(
-                        onClick = {
-                            if (canSave) {
-                                buildPresetInput(draft)?.let(onSave)
+                    if (usesExplicitActions) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            onDelete?.let {
+                                OutlinedButton(
+                                    onClick = it,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.delete),
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
-                        },
-                        enabled = canSave,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(text = stringResource(R.string.save))
+                            Button(
+                                onClick = {
+                                    buildPresetInput(draft)?.let(onSave)
+                                },
+                                enabled = canSave && hasChanges,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(text = stringResource(R.string.save))
+                            }
+                        }
                     }
                 }
             }
@@ -581,6 +597,34 @@ private fun JournalInsulinPresetSheet(
                 draft = draft.copy(accentColor = it)
                 showColorDialog = false
             }
+        )
+    }
+}
+
+@Composable
+private fun CompactPresetToggleRow(
+    title: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.5f)
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f)
+        )
+        StyledSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
         )
     }
 }
@@ -601,64 +645,58 @@ private fun SelectedCurvePointEditor(
         mutableStateOf((point.activity * 100f).roundToInt().toString())
     }
 
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.journal_curve_point, index + 1),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
-                if (canDelete) {
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.delete)
-                        )
-                    }
+            Text(
+                text = stringResource(R.string.journal_curve_point, index + 1),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            if (canDelete) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete)
+                    )
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = minuteText,
-                    onValueChange = { updated ->
-                        minuteText = updated.filter(Char::isDigit)
-                        minuteText.toIntOrNull()?.let(onMinuteChange)
-                    },
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.journal_curve_minutes)) },
-                    singleLine = true,
-                    enabled = canEditMinute,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    suffix = { Text(stringResource(R.string.minutes)) }
-                )
-                OutlinedTextField(
-                    value = activityText,
-                    onValueChange = { updated ->
-                        activityText = updated.filter { it.isDigit() || it == ',' || it == '.' }
-                        activityText.replace(',', '.').toFloatOrNull()?.let { percent ->
-                            onActivityChange((percent / 100f).coerceIn(0f, 1f))
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.journal_curve_activity)) },
-                    singleLine = true,
-                    enabled = canEditActivity,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    suffix = { Text("%") }
-                )
-            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(
+                value = minuteText,
+                onValueChange = { updated ->
+                    minuteText = updated.filter(Char::isDigit)
+                    minuteText.toIntOrNull()?.let(onMinuteChange)
+                },
+                modifier = Modifier.weight(1f),
+                label = { Text(stringResource(R.string.journal_curve_minutes)) },
+                singleLine = true,
+                enabled = canEditMinute,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                suffix = { Text(stringResource(R.string.minutes)) }
+            )
+            OutlinedTextField(
+                value = activityText,
+                onValueChange = { updated ->
+                    activityText = updated.filter { it.isDigit() || it == ',' || it == '.' }
+                    activityText.replace(',', '.').toFloatOrNull()?.let { percent ->
+                        onActivityChange((percent / 100f).coerceIn(0f, 1f))
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                label = { Text(stringResource(R.string.journal_curve_activity)) },
+                singleLine = true,
+                enabled = canEditActivity,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                suffix = { Text("%") }
+            )
         }
     }
 }
@@ -676,13 +714,13 @@ private fun InteractiveJournalCurveEditor(
     val selectionHaloColor = MaterialTheme.colorScheme.surface
     val density = LocalDensity.current
     val chartPadding = with(density) { 18.dp.toPx() }
-    val chartTopInset = with(density) { 16.dp.toPx() }
-    val chartBottomInset = with(density) { 18.dp.toPx() }
+    val chartTopInset = with(density) { 12.dp.toPx() }
+    val chartBottomInset = with(density) { 12.dp.toPx() }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(260.dp)
+            .height(164.dp)
             .onSizeChanged { chartSize = it }
             .pointerInput(points, chartSize) {
                 detectTapGestures { offset ->
@@ -706,8 +744,7 @@ private fun InteractiveJournalCurveEditor(
                             touch = offset,
                             horizontalPaddingPx = chartPadding,
                             topInsetPx = chartTopInset,
-                            bottomInsetPx = chartBottomInset,
-                            requireHitRadius = true
+                            bottomInsetPx = chartBottomInset
                         )?.also(onSelectedPointChange)
                     },
                     onDragEnd = { draggingPointIndex = null },
@@ -810,21 +847,67 @@ private fun PresetColorDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit
 ) {
+    var colorState by remember(initialColor) { mutableStateOf(initialColor.toPresetColorState()) }
     var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
+    val composedColor = remember(colorState) { colorState.toColorInt() }
     val parsedColor = remember(colorText) { parseColorHex(colorText) }
+
+    LaunchedEffect(colorState) {
+        val resolvedHex = formatColorHex(composedColor)
+        if (colorText != resolvedHex) {
+            colorText = resolvedHex
+        }
+    }
+
+    LaunchedEffect(parsedColor) {
+        parsedColor?.let { parsed ->
+            val parsedState = parsed.toPresetColorState()
+            if (parsedState != colorState) {
+                colorState = parsedState
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.colors)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Surface(
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(60.dp)
                         .align(Alignment.CenterHorizontally),
                     shape = CircleShape,
-                    color = Color(parsedColor ?: initialColor)
+                    color = Color(composedColor)
                 ) {}
+                HueWheelPicker(
+                    hue = colorState.hue,
+                    onHueChange = { hue -> colorState = colorState.copy(hue = hue) }
+                )
+                ColorControlRow(icon = Icons.Default.Palette) {
+                    Slider(
+                        value = colorState.saturation,
+                        onValueChange = { saturation ->
+                            colorState = colorState.copy(saturation = saturation.coerceIn(0f, 1f))
+                        }
+                    )
+                }
+                ColorControlRow(
+                    indicator = {
+                        Text(
+                            text = "${(colorState.alpha * 100f).roundToInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                ) {
+                    Slider(
+                        value = colorState.alpha,
+                        onValueChange = { alpha ->
+                            colorState = colorState.copy(alpha = alpha.coerceIn(0f, 1f))
+                        }
+                    )
+                }
                 OutlinedTextField(
                     value = colorText,
                     onValueChange = { colorText = it.trim() },
@@ -841,7 +924,7 @@ private fun PresetColorDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { parsedColor?.let(onConfirm) },
+                onClick = { onConfirm(composedColor) },
                 enabled = parsedColor != null
             ) {
                 Text(text = stringResource(R.string.save))
@@ -853,6 +936,135 @@ private fun PresetColorDialog(
             }
         }
     )
+}
+
+private data class PresetColorState(
+    val hue: Float,
+    val saturation: Float,
+    val value: Float,
+    val alpha: Float
+)
+
+private fun Int.toPresetColorState(): PresetColorState {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(this, hsv)
+    val alpha = ((this ushr 24) and 0xFF) / 255f
+    return PresetColorState(
+        hue = hsv[0],
+        saturation = hsv[1],
+        value = hsv[2].coerceAtLeast(0.65f),
+        alpha = alpha.coerceIn(0f, 1f)
+    )
+}
+
+private fun PresetColorState.toColorInt(): Int {
+    return android.graphics.Color.HSVToColor(
+        (alpha * 255f).roundToInt().coerceIn(0, 255),
+        floatArrayOf(hue, saturation.coerceIn(0f, 1f), value.coerceIn(0f, 1f))
+    )
+}
+
+@Composable
+private fun ColorControlRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    indicator: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Box(
+                modifier = Modifier.width(24.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                indicator?.invoke()
+            }
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun HueWheelPicker(
+    hue: Float,
+    onHueChange: (Float) -> Unit
+) {
+    val sweepColors = remember {
+        listOf(
+            Color(0xFFFF1744),
+            Color(0xFFFF9100),
+            Color(0xFFFFEA00),
+            Color(0xFF00E676),
+            Color(0xFF00B0FF),
+            Color(0xFF651FFF),
+            Color(0xFFFF1744)
+        )
+    }
+    val handleHaloColor = MaterialTheme.colorScheme.surface
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(176.dp)
+            .pointerInput(Unit) {
+                fun updateHue(offset: Offset) {
+                    val centerX = size.width / 2f
+                    val centerY = size.height / 2f
+                    val angle = Math.toDegrees(
+                        atan2((offset.y - centerY).toDouble(), (offset.x - centerX).toDouble())
+                    ).toFloat()
+                    onHueChange(((angle + 450f) % 360f))
+                }
+
+                detectTapGestures(onTap = ::updateHue)
+            }
+            .pointerInput(Unit) {
+                detectDragGestures { change, _ ->
+                    change.consume()
+                    val centerX = size.width / 2f
+                    val centerY = size.height / 2f
+                    val angle = Math.toDegrees(
+                        atan2((change.position.y - centerY).toDouble(), (change.position.x - centerX).toDouble())
+                    ).toFloat()
+                    onHueChange(((angle + 450f) % 360f))
+                }
+            }
+    ) {
+        val ringWidth = 22.dp.toPx()
+        val radius = (size.minDimension / 2f) - ringWidth
+        drawCircle(
+            brush = Brush.sweepGradient(sweepColors),
+            radius = radius,
+            style = Stroke(width = ringWidth, cap = StrokeCap.Round)
+        )
+
+        val angleRadians = Math.toRadians((hue - 90f).toDouble())
+        val handleCenter = Offset(
+            x = center.x + (cos(angleRadians) * radius).toFloat(),
+            y = center.y + (sin(angleRadians) * radius).toFloat()
+        )
+        drawCircle(
+            color = handleHaloColor,
+            radius = 12.dp.toPx(),
+            center = handleCenter
+        )
+        drawCircle(
+            color = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f))),
+            radius = 8.dp.toPx(),
+            center = handleCenter
+        )
+    }
 }
 
 @Composable

@@ -5,7 +5,9 @@ package tk.glucodata.ui
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,8 +18,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bloodtype
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +48,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,8 +59,10 @@ import kotlinx.coroutines.launch
 import tk.glucodata.R
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.journal.JournalEntry
+import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.ui.journal.buildJournalChartMarkers
+import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.stats.StatsDateRange
 import tk.glucodata.ui.stats.StatsDateRangePickerHeadline
 import tk.glucodata.ui.stats.StatsRangeSelectorControl
@@ -72,7 +84,18 @@ import kotlin.math.min
 private data class HistoryDateSection(
     val date: LocalDate,
     val label: String,
-    val points: List<GlucosePoint>
+    val items: List<TimelineRowItem>
+)
+
+private data class TimelineRowItem(
+    val timestamp: Long,
+    val point: GlucosePoint?,
+    val journalEntries: List<JournalEntry>
+)
+
+private data class TimelineJournalGrouping(
+    val entriesByPointTimestamp: Map<Long, List<JournalEntry>>,
+    val journalOnlyEntriesByTimestamp: Map<Long, List<JournalEntry>>
 )
 
 enum class TimelineBrowseMode {
@@ -121,37 +144,52 @@ private fun defaultViewportPoints(
     return points.sliceByTimestampRange(startMillis, endMillis)
 }
 
-private fun buildHistorySections(points: List<GlucosePoint>): List<HistoryDateSection> {
-    if (points.isEmpty()) return emptyList()
+private fun buildHistorySections(items: List<TimelineRowItem>): List<HistoryDateSection> {
+    if (items.isEmpty()) return emptyList()
     val formatter = SimpleDateFormat("MMM d", Locale.getDefault())
     val zone = ZoneId.systemDefault()
     val sections = ArrayList<HistoryDateSection>()
     var currentDate: LocalDate? = null
-    var currentPoints = ArrayList<GlucosePoint>()
+    var currentItems = ArrayList<TimelineRowItem>()
 
     fun flushSection() {
         val date = currentDate ?: return
-        if (currentPoints.isEmpty()) return
+        if (currentItems.isEmpty()) return
         sections.add(
             HistoryDateSection(
                 date = date,
-                label = formatter.format(Date(currentPoints.first().timestamp)),
-                points = currentPoints.toList()
+                label = formatter.format(Date(currentItems.first().timestamp)),
+                items = currentItems.toList()
             )
         )
     }
 
-    for (point in points.sortedByDescending { it.timestamp }) {
-        val pointDate = Instant.ofEpochMilli(point.timestamp).atZone(zone).toLocalDate()
-        if (currentDate == null || pointDate != currentDate) {
+    for (item in items.sortedByDescending { it.timestamp }) {
+        val itemDate = Instant.ofEpochMilli(item.timestamp).atZone(zone).toLocalDate()
+        if (currentDate == null || itemDate != currentDate) {
             flushSection()
-            currentDate = pointDate
-            currentPoints = ArrayList()
+            currentDate = itemDate
+            currentItems = ArrayList()
         }
-        currentPoints.add(point)
+        currentItems.add(item)
     }
     flushSection()
     return sections
+}
+
+private fun resolveAvailableTimelineRange(
+    points: List<GlucosePoint>,
+    entries: List<JournalEntry>
+): StatsDateRange? {
+    val startMillis = listOfNotNull(
+        points.firstOrNull()?.timestamp,
+        entries.minOfOrNull { it.timestamp }
+    ).minOrNull() ?: return null
+    val endMillis = listOfNotNull(
+        points.lastOrNull()?.timestamp,
+        entries.maxOfOrNull { it.timestamp }
+    ).maxOrNull() ?: return null
+    return StatsDateRange(startMillis = startMillis, endMillis = endMillis)
 }
 
 fun groupJournalEntriesByReading(
@@ -191,12 +229,131 @@ fun groupJournalEntriesByReading(
     }
 }
 
+private fun groupJournalEntriesForTimeline(
+    points: List<GlucosePoint>,
+    entries: List<JournalEntry>,
+    maxDistanceMillis: Long = 20L * 60L * 1000L
+): TimelineJournalGrouping {
+    if (entries.isEmpty()) {
+        return TimelineJournalGrouping(
+            entriesByPointTimestamp = emptyMap(),
+            journalOnlyEntriesByTimestamp = emptyMap()
+        )
+    }
+    if (points.isEmpty()) {
+        return TimelineJournalGrouping(
+            entriesByPointTimestamp = emptyMap(),
+            journalOnlyEntriesByTimestamp = entries
+                .groupBy { it.timestamp }
+                .mapValues { (_, groupedEntries) -> groupedEntries.sortedByDescending { it.timestamp } }
+        )
+    }
+
+    val sortedPoints = points.sortedBy { it.timestamp }
+    val entriesByPoint = linkedMapOf<Long, MutableList<JournalEntry>>()
+    val journalOnly = linkedMapOf<Long, MutableList<JournalEntry>>()
+
+    entries.forEach { entry ->
+        val insertionIndex = sortedPoints.binarySearchBy(entry.timestamp) { it.timestamp }
+            .let { if (it >= 0) it else (-it - 1) }
+            .coerceIn(0, sortedPoints.lastIndex)
+
+        var closestPoint: GlucosePoint? = null
+        var closestDistance = Long.MAX_VALUE
+
+        for (candidateIndex in max(0, insertionIndex - 1)..min(sortedPoints.lastIndex, insertionIndex + 1)) {
+            val candidate = sortedPoints[candidateIndex]
+            val distance = abs(candidate.timestamp - entry.timestamp)
+            if (distance < closestDistance) {
+                closestPoint = candidate
+                closestDistance = distance
+            }
+        }
+
+        val targetPoint = closestPoint
+        if (targetPoint != null && closestDistance <= maxDistanceMillis) {
+            entriesByPoint.getOrPut(targetPoint.timestamp) { mutableListOf() }.add(entry)
+        } else {
+            journalOnly.getOrPut(entry.timestamp) { mutableListOf() }.add(entry)
+        }
+    }
+
+    return TimelineJournalGrouping(
+        entriesByPointTimestamp = entriesByPoint.mapValues { (_, groupedEntries) ->
+            groupedEntries.sortedByDescending { it.timestamp }
+        },
+        journalOnlyEntriesByTimestamp = journalOnly.mapValues { (_, groupedEntries) ->
+            groupedEntries.sortedByDescending { it.timestamp }
+        }
+    )
+}
+
+private fun buildTimelineRows(
+    points: List<GlucosePoint>,
+    entries: List<JournalEntry>,
+    browseMode: TimelineBrowseMode
+): List<TimelineRowItem> {
+    val grouping = groupJournalEntriesForTimeline(points, entries)
+    val pointRows = points.mapNotNull { point ->
+        val rowEntries = grouping.entriesByPointTimestamp[point.timestamp].orEmpty()
+        when (browseMode) {
+            TimelineBrowseMode.HISTORY -> TimelineRowItem(
+                timestamp = point.timestamp,
+                point = point,
+                journalEntries = rowEntries
+            )
+
+            TimelineBrowseMode.JOURNAL -> rowEntries.takeIf { it.isNotEmpty() }?.let {
+                TimelineRowItem(
+                    timestamp = point.timestamp,
+                    point = point,
+                    journalEntries = it
+                )
+            }
+        }
+    }
+    val journalOnlyRows = grouping.journalOnlyEntriesByTimestamp.map { (timestamp, groupedEntries) ->
+        TimelineRowItem(
+            timestamp = timestamp,
+            point = null,
+            journalEntries = groupedEntries
+        )
+    }
+    return (pointRows + journalOnlyRows).sortedByDescending { it.timestamp }
+}
+
+private fun JournalEntryType.historyFilterLabel(): Int = when (this) {
+    JournalEntryType.INSULIN -> R.string.journal_type_insulin
+    JournalEntryType.CARBS -> R.string.carbo
+    JournalEntryType.FINGERSTICK -> R.string.journal_type_bg_short
+    JournalEntryType.ACTIVITY -> R.string.journal_type_activity
+    JournalEntryType.NOTE -> R.string.journal_type_note
+}
+
+private fun JournalEntryType.historyFilterIcon(): ImageVector = when (this) {
+    JournalEntryType.INSULIN -> Icons.Default.Vaccines
+    JournalEntryType.CARBS -> Icons.Default.Restaurant
+    JournalEntryType.FINGERSTICK -> Icons.Default.Bloodtype
+    JournalEntryType.ACTIVITY -> Icons.Default.DirectionsRun
+    JournalEntryType.NOTE -> Icons.Default.Label
+}
+
+private fun JournalEntryType.historyFilterColor(): Color = when (this) {
+    JournalEntryType.INSULIN -> Color(0xFF1565C0)
+    JournalEntryType.CARBS -> Color(0xFF2E7D32)
+    JournalEntryType.FINGERSTICK -> Color(0xFFC62828)
+    JournalEntryType.ACTIVITY -> Color(0xFFEF6C00)
+    JournalEntryType.NOTE -> Color(0xFF5E35B1)
+}
+
 @Composable
 fun HistoryBrowseScreen(
     glucoseHistory: List<GlucosePoint>,
     unit: String,
     viewMode: Int,
     sensorId: String,
+    graphLow: Float,
+    graphHigh: Float,
     targetLow: Float,
     targetHigh: Float,
     graphSmoothingMinutes: Int,
@@ -205,26 +362,22 @@ fun HistoryBrowseScreen(
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity>,
     title: String,
     browseMode: TimelineBrowseMode = TimelineBrowseMode.HISTORY,
+    journalEnabled: Boolean = false,
     journalEntries: List<JournalEntry> = emptyList(),
     journalInsulinPresets: List<JournalInsulinPreset> = emptyList(),
     onBack: (() -> Unit)? = null,
     onPointClick: ((GlucosePoint) -> Unit)? = null,
+    onDeleteReading: ((GlucosePoint) -> Unit)? = null,
     onJournalEntryClick: ((JournalEntry) -> Unit)? = null,
+    onAddJournalEntry: ((Long, JournalEntryType?) -> Unit)? = null,
     showTransferActions: Boolean = true
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val sortedHistory = remember(glucoseHistory) { glucoseHistory.sortedBy { it.timestamp } }
     val journalPresetsById = remember(journalInsulinPresets) { journalInsulinPresets.associateBy { it.id } }
-    val availableRange = remember(sortedHistory) {
-        if (sortedHistory.isEmpty()) {
-            null
-        } else {
-            StatsDateRange(
-                startMillis = sortedHistory.first().timestamp,
-                endMillis = sortedHistory.last().timestamp
-            )
-        }
+    val availableRange = remember(sortedHistory, journalEntries) {
+        resolveAvailableTimelineRange(sortedHistory, journalEntries)
     }
 
     var selectedHistoryRange by rememberSaveable { mutableStateOf<StatsTimeRange?>(StatsTimeRange.DAY_30) }
@@ -234,6 +387,12 @@ fun HistoryBrowseScreen(
     var showDateRangePicker by rememberSaveable { mutableStateOf(false) }
     var showExportSheet by rememberSaveable { mutableStateOf(false) }
     var viewportSnapshot by remember { mutableStateOf<ChartViewportSnapshot?>(null) }
+    var selectedJournalTypeFilters by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val selectedJournalTypes = remember(selectedJournalTypeFilters) {
+        selectedJournalTypeFilters.mapNotNull { name ->
+            runCatching { JournalEntryType.valueOf(name) }.getOrNull()
+        }
+    }
 
     val customRange = remember(customRangeStartMillis, customRangeEndMillis) {
         val startMillis = customRangeStartMillis
@@ -255,26 +414,38 @@ fun HistoryBrowseScreen(
             journalEntries.filter { entry -> entry.timestamp in range.startMillis..range.endMillis }
         } ?: journalEntries
     }
-    val journalEntriesByPoint = remember(activeHistory, activeJournalEntries) {
-        groupJournalEntriesByReading(activeHistory, activeJournalEntries)
-    }
-    val initialViewportPoints = remember(activeHistory, selectedChartRange) {
-        defaultViewportPoints(activeHistory, selectedChartRange)
-    }
-    val viewportPoints = viewportSnapshot?.visiblePoints ?: initialViewportPoints
-    val visibleTimelinePoints = remember(viewportPoints, journalEntriesByPoint, browseMode) {
-        when (browseMode) {
-            TimelineBrowseMode.HISTORY -> viewportPoints
-            TimelineBrowseMode.JOURNAL -> viewportPoints.filter { point ->
-                !journalEntriesByPoint[point.timestamp].isNullOrEmpty()
-            }
+    val filteredJournalEntries = remember(activeJournalEntries, selectedJournalTypes) {
+        if (selectedJournalTypes.isEmpty()) {
+            activeJournalEntries
+        } else {
+            activeJournalEntries.filter { it.type in selectedJournalTypes }
         }
     }
-    val visibleSections = remember(visibleTimelinePoints) { buildHistorySections(visibleTimelinePoints) }
-    val journalMarkers = remember(activeJournalEntries, journalPresetsById, unit) {
-        buildJournalChartMarkers(activeJournalEntries, journalPresetsById, unit)
+    val effectiveBrowseMode = if (selectedJournalTypes.isNotEmpty()) {
+        TimelineBrowseMode.JOURNAL
+    } else {
+        browseMode
     }
-    val journalEntriesById = remember(activeJournalEntries) { activeJournalEntries.associateBy { it.id } }
+    val viewportStart = viewportSnapshot?.startMillis ?: activeRange?.startMillis ?: availableRange?.startMillis
+    val viewportEnd = viewportSnapshot?.endMillis ?: activeRange?.endMillis ?: availableRange?.endMillis
+    val visibleTimelineRows = remember(activeHistory, filteredJournalEntries, viewportStart, viewportEnd, effectiveBrowseMode) {
+        val windowStart = viewportStart ?: Long.MIN_VALUE
+        val windowEnd = viewportEnd ?: Long.MAX_VALUE
+        val visibleHistory = activeHistory.sliceByTimestampRange(windowStart, windowEnd)
+        val visibleJournalEntries = filteredJournalEntries.filter { entry ->
+            entry.timestamp in windowStart..windowEnd
+        }
+        buildTimelineRows(
+            points = visibleHistory,
+            entries = visibleJournalEntries,
+            browseMode = effectiveBrowseMode
+        )
+    }
+    val visibleSections = remember(visibleTimelineRows) { buildHistorySections(visibleTimelineRows) }
+    val journalMarkers = remember(filteredJournalEntries, journalPresetsById, unit) {
+        buildJournalChartMarkers(filteredJournalEntries, journalPresetsById, unit)
+    }
+    val journalEntriesById = remember(filteredJournalEntries) { filteredJournalEntries.associateBy { it.id } }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -322,6 +493,23 @@ fun HistoryBrowseScreen(
                 },
                 actions = {
                     if (showTransferActions) {
+                        if (journalEnabled && onAddJournalEntry != null) {
+                            IconButton(
+                                onClick = {
+                                    onAddJournalEntry(
+                                        viewportSnapshot?.selectedPoint?.timestamp
+                                            ?: viewportEnd
+                                            ?: System.currentTimeMillis(),
+                                        selectedJournalTypes.singleOrNull()
+                                    )
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = null
+                                )
+                            }
+                        }
                         IconButton(onClick = { showExportSheet = true }) {
                             Icon(
                                 imageVector = Icons.Filled.CloudUpload,
@@ -339,7 +527,7 @@ fun HistoryBrowseScreen(
             )
         }
     ) { innerPadding ->
-        if (sortedHistory.isEmpty()) {
+        if (sortedHistory.isEmpty() && journalEntries.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -366,9 +554,17 @@ fun HistoryBrowseScreen(
                         selectedRange = selectedHistoryRange,
                         activeRange = activeRange,
                         isLoading = false,
-                        hasData = activeHistory.isNotEmpty(),
-                        readingCount = activeHistory.size,
-                        countLabelResId = R.string.readings,
+                        hasData = visibleTimelineRows.isNotEmpty(),
+                        readingCount = if (effectiveBrowseMode == TimelineBrowseMode.JOURNAL) {
+                            visibleTimelineRows.size
+                        } else {
+                            activeHistory.size
+                        },
+                        countLabelResId = if (effectiveBrowseMode == TimelineBrowseMode.JOURNAL) {
+                            R.string.journal_visible_events
+                        } else {
+                            R.string.readings
+                        },
                         onRangeSelected = { range ->
                             selectedHistoryRange = range
                             viewportSnapshot = null
@@ -378,37 +574,78 @@ fun HistoryBrowseScreen(
                 }
             }
 
-            item(key = "history-chart") {
-                Box(modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)) {
-                    DashboardChartSection(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(420.dp),
-                        glucoseHistory = activeHistory,
-                        journalMarkers = journalMarkers,
-                        graphSmoothingMinutes = graphSmoothingMinutes,
-                        collapseSmoothedData = collapseSmoothedData,
-                        previewWindowMode = previewWindowMode,
-                        targetLow = targetLow,
-                        targetHigh = targetHigh,
-                        unit = unit,
-                        viewMode = viewMode,
-                        calibrations = calibrations,
-                        onTimeRangeSelected = { selectedChartRange = it },
-                        selectedTimeRange = selectedChartRange,
-                        isExpanded = false,
-                        expandedProgress = 0f,
-                        onToggleExpanded = null,
-                        onPointClick = onPointClick,
-                        onCalibrationClick = null,
-                        onJournalMarkerClick = { entryId ->
-                            journalEntriesById[entryId]?.let { onJournalEntryClick?.invoke(it) }
+
+
+            if (activeHistory.isNotEmpty()) {
+                item(key = "history-chart") {
+                    Box(modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)) {
+                        DashboardChartSection(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(420.dp),
+                            glucoseHistory = activeHistory,
+                            journalMarkers = journalMarkers,
+                            graphSmoothingMinutes = graphSmoothingMinutes,
+                            collapseSmoothedData = collapseSmoothedData,
+                            previewWindowMode = previewWindowMode,
+                            graphLow = graphLow,
+                            graphHigh = graphHigh,
+                            targetLow = targetLow,
+                            targetHigh = targetHigh,
+                            unit = unit,
+                            viewMode = viewMode,
+                            calibrations = calibrations,
+                            onTimeRangeSelected = { selectedChartRange = it },
+                            selectedTimeRange = selectedChartRange,
+                            isExpanded = false,
+                            expandedProgress = 0f,
+                            onToggleExpanded = null,
+                            onPointClick = onPointClick,
+                            onCalibrationClick = null,
+                            onJournalMarkerClick = { entryId ->
+                                journalEntriesById[entryId]?.let { onJournalEntryClick?.invoke(it) }
+                            },
+                            onViewportSnapshotChanged = { viewportSnapshot = it }
+                        )
+                    }
+                }
+            }
+            if (journalEnabled) {
+                item(key = "history-journal-filter") {
+                    val filterLabels = JournalEntryType.entries.associateWith { filterType ->
+                        stringResource(filterType.historyFilterLabel())
+                    }
+                    val selectedFilterContentColor = MaterialTheme.colorScheme.onSurface
+                    ConnectedButtonGroup(
+                        options = JournalEntryType.entries,
+                        selectedOptions = selectedJournalTypes,
+                        multiSelect = true,
+                        onOptionSelected = { filterType ->
+                            selectedJournalTypeFilters = if (filterType in selectedJournalTypes) {
+                                selectedJournalTypes.filterNot { it == filterType }.map { it.name }
+                            } else {
+                                (selectedJournalTypes + filterType).map { it.name }
+                            }
+                            viewportSnapshot = null
                         },
-                        onViewportSnapshotChanged = { viewportSnapshot = it }
+                        label = { _ -> },
+//                        labelText = { filterType -> filterLabels.getValue(filterType) },
+                        icon = { filterType -> filterType.historyFilterIcon() },
+                        selectedContainerColorFor = { filterType ->
+                            filterType.historyFilterColor().copy(alpha = 0.22f)
+                        },
+                        selectedContentColorFor = { selectedFilterContentColor },
+                        iconTint = { filterType, _ -> filterType.historyFilterColor() },
+                        modifier = Modifier
+                            .padding(start = 16.dp, top = 12.dp, end = 16.dp)
+                            .fillMaxWidth(),
+                        itemHeight = 44.dp,
+                        spacing = 3.dp,
+                        unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f),
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-
             if (visibleSections.isEmpty()) {
                 item(key = "history-empty-window") {
                     Box(
@@ -419,7 +656,7 @@ fun HistoryBrowseScreen(
                     ) {
                         Text(
                             text = stringResource(
-                                if (browseMode == TimelineBrowseMode.JOURNAL) {
+                                if (effectiveBrowseMode == TimelineBrowseMode.JOURNAL) {
                                     R.string.journal_empty
                                 } else {
                                     R.string.no_data_available
@@ -446,30 +683,71 @@ fun HistoryBrowseScreen(
                     }
 
                     itemsIndexed(
-                        items = section.points,
-                        key = { _, item -> item.timestamp }
+                        items = section.items,
+                        key = { _, item -> "${item.timestamp}-${item.point?.timestamp ?: "journal"}" }
                     ) { index, item ->
-                        ReadingRow(
-                            point = item,
-                            unit = unit,
-                            viewMode = viewMode,
-                            index = index,
-                            totalCount = section.points.size,
-                            history = section.points,
-                            sensorId = sensorId,
-                            calibrations = calibrations,
-                            highlightLeadRow = false,
-                            journalEntries = journalEntriesByPoint[item.timestamp].orEmpty(),
-                            journalPresetsById = journalPresetsById,
-                            onJournalEntryClick = onJournalEntryClick,
-                            isGroupStart = index == 0,
-                            isGroupEnd = index == section.points.lastIndex,
-                            dividerHorizontalInset = 0.dp,
-                            onValueClick = { onPointClick?.invoke(item) },
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .animateItem()
-                        )
+                        val readingPoint = item.point
+                        if (readingPoint != null) {
+                            ReadingRow(
+                                point = readingPoint,
+                                unit = unit,
+                                viewMode = viewMode,
+                                index = index,
+                                totalCount = section.items.size,
+                                history = section.items.mapNotNull(TimelineRowItem::point),
+                                sensorId = sensorId,
+                                calibrations = calibrations,
+                                highlightLeadRow = false,
+                                journalEntries = item.journalEntries,
+                                journalPresetsById = journalPresetsById,
+                                journalChipExpanded = true,
+                                onJournalEntryClick = onJournalEntryClick,
+                                showLeadingAction = journalEnabled && onAddJournalEntry != null,
+                                leadingActionEmphasis = 0.42f,
+                                onLeadingActionClick = if (journalEnabled && onAddJournalEntry != null) {
+                                    {
+                                        onAddJournalEntry(
+                                            readingPoint.timestamp,
+                                            selectedJournalTypes.singleOrNull()
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                isGroupStart = index == 0,
+                                isGroupEnd = index == section.items.lastIndex,
+                                dividerHorizontalInset = 0.dp,
+                                onValueClick = { onPointClick?.invoke(readingPoint) },
+                                onDeleteReading = onDeleteReading,
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp)
+                                    .animateItem()
+                            )
+                        } else {
+                            JournalTimelineRow(
+                                timestamp = item.timestamp,
+                                unit = unit,
+                                journalEntries = item.journalEntries,
+                                journalPresetsById = journalPresetsById,
+                                onJournalEntryClick = onJournalEntryClick,
+                                onAddJournalEntry = if (journalEnabled && onAddJournalEntry != null) {
+                                    {
+                                        onAddJournalEntry(
+                                            item.timestamp,
+                                            selectedJournalTypes.singleOrNull()
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                index = index,
+                                totalCount = section.items.size,
+                                dividerHorizontalInset = 0.dp,
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp)
+                                    .animateItem()
+                            )
+                        }
                     }
                 }
             }
