@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -124,6 +125,8 @@ fun JournalSettingsScreen(
     viewModel: DashboardViewModel
 ) {
     val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
+    val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val allPresets by viewModel.journalInsulinPresets.collectAsState()
     val activePresets = remember(allPresets) { allPresets.filter { !it.isArchived } }
     val archivedPresets = remember(allPresets) { allPresets.filter { it.isArchived } }
@@ -162,6 +165,34 @@ fun JournalSettingsScreen(
                     icon = Icons.Default.Vaccines,
                     iconTint = MaterialTheme.colorScheme.tertiary
                 )
+            }
+
+            item(key = "prediction_gate") {
+                MasterSwitchCard(
+                    title = stringResource(R.string.predictive_simulation_title),
+                    subtitle = stringResource(R.string.predictive_simulation_summary),
+                    checked = predictiveSimulationEnabled,
+                    onCheckedChange = { viewModel.setPredictiveSimulationEnabled(it) },
+                    icon = Icons.Default.ShowChart,
+                    iconTint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (predictiveSimulationEnabled) {
+                item(key = "prediction_momentum") {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(28.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        CompactPresetToggleRow(
+                            title = stringResource(R.string.predictive_trend_momentum),
+                            checked = predictionTrendMomentumEnabled,
+                            onCheckedChange = { viewModel.setPredictionTrendMomentumEnabled(it) },
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
 
             item(key = "open_journal") {
@@ -665,10 +696,11 @@ private fun CompactPresetToggleRow(
     title: String,
     checked: Boolean,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .alpha(if (enabled) 1f else 0.5f)
             .clickable(enabled = enabled) { onCheckedChange(!checked) }

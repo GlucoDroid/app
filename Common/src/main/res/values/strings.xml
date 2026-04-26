@@ -1520,6 +1520,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_friend_request_remark_format">Message: %1$s</string>
     <string name="journal_title">Journal</string>
     <string name="journal_gate_desc">Show journal actions in chart and reading rows</string>
+    <string name="predictive_simulation_title">Predictive simulation</string>
+    <string name="predictive_simulation_summary">Project glucose with trend, journal carbs, insulin curves, and activity</string>
+    <string name="predictive_trend_momentum">Trend momentum</string>
     <string name="journal_manage_title">Journal setup</string>
     <string name="journal_manage_desc">Build insulin types, colors, and activity curves</string>
     <string name="journal_settings_summary">%1$s · %2$d insulin types</string>

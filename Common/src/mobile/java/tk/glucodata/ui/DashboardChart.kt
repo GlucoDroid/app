@@ -138,6 +138,7 @@ import tk.glucodata.DataSmoothing
 import tk.glucodata.data.journal.JournalActiveInsulinSummary
 import tk.glucodata.data.journal.JournalChartMarker
 import tk.glucodata.data.journal.JournalEntryType
+import tk.glucodata.data.prediction.GlucosePredictionPoint
 import tk.glucodata.ui.getDisplayValues
 import kotlin.math.abs
 import kotlin.math.ln
@@ -550,6 +551,7 @@ fun DashboardChartSection(
     glucoseHistory: List<GlucosePoint>,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     graphSmoothingMinutes: Int = 0,
     collapseSmoothedData: Boolean = false,
     previewWindowMode: Int = 0,
@@ -584,6 +586,7 @@ fun DashboardChartSection(
                         fullData = glucoseHistory,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
+                        predictionPoints = predictionPoints,
                         graphSmoothingMinutes = graphSmoothingMinutes,
                         collapseSmoothedData = collapseSmoothedData,
                         previewWindowMode = previewWindowMode,
@@ -641,6 +644,7 @@ fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     graphSmoothingMinutes: Int = 0,
     collapseSmoothedData: Boolean = false,
     previewWindowMode: Int = 0,
@@ -853,6 +857,16 @@ fun InteractiveGlucoseChart(
     var visibleDuration by rememberSaveable { 
         mutableLongStateOf((selectedTimeRange?.hours?.toLong() ?: 3L) * 60L * 60L * 1000L) 
     }
+    fun forecastLeadMillis(durationMillis: Long): Long {
+        val predictionEnd = predictionPoints.lastOrNull()?.timestamp ?: return 0L
+        val futureWindow = predictionEnd - latestDataTimestamp
+        if (futureWindow <= 0L) return 0L
+        return minOf(futureWindow, durationMillis / 3L, 90L * 60L * 1000L).coerceAtLeast(0L)
+    }
+
+    fun liveCenterTimeFor(latestTimestamp: Long, durationMillis: Long): Long {
+        return latestTimestamp - (durationMillis / 2L) + (forecastLeadMillis(durationMillis) / 2L)
+    }
     
     var preZoomDuration by rememberSaveable { mutableLongStateOf(0L) } // For toggle zoom
     var centerTime by rememberSaveable { mutableLongStateOf(now - visibleDuration / 2) }
@@ -896,7 +910,7 @@ fun InteractiveGlucoseChart(
                     if (latestTimestamp > 0) {
                         visibleDuration = (currentSelectedTimeRange?.hours?.toLong() ?: 3L) * 60 * 60 * 1000
                         lastAutoScrolledTimestamp = 0L
-                        centerTime = latestTimestamp - visibleDuration / 2
+                        centerTime = liveCenterTimeFor(latestTimestamp, visibleDuration)
                         previewCenterTime = centerTime
                         lastAutoScrolledTimestamp = latestTimestamp
                     }
@@ -926,7 +940,7 @@ fun InteractiveGlucoseChart(
                 visibleDuration = target
                 // Snap to latest data when changing range for immediate feedback
                 if (latestDataTimestamp > 0) {
-                     centerTime = latestDataTimestamp - target / 2
+                     centerTime = liveCenterTimeFor(latestDataTimestamp, target)
                 }
             }
         }
@@ -940,9 +954,20 @@ fun InteractiveGlucoseChart(
         val switchedToOlderSeries = lastAutoScrolledTimestamp > 0L && latestDataTimestamp + 60_000L < lastAutoScrolledTimestamp
 
         if (lastAutoScrolledTimestamp == 0L || switchedToOlderSeries) {
-            centerTime = latestDataTimestamp - visibleDuration / 2
+            centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
             previewCenterTime = centerTime
             lastAutoScrolledTimestamp = latestDataTimestamp
+        }
+    }
+
+    LaunchedEffect(predictionPoints.lastOrNull()?.timestamp, latestDataTimestamp, visibleDuration) {
+        if (safeData.isEmpty() || latestDataTimestamp <= 0L || predictionPoints.isEmpty() || isUserInteracting) {
+            return@LaunchedEffect
+        }
+        val currentEnd = centerTime + visibleDuration / 2
+        if (abs(currentEnd - latestDataTimestamp) < 75L * 60L * 1000L) {
+            centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
+            previewCenterTime = centerTime
         }
     }
 
@@ -971,7 +996,7 @@ fun InteractiveGlucoseChart(
 
             if (!isResumed) {
                 if (isMonitoring) {
-                    centerTime = latestDataTimestamp - visibleDuration / 2
+                    centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
                     previewCenterTime = centerTime
                 }
                 lastAutoScrolledTimestamp = latestDataTimestamp
@@ -983,7 +1008,7 @@ fun InteractiveGlucoseChart(
 
             // Keep monitoring users on live data, but preserve viewport when they were browsing history.
             if (isMonitoring) {
-                centerTime = latestDataTimestamp - visibleDuration / 2
+                centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
             }
             lastAutoScrolledTimestamp = latestDataTimestamp
         }
@@ -991,8 +1016,8 @@ fun InteractiveGlucoseChart(
 
     // --- Y-AXIS STATE (Manual Scaling) ---
     val isMmol = if (unit.isNotEmpty()) tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit) else tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
-    val fallbackMin = if (isMmol) 0.1f else 2f
-    val fallbackMax = if (isMmol) 13.5f else 236f
+    val fallbackMin = 0f
+    val fallbackMax = if (isMmol) 13f else 234f
     val graphRangeDefaults = resolveGraphRangeDefaults(
         requestedLow = graphLow,
         requestedHigh = graphHigh,
@@ -2174,6 +2199,99 @@ fun InteractiveGlucoseChart(
                         } else {
                             drawPath(reusablePath, primaryColor, style = Stroke(width = calStrokeWidth, cap = strokeCap, join = strokeJoin))
                         }
+                    }
+                }
+
+                val visiblePredictionPoints = predictionPoints.filter { point ->
+                    point.timestamp in (viewportStart - 15L * 60L * 1000L)..viewportEnd &&
+                        point.value.isFinite() &&
+                        point.value > 0.1f
+                }
+                if (visiblePredictionPoints.size >= 2) {
+                    val predictionTint = primaryColor
+                    fun addSmoothedOffsets(path: Path, samples: List<Offset>, moveToFirst: Boolean) {
+                        if (samples.isEmpty()) return
+                        val first = samples.first()
+                        if (moveToFirst) {
+                            path.moveTo(first.x, first.y)
+                        } else {
+                            path.lineTo(first.x, first.y)
+                        }
+                        if (samples.size == 1) return
+                        if (samples.size == 2) {
+                            val last = samples.last()
+                            path.lineTo(last.x, last.y)
+                            return
+                        }
+                        for (index in 1 until samples.lastIndex) {
+                            val current = samples[index]
+                            val next = samples[index + 1]
+                            val midX = (current.x + next.x) * 0.5f
+                            val midY = (current.y + next.y) * 0.5f
+                            path.quadraticTo(current.x, current.y, midX, midY)
+                        }
+                        val last = samples.last()
+                        path.lineTo(last.x, last.y)
+                    }
+                    fun predictionUncertainty(point: GlucosePredictionPoint): Float {
+                        val uncertainty = 1f - point.confidence.coerceIn(0f, 1f)
+                        return if (isMmol) {
+                            0.18f + (uncertainty * 1.3f)
+                        } else {
+                            3.2f + (uncertainty * 24f)
+                        }
+                    }
+
+                    val lineSamples = visiblePredictionPoints.mapNotNull { point ->
+                        val x = timeToDataX(point.timestamp)
+                        val y = valToY(point.value)
+                        if (x.isFinite() && y.isFinite()) Offset(x, y) else null
+                    }
+                    if (lineSamples.size >= 2) {
+                        val upperSamples = visiblePredictionPoints.mapNotNull { point ->
+                            val x = timeToDataX(point.timestamp)
+                            val y = valToY(point.value + predictionUncertainty(point))
+                            if (x.isFinite() && y.isFinite()) Offset(x, y) else null
+                        }
+                        val lowerSamples = visiblePredictionPoints.asReversed().mapNotNull { point ->
+                            val x = timeToDataX(point.timestamp)
+                            val y = valToY(point.value - predictionUncertainty(point))
+                            if (x.isFinite() && y.isFinite()) Offset(x, y) else null
+                        }
+                        if (upperSamples.size >= 2 && lowerSamples.size >= 2) {
+                            val bandPath = Path().apply {
+                                addSmoothedOffsets(this, upperSamples, moveToFirst = true)
+                                addSmoothedOffsets(this, lowerSamples, moveToFirst = false)
+                                close()
+                            }
+                            drawPath(
+                                path = bandPath,
+                                color = predictionTint.copy(alpha = 0.065f)
+                            )
+                        }
+                        val predictionPath = Path().apply {
+                            addSmoothedOffsets(this, lineSamples, moveToFirst = true)
+                        }
+                        val startX = lineSamples.first().x
+                        val endX = lineSamples.last().x.takeIf { abs(it - startX) > 1f } ?: (startX + 1f)
+                        drawPath(
+                            path = predictionPath,
+                            brush = Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0f to predictionTint.copy(alpha = 0.62f),
+                                    0.55f to predictionTint.copy(alpha = 0.40f),
+                                    1f to predictionTint.copy(alpha = 0.05f)
+                                ),
+                                startX = startX,
+                                endX = endX
+                            ),
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round,
+                                pathEffect = dashEffect
+                            )
+                        )
                     }
                 }
 

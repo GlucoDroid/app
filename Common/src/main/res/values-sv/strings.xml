@@ -1341,6 +1341,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_friend_request_remark_format">Meddelande: %1$s</string>
     <string name="journal_title">Journal</string>
     <string name="journal_gate_desc">Aktivera en dashboard-baserad journal med diagrammarkörer, snabbåtgärder och insulinets verkansfönster</string>
+    <string name="predictive_simulation_title">Prediktiv simulering</string>
+    <string name="predictive_simulation_summary">Prognostisera glukos med trend, journalens kolhydrater, insulinkurvor och aktivitet</string>
+    <string name="predictive_trend_momentum">Trendmomentum</string>
     <string name="journal_manage_title">Journalinställningar</string>
     <string name="journal_manage_desc">Justera insulintyper och verkansfönster</string>
     <string name="journal_quick_actions">Snabblogg</string>

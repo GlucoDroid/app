@@ -151,6 +151,8 @@ import android.widget.Toast
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.prediction.PredictiveSimulationSettings
+import tk.glucodata.data.prediction.buildGlucosePrediction
 import tk.glucodata.ui.journal.JournalEntrySheet
 import tk.glucodata.ui.journal.JournalInlineChip
 import tk.glucodata.ui.journal.JournalSettingsScreen
@@ -1055,6 +1057,8 @@ fun DashboardScreen(
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
+    val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val journalEntries by viewModel.journalEntries.collectAsState()
     val journalInsulinPresets by viewModel.journalInsulinPresets.collectAsState()
     val sensorStatus by viewModel.sensorStatus.collectAsState()
@@ -1116,6 +1120,30 @@ fun DashboardScreen(
         } else {
             buildActiveInsulinSummary(scopedJournalEntries, journalPresetsById, journalNow)
         }
+    }
+    val predictionPoints = remember(
+        journalEnabled,
+        predictiveSimulationEnabled,
+        predictionTrendMomentumEnabled,
+        glucoseHistory,
+        scopedJournalEntries,
+        journalPresetsById,
+        unit,
+        targetLow,
+        targetHigh
+    ) {
+        buildGlucosePrediction(
+            history = glucoseHistory,
+            journalEntries = if (journalEnabled) scopedJournalEntries else emptyList(),
+            insulinPresetsById = journalPresetsById,
+            unit = unit,
+            targetLow = targetLow,
+            targetHigh = targetHigh,
+            settings = PredictiveSimulationSettings(
+                enabled = predictiveSimulationEnabled,
+                trendMomentumEnabled = predictionTrendMomentumEnabled
+            )
+        )
     }
     val journalEntriesById = remember(scopedJournalEntries) { scopedJournalEntries.associateBy { it.id } }
     val isMmolUnit = remember(unit) { tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit) }
@@ -1820,6 +1848,7 @@ fun DashboardScreen(
                                     glucoseHistory = glucoseHistory,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    predictionPoints = predictionPoints,
                                     graphSmoothingMinutes = chartSmoothingMinutes,
                                     collapseSmoothedData = dataSmoothingCollapseChunks,
                                     previewWindowMode = previewWindowMode,
@@ -1966,6 +1995,7 @@ fun DashboardScreen(
                                     glucoseHistory = glucoseHistory,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    predictionPoints = predictionPoints,
                                     graphSmoothingMinutes = chartSmoothingMinutes,
                                     collapseSmoothedData = dataSmoothingCollapseChunks,
                                     previewWindowMode = previewWindowMode,

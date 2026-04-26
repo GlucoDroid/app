@@ -1331,6 +1331,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_friend_request_remark_format">Messaggio: %1$s</string>
     <string name="journal_title">Diario</string>
     <string name="journal_gate_desc">Attiva un diario nel dashboard con marcatori sul grafico, azioni rapide e finestre di attività dell\'insulina</string>
+    <string name="predictive_simulation_title">Simulazione predittiva</string>
+    <string name="predictive_simulation_summary">Proietta la glicemia con trend, carboidrati del diario, curve insuliniche e attività</string>
+    <string name="predictive_trend_momentum">Momentum del trend</string>
     <string name="journal_manage_title">Configurazione diario</string>
     <string name="journal_manage_desc">Regola tipi di insulina e finestre di attività</string>
     <string name="journal_quick_actions">Registrazione rapida</string>

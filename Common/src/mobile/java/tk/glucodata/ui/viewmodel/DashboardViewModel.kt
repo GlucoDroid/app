@@ -158,6 +158,12 @@ class DashboardViewModel(
     private val _journalEnabled = MutableStateFlow(false)
     val journalEnabled = _journalEnabled.asStateFlow()
 
+    private val _predictiveSimulationEnabled = MutableStateFlow(false)
+    val predictiveSimulationEnabled = _predictiveSimulationEnabled.asStateFlow()
+
+    private val _predictionTrendMomentumEnabled = MutableStateFlow(true)
+    val predictionTrendMomentumEnabled = _predictionTrendMomentumEnabled.asStateFlow()
+
     private val _journalEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
     val journalEntries = _journalEntries.asStateFlow()
 
@@ -357,6 +363,8 @@ class DashboardViewModel(
         _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
         val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", false)
         _journalEnabled.value = journalEnabled
+        _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", false)
+        _predictionTrendMomentumEnabled.value = prefs.getBoolean("dashboard_prediction_trend_momentum_enabled", true)
         if (journalEnabled) {
             ensureJournalEntriesObserved()
         } else if (journalEntriesJob != null) {
@@ -761,6 +769,20 @@ class DashboardViewModel(
         } else {
             stopJournalEntriesObservation()
         }
+    }
+
+    fun setPredictiveSimulationEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("dashboard_predictive_simulation_enabled", enabled).apply()
+        _predictiveSimulationEnabled.value = enabled
+    }
+
+    fun setPredictionTrendMomentumEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("dashboard_prediction_trend_momentum_enabled", enabled).apply()
+        _predictionTrendMomentumEnabled.value = enabled
     }
 
     fun saveJournalEntry(input: JournalEntryInput) {

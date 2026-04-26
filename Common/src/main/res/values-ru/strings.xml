@@ -1383,6 +1383,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_friend_request_remark_format">Сообщение: %1$s</string>
     <string name="journal_title">Журнал</string>
     <string name="journal_gate_desc">Включить журнал на главном экране с метками на графике, быстрыми действиями и диапазонами действия инсулина</string>
+    <string name="predictive_simulation_title">Прогнозное моделирование</string>
+    <string name="predictive_simulation_summary">Прогнозировать глюкозу по тренду, углеводам, кривым инсулина и активности</string>
+    <string name="predictive_trend_momentum">Инерция тренда</string>
     <string name="journal_manage_title">Настройка журнала</string>
     <string name="journal_manage_desc">Настройте типы инсулина и диапазоны действия</string>
     <string name="journal_quick_actions">Быстрая запись</string>

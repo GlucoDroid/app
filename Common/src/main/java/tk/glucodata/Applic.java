@@ -1173,22 +1173,27 @@ public class Applic extends Application implements androidx.work.Configuration.P
 
         Floating.init();
         final var initversion = Natives.getinitVersion();
-        if (initversion < 36) {
-            if (initversion < 29) {
-                if (initversion < 22) {
-                    if (initversion < 14) {
-                        if (initversion < 13) {
-                            Broadcasts.updateall();
+        if (initversion < 37) {
+            if (initversion < 36) {
+                if (initversion < 29) {
+                    if (initversion < 22) {
+                        if (initversion < 14) {
+                            if (initversion < 13) {
+                                Broadcasts.updateall();
+                            }
+                            if (Notify.arrowNotify != null)
+                                Natives.setfloatingFontsize((int) Notify.glucosesize);
+                            Natives.setfloatingbackground(WHITE);
+                            Natives.setfloatingforeground(BLACK);
                         }
-                        if (Notify.arrowNotify != null)
-                            Natives.setfloatingFontsize((int) Notify.glucosesize);
-                        Natives.setfloatingbackground(WHITE);
-                        Natives.setfloatingforeground(BLACK);
                     }
+                    sethour24(DateFormat.is24HourFormat(app));
                 }
-                sethour24(DateFormat.is24HourFormat(app));
             }
-            Natives.setinitVersion(36);
+            if (hasLegacyDefaultChartRange()) {
+                Natives.setGraphRange(0.0f, Natives.getunit() == 1 ? 13.0f : 234.0f);
+            }
+            Natives.setinitVersion(37);
         }
 
         setjavahour24(Natives.gethour24());
@@ -1196,6 +1201,20 @@ public class Applic extends Application implements androidx.work.Configuration.P
         EverSense.setreceivers();
         JugglucoSend.setreceivers();
         SendLikexDrip.setreceivers();
+    }
+
+    private static boolean hasLegacyDefaultChartRange() {
+        final var unit = Natives.getunit();
+        final var graphLow = Natives.graphlow();
+        final var graphHigh = Natives.graphhigh();
+        if (unit == 1) {
+            return isClose(graphLow, 3.0f, 0.05f) && isClose(graphHigh, 12.0f, 0.05f);
+        }
+        return isClose(graphLow, 54.0f, 0.5f) && isClose(graphHigh, 216.0f, 0.5f);
+    }
+
+    private static boolean isClose(float actual, float expected, float tolerance) {
+        return Math.abs(actual - expected) <= tolerance;
     }
 
     static public boolean talkbackrunning = false;

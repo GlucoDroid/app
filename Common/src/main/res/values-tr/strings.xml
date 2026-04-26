@@ -1369,6 +1369,9 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="mq_friend_request_remark_format">Mesaj: %1$s</string>
     <string name="journal_title">Günlük</string>
     <string name="journal_gate_desc">Grafik işaretleri, hızlı işlemler ve insülin etki aralıkları içeren pano odaklı günlüğü etkinleştir</string>
+    <string name="predictive_simulation_title">Tahmine dayalı simülasyon</string>
+    <string name="predictive_simulation_summary">Trendi, günlük karbonhidratlarını, insülin eğrilerini ve aktiviteyi kullanarak glukozu projekte et</string>
+    <string name="predictive_trend_momentum">Trend momentumu</string>
     <string name="journal_manage_title">Günlük ayarları</string>
     <string name="journal_manage_desc">İnsülin türlerini ve etki aralıklarını düzenleyin</string>
     <string name="journal_quick_actions">Hızlı kayıt</string>

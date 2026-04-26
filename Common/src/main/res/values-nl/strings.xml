@@ -1384,6 +1384,9 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="mq_friend_request_remark_format">Bericht: %1$s</string>
     <string name="journal_title">Dagboek</string>
     <string name="journal_gate_desc">Schakel een dashboard-gericht logboek in met grafiekmarkeringen, snelle acties en insuline-werkingsvensters</string>
+    <string name="predictive_simulation_title">Voorspellende simulatie</string>
+    <string name="predictive_simulation_summary">Glucose voorspellen met trend, dagboekkoolhydraten, insulinecurves en activiteit</string>
+    <string name="predictive_trend_momentum">Trendmomentum</string>
     <string name="journal_manage_title">Dagboekinstellingen</string>
     <string name="journal_manage_desc">Insulinetypen en werkingsvensters aanpassen</string>
     <string name="journal_quick_actions">Snel loggen</string>

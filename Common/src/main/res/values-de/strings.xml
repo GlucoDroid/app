@@ -1379,6 +1379,9 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="mq_friend_request_remark_format">Nachricht: %1$s</string>
     <string name="journal_title">Journal</string>
     <string name="journal_gate_desc">Dashboard-Journal mit Chart-Markern, Schnellaktionen und Insulinwirkfenstern aktivieren</string>
+    <string name="predictive_simulation_title">Prädiktive Simulation</string>
+    <string name="predictive_simulation_summary">Glukose anhand von Trend, Journal-Kohlenhydraten, Insulinkurven und Aktivität projizieren</string>
+    <string name="predictive_trend_momentum">Trenddynamik</string>
     <string name="journal_manage_title">Journal-Setup</string>
     <string name="journal_manage_desc">Insulintypen und Wirkbänder anpassen</string>
     <string name="journal_quick_actions">Schnell protokollieren</string>

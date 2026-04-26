@@ -1357,6 +1357,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_friend_request_remark_format">留言：%1$s</string>
     <string name="journal_title">日志</string>
     <string name="journal_gate_desc">启用仪表板式日志，支持图表标记、快捷操作和胰岛素作用区间</string>
+    <string name="predictive_simulation_title">预测模拟</string>
+    <string name="predictive_simulation_summary">结合趋势、日志碳水、胰岛素曲线和活动预测血糖</string>
+    <string name="predictive_trend_momentum">趋势动量</string>
     <string name="journal_manage_title">日志设置</string>
     <string name="journal_manage_desc">调整胰岛素类型和作用区间</string>
     <string name="journal_quick_actions">快速记录</string>
