@@ -55,9 +55,11 @@ class DashboardViewModel(
         const val PREDICTION_CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
         const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
         const val PREDICTION_CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
+        const val PREDICTION_HORIZON_MINUTES_KEY = "dashboard_prediction_horizon_minutes"
         const val PREDICTION_CARB_RATIO_DEFAULT = 10f
         const val PREDICTION_INSULIN_SENSITIVITY_DEFAULT = 54f
         const val PREDICTION_CARB_ABSORPTION_DEFAULT = 35f
+        const val PREDICTION_HORIZON_MINUTES_DEFAULT = 120
     }
 
     enum class CollectionMode {
@@ -179,6 +181,9 @@ class DashboardViewModel(
 
     private val _predictionCarbAbsorptionGramsPerHour = MutableStateFlow(PREDICTION_CARB_ABSORPTION_DEFAULT)
     val predictionCarbAbsorptionGramsPerHour = _predictionCarbAbsorptionGramsPerHour.asStateFlow()
+
+    private val _predictionHorizonMinutes = MutableStateFlow(PREDICTION_HORIZON_MINUTES_DEFAULT)
+    val predictionHorizonMinutes = _predictionHorizonMinutes.asStateFlow()
 
     private val _journalEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
     val journalEntries = _journalEntries.asStateFlow()
@@ -390,6 +395,9 @@ class DashboardViewModel(
         _predictionCarbAbsorptionGramsPerHour.value = prefs
             .getFloat(PREDICTION_CARB_ABSORPTION_KEY, PREDICTION_CARB_ABSORPTION_DEFAULT)
             .coerceIn(10f, 90f)
+        _predictionHorizonMinutes.value = prefs
+            .getInt(PREDICTION_HORIZON_MINUTES_KEY, PREDICTION_HORIZON_MINUTES_DEFAULT)
+            .coerceIn(30, 360)
         if (journalEnabled) {
             ensureJournalEntriesObserved()
         } else if (journalEntriesJob != null) {
@@ -832,6 +840,14 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putFloat(PREDICTION_CARB_ABSORPTION_KEY, normalized).apply()
         _predictionCarbAbsorptionGramsPerHour.value = normalized
+    }
+
+    fun setPredictionHorizonMinutes(value: Int) {
+        val normalized = value.coerceIn(30, 360)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putInt(PREDICTION_HORIZON_MINUTES_KEY, normalized).apply()
+        _predictionHorizonMinutes.value = normalized
     }
 
     fun saveJournalEntry(input: JournalEntryInput) {

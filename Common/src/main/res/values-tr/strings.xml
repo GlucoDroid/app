@@ -1380,6 +1380,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Karbonhidrat emilimi</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_forecast_horizon">Tahmin ufku</string>
+    <string name="predictive_horizon_value">%1$d dk</string>
     <string name="journal_manage_title">Günlük ayarları</string>
     <string name="journal_manage_desc">İnsülin türlerini ve etki aralıklarını düzenleyin</string>
     <string name="journal_quick_actions">Hızlı kayıt</string>

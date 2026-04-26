@@ -1395,6 +1395,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Koolhydraatabsorptie</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_forecast_horizon">Voorspellingshorizon</string>
+    <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_manage_title">Dagboekinstellingen</string>
     <string name="journal_manage_desc">Insulinetypen en werkingsvensters aanpassen</string>
     <string name="journal_quick_actions">Snel loggen</string>

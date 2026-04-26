@@ -1342,6 +1342,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Assorbimento carboidrati</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_forecast_horizon">Orizzonte previsione</string>
+    <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_manage_title">Configurazione diario</string>
     <string name="journal_manage_desc">Regola tipi di insulina e finestre di attività</string>
     <string name="journal_quick_actions">Registrazione rapida</string>

@@ -115,6 +115,7 @@ fun ExpressiveSettingsScreen(
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
     val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
     val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
+    val predictionHorizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
     val alertsSummary by viewModel.alertsSummary.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
@@ -284,6 +285,7 @@ fun ExpressiveSettingsScreen(
                     carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                     insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                     carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour,
+                    horizonMinutes = predictionHorizonMinutes,
                     isMmol = isMmol,
                     expanded = predictiveSimulationExpanded,
                     onExpandedChange = { predictiveSimulationExpanded = it },
@@ -292,6 +294,7 @@ fun ExpressiveSettingsScreen(
                     onCarbRatioChange = { viewModel.setPredictionCarbRatioGramsPerUnit(it) },
                     onInsulinSensitivityChange = { viewModel.setPredictionInsulinSensitivityMgDlPerUnit(it) },
                     onCarbAbsorptionChange = { viewModel.setPredictionCarbAbsorptionGramsPerHour(it) },
+                    onHorizonChange = { viewModel.setPredictionHorizonMinutes(it) },
                     iconTint = glucoseColor,
                     position = CardPosition.BOTTOM
                 )
@@ -1121,6 +1124,7 @@ private fun PredictiveSimulationExpandableSettingsItem(
     carbRatioGramsPerUnit: Float,
     insulinSensitivityMgDlPerUnit: Float,
     carbAbsorptionGramsPerHour: Float,
+    horizonMinutes: Int,
     isMmol: Boolean,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
@@ -1129,6 +1133,7 @@ private fun PredictiveSimulationExpandableSettingsItem(
     onCarbRatioChange: (Float) -> Unit,
     onInsulinSensitivityChange: (Float) -> Unit,
     onCarbAbsorptionChange: (Float) -> Unit,
+    onHorizonChange: (Int) -> Unit,
     iconTint: Color,
     position: CardPosition
 ) {
@@ -1247,6 +1252,14 @@ private fun PredictiveSimulationExpandableSettingsItem(
                         valueRange = 10f..90f,
                         enabled = predictiveSimulationEnabled,
                         onValueChange = onCarbAbsorptionChange
+                    )
+                    PredictiveSimulationParameterRow(
+                        title = stringResource(R.string.predictive_forecast_horizon),
+                        valueLabel = stringResource(R.string.predictive_horizon_value, horizonMinutes),
+                        value = horizonMinutes.toFloat(),
+                        valueRange = 30f..360f,
+                        enabled = predictiveSimulationEnabled,
+                        onValueChange = { onHorizonChange(it.roundToInt()) }
                     )
                 }
             }

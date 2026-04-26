@@ -1351,6 +1351,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Засваенне вугляводаў</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_forecast_horizon">Гарызонт прагнозу</string>
+    <string name="predictive_horizon_value">%1$d хв</string>
     <string name="journal_manage_title">Налады журнала</string>
     <string name="journal_manage_desc">Наладзьце тыпы інсуліну і вокны дзеяння</string>
     <string name="journal_quick_actions">Хуткі запіс</string>

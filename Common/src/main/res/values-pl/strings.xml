@@ -1387,6 +1387,8 @@
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Wchłanianie węglowodanów</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_forecast_horizon">Horyzont prognozy</string>
+    <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_manage_title">Ustawienia dziennika</string>
     <string name="journal_manage_desc">Dostosuj typy insuliny i okna działania</string>
     <string name="journal_quick_actions">Szybki wpis</string>
