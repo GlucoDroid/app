@@ -29,6 +29,7 @@ import tk.glucodata.alerts.CustomAlertRepository
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorStatusPolicy
 import tk.glucodata.ui.util.resolveDashboardSensorStatus
+import kotlin.math.roundToInt
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository(),
@@ -51,6 +52,12 @@ class DashboardViewModel(
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
         const val DASHBOARD_HISTORY_WINDOW_MS = 3L * 24L * 60L * 60L * 1000L
+        const val PREDICTION_CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
+        const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
+        const val PREDICTION_CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
+        const val PREDICTION_CARB_RATIO_DEFAULT = 10f
+        const val PREDICTION_INSULIN_SENSITIVITY_DEFAULT = 54f
+        const val PREDICTION_CARB_ABSORPTION_DEFAULT = 35f
     }
 
     enum class CollectionMode {
@@ -163,6 +170,15 @@ class DashboardViewModel(
 
     private val _predictionTrendMomentumEnabled = MutableStateFlow(true)
     val predictionTrendMomentumEnabled = _predictionTrendMomentumEnabled.asStateFlow()
+
+    private val _predictionCarbRatioGramsPerUnit = MutableStateFlow(PREDICTION_CARB_RATIO_DEFAULT)
+    val predictionCarbRatioGramsPerUnit = _predictionCarbRatioGramsPerUnit.asStateFlow()
+
+    private val _predictionInsulinSensitivityMgDlPerUnit = MutableStateFlow(PREDICTION_INSULIN_SENSITIVITY_DEFAULT)
+    val predictionInsulinSensitivityMgDlPerUnit = _predictionInsulinSensitivityMgDlPerUnit.asStateFlow()
+
+    private val _predictionCarbAbsorptionGramsPerHour = MutableStateFlow(PREDICTION_CARB_ABSORPTION_DEFAULT)
+    val predictionCarbAbsorptionGramsPerHour = _predictionCarbAbsorptionGramsPerHour.asStateFlow()
 
     private val _journalEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
     val journalEntries = _journalEntries.asStateFlow()
@@ -365,6 +381,15 @@ class DashboardViewModel(
         _journalEnabled.value = journalEnabled
         _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", true)
         _predictionTrendMomentumEnabled.value = prefs.getBoolean("dashboard_prediction_trend_momentum_enabled", true)
+        _predictionCarbRatioGramsPerUnit.value = prefs
+            .getFloat(PREDICTION_CARB_RATIO_KEY, PREDICTION_CARB_RATIO_DEFAULT)
+            .coerceIn(3f, 30f)
+        _predictionInsulinSensitivityMgDlPerUnit.value = prefs
+            .getFloat(PREDICTION_INSULIN_SENSITIVITY_KEY, PREDICTION_INSULIN_SENSITIVITY_DEFAULT)
+            .coerceIn(10f, 180f)
+        _predictionCarbAbsorptionGramsPerHour.value = prefs
+            .getFloat(PREDICTION_CARB_ABSORPTION_KEY, PREDICTION_CARB_ABSORPTION_DEFAULT)
+            .coerceIn(10f, 90f)
         if (journalEnabled) {
             ensureJournalEntriesObserved()
         } else if (journalEntriesJob != null) {
@@ -785,6 +810,30 @@ class DashboardViewModel(
         _predictionTrendMomentumEnabled.value = enabled
     }
 
+    fun setPredictionCarbRatioGramsPerUnit(value: Float) {
+        val normalized = value.roundToStep(1f).coerceIn(3f, 30f)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat(PREDICTION_CARB_RATIO_KEY, normalized).apply()
+        _predictionCarbRatioGramsPerUnit.value = normalized
+    }
+
+    fun setPredictionInsulinSensitivityMgDlPerUnit(value: Float) {
+        val normalized = value.roundToStep(1f).coerceIn(10f, 180f)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat(PREDICTION_INSULIN_SENSITIVITY_KEY, normalized).apply()
+        _predictionInsulinSensitivityMgDlPerUnit.value = normalized
+    }
+
+    fun setPredictionCarbAbsorptionGramsPerHour(value: Float) {
+        val normalized = value.roundToStep(1f).coerceIn(10f, 90f)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat(PREDICTION_CARB_ABSORPTION_KEY, normalized).apply()
+        _predictionCarbAbsorptionGramsPerHour.value = normalized
+    }
+
     fun saveJournalEntry(input: JournalEntryInput) {
         viewModelScope.launch {
             journalRepository.upsertEntry(input)
@@ -951,5 +1000,10 @@ class DashboardViewModel(
             preferredSensorId = cachedSerial,
             activeSensors = Natives.activeSensors()
         ) ?: cachedSerial
+    }
+
+    private fun Float.roundToStep(step: Float): Float {
+        if (!isFinite() || step <= 0f) return this
+        return (this / step).roundToInt() * step
     }
 }

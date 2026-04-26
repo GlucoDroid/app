@@ -1167,6 +1167,9 @@ fun DashboardScreen(
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
+    val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
+    val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
     val journalEntries by viewModel.journalEntries.collectAsState()
     val journalInsulinPresets by viewModel.journalInsulinPresets.collectAsState()
     val sensorStatus by viewModel.sensorStatus.collectAsState()
@@ -1230,10 +1233,19 @@ fun DashboardScreen(
             buildActiveInsulinSummary(scopedJournalEntries, journalPresetsById, journalNow)
         }
     }
-    val predictionSettings = remember(predictiveSimulationEnabled, predictionTrendMomentumEnabled) {
+    val predictionSettings = remember(
+        predictiveSimulationEnabled,
+        predictionTrendMomentumEnabled,
+        predictionCarbRatioGramsPerUnit,
+        predictionInsulinSensitivityMgDlPerUnit,
+        predictionCarbAbsorptionGramsPerHour
+    ) {
         PredictiveSimulationSettings(
             enabled = predictiveSimulationEnabled,
-            trendMomentumEnabled = predictionTrendMomentumEnabled
+            trendMomentumEnabled = predictionTrendMomentumEnabled,
+            carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
+            insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
+            carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour
         )
     }
     val predictionSeries = remember(

@@ -1372,6 +1372,14 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="predictive_simulation_title">Tahmine dayalı simülasyon</string>
     <string name="predictive_simulation_summary">Trendi, günlük karbonhidratlarını, insülin eğrilerini ve aktiviteyi kullanarak glukozu projekte et</string>
     <string name="predictive_trend_momentum">Trend momentumu</string>
+    <string name="predictive_model_tuning">Model profili</string>
+    <string name="predictive_carb_ratio">Karbonhidrat oranı</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">İnsülin duyarlılığı</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Karbonhidrat emilimi</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Günlük ayarları</string>
     <string name="journal_manage_desc">İnsülin türlerini ve etki aralıklarını düzenleyin</string>
     <string name="journal_quick_actions">Hızlı kayıt</string>

@@ -1343,6 +1343,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_simulation_title">Прагнознае мадэляванне</string>
     <string name="predictive_simulation_summary">Прагназаваць глюкозу па трэндзе, вугляводах, крывых інсуліну і актыўнасці</string>
     <string name="predictive_trend_momentum">Імпульс трэнду</string>
+    <string name="predictive_model_tuning">Профіль мадэлі</string>
+    <string name="predictive_carb_ratio">Вугляводны каэфіцыент</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">Адчувальнасць да інсуліну</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Засваенне вугляводаў</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Налады журнала</string>
     <string name="journal_manage_desc">Наладзьце тыпы інсуліну і вокны дзеяння</string>
     <string name="journal_quick_actions">Хуткі запіс</string>

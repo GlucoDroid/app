@@ -1360,6 +1360,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_simulation_title">预测模拟</string>
     <string name="predictive_simulation_summary">结合趋势、日志碳水、胰岛素曲线和活动预测血糖</string>
     <string name="predictive_trend_momentum">趋势动量</string>
+    <string name="predictive_model_tuning">模型配置</string>
+    <string name="predictive_carb_ratio">碳水比</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">胰岛素敏感度</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">碳水吸收</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">日志设置</string>
     <string name="journal_manage_desc">调整胰岛素类型和作用区间</string>
     <string name="journal_quick_actions">快速记录</string>

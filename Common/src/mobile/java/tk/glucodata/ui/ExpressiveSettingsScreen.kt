@@ -112,6 +112,9 @@ fun ExpressiveSettingsScreen(
     val journalInsulinPresets by viewModel.journalInsulinPresets.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
+    val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
+    val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
     val alertsSummary by viewModel.alertsSummary.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
@@ -278,10 +281,17 @@ fun ExpressiveSettingsScreen(
                 PredictiveSimulationExpandableSettingsItem(
                     predictiveSimulationEnabled = predictiveSimulationEnabled,
                     trendMomentumEnabled = predictionTrendMomentumEnabled,
+                    carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
+                    insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
+                    carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour,
+                    isMmol = isMmol,
                     expanded = predictiveSimulationExpanded,
                     onExpandedChange = { predictiveSimulationExpanded = it },
                     onToggleSimulation = { viewModel.setPredictiveSimulationEnabled(it) },
                     onToggleTrendMomentum = { viewModel.setPredictionTrendMomentumEnabled(it) },
+                    onCarbRatioChange = { viewModel.setPredictionCarbRatioGramsPerUnit(it) },
+                    onInsulinSensitivityChange = { viewModel.setPredictionInsulinSensitivityMgDlPerUnit(it) },
+                    onCarbAbsorptionChange = { viewModel.setPredictionCarbAbsorptionGramsPerHour(it) },
                     iconTint = glucoseColor,
                     position = CardPosition.BOTTOM
                 )
@@ -1108,10 +1118,17 @@ private fun JournalSettingsItem(
 private fun PredictiveSimulationExpandableSettingsItem(
     predictiveSimulationEnabled: Boolean,
     trendMomentumEnabled: Boolean,
+    carbRatioGramsPerUnit: Float,
+    insulinSensitivityMgDlPerUnit: Float,
+    carbAbsorptionGramsPerHour: Float,
+    isMmol: Boolean,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onToggleSimulation: (Boolean) -> Unit,
     onToggleTrendMomentum: (Boolean) -> Unit,
+    onCarbRatioChange: (Float) -> Unit,
+    onInsulinSensitivityChange: (Float) -> Unit,
+    onCarbAbsorptionChange: (Float) -> Unit,
     iconTint: Color,
     position: CardPosition
 ) {
@@ -1119,6 +1136,15 @@ private fun PredictiveSimulationExpandableSettingsItem(
         targetValue = if (expanded) 180f else 0f,
         label = "predictiveSimulationChevron"
     )
+    val insulinSensitivityDisplay = remember(insulinSensitivityMgDlPerUnit, isMmol) {
+        if (isMmol) insulinSensitivityMgDlPerUnit / 18.0182f else insulinSensitivityMgDlPerUnit
+    }
+    val sensitivityValue = if (isMmol) {
+        stringResource(R.string.predictive_sensitivity_value_mmol, insulinSensitivityDisplay)
+    } else {
+        stringResource(R.string.predictive_sensitivity_value_mgdl, insulinSensitivityMgDlPerUnit)
+    }
+    val sensitivityRange = if (isMmol) 0.6f..10f else 10f..180f
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1178,18 +1204,92 @@ private fun PredictiveSimulationExpandableSettingsItem(
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
-                Column {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     PredictiveSimulationSubToggleRow(
                         title = stringResource(R.string.predictive_trend_momentum),
                         checked = trendMomentumEnabled,
                         enabled = predictiveSimulationEnabled,
                         onCheckedChange = onToggleTrendMomentum,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
+                    Text(
+                        text = stringResource(R.string.predictive_model_tuning),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 14.dp, bottom = 2.dp)
+                    )
+                    PredictiveSimulationParameterRow(
+                        title = stringResource(R.string.predictive_carb_ratio),
+                        valueLabel = stringResource(R.string.predictive_carb_ratio_value, carbRatioGramsPerUnit),
+                        value = carbRatioGramsPerUnit,
+                        valueRange = 3f..30f,
+                        enabled = predictiveSimulationEnabled,
+                        onValueChange = onCarbRatioChange
+                    )
+                    PredictiveSimulationParameterRow(
+                        title = stringResource(R.string.predictive_insulin_sensitivity),
+                        valueLabel = sensitivityValue,
+                        value = insulinSensitivityDisplay,
+                        valueRange = sensitivityRange,
+                        enabled = predictiveSimulationEnabled,
+                        onValueChange = { displayValue ->
+                            onInsulinSensitivityChange(
+                                if (isMmol) displayValue * 18.0182f else displayValue
+                            )
+                        }
+                    )
+                    PredictiveSimulationParameterRow(
+                        title = stringResource(R.string.predictive_carb_absorption),
+                        valueLabel = stringResource(R.string.predictive_absorption_value, carbAbsorptionGramsPerHour),
+                        value = carbAbsorptionGramsPerHour,
+                        valueRange = 10f..90f,
+                        enabled = predictiveSimulationEnabled,
+                        onValueChange = onCarbAbsorptionChange
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PredictiveSimulationParameterRow(
+    title: String,
+    valueLabel: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    enabled: Boolean,
+    onValueChange: (Float) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.5f)
+            .padding(vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = valueLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Slider(
+            value = value.coerceIn(valueRange.start, valueRange.endInclusive),
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            enabled = enabled
+        )
     }
 }
 

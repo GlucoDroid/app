@@ -1387,6 +1387,14 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="predictive_simulation_title">Voorspellende simulatie</string>
     <string name="predictive_simulation_summary">Glucose voorspellen met trend, dagboekkoolhydraten, insulinecurves en activiteit</string>
     <string name="predictive_trend_momentum">Trendmomentum</string>
+    <string name="predictive_model_tuning">Modelprofiel</string>
+    <string name="predictive_carb_ratio">Koolhydraatratio</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">Insulinegevoeligheid</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Koolhydraatabsorptie</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Dagboekinstellingen</string>
     <string name="journal_manage_desc">Insulinetypen en werkingsvensters aanpassen</string>
     <string name="journal_quick_actions">Snel loggen</string>

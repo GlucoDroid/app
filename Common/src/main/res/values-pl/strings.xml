@@ -1379,6 +1379,14 @@
     <string name="predictive_simulation_title">Symulacja predykcyjna</string>
     <string name="predictive_simulation_summary">Prognozuj glukozę na podstawie trendu, węglowodanów z dziennika, krzywych insuliny i aktywności</string>
     <string name="predictive_trend_momentum">Momentum trendu</string>
+    <string name="predictive_model_tuning">Profil modelu</string>
+    <string name="predictive_carb_ratio">Współczynnik węglowodanów</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">Wrażliwość na insulinę</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Wchłanianie węglowodanów</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Ustawienia dziennika</string>
     <string name="journal_manage_desc">Dostosuj typy insuliny i okna działania</string>
     <string name="journal_quick_actions">Szybki wpis</string>

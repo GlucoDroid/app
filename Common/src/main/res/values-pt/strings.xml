@@ -1345,6 +1345,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_simulation_title">Simulação preditiva</string>
     <string name="predictive_simulation_summary">Projetar glicose com tendência, carboidratos do diário, curvas de insulina e atividade</string>
     <string name="predictive_trend_momentum">Momentum da tendência</string>
+    <string name="predictive_model_tuning">Perfil do modelo</string>
+    <string name="predictive_carb_ratio">Razão de carboidratos</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">Sensibilidade à insulina</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Absorção de carboidratos</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Configuração do diário</string>
     <string name="journal_manage_desc">Ajuste tipos de insulina e janelas de ação</string>
     <string name="journal_quick_actions">Registro rápido</string>

@@ -1344,6 +1344,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_simulation_title">Prediktiv simulering</string>
     <string name="predictive_simulation_summary">Prognostisera glukos med trend, journalens kolhydrater, insulinkurvor och aktivitet</string>
     <string name="predictive_trend_momentum">Trendmomentum</string>
+    <string name="predictive_model_tuning">Modellprofil</string>
+    <string name="predictive_carb_ratio">Kolhydratkvot</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">Insulinkänslighet</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Kolhydratupptag</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Journalinställningar</string>
     <string name="journal_manage_desc">Justera insulintyper och verkansfönster</string>
     <string name="journal_quick_actions">Snabblogg</string>

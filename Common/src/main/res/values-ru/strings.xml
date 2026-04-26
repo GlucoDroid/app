@@ -1386,6 +1386,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_simulation_title">Прогнозное моделирование</string>
     <string name="predictive_simulation_summary">Прогнозировать глюкозу по тренду, углеводам, кривым инсулина и активности</string>
     <string name="predictive_trend_momentum">Инерция тренда</string>
+    <string name="predictive_model_tuning">Профиль модели</string>
+    <string name="predictive_carb_ratio">Углеводный коэффициент</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">Чувствительность к инсулину</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Усвоение углеводов</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Настройка журнала</string>
     <string name="journal_manage_desc">Настройте типы инсулина и диапазоны действия</string>
     <string name="journal_quick_actions">Быстрая запись</string>

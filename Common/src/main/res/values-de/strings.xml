@@ -1382,6 +1382,14 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="predictive_simulation_title">Prädiktive Simulation</string>
     <string name="predictive_simulation_summary">Glukose anhand von Trend, Journal-Kohlenhydraten, Insulinkurven und Aktivität projizieren</string>
     <string name="predictive_trend_momentum">Trenddynamik</string>
+    <string name="predictive_model_tuning">Modellprofil</string>
+    <string name="predictive_carb_ratio">Kohlenhydratfaktor</string>
+    <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
+    <string name="predictive_insulin_sensitivity">Insulinsensitivität</string>
+    <string name="predictive_sensitivity_value_mgdl">%1$.0f mg/dL/U</string>
+    <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
+    <string name="predictive_carb_absorption">Kohlenhydrataufnahme</string>
+    <string name="predictive_absorption_value">%1$.0f g/h</string>
     <string name="journal_manage_title">Journal-Setup</string>
     <string name="journal_manage_desc">Insulintypen und Wirkbänder anpassen</string>
     <string name="journal_quick_actions">Schnell protokollieren</string>
