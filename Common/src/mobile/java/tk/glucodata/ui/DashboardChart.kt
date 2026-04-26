@@ -867,6 +867,10 @@ fun InteractiveGlucoseChart(
         .maxOfOrNull { series -> series.points.lastOrNull()?.timestamp ?: Long.MIN_VALUE }
         ?.takeIf { it != Long.MIN_VALUE }
         ?: 0L
+    fun predictionLeadMillis(durationMillis: Long): Long {
+        return (durationMillis * 0.18f).toLong()
+            .coerceIn(15L * 60L * 1000L, 35L * 60L * 1000L)
+    }
 
     var lastAutoScrolledTimestamp by rememberSaveable { mutableLongStateOf(0L) }
     // Jitter fix: Track the auto-scroll job to cancel it on user interaction
@@ -879,13 +883,19 @@ fun InteractiveGlucoseChart(
     var visibleDuration by rememberSaveable { 
         mutableLongStateOf((selectedTimeRange?.hours?.toLong() ?: 3L) * 60L * 60L * 1000L) 
     }
-    fun liveCenterTimeFor(latestTimestamp: Long, durationMillis: Long): Long {
-        val liveEndTime = if (hasPredictionOverlay && latestTimestamp > 0L) {
-            latestTimestamp
-        } else {
-            maxOf(latestTimestamp, System.currentTimeMillis())
+    fun liveEndTimeFor(latestTimestamp: Long, durationMillis: Long): Long {
+        if (!hasPredictionOverlay || latestTimestamp <= 0L || predictionEndTimestamp <= latestTimestamp) {
+            return maxOf(latestTimestamp, System.currentTimeMillis())
         }
-        return liveEndTime - (durationMillis / 2L)
+        val predictionLead = minOf(
+            predictionLeadMillis(durationMillis),
+            predictionEndTimestamp - latestTimestamp
+        )
+        return latestTimestamp + predictionLead
+    }
+
+    fun liveCenterTimeFor(latestTimestamp: Long, durationMillis: Long): Long {
+        return liveEndTimeFor(latestTimestamp, durationMillis) - (durationMillis / 2L)
     }
     
     var preZoomDuration by rememberSaveable { mutableLongStateOf(0L) } // For toggle zoom
@@ -1090,7 +1100,15 @@ fun InteractiveGlucoseChart(
         val fullSpan = (latestDataTimestamp - earliestDataTimestamp).coerceAtLeast(0L)
         maxOf(72L * 60L * 60L * 1000L, fullSpan + (2L * 60L * 60L * 1000L))
     }
-    val maxAllowedTime = System.currentTimeMillis() + (2 * 60 * 60 * 1000)
+    fun maxAllowedCenterTime(durationMillis: Long): Long {
+        return if (hasPredictionOverlay && predictionEndTimestamp > latestDataTimestamp) {
+            predictionEndTimestamp - durationMillis / 2L
+        } else {
+            System.currentTimeMillis() + (2L * 60L * 60L * 1000L)
+        }
+    }
+
+    val maxAllowedTime = maxAllowedCenterTime(visibleDuration)
 
     fun cancelAutoScroll() {
         autoScrollJob?.cancel()
@@ -1431,7 +1449,7 @@ fun InteractiveGlucoseChart(
 
                             // --- HIT TEST (Hit Logic reused) ---
                             val width = size.width.toFloat()
-                            val rightPaddingPx = (16.dp.toPx() * safeExpandedProgress)
+                            val rightPaddingPx = if (hasPredictionOverlay) 0f else (16.dp.toPx() * safeExpandedProgress)
                             val usefulWidth = (width - rightPaddingPx).coerceAtLeast(1f)
                             val contentHeight =
                                 (size.height.toFloat() - chartUnderlayBottomPx - previewWindowReservedPx).coerceAtLeast(1f)
@@ -1705,7 +1723,7 @@ fun InteractiveGlucoseChart(
                                             ) {
                                                 val delta = this.value - lastVal
                                                 val rightPaddingPx =
-                                                    (16.dp.toPx() * safeExpandedProgress)
+                                                    if (hasPredictionOverlay) 0f else (16.dp.toPx() * safeExpandedProgress)
                                                 val usefulWidth =
                                                     (size.width.toFloat() - rightPaddingPx).coerceAtLeast(
                                                         1f
@@ -1832,7 +1850,7 @@ fun InteractiveGlucoseChart(
                     }
             ) {
                 val width = size.width
-                val rightPaddingPx = (16.dp.toPx() * safeExpandedProgress)
+                val rightPaddingPx = if (hasPredictionOverlay) 0f else (16.dp.toPx() * safeExpandedProgress)
                 val dataWidth = (width - rightPaddingPx).coerceAtLeast(1f)
                 val contentHeight = (size.height - chartUnderlayBottomPx - previewWindowReservedPx).coerceAtLeast(1f)
                 val bottomAxisHeight = 32.dp.toPx()
@@ -2268,11 +2286,19 @@ fun InteractiveGlucoseChart(
                 }
 
                 resolvedPredictionSeries.forEach { series ->
-                    val visiblePredictionPoints = series.points.filter { point ->
-                        point.timestamp in (viewportStart - 15L * 60L * 1000L)..viewportEnd &&
+                    val validPredictionPoints = series.points.filter { point ->
                             point.value.isFinite() &&
                             point.value > 0.1f
                     }
+                    val firstVisiblePredictionIndex = validPredictionPoints.indexOfFirst { it.timestamp >= viewportStart }
+                    val lastVisiblePredictionIndex = validPredictionPoints.indexOfLast { it.timestamp <= viewportEnd }
+                    if (firstVisiblePredictionIndex == -1 || lastVisiblePredictionIndex == -1) return@forEach
+                    val predictionStartIndex = (firstVisiblePredictionIndex - 1).coerceAtLeast(0)
+                    val predictionEndIndex = (lastVisiblePredictionIndex + 1).coerceAtMost(validPredictionPoints.lastIndex)
+                    val visiblePredictionPoints = validPredictionPoints.subList(
+                        predictionStartIndex,
+                        predictionEndIndex + 1
+                    )
                     if (visiblePredictionPoints.size < 2) return@forEach
 
                     val predictionTint = when (series.kind) {
