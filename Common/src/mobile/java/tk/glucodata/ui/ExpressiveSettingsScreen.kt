@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Cloud
@@ -34,6 +35,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -108,6 +110,8 @@ fun ExpressiveSettingsScreen(
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val journalInsulinPresets by viewModel.journalInsulinPresets.collectAsState()
+    val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
+    val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val alertsSummary by viewModel.alertsSummary.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
@@ -150,6 +154,7 @@ fun ExpressiveSettingsScreen(
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
+    var predictiveSimulationExpanded by rememberSaveable { mutableStateOf(false) }
 
 
 
@@ -266,6 +271,17 @@ fun ExpressiveSettingsScreen(
                     activePresetCount = journalInsulinPresets.count { !it.isArchived },
                     onToggleEnabled = { viewModel.setJournalEnabled(it) },
                     onOpenJournal = { navController.navigate("settings/journal") },
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE
+                )
+
+                PredictiveSimulationExpandableSettingsItem(
+                    predictiveSimulationEnabled = predictiveSimulationEnabled,
+                    trendMomentumEnabled = predictionTrendMomentumEnabled,
+                    expanded = predictiveSimulationExpanded,
+                    onExpandedChange = { predictiveSimulationExpanded = it },
+                    onToggleSimulation = { viewModel.setPredictiveSimulationEnabled(it) },
+                    onToggleTrendMomentum = { viewModel.setPredictionTrendMomentumEnabled(it) },
                     iconTint = glucoseColor,
                     position = CardPosition.BOTTOM
                 )
@@ -1085,6 +1101,124 @@ private fun JournalSettingsItem(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PredictiveSimulationExpandableSettingsItem(
+    predictiveSimulationEnabled: Boolean,
+    trendMomentumEnabled: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onToggleSimulation: (Boolean) -> Unit,
+    onToggleTrendMomentum: (Boolean) -> Unit,
+    iconTint: Color,
+    position: CardPosition
+) {
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "predictiveSimulationChevron"
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = cardShape(position),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SettingsLeadingIcon(icon = Icons.AutoMirrored.Filled.ShowChart, tint = iconTint)
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.predictive_simulation_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        modifier = Modifier.padding(top = 2.dp),
+                        text = stringResource(R.string.predictive_simulation_summary),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.collapse_action else R.string.expand_action
+                        ),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    VerticalDivider(
+                        modifier = Modifier.height(30.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    StyledSwitch(
+                        checked = predictiveSimulationEnabled,
+                        onCheckedChange = onToggleSimulation
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    PredictiveSimulationSubToggleRow(
+                        title = stringResource(R.string.predictive_trend_momentum),
+                        checked = trendMomentumEnabled,
+                        enabled = predictiveSimulationEnabled,
+                        onCheckedChange = onToggleTrendMomentum,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PredictiveSimulationSubToggleRow(
+    title: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.5f)
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f)
+        )
+        StyledSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
     }
 }
 

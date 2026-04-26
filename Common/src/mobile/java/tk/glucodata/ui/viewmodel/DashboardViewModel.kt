@@ -155,10 +155,10 @@ class DashboardViewModel(
     private val _previewWindowMode = MutableStateFlow(0)
     val previewWindowMode = _previewWindowMode.asStateFlow()
 
-    private val _journalEnabled = MutableStateFlow(false)
+    private val _journalEnabled = MutableStateFlow(true)
     val journalEnabled = _journalEnabled.asStateFlow()
 
-    private val _predictiveSimulationEnabled = MutableStateFlow(false)
+    private val _predictiveSimulationEnabled = MutableStateFlow(true)
     val predictiveSimulationEnabled = _predictiveSimulationEnabled.asStateFlow()
 
     private val _predictionTrendMomentumEnabled = MutableStateFlow(true)
@@ -227,7 +227,7 @@ class DashboardViewModel(
     private fun readJournalEnabledPreference(): Boolean {
         val context = tk.glucodata.Applic.app
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
-        return prefs.getBoolean("dashboard_journal_enabled", false)
+        return prefs.getBoolean("dashboard_journal_enabled", true)
     }
     
     /**
@@ -361,9 +361,9 @@ class DashboardViewModel(
         _dataSmoothingGraphOnly.value = DataSmoothing.isGraphOnly(context)
         _dataSmoothingCollapseChunks.value = DataSmoothing.collapseChunks(context)
         _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
-        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", false)
+        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", true)
         _journalEnabled.value = journalEnabled
-        _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", false)
+        _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", true)
         _predictionTrendMomentumEnabled.value = prefs.getBoolean("dashboard_prediction_trend_momentum_enabled", true)
         if (journalEnabled) {
             ensureJournalEntriesObserved()

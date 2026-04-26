@@ -448,8 +448,8 @@ fun HistoryBrowseScreen(
         )
     }
     val visibleSections = remember(visibleTimelineRows) { buildHistorySections(visibleTimelineRows) }
-    val journalMarkers = remember(filteredJournalEntries, journalPresetsById, unit) {
-        buildJournalChartMarkers(filteredJournalEntries, journalPresetsById, unit)
+    val journalMarkers = remember(filteredJournalEntries, journalPresetsById, unit, activeHistory) {
+        buildJournalChartMarkers(filteredJournalEntries, journalPresetsById, unit, activeHistory)
     }
     val journalEntriesById = remember(filteredJournalEntries) { filteredJournalEntries.associateBy { it.id } }
 
@@ -582,14 +582,14 @@ fun HistoryBrowseScreen(
 
 
 
-            if (filteredHistory.isNotEmpty()) {
+            if (activeHistory.isNotEmpty()) {
                 item(key = "history-chart") {
                     Box(modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)) {
                         DashboardChartSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(420.dp),
-                            glucoseHistory = filteredHistory,
+                            glucoseHistory = activeHistory,
                             journalMarkers = journalMarkers,
                             graphSmoothingMinutes = graphSmoothingMinutes,
                             collapseSmoothedData = collapseSmoothedData,

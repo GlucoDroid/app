@@ -89,6 +89,7 @@ import tk.glucodata.data.journal.JournalEntryInput
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalIntensity
+import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.util.GlucoseFormatter
 
@@ -102,16 +103,35 @@ data class JournalEntryDraft(
     val durationText: String = "",
     val note: String = "",
     val intensity: JournalIntensity? = null,
-    val insulinPresetId: Long? = null
+    val insulinPresetId: Long? = null,
+    val chartAnchorGlucoseMgDl: Float? = null
 )
 
 fun buildJournalChartMarkers(
     entries: List<JournalEntry>,
     presetsById: Map<Long, JournalInsulinPreset>,
-    unit: String
+    unit: String,
+    history: List<GlucosePoint> = emptyList()
 ): List<JournalChartMarker> {
+    val isMmol = GlucoseFormatter.isMmol(unit)
+    fun nearestHistoryDisplayValue(timestamp: Long): Float? {
+        if (history.isEmpty()) return null
+        val nearest = history.minByOrNull { abs(it.timestamp - timestamp) } ?: return null
+        val distance = abs(nearest.timestamp - timestamp)
+        return nearest.value.takeIf { distance <= 30L * 60L * 1000L && it.isFinite() && it > 0.1f }
+    }
+
     return entries.map { entry ->
         val preset = entry.insulinPresetId?.let(presetsById::get)
+        val chartValue = when (entry.type) {
+            JournalEntryType.INSULIN -> null
+            JournalEntryType.FINGERSTICK -> entry.glucoseValueMgDl?.let {
+                GlucoseFormatter.displayFromMgDl(it, isMmol)
+            }
+            else -> entry.glucoseValueMgDl?.let {
+                GlucoseFormatter.displayFromMgDl(it, isMmol)
+            } ?: nearestHistoryDisplayValue(entry.timestamp)
+        }
         JournalChartMarker(
             entryId = entry.id,
             timestamp = entry.timestamp,
@@ -121,13 +141,7 @@ fun buildJournalChartMarkers(
             badgeText = journalMarkerBadge(entry.type),
             detailText = journalMarkerDetail(entry, preset, unit),
             amount = entry.amount,
-            chartGlucoseValue = if (entry.type == JournalEntryType.FINGERSTICK) {
-                entry.glucoseValueMgDl?.let {
-                    GlucoseFormatter.displayFromMgDl(it, GlucoseFormatter.isMmol(unit))
-                }
-            } else {
-                null
-            },
+            chartGlucoseValue = chartValue,
             curvePoints = if (entry.type == JournalEntryType.INSULIN && preset != null) {
                 preset.curvePoints
             } else {
@@ -611,7 +625,8 @@ private fun buildDraft(
                 suggestedGlucoseMgDl?.let { formatGlucoseForEditor(it, unit) }.orEmpty()
             } else {
                 ""
-            }
+            },
+            chartAnchorGlucoseMgDl = suggestedGlucoseMgDl
         )
     }
     return JournalEntryDraft(
@@ -624,7 +639,8 @@ private fun buildDraft(
         durationText = existingEntry.durationMinutes?.toString().orEmpty(),
         note = existingEntry.note.orEmpty(),
         intensity = existingEntry.intensity,
-        insulinPresetId = existingEntry.insulinPresetId
+        insulinPresetId = existingEntry.insulinPresetId,
+        chartAnchorGlucoseMgDl = existingEntry.glucoseValueMgDl
     )
 }
 
@@ -708,6 +724,7 @@ private fun JournalEntryDraft.toInput(
                 title = preset.displayName,
                 note = noteValue,
                 amount = amountValue,
+                glucoseValueMgDl = chartAnchorGlucoseMgDl,
                 insulinPresetId = presetId
             )
         }
@@ -721,7 +738,8 @@ private fun JournalEntryDraft.toInput(
                 type = type,
                 title = Applic.app.getString(R.string.carbo),
                 note = noteValue,
-                amount = grams
+                amount = grams,
+                glucoseValueMgDl = chartAnchorGlucoseMgDl
             )
         }
 
@@ -749,7 +767,8 @@ private fun JournalEntryDraft.toInput(
                 title = titleValue,
                 note = noteValue,
                 durationMinutes = duration,
-                intensity = intensity
+                intensity = intensity,
+                glucoseValueMgDl = chartAnchorGlucoseMgDl
             )
         }
 
@@ -763,7 +782,8 @@ private fun JournalEntryDraft.toInput(
                 sensorSerial = sensorSerial,
                 type = type,
                 title = titleValue,
-                note = noteValue ?: titleValue
+                note = noteValue ?: titleValue,
+                glucoseValueMgDl = chartAnchorGlucoseMgDl
             )
         }
     }

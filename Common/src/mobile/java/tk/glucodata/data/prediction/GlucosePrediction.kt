@@ -16,6 +16,17 @@ data class GlucosePredictionPoint(
     val confidence: Float
 )
 
+enum class GlucosePredictionSeriesKind {
+    RAW,
+    AUTO,
+    CALIBRATED
+}
+
+data class GlucosePredictionSeries(
+    val kind: GlucosePredictionSeriesKind,
+    val points: List<GlucosePredictionPoint>
+)
+
 data class PredictiveSimulationSettings(
     val enabled: Boolean,
     val trendMomentumEnabled: Boolean,

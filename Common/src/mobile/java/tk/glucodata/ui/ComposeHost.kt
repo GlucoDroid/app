@@ -151,6 +151,8 @@ import android.widget.Toast
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.prediction.GlucosePredictionSeries
+import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
 import tk.glucodata.data.prediction.PredictiveSimulationSettings
 import tk.glucodata.data.prediction.buildGlucosePrediction
 import tk.glucodata.ui.journal.JournalEntrySheet
@@ -345,6 +347,112 @@ fun getDisplayValues(
         calibratedValue = calibratedValue,
         hideInitialWhenCalibrated = hideInitialWhenCalibrated
     )
+}
+
+private enum class PredictionHistorySource {
+    AUTO,
+    RAW,
+    CALIBRATED_AUTO,
+    CALIBRATED_RAW
+}
+
+private fun buildDisplayHistoryForPrediction(
+    points: List<GlucosePoint>,
+    source: PredictionHistorySource
+): List<GlucosePoint> {
+    if (points.isEmpty()) return emptyList()
+
+    val useRaw = source == PredictionHistorySource.RAW || source == PredictionHistorySource.CALIBRATED_RAW
+    val useCalibration = source == PredictionHistorySource.CALIBRATED_AUTO || source == PredictionHistorySource.CALIBRATED_RAW
+    val calibrationActiveBySensor = HashMap<String?, Boolean>()
+
+    return points.map { point ->
+        val baseValue = if (useRaw) point.rawValue else point.value
+        val sensorId = point.sensorSerial?.takeIf { it.isNotBlank() }
+        val activeCalibration = useCalibration && calibrationActiveBySensor.getOrPut(sensorId) {
+            tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(useRaw, sensorId)
+        }
+        val displayValue = if (activeCalibration && baseValue.isFinite() && baseValue > 0.1f) {
+            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                baseValue,
+                point.timestamp,
+                useRaw,
+                sensorIdOverride = sensorId
+            )
+        } else {
+            baseValue
+        }
+        point.copy(value = displayValue, rawValue = baseValue)
+    }
+}
+
+private fun hasAnyActiveCalibrationForPrediction(
+    points: List<GlucosePoint>,
+    useRaw: Boolean
+): Boolean {
+    val checkedSensors = HashMap<String?, Boolean>()
+    return points.any { point ->
+        val value = if (useRaw) point.rawValue else point.value
+        if (!value.isFinite() || value <= 0.1f) {
+            false
+        } else {
+            val sensorId = point.sensorSerial?.takeIf { it.isNotBlank() }
+            checkedSensors.getOrPut(sensorId) {
+                tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(useRaw, sensorId)
+            }
+        }
+    }
+}
+
+private fun buildPredictionSeriesForChart(
+    points: List<GlucosePoint>,
+    viewMode: Int,
+    journalEntries: List<JournalEntry>,
+    insulinPresetsById: Map<Long, JournalInsulinPreset>,
+    unit: String,
+    targetLow: Float,
+    targetHigh: Float,
+    settings: PredictiveSimulationSettings
+): List<GlucosePredictionSeries> {
+    if (!settings.enabled || points.size < 2) return emptyList()
+
+    val isRawMode = viewMode == 1 || viewMode == 3
+    val hasCalibration = hasAnyActiveCalibrationForPrediction(points, isRawMode)
+    val hideInitialWhenCalibrated = hasCalibration &&
+        tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
+    val drawRaw = !(hideInitialWhenCalibrated && isRawMode) && (viewMode == 1 || viewMode == 2 || viewMode == 3)
+    val drawAuto = !(hideInitialWhenCalibrated && !isRawMode) && (viewMode == 0 || viewMode == 2 || viewMode == 3)
+
+    fun buildSeries(
+        kind: GlucosePredictionSeriesKind,
+        source: PredictionHistorySource
+    ): GlucosePredictionSeries? {
+        val seriesPoints = buildGlucosePrediction(
+            history = buildDisplayHistoryForPrediction(points, source),
+            journalEntries = journalEntries,
+            insulinPresetsById = insulinPresetsById,
+            unit = unit,
+            targetLow = targetLow,
+            targetHigh = targetHigh,
+            settings = settings
+        )
+        return seriesPoints.takeIf { it.size >= 2 }?.let { GlucosePredictionSeries(kind, it) }
+    }
+
+    return buildList {
+        if (drawRaw) {
+            buildSeries(GlucosePredictionSeriesKind.RAW, PredictionHistorySource.RAW)?.let(::add)
+        }
+        if (drawAuto) {
+            buildSeries(GlucosePredictionSeriesKind.AUTO, PredictionHistorySource.AUTO)?.let(::add)
+        }
+        if (hasCalibration) {
+            buildSeries(
+                GlucosePredictionSeriesKind.CALIBRATED,
+                if (isRawMode) PredictionHistorySource.CALIBRATED_RAW else PredictionHistorySource.CALIBRATED_AUTO
+            )?.let(::add)
+        }
+    }
 }
 
 private fun buildDisplayReadings(
@@ -1068,6 +1176,7 @@ fun DashboardScreen(
     val activeSensorList by viewModel.activeSensorList.collectAsState()
     val sensorHoursRemaining by viewModel.sensorHoursRemaining.collectAsState()
     val currentDay by viewModel.currentDay.collectAsState()
+    val predictionCalibrationRefresh by UiRefreshBus.revision.collectAsState(initial = 0L)
     val isRawEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForRaw.collectAsState()
     val isAutoEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForAuto.collectAsState()
 
@@ -1107,11 +1216,11 @@ fun DashboardScreen(
             }
         }
     }
-    val journalChartMarkers = remember(journalEnabled, scopedJournalEntries, journalPresetsById, unit) {
+    val journalChartMarkers = remember(journalEnabled, scopedJournalEntries, journalPresetsById, unit, glucoseHistory) {
         if (!journalEnabled || scopedJournalEntries.isEmpty()) {
             emptyList()
         } else {
-            buildJournalChartMarkers(scopedJournalEntries, journalPresetsById, unit)
+            buildJournalChartMarkers(scopedJournalEntries, journalPresetsById, unit, glucoseHistory)
         }
     }
     val activeInsulinSummary = remember(journalEnabled, scopedJournalEntries, journalPresetsById, journalNow) {
@@ -1121,28 +1230,33 @@ fun DashboardScreen(
             buildActiveInsulinSummary(scopedJournalEntries, journalPresetsById, journalNow)
         }
     }
-    val predictionPoints = remember(
+    val predictionSettings = remember(predictiveSimulationEnabled, predictionTrendMomentumEnabled) {
+        PredictiveSimulationSettings(
+            enabled = predictiveSimulationEnabled,
+            trendMomentumEnabled = predictionTrendMomentumEnabled
+        )
+    }
+    val predictionSeries = remember(
         journalEnabled,
-        predictiveSimulationEnabled,
-        predictionTrendMomentumEnabled,
+        predictionSettings,
         glucoseHistory,
+        viewMode,
+        predictionCalibrationRefresh,
         scopedJournalEntries,
         journalPresetsById,
         unit,
         targetLow,
         targetHigh
     ) {
-        buildGlucosePrediction(
-            history = glucoseHistory,
+        buildPredictionSeriesForChart(
+            points = glucoseHistory,
             journalEntries = if (journalEnabled) scopedJournalEntries else emptyList(),
             insulinPresetsById = journalPresetsById,
             unit = unit,
             targetLow = targetLow,
             targetHigh = targetHigh,
-            settings = PredictiveSimulationSettings(
-                enabled = predictiveSimulationEnabled,
-                trendMomentumEnabled = predictionTrendMomentumEnabled
-            )
+            viewMode = viewMode,
+            settings = predictionSettings
         )
     }
     val journalEntriesById = remember(scopedJournalEntries) { scopedJournalEntries.associateBy { it.id } }
@@ -1848,7 +1962,7 @@ fun DashboardScreen(
                                     glucoseHistory = glucoseHistory,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
-                                    predictionPoints = predictionPoints,
+                                    predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = chartSmoothingMinutes,
                                     collapseSmoothedData = dataSmoothingCollapseChunks,
                                     previewWindowMode = previewWindowMode,
@@ -1995,7 +2109,7 @@ fun DashboardScreen(
                                     glucoseHistory = glucoseHistory,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
-                                    predictionPoints = predictionPoints,
+                                    predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = chartSmoothingMinutes,
                                     collapseSmoothedData = dataSmoothingCollapseChunks,
                                     previewWindowMode = previewWindowMode,
