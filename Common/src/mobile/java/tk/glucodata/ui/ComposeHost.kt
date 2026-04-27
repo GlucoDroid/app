@@ -456,18 +456,22 @@ private fun buildPredictionSeriesForChart(
     }
 }
 
-private fun buildDisplayReadings(
+/**
+ * Single source of truth for the history that downstream non-chart consumers see
+ * (hero trend arrow, recent readings, predictive simulation).
+ *
+ * When data smoothing is on and not restricted to the graph, the full series is
+ * smoothed segment-by-segment so the trend, prediction, and reading list all reflect
+ * the same line the user sees on the chart. Otherwise the raw history is passed through.
+ */
+private fun buildSmoothedConsumerHistory(
     points: List<GlucosePoint>,
     smoothingMinutes: Int,
     smoothOnlyGraph: Boolean,
-    collapseChunks: Boolean,
-    limit: Int = 10
+    collapseChunks: Boolean
 ): List<GlucosePoint> {
-    if (points.isEmpty()) {
-        return emptyList()
-    }
-    if (smoothOnlyGraph || smoothingMinutes <= 0) {
-        return points.takeLast(limit).reversed().distinctBy { it.timestamp }
+    if (points.isEmpty() || smoothOnlyGraph || smoothingMinutes <= 0) {
+        return points
     }
 
     val processed = ArrayList<GlucosePoint>(points.size)
@@ -493,8 +497,17 @@ private fun buildDisplayReadings(
             )
         }
     }
+    return processed
+}
 
-    return processed.takeLast(limit).asReversed().distinctBy { it.timestamp }
+private fun buildDisplayReadings(
+    consumerHistory: List<GlucosePoint>,
+    limit: Int = 10
+): List<GlucosePoint> {
+    if (consumerHistory.isEmpty()) {
+        return emptyList()
+    }
+    return consumerHistory.takeLast(limit).asReversed().distinctBy { it.timestamp }
 }
 
 
@@ -1289,10 +1302,23 @@ fun DashboardScreen(
             carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour
         )
     }
+    val consumerHistory = remember(
+        glucoseHistory,
+        chartSmoothingMinutes,
+        dataSmoothingGraphOnly,
+        dataSmoothingCollapseChunks
+    ) {
+        buildSmoothedConsumerHistory(
+            points = glucoseHistory,
+            smoothingMinutes = chartSmoothingMinutes,
+            smoothOnlyGraph = dataSmoothingGraphOnly,
+            collapseChunks = dataSmoothingCollapseChunks
+        )
+    }
     val predictionSeries = remember(
         journalEnabled,
         predictionSettings,
-        glucoseHistory,
+        consumerHistory,
         viewMode,
         predictionCalibrationRefresh,
         scopedJournalEntries,
@@ -1302,7 +1328,7 @@ fun DashboardScreen(
         targetHigh
     ) {
         buildPredictionSeriesForChart(
-            points = glucoseHistory,
+            points = consumerHistory,
             journalEntries = if (journalEnabled) scopedJournalEntries else emptyList(),
             insulinPresetsById = journalPresetsById,
             unit = unit,
@@ -1863,14 +1889,8 @@ fun DashboardScreen(
             // --- REUSABLE UI SECTIONS ---
 
 
-            val recentReadings = remember(glucoseHistory, chartSmoothingMinutes, dataSmoothingGraphOnly, dataSmoothingCollapseChunks) {
-                buildDisplayReadings(
-                    points = glucoseHistory,
-                    smoothingMinutes = chartSmoothingMinutes,
-                    smoothOnlyGraph = dataSmoothingGraphOnly,
-                    collapseChunks = dataSmoothingCollapseChunks,
-                    limit = 10
-                )
+            val recentReadings = remember(consumerHistory) {
+                buildDisplayReadings(consumerHistory, limit = 10)
             }
             val recentReadingJournalEntries = remember(recentReadings, scopedJournalEntries) {
                 groupJournalEntriesByReading(recentReadings, scopedJournalEntries)
@@ -1956,7 +1976,7 @@ fun DashboardScreen(
                             sensorProgress = sensorProgress,
                             sensorHoursRemaining = sensorHoursRemaining,
                             currentDay = currentDay,
-                            history = glucoseHistory, // Advanced Trend
+                            history = consumerHistory, // Advanced Trend (smoothed when active)
                             calibratedValue = calibratedValue,
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
@@ -2142,7 +2162,7 @@ fun DashboardScreen(
                             sensorProgress = sensorProgress,
                             sensorHoursRemaining = sensorHoursRemaining,
                             currentDay = currentDay,
-                            history = glucoseHistory, // Advanced Trend
+                            history = consumerHistory, // Advanced Trend (smoothed when active)
                             calibratedValue = calibratedValue,
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
