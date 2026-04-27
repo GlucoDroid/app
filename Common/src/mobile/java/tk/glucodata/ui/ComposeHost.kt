@@ -638,6 +638,7 @@ private fun DashboardRoute(
         onNavigateToCalibrations = { navController.navigate("calibrations") },
         onNavigateToHistory = { navController.navigate("history") },
         onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
+        onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") },
         onTriggerCalibration = onTriggerCalibration
     )
 }
@@ -660,6 +661,7 @@ private fun HistoryRoute(
     val dataSmoothingCollapseChunks by dashboardViewModel.dataSmoothingCollapseChunks.collectAsStateWithLifecycle()
     val previewWindowMode by dashboardViewModel.previewWindowMode.collectAsStateWithLifecycle()
     val journalEnabled by dashboardViewModel.journalEnabled.collectAsStateWithLifecycle()
+    val journalDoseCalculatorEnabled by dashboardViewModel.journalDoseCalculatorEnabled.collectAsStateWithLifecycle()
     val journalEntries by dashboardViewModel.journalEntries.collectAsStateWithLifecycle()
     val journalInsulinPresets by dashboardViewModel.journalInsulinPresets.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
@@ -707,12 +709,21 @@ private fun HistoryRoute(
             lastJournalType = entry.type
             journalEditorRequest = JournalEditorRequest(entry.type, entry.timestamp, entry)
         },
-        onAddJournalEntry = { timestamp, suggestedType ->
+        onAddJournalEntry = { timestamp, suggestedType, suggestedDisplayGlucose ->
             val type = suggestedType ?: lastJournalType
+            val suggestedGlucoseMgDl = suggestedDisplayGlucose?.let {
+                if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(it)
+                } else {
+                    it
+                }
+            }
             lastJournalType = type
             journalEditorRequest = JournalEditorRequest(
                 type = type,
-                timestamp = timestamp
+                timestamp = timestamp,
+                suggestedGlucoseMgDl = suggestedGlucoseMgDl,
+                suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl
             )
         }
     )
@@ -722,14 +733,19 @@ private fun HistoryRoute(
             unit = unit,
             selectedTimestamp = request.timestamp,
             suggestedGlucoseMgDl = request.suggestedGlucoseMgDl,
+            suggestedChartAnchorGlucoseMgDl = request.suggestedChartAnchorGlucoseMgDl,
             suggestedAmountFraction = request.suggestedAmountFraction,
             insulinPresets = journalInsulinPresets,
             doseJournalEntries = scopedJournalEntries,
             doseProfile = JournalDoseProfile(
-                enabled = journalEnabled,
+                enabled = journalEnabled && journalDoseCalculatorEnabled,
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
-                targetHighMgDl = targetHigh
+                targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
+                } else {
+                    targetHigh
+                }
             ),
             initialType = request.type,
             existingEntry = request.existingEntry,
@@ -967,7 +983,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("stats") { tk.glucodata.ui.stats.StatsScreen() }
                     composable("sensors") {
                         SensorScreen(
-                            onNavigateToMqAccount = { navController.navigate("settings/mq-account") }
+                            onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
+                            onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") }
                         )
                     }
                     composable("settings") { ExpressiveSettingsScreen(navController, themeMode, onThemeChanged, dashboardViewModel) }
@@ -994,6 +1011,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
 
                     composable("settings/turnserver") { tk.glucodata.ui.TurnServerSettingsScreen(navController) }
                     composable("settings/debug") { DebugSettingsScreen(navController) }
+                    composable("settings/cgm-readiness") { CgmReadinessScreen(navController) }
                     composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                     composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                     composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }
@@ -1076,7 +1094,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("stats") { tk.glucodata.ui.stats.StatsScreen() }
                 composable("sensors") {
                     SensorScreen(
-                        onNavigateToMqAccount = { navController.navigate("settings/mq-account") }
+                        onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
+                        onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") }
                     )
                 }
                 composable("settings") { ExpressiveSettingsScreen(navController, themeMode, onThemeChanged, dashboardViewModel) }
@@ -1103,6 +1122,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
 
                 composable("settings/turnserver") { tk.glucodata.ui.TurnServerSettingsScreen(navController) }
                 composable("settings/debug") { DebugSettingsScreen(navController) }
+                composable("settings/cgm-readiness") { CgmReadinessScreen(navController) }
                 composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                 composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                 composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }
@@ -1138,6 +1158,7 @@ private data class JournalEditorRequest(
     val timestamp: Long,
     val existingEntry: JournalEntry? = null,
     val suggestedGlucoseMgDl: Float? = null,
+    val suggestedChartAnchorGlucoseMgDl: Float? = null,
     val suggestedAmountFraction: Float? = null
 )
 
@@ -1148,6 +1169,7 @@ fun DashboardScreen(
     onNavigateToCalibrations: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     onNavigateToMqAccount: () -> Unit = {},
+    onNavigateToReadiness: () -> Unit = {},
     onTriggerCalibration: (CalibrationSheetState) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -1180,6 +1202,7 @@ fun DashboardScreen(
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
@@ -1466,14 +1489,19 @@ fun DashboardScreen(
             unit = unit,
             selectedTimestamp = request.timestamp,
             suggestedGlucoseMgDl = request.suggestedGlucoseMgDl,
+            suggestedChartAnchorGlucoseMgDl = request.suggestedChartAnchorGlucoseMgDl,
             suggestedAmountFraction = request.suggestedAmountFraction,
             insulinPresets = if (request.existingEntry != null) journalInsulinPresets else activeJournalPresets,
             doseJournalEntries = scopedJournalEntries,
             doseProfile = JournalDoseProfile(
-                enabled = journalEnabled,
+                enabled = journalEnabled && journalDoseCalculatorEnabled,
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
-                targetHighMgDl = targetHigh
+                targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
+                } else {
+                    targetHigh
+                }
             ),
             initialType = request.type,
             existingEntry = request.existingEntry,
@@ -1942,6 +1970,10 @@ fun DashboardScreen(
                     }
 
                     item {
+                        DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
+                    }
+
+                    item {
                         RecentReadingsCard(
                             recentReadings = recentReadings,
                             unit = unit,
@@ -1971,7 +2003,17 @@ fun DashboardScreen(
                                 onLeadingActionClick = if (journalEnabled) {
                                     {
                                         clearJournalAction()
-                                        journalEditorRequest = JournalEditorRequest(lastJournalType, item.timestamp)
+                                        val rowGlucoseMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                                            tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(item.value)
+                                        } else {
+                                            item.value
+                                        }
+                                        journalEditorRequest = JournalEditorRequest(
+                                            type = lastJournalType,
+                                            timestamp = item.timestamp,
+                                            suggestedGlucoseMgDl = rowGlucoseMgDl,
+                                            suggestedChartAnchorGlucoseMgDl = rowGlucoseMgDl
+                                        )
                                     }
                                 } else {
                                     null
@@ -2062,6 +2104,7 @@ fun DashboardScreen(
                                             type = it,
                                             timestamp = actionTimestamp,
                                             suggestedGlucoseMgDl = suggestedGlucoseMgDl,
+                                            suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl,
                                             suggestedAmountFraction = suggestedAmountFraction
                                         )
                                     }
@@ -2111,6 +2154,13 @@ fun DashboardScreen(
                             }
                         )
                     }
+                }
+
+                item {
+                    DashboardCgmReadinessBanner(
+                        modifier = Modifier.padding(horizontal = contentHorizontalPadding),
+                        onOpenReadiness = onNavigateToReadiness
+                    )
                 }
 
                 item {
@@ -2210,6 +2260,7 @@ fun DashboardScreen(
                                             type = it,
                                             timestamp = actionTimestamp,
                                             suggestedGlucoseMgDl = suggestedGlucoseMgDl,
+                                            suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl,
                                             suggestedAmountFraction = suggestedAmountFraction
                                         )
                                     }
@@ -2254,7 +2305,17 @@ fun DashboardScreen(
                                 onLeadingActionClick = if (journalEnabled) {
                                     {
                                         clearJournalAction()
-                                        journalEditorRequest = JournalEditorRequest(lastJournalType, item.timestamp)
+                                        val rowGlucoseMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                                            tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(item.value)
+                                        } else {
+                                            item.value
+                                        }
+                                        journalEditorRequest = JournalEditorRequest(
+                                            type = lastJournalType,
+                                            timestamp = item.timestamp,
+                                            suggestedGlucoseMgDl = rowGlucoseMgDl,
+                                            suggestedChartAnchorGlucoseMgDl = rowGlucoseMgDl
+                                        )
                                     }
                                 } else {
                                     null
@@ -4093,6 +4154,7 @@ private fun String.capitalize(): String {
 @Composable
 fun SensorScreen(
     onNavigateToMqAccount: () -> Unit = {},
+    onNavigateToReadiness: () -> Unit = {},
     viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -4269,6 +4331,8 @@ fun SensorScreen(
                     modifier = Modifier.padding(start = titleInset, end = titleInset)
                 )
                 Spacer(modifier = Modifier.height(panelTopGap))
+                SensorsCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
+                Spacer(modifier = Modifier.height(panelPadding))
                 tk.glucodata.ui.components.SensorsEmptyState(
                     onSensorSelected = { type ->
                         when (type) {
@@ -4303,6 +4367,12 @@ fun SensorScreen(
                         text = stringResource(R.string.sensors_title),
                     style = titleStyle,
                     modifier = Modifier.padding(start = titleInset, bottom = titleBottomPadding)
+                    )
+                }
+                item {
+                    SensorsCgmReadinessBanner(
+                        modifier = Modifier.padding(bottom = panelPadding),
+                        onOpenReadiness = onNavigateToReadiness
                     )
                 }
                 items(sensors, key = { it.serial }) { sensor ->

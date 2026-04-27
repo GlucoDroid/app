@@ -157,6 +157,7 @@ fun ExpressiveSettingsScreen(
     var showPreviewWindowDialog by remember { mutableStateOf(false) }
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
     var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
     var predictiveSimulationExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -495,6 +496,15 @@ fun ExpressiveSettingsScreen(
                     onClick = { showPreviewWindowDialog = true }
                 )
                 SettingsItem(
+                    title = stringResource(R.string.cgm_readiness_title),
+                    subtitle = stringResource(R.string.cgm_readiness_settings_desc),
+                    showArrow = true,
+                    icon = Icons.Default.Security,
+                    iconTint = advColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/cgm-readiness") }
+                )
+                SettingsItem(
                     title = stringResource(R.string.debug_logs),
                     subtitle = stringResource(R.string.debug_logs_desc),
                     showArrow = true,
@@ -512,6 +522,55 @@ fun ExpressiveSettingsScreen(
         item(key = "data_group") {
             // Theme: Secondary (Files match notifications/system)
             val dataColor = MaterialTheme.colorScheme.secondary
+            val settingsExportLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.CreateDocument("application/json"),
+                onResult = { uri ->
+                    if (uri != null) {
+                        scope.launch {
+                            val result = tk.glucodata.data.SettingsExporter.exportToJson(context, uri)
+                            withContext(Dispatchers.Main) {
+                                val message = if (result.isSuccess) {
+                                    context.getString(R.string.export_successful)
+                                } else {
+                                    context.getString(
+                                        R.string.export_failed_with_error,
+                                        result.exceptionOrNull()?.localizedMessage
+                                            ?: context.getString(R.string.unknown_error)
+                                    )
+                                }
+                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+            )
+            val importLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument(),
+                onResult = { uri ->
+                    if (uri != null) {
+                        scope.launch {
+                            if (tk.glucodata.data.SettingsExporter.isSettingsExport(context, uri)) {
+                                withContext(Dispatchers.Main) {
+                                    pendingSettingsImportUri = uri
+                                }
+                            } else {
+                                // Show loading? For now just toast result
+                                val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
+                                withContext(Dispatchers.Main) {
+                                    val msg = if (result.success)
+                                        context.getString(R.string.imported_readings_count, result.successCount)
+                                    else
+                                        context.getString(
+                                            R.string.import_failed_with_error,
+                                            result.errorMessage ?: context.getString(R.string.unknown_error)
+                                        )
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    }
+                }
+            )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SettingsItem(
                     title = stringResource(R.string.export_data),
@@ -521,36 +580,27 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.TOP,
                     onClick = { showExportDialog = true }
                 )
-                // Import logic (Room based)
-                val context = LocalContext.current
-                val scope = rememberCoroutineScope()
-                val importLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.OpenDocument(),
-                    onResult = { uri ->
-                        if (uri != null) {
-                            scope.launch {
-                                // Show loading? For now just toast result
-                                val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
-                                withContext(Dispatchers.Main) {
-                                    val msg = if (result.success) 
-                                        "Imported: ${result.successCount} readings. Failed: ${result.failCount}"
-                                    else 
-                                        "Import Failed: ${result.errorMessage}"
-                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
+                SettingsItem(
+                    title = stringResource(R.string.export_settings),
+                    subtitle = stringResource(R.string.export_settings_desc),
+                    icon = Icons.Default.Settings,
+                    iconTint = dataColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = {
+                        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                            .format(System.currentTimeMillis())
+                        settingsExportLauncher.launch("Juggluco_Settings_$date.json")
                     }
                 )
 
                 SettingsItem(
-                    title = stringResource(R.string.import_data),
-                    subtitle = stringResource(R.string.import_data_desc),
+                    title = stringResource(R.string.import_data_settings),
+                    subtitle = stringResource(R.string.import_data_settings_desc),
                     icon = Icons.Default.FolderOpen,
                     iconTint = dataColor,
                     position = CardPosition.BOTTOM,
                     onClick = { 
-                        importLauncher.launch(arrayOf("text/*", "text/csv"))
+                        importLauncher.launch(arrayOf("application/json", "text/*", "text/csv", "*/*"))
                     }
                 )
             }
@@ -669,6 +719,40 @@ fun ExpressiveSettingsScreen(
         HistoryExportSheet(
             onDismiss = { showExportDialog = false },
             sheetState = sheetState
+        )
+    }
+    pendingSettingsImportUri?.let { uri ->
+        ConfirmActionDialog(
+            title = stringResource(R.string.settings_import_confirm_title),
+            message = stringResource(R.string.settings_import_confirm_message),
+            icon = Icons.Default.Settings,
+            onConfirm = {
+                pendingSettingsImportUri = null
+                scope.launch {
+                    val result = tk.glucodata.data.SettingsExporter.importFromJson(context, uri)
+                    withContext(Dispatchers.Main) {
+                        if (result.isSuccess) {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_import_successful),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            context.findActivity()?.fullRestart()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    R.string.import_failed_with_error,
+                                    result.exceptionOrNull()?.localizedMessage
+                                        ?: context.getString(R.string.unknown_error)
+                                ),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = { pendingSettingsImportUri = null }
         )
     }
 
