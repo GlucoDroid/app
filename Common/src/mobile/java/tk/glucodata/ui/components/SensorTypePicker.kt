@@ -22,7 +22,9 @@ enum class SensorType {
     DEXCOM,
     ACCUCHEK,
     CARESENS_AIR,
-    AIDEX
+    AIDEX,
+    ICANHEALTH,
+    MQ
 }
 
 /**
@@ -84,6 +86,18 @@ fun SensorTypePicker(
             icon = Icons.Default.Bluetooth,
             titleRes = R.string.aidex_sensor,
             subtitleRes = R.string.aidex_sensor_desc
+        ),
+        SensorTypeEntry(
+            type = SensorType.ICANHEALTH,
+            icon = Icons.Default.Bluetooth,
+            titleRes = R.string.icanhealth_sensor,
+            subtitleRes = R.string.icanhealth_sensor_desc
+        ),
+        SensorTypeEntry(
+            type = SensorType.MQ,
+            icon = Icons.Default.Bluetooth,
+            titleRes = R.string.mq_sensor,
+            subtitleRes = R.string.mq_sensor_desc
         )
     )
 

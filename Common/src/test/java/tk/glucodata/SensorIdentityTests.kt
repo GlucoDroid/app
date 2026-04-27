@@ -1,8 +1,10 @@
 package tk.glucodata
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
+import tk.glucodata.drivers.icanhealth.ICanHealthConstants
 
 class SensorIdentityTests {
     @Test
@@ -60,6 +62,35 @@ class SensorIdentityTests {
                 selectedMain = null,
                 preferredSensorId = null,
                 activeSensors = emptyArray()
+            )
+        )
+    }
+
+    @Test
+    fun matches_recognizesAidexCanonicalAndAlias() {
+        assertTrue(SensorIdentity.matches("X-222227JR7C", "222227JR7C"))
+        assertTrue(SensorIdentity.matches("222227JR7C", "X-222227JR7C"))
+    }
+
+    @Test
+    fun matches_recognizesIcanCanonicalAndNativeAlias() {
+        val canonical = "8760080A00070000"
+        val alias = ICanHealthConstants.nativeShortSensorAlias(canonical)
+        assertTrue(alias != null && SensorIdentity.matches(canonical, alias))
+        assertTrue(alias != null && SensorIdentity.matches(alias, canonical))
+    }
+
+    @Test
+    fun distinctLogicalSensorIds_prefersCanonicalManagedIds() {
+        assertEquals(
+            listOf("8760080A00070000", "X-222227JR7C"),
+            SensorIdentity.distinctLogicalSensorIds(
+                listOf(
+                    "80A00070000",
+                    "8760080A00070000",
+                    "222227JR7C",
+                    "X-222227JR7C",
+                )
             )
         )
     }

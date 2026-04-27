@@ -143,6 +143,26 @@ fun SensorSelectionCards(
                 onClick = { onSensorSelected(SensorType.AIDEX) },
                 compact = compact
             )
+
+            SensorCard(
+                icon = Icons.Default.Bluetooth,
+                title = stringResource(R.string.icanhealth_sensor),
+                subtitle = stringResource(R.string.icanhealth_sensor_desc),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                onClick = { onSensorSelected(SensorType.ICANHEALTH) },
+                compact = compact
+            )
+
+            SensorCard(
+                icon = Icons.Default.Bluetooth,
+                title = stringResource(R.string.mq_sensor),
+                subtitle = stringResource(R.string.mq_sensor_desc),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                onClick = { onSensorSelected(SensorType.MQ) },
+                compact = compact
+            )
         }
     }
 }

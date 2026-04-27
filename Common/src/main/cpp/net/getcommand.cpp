@@ -26,6 +26,7 @@
 #include <string>
 #include <string_view>
 #include <unistd.h>
+#include <vector>
 #include "comtypes.hpp"
 #include "receive.hpp"
 #include "passhost.hpp"
@@ -122,6 +123,79 @@ static void mirrorSyncSensor(int sendindex, bool forceFull) {
             javaMirrorSyncSensor(serial->data(), forceFull);
         }
     }
+}
+
+static std::string extractMirrorSensorSerial(std::string_view name) {
+    static constexpr std::string_view sensorsPrefix = "sensors/";
+    if (name.size() <= sensorsPrefix.size() || name.substr(0, sensorsPrefix.size()) != sensorsPrefix) {
+        return {};
+    }
+    const auto rest = name.substr(sensorsPrefix.size());
+    const auto slash = rest.find('/');
+    if (slash == std::string_view::npos || slash == 0) {
+        return {};
+    }
+    return std::string(rest.substr(0, slash));
+}
+
+static void mirrorSyncSensorForPath(std::string_view path, int sendindex, bool forceFull) {
+    if (std::string serial = extractMirrorSensorSerial(path); !serial.empty()) {
+        javaMirrorSyncSensor(serial.c_str(), forceFull);
+        return;
+    }
+    mirrorSyncSensor(sendindex, forceFull);
+}
+
+static std::vector<std::pair<std::string, bool>> pendingMirrorSensorSyncs;
+
+static void queueMirrorSyncSensorForPath(std::string_view path, bool forceFull) {
+    std::string serial = extractMirrorSensorSerial(path);
+    if (serial.empty()) {
+        return;
+    }
+    for (auto &entry : pendingMirrorSensorSyncs) {
+        if (entry.first == serial) {
+            entry.second = entry.second || forceFull;
+            return;
+        }
+    }
+    pendingMirrorSensorSyncs.emplace_back(std::move(serial), forceFull);
+}
+
+static void flushPendingMirrorSensorSyncs() {
+    for (const auto &entry : pendingMirrorSensorSyncs) {
+        javaMirrorSyncSensor(entry.first.c_str(), entry.second);
+    }
+    pendingMirrorSensorSyncs.clear();
+}
+
+static bool isMirrorSensorInfoPath(std::string_view path) {
+    static constexpr std::string_view sensorsPrefix = "sensors/";
+    static constexpr std::string_view infoSuffix = "/info.dat";
+    return path.size() > (sensorsPrefix.size() + infoSuffix.size()) &&
+           path.substr(0, sensorsPrefix.size()) == sensorsPrefix &&
+           path.substr(path.size() - infoSuffix.size()) == infoSuffix;
+}
+
+static bool isMirrorSensorDataPath(std::string_view path) {
+    static constexpr std::string_view sensorsPrefix = "sensors/";
+    static constexpr std::string_view pollsSuffix = "/polls.dat";
+    static constexpr std::string_view rawPollsSuffix = "/rawpolls.dat";
+    static constexpr std::string_view tempPollsSuffix = "/temppolls.dat";
+    if (path.size() <= sensorsPrefix.size() ||
+        path.substr(0, sensorsPrefix.size()) != sensorsPrefix) {
+        return false;
+    }
+    const bool isPolls =
+        path.size() >= pollsSuffix.size() &&
+        path.substr(path.size() - pollsSuffix.size()) == pollsSuffix;
+    const bool isRawPolls =
+        path.size() >= rawPollsSuffix.size() &&
+        path.substr(path.size() - rawPollsSuffix.size()) == rawPollsSuffix;
+    const bool isTempPolls =
+        path.size() >= tempPollsSuffix.size() &&
+        path.substr(path.size() - tempPollsSuffix.size()) == tempPollsSuffix;
+    return isPolls || isRawPolls || isTempPolls;
 }
 
 static constexpr std::string_view mirrorCalibrationPrefix = "mirror/calibration/";
@@ -342,6 +416,7 @@ for(int it=0;it<len;) {
                 }
 extern                bool updateDevices() ;
             ret=updateDevices();
+            flushPendingMirrorSensorSyncs();
             LOGGERTAG("updateDevices=%d\n",ret);
             };break;
         case sbackup: 
@@ -809,20 +884,20 @@ static bool savefileonce(const struct fileonce_t *gegs) {
         if((gegs->dowith&startcalibratedupdate)==startcalibratedupdate) {
             const auto [sendindex,startpos]=getstartinfo(gegs,start);
             setcalibratedstart(sendindex,startpos);
-            mirrorSyncSensor(sendindex, true);
+            mirrorSyncSensorForPath(namesv, sendindex, true);
             }
          else {
             if((gegs->dowith&streamupdatebit)==streamupdatebit) {
                     const auto [sendindex,startpos]=getstartinfo(gegs,start);
                     processglucosevalue(sendindex,startpos);
-                    mirrorSyncSensor(sendindex, false);
+                    mirrorSyncSensorForPath(namesv, sendindex, false);
 
                     }
             else {
                     if((gegs->dowith&starthistoryupdate)==starthistoryupdate) {
                             const auto [sendindex,startpos]=getstartinfo(gegs,start);
                             sethistorystart(sendindex,startpos);
-                            mirrorSyncSensor(sendindex, true);
+                            mirrorSyncSensorForPath(namesv, sendindex, true);
                             }
                  }
             }
@@ -834,6 +909,9 @@ static bool savefileonce(const struct fileonce_t *gegs) {
                 serial.empty() ? nullptr : serial.c_str(),
                 json.c_str());
         }
+    }
+    if (isMirrorSensorInfoPath(namesv) || isMirrorSensorDataPath(namesv)) {
+        queueMirrorSyncSensorForPath(namesv, isMirrorSensorDataPath(namesv));
     }
     LOGARTAG("savedata success");
 #ifdef WEAROS

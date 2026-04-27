@@ -1,5 +1,7 @@
 package tk.glucodata.ui.calibration
 
+import android.content.Context
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
@@ -50,7 +52,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -67,6 +71,27 @@ import tk.glucodata.ui.components.StyledSwitch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private const val CalibrationDeleteSwipeThresholdFraction = 0.4f
+private const val CalibrationUiPrefsName = "tk.glucodata_preferences"
+// Bump the key so the previous broken one-shot behavior does not consume the discoverability pass.
+private const val CalibrationMasterCardSeenPref = "manual_calibration_master_card_seen_v2"
+
+private suspend fun SnackbarHostState.showCalibrationUndoSnackbar(
+    message: String,
+    actionLabel: String
+): SnackbarResult {
+    currentSnackbarData?.dismiss()
+    val result = showSnackbar(
+        message = message,
+        actionLabel = actionLabel,
+        duration = SnackbarDuration.Short
+    )
+    if (result == SnackbarResult.ActionPerformed) {
+        currentSnackbarData?.dismiss()
+    }
+    return result
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +140,12 @@ fun CalibrationListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val historyRepository = remember { HistoryRepository(context) }
+    val calibrationUiPrefs = remember(context) {
+        context.getSharedPreferences(CalibrationUiPrefsName, Context.MODE_PRIVATE)
+    }
+    val expandMasterCalibrationCardOnFirstVisit = remember(calibrationUiPrefs) {
+        !calibrationUiPrefs.getBoolean(CalibrationMasterCardSeenPref, false)
+    }
     suspend fun rewriteHistoryIfNeeded() {
         if (!overwriteSensorValues || currentSensor.isBlank()) return
         historyRepository.rewriteSensorValuesWithCalibration(currentSensor, isRawMode)
@@ -321,6 +352,12 @@ fun CalibrationListScreen(
                 if (!isSelectionMode) {
                     item {
                         MasterCalibrationCard(
+                            initiallyExpanded = expandMasterCalibrationCardOnFirstVisit,
+                            onInitialExpansionShown = {
+                                calibrationUiPrefs.edit()
+                                    .putBoolean(CalibrationMasterCardSeenPref, true)
+                                    .apply()
+                            },
                             isEnabled = isCalibrationEnabled,
                             hideInitialWhenCalibrated = hideInitialWhenCalibrated,
                             applyToPast = applyToPast,
@@ -421,10 +458,9 @@ fun CalibrationListScreen(
                                 CalibrationManager.deleteCalibration(cal)
                                 rewriteHistoryIfNeeded()
                                 
-                                val result = snackbarHostState.showSnackbar(
+                                val result = snackbarHostState.showCalibrationUndoSnackbar(
                                     message = context.getString(R.string.calibration_deleted),
-                                    actionLabel = context.getString(R.string.undo),
-                                    duration = SnackbarDuration.Short
+                                    actionLabel = context.getString(R.string.undo)
                                 )
                                 
                                 if (result == SnackbarResult.ActionPerformed) {
@@ -523,10 +559,9 @@ fun CalibrationListScreen(
                                     toDelete.forEach { CalibrationManager.deleteCalibration(it) }
                                     rewriteHistoryIfNeeded()
                                     
-                                    val result = snackbarHostState.showSnackbar(
+                                    val result = snackbarHostState.showCalibrationUndoSnackbar(
                                         message = context.getString(R.string.calibrations_deleted_count, toDelete.size),
-                                        actionLabel = context.getString(R.string.undo),
-                                        duration = SnackbarDuration.Short
+                                        actionLabel = context.getString(R.string.undo)
                                     )
                                     
                                     if (result == SnackbarResult.ActionPerformed) {
@@ -579,10 +614,9 @@ fun CalibrationListScreen(
                     CalibrationManager.clearAll()
                     rewriteHistoryIfNeeded()
                     
-                    val result = snackbarHostState.showSnackbar(
+                    val result = snackbarHostState.showCalibrationUndoSnackbar(
                         message = context.getString(R.string.all_calibrations_cleared),
-                        actionLabel = context.getString(R.string.undo),
-                        duration = SnackbarDuration.Short
+                        actionLabel = context.getString(R.string.undo)
                     )
                     
                     if (result == SnackbarResult.ActionPerformed) {
@@ -602,6 +636,8 @@ fun CalibrationListScreen(
 
 @Composable
 private fun MasterCalibrationCard(
+    initiallyExpanded: Boolean,
+    onInitialExpansionShown: () -> Unit,
     isEnabled: Boolean,
     hideInitialWhenCalibrated: Boolean,
     applyToPast: Boolean,
@@ -615,7 +651,12 @@ private fun MasterCalibrationCard(
     onToggleOverwriteSensorValues: (Boolean) -> Unit,
     onToggleVisualContinuity: (Boolean) -> Unit
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    var expanded by rememberSaveable(initiallyExpanded) { mutableStateOf(initiallyExpanded) }
+    LaunchedEffect(initiallyExpanded) {
+        if (initiallyExpanded) {
+            onInitialExpansionShown()
+        }
+    }
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         label = "masterCalibrationChevron"
@@ -1067,6 +1108,9 @@ private fun SwipeableCalibrationRow(
     onToggleDisable: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val view = LocalView.current
+    var deleteArmHapticSent by remember(cal.id, cal.isEnabled) { mutableStateOf(false) }
+    var rowWidthPx by remember(cal.id, cal.isEnabled) { mutableStateOf(0) }
     
     // In selection mode, just show the card without swipe
     if (isSelectionMode) {
@@ -1097,7 +1141,8 @@ private fun SwipeableCalibrationRow(
     // Key on isEnabled so state resets when toggled
     val dismissState = key(cal.isEnabled) {
         rememberSwipeToDismissBoxState(
-            positionalThreshold = { it * 0.25f }, // 25% threshold for easier swipe
+            // Require a more deliberate swipe before destructive actions fire.
+            positionalThreshold = { it * CalibrationDeleteSwipeThresholdFraction },
             confirmValueChange = { dismissValue ->
                 when (dismissValue) {
                     SwipeToDismissBoxValue.EndToStart -> {
@@ -1115,10 +1160,27 @@ private fun SwipeableCalibrationRow(
             }
         )
     }
+
+    val currentOffset = runCatching { dismissState.requireOffset() }.getOrDefault(0f)
+    val deleteArmed =
+        rowWidthPx > 0 &&
+            dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart &&
+            -currentOffset >= rowWidthPx * CalibrationDeleteSwipeThresholdFraction
+
+    LaunchedEffect(deleteArmed) {
+        if (deleteArmed) {
+            if (!deleteArmHapticSent) {
+                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                deleteArmHapticSent = true
+            }
+        } else {
+            deleteArmHapticSent = false
+        }
+    }
     
     SwipeToDismissBox(
         state = dismissState,
-        modifier = modifier,
+        modifier = modifier.onSizeChanged { rowWidthPx = it.width },
         enableDismissFromStartToEnd = true,
         enableDismissFromEndToStart = true,
         backgroundContent = {

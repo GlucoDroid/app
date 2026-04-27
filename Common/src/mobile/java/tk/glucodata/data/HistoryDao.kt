@@ -20,6 +20,9 @@ interface HistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(readings: List<HistoryReading>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertDeletedReadings(readings: List<DeletedHistoryReading>)
+
     // ── Per-sensor queries (used for dashboard, chart, current reading) ──
 
     @Query("SELECT * FROM history_readings WHERE sensorSerial = :serial AND timestamp >= :startTime ORDER BY timestamp ASC")
@@ -28,17 +31,48 @@ interface HistoryDao {
     @Query("SELECT * FROM history_readings WHERE sensorSerial = :serial AND timestamp >= :startTime ORDER BY timestamp ASC")
     suspend fun getReadingsSinceForSensor(serial: String, startTime: Long): List<HistoryReading>
 
+    @Query("SELECT * FROM history_readings WHERE sensorSerial IN (:serials) AND timestamp >= :startTime ORDER BY timestamp ASC")
+    fun getHistoryFlowForSensors(serials: List<String>, startTime: Long): Flow<List<HistoryReading>>
+
+    @Query("SELECT * FROM history_readings WHERE sensorSerial IN (:serials) AND timestamp >= :startTime ORDER BY timestamp ASC")
+    suspend fun getReadingsSinceForSensors(serials: List<String>, startTime: Long): List<HistoryReading>
+
+    @Query("""
+        SELECT timestamp FROM history_readings
+        WHERE sensorSerial IN (:serials)
+          AND timestamp >= :startTime
+          AND timestamp <= :endTime
+        ORDER BY timestamp ASC
+    """)
+    suspend fun getTimestampsForSensors(
+        serials: List<String>,
+        startTime: Long,
+        endTime: Long
+    ): List<Long>
+
     @Query("SELECT * FROM history_readings WHERE sensorSerial = :serial ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatestReadingForSensor(serial: String): HistoryReading?
 
     @Query("SELECT * FROM history_readings WHERE sensorSerial = :serial ORDER BY timestamp DESC LIMIT 1")
     fun getLatestReadingFlowForSensor(serial: String): Flow<HistoryReading?>
 
+    @Query("SELECT * FROM history_readings WHERE sensorSerial IN (:serials) ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLatestReadingForSensors(serials: List<String>): HistoryReading?
+
+    @Query("SELECT * FROM history_readings WHERE sensorSerial IN (:serials) ORDER BY timestamp DESC LIMIT 1")
+    fun getLatestReadingFlowForSensors(serials: List<String>): Flow<HistoryReading?>
+
     @Query("SELECT COUNT(*) FROM history_readings WHERE sensorSerial = :serial")
     suspend fun getCountForSensor(serial: String): Int
 
     @Query("SELECT MIN(timestamp) FROM history_readings WHERE sensorSerial = :serial")
     suspend fun getOldestTimestampForSensor(serial: String): Long?
+
+    @Query("SELECT COUNT(*) FROM history_readings WHERE sensorSerial IN (:serials)")
+    suspend fun getCountForSensors(serials: List<String>): Int
+
+    @Query("SELECT MIN(timestamp) FROM history_readings WHERE sensorSerial IN (:serials)")
+    suspend fun getOldestTimestampForSensors(serials: List<String>): Long?
 
     // ── All-sensor queries (used for export, global count, migration) ──
 
@@ -67,6 +101,27 @@ interface HistoryDao {
 
     @Query("DELETE FROM history_readings WHERE sensorSerial = :serial")
     suspend fun deleteForSensor(serial: String)
+
+    @Query("""
+        DELETE FROM history_readings
+        WHERE sensorSerial IN (:serials) AND timestamp = :timestamp
+    """)
+    suspend fun deleteReadingsAtTimestamp(serials: List<String>, timestamp: Long): Int
+
+    @Query("""
+        SELECT COUNT(*) FROM history_deleted_readings
+        WHERE sensorSerial = :sensorSerial AND timestamp = :timestamp
+    """)
+    suspend fun isReadingDeleted(sensorSerial: String, timestamp: Long): Int
+
+    @Query("""
+        SELECT timestamp FROM history_deleted_readings
+        WHERE sensorSerial = :sensorSerial AND timestamp IN (:timestamps)
+    """)
+    suspend fun getDeletedTimestampsForSensor(
+        sensorSerial: String,
+        timestamps: List<Long>
+    ): List<Long>
 
     @Query("""
         UPDATE history_readings

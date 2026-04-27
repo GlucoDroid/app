@@ -950,7 +950,7 @@ public:
       else
         unit = 3;
       setalarms(36 * 18, 9 * 180, false, false, false, false);
-      setranges(3 * 180, 12 * 180, 36 * 18, 9 * 180);
+      setranges(0, 13 * 180, 36 * 18, 9 * 180);
     } else {
       LOGGER("setconvert was unit=%d\n", unit);
     }

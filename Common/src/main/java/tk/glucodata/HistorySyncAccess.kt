@@ -66,6 +66,32 @@ object HistorySyncAccess {
             )
         }.getOrNull()
     }
+    private val storeHistoryBatchBlockingMethod by lazy {
+        runCatching {
+            repositoryHolder?.getMethod(
+                "storeHistoryBatchBlocking",
+                String::class.java,
+                LongArray::class.java,
+                FloatArray::class.java,
+                FloatArray::class.java
+            )
+        }.getOrNull()
+    }
+    private val getLatestTimestampMethod by lazy {
+        runCatching {
+            repositoryHolder?.getMethod("getLatestTimestampForSensorBlocking", String::class.java)
+        }.getOrNull()
+    }
+    private val getHistoryTimestampsMethod by lazy {
+        runCatching {
+            repositoryHolder?.getMethod(
+                "getHistoryTimestampsForSensorBlocking",
+                String::class.java,
+                Long::class.javaPrimitiveType,
+                Long::class.javaPrimitiveType
+            )
+        }.getOrNull()
+    }
     private val aidexSourceValue by lazy {
         runCatching {
             repositoryHolder?.getField("GLUCODATA_SOURCE_AIDEX")?.getInt(null)
@@ -226,6 +252,71 @@ object HistorySyncAccess {
                 it
             )
         }.isSuccess
+    }
+
+    @JvmStatic
+    fun storeSensorHistoryBatchBlocking(
+        sensorSerial: String?,
+        timestamps: LongArray,
+        valuesMgdl: FloatArray,
+        rawValuesMgdl: FloatArray
+    ): Boolean {
+        if (sensorSerial.isNullOrBlank()) return false
+        if (timestamps.isEmpty()) return true
+        val method = storeHistoryBatchBlockingMethod
+        if (method == null) {
+            Log.w(TAG, "storeSensorHistoryBatchBlocking unavailable for serial=$sensorSerial; falling back to async")
+            return storeSensorHistoryBatchAsync(sensorSerial, timestamps, valuesMgdl, rawValuesMgdl)
+        }
+        return runCatching {
+            method.invoke(
+                null,
+                sensorSerial,
+                timestamps,
+                valuesMgdl,
+                rawValuesMgdl
+            ) as? Boolean ?: false
+        }.onFailure {
+            Log.w(
+                TAG,
+                "storeSensorHistoryBatchBlocking failed for serial=$sensorSerial size=${timestamps.size}",
+                it
+            )
+        }.getOrDefault(false)
+    }
+
+    @JvmStatic
+    fun getLatestTimestampForSensor(sensorSerial: String?): Long {
+        if (sensorSerial.isNullOrBlank()) return 0L
+        val method = getLatestTimestampMethod
+        if (method == null) {
+            Log.w(TAG, "getLatestTimestampForSensor unavailable for serial=$sensorSerial")
+            return 0L
+        }
+        return runCatching {
+            (method.invoke(null, sensorSerial) as? Long) ?: 0L
+        }.onFailure {
+            Log.w(TAG, "getLatestTimestampForSensor failed for serial=$sensorSerial", it)
+        }.getOrDefault(0L)
+    }
+
+    @JvmStatic
+    fun getHistoryTimestampsForSensor(sensorSerial: String?, startTime: Long, endTime: Long): LongArray {
+        if (sensorSerial.isNullOrBlank() || endTime < startTime) return LongArray(0)
+        val method = getHistoryTimestampsMethod
+        if (method == null) {
+            Log.w(TAG, "getHistoryTimestampsForSensor unavailable for serial=$sensorSerial")
+            return LongArray(0)
+        }
+        return runCatching {
+            method.invoke(null, sensorSerial, startTime, endTime) as? LongArray ?: LongArray(0)
+        }.onFailure {
+            Log.w(
+                TAG,
+                "getHistoryTimestampsForSensor failed for serial=$sensorSerial range=$startTime..$endTime",
+                it
+            )
+        }.getOrDefault(LongArray(0))
     }
 
 }

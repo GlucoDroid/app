@@ -16,14 +16,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tk.glucodata.Applic
-import tk.glucodata.CalibrationAccess
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorIdentity
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.HistoryRepository
+import tk.glucodata.data.calibration.CalibrationManager
+import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.DisplayValueResolver
+import tk.glucodata.ui.util.GlucoseFormatter
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -35,6 +37,40 @@ class StatsViewModel : ViewModel() {
     private val tag = "StatsViewModel"
     private val historyRepository = HistoryRepository()
 
+    private data class StatsHistorySignature(
+        val size: Int,
+        val firstTimestamp: Long,
+        val lastTimestamp: Long,
+        val contentHash: Long
+    )
+
+    private data class StatsDisplayHistoryCacheKey(
+        val historySignature: StatsHistorySignature,
+        val viewMode: Int,
+        val unit: GlucoseUnit,
+        val calibrationRevision: Long,
+        val activeSerial: String?
+    )
+
+    private data class StatsRangeProjectionCacheKey(
+        val historySignature: StatsHistorySignature,
+        val viewMode: Int,
+        val unit: GlucoseUnit,
+        val calibrationRevision: Long,
+        val activeSerial: String?,
+        val rangeStartMillis: Long,
+        val rangeEndMillis: Long,
+        val lowMgDl: Float,
+        val highMgDl: Float,
+        val veryLowMgDl: Float,
+        val veryHighMgDl: Float
+    )
+
+    private data class StatsRangeProjection(
+        val filteredHistory: List<GlucosePoint>,
+        val summary: StatsSummary
+    )
+
     private val _selectedRange = MutableStateFlow<StatsTimeRange?>(StatsTimeRange.DAY_1)
     val selectedRange: StateFlow<StatsTimeRange?> = _selectedRange.asStateFlow()
     private val _customRange = MutableStateFlow<StatsDateRange?>(null)
@@ -43,6 +79,7 @@ class StatsViewModel : ViewModel() {
     private val _unit = MutableStateFlow(GlucoseUnit.MGDL)
     private val _targets = MutableStateFlow(StatsTargets())
     private val _viewMode = MutableStateFlow(0)
+    private val _calibrationRevision = MutableStateFlow(CalibrationManager.getRevision())
     private val _isLoading = MutableStateFlow(true)
     private val _hasSensor = MutableStateFlow(true)
     private val _historyPoints = MutableStateFlow<List<GlucosePoint>>(emptyList())
@@ -54,6 +91,13 @@ class StatsViewModel : ViewModel() {
     private var cachedTemperatureSerial: String? = null
     private var cachedTemperaturePoints: List<TemperaturePoint> = emptyList()
     private var lastTemperatureRefreshMs: Long = 0L
+    @Volatile private var statsDisplayHistoryCacheKey: StatsDisplayHistoryCacheKey? = null
+    @Volatile private var statsDisplayHistoryCacheValue: List<GlucosePoint> = emptyList()
+    @Volatile private var statsRangeProjectionCacheKey: StatsRangeProjectionCacheKey? = null
+    @Volatile private var statsRangeProjectionCacheValue = StatsRangeProjection(
+        filteredHistory = emptyList(),
+        summary = StatsSummary()
+    )
 
     private val baseState = combine(
         _selectedRange,
@@ -62,6 +106,7 @@ class StatsViewModel : ViewModel() {
         _unit,
         _targets,
         _viewMode,
+        _calibrationRevision,
         _isLoading,
         _hasSensor
     ) { values ->
@@ -72,8 +117,9 @@ class StatsViewModel : ViewModel() {
             unit = values[3] as GlucoseUnit,
             targets = values[4] as StatsTargets,
             viewMode = values[5] as Int,
-            isLoading = values[6] as Boolean,
-            hasSensor = values[7] as Boolean
+            calibrationRevision = values[6] as Long,
+            isLoading = values[7] as Boolean,
+            hasSensor = values[8] as Boolean
         )
     }
 
@@ -89,6 +135,7 @@ class StatsViewModel : ViewModel() {
             unit = base.unit,
             targets = base.targets,
             viewMode = base.viewMode,
+            calibrationRevision = base.calibrationRevision,
             isLoading = base.isLoading,
             hasSensor = base.hasSensor,
             historyPoints = history,
@@ -113,7 +160,7 @@ class StatsViewModel : ViewModel() {
         if (_selectedRange.value == range && _customRange.value == null) return
         _selectedRange.value = range
         _customRange.value = null
-        resubscribeIfNeeded()
+        resubscribeToRequestedWindow()
     }
 
     fun setCustomRange(startMillis: Long, endMillis: Long) {
@@ -121,7 +168,7 @@ class StatsViewModel : ViewModel() {
         if (_customRange.value == normalizedRange && _selectedRange.value == null) return
         _selectedRange.value = null
         _customRange.value = normalizedRange
-        resubscribeIfNeeded()
+        resubscribeToRequestedWindow()
     }
 
     private fun observeUiRefreshBus() {
@@ -138,9 +185,11 @@ class StatsViewModel : ViewModel() {
     suspend fun buildReportUiState(reportDays: Int): StatsUiState = withContext(Dispatchers.Default) {
         val clampedDays = reportDays.coerceIn(1, MAX_REPORT_DAYS)
         val cutoff = System.currentTimeMillis() - (clampedDays.toLong() * DAY_MS)
+        val reportHistory = resolveHistoryForStartTime(cutoff)
         val filteredHistory = resolveStatsDisplayHistory(
-            history = _historyPoints.value,
-            viewMode = _viewMode.value
+            history = reportHistory,
+            viewMode = _viewMode.value,
+            unit = _unit.value
         ).filter {
             it.timestamp >= cutoff && isStatsValueValid(it.value)
         }
@@ -165,6 +214,7 @@ class StatsViewModel : ViewModel() {
 
     fun refreshFromNative() {
         viewModelScope.launch {
+            _calibrationRevision.value = CalibrationManager.getRevision()
             val unit = resolveUnit()
             _unit.value = unit
             _targets.value = resolveTargets(unit)
@@ -202,9 +252,7 @@ class StatsViewModel : ViewModel() {
             _availableRange.value = loadAvailableRange(serial)
 
             historyRepository.getHistoryFlowForStatsSensor(serial, startTime)
-                .distinctUntilChangedBy { points ->
-                    points.size to (points.lastOrNull()?.timestamp ?: 0L)
-                }
+                .distinctUntilChangedBy(::historySignature)
                 .collect { points ->
                     _historyPoints.value = points
                     _isLoading.value = false
@@ -223,6 +271,7 @@ class StatsViewModel : ViewModel() {
 
     private fun refreshDisplayState() {
         viewModelScope.launch {
+            _calibrationRevision.value = CalibrationManager.getRevision()
             val unit = resolveUnit()
             _unit.value = unit
             _targets.value = resolveTargets(unit)
@@ -246,13 +295,19 @@ class StatsViewModel : ViewModel() {
 
     private fun resolveStatsSensorSerial(): String? {
         return SensorIdentity.resolveAvailableMainSensor(
-            selectedMain = Natives.lastsensorname(),
-            preferredSensorId = activeSerial,
+            selectedMain = SensorIdentity.resolveMainSensor(),
+            preferredSensorId = SensorIdentity.resolveAppSensorId(activeSerial) ?: activeSerial,
             activeSensors = Natives.activeSensors()
         ) ?: SensorIdentity.resolveMainSensor()
     }
 
     private fun resolveViewMode(serial: String): Int {
+        ManagedSensorRuntime.resolveUiSnapshot(serial, serial)?.let { managedSnapshot ->
+            return managedSnapshot.viewMode
+        }
+        if (!SensorIdentity.hasNativeSensorBacking(serial)) {
+            return 0
+        }
         return try {
             val snapshot = Natives.getSensorUiSnapshot(serial)
             if (snapshot != null && snapshot.size >= 2) snapshot[1].toInt() else 0
@@ -261,11 +316,9 @@ class StatsViewModel : ViewModel() {
         }
     }
 
-    private fun resubscribeIfNeeded() {
+    private fun resubscribeToRequestedWindow() {
         val serial = activeSerial ?: resolveStatsSensorSerial() ?: return
-        if (needsHistoryWindowExpansion(resolveSubscriptionStartTime())) {
-            subscribeToHistory(serial, resolveSubscriptionStartTime())
-        }
+        subscribeToHistory(serial, resolveSubscriptionStartTime())
     }
 
     private fun needsHistoryWindowExpansion(targetStartTime: Long): Boolean {
@@ -283,8 +336,28 @@ class StatsViewModel : ViewModel() {
         return when {
             customRange != null -> customRange.startMillis
             _selectedRange.value == StatsTimeRange.DAY_ALL -> 0L
-            else -> (System.currentTimeMillis() - (STATS_HISTORY_CACHE_DAYS * DAY_MS)).coerceAtLeast(0L)
+            else -> {
+                val quickRangeDays = (_selectedRange.value ?: DEFAULT_STATS_RANGE).days.toLong()
+                (System.currentTimeMillis() - (quickRangeDays * DAY_MS)).coerceAtLeast(0L)
+            }
         }
+    }
+
+    private suspend fun resolveHistoryForStartTime(startTime: Long): List<GlucosePoint> {
+        val currentHistory = _historyPoints.value
+        val serial = activeSerial ?: resolveStatsSensorSerial().orEmpty()
+        val currentWindowCoversRequest = historyWindowStartMs != Long.MAX_VALUE &&
+            historyWindowStartMs <= startTime &&
+            currentHistory.isNotEmpty()
+
+        if (currentWindowCoversRequest || serial.isBlank()) {
+            return currentHistory.filter { it.timestamp >= startTime }
+        }
+
+        withContext(Dispatchers.IO) {
+            historyRepository.ensureBackfilled(serial)
+        }
+        return historyRepository.getHistoryForSensor(serial, startTime)
     }
 
     private suspend fun loadAvailableRange(serial: String): StatsDateRange? {
@@ -325,46 +398,184 @@ class StatsViewModel : ViewModel() {
 
     private fun resolveStatsDisplayHistory(
         history: List<GlucosePoint>,
-        viewMode: Int
+        viewMode: Int,
+        unit: GlucoseUnit,
+        historySignature: StatsHistorySignature = historySignature(history)
     ): List<GlucosePoint> {
         if (history.isEmpty()) return emptyList()
 
-        val isRawMode = viewMode == 1 || viewMode == 3
-        val hideInitialWhenCalibrated = CalibrationAccess.shouldHideInitialWhenCalibrated()
+        val calibrationRevision = CalibrationManager.getRevision()
+        val cacheKey = StatsDisplayHistoryCacheKey(
+            historySignature = historySignature,
+            viewMode = viewMode,
+            unit = unit,
+            calibrationRevision = calibrationRevision,
+            activeSerial = activeSerial
+        )
+        if (statsDisplayHistoryCacheKey == cacheKey) {
+            return statsDisplayHistoryCacheValue
+        }
 
-        return history.mapNotNull { point ->
-            val sensorSerial = point.sensorSerial ?: activeSerial
-            val calibratedValue = if (sensorSerial != null && CalibrationAccess.hasActiveCalibration(isRawMode, sensorSerial)) {
-                val baseValue = (if (isRawMode) point.rawValue else point.value)
-                    .takeIf { it.isFinite() && it > 0f }
-                baseValue?.let {
-                    CalibrationAccess.getCalibratedValue(
-                        value = it,
-                        timestamp = point.timestamp,
+        val isRawMode = viewMode == 1 || viewMode == 3
+        val isMmol = unit == GlucoseUnit.MMOL
+        val overwriteSensorValues = CalibrationManager.shouldOverwriteSensorValues()
+        val hideInitialWhenCalibrated = CalibrationManager.shouldHideInitialWhenCalibrated()
+        val sensorSerial = activeSerial ?: history.firstOrNull()?.sensorSerial
+        val calibratedDisplayValues = arrayOfNulls<Float>(history.size)
+
+        if (!overwriteSensorValues) {
+            history.withIndex()
+                .groupBy { indexedPoint -> indexedPoint.value.sensorSerial ?: sensorSerial }
+                .forEach { (pointSensorSerial, indexedPoints) ->
+                    if (pointSensorSerial == null || !CalibrationManager.hasActiveCalibration(isRawMode, pointSensorSerial)) {
+                        return@forEach
+                    }
+                    val samples = indexedPoints.map { indexedPoint ->
+                        val point = indexedPoint.value
+                        val baseValue = if (isRawMode) point.rawValue else point.value
+                        CalibrationManager.CalibrationSample(
+                            value = GlucoseFormatter.displayFromMgDl(baseValue, isMmol),
+                            timestamp = point.timestamp
+                        )
+                    }
+                    val calibratedSeries = CalibrationManager.getCalibratedSeries(
+                        samples = samples,
                         isRawMode = isRawMode,
                         emitDiagnostics = false,
-                        sensorIdOverride = sensorSerial
-                    ).takeIf { calibrated -> calibrated.isFinite() && calibrated > 0f }
+                        sensorIdOverride = pointSensorSerial
+                    )
+                    indexedPoints.forEachIndexed { localIndex, indexedPoint ->
+                        val calibrated = calibratedSeries[localIndex]
+                        if (calibrated.isFinite() && calibrated > 0f) {
+                            calibratedDisplayValues[indexedPoint.index] = calibrated
+                        }
+                    }
                 }
-            } else {
-                null
-            }
+        }
 
-            val displayValues = DisplayValueResolver.resolve(
-                autoValue = point.value,
-                rawValue = point.rawValue,
+        val resolved = history.mapIndexedNotNull { index, point ->
+            val displayAutoValue = GlucoseFormatter.displayFromMgDl(point.value, isMmol)
+            val displayRawValue = GlucoseFormatter.displayFromMgDl(point.rawValue, isMmol)
+            val calibratedDisplayValue = calibratedDisplayValues[index]
+
+            val primaryValueMgDl = resolvePrimaryStatsValueMgDl(
+                displayAutoValue = displayAutoValue,
+                displayRawValue = displayRawValue,
                 viewMode = viewMode,
-                isMmol = false,
-                calibratedValue = calibratedValue,
-                hideInitialWhenCalibrated = calibratedValue != null && hideInitialWhenCalibrated
+                unit = unit,
+                calibratedDisplayValue = calibratedDisplayValue,
+                hideInitialWhenCalibrated = calibratedDisplayValue != null && hideInitialWhenCalibrated
             )
-            val primaryValue = displayValues.primaryValue
-            if (!primaryValue.isFinite() || primaryValue <= 0f) {
+            if (primaryValueMgDl == null || !primaryValueMgDl.isFinite() || primaryValueMgDl <= 0f) {
                 null
             } else {
-                point.copy(value = primaryValue, rawValue = primaryValue)
+                point.copy(value = primaryValueMgDl, rawValue = primaryValueMgDl)
             }
         }
+        statsDisplayHistoryCacheKey = cacheKey
+        statsDisplayHistoryCacheValue = resolved
+        return resolved
+    }
+
+    private fun resolveRangeProjection(
+        history: List<GlucosePoint>,
+        viewMode: Int,
+        unit: GlucoseUnit,
+        targets: StatsTargets,
+        activeRange: StatsDateRange?
+    ): StatsRangeProjection {
+        if (history.isEmpty()) {
+            return StatsRangeProjection(
+                filteredHistory = emptyList(),
+                summary = StatsSummary()
+            )
+        }
+
+        val historySignature = historySignature(history)
+        val cacheKey = StatsRangeProjectionCacheKey(
+            historySignature = historySignature,
+            viewMode = viewMode,
+            unit = unit,
+            calibrationRevision = CalibrationManager.getRevision(),
+            activeSerial = activeSerial,
+            rangeStartMillis = activeRange?.startMillis ?: Long.MIN_VALUE,
+            rangeEndMillis = activeRange?.endMillis ?: Long.MAX_VALUE,
+            lowMgDl = targets.lowMgDl,
+            highMgDl = targets.highMgDl,
+            veryLowMgDl = targets.veryLowMgDl,
+            veryHighMgDl = targets.veryHighMgDl
+        )
+        if (statsRangeProjectionCacheKey == cacheKey) {
+            return statsRangeProjectionCacheValue
+        }
+
+        val displayHistory = resolveStatsDisplayHistory(
+            history = history,
+            viewMode = viewMode,
+            unit = unit,
+            historySignature = historySignature
+        )
+        val filteredHistory = displayHistory.filter { point ->
+            val withinTimeWindow = activeRange?.let { point.timestamp in it.startMillis..it.endMillis } ?: true
+            withinTimeWindow && isStatsValueValid(point.value)
+        }
+        val projection = StatsRangeProjection(
+            filteredHistory = filteredHistory,
+            summary = calculateSummary(filteredHistory, targets)
+        )
+        statsRangeProjectionCacheKey = cacheKey
+        statsRangeProjectionCacheValue = projection
+        return projection
+    }
+
+    private fun resolvePrimaryStatsValueMgDl(
+        displayAutoValue: Float,
+        displayRawValue: Float,
+        viewMode: Int,
+        unit: GlucoseUnit,
+        calibratedDisplayValue: Float?,
+        hideInitialWhenCalibrated: Boolean
+    ): Float? {
+        val isMmol = unit == GlucoseUnit.MMOL
+        val displayValues = DisplayValueResolver.resolve(
+            autoValue = displayAutoValue,
+            rawValue = displayRawValue,
+            viewMode = viewMode,
+            isMmol = isMmol,
+            calibratedValue = calibratedDisplayValue,
+            hideInitialWhenCalibrated = hideInitialWhenCalibrated
+        )
+        val primaryDisplayValue = displayValues.primaryValue
+        if (!primaryDisplayValue.isFinite() || primaryDisplayValue <= 0f) {
+            return null
+        }
+        return toMgDl(primaryDisplayValue, unit)
+    }
+
+    private fun historySignature(points: List<GlucosePoint>): StatsHistorySignature {
+        if (points.isEmpty()) {
+            return StatsHistorySignature(
+                size = 0,
+                firstTimestamp = 0L,
+                lastTimestamp = 0L,
+                contentHash = 0L
+            )
+        }
+
+        var hash = 1125899906842597L
+        points.forEach { point ->
+            hash = 31L * hash + point.timestamp
+            hash = 31L * hash + java.lang.Float.floatToRawIntBits(point.value).toLong()
+            hash = 31L * hash + java.lang.Float.floatToRawIntBits(point.rawValue).toLong()
+            hash = 31L * hash + (point.sensorSerial?.hashCode()?.toLong() ?: 0L)
+        }
+
+        return StatsHistorySignature(
+            size = points.size,
+            firstTimestamp = points.first().timestamp,
+            lastTimestamp = points.last().timestamp,
+            contentHash = hash
+        )
     }
 
     private fun maybeRefreshTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
@@ -453,14 +664,13 @@ class StatsViewModel : ViewModel() {
             customRange = input.customRange,
             availableRange = input.availableRange
         )
-        val displayHistory = resolveStatsDisplayHistory(
+        val rangeProjection = resolveRangeProjection(
             history = input.historyPoints,
-            viewMode = input.viewMode
+            viewMode = input.viewMode,
+            unit = input.unit,
+            targets = input.targets,
+            activeRange = activeRange
         )
-        val filteredHistory = displayHistory.filter { point ->
-            val withinTimeWindow = activeRange?.let { point.timestamp in it.startMillis..it.endMillis } ?: true
-            withinTimeWindow && isStatsValueValid(point.value)
-        }
         val filteredTemperature = input.temperaturePoints.filter { point ->
             activeRange?.let { point.timestamp in it.startMillis..it.endMillis } ?: true
         }
@@ -473,9 +683,9 @@ class StatsViewModel : ViewModel() {
             targets = input.targets,
             isLoading = input.isLoading,
             hasSensor = input.hasSensor,
-            summary = calculateSummary(filteredHistory, input.targets),
+            summary = rangeProjection.summary,
             temperaturePoints = filteredTemperature,
-            readings = filteredHistory
+            readings = rangeProjection.filteredHistory
         )
     }
 
@@ -958,6 +1168,7 @@ class StatsViewModel : ViewModel() {
         val unit: GlucoseUnit,
         val targets: StatsTargets,
         val viewMode: Int,
+        val calibrationRevision: Long,
         val isLoading: Boolean,
         val hasSensor: Boolean,
         val historyPoints: List<GlucosePoint>,
@@ -971,6 +1182,7 @@ class StatsViewModel : ViewModel() {
         val unit: GlucoseUnit,
         val targets: StatsTargets,
         val viewMode: Int,
+        val calibrationRevision: Long,
         val isLoading: Boolean,
         val hasSensor: Boolean
     )
@@ -987,7 +1199,7 @@ class StatsViewModel : ViewModel() {
         private const val MAX_PHYS_ROC_MGDL_PER_MIN = 3.5f
         private const val MIN_STATS_GLUCOSE_MGDL = 30f
         private const val MAX_STATS_GLUCOSE_MGDL = 500f
-        private const val STATS_HISTORY_CACHE_DAYS = 365L
         private const val MAX_REPORT_DAYS = 365
+        private val DEFAULT_STATS_RANGE = StatsTimeRange.DAY_1
     }
 }

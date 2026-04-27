@@ -3,8 +3,27 @@ package tk.glucodata.data
 import tk.glucodata.SensorIdentity
 
 internal object HistoryDisplayMerge {
+    private const val SENSOR_MINUTE_BUCKET_MS = 60_000L
     private const val OVERLAP_PADDING_MS = 5L * 60L * 1000L
     private const val COVERAGE_SEGMENT_GAP_MS = 15L * 60L * 1000L
+
+    private data class LogicalSensorBucket(
+        val sensorId: String,
+        val bucket: Long
+    )
+
+    private class PreferredMatchResolver(preferredSerial: String?) {
+        private val canonicalPreferred = SensorIdentity.resolveAppSensorId(preferredSerial)
+        private val matchCache = HashMap<String, Boolean>()
+
+        fun matches(sensorSerial: String?): Boolean {
+            val preferred = canonicalPreferred ?: return false
+            val raw = sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+            return matchCache.getOrPut(raw) {
+                SensorIdentity.matches(raw, preferred)
+            }
+        }
+    }
 
     fun mergeReadings(
         readings: List<HistoryReading>,
@@ -12,7 +31,9 @@ internal object HistoryDisplayMerge {
     ): List<HistoryReading> {
         if (readings.isEmpty()) return emptyList()
 
-        val filtered = applyPreferredOverlapDominance(readings, preferredSerial)
+        val resolver = PreferredMatchResolver(preferredSerial)
+        val coalesced = collapseLogicalSensorBuckets(readings, resolver)
+        val filtered = applyPreferredOverlapDominance(coalesced, resolver)
         val merged = ArrayList<HistoryReading>(readings.size)
         var currentTimestamp = Long.MIN_VALUE
         var currentBest: HistoryReading? = null
@@ -23,7 +44,7 @@ internal object HistoryDisplayMerge {
                 currentTimestamp = reading.timestamp
                 currentBest = reading
             } else {
-                currentBest = choosePreferred(currentBest, reading, preferredSerial)
+                currentBest = choosePreferred(currentBest, reading, resolver)
             }
         }
 
@@ -31,21 +52,37 @@ internal object HistoryDisplayMerge {
         return merged
     }
 
+    private fun collapseLogicalSensorBuckets(
+        readings: List<HistoryReading>,
+        resolver: PreferredMatchResolver
+    ): List<HistoryReading> {
+        val byBucket = LinkedHashMap<LogicalSensorBucket, HistoryReading>(readings.size)
+        for (reading in readings) {
+            val sensorSerial = reading.sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            val resolvedSensorId = SensorIdentity.resolveAppSensorId(sensorSerial) ?: sensorSerial
+            val key = LogicalSensorBucket(
+                sensorId = resolvedSensorId,
+                bucket = reading.timestamp / SENSOR_MINUTE_BUCKET_MS
+            )
+            val existing = byBucket[key]
+            byBucket[key] = if (existing == null) reading else choosePreferred(existing, reading, resolver)
+        }
+        return byBucket.values.sortedBy { it.timestamp }
+    }
+
     private fun applyPreferredOverlapDominance(
         readings: List<HistoryReading>,
-        preferredSerial: String?
+        resolver: PreferredMatchResolver
     ): List<HistoryReading> {
-        if (preferredSerial.isNullOrBlank()) return readings
-
         val preferredReadings = readings
-            .filter { SensorIdentity.matches(it.sensorSerial, preferredSerial) }
+            .filter { resolver.matches(it.sensorSerial) }
             .sortedBy { it.timestamp }
         if (preferredReadings.isEmpty()) return readings
 
         val coverageSegments = buildCoverageSegments(preferredReadings)
 
         return readings.filter { reading ->
-            SensorIdentity.matches(reading.sensorSerial, preferredSerial) ||
+            resolver.matches(reading.sensorSerial) ||
                 coverageSegments.none { segment ->
                     reading.timestamp >= (segment.start - OVERLAP_PADDING_MS) &&
                         reading.timestamp <= (segment.last + OVERLAP_PADDING_MS)
@@ -76,19 +113,19 @@ internal object HistoryDisplayMerge {
     private fun choosePreferred(
         current: HistoryReading,
         candidate: HistoryReading,
-        preferredSerial: String?
+        resolver: PreferredMatchResolver
     ): HistoryReading {
-        val currentScore = score(current, preferredSerial)
-        val candidateScore = score(candidate, preferredSerial)
+        val currentScore = score(current, resolver)
+        val candidateScore = score(candidate, resolver)
         if (candidateScore != currentScore) {
             return if (candidateScore > currentScore) candidate else current
         }
         return if (candidate.id > current.id) candidate else current
     }
 
-    private fun score(reading: HistoryReading, preferredSerial: String?): Int {
+    private fun score(reading: HistoryReading, resolver: PreferredMatchResolver): Int {
         var score = 0
-        if (!preferredSerial.isNullOrBlank() && SensorIdentity.matches(reading.sensorSerial, preferredSerial)) {
+        if (resolver.matches(reading.sensorSerial)) {
             score += 100
         }
         if (reading.value.isFinite() && reading.value > 0f) {

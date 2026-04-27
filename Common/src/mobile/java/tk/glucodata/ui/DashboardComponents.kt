@@ -1,5 +1,6 @@
 package tk.glucodata.ui
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.AnimatedContent
@@ -92,6 +93,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -145,6 +147,25 @@ private fun trendCornerWeightsFromVelocity(velocity: Float): TrendCornerWeights 
 }
 
 private fun directionalRadius(weight: Float, min: Dp, max: Dp): Dp = lerp(min, max, weight.coerceIn(0f, 1f))
+
+private const val CalibrationDeleteSwipeThresholdFraction = 0.4f
+
+private suspend fun androidx.compose.material3.SnackbarHostState?.showCalibrationUndoSnackbar(
+    message: String,
+    actionLabel: String
+): androidx.compose.material3.SnackbarResult? {
+    val hostState = this ?: return null
+    hostState.currentSnackbarData?.dismiss()
+    val result = hostState.showSnackbar(
+        message = message,
+        actionLabel = actionLabel,
+        duration = androidx.compose.material3.SnackbarDuration.Short
+    )
+    if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+        hostState.currentSnackbarData?.dismiss()
+    }
+    return result
+}
 
 @Composable
 fun DashboardCombinedHeader(
@@ -1096,6 +1117,7 @@ fun RecentReadingsCard(
     recentReadings: List<GlucosePoint>,
     unit: String,
     viewMode: Int,
+    footerLabel: String,
     onViewHistory: (() -> Unit)? = null,
     content: @Composable (Int, GlucosePoint) -> Unit // Rendering the row with Index
 ) {
@@ -1124,8 +1146,11 @@ fun RecentReadingsCard(
                 recentReadings.forEachIndexed { index, item ->
                     key(item.timestamp) {
                         val isNewReading = !seenTimestamps.contains(item.timestamp)
+                        val shouldAnimateNewReading = isNewReading
                         if (isNewReading) {
                             seenTimestamps.add(item.timestamp)
+                        }
+                        if (shouldAnimateNewReading) {
                             AnimatedVisibility(
                                 visibleState = remember { MutableTransitionState(false).apply { targetState = true } },
                                 enter = expandVertically(expandFrom = Alignment.Top) + fadeIn()
@@ -1157,7 +1182,7 @@ fun RecentReadingsCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = stringResource(R.string.historyname),
+                            text = footerLabel,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -1183,10 +1208,15 @@ private fun SwipeableDeleteRow(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val view = LocalView.current
+    var deleteArmHapticSent by remember(isDisabled) { mutableStateOf(false) }
+    var rowWidthPx by remember(isDisabled) { mutableStateOf(0) }
+
     // Key on isDisabled so state resets when toggled
     val dismissState = key(isDisabled) {
         androidx.compose.material3.rememberSwipeToDismissBoxState(
-            positionalThreshold = { it * 0.25f }, // 25% threshold for easier swipe
+            // Require a more deliberate swipe before destructive actions fire.
+            positionalThreshold = { it * CalibrationDeleteSwipeThresholdFraction },
             confirmValueChange = { dismissValue ->
                 when (dismissValue) {
                     androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> {
@@ -1202,10 +1232,27 @@ private fun SwipeableDeleteRow(
             }
         )
     }
+
+    val currentOffset = runCatching { dismissState.requireOffset() }.getOrDefault(0f)
+    val deleteArmed =
+        rowWidthPx > 0 &&
+            dismissState.dismissDirection == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart &&
+            -currentOffset >= rowWidthPx * CalibrationDeleteSwipeThresholdFraction
+
+    LaunchedEffect(deleteArmed) {
+        if (deleteArmed) {
+            if (!deleteArmHapticSent) {
+                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                deleteArmHapticSent = true
+            }
+        } else {
+            deleteArmHapticSent = false
+        }
+    }
     
     androidx.compose.material3.SwipeToDismissBox(
         state = dismissState,
-        modifier = modifier,
+        modifier = modifier.onSizeChanged { rowWidthPx = it.width },
         enableDismissFromStartToEnd = true,
         enableDismissFromEndToStart = true,
         backgroundContent = {
@@ -1477,16 +1524,17 @@ fun CalibrationsCard(
                                          animatingOutIds.removeAll { it == cal.id } // Cleanup
                                          
                                          // Show Undo Snackbar
-                                         val result = snackbarHostState?.showSnackbar(
+                                         val result = snackbarHostState.showCalibrationUndoSnackbar(
                                              message = Applic.app.getString(R.string.calibration_deleted),
-                                             actionLabel = Applic.app.getString(R.string.undo),
-                                             duration = androidx.compose.material3.SnackbarDuration.Short
+                                             actionLabel = Applic.app.getString(R.string.undo)
                                          )
                                          
                                          // Handle Undo
                                          if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
                                              animatingInIds.add(cal.id)
                                              tk.glucodata.data.calibration.CalibrationManager.restoreCalibration(cal)
+                                             delay(300)
+                                             animatingInIds.removeAll { it == cal.id }
                                          }
                                      }
                                  },
@@ -1581,6 +1629,7 @@ fun CalibrationsCard(
                 scope.launch {
                     val disabled = calibrations.filter { !it.isEnabled }
                     disabled.forEach { tk.glucodata.data.calibration.CalibrationManager.deleteCalibration(it) }
+                    snackbarHostState?.currentSnackbarData?.dismiss()
                     snackbarHostState?.showSnackbar(
                         message = Applic.app.getString(R.string.disabled_calibrations_cleared, disabled.size),
                         duration = androidx.compose.material3.SnackbarDuration.Short
@@ -1593,10 +1642,9 @@ fun CalibrationsCard(
                     val backup = calibrations
                     tk.glucodata.data.calibration.CalibrationManager.clearAll()
                     
-                    val result = snackbarHostState?.showSnackbar(
+                    val result = snackbarHostState.showCalibrationUndoSnackbar(
                         message = Applic.app.getString(R.string.all_calibrations_cleared),
-                        actionLabel = Applic.app.getString(R.string.undo),
-                        duration = androidx.compose.material3.SnackbarDuration.Short
+                        actionLabel = Applic.app.getString(R.string.undo)
                     )
                     
                     if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {

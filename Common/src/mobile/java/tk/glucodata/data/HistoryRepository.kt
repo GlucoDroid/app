@@ -12,7 +12,11 @@ import kotlinx.coroutines.CoroutineScope
 import tk.glucodata.Applic
 import tk.glucodata.BatteryTrace
 import tk.glucodata.Natives
+import tk.glucodata.SensorBluetooth
+import tk.glucodata.SensorIdentity
+import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.calibration.CalibrationManager
+import tk.glucodata.drivers.ManagedSensorIdentityRegistry
 import tk.glucodata.ui.GlucosePoint
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,10 +36,17 @@ class HistoryRepository(context: Context = Applic.app) {
     
     private val database = HistoryDatabase.getInstance(context)
     private val dao = database.historyDao()
+
+    private fun resolveQuerySensorSerials(sensorSerial: String?): List<String> =
+        SensorIdentity.resolveRoomQuerySensorIds(sensorSerial)
+            .ifEmpty {
+                sensorSerial?.trim()?.takeIf { it.isNotEmpty() }?.let(::listOf) ?: emptyList()
+            }
     
     companion object {
         private const val TAG = "HistoryRepo"
         private const val SENSOR_MINUTE_BUCKET_MS = 60_000L
+        private const val DELETED_TIMESTAMP_QUERY_CHUNK = 900
         private val TIME_FORMATTER = object : ThreadLocal<SimpleDateFormat>() {
             override fun initialValue(): SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         }
@@ -65,7 +76,7 @@ class HistoryRepository(context: Context = Applic.app) {
         @JvmStatic
         fun getHistoryBlocking(startTime: Long, isMmol: Boolean): List<GlucosePoint> {
             return kotlinx.coroutines.runBlocking {
-                val raw = HistoryRepository().getDisplayHistory(Natives.lastsensorname(), startTime)
+                val raw = HistoryRepository().getDisplayHistory(SensorIdentity.resolveMainSensor(), startTime)
                 if (isMmol) {
                     raw.map { p ->
                         val v = p.value / 18.0182f
@@ -85,7 +96,7 @@ class HistoryRepository(context: Context = Applic.app) {
                 try {
                     val valueMgDl = valueMmol * 18.0182f
                     // Use main sensor serial for source tagging
-                    val serial = Natives.lastsensorname() ?: "unknown"
+                    val serial = SensorIdentity.resolveMainSensor() ?: Natives.lastsensorname() ?: "unknown"
                     HistoryRepository().storeReading(
                         timestamp = timestamp,
                         value = valueMgDl,
@@ -99,6 +110,35 @@ class HistoryRepository(context: Context = Applic.app) {
                 }
             }
         }
+
+        /**
+         * Blocking bridge for main/shared code that needs the persisted tail for one sensor.
+         * Used by HistorySyncAccess from non-suspending Java/main paths.
+         */
+        @JvmStatic
+        fun getLatestTimestampForSensorBlocking(sensorSerial: String): Long {
+            val resolvedSerial = sensorSerial.takeIf { it.isNotBlank() }
+                ?: return 0L
+            return kotlinx.coroutines.runBlocking {
+                HistoryRepository().getLatestTimestampForSensor(resolvedSerial)
+            }
+        }
+
+        @JvmStatic
+        fun getHistoryTimestampsForSensorBlocking(
+            sensorSerial: String,
+            startTime: Long,
+            endTime: Long
+        ): LongArray {
+            val resolvedSerial = sensorSerial.takeIf { it.isNotBlank() }
+                ?: return LongArray(0)
+            if (endTime < startTime) return LongArray(0)
+            return kotlinx.coroutines.runBlocking {
+                HistoryRepository()
+                    .getHistoryTimestampsForSensor(resolvedSerial, startTime, endTime)
+                    .toLongArray()
+            }
+        }
         
         /**
          * Blocking version for Notify.java that returns tk.glucodata.GlucosePoint.
@@ -107,7 +147,7 @@ class HistoryRepository(context: Context = Applic.app) {
         @JvmStatic
         fun getHistoryForNotification(startTime: Long, isMmol: Boolean): List<tk.glucodata.GlucosePoint> {
             return kotlinx.coroutines.runBlocking {
-                val serial = Natives.lastsensorname() ?: ""
+                val serial = SensorIdentity.resolveMainSensor() ?: ""
                 val repo = HistoryRepository()
                 val uiPoints = if (serial.isNotEmpty()) {
                     repo.getHistoryForSensor(serial, startTime)
@@ -134,7 +174,9 @@ class HistoryRepository(context: Context = Applic.app) {
             isMmol: Boolean
         ): List<tk.glucodata.GlucosePoint> {
             return kotlinx.coroutines.runBlocking {
-                val serial = sensorSerial?.takeIf { it.isNotBlank() } ?: Natives.lastsensorname() ?: ""
+                val serial = SensorIdentity.resolveAppSensorId(sensorSerial)
+                    ?: SensorIdentity.resolveMainSensor()
+                    ?: ""
                 if (serial.isEmpty()) {
                     Log.w(TAG, "getHistoryForNotificationForSensor: no sensor serial, returning empty list")
                     return@runBlocking emptyList()
@@ -155,7 +197,7 @@ class HistoryRepository(context: Context = Applic.app) {
         @JvmStatic
         fun getHistoryRawForNotification(startTime: Long): List<tk.glucodata.GlucosePoint> {
             return kotlinx.coroutines.runBlocking {
-                val serial = Natives.lastsensorname() ?: ""
+                val serial = SensorIdentity.resolveMainSensor() ?: ""
                 val repo = HistoryRepository()
                 val uiPoints = if (serial.isNotEmpty()) {
                     repo.getHistoryForSensor(serial, startTime)
@@ -232,9 +274,63 @@ class HistoryRepository(context: Context = Applic.app) {
                         readings = readings,
                         bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
                     )
+                    UiRefreshBus.requestDataRefresh()
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed storing history batch for $sensorSerial", e)
                 }
+            }
+        }
+
+        @JvmStatic
+        fun storeHistoryBatchBlocking(
+            sensorSerial: String,
+            timestamps: LongArray,
+            values: FloatArray,
+            rawValues: FloatArray
+        ): Boolean {
+            if (sensorSerial.isBlank()) return false
+            if (timestamps.isEmpty()) return true
+            if (timestamps.size != values.size || timestamps.size != rawValues.size) {
+                Log.w(
+                    TAG,
+                    "storeHistoryBatchBlocking rejected mismatched arrays for $sensorSerial " +
+                        "(timestamps=${timestamps.size}, values=${values.size}, raw=${rawValues.size})"
+                )
+                return false
+            }
+
+            return try {
+                kotlinx.coroutines.runBlocking {
+                    val readings = ArrayList<HistoryReading>(timestamps.size)
+                    for (index in timestamps.indices) {
+                        val timestamp = timestamps[index]
+                        val value = values[index]
+                        val rawValue = rawValues[index]
+                        if (timestamp <= 0L) continue
+                        if ((!value.isFinite() || value <= 0f) && (!rawValue.isFinite() || rawValue <= 0f)) continue
+                        readings.add(
+                            HistoryReading(
+                                timestamp = timestamp,
+                                sensorSerial = sensorSerial,
+                                value = if (value.isFinite()) value else 0f,
+                                rawValue = if (rawValue.isFinite()) rawValue else 0f,
+                                rate = null
+                            )
+                        )
+                    }
+                    HistoryRepository().storeReadingsReplacingSensorBuckets(
+                        sensorSerial = sensorSerial,
+                        readings = readings,
+                        bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
+                    )
+                }.also { stored ->
+                    if (stored) {
+                        UiRefreshBus.requestDataRefresh()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed storing blocking history batch for $sensorSerial", e)
+                false
             }
         }
     }
@@ -248,7 +344,10 @@ class HistoryRepository(context: Context = Applic.app) {
         // Don't store invalid readings
         if (value <= 0 && rawValue <= 0) return
         
-        val serial = sensorSerial ?: Natives.lastsensorname() ?: "unknown"
+        val serial = SensorIdentity.resolveAppSensorId(sensorSerial)
+            ?: SensorIdentity.resolveMainSensor()
+            ?: Natives.lastsensorname()
+            ?: "unknown"
         val storedValue = maybeProjectCalibratedValueForStorage(
             sensorSerial = serial,
             timestamp = timestamp,
@@ -264,6 +363,10 @@ class HistoryRepository(context: Context = Applic.app) {
         )
         withContext(Dispatchers.IO) {
             try {
+                if (dao.isReadingDeleted(serial, timestamp) > 0) {
+                    Log.d(TAG, "Skipped tombstoned reading for $serial at $timestamp")
+                    return@withContext
+                }
                 dao.insert(reading)
             } catch (e: Exception) {
                 Log.e(TAG, "Error storing reading", e)
@@ -314,11 +417,16 @@ class HistoryRepository(context: Context = Applic.app) {
         
         withContext(Dispatchers.IO) {
             try {
-                dao.insertAll(readings)
-                BatteryTrace.bump("room.history.insert_batch", logEvery = 20L, detail = "size=${readings.size}")
+                val filteredReadings = filterDeletedReadings(readings)
+                if (filteredReadings.isEmpty()) {
+                    Log.d(TAG, "Skipped ${readings.size} tombstoned readings")
+                    return@withContext
+                }
+                dao.insertAll(filteredReadings)
+                BatteryTrace.bump("room.history.insert_batch", logEvery = 20L, detail = "size=${filteredReadings.size}")
                 // Only log small batches (likely genuine new data, not re-syncs)
-                if (readings.size <= 10) {
-                    Log.d(TAG, "Stored ${readings.size} readings")
+                if (filteredReadings.size <= 10) {
+                    Log.d(TAG, "Stored ${filteredReadings.size} readings")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error storing readings batch", e)
@@ -335,15 +443,20 @@ class HistoryRepository(context: Context = Applic.app) {
         sensorSerial: String,
         readings: List<HistoryReading>,
         bucketDurationMs: Long,
-    ) {
-        if (sensorSerial.isBlank() || readings.isEmpty()) return
-        val plan = HistoryBucketReplacement.plan(
-            readings = readings,
-            bucketDurationMs = bucketDurationMs,
-        ) ?: return
+    ): Boolean {
+        if (sensorSerial.isBlank() || readings.isEmpty()) return false
 
-        withContext(Dispatchers.IO) {
+        return withContext(Dispatchers.IO) {
             try {
+                val filteredReadings = filterDeletedReadings(readings)
+                if (filteredReadings.isEmpty()) {
+                    Log.d(TAG, "Skipped bucket replace for $sensorSerial — all readings were tombstoned")
+                    return@withContext false
+                }
+                val plan = HistoryBucketReplacement.plan(
+                    readings = filteredReadings,
+                    bucketDurationMs = bucketDurationMs,
+                ) ?: return@withContext false
                 database.withTransaction {
                     dao.deleteConflictingSensorRowsForBuckets(
                         sensorSerial = sensorSerial,
@@ -351,16 +464,43 @@ class HistoryRepository(context: Context = Applic.app) {
                         bucketIds = plan.bucketIds,
                         protectedTimestamps = plan.protectedTimestamps
                     )
-                    dao.insertAll(readings)
+                    dao.insertAll(filteredReadings)
                 }
                 BatteryTrace.bump(
                     "room.history.replace_bucket_batch",
                     logEvery = 20L,
-                    detail = "serial=$sensorSerial size=${readings.size} bucket=${bucketDurationMs}"
+                    detail = "serial=$sensorSerial size=${filteredReadings.size} bucket=${bucketDurationMs}"
                 )
+                true
             } catch (e: Exception) {
                 Log.e(TAG, "Error replacing bucket history batch for $sensorSerial", e)
+                false
             }
+        }
+    }
+
+    private suspend fun filterDeletedReadings(readings: List<HistoryReading>): List<HistoryReading> {
+        if (readings.isEmpty()) return emptyList()
+
+        val deletedBySensor = mutableMapOf<String, MutableSet<Long>>()
+        readings.groupBy(HistoryReading::sensorSerial).forEach { (sensorSerial, sensorReadings) ->
+            val timestamps = sensorReadings.map(HistoryReading::timestamp).distinct()
+            if (timestamps.isEmpty()) return@forEach
+            val deletedTimestamps = LinkedHashSet<Long>()
+            timestamps.chunked(DELETED_TIMESTAMP_QUERY_CHUNK).forEach { chunk ->
+                deletedTimestamps.addAll(dao.getDeletedTimestampsForSensor(sensorSerial, chunk))
+            }
+            if (deletedTimestamps.isNotEmpty()) {
+                deletedBySensor[sensorSerial] = deletedTimestamps
+            }
+        }
+
+        if (deletedBySensor.isEmpty()) {
+            return readings
+        }
+
+        return readings.filterNot { reading ->
+            deletedBySensor[reading.sensorSerial]?.contains(reading.timestamp) == true
         }
     }
 
@@ -370,7 +510,11 @@ class HistoryRepository(context: Context = Applic.app) {
      * Get history for a specific sensor as a Flow (Raw mg/dL).
      */
     fun getHistoryFlowForSensor(serial: String, startTime: Long = 0L): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
-        return dao.getHistoryFlowForSensor(serial, startTime).map { readings ->
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        return dao.getHistoryFlowForSensors(serials, startTime).map { readings ->
             mapReadings(readings)
         }.flowOn(Dispatchers.IO)
     }
@@ -384,7 +528,11 @@ class HistoryRepository(context: Context = Applic.app) {
         serial: String,
         startTime: Long
     ): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
-        return dao.getHistoryFlowForSensor(serial, startTime).map { readings ->
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        return dao.getHistoryFlowForSensors(serials, startTime).map { readings ->
             readings.map { reading ->
                 GlucosePoint(
                     value = reading.value,
@@ -402,7 +550,11 @@ class HistoryRepository(context: Context = Applic.app) {
      * Get the latest reading for a specific sensor as a reactive Flow.
      */
     fun getLatestReadingFlowForSensor(serial: String): kotlinx.coroutines.flow.Flow<GlucosePoint?> {
-        return dao.getLatestReadingFlowForSensor(serial).map { reading ->
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty()) {
+            return kotlinx.coroutines.flow.flowOf(null)
+        }
+        return dao.getLatestReadingFlowForSensors(serials).map { reading ->
             reading?.let {
                 GlucosePoint(
                     value = it.value,
@@ -420,12 +572,31 @@ class HistoryRepository(context: Context = Applic.app) {
      * Get history for a specific sensor (suspend, Raw mg/dL).
      */
     suspend fun getHistoryForSensor(serial: String, startTime: Long): List<GlucosePoint> {
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty()) return emptyList()
         return withContext(Dispatchers.IO) {
             try {
-                val readings = dao.getReadingsSinceForSensor(serial, startTime)
+                val readings = dao.getReadingsSinceForSensors(serials, startTime)
                 mapReadings(readings)
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting history for sensor $serial", e)
+                emptyList()
+            }
+        }
+    }
+
+    suspend fun getHistoryTimestampsForSensor(
+        serial: String,
+        startTime: Long,
+        endTime: Long
+    ): List<Long> {
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty() || endTime < startTime) return emptyList()
+        return withContext(Dispatchers.IO) {
+            try {
+                dao.getTimestampsForSensors(serials, startTime, endTime)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting history timestamps for sensor $serial", e)
                 emptyList()
             }
         }
@@ -436,9 +607,11 @@ class HistoryRepository(context: Context = Applic.app) {
      * Returns 0 if no readings exist for that sensor.
      */
     suspend fun getLatestTimestampForSensor(serial: String): Long {
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty()) return 0L
         return withContext(Dispatchers.IO) {
             try {
-                dao.getLatestReadingForSensor(serial)?.timestamp ?: 0L
+                dao.getLatestReadingForSensors(serials)?.timestamp ?: 0L
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting latest timestamp for sensor $serial", e)
                 0L
@@ -447,9 +620,11 @@ class HistoryRepository(context: Context = Applic.app) {
     }
 
     suspend fun getOldestTimestampForSensor(serial: String): Long {
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty()) return 0L
         return withContext(Dispatchers.IO) {
             try {
-                dao.getOldestTimestampForSensor(serial) ?: 0L
+                dao.getOldestTimestampForSensors(serials) ?: 0L
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting oldest timestamp for sensor $serial", e)
                 0L
@@ -458,9 +633,11 @@ class HistoryRepository(context: Context = Applic.app) {
     }
 
     suspend fun getReadingCountForSensor(serial: String): Int {
+        val serials = resolveQuerySensorSerials(serial)
+        if (serials.isEmpty()) return 0
         return withContext(Dispatchers.IO) {
             try {
-                dao.getCountForSensor(serial)
+                dao.getCountForSensors(serials)
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting count for sensor $serial", e)
                 0
@@ -617,11 +794,20 @@ class HistoryRepository(context: Context = Applic.app) {
      * has not yet been merged into Room during this process lifetime.
      */
     suspend fun ensureBackfilled(preferredSerial: String? = null) {
+        val runtimeSensors = LinkedHashSet<String>()
+        SensorBluetooth.mygatts().forEach { callback ->
+            callback.SerialNumber
+                ?.takeIf { it.isNotBlank() }
+                ?.let(runtimeSensors::add)
+        }
+        ManagedSensorIdentityRegistry.persistedSensorIds(Applic.app).forEach { serial ->
+            serial.takeIf { it.isNotBlank() }?.let(runtimeSensors::add)
+        }
         val sensorsToCheck = linkedSetOfSensors(
-            Natives.activeSensors(),
+            runtimeSensors.toTypedArray(),
             Natives.lastsensorname(),
             preferredSerial
-        )
+        ).filter(SensorIdentity::shouldUseNativeHistorySync)
         if (sensorsToCheck.isEmpty()) {
             Log.d(TAG, "No sensors for backfill")
             return
@@ -657,7 +843,7 @@ class HistoryRepository(context: Context = Applic.app) {
      */
     private suspend fun backfillSensor(serial: String): Boolean {
         try {
-            val rawHistory = Natives.getGlucoseHistoryForSensor(serial, 0L)
+            val rawHistory = loadNativeHistory(serial, 0L)
             if (rawHistory == null) {
                 Log.d(TAG, "Native history for $serial returned null")
                 return false
@@ -687,8 +873,13 @@ class HistoryRepository(context: Context = Applic.app) {
             }
 
             if (readings.isNotEmpty()) {
-                dao.insertAll(readings)
-                Log.d(TAG, "Backfilled ${readings.size} readings from native for sensor $serial")
+                val filteredReadings = filterDeletedReadings(readings)
+                if (filteredReadings.isNotEmpty()) {
+                    dao.insertAll(filteredReadings)
+                    Log.d(TAG, "Backfilled ${filteredReadings.size} readings from native for sensor $serial")
+                } else {
+                    Log.d(TAG, "Backfill for $serial skipped — all readings were tombstoned")
+                }
             } else {
                 Log.d(TAG, "Backfill for $serial completed with 0 readings")
             }
@@ -697,6 +888,22 @@ class HistoryRepository(context: Context = Applic.app) {
             Log.e(TAG, "Error backfilling sensor $serial", e)
             return false
         }
+    }
+
+    private fun loadNativeHistory(serial: String, startSec: Long): LongArray? {
+        val queryNames = SensorIdentity.resolveNativeHistorySensorNames(serial)
+            .ifEmpty { listOf(serial) }
+        for (queryName in queryNames) {
+            val exact = try {
+                Natives.getGlucoseHistoryForSensor(queryName, startSec)
+            } catch (_: Throwable) {
+                null
+            }
+            if (exact != null) {
+                return exact
+            }
+        }
+        return null
     }
 
     /**
@@ -712,6 +919,37 @@ class HistoryRepository(context: Context = Applic.app) {
                 Log.d(TAG, "Deleted Room data for sensor $serial")
             } catch (e: Exception) {
                 Log.e(TAG, "Error deleting data for sensor $serial", e)
+            }
+        }
+    }
+
+    suspend fun deleteReading(timestamp: Long, sensorSerial: String): Int {
+        if (timestamp <= 0L || sensorSerial.isBlank()) return 0
+        val serials = resolveQuerySensorSerials(sensorSerial).ifEmpty { listOf(sensorSerial) }
+        if (serials.isEmpty()) return 0
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val deletedAt = System.currentTimeMillis()
+                var removedCount = 0
+                database.withTransaction {
+                    dao.insertDeletedReadings(
+                        serials.map { serial ->
+                            DeletedHistoryReading(
+                                timestamp = timestamp,
+                                sensorSerial = serial,
+                                deletedAt = deletedAt
+                            )
+                        }
+                    )
+                    removedCount = dao.deleteReadingsAtTimestamp(serials, timestamp)
+                }
+                UiRefreshBus.requestDataRefresh()
+                Log.d(TAG, "Deleted reading at $timestamp for serials=$serials removed=$removedCount")
+                removedCount
+            } catch (e: Exception) {
+                Log.e(TAG, "Error deleting reading at $timestamp for $sensorSerial", e)
+                0
             }
         }
     }
@@ -797,10 +1035,16 @@ class HistoryRepository(context: Context = Applic.app) {
     ): LinkedHashSet<String> {
         val result = LinkedHashSet<String>()
         activeSensors?.forEach { serial ->
-            serial?.takeIf { it.isNotBlank() }?.let(result::add)
+            (SensorIdentity.resolveAppSensorId(serial) ?: serial)
+                ?.takeIf { it.isNotBlank() }
+                ?.let(result::add)
         }
-        mainSensor?.takeIf { it.isNotBlank() }?.let(result::add)
-        preferredSerial?.takeIf { it.isNotBlank() }?.let(result::add)
+        (SensorIdentity.resolveAppSensorId(mainSensor) ?: mainSensor)
+            ?.takeIf { it.isNotBlank() }
+            ?.let(result::add)
+        (SensorIdentity.resolveAppSensorId(preferredSerial) ?: preferredSerial)
+            ?.takeIf { it.isNotBlank() }
+            ?.let(result::add)
         return result
     }
 }

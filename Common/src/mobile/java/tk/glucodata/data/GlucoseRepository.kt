@@ -22,9 +22,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
  * New readings are stored in Room for long-term history while still using native data for
  * real-time display and calibration.
  *
- * Multi-sensor: current/live reads stay pinned to the selected sensor, while history/chart
- * queries build a merged display timeline from all stored sensors and prefer the selected
- * sensor only when timestamps conflict.
+ * Multi-sensor: current/live reads stay pinned to the selected sensor. History/chart queries
+ * prefer that same sensor's Room history directly; only when no current sensor is known do we
+ * fall back to the broader merged display timeline.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class GlucoseRepository {
@@ -39,7 +39,7 @@ class GlucoseRepository {
      */
     private val _currentSerial = MutableStateFlow(
         SensorIdentity.resolveAvailableMainSensor(
-            selectedMain = Natives.lastsensorname(),
+            selectedMain = SensorIdentity.resolveMainSensor(),
             preferredSensorId = null,
             activeSensors = Natives.activeSensors()
         ) ?: ""
@@ -52,7 +52,8 @@ class GlucoseRepository {
      */
     fun refreshSensorSerial(preferredSerial: String? = null) {
         val current = _currentSerial.value
-        val nativeCurrent = Natives.lastsensorname()?.takeIf { it.isNotBlank() }
+        val nativeCurrent = SensorIdentity.resolveMainSensor()
+            ?.takeIf { it.isNotBlank() }
         val resolved = preferredSerial?.takeIf { it.isNotBlank() }
             ?: nativeCurrent
             ?: SensorIdentity.resolveAvailableMainSensor(
@@ -121,6 +122,13 @@ class GlucoseRepository {
     }
 
     suspend fun syncLatestNativeReadingOnce() {
+        val serial = _currentSerial.value.takeIf { it.isNotBlank() }
+            ?: SensorIdentity.resolveMainSensor()
+            ?: Natives.lastsensorname()
+        if (!SensorIdentity.shouldUseNativeHistorySync(serial)) {
+            Log.d(TAG, "syncLatestNativeReadingOnce skipped for driver-owned Room sensor '$serial'")
+            return
+        }
         val nowMs = SystemClock.elapsedRealtime()
         synchronized(this) {
             if ((nowMs - lastOneShotSyncStartedAtMs) < ONE_SHOT_SYNC_MIN_INTERVAL_MS) {
@@ -149,7 +157,8 @@ class GlucoseRepository {
             BatteryTrace.bump("glucose.native.poll_once", logEvery = 20L)
             // Get the main sensor serial for tagging
             val sensorSerial = Natives.lastsensorname() ?: "unknown"
-            if (sensorSerial.isBlank()) return
+            val canonicalSerial = SensorIdentity.resolveAppSensorId(sensorSerial) ?: sensorSerial
+            if (canonicalSerial.isBlank()) return
             
             // Fetch the last 2 minutes of main-sensor history.
             // getGlucoseHistory uses infoblockptr()->current — main sensor only.
@@ -184,7 +193,7 @@ class GlucoseRepository {
                 value = valueMgdl,
                 rawValue = rawValueMgdl,
                 rate = rate,
-                sensorSerial = sensorSerial
+                sensorSerial = canonicalSerial
             )
             lastStoredTimestampMs = timestampMs
         } catch (e: Exception) {
@@ -193,13 +202,38 @@ class GlucoseRepository {
     }
 
     private fun resolveDisplayPreferredSerial(explicitSerial: String? = null): String? {
-        val preferred = explicitSerial?.takeIf { it.isNotBlank() }
+        val preferred = (SensorIdentity.resolveAppSensorId(explicitSerial) ?: explicitSerial)
+            ?.takeIf { it.isNotBlank() }
             ?: _currentSerial.value.takeIf { it.isNotBlank() }
         return SensorIdentity.resolveAvailableMainSensor(
-            selectedMain = Natives.lastsensorname(),
+            selectedMain = SensorIdentity.resolveMainSensor(),
             preferredSensorId = preferred,
             activeSensors = Natives.activeSensors()
         ) ?: preferred
+    }
+
+    private suspend fun loadDisplayHistory(
+        preferredSerial: String?,
+        startTime: Long
+    ): List<GlucosePoint> {
+        val resolvedSerial = preferredSerial?.takeIf { it.isNotBlank() }
+        return if (resolvedSerial != null) {
+            historyRepository.getHistoryForSensor(resolvedSerial, startTime)
+        } else {
+            historyRepository.getDisplayHistory(null, startTime)
+        }
+    }
+
+    private fun observeDisplayHistory(
+        preferredSerial: String?,
+        startTime: Long
+    ): Flow<List<GlucosePoint>> {
+        val resolvedSerial = preferredSerial?.takeIf { it.isNotBlank() }
+        return if (resolvedSerial != null) {
+            historyRepository.getHistoryFlowForSensor(resolvedSerial, startTime)
+        } else {
+            historyRepository.getDisplayHistoryFlow(null, startTime)
+        }
     }
 
     /**
@@ -211,7 +245,7 @@ class GlucoseRepository {
         val isMmol = (unit == 1)
         val preferredSerial = resolveDisplayPreferredSerial()
         historyRepository.ensureBackfilled(preferredSerial)
-        val rawHistory = historyRepository.getDisplayHistory(preferredSerial, 0L)
+        val rawHistory = loadDisplayHistory(preferredSerial, 0L)
         
         // Convert to display unit
         return rawHistory.map { p ->
@@ -228,7 +262,7 @@ class GlucoseRepository {
     suspend fun getHistory(startTime: Long, isMmol: Boolean): List<GlucosePoint> {
         val preferredSerial = resolveDisplayPreferredSerial()
         historyRepository.ensureBackfilled(preferredSerial)
-        val raw = historyRepository.getDisplayHistory(preferredSerial, startTime)
+        val raw = loadDisplayHistory(preferredSerial, startTime)
         return if (isMmol) {
             raw.map { p ->
                 val v = p.value / 18.0182f
@@ -240,8 +274,9 @@ class GlucoseRepository {
 
     /**
      * Get history as a Flow for reactive updates.
-     * Builds a merged display timeline and re-evaluates conflict preference when the
-     * selected sensor changes.
+     * Follows the selected sensor's Room history directly when we know which sensor is
+     * active, and only falls back to the merged display timeline when there is no current
+     * sensor yet.
      */
     fun getHistoryFlow(startTime: Long = 0L, isMmol: Boolean): Flow<List<GlucosePoint>> {
         return _currentSerial.flatMapLatest { serial ->
@@ -250,7 +285,7 @@ class GlucoseRepository {
                 launch {
                     historyRepository.ensureBackfilled(preferredSerial)
                 }
-                historyRepository.getDisplayHistoryFlow(preferredSerial, startTime).collect { points ->
+                observeDisplayHistory(preferredSerial, startTime).collect { points ->
                     send(points)
                 }
             }
@@ -265,7 +300,7 @@ class GlucoseRepository {
 
     /**
      * Get history as a Flow in RAW mg/dL (no conversion).
-     * Uses the same merged display timeline as the dashboard chart.
+     * Uses the current sensor's Room history when available.
      */
     fun getHistoryFlowRaw(startTime: Long = 0L): Flow<List<GlucosePoint>> {
         return _currentSerial.flatMapLatest { serial ->
@@ -274,7 +309,7 @@ class GlucoseRepository {
                 launch {
                     historyRepository.ensureBackfilled(preferredSerial)
                 }
-                historyRepository.getDisplayHistoryFlow(preferredSerial, startTime).collect { points ->
+                observeDisplayHistory(preferredSerial, startTime).collect { points ->
                     send(points)
                 }
             }
@@ -289,7 +324,7 @@ class GlucoseRepository {
         return kotlinx.coroutines.runBlocking {
             val preferredSerial = resolveDisplayPreferredSerial()
             historyRepository.ensureBackfilled(preferredSerial)
-            val rawHistory = historyRepository.getDisplayHistory(preferredSerial, 0L)
+            val rawHistory = loadDisplayHistory(preferredSerial, 0L)
             val isMmol = (Natives.getunit() == 1)
             rawHistory.map { p ->
                 val v = if (isMmol) p.value / 18.0182f else p.value
@@ -317,7 +352,7 @@ class GlucoseRepository {
                 val preferredSerial = resolveDisplayPreferredSerial()
                 historyRepository.ensureBackfilled(preferredSerial)
                 val startMs = (System.currentTimeMillis() - durationMs).coerceAtLeast(0L)
-                val rawHistory = historyRepository.getDisplayHistory(preferredSerial, startMs)
+                val rawHistory = loadDisplayHistory(preferredSerial, startMs)
                 val isMmol = (Natives.getunit() == 1)
                 rawHistory.map { p ->
                     val v = if (isMmol) p.value / 18.0182f else p.value

@@ -1,5 +1,7 @@
 package tk.glucodata
 
+import tk.glucodata.drivers.ManagedSensorRuntime
+
 object CurrentGlucoseSource {
     private const val DEFAULT_MAX_AGE_MS = 15 * 60 * 1000L
     private const val SECONDS_EPOCH_CUTOFF = 10_000_000_000L
@@ -8,6 +10,7 @@ object CurrentGlucoseSource {
         val timeMillis: Long,
         val valueText: String,
         val numericValue: Float,
+        val rawNumericValue: Float,
         val rate: Float,
         val sensorId: String?,
         val sensorGen: Int,
@@ -31,21 +34,33 @@ object CurrentGlucoseSource {
     @JvmStatic
     fun getFresh(maxAgeMillis: Long, preferredSensorId: String?): Snapshot? {
         val now = System.currentTimeMillis()
+        val targetSensor = preferredSensorId ?: SensorIdentity.resolveMainSensor()
 
         val callback = getFromCallback(now, maxAgeMillis)
-        val native = getFromNative(now, maxAgeMillis)
+        val managed = getFromManaged(now, maxAgeMillis, targetSensor)
+        val native = if (targetSensor == null || SensorIdentity.hasNativeSensorBacking(targetSensor)) {
+            getFromNative(now, maxAgeMillis)
+        } else {
+            null
+        }
         if (preferredSensorId.isNullOrBlank()) {
-            if (callback != null) {
-                return callback
+            if (managed != null) {
+                return managed
             }
-            return native
+            if (callback != null && (targetSensor == null || SensorIdentity.matches(callback.sensorId, targetSensor))) {
+                return enrichWithManagedRaw(callback)
+            }
+            return enrichWithManagedRaw(native)
         }
 
+        if (managed != null && SensorIdentity.matches(managed.sensorId, preferredSensorId)) {
+            return managed
+        }
         if (callback != null && SensorIdentity.matches(callback.sensorId, preferredSensorId)) {
-            return callback
+            return enrichWithManagedRaw(callback)
         }
         if (native != null && SensorIdentity.matches(native.sensorId, preferredSensorId)) {
-            return native
+            return enrichWithManagedRaw(native)
         }
         return null
     }
@@ -67,11 +82,32 @@ object CurrentGlucoseSource {
             timeMillis = timeMillis,
             valueText = latest.value ?: "",
             numericValue = numericValue,
+            rawNumericValue = Float.NaN,
             rate = latest.rate,
             sensorId = SuperGattCallback.previousglucosesensorid ?: Natives.lastsensorname(),
             sensorGen = latest.sensorgen2,
             index = 0,
             source = "callback"
+        )
+    }
+
+    private fun getFromManaged(now: Long, maxAgeMillis: Long, preferredSensorId: String?): Snapshot? {
+        val targetSensor = preferredSensorId ?: SensorIdentity.resolveMainSensor()
+        val managed = ManagedSensorRuntime.resolveCurrentSnapshot(targetSensor, maxAgeMillis) ?: return null
+        val timeMillis = normalizeTimeMillis(managed.timeMillis)
+        if (kotlin.math.abs(now - timeMillis) > maxAgeMillis) {
+            return null
+        }
+        return Snapshot(
+            timeMillis = timeMillis,
+            valueText = "",
+            numericValue = managed.glucoseValue,
+            rawNumericValue = managed.rawGlucoseValue,
+            rate = managed.rate,
+            sensorId = targetSensor,
+            sensorGen = managed.sensorGen,
+            index = 0,
+            source = "managed"
         )
     }
 
@@ -88,12 +124,25 @@ object CurrentGlucoseSource {
             timeMillis = timeMillis,
             valueText = latest.value ?: "",
             numericValue = numericValue,
+            rawNumericValue = Float.NaN,
             rate = latest.rate,
             sensorId = latest.sensorid,
             sensorGen = latest.sensorgen2,
             index = latest.index,
             source = "native"
         )
+    }
+
+    private fun enrichWithManagedRaw(snapshot: Snapshot?): Snapshot? {
+        snapshot ?: return null
+        if (snapshot.rawNumericValue.isFinite() && snapshot.rawNumericValue > 0.1f) {
+            return snapshot
+        }
+        val managed = ManagedSensorRuntime.resolveCurrentSnapshot(snapshot.sensorId, DEFAULT_MAX_AGE_MS) ?: return snapshot
+        if (!managed.rawGlucoseValue.isFinite() || managed.rawGlucoseValue <= 0.1f) {
+            return snapshot
+        }
+        return snapshot.copy(rawNumericValue = managed.rawGlucoseValue)
     }
 
     @JvmStatic

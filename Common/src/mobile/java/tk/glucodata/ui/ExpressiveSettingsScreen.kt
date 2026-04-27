@@ -26,13 +26,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -44,6 +47,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import tk.glucodata.ui.util.findActivity
 import tk.glucodata.ui.util.fullRestart
 import tk.glucodata.ui.util.hardRestart
@@ -56,6 +60,7 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import tk.glucodata.BuildConfig
 import tk.glucodata.DataSmoothing
 import tk.glucodata.Natives
 import tk.glucodata.R
@@ -66,6 +71,7 @@ import tk.glucodata.ui.theme.labelLargeExpressive
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 //import tk.glucodata.ui.components.ExportDataDialog
 import tk.glucodata.ui.components.*
+import kotlin.math.roundToInt
 import java.util.Locale
 
 /**
@@ -86,6 +92,12 @@ fun ExpressiveSettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val mqAccountState = tk.glucodata.drivers.mq.MQRegistry.loadAccountState(context)
+    val showMqAccount =
+        tk.glucodata.drivers.mq.MQRegistry.persistedRecords(context).isNotEmpty() ||
+            mqAccountState.hasCredentials ||
+            mqAccountState.hasToken ||
+            tk.glucodata.drivers.mq.MQRegistry.isCloudSyncEnabled(context)
 
     // States
     val unit by viewModel.unit.collectAsState()
@@ -96,6 +108,14 @@ fun ExpressiveSettingsScreen(
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
+    val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val journalInsulinPresets by viewModel.journalInsulinPresets.collectAsState()
+    val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
+    val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
+    val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
+    val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
+    val predictionHorizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
     val alertsSummary by viewModel.alertsSummary.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
@@ -122,6 +142,8 @@ fun ExpressiveSettingsScreen(
     val hasHighAlarm by viewModel.hasHighAlarm.collectAsState()
     val highAlarmValue by viewModel.highAlarmThreshold.collectAsState()
     val highAlarmSoundMode by viewModel.highAlarmSoundMode.collectAsState()
+    val graphLowValue by viewModel.graphLow.collectAsState()
+    val graphHighValue by viewModel.graphHigh.collectAsState()
     val targetLowValue by viewModel.targetLow.collectAsState()
     val targetHighValue by viewModel.targetHigh.collectAsState()
 
@@ -135,7 +157,9 @@ fun ExpressiveSettingsScreen(
     var showPreviewWindowDialog by remember { mutableStateOf(false) }
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
-    var targetRangeExpanded by rememberSaveable { mutableStateOf(false) }
+    var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
+    var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
+    var predictiveSimulationExpanded by rememberSaveable { mutableStateOf(false) }
 
 
 
@@ -224,14 +248,16 @@ fun ExpressiveSettingsScreen(
                     onClick = { showUnitDialog = true }
                 )
 
-                TargetRangeExpandableSettingsItem(
-                    lowValue = targetLowValue,
-                    highValue = targetHighValue,
+                GlucoseRangeExpandableSettingsItem(
+                    targetLowValue = targetLowValue,
+                    targetHighValue = targetHighValue,
+                    chartLowValue = graphLowValue,
+                    chartHighValue = graphHighValue,
                     isMmol = isMmol,
-                    expanded = targetRangeExpanded,
-                    onExpandedChange = { targetRangeExpanded = it },
-                    onLowValueChange = { viewModel.setTargetLow(it) },
-                    onHighValueChange = { viewModel.setTargetHigh(it) },
+                    expanded = glucoseRangeExpanded,
+                    onExpandedChange = { glucoseRangeExpanded = it },
+                    onTargetRangeChange = { low, high -> viewModel.setTargetRange(low, high) },
+                    onChartRangeChange = { low, high -> viewModel.setGraphRange(low, high) },
                     iconTint = glucoseColor,
                     position = CardPosition.MIDDLE
                 )
@@ -241,6 +267,36 @@ fun ExpressiveSettingsScreen(
                     modeLabel = calibrationModeLabel,
                     onToggleEnabled = { CalibrationManager.setEnabledForMode(isRawCalibrationMode, it) },
                     onOpenCalibration = { navController.navigate("settings/calibrations") },
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE
+                )
+
+                JournalSettingsItem(
+                    journalEnabled = journalEnabled,
+                    activePresetCount = journalInsulinPresets.count { !it.isArchived },
+                    onToggleEnabled = { viewModel.setJournalEnabled(it) },
+                    onOpenJournal = { navController.navigate("settings/journal") },
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE
+                )
+
+                PredictiveSimulationExpandableSettingsItem(
+                    journalEnabled = journalEnabled,
+                    predictiveSimulationEnabled = predictiveSimulationEnabled,
+                    trendMomentumEnabled = predictionTrendMomentumEnabled,
+                    carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
+                    insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
+                    carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour,
+                    horizonMinutes = predictionHorizonMinutes,
+                    isMmol = isMmol,
+                    expanded = predictiveSimulationExpanded,
+                    onExpandedChange = { predictiveSimulationExpanded = it },
+                    onToggleSimulation = { viewModel.setPredictiveSimulationEnabled(it) },
+                    onToggleTrendMomentum = { viewModel.setPredictionTrendMomentumEnabled(it) },
+                    onCarbRatioChange = { viewModel.setPredictionCarbRatioGramsPerUnit(it) },
+                    onInsulinSensitivityChange = { viewModel.setPredictionInsulinSensitivityMgDlPerUnit(it) },
+                    onCarbAbsorptionChange = { viewModel.setPredictionCarbAbsorptionGramsPerHour(it) },
+                    onHorizonChange = { viewModel.setPredictionHorizonMinutes(it) },
                     iconTint = glucoseColor,
                     position = CardPosition.BOTTOM
                 )
@@ -265,8 +321,8 @@ fun ExpressiveSettingsScreen(
                 )
 
                 SettingsItem(
-                    title = "Notification Settings",
-                    subtitle = "Customize notification shade",
+                    title = stringResource(R.string.notification_settings_title),
+                    subtitle = stringResource(R.string.notification_settings_subtitle),
                     icon = Icons.Default.ClearAll,
                     iconTint = notifColor,
                     position = CardPosition.MIDDLE,
@@ -274,15 +330,15 @@ fun ExpressiveSettingsScreen(
                 )
                 SettingsItem(
                     title = stringResource(R.string.floatglucose),
-                    subtitle = "Display overlay on other apps",
+                    subtitle = stringResource(R.string.enable_overlay_desc),
                     icon = Icons.Default.PictureInPicture,
                     iconTint = notifColor,
                     position = CardPosition.MIDDLE,
                     onClick = { navController.navigate("settings/floating-display") }
                 )
                 SettingsItem(
-                    title = "Lock screen (AOD)",
-                    subtitle = "Customize always-on display",
+                    title = stringResource(R.string.lock_screen_aod),
+                    subtitle = stringResource(R.string.customize_always_on_display),
                     icon = Icons.Default.Visibility,
                     iconTint = notifColor,
                     position = CardPosition.BOTTOM,
@@ -365,6 +421,17 @@ fun ExpressiveSettingsScreen(
                         onClick = { navController.navigate("settings/libreview") }
                     )
                 }
+                if (showMqAccount) {
+                    SettingsItem(
+                        title = stringResource(R.string.mq_account_title),
+                        subtitle = stringResource(R.string.mq_account_linked_desc),
+                        showArrow = true,
+                        icon = Icons.Default.Cloud,
+                        iconTint = exchangeColor,
+                        position = CardPosition.MIDDLE,
+                        onClick = { navController.navigate("settings/mq-account") }
+                    )
+                }
                 SettingsItem(
                     title = stringResource(R.string.watches),
                     subtitle = "WearOS, Watchdrip, GadgetBridge, Kerfstok",
@@ -429,6 +496,15 @@ fun ExpressiveSettingsScreen(
                     onClick = { showPreviewWindowDialog = true }
                 )
                 SettingsItem(
+                    title = stringResource(R.string.cgm_readiness_title),
+                    subtitle = stringResource(R.string.cgm_readiness_settings_desc),
+                    showArrow = true,
+                    icon = Icons.Default.Security,
+                    iconTint = advColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/cgm-readiness") }
+                )
+                SettingsItem(
                     title = stringResource(R.string.debug_logs),
                     subtitle = stringResource(R.string.debug_logs_desc),
                     showArrow = true,
@@ -446,6 +522,55 @@ fun ExpressiveSettingsScreen(
         item(key = "data_group") {
             // Theme: Secondary (Files match notifications/system)
             val dataColor = MaterialTheme.colorScheme.secondary
+            val settingsExportLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.CreateDocument("application/json"),
+                onResult = { uri ->
+                    if (uri != null) {
+                        scope.launch {
+                            val result = tk.glucodata.data.SettingsExporter.exportToJson(context, uri)
+                            withContext(Dispatchers.Main) {
+                                val message = if (result.isSuccess) {
+                                    context.getString(R.string.export_successful)
+                                } else {
+                                    context.getString(
+                                        R.string.export_failed_with_error,
+                                        result.exceptionOrNull()?.localizedMessage
+                                            ?: context.getString(R.string.unknown_error)
+                                    )
+                                }
+                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+            )
+            val importLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument(),
+                onResult = { uri ->
+                    if (uri != null) {
+                        scope.launch {
+                            if (tk.glucodata.data.SettingsExporter.isSettingsExport(context, uri)) {
+                                withContext(Dispatchers.Main) {
+                                    pendingSettingsImportUri = uri
+                                }
+                            } else {
+                                // Show loading? For now just toast result
+                                val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
+                                withContext(Dispatchers.Main) {
+                                    val msg = if (result.success)
+                                        context.getString(R.string.imported_readings_count, result.successCount)
+                                    else
+                                        context.getString(
+                                            R.string.import_failed_with_error,
+                                            result.errorMessage ?: context.getString(R.string.unknown_error)
+                                        )
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    }
+                }
+            )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SettingsItem(
                     title = stringResource(R.string.export_data),
@@ -455,36 +580,27 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.TOP,
                     onClick = { showExportDialog = true }
                 )
-                // Import logic (Room based)
-                val context = LocalContext.current
-                val scope = rememberCoroutineScope()
-                val importLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.OpenDocument(),
-                    onResult = { uri ->
-                        if (uri != null) {
-                            scope.launch {
-                                // Show loading? For now just toast result
-                                val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
-                                withContext(Dispatchers.Main) {
-                                    val msg = if (result.success) 
-                                        "Imported: ${result.successCount} readings. Failed: ${result.failCount}"
-                                    else 
-                                        "Import Failed: ${result.errorMessage}"
-                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
+                SettingsItem(
+                    title = stringResource(R.string.export_settings),
+                    subtitle = stringResource(R.string.export_settings_desc),
+                    icon = Icons.Default.Settings,
+                    iconTint = dataColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = {
+                        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                            .format(System.currentTimeMillis())
+                        settingsExportLauncher.launch("Juggluco_Settings_$date.json")
                     }
                 )
 
                 SettingsItem(
-                    title = stringResource(R.string.import_data),
-                    subtitle = stringResource(R.string.import_data_desc),
+                    title = stringResource(R.string.import_data_settings),
+                    subtitle = stringResource(R.string.import_data_settings_desc),
                     icon = Icons.Default.FolderOpen,
                     iconTint = dataColor,
                     position = CardPosition.BOTTOM,
                     onClick = { 
-                        importLauncher.launch(arrayOf("text/*", "text/csv"))
+                        importLauncher.launch(arrayOf("application/json", "text/*", "text/csv", "*/*"))
                     }
                 )
             }
@@ -541,6 +657,12 @@ fun ExpressiveSettingsScreen(
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.about_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -599,6 +721,40 @@ fun ExpressiveSettingsScreen(
             sheetState = sheetState
         )
     }
+    pendingSettingsImportUri?.let { uri ->
+        ConfirmActionDialog(
+            title = stringResource(R.string.settings_import_confirm_title),
+            message = stringResource(R.string.settings_import_confirm_message),
+            icon = Icons.Default.Settings,
+            onConfirm = {
+                pendingSettingsImportUri = null
+                scope.launch {
+                    val result = tk.glucodata.data.SettingsExporter.importFromJson(context, uri)
+                    withContext(Dispatchers.Main) {
+                        if (result.isSuccess) {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_import_successful),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            context.findActivity()?.fullRestart()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    R.string.import_failed_with_error,
+                                    result.exceptionOrNull()?.localizedMessage
+                                        ?: context.getString(R.string.unknown_error)
+                                ),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = { pendingSettingsImportUri = null }
+        )
+    }
 
     // ... Bottom of function ...
 
@@ -626,26 +782,82 @@ private fun SettingsLeadingIcon(
 }
 
 @Composable
-private fun TargetRangeExpandableSettingsItem(
-    lowValue: Float,
-    highValue: Float,
+private fun GlucoseRangeExpandableSettingsItem(
+    targetLowValue: Float,
+    targetHighValue: Float,
+    chartLowValue: Float,
+    chartHighValue: Float,
     isMmol: Boolean,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    onLowValueChange: (Float) -> Unit,
-    onHighValueChange: (Float) -> Unit,
+    onTargetRangeChange: (Float, Float) -> Unit,
+    onChartRangeChange: (Float, Float) -> Unit,
     iconTint: Color,
     position: CardPosition
 ) {
+    val valueStep = if (isMmol) 0.1f else 1f
+    val targetLowBounds = if (isMmol) 2.0f..8.0f else 40f..140f
+    val targetHighBounds = if (isMmol) 6.0f..16.0f else 100f..350f
+    val chartLowBounds = if (isMmol) 0.0f..12.0f else 0f..216f
+    val chartHighBounds = if (isMmol) 4.0f..30.0f else 72f..540f
+    val normalizedTargetLow = clampLowerRangeValue(
+        value = targetLowValue,
+        upperValue = targetHighValue,
+        bounds = targetLowBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
+    val normalizedTargetHigh = clampUpperRangeValue(
+        value = targetHighValue,
+        lowerValue = normalizedTargetLow,
+        bounds = targetHighBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
+    val normalizedChartLow = clampLowerRangeValue(
+        value = chartLowValue,
+        upperValue = chartHighValue,
+        bounds = chartLowBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
+    val normalizedChartHigh = clampUpperRangeValue(
+        value = chartHighValue,
+        lowerValue = normalizedChartLow,
+        bounds = chartHighBounds,
+        step = valueStep,
+        isMmol = isMmol
+    )
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        label = "targetRangeChevron"
+        label = "glucoseRangeChevron"
     )
-    var lowSlider by remember(lowValue) { mutableFloatStateOf(lowValue) }
-    var highSlider by remember(highValue) { mutableFloatStateOf(highValue) }
+    var targetLowSlider by remember(targetLowValue, targetHighValue, isMmol) {
+        mutableFloatStateOf(normalizedTargetLow)
+    }
+    var targetHighSlider by remember(targetLowValue, targetHighValue, isMmol) {
+        mutableFloatStateOf(normalizedTargetHigh)
+    }
+    var chartLowSlider by remember(chartLowValue, chartHighValue, isMmol) {
+        mutableFloatStateOf(normalizedChartLow)
+    }
+    var chartHighSlider by remember(chartLowValue, chartHighValue, isMmol) {
+        mutableFloatStateOf(normalizedChartHigh)
+    }
 
-    val lowText = if (isMmol) String.format(Locale.getDefault(), "%.1f", lowSlider) else lowSlider.toInt().toString()
-    val highText = if (isMmol) String.format(Locale.getDefault(), "%.1f", highSlider) else highSlider.toInt().toString()
+    val targetSummary = remember(targetLowSlider, targetHighSlider, isMmol) {
+        formatRangeSummary(targetLowSlider, targetHighSlider, isMmol)
+    }
+    val chartSummary = remember(chartLowSlider, chartHighSlider, isMmol) {
+        formatRangeSummary(chartLowSlider, chartHighSlider, isMmol)
+    }
+    val targetShortTitle = stringResource(R.string.target_short_title)
+    val chartShortTitle = stringResource(R.string.chart_short_title)
+    val targetTitle = stringResource(R.string.target_range_title)
+    val chartTitle = stringResource(R.string.chart_limits_title)
+    val collapsedSummary = remember(targetShortTitle, chartShortTitle, targetSummary, chartSummary) {
+        "$targetShortTitle $targetSummary • $chartShortTitle $chartSummary"
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -665,13 +877,16 @@ private fun TargetRangeExpandableSettingsItem(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.target_range_title),
+                        text = stringResource(R.string.glucose_range_title),
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "$lowText-$highText",
+                        modifier = Modifier.padding(top = 2.dp),
+                        text = collapsedSummary,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -693,35 +908,177 @@ private fun TargetRangeExpandableSettingsItem(
 
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            text = "Low: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", lowSlider) else lowSlider.toInt()}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Slider(
-                            value = lowSlider,
-                            onValueChange = { lowSlider = it },
-                            onValueChangeFinished = { onLowValueChange(lowSlider) },
-                            valueRange = if (isMmol) 2.0f..8.0f else 40f..140f
+                        GlucoseRangeEditorSection(
+                            title = targetTitle,
+                            lowLabel = stringResource(R.string.low_label),
+                            highLabel = stringResource(R.string.high_label),
+                            lowValue = targetLowSlider,
+                            highValue = targetHighSlider,
+                            lowBounds = targetLowBounds,
+                            highBounds = targetHighBounds,
+                            isMmol = isMmol,
+                            onLowValueChange = { candidate ->
+                                targetLowSlider = clampLowerRangeValue(
+                                    value = candidate,
+                                    upperValue = targetHighSlider,
+                                    bounds = targetLowBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onHighValueChange = { candidate ->
+                                targetHighSlider = clampUpperRangeValue(
+                                    value = candidate,
+                                    lowerValue = targetLowSlider,
+                                    bounds = targetHighBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onLowValueChangeFinished = {
+                                onTargetRangeChange(targetLowSlider, targetHighSlider)
+                            },
+                            onHighValueChangeFinished = {
+                                onTargetRangeChange(targetLowSlider, targetHighSlider)
+                            }
                         )
 
-                        Text(
-                            text = "High: ${if (isMmol) String.format(Locale.getDefault(), "%.1f", highSlider) else highSlider.toInt()}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Slider(
-                            value = highSlider,
-                            onValueChange = { highSlider = it },
-                            onValueChangeFinished = { onHighValueChange(highSlider) },
-                            valueRange = if (isMmol) 6.0f..16.0f else 100f..350f
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                        GlucoseRangeEditorSection(
+                            title = chartTitle,
+                            lowLabel = stringResource(R.string.low_label),
+                            highLabel = stringResource(R.string.high_label),
+                            lowValue = chartLowSlider,
+                            highValue = chartHighSlider,
+                            lowBounds = chartLowBounds,
+                            highBounds = chartHighBounds,
+                            isMmol = isMmol,
+                            onLowValueChange = { candidate ->
+                                chartLowSlider = clampLowerRangeValue(
+                                    value = candidate,
+                                    upperValue = chartHighSlider,
+                                    bounds = chartLowBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onHighValueChange = { candidate ->
+                                chartHighSlider = clampUpperRangeValue(
+                                    value = candidate,
+                                    lowerValue = chartLowSlider,
+                                    bounds = chartHighBounds,
+                                    step = valueStep,
+                                    isMmol = isMmol
+                                )
+                            },
+                            onLowValueChangeFinished = {
+                                onChartRangeChange(chartLowSlider, chartHighSlider)
+                            },
+                            onHighValueChangeFinished = {
+                                onChartRangeChange(chartLowSlider, chartHighSlider)
+                            }
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GlucoseRangeEditorSection(
+    title: String,
+    lowLabel: String,
+    highLabel: String,
+    lowValue: Float,
+    highValue: Float,
+    lowBounds: ClosedFloatingPointRange<Float>,
+    highBounds: ClosedFloatingPointRange<Float>,
+    isMmol: Boolean,
+    onLowValueChange: (Float) -> Unit,
+    onHighValueChange: (Float) -> Unit,
+    onLowValueChangeFinished: () -> Unit,
+    onHighValueChangeFinished: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = "$lowLabel: ${formatRangeValue(lowValue, isMmol)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Slider(
+            value = lowValue,
+            onValueChange = onLowValueChange,
+            onValueChangeFinished = onLowValueChangeFinished,
+            valueRange = lowBounds
+        )
+        Text(
+            text = "$highLabel: ${formatRangeValue(highValue, isMmol)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Slider(
+            value = highValue,
+            onValueChange = onHighValueChange,
+            onValueChangeFinished = onHighValueChangeFinished,
+            valueRange = highBounds
+        )
+    }
+}
+
+private fun formatRangeSummary(lowValue: Float, highValue: Float, isMmol: Boolean): String {
+    return "${formatRangeValue(lowValue, isMmol)}-${formatRangeValue(highValue, isMmol)}"
+}
+
+private fun formatRangeValue(value: Float, isMmol: Boolean): String {
+    return if (isMmol) {
+        String.format(Locale.getDefault(), "%.1f", value)
+    } else {
+        value.roundToInt().toString()
+    }
+}
+
+private fun clampLowerRangeValue(
+    value: Float,
+    upperValue: Float,
+    bounds: ClosedFloatingPointRange<Float>,
+    step: Float,
+    isMmol: Boolean
+): Float {
+    val maxValue = minOf(bounds.endInclusive, upperValue - step)
+    if (maxValue < bounds.start) {
+        return snapRangeValue(bounds.start, isMmol)
+    }
+    return snapRangeValue(value, isMmol).coerceIn(bounds.start, maxValue)
+}
+
+private fun clampUpperRangeValue(
+    value: Float,
+    lowerValue: Float,
+    bounds: ClosedFloatingPointRange<Float>,
+    step: Float,
+    isMmol: Boolean
+): Float {
+    val minValue = maxOf(bounds.start, lowerValue + step)
+    if (minValue > bounds.endInclusive) {
+        return snapRangeValue(bounds.endInclusive, isMmol)
+    }
+    return snapRangeValue(value, isMmol).coerceIn(minValue, bounds.endInclusive)
+}
+
+private fun snapRangeValue(value: Float, isMmol: Boolean): Float {
+    return if (isMmol) {
+        (value * 10f).roundToInt() / 10f
+    } else {
+        value.roundToInt().toFloat()
     }
 }
 
@@ -780,6 +1137,289 @@ private fun ManualCalibrationSettingsItem(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun JournalSettingsItem(
+    journalEnabled: Boolean,
+    activePresetCount: Int,
+    onToggleEnabled: (Boolean) -> Unit,
+    onOpenJournal: () -> Unit,
+    iconTint: Color,
+    position: CardPosition
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpenJournal,
+        shape = cardShape(position),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SettingsLeadingIcon(icon = Icons.Default.Vaccines, tint = iconTint)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.journal_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = stringResource(
+                        R.string.journal_settings_summary,
+                        stringResource(if (journalEnabled) R.string.enabled_status else R.string.disabled_status),
+                        activePresetCount
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                VerticalDivider(
+                    modifier = Modifier.height(30.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                StyledSwitch(
+                    checked = journalEnabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PredictiveSimulationExpandableSettingsItem(
+    journalEnabled: Boolean,
+    predictiveSimulationEnabled: Boolean,
+    trendMomentumEnabled: Boolean,
+    carbRatioGramsPerUnit: Float,
+    insulinSensitivityMgDlPerUnit: Float,
+    carbAbsorptionGramsPerHour: Float,
+    horizonMinutes: Int,
+    isMmol: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onToggleSimulation: (Boolean) -> Unit,
+    onToggleTrendMomentum: (Boolean) -> Unit,
+    onCarbRatioChange: (Float) -> Unit,
+    onInsulinSensitivityChange: (Float) -> Unit,
+    onCarbAbsorptionChange: (Float) -> Unit,
+    onHorizonChange: (Int) -> Unit,
+    iconTint: Color,
+    position: CardPosition
+) {
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "predictiveSimulationChevron"
+    )
+    val insulinSensitivityDisplay = remember(insulinSensitivityMgDlPerUnit, isMmol) {
+        if (isMmol) insulinSensitivityMgDlPerUnit / 18.0182f else insulinSensitivityMgDlPerUnit
+    }
+    val sensitivityValue = if (isMmol) {
+        stringResource(R.string.predictive_sensitivity_value_mmol, insulinSensitivityDisplay)
+    } else {
+        stringResource(R.string.predictive_sensitivity_value_mgdl, insulinSensitivityMgDlPerUnit)
+    }
+    val sensitivityRange = if (isMmol) 0.6f..10f else 10f..180f
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = cardShape(position),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SettingsLeadingIcon(icon = Icons.AutoMirrored.Filled.ShowChart, tint = iconTint)
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.predictive_simulation_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        modifier = Modifier.padding(top = 2.dp),
+                        text = stringResource(R.string.predictive_simulation_summary),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.collapse_action else R.string.expand_action
+                        ),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    VerticalDivider(
+                        modifier = Modifier.height(30.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    StyledSwitch(
+                        checked = predictiveSimulationEnabled,
+                        onCheckedChange = onToggleSimulation
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    PredictiveSimulationSubToggleRow(
+                        title = stringResource(R.string.predictive_trend_momentum),
+                        checked = trendMomentumEnabled,
+                        enabled = predictiveSimulationEnabled,
+                        onCheckedChange = onToggleTrendMomentum,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    if (journalEnabled) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
+                        Text(
+                            text = stringResource(R.string.predictive_model_tuning),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 14.dp, bottom = 2.dp)
+                        )
+                        PredictiveSimulationParameterRow(
+                            title = stringResource(R.string.predictive_carb_ratio),
+                            valueLabel = stringResource(R.string.predictive_carb_ratio_value, carbRatioGramsPerUnit),
+                            value = carbRatioGramsPerUnit,
+                            valueRange = 3f..30f,
+                            enabled = predictiveSimulationEnabled,
+                            onValueChange = onCarbRatioChange
+                        )
+                        PredictiveSimulationParameterRow(
+                            title = stringResource(R.string.predictive_insulin_sensitivity),
+                            valueLabel = sensitivityValue,
+                            value = insulinSensitivityDisplay,
+                            valueRange = sensitivityRange,
+                            enabled = predictiveSimulationEnabled,
+                            onValueChange = { displayValue ->
+                                onInsulinSensitivityChange(
+                                    if (isMmol) displayValue * 18.0182f else displayValue
+                                )
+                            }
+                        )
+                        PredictiveSimulationParameterRow(
+                            title = stringResource(R.string.predictive_carb_absorption),
+                            valueLabel = stringResource(R.string.predictive_absorption_value, carbAbsorptionGramsPerHour),
+                            value = carbAbsorptionGramsPerHour,
+                            valueRange = 10f..90f,
+                            enabled = predictiveSimulationEnabled,
+                            onValueChange = onCarbAbsorptionChange
+                        )
+                    }
+                    PredictiveSimulationParameterRow(
+                        title = stringResource(R.string.predictive_forecast_horizon),
+                        valueLabel = stringResource(R.string.predictive_horizon_value, horizonMinutes),
+                        value = horizonMinutes.toFloat(),
+                        valueRange = 30f..360f,
+                        enabled = predictiveSimulationEnabled,
+                        onValueChange = { onHorizonChange(it.roundToInt()) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PredictiveSimulationParameterRow(
+    title: String,
+    valueLabel: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    enabled: Boolean,
+    onValueChange: (Float) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.5f)
+            .padding(vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = valueLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Slider(
+            value = value.coerceIn(valueRange.start, valueRange.endInclusive),
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            enabled = enabled
+        )
+    }
+}
+
+@Composable
+private fun PredictiveSimulationSubToggleRow(
+    title: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.5f)
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f)
+        )
+        StyledSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
     }
 }
 

@@ -60,12 +60,16 @@ fun <T> ConnectedButtonGroup(
     icon: (@Composable (T) -> ImageVector?)? = null,
     modifier: Modifier = Modifier,
     multiSelect: Boolean = false,
+    iconOnly: Boolean = false,
     itemHeight: Dp = 40.dp,
     spacing: Dp = 2.dp,
     selectedContainerColor: Color = MaterialTheme.colorScheme.primary,
     selectedContentColor: Color = MaterialTheme.colorScheme.onPrimary,
     unselectedContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh, // Slightly darker than surface for contrast
     unselectedContentColor: Color = MaterialTheme.colorScheme.onSurface,
+    selectedContainerColorFor: ((T) -> Color)? = null,
+    selectedContentColorFor: ((T) -> Color)? = null,
+    iconTint: ((T, Boolean) -> Color)? = null,
 ) {
     Row(
         modifier = modifier
@@ -78,11 +82,19 @@ fun <T> ConnectedButtonGroup(
             val isSelected = if (multiSelect) selectedOptions.contains(option) else option == selectedOption
             
             val containerColor by animateColorAsState(
-                targetValue = if (isSelected) selectedContainerColor else unselectedContainerColor,
+                targetValue = if (isSelected) {
+                    selectedContainerColorFor?.invoke(option) ?: selectedContainerColor
+                } else {
+                    unselectedContainerColor
+                },
                 label = "containerColor"
             )
             val contentColor by animateColorAsState(
-                targetValue = if (isSelected) selectedContentColor else unselectedContentColor,
+                targetValue = if (isSelected) {
+                    selectedContentColorFor?.invoke(option) ?: selectedContentColor
+                } else {
+                    unselectedContentColor
+                },
                 label = "contentColor"
             )
             
@@ -165,12 +177,15 @@ fun <T> ConnectedButtonGroup(
                         Icon(
                             imageVector = customIcon,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(18.dp),
+                            tint = iconTint?.invoke(option, isSelected) ?: contentColor
                         )
-                        Spacer(Modifier.width(if (availableWidth >= 72.dp) 8.dp else 4.dp))
+                        if (!iconOnly && (labelText != null)) {
+                            Spacer(Modifier.width(if (availableWidth >= 72.dp) 8.dp else 4.dp))
+                        }
                     }
 
-                    if (labelText != null) {
+                    if (!iconOnly && labelText != null) {
                         Text(
                             text = labelText(option),
                             style = labelTextStyle,
@@ -179,7 +194,7 @@ fun <T> ConnectedButtonGroup(
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
                         )
-                    } else {
+                    } else if (!iconOnly) {
                         androidx.compose.material3.ProvideTextStyle(value = labelTextStyle) {
                             label(option)
                         }

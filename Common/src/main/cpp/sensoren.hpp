@@ -365,6 +365,61 @@ public:
 #endif
     return lastpos;
   }
+  SensorGlucoseData *ensureDirectStreamShell(const string_view name,
+                                             uint32_t starttime = 0) {
+    if (name.empty()) {
+      return nullptr;
+    }
+    int ind = sensorindex(name.data());
+    if (ind < 0) {
+      ind = sensorindexshort(name.data());
+    }
+    if (ind < 0) {
+      ind = addsensor(name);
+    }
+    if (ind < 0) {
+      return nullptr;
+    }
+    sensorlistmap();
+    const auto fullname = sensorlist()[ind].fullname();
+    if (fullname.empty()) {
+      return nullptr;
+    }
+    pathconcat sdir(inbasedir, fullname);
+    mkdir(sdir.data(), 0700);
+    SensorGlucoseData::initInfoFile(pathconcat(sdir, "info.dat"), 14, 3);
+    if (hist[ind] && hist[ind]->error()) {
+      auto *broken = hist[ind];
+      hist[ind] = nullptr;
+      delete broken;
+    }
+    if (!hist[ind]) {
+      hist[ind] = new SensorGlucoseData(sdir, ind);
+      LOGGER("repair hist[%d]=%p\n", ind, hist[ind]);
+    }
+    if (!hist[ind] || hist[ind]->error()) {
+      if (hist[ind]) {
+        auto *broken = hist[ind];
+        hist[ind] = nullptr;
+        delete broken;
+      }
+      return nullptr;
+    }
+    auto *info = hist[ind]->getinfo();
+    if (starttime > 0) {
+      if (info && (info->starttime == 0 || starttime < info->starttime)) {
+        info->starttime = starttime;
+      }
+      if (sensorlist()[ind].starttime == 0 || starttime < sensorlist()[ind].starttime) {
+        sensorlist()[ind].starttime = starttime;
+      }
+    } else if (sensorlist()[ind].starttime == 0) {
+      sensorlist()[ind].starttime = hist[ind]->getstarttime();
+    }
+    sensorlist()[ind].present = 1;
+    sensorlist()[ind].finished = 0;
+    return hist[ind];
+  }
   const sensor *getsensor(const int ind) const { return sensorlist() + ind; }
 
   sensor *getsensor(const int ind) { return sensorlist() + ind; }
@@ -670,8 +725,11 @@ public:
     const sensor *end = sensorlist() + last() + 1;
     const sensor *sens =
         find_if(sensorlist(), end, [wanted](const sensor &sens) -> bool {
+          if (sens.fullname() == wanted) {
+            return true;
+          }
           if (wanted.rfind("X-", 0) == 0) {
-            return sens.fullname() == wanted;
+            return false;
           }
           return sens.shortsensorname_view() == wanted;
         });

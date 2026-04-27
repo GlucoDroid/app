@@ -65,6 +65,31 @@ esac
 
 CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
+if $darwin && [ "${JUGGLUCO_GRADLE_USE_SYSTEM_JAVA:-0}" != "1" ]; then
+    JAVA17_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null)"
+    STUDIO_JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+    PREFERRED_JAVA17_HOME=""
+    CURRENT_JAVA_CMD=""
+    if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+        CURRENT_JAVA_CMD="$JAVA_HOME/bin/java"
+    else
+        CURRENT_JAVA_CMD="$(command -v java 2>/dev/null)"
+    fi
+    CURRENT_JAVA_MAJOR=""
+    if [ -n "$CURRENT_JAVA_CMD" ] && [ -x "$CURRENT_JAVA_CMD" ]; then
+        CURRENT_JAVA_MAJOR="$("$CURRENT_JAVA_CMD" -version 2>&1 | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+    fi
+    if [ -n "$JAVA17_HOME" ] && [ -x "$JAVA17_HOME/bin/java" ]; then
+        PREFERRED_JAVA17_HOME="$JAVA17_HOME"
+    elif [ -x "$STUDIO_JBR/bin/java" ]; then
+        PREFERRED_JAVA17_HOME="$STUDIO_JBR"
+    fi
+    if [ -n "$PREFERRED_JAVA17_HOME" ] && [ -n "$CURRENT_JAVA_MAJOR" ] && [ "$CURRENT_JAVA_MAJOR" -gt 17 ] 2>/dev/null; then
+        warn "Using Java 17 for Gradle because current Java $CURRENT_JAVA_MAJOR breaks Android unit-test task creation. Set JUGGLUCO_GRADLE_USE_SYSTEM_JAVA=1 to override."
+        JAVA_HOME="$PREFERRED_JAVA17_HOME"
+    fi
+fi
+
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
     if [ -x "$JAVA_HOME/jre/sh/java" ] ; then

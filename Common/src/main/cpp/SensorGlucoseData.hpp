@@ -511,6 +511,13 @@ public:
     inf.interval = interval;
     inf.starttime = time(nullptr);
     inf.lastscantime = inf.starttime;
+    inf.warmup = 60;
+    inf.wearduration =
+        static_cast<uint16_t>((days ? days : static_cast<uint8_t>(14)) * 24 *
+                              60);
+    inf.lastLifeCountReceived = 1;
+    inf.lastHistoricLifeCountReceivedPos = 12;
+    inf.pollinterval = 60.5752;
     inf.ident.len = 8;
     inf.info.len = 6;
     writeall(filename, &inf, sizeof(inf));
@@ -2459,6 +2466,34 @@ void setbackuptime(int ind,uint32_t starttime) {
     updatestate *up = getinfo()->update;
     for (int i = 0; i < maxind; i++) {
       up[i].sendKAuth = true;
+    }
+  }
+
+  void rebaseDirectStreamWindow(uint32_t starttime) {
+    auto *info = getinfo();
+    if (!info || !starttime)
+      return;
+
+    info->starttime = starttime;
+    info->pollcount = 0;
+    info->pollstart = 0;
+    info->lastHistoricLifeCountReceivedPos = 12;
+
+    if (polls.data()) {
+      memset(polls.data(), 0, polls.count() * sizeof(ScanData));
+    }
+    if (rawpolls.data()) {
+      memset(rawpolls.data(), 0, rawpolls.count() * sizeof(RawData));
+    }
+    if (temppolls.data()) {
+      memset(temppolls.data(), 0, temppolls.count() * sizeof(uint16_t));
+    }
+
+    for (auto &up : info->update) {
+      up.streamstart = 0;
+      up.rawstreamstart = 0;
+      up.changedstreamstart = true;
+      up.sendstreaming = true;
     }
   }
 

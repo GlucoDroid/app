@@ -9,8 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.conflate
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import tk.glucodata.Natives
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.BatteryTrace
@@ -20,18 +19,49 @@ import tk.glucodata.Notify
 import tk.glucodata.SensorIdentity
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
+import tk.glucodata.data.journal.JournalEntry
+import tk.glucodata.data.journal.JournalEntryInput
+import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.journal.JournalInsulinPresetInput
+import tk.glucodata.data.journal.JournalRepository
 import tk.glucodata.alerts.AlertRepository
 import tk.glucodata.alerts.CustomAlertRepository
+import tk.glucodata.drivers.ManagedSensorRuntime
+import tk.glucodata.drivers.ManagedSensorStatusPolicy
+import tk.glucodata.drivers.ManagedSensorUiFamily
 import tk.glucodata.ui.util.resolveDashboardSensorStatus
+import kotlin.math.roundToInt
 
 class DashboardViewModel(
-    private val glucoseRepository: GlucoseRepository = GlucoseRepository()
+    private val glucoseRepository: GlucoseRepository = GlucoseRepository(),
+    private val journalRepository: JournalRepository = JournalRepository(),
+    private val historyRepository: tk.glucodata.data.HistoryRepository = tk.glucodata.data.HistoryRepository()
 ) : ViewModel() {
+    private data class HistoryEdgeSignature(
+        val size: Int,
+        val firstTimestamp: Long,
+        val lastTimestamp: Long,
+        val sampleHash: Int,
+        val lastValueBits: Int,
+        val lastRawBits: Int,
+        val lastSerial: String?
+    )
+
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
+        const val DASHBOARD_HISTORY_WINDOW_MS = 3L * 24L * 60L * 60L * 1000L
+        const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
+        const val PREDICTION_CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
+        const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
+        const val PREDICTION_CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
+        const val PREDICTION_HORIZON_MINUTES_KEY = "dashboard_prediction_horizon_minutes"
+        const val PREDICTION_CARB_RATIO_DEFAULT = 10f
+        const val PREDICTION_INSULIN_SENSITIVITY_DEFAULT = 54f
+        const val PREDICTION_CARB_ABSORPTION_DEFAULT = 35f
+        const val PREDICTION_HORIZON_MINUTES_DEFAULT = 120
     }
 
     enum class CollectionMode {
@@ -92,6 +122,12 @@ class DashboardViewModel(
     private val _targetHigh = MutableStateFlow(180f)
     val targetHigh = _targetHigh.asStateFlow()
 
+    private val _graphLow = MutableStateFlow(40f)
+    val graphLow = _graphLow.asStateFlow()
+
+    private val _graphHigh = MutableStateFlow(240f)
+    val graphHigh = _graphHigh.asStateFlow()
+
     private val _viewMode = MutableStateFlow(0)
     val viewMode = _viewMode.asStateFlow()
 
@@ -130,6 +166,36 @@ class DashboardViewModel(
     private val _previewWindowMode = MutableStateFlow(0)
     val previewWindowMode = _previewWindowMode.asStateFlow()
 
+    private val _journalEnabled = MutableStateFlow(true)
+    val journalEnabled = _journalEnabled.asStateFlow()
+
+    private val _journalDoseCalculatorEnabled = MutableStateFlow(false)
+    val journalDoseCalculatorEnabled = _journalDoseCalculatorEnabled.asStateFlow()
+
+    private val _predictiveSimulationEnabled = MutableStateFlow(true)
+    val predictiveSimulationEnabled = _predictiveSimulationEnabled.asStateFlow()
+
+    private val _predictionTrendMomentumEnabled = MutableStateFlow(true)
+    val predictionTrendMomentumEnabled = _predictionTrendMomentumEnabled.asStateFlow()
+
+    private val _predictionCarbRatioGramsPerUnit = MutableStateFlow(PREDICTION_CARB_RATIO_DEFAULT)
+    val predictionCarbRatioGramsPerUnit = _predictionCarbRatioGramsPerUnit.asStateFlow()
+
+    private val _predictionInsulinSensitivityMgDlPerUnit = MutableStateFlow(PREDICTION_INSULIN_SENSITIVITY_DEFAULT)
+    val predictionInsulinSensitivityMgDlPerUnit = _predictionInsulinSensitivityMgDlPerUnit.asStateFlow()
+
+    private val _predictionCarbAbsorptionGramsPerHour = MutableStateFlow(PREDICTION_CARB_ABSORPTION_DEFAULT)
+    val predictionCarbAbsorptionGramsPerHour = _predictionCarbAbsorptionGramsPerHour.asStateFlow()
+
+    private val _predictionHorizonMinutes = MutableStateFlow(PREDICTION_HORIZON_MINUTES_DEFAULT)
+    val predictionHorizonMinutes = _predictionHorizonMinutes.asStateFlow()
+
+    private val _journalEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
+    val journalEntries = _journalEntries.asStateFlow()
+
+    private val _journalInsulinPresets = MutableStateFlow<List<JournalInsulinPreset>>(emptyList())
+    val journalInsulinPresets = _journalInsulinPresets.asStateFlow()
+
     private val _lowAlarmSoundMode = MutableStateFlow(0)
     val lowAlarmSoundMode = _lowAlarmSoundMode.asStateFlow()
 
@@ -143,12 +209,51 @@ class DashboardViewModel(
     private var currentReadingJob: Job? = null
     private var historyJob: Job? = null
     private var uiRefreshJob: Job? = null
+    private var journalEntriesJob: Job? = null
+    private var journalPresetsJob: Job? = null
+    private var activeHistoryMode: CollectionMode? = null
     private var activeHistoryStartTimeMs: Long? = null
 
     init {
+        _journalEnabled.value = readJournalEnabledPreference()
+        observeJournalState()
         // Keep initial UI boot light. Room backfill/targeted sensor sync now cover cold start,
         // so do not force a full native history rebuild during app startup.
         refreshData()
+    }
+
+    private fun observeJournalState() {
+        ensureJournalPresetsObserved()
+        if (_journalEnabled.value) {
+            ensureJournalEntriesObserved()
+        }
+    }
+
+    private fun ensureJournalEntriesObserved() {
+        if (journalEntriesJob?.isActive == true) return
+        journalEntriesJob = viewModelScope.launch {
+            journalRepository.observeEntries().collect { _journalEntries.value = it }
+        }
+    }
+
+    private fun stopJournalEntriesObservation() {
+        journalEntriesJob?.cancel()
+        journalEntriesJob = null
+        _journalEntries.value = emptyList()
+    }
+
+    private fun ensureJournalPresetsObserved() {
+        if (journalPresetsJob?.isActive == true) return
+        journalPresetsJob = viewModelScope.launch {
+            journalRepository.ensureDefaultInsulinPresets()
+            journalRepository.observeInsulinPresets().collect { _journalInsulinPresets.value = it }
+        }
+    }
+
+    private fun readJournalEnabledPreference(): Boolean {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        return prefs.getBoolean("dashboard_journal_enabled", true)
     }
     
     /**
@@ -282,7 +387,31 @@ class DashboardViewModel(
         _dataSmoothingGraphOnly.value = DataSmoothing.isGraphOnly(context)
         _dataSmoothingCollapseChunks.value = DataSmoothing.collapseChunks(context)
         _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
+        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", true)
+        _journalEnabled.value = journalEnabled
+        _journalDoseCalculatorEnabled.value = prefs.getBoolean(JOURNAL_DOSE_CALCULATOR_KEY, false)
+        _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", true)
+        _predictionTrendMomentumEnabled.value = prefs.getBoolean("dashboard_prediction_trend_momentum_enabled", true)
+        _predictionCarbRatioGramsPerUnit.value = prefs
+            .getFloat(PREDICTION_CARB_RATIO_KEY, PREDICTION_CARB_RATIO_DEFAULT)
+            .coerceIn(3f, 30f)
+        _predictionInsulinSensitivityMgDlPerUnit.value = prefs
+            .getFloat(PREDICTION_INSULIN_SENSITIVITY_KEY, PREDICTION_INSULIN_SENSITIVITY_DEFAULT)
+            .coerceIn(10f, 180f)
+        _predictionCarbAbsorptionGramsPerHour.value = prefs
+            .getFloat(PREDICTION_CARB_ABSORPTION_KEY, PREDICTION_CARB_ABSORPTION_DEFAULT)
+            .coerceIn(10f, 90f)
+        _predictionHorizonMinutes.value = prefs
+            .getInt(PREDICTION_HORIZON_MINUTES_KEY, PREDICTION_HORIZON_MINUTES_DEFAULT)
+            .coerceIn(30, 360)
+        if (journalEnabled) {
+            ensureJournalEntriesObserved()
+        } else if (journalEntriesJob != null) {
+            stopJournalEntriesObservation()
+        }
 
+        _graphLow.value = Natives.graphlow()
+        _graphHigh.value = Natives.graphhigh()
         _targetLow.value = Natives.targetlow()
         _targetHigh.value = Natives.targethigh()
         _xDripBroadcastEnabled.value = Natives.getxbroadcast()
@@ -299,15 +428,21 @@ class DashboardViewModel(
 
         val anyActive = AlertRepository.loadAllConfigs().any { it.enabled }
             || CustomAlertRepository.getAll().any { it.enabled }
-        _alertsSummary.value = if (anyActive) "Active" else "All Alerts Disabled"
+        _alertsSummary.value = if (anyActive) {
+            context.getString(tk.glucodata.R.string.global_active)
+        } else {
+            context.getString(tk.glucodata.R.string.global_all_alerts_disabled)
+        }
     }
 
     private fun refreshSensorSnapshot() {
-        var sName = Natives.lastsensorname()
+        var sName = SensorIdentity.resolveMainSensor()
         val activeSensors = Natives.activeSensors()
 
         if (activeSensors != null && activeSensors.isNotEmpty()) {
-            _activeSensorList.value = activeSensors.toList()
+            _activeSensorList.value = activeSensors
+                .mapNotNull { SensorIdentity.resolveAppSensorId(it) ?: it }
+                .distinct()
         } else {
             _activeSensorList.value = emptyList()
         }
@@ -327,18 +462,36 @@ class DashboardViewModel(
         if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
             glucoseRepository.refreshSensorSerial(sName)
             _sensorName.value = sName
-            val nativeStatus = try {
-                Natives.getSensorStatusByName(sName).orEmpty()
-            } catch (t: Throwable) {
-                android.util.Log.e("DashboardVM", "getSensorStatusByName failed for '$sName'", t)
+            val hasNativeBacking = SensorIdentity.hasNativeSensorBacking(sName)
+            val managedSnapshot = ManagedSensorRuntime.resolveUiSnapshot(sName, sName)
+            val nativeStatus = if (hasNativeBacking) {
+                try {
+                    Natives.getSensorStatusByName(sName).orEmpty()
+                } catch (t: Throwable) {
+                    android.util.Log.e("DashboardVM", "getSensorStatusByName failed for '$sName'", t)
+                    ""
+                }
+            } else {
                 ""
             }
-            val snapshot = try {
-                Natives.getSensorUiSnapshot(sName)
-            } catch (t: Throwable) {
-                android.util.Log.e("DashboardVM", "getSensorUiSnapshot failed for '$sName'", t)
+            val snapshot = if (hasNativeBacking) {
+                try {
+                    Natives.getSensorUiSnapshot(sName)
+                } catch (t: Throwable) {
+                    android.util.Log.e("DashboardVM", "getSensorUiSnapshot failed for '$sName'", t)
+                    null
+                }
+            } else {
                 null
             }
+            val fallbackDurationDays =
+                if (managedSnapshot?.uiFamily == ManagedSensorUiFamily.AIDEX ||
+                    sName.startsWith("X-", ignoreCase = true)
+                ) {
+                    15
+                } else {
+                    14
+                }
             if (snapshot != null && snapshot.size >= 5) {
                 val sensorKind = snapshot[0].toInt()
                 val vm = snapshot[1].toInt()
@@ -347,40 +500,37 @@ class DashboardViewModel(
                 val officialEnd = snapshot[4]
                 _sensorStatus.value = resolveDashboardSensorStatus(sName, sensorKind, startMsec, nativeStatus)
 
-                _viewMode.value = vm
+                _viewMode.value = managedSnapshot?.viewMode ?: vm
 
-                if (startMsec > 0) {
-                    val now = System.currentTimeMillis()
-                    val endMs = if (expectedEnd > 0) expectedEnd
-                    else if (officialEnd > 0) officialEnd
-                    else startMsec + (14L * 24 * 3600 * 1000)
-                    val totalDur = (endMs - startMsec).coerceAtLeast(1)
-                    val usedDur = (now - startMsec).coerceAtLeast(0)
-                    _sensorProgress.value = (usedDur.toFloat() / totalDur).coerceIn(0f, 1f)
-
-                    if (endMs > startMsec) {
-                        val oneDayMs = 86400000L
-                        val totalMs = endMs - startMsec
-                        val currentDay = (usedDur / oneDayMs) + 1
-                        val totalDays = (totalMs / oneDayMs)
-                        _daysRemaining.value = "$currentDay / $totalDays"
-                        _currentDay.value = currentDay.toInt()
-                        _sensorHoursRemaining.value = (totalMs - usedDur) / 3600000L
-                    } else {
-                        _daysRemaining.value = ""
-                        _sensorHoursRemaining.value = 999L
-                    }
-                } else {
-                    _sensorProgress.value = 0f
-                    _sensorHoursRemaining.value = 999L
-                    _daysRemaining.value = ""
-                }
+                val lifecycle = ManagedSensorStatusPolicy.resolveLifecycleSummary(
+                    startTimeMs = managedSnapshot?.startTimeMs?.takeIf { it > 0L } ?: startMsec,
+                    officialEndMs = managedSnapshot?.officialEndMs?.takeIf { it > 0L } ?: officialEnd,
+                    expectedEndMs = managedSnapshot?.expectedEndMs?.takeIf { it > 0L } ?: expectedEnd,
+                    sensorRemainingHours = managedSnapshot?.sensorRemainingHours ?: -1,
+                    sensorAgeHours = managedSnapshot?.sensorAgeHours ?: -1,
+                    fallbackDurationDays = fallbackDurationDays,
+                    nowMs = System.currentTimeMillis()
+                )
+                _sensorProgress.value = lifecycle.progress
+                _sensorHoursRemaining.value = lifecycle.remainingHours
+                _daysRemaining.value = lifecycle.daysText
+                _currentDay.value = lifecycle.currentDay
             } else {
                 _sensorStatus.value = resolveDashboardSensorStatus(sName, nativeStatus)
-                _viewMode.value = 0
-                _sensorProgress.value = 0f
-                _sensorHoursRemaining.value = 999L
-                _daysRemaining.value = ""
+                _viewMode.value = managedSnapshot?.viewMode ?: 0
+                val lifecycle = ManagedSensorStatusPolicy.resolveLifecycleSummary(
+                    startTimeMs = managedSnapshot?.startTimeMs ?: 0L,
+                    officialEndMs = managedSnapshot?.officialEndMs ?: 0L,
+                    expectedEndMs = managedSnapshot?.expectedEndMs ?: 0L,
+                    sensorRemainingHours = managedSnapshot?.sensorRemainingHours ?: -1,
+                    sensorAgeHours = managedSnapshot?.sensorAgeHours ?: -1,
+                    fallbackDurationDays = fallbackDurationDays,
+                    nowMs = System.currentTimeMillis()
+                )
+                _sensorProgress.value = lifecycle.progress
+                _sensorHoursRemaining.value = lifecycle.remainingHours
+                _daysRemaining.value = lifecycle.daysText
+                _currentDay.value = lifecycle.currentDay
             }
         } else {
             _sensorName.value = ""
@@ -397,31 +547,39 @@ class DashboardViewModel(
     }
 
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
+        val nowMs = System.currentTimeMillis()
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> 0L
+            CollectionMode.DASHBOARD -> (nowMs - DASHBOARD_HISTORY_WINDOW_MS).coerceAtLeast(0L)
             CollectionMode.FULL_HISTORY -> 0L
         }
-        val queryStartTimeMs = recoveryStartTimeMs
+        val queryStartTimeMs = when (mode) {
+            CollectionMode.INACTIVE -> return
+            CollectionMode.DASHBOARD,
+            CollectionMode.FULL_HISTORY -> 0L
+        }
+        activeHistoryStartTimeMs = recoveryStartTimeMs
 
-        if (historyJob?.isActive == true && activeHistoryStartTimeMs == recoveryStartTimeMs) return
+        if (historyJob?.isActive == true && activeHistoryMode == mode) return
 
         historyJob?.cancel()
-        activeHistoryStartTimeMs = recoveryStartTimeMs
-        _isLoading.value = true
+        activeHistoryMode = mode
+        _isLoading.value = _glucoseHistory.value.isEmpty()
 
         historyJob = viewModelScope.launch {
             var lastRecoveryRequestSerial: String? = null
             combine(
                 _unit,
-                glucoseRepository.getHistoryFlowRaw(queryStartTimeMs).distinctUntilChanged()
+                glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
+                    .distinctUntilChangedBy(::historyEdgeSignature)
             ) { unitStr, rawHistory ->
                 unitStr to rawHistory
-            }.conflate().collect { (unitStr, rawHistory) ->
+            }.collect { (unitStr, rawHistory) ->
                 val preferredSerial = preferredDashboardSensorId()?.takeIf { it.isNotBlank() }
                 val current = resolveCurrentForHistoryRecovery(preferredSerial)
+                val currentRecoveryStartTimeMs = activeHistoryStartTimeMs ?: recoveryStartTimeMs
                 if (preferredSerial != null &&
-                    shouldRequestHistoryRecovery(recoveryStartTimeMs, rawHistory, preferredSerial, current) &&
+                    shouldRequestHistoryRecovery(currentRecoveryStartTimeMs, rawHistory, preferredSerial, current) &&
                     lastRecoveryRequestSerial != preferredSerial
                 ) {
                     lastRecoveryRequestSerial = preferredSerial
@@ -450,6 +608,35 @@ class DashboardViewModel(
         }
     }
 
+    private fun historyEdgeSignature(points: List<tk.glucodata.ui.GlucosePoint>): HistoryEdgeSignature {
+        val first = points.firstOrNull()
+        val last = points.lastOrNull()
+        return HistoryEdgeSignature(
+            size = points.size,
+            firstTimestamp = first?.timestamp ?: 0L,
+            lastTimestamp = last?.timestamp ?: 0L,
+            sampleHash = sparseHistorySampleHash(points),
+            lastValueBits = java.lang.Float.floatToRawIntBits(last?.value ?: 0f),
+            lastRawBits = java.lang.Float.floatToRawIntBits(last?.rawValue ?: 0f),
+            lastSerial = last?.sensorSerial
+        )
+    }
+
+    private fun sparseHistorySampleHash(points: List<tk.glucodata.ui.GlucosePoint>): Int {
+        if (points.isEmpty()) return 0
+        val sampleCount = minOf(points.size, 8)
+        var hash = 1
+        for (sampleIndex in 0 until sampleCount) {
+            val pointIndex = ((points.lastIndex.toLong() * sampleIndex) / (sampleCount - 1).coerceAtLeast(1)).toInt()
+            val point = points[pointIndex]
+            hash = 31 * hash + point.timestamp.hashCode()
+            hash = 31 * hash + java.lang.Float.floatToRawIntBits(point.value)
+            hash = 31 * hash + java.lang.Float.floatToRawIntBits(point.rawValue)
+            hash = 31 * hash + (point.sensorSerial?.hashCode() ?: 0)
+        }
+        return hash
+    }
+
     private fun stopCollectionJobs() {
         currentReadingJob?.cancel()
         currentReadingJob = null
@@ -457,6 +644,7 @@ class DashboardViewModel(
         historyJob = null
         uiRefreshJob?.cancel()
         uiRefreshJob = null
+        activeHistoryMode = null
         activeHistoryStartTimeMs = null
     }
 
@@ -503,16 +691,28 @@ class DashboardViewModel(
     }
     
     fun setTargetLow(value: Float) {
-        // Natives.targethigh() returns value in User Unit
-        val high = Natives.targethigh()
-        Natives.setTargetRange(value, high)
-        refreshData()
+        setTargetRange(value, Natives.targethigh())
     }
 
     fun setTargetHigh(value: Float) {
-        // Natives.targetlow() returns value in User Unit
-        val low = Natives.targetlow()
-        Natives.setTargetRange(low, value)
+        setTargetRange(Natives.targetlow(), value)
+    }
+
+    fun setTargetRange(low: Float, high: Float) {
+        Natives.setTargetRange(low, high)
+        refreshData()
+    }
+
+    fun setGraphLow(value: Float) {
+        setGraphRange(value, Natives.graphhigh())
+    }
+
+    fun setGraphHigh(value: Float) {
+        setGraphRange(Natives.graphlow(), value)
+    }
+
+    fun setGraphRange(low: Float, high: Float) {
+        Natives.setGraphRange(low, high)
         refreshData()
     }
 
@@ -608,6 +808,115 @@ class DashboardViewModel(
         _previewWindowMode.value = sanitized
     }
 
+    fun setJournalEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("dashboard_journal_enabled", enabled).apply()
+        _journalEnabled.value = enabled
+        if (enabled) {
+            ensureJournalEntriesObserved()
+        } else {
+            stopJournalEntriesObservation()
+        }
+    }
+
+    fun setJournalDoseCalculatorEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(JOURNAL_DOSE_CALCULATOR_KEY, enabled).apply()
+        _journalDoseCalculatorEnabled.value = enabled
+    }
+
+    fun setPredictiveSimulationEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("dashboard_predictive_simulation_enabled", enabled).apply()
+        _predictiveSimulationEnabled.value = enabled
+    }
+
+    fun setPredictionTrendMomentumEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("dashboard_prediction_trend_momentum_enabled", enabled).apply()
+        _predictionTrendMomentumEnabled.value = enabled
+    }
+
+    fun setPredictionCarbRatioGramsPerUnit(value: Float) {
+        val normalized = value.roundToStep(1f).coerceIn(3f, 30f)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat(PREDICTION_CARB_RATIO_KEY, normalized).apply()
+        _predictionCarbRatioGramsPerUnit.value = normalized
+    }
+
+    fun setPredictionInsulinSensitivityMgDlPerUnit(value: Float) {
+        val normalized = value.roundToStep(1f).coerceIn(10f, 180f)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat(PREDICTION_INSULIN_SENSITIVITY_KEY, normalized).apply()
+        _predictionInsulinSensitivityMgDlPerUnit.value = normalized
+    }
+
+    fun setPredictionCarbAbsorptionGramsPerHour(value: Float) {
+        val normalized = value.roundToStep(1f).coerceIn(10f, 90f)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat(PREDICTION_CARB_ABSORPTION_KEY, normalized).apply()
+        _predictionCarbAbsorptionGramsPerHour.value = normalized
+    }
+
+    fun setPredictionHorizonMinutes(value: Int) {
+        val normalized = value.coerceIn(30, 360)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putInt(PREDICTION_HORIZON_MINUTES_KEY, normalized).apply()
+        _predictionHorizonMinutes.value = normalized
+    }
+
+    fun saveJournalEntry(input: JournalEntryInput) {
+        viewModelScope.launch {
+            journalRepository.upsertEntry(input)
+        }
+    }
+
+    fun deleteJournalEntry(entryId: Long) {
+        viewModelScope.launch {
+            journalRepository.deleteEntry(entryId)
+        }
+    }
+
+    fun deleteHistoryReading(point: tk.glucodata.ui.GlucosePoint, fallbackSensorSerial: String? = null) {
+        if (point.timestamp <= 0L) return
+        val pointSerial = point.sensorSerial?.takeIf { it.isNotBlank() }
+        val targetSerial = when {
+            !fallbackSensorSerial.isNullOrBlank() &&
+                !pointSerial.isNullOrBlank() &&
+                SensorIdentity.matches(pointSerial, fallbackSensorSerial) -> fallbackSensorSerial
+            !pointSerial.isNullOrBlank() -> pointSerial
+            !fallbackSensorSerial.isNullOrBlank() -> fallbackSensorSerial
+            else -> null
+        } ?: return
+
+        viewModelScope.launch {
+            historyRepository.deleteReading(
+                timestamp = point.timestamp,
+                sensorSerial = targetSerial
+            )
+        }
+    }
+
+    fun saveJournalInsulinPreset(input: JournalInsulinPresetInput) {
+        viewModelScope.launch {
+            journalRepository.upsertInsulinPreset(input)
+        }
+    }
+
+    fun deleteJournalInsulinPreset(presetId: Long) {
+        viewModelScope.launch {
+            journalRepository.deleteInsulinPreset(presetId)
+        }
+    }
+
     // Floating Glucose Logic
     val floatingRepository = tk.glucodata.data.settings.FloatingSettingsRepository(tk.glucodata.Applic.app)
 
@@ -665,6 +974,9 @@ class DashboardViewModel(
     }
 
     private fun requestHistoryRecoverySync(serial: String, reason: String) {
+        if (!SensorIdentity.shouldUseNativeHistorySync(serial)) {
+            return
+        }
         val nowMs = SystemClock.elapsedRealtime()
         synchronized(this) {
             if (serial == lastHistoryRecoverySerial &&
@@ -715,7 +1027,8 @@ class DashboardViewModel(
     }
 
     private fun preferredDashboardSensorId(): String? {
-        val nativeCurrent = Natives.lastsensorname()?.takeIf { it.isNotBlank() }
+        val nativeCurrent = SensorIdentity.resolveMainSensor()
+            ?.takeIf { it.isNotBlank() }
         if (nativeCurrent != null) {
             return nativeCurrent
         }
@@ -726,5 +1039,10 @@ class DashboardViewModel(
             preferredSensorId = cachedSerial,
             activeSensors = Natives.activeSensors()
         ) ?: cachedSerial
+    }
+
+    private fun Float.roundToStep(step: Float): Float {
+        if (!isFinite() || step <= 0f) return this
+        return (this / step).roundToInt() * step
     }
 }

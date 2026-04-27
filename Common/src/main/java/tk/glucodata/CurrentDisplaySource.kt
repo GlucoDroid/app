@@ -56,15 +56,15 @@ object CurrentDisplaySource {
             emptyList()
         }
         val viewMode = resolveSensorViewMode(resolvedSensorId)
-        val processedPoints = if (smoothAllData) {
-            DataSmoothing.smoothNativePoints(
-                recentPoints,
-                smoothingMinutes,
-                collapseChunks
-            )
-        } else {
-            recentPoints
-        }
+        val processedPoints = prepareRecentPointsForCurrent(
+            recentPoints = recentPoints,
+            current = current,
+            historyStart = historyStart,
+            viewMode = viewMode,
+            smoothAllData = smoothAllData,
+            smoothingMinutes = smoothingMinutes,
+            collapseChunks = collapseChunks
+        )
         val initialSnapshot = resolveFromLive(
             liveValueText = current?.valueText,
             liveNumericValue = current?.numericValue ?: Float.NaN,
@@ -99,6 +99,27 @@ object CurrentDisplaySource {
             fallbackRate = current?.rate ?: Float.NaN
         )
         return initialSnapshot.copy(rate = canonicalRate)
+    }
+
+    internal fun prepareRecentPointsForCurrent(
+        recentPoints: List<GlucosePoint>,
+        current: CurrentGlucoseSource.Snapshot?,
+        historyStart: Long,
+        viewMode: Int,
+        smoothAllData: Boolean,
+        smoothingMinutes: Int,
+        collapseChunks: Boolean
+    ): List<GlucosePoint> {
+        val pointsWithCurrent = mergeLivePoint(recentPoints, current, historyStart, viewMode)
+        return if (smoothAllData) {
+            DataSmoothing.smoothNativePoints(
+                pointsWithCurrent,
+                smoothingMinutes,
+                collapseChunks
+            )
+        } else {
+            pointsWithCurrent
+        }
     }
 
     @JvmStatic
@@ -256,7 +277,9 @@ object CurrentDisplaySource {
         sensorId: String?
     ): DisplayValues {
         val isRawMode = isRawPrimary(viewMode)
-        val calibratedValue = if (CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)) {
+        val calibratedValue = if (
+            CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)
+        ) {
             val baseValue = if (isRawMode) point.rawValue else point.value
             if (baseValue.isFinite() && baseValue > 0.1f) {
                 CalibrationAccess.getCalibratedValue(
@@ -281,6 +304,72 @@ object CurrentDisplaySource {
             calibratedValue = calibratedValue,
             hideInitialWhenCalibrated = calibratedValue != null && shouldHideInitialWhenCalibrated()
         )
+    }
+
+    private fun mergeLivePoint(
+        points: List<GlucosePoint>,
+        current: CurrentGlucoseSource.Snapshot?,
+        historyStart: Long,
+        viewMode: Int
+    ): List<GlucosePoint> {
+        if (current == null || current.timeMillis < historyStart) {
+            return points
+        }
+        val liveAuto = current.numericValue.takeIf { it.isFinite() && it > 0.1f } ?: Float.NaN
+        val liveRawDirect = current.rawNumericValue.takeIf { it.isFinite() && it > 0.1f }
+        val liveRawIsFallback = liveRawDirect == null && isRawPrimary(viewMode) &&
+            liveAuto.isFinite() && liveAuto > 0.1f
+        val liveRaw = liveRawDirect ?: if (liveRawIsFallback) liveAuto else Float.NaN
+        if ((!liveAuto.isFinite() || liveAuto <= 0.1f) && (!liveRaw.isFinite() || liveRaw <= 0.1f)) {
+            return points
+        }
+
+        val candidate = GlucosePoint(
+            current.timeMillis,
+            liveAuto.takeIf { it.isFinite() && it > 0.1f } ?: 0f,
+            liveRaw.takeIf { it.isFinite() && it > 0.1f } ?: 0f
+        )
+        if (points.isEmpty()) {
+            return listOf(candidate)
+        }
+
+        val merged = ArrayList<GlucosePoint>(points.size + 1)
+        var inserted = false
+        points.forEach { point ->
+            if (!inserted && candidate.timestamp <= point.timestamp) {
+                if (candidate.timestamp == point.timestamp) {
+                    merged.add(preferRicherLivePoint(point, candidate, liveRawIsFallback))
+                    inserted = true
+                    return@forEach
+                }
+                merged.add(candidate)
+                inserted = true
+            }
+            merged.add(point)
+        }
+        if (!inserted) {
+            merged.add(candidate)
+        }
+        return merged
+    }
+
+    private fun preferRicherLivePoint(
+        historyPoint: GlucosePoint,
+        livePoint: GlucosePoint,
+        liveRawIsFallback: Boolean
+    ): GlucosePoint {
+        val mergedValue = livePoint.value.takeIf { it.isFinite() && it > 0.1f }
+            ?: historyPoint.value
+        val historyRawIsValid = historyPoint.rawValue.isFinite() && historyPoint.rawValue > 0.1f
+        val mergedRawValue = if (liveRawIsFallback && historyRawIsValid) {
+            historyPoint.rawValue
+        } else {
+            livePoint.rawValue.takeIf { it.isFinite() && it > 0.1f }
+                ?: historyPoint.rawValue
+        }
+        val merged = GlucosePoint(historyPoint.timestamp, mergedValue, mergedRawValue)
+        merged.color = historyPoint.color
+        return merged
     }
 
     private fun shouldHideInitialWhenCalibrated(): Boolean {
@@ -308,6 +397,11 @@ object CurrentDisplaySource {
 
     private fun resolveSensorViewMode(sensorName: String?): Int {
         if (sensorName.isNullOrEmpty()) {
+            return 0
+        }
+        tk.glucodata.drivers.ManagedSensorRuntime.resolveUiSnapshot(sensorName, sensorName)
+            ?.let { return it.viewMode }
+        if (!SensorIdentity.hasNativeSensorBacking(sensorName)) {
             return 0
         }
         return try {
@@ -372,6 +466,9 @@ object CurrentDisplaySource {
     }
 
     private fun resolveNativeAutoMgdl(sensorId: String?, isMmol: Boolean): Int {
+        if (!SensorIdentity.hasNativeSensorBacking(sensorId)) {
+            return 0
+        }
         val latest = try {
             Natives.lastglucose()
         } catch (_: Throwable) {
