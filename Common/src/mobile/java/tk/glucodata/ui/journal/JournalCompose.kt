@@ -1039,57 +1039,63 @@ private fun JournalDoseAssistCard(
             when (draft.type) {
                 JournalEntryType.CARBS -> {
                     val suggestion = insulinSuggestion
-                    if (suggestion != null) {
-                        Text(
-                            text = stringResource(
-                                R.string.journal_dose_suggested_insulin,
-                                formatInsulinDose(suggestion.totalInsulinUnits)
-                            ),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                    Text(
+                        text = stringResource(
+                            R.string.journal_dose_suggested_insulin,
+                            suggestion?.totalInsulinUnits?.let(::formatInsulinDose) ?: "—"
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (suggestion != null) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        }
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        JournalDoseMetric(
+                            label = stringResource(
+                                R.string.journal_dose_food_component,
+                                "${suggestion?.foodInsulinUnits?.let(::formatInsulinComponent) ?: "—"} U"
+                            )
                         )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        if (suggestion != null && suggestion.correctionInsulinUnits > 0f) {
                             JournalDoseMetric(
                                 label = stringResource(
-                                    R.string.journal_dose_food_component,
-                                    "${formatInsulinComponent(suggestion.foodInsulinUnits)} U"
+                                    R.string.journal_dose_correction_component,
+                                    "${formatInsulinComponent(suggestion.correctionInsulinUnits)} U"
                                 )
                             )
-                            if (suggestion.correctionInsulinUnits > 0f) {
-                                JournalDoseMetric(
-                                    label = stringResource(
-                                        R.string.journal_dose_correction_component,
-                                        "${formatInsulinComponent(suggestion.correctionInsulinUnits)} U"
-                                    )
-                                )
-                            }
-                            if (suggestion.activeInsulinCreditUnits > 0f) {
-                                JournalDoseMetric(
-                                    label = "${stringResource(R.string.IOB)} -" +
-                                        "${formatInsulinComponent(suggestion.activeInsulinCreditUnits)} U"
-                                )
-                            }
-                            draft.doseGlucoseMgDl?.let { glucose ->
-                                JournalDoseMetric(label = formatGlucoseForEditor(glucose, unit))
-                            }
+                        }
+                        if (suggestion != null && suggestion.activeInsulinCreditUnits > 0f) {
+                            JournalDoseMetric(
+                                label = "${stringResource(R.string.IOB)} -" +
+                                    "${formatInsulinComponent(suggestion.activeInsulinCreditUnits)} U"
+                            )
+                        }
+                        draft.doseGlucoseMgDl?.let { glucose ->
+                            JournalDoseMetric(label = formatGlucoseForEditor(glucose, unit))
                         }
                     }
                 }
 
                 JournalEntryType.INSULIN -> {
-                    if (coveredCarbsSuggestion != null) {
-                        Text(
-                            text = stringResource(
-                                R.string.journal_dose_covers_carbs,
-                                formatCarbDose(coveredCarbsSuggestion)
-                            ),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    Text(
+                        text = stringResource(
+                            R.string.journal_dose_covers_carbs,
+                            coveredCarbsSuggestion?.let(::formatCarbDose) ?: "—"
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (coveredCarbsSuggestion != null) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        }
+                    )
                 }
 
                 else -> Unit
@@ -1631,6 +1637,16 @@ private fun JournalStepperField(
                                     .padding(horizontal = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
+                                if (value.isEmpty()) {
+                                    Text(
+                                        text = "0",
+                                        style = MaterialTheme.typography.displaySmall.copy(
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                            fontWeight = FontWeight.SemiBold,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    )
+                                }
                                 innerTextField()
                             }
                             suffix?.let {
