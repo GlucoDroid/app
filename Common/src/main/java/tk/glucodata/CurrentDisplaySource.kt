@@ -317,17 +317,23 @@ object CurrentDisplaySource {
         }
         val liveAuto = current.numericValue.takeIf { it.isFinite() && it > 0.1f } ?: Float.NaN
         val liveRawDirect = current.rawNumericValue.takeIf { it.isFinite() && it > 0.1f }
+        // liveRawIsFallback signals to preferRicherLivePoint that, on an exact
+        // timestamp merge, history's raw should win — the candidate has no real
+        // raw to contribute. It is intentionally NOT baked into the candidate's
+        // own rawValue: doing so would put the auto value into the raw lane,
+        // and a non-exact insertion (Sibionics live arriving offset from history)
+        // would surface that auto-as-raw lie in raw-primary modes (1, 3) and
+        // shadow the real history raw via findExactPoint.
         val liveRawIsFallback = liveRawDirect == null && isRawPrimary(viewMode) &&
             liveAuto.isFinite() && liveAuto > 0.1f
-        val liveRaw = liveRawDirect ?: if (liveRawIsFallback) liveAuto else Float.NaN
-        if ((!liveAuto.isFinite() || liveAuto <= 0.1f) && (!liveRaw.isFinite() || liveRaw <= 0.1f)) {
+        if ((!liveAuto.isFinite() || liveAuto <= 0.1f) && liveRawDirect == null) {
             return points
         }
 
         val candidate = GlucosePoint(
             current.timeMillis,
             liveAuto.takeIf { it.isFinite() && it > 0.1f } ?: 0f,
-            liveRaw.takeIf { it.isFinite() && it > 0.1f } ?: 0f
+            liveRawDirect ?: 0f
         )
         if (points.isEmpty()) {
             return listOf(candidate)
@@ -390,9 +396,21 @@ object CurrentDisplaySource {
             return null
         }
         if (targetTimeMillis <= 0L) {
-            return points.lastOrNull()
+            return points.lastOrNull { it.rawValue.isFinite() && it.rawValue > 0.1f }
+                ?: points.lastOrNull()
         }
-        return points.lastOrNull { kotlin.math.abs(it.timestamp - targetTimeMillis) <= MATCH_WINDOW_MS }
+        // Prefer the latest point in the match window that carries a valid raw
+        // lane. mergeLivePoint splices a synthetic live candidate at current.time
+        // with rawValue=0 for sources that don't expose live raw (native Sibionics).
+        // Without this preference, that candidate would shadow a slightly earlier
+        // real history point that has both lanes — silently dropping the secondary
+        // lane in every snapshot consumer (notification, widgets, AOD, overlays).
+        val withinWindow = points.filter {
+            kotlin.math.abs(it.timestamp - targetTimeMillis) <= MATCH_WINDOW_MS
+        }
+        if (withinWindow.isEmpty()) return null
+        return withinWindow.lastOrNull { it.rawValue.isFinite() && it.rawValue > 0.1f }
+            ?: withinWindow.last()
     }
 
     private fun resolveSensorViewMode(sensorName: String?): Int {
