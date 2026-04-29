@@ -1004,6 +1004,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/nightscout") { NightscoutSettingsScreen(navController) }
                     composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                     composable("settings/mq-account") { MQAccountSettingsScreen(navController) }
+                    composable("settings/mq-follower") { MQFollowerSettingsScreen(navController) }
                     composable("settings/mirror") { MirrorSettingsScreen(navController) }
                     composable("settings/watch") { WatchSettingsScreen(navController) }
                     // Keep legacy route for backward compatibility.
@@ -1115,6 +1116,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/nightscout") { NightscoutSettingsScreen(navController) }
                 composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                 composable("settings/mq-account") { MQAccountSettingsScreen(navController) }
+                composable("settings/mq-follower") { MQFollowerSettingsScreen(navController) }
                 composable("settings/mirror") { MirrorSettingsScreen(navController) }
                 composable("settings/watch") { WatchSettingsScreen(navController) }
                 // Keep legacy route for backward compatibility.
@@ -1501,10 +1503,6 @@ fun DashboardScreen(
             onComplete = {
                 showMQWizard = false
                 viewModel.refreshData()
-            },
-            onManageAccount = {
-                showMQWizard = false
-                onNavigateToMqAccount()
             },
         )
         return
@@ -4324,10 +4322,6 @@ fun SensorScreen(
             onComplete = {
                 showMQWizard = false
                 viewModel.refreshSensors()
-            },
-            onManageAccount = {
-                showMQWizard = false
-                onNavigateToMqAccount()
             },
         )
         return

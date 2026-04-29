@@ -82,6 +82,8 @@ private enum class MQSetupStep {
     SCAN,
     CONNECTING,
     SUCCESS,
+    ACCOUNT,
+    FOLLOWER,
 }
 
 private data class MQScanCandidate(
@@ -96,7 +98,6 @@ private data class MQScanCandidate(
 fun MQSetupWizard(
     onDismiss: () -> Unit,
     onComplete: () -> Unit,
-    onManageAccount: () -> Unit,
 ) {
     val tag = "MQSetupWizard"
     val ui = rememberWizardUiMetrics()
@@ -119,7 +120,11 @@ fun MQSetupWizard(
     }
 
     BackHandler {
-        if (currentStep == MQSetupStep.SCAN) onDismiss() else currentStep = MQSetupStep.SCAN
+        when (currentStep) {
+            MQSetupStep.SCAN -> onDismiss()
+            MQSetupStep.FOLLOWER -> currentStep = MQSetupStep.ACCOUNT
+            else -> currentStep = MQSetupStep.SCAN
+        }
     }
 
     LaunchedEffect(currentStep) {
@@ -127,6 +132,24 @@ fun MQSetupWizard(
             delay(SENSOR_SETUP_SUCCESS_AUTO_ADVANCE_MS)
             onComplete()
         }
+    }
+
+    // Account / follower steps render their own Scaffold + TopAppBar.
+    when (currentStep) {
+        MQSetupStep.ACCOUNT -> {
+            tk.glucodata.ui.MQAccountSettingsContent(
+                onBack = { currentStep = MQSetupStep.SCAN },
+                onNavigateToFollower = { currentStep = MQSetupStep.FOLLOWER },
+            )
+            return
+        }
+        MQSetupStep.FOLLOWER -> {
+            tk.glucodata.ui.MQFollowerSettingsContent(
+                onBack = { currentStep = MQSetupStep.ACCOUNT },
+            )
+            return
+        }
+        else -> Unit
     }
 
     Scaffold(
@@ -152,7 +175,7 @@ fun MQSetupWizard(
                     qrCodeContent = qrCodeContent,
                     onQrCodeChanged = { qrCodeContent = normalizeMqQrCode(it) },
                     onShowManualQrEntry = { showManualQrEntry = true },
-                    onManageAccount = onManageAccount,
+                    onManageAccount = { currentStep = MQSetupStep.ACCOUNT },
                     onDeviceSelected = { candidate ->
                         val addressCanonical = candidate.address
                         selectedLabel = candidate.displayName.ifBlank { addressCanonical }
@@ -234,6 +257,7 @@ fun MQSetupWizard(
                         sensorLabel = selectedLabel.ifBlank { null }
                     )
                 }
+                MQSetupStep.ACCOUNT, MQSetupStep.FOLLOWER -> Unit // handled before Scaffold
             }
         }
     }
