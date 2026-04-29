@@ -939,16 +939,20 @@ fun InteractiveGlucoseChart(
 
                 val currentTime = System.currentTimeMillis()
                 val latestTimestamp = currentLatestDataTimestamp
-                // Check for 10-minute timeout (10 * 60 * 1000 = 600000 ms)
-                if (currentTime - lastActiveTime > 600000) {
-                    // TIMEOUT EXCEEDED: Reset Graph State
-                    if (latestTimestamp > 0) {
-                        visibleDuration = (currentSelectedTimeRange?.hours?.toLong() ?: 3L) * 60 * 60 * 1000
-                        lastAutoScrolledTimestamp = 0L
-                        centerTime = liveCenterTimeFor(latestTimestamp, visibleDuration)
-                        previewCenterTime = centerTime
-                        lastAutoScrolledTimestamp = latestTimestamp
+                // Bound how long the chart may keep a frozen viewport. After 5 min away,
+                // anchor the view to "now" even if the data flow has not re-emitted yet
+                // (cold start / process death restore). Clearing lastAutoScrolledTimestamp
+                // lets the dataSeriesSignature path re-snap on the next emission.
+                if (currentTime - lastActiveTime > 5 * 60 * 1000L) {
+                    visibleDuration = (currentSelectedTimeRange?.hours?.toLong() ?: 3L) * 60 * 60 * 1000
+                    val targetCenter = if (latestTimestamp > 0L) {
+                        liveCenterTimeFor(latestTimestamp, visibleDuration)
+                    } else {
+                        currentTime - visibleDuration / 2
                     }
+                    centerTime = targetCenter
+                    previewCenterTime = targetCenter
+                    lastAutoScrolledTimestamp = 0L
                 }
             }
             else if (event == Lifecycle.Event.ON_PAUSE) {
@@ -1046,6 +1050,33 @@ fun InteractiveGlucoseChart(
                 centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
             }
             lastAutoScrolledTimestamp = latestDataTimestamp
+        }
+    }
+
+    // Heartbeat: while the chart is visible, keep the live edge anchored to real time
+    // even when no new sample arrives. Without this the viewport silently drifts behind
+    // System.currentTimeMillis() (especially with the prediction overlay, whose liveEnd
+    // is anchored to latestDataTimestamp + lead, not to wall-clock time).
+    // Only advances when the user appears to be monitoring; history browsing and active
+    // gestures are preserved. Intentionally lightweight (30s tick).
+    LaunchedEffect(isResumed) {
+        if (!isResumed) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(30_000L)
+            if (isUserInteracting || autoScrollJob != null) continue
+            if (System.currentTimeMillis() - lastInteractionTimestamp < 1200L) continue
+
+            val currentEnd = centerTime + visibleDuration / 2
+            val dist = kotlin.math.abs(lastAutoScrolledTimestamp - currentEnd)
+            val isMonitoring = lastAutoScrolledTimestamp == 0L || dist < 60 * 60 * 1000L
+            if (!isMonitoring) continue
+
+            val targetCenter = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
+            // Only advance forward, never rewind (avoids fighting other effects).
+            if (targetCenter > centerTime) {
+                centerTime = targetCenter
+                previewCenterTime = targetCenter
+            }
         }
     }
 

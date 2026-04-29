@@ -294,11 +294,9 @@ fun DashboardCombinedHeader(
         if (!isFreshData) {
             null
         } else {
-            resolvedCurrentSnapshot?.displayValues ?: if (latestPoint != null) {
-            getDisplayValues(latestPoint, viewMode, "", calibratedValue)
-        } else {
-            null
-        }
+            resolvedCurrentSnapshot?.displayValues ?: latestPoint?.let {
+                getDisplayValues(it, viewMode, "", calibratedValue)
+            }
         }
     }
 
