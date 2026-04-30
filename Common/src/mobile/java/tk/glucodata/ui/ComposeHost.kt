@@ -142,7 +142,6 @@ import tk.glucodata.Libre3NfcSettings
 import tk.glucodata.Natives
 import tk.glucodata.Notify
 import tk.glucodata.SensorBluetooth
-import tk.glucodata.SensorIdentity
 import tk.glucodata.QRmake
 import tk.glucodata.R
 import tk.glucodata.MainActivity
@@ -507,7 +506,11 @@ private fun buildDisplayReadings(
     if (consumerHistory.isEmpty()) {
         return emptyList()
     }
-    return consumerHistory.takeLast(limit).asReversed().distinctBy { it.timestamp }
+    return consumerHistory
+        .asReversed()
+        .distinctBy { it.timestamp }
+        .sortedByDescending { it.timestamp }
+        .take(limit)
 }
 
 
@@ -2473,20 +2476,6 @@ fun ReadingRow(
     val staleColor = MaterialTheme.colorScheme.surfaceContainerHighest // Slightly darker/different
 
     val ageState = remember(point.timestamp) { mutableStateOf(System.currentTimeMillis() - point.timestamp) }
-    val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
-    val activeCurrentSnapshot = if (isActive) {
-        remember(refreshRevision, point.timestamp, point.value, point.rawValue, viewMode, sensorId) {
-            CurrentDisplaySource.resolveCurrent(
-                Notify.glucosetimeout,
-                sensorId?.takeIf { it.isNotBlank() } ?: SensorIdentity.resolveMainSensor()
-            )?.takeIf { snapshot ->
-                kotlin.math.abs(snapshot.timeMillis - point.timestamp) <= 30_000L
-            }
-        }
-    } else {
-        null
-    }
-
     // Timer to update age for the active item
     if (isActive) {
         LaunchedEffect(point.timestamp) {
@@ -2628,7 +2617,7 @@ fun ReadingRow(
                     null
                 }
             } else null
-            val dvs = activeCurrentSnapshot?.displayValues ?: getDisplayValues(point, viewMode, unit, calibratedValueRR)
+            val dvs = getDisplayValues(point, viewMode, unit, calibratedValueRR)
             val primaryColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             val secondaryColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             val unitColor = secondaryColor.copy(alpha = 0.6f)
@@ -2706,7 +2695,7 @@ fun ReadingRow(
                         text = java.text.SimpleDateFormat(
                             "HH:mm",
                             java.util.Locale.getDefault()
-                        ).format(java.util.Date(activeCurrentSnapshot?.timeMillis ?: point.timestamp)),
+                        ).format(java.util.Date(point.timestamp)),
                         style = timeStyle,
                         fontWeight = timeWeight,
                         color = timeColor
@@ -2742,7 +2731,7 @@ fun ReadingRow(
                             text = java.text.SimpleDateFormat(
                                 "HH:mm",
                                 java.util.Locale.getDefault()
-                            ).format(java.util.Date(activeCurrentSnapshot?.timeMillis ?: point.timestamp)),
+                            ).format(java.util.Date(point.timestamp)),
                             style = timeStyle,
                             fontWeight = timeWeight,
                             color = timeColor
