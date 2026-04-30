@@ -74,6 +74,15 @@ object AiDexManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
         return null
     }
 
+    override fun resolveStableStorageSensorId(sensorId: String?): String? {
+        val normalized = normalized(sensorId) ?: return null
+        if (isManagedSensorId(normalized)) {
+            val alias = nativeAlias(normalized) ?: return null
+            return "$PREFIX${alias.uppercase()}"
+        }
+        return resolveCanonicalSensorId(normalized)
+    }
+
     override fun resolveNativeSensorName(sensorId: String?): String? {
         val canonical = resolveCanonicalSensorId(sensorId) ?: return null
         return canonical.takeIf { isManagedSensorId(it) }

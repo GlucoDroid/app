@@ -9,6 +9,8 @@ import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.ManagedSensorIdentityAdapter
 
 object MQManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
+    private val STABLE_HEX_SENSOR_ID = Regex("^[0-9A-F]{12,16}$", RegexOption.IGNORE_CASE)
+    private val STABLE_MAC_SENSOR_ID = Regex("^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$", RegexOption.IGNORE_CASE)
 
     override fun matchesCallbackId(callbackId: String?, sensorId: String): Boolean {
         val normalized = callbackId?.trim().takeIf { !it.isNullOrEmpty() } ?: return false
@@ -46,6 +48,19 @@ object MQManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
             ?.let { return it }
 
         return null
+    }
+
+    override fun resolveStableStorageSensorId(sensorId: String?): String? {
+        val raw = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return null
+        resolveCanonicalSensorId(raw)?.takeIf { it.isNotBlank() }?.let { return it }
+
+        val canonical = MQConstants.canonicalSensorId(raw)
+        return canonical.takeIf {
+            MQConstants.isProvisionalSensorId(it) ||
+                MQConstants.isFollowerSensorId(it) ||
+                STABLE_HEX_SENSOR_ID.matches(raw) ||
+                STABLE_MAC_SENSOR_ID.matches(raw)
+        }
     }
 
     override fun resolveNativeSensorName(sensorId: String?): String? {

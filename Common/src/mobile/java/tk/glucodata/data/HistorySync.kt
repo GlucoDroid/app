@@ -338,6 +338,7 @@ object HistorySync {
             return 0
         }
 
+        val roomSerial = SensorIdentity.resolveRoomStorageSensorId(serial) ?: serial
         val readings = mutableListOf<HistoryReading>()
 
         for (i in rawHistory.indices step 3) {
@@ -356,7 +357,7 @@ object HistorySync {
                 readings.add(
                     HistoryReading(
                         timestamp = timeMs,
-                        sensorSerial = serial,
+                        sensorSerial = roomSerial,
                         value = value,
                         rawValue = rawValue,
                         rate = null

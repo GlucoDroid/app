@@ -239,12 +239,13 @@ class HistoryRepository(context: Context = Applic.app) {
             values: FloatArray,
             rawValues: FloatArray
         ) {
-            if (sensorSerial.isBlank()) return
+            val roomSerial = SensorIdentity.resolveRoomStorageSensorId(sensorSerial) ?: sensorSerial
+            if (roomSerial.isBlank()) return
             if (timestamps.isEmpty()) return
             if (timestamps.size != values.size || timestamps.size != rawValues.size) {
                 Log.w(
                     TAG,
-                    "storeHistoryBatchAsync rejected mismatched arrays for $sensorSerial " +
+                    "storeHistoryBatchAsync rejected mismatched arrays for $roomSerial " +
                         "(timestamps=${timestamps.size}, values=${values.size}, raw=${rawValues.size})"
                 )
                 return
@@ -262,7 +263,7 @@ class HistoryRepository(context: Context = Applic.app) {
                         readings.add(
                             HistoryReading(
                                 timestamp = timestamp,
-                                sensorSerial = sensorSerial,
+                                sensorSerial = roomSerial,
                                 value = if (value.isFinite()) value else 0f,
                                 rawValue = if (rawValue.isFinite()) rawValue else 0f,
                                 rate = null
@@ -270,13 +271,13 @@ class HistoryRepository(context: Context = Applic.app) {
                         )
                     }
                     HistoryRepository().storeReadingsReplacingSensorBuckets(
-                        sensorSerial = sensorSerial,
+                        sensorSerial = roomSerial,
                         readings = readings,
                         bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
                     )
                     UiRefreshBus.requestDataRefresh()
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed storing history batch for $sensorSerial", e)
+                    Log.e(TAG, "Failed storing history batch for $roomSerial", e)
                 }
             }
         }
@@ -288,12 +289,13 @@ class HistoryRepository(context: Context = Applic.app) {
             values: FloatArray,
             rawValues: FloatArray
         ): Boolean {
-            if (sensorSerial.isBlank()) return false
+            val roomSerial = SensorIdentity.resolveRoomStorageSensorId(sensorSerial) ?: sensorSerial
+            if (roomSerial.isBlank()) return false
             if (timestamps.isEmpty()) return true
             if (timestamps.size != values.size || timestamps.size != rawValues.size) {
                 Log.w(
                     TAG,
-                    "storeHistoryBatchBlocking rejected mismatched arrays for $sensorSerial " +
+                    "storeHistoryBatchBlocking rejected mismatched arrays for $roomSerial " +
                         "(timestamps=${timestamps.size}, values=${values.size}, raw=${rawValues.size})"
                 )
                 return false
@@ -311,7 +313,7 @@ class HistoryRepository(context: Context = Applic.app) {
                         readings.add(
                             HistoryReading(
                                 timestamp = timestamp,
-                                sensorSerial = sensorSerial,
+                                sensorSerial = roomSerial,
                                 value = if (value.isFinite()) value else 0f,
                                 rawValue = if (rawValue.isFinite()) rawValue else 0f,
                                 rate = null
@@ -319,7 +321,7 @@ class HistoryRepository(context: Context = Applic.app) {
                         )
                     }
                     HistoryRepository().storeReadingsReplacingSensorBuckets(
-                        sensorSerial = sensorSerial,
+                        sensorSerial = roomSerial,
                         readings = readings,
                         bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
                     )
@@ -329,7 +331,7 @@ class HistoryRepository(context: Context = Applic.app) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed storing blocking history batch for $sensorSerial", e)
+                Log.e(TAG, "Failed storing blocking history batch for $roomSerial", e)
                 false
             }
         }
@@ -344,10 +346,11 @@ class HistoryRepository(context: Context = Applic.app) {
         // Don't store invalid readings
         if (value <= 0 && rawValue <= 0) return
         
-        val serial = SensorIdentity.resolveAppSensorId(sensorSerial)
+        val rawSerial = sensorSerial
             ?: SensorIdentity.resolveMainSensor()
             ?: Natives.lastsensorname()
             ?: "unknown"
+        val serial = SensorIdentity.resolveRoomStorageSensorId(rawSerial) ?: rawSerial
         val storedValue = maybeProjectCalibratedValueForStorage(
             sensorSerial = serial,
             timestamp = timestamp,
@@ -515,7 +518,7 @@ class HistoryRepository(context: Context = Applic.app) {
             return kotlinx.coroutines.flow.flowOf(emptyList())
         }
         return dao.getHistoryFlowForSensors(serials, startTime).map { readings ->
-            mapReadings(readings)
+            mapReadings(mergeQueryReadings(readings, serial))
         }.flowOn(Dispatchers.IO)
     }
 
@@ -533,7 +536,7 @@ class HistoryRepository(context: Context = Applic.app) {
             return kotlinx.coroutines.flow.flowOf(emptyList())
         }
         return dao.getHistoryFlowForSensors(serials, startTime).map { readings ->
-            readings.map { reading ->
+            mergeQueryReadings(readings, serial).map { reading ->
                 GlucosePoint(
                     value = reading.value,
                     time = "",
@@ -577,7 +580,7 @@ class HistoryRepository(context: Context = Applic.app) {
         return withContext(Dispatchers.IO) {
             try {
                 val readings = dao.getReadingsSinceForSensors(serials, startTime)
-                mapReadings(readings)
+                mapReadings(mergeQueryReadings(readings, serial))
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting history for sensor $serial", e)
                 emptyList()
@@ -786,6 +789,13 @@ class HistoryRepository(context: Context = Applic.app) {
         return mapReadings(HistoryDisplayMerge.mergeReadings(readings, preferredSerial))
     }
 
+    private fun mergeQueryReadings(
+        readings: List<HistoryReading>,
+        preferredSerial: String?
+    ): List<HistoryReading> {
+        return HistoryDisplayMerge.mergeReadings(readings, preferredSerial)
+    }
+
     private fun formatTime(timestamp: Long): String =
         requireNotNull(TIME_FORMATTER.get()).format(Date(timestamp))
     
@@ -849,6 +859,7 @@ class HistoryRepository(context: Context = Applic.app) {
                 return false
             }
 
+            val roomSerial = SensorIdentity.resolveRoomStorageSensorId(serial) ?: serial
             val readings = mutableListOf<HistoryReading>()
             for (i in rawHistory.indices step 3) {
                 if (i + 2 >= rawHistory.size) break
@@ -864,7 +875,7 @@ class HistoryRepository(context: Context = Applic.app) {
                 if (value > 0 || rawValue > 0) {
                     readings.add(HistoryReading(
                         timestamp = timeSec * 1000L,
-                        sensorSerial = serial,
+                        sensorSerial = roomSerial,
                         value = value,
                         rawValue = rawValue,
                         rate = 0f  // Rate not available from history

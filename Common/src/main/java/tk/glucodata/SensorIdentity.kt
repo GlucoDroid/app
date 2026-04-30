@@ -114,8 +114,22 @@ object SensorIdentity {
         addCandidate(raw)
         addCandidate(resolveAppSensorId(raw))
         addCandidate(resolveNativeSensorName(raw))
+        addCandidate(resolveRoomStorageSensorId(raw))
         resolveNativeHistorySensorNames(raw).forEach(::addCandidate)
         return resolved.toList()
+    }
+
+    @JvmStatic
+    fun resolveRoomStorageSensorId(sensorId: String?): String? {
+        val raw = normalized(sensorId) ?: return null
+        val managed = ManagedSensorIdentityRegistry.all
+            .asSequence()
+            .mapNotNull { it.resolveStableStorageSensorId(raw) }
+            .firstOrNull { it.isNotBlank() }
+        if (!managed.isNullOrBlank()) {
+            return managed
+        }
+        return nativeShortAlias(raw) ?: raw
     }
 
     @JvmStatic

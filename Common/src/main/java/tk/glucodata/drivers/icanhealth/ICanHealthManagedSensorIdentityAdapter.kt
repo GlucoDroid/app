@@ -8,6 +8,9 @@ import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.ManagedSensorIdentityAdapter
 
 object ICanHealthManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
+    private val STABLE_HEX_SENSOR_ID = Regex("^[0-9A-F]{16,32}$", RegexOption.IGNORE_CASE)
+    private val STABLE_LETTERED_SENSOR_ID = Regex("^P\\d{9}[A-Z]{3}$", RegexOption.IGNORE_CASE)
+    private val STABLE_LT_SENSOR_ID = Regex("^LT\\d{6,}[A-Z]{2,3}$", RegexOption.IGNORE_CASE)
 
     override fun matchesCallbackId(callbackId: String?, sensorId: String): Boolean =
         run {
@@ -64,6 +67,19 @@ object ICanHealthManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
             ?.let { return it }
 
         return null
+    }
+
+    override fun resolveStableStorageSensorId(sensorId: String?): String? {
+        val raw = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return null
+        resolveCanonicalSensorId(raw)?.takeIf { it.isNotBlank() }?.let { return it }
+
+        val canonical = ICanHealthConstants.canonicalSensorId(raw)
+        return canonical.takeIf {
+            ICanHealthConstants.isProvisionalSensorId(it) ||
+                STABLE_HEX_SENSOR_ID.matches(it) ||
+                STABLE_LETTERED_SENSOR_ID.matches(it) ||
+                STABLE_LT_SENSOR_ID.matches(it)
+        }
     }
 
     override fun resolveNativeSensorName(sensorId: String?): String? {

@@ -59,7 +59,9 @@ internal object HistoryDisplayMerge {
         val byBucket = LinkedHashMap<LogicalSensorBucket, HistoryReading>(readings.size)
         for (reading in readings) {
             val sensorSerial = reading.sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: continue
-            val resolvedSensorId = SensorIdentity.resolveAppSensorId(sensorSerial) ?: sensorSerial
+            val resolvedSensorId = SensorIdentity.resolveRoomStorageSensorId(sensorSerial)
+                ?: SensorIdentity.resolveAppSensorId(sensorSerial)
+                ?: sensorSerial
             val key = LogicalSensorBucket(
                 sensorId = resolvedSensorId,
                 bucket = reading.timestamp / SENSOR_MINUTE_BUCKET_MS

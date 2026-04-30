@@ -94,4 +94,28 @@ class SensorIdentityTests {
             )
         )
     }
+
+    @Test
+    fun resolveRoomStorageSensorId_usesNativeShortAliasForLongNativeNames() {
+        assertEquals(
+            "1YL08230BFY",
+            SensorIdentity.resolveRoomStorageSensorId("240601YL08230BFY")
+        )
+        assertEquals(
+            "0671014ATR8",
+            SensorIdentity.resolveRoomStorageSensorId("1P2250671014ATR8")
+        )
+    }
+
+    @Test
+    fun resolveRoomStorageSensorId_keepsManagedCanonicalIds() {
+        assertEquals(
+            "X-222227JR7C",
+            SensorIdentity.resolveRoomStorageSensorId("X-222227JR7C")
+        )
+        assertEquals(
+            "8760080A00070000",
+            SensorIdentity.resolveRoomStorageSensorId("8760080A00070000")
+        )
+    }
 }

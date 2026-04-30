@@ -92,6 +92,24 @@ class HistoryDisplayMergeTests {
         )
     }
 
+    @Test
+    fun mergeReadings_collapsesNativeLongAndShortAliasesInSameMinute() {
+        val merged = HistoryDisplayMerge.mergeReadings(
+            readings = listOf(
+                reading(id = 1, timestamp = 3 * HOUR_MS + 27 * MINUTE_MS, sensorSerial = "240601YL08230BFY", value = 110f, rawValue = 50f),
+                reading(id = 2, timestamp = 3 * HOUR_MS + 27 * MINUTE_MS + 15_000L, sensorSerial = "1YL08230BFY", value = 111f, rawValue = 51f),
+                reading(id = 3, timestamp = 3 * HOUR_MS + 28 * MINUTE_MS, sensorSerial = "1YL08230BFY", value = 112f, rawValue = 52f)
+            ),
+            preferredSerial = "1YL08230BFY"
+        )
+
+        assertEquals(
+            listOf(3 * HOUR_MS + 27 * MINUTE_MS + 15_000L, 3 * HOUR_MS + 28 * MINUTE_MS),
+            merged.map { it.timestamp }
+        )
+        assertEquals(listOf("1YL08230BFY", "1YL08230BFY"), merged.map { it.sensorSerial })
+    }
+
     private fun reading(
         id: Long,
         timestamp: Long,

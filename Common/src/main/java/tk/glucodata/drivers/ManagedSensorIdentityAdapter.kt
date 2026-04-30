@@ -15,6 +15,8 @@ interface ManagedSensorIdentityAdapter {
 
     fun resolveCanonicalSensorId(sensorId: String?): String? = null
 
+    fun resolveStableStorageSensorId(sensorId: String?): String? = resolveCanonicalSensorId(sensorId)
+
     fun resolveNativeSensorName(sensorId: String?): String? = null
 
     /**

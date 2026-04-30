@@ -964,6 +964,28 @@ public:
         SensorGlucoseData *tmp = hist[ind];
         hist[ind] = nullptr;
         delete tmp;
+        // Self-heal: when the per-sensor directory itself is gone, the slot
+        // will never recover on its own. Java-side removal paths (e.g.
+        // ICanHealthBleManager.terminateManagedSensor, MQ driver removal)
+        // delete the on-disk directory but cannot rewrite sensors.dat, so
+        // without this clear the slot's name[] would stay populated forever
+        // and every getSensorData(ind) call would re-construct a broken
+        // SensorGlucoseData (observed: 528 calls / 294 errors in a single
+        // post-removal session). We only purge when the directory is
+        // actually missing — transient mmap failures (low memory, etc.)
+        // leave it alone so a healthy sensor is never accidentally erased.
+        pathconcat sdir(inbasedir, sensorlist()[ind].fullname());
+        struct stat dirstat;
+        if (stat(sdir.data(), &dirstat) != 0) {
+          LOGGER("Self-heal: clearing sensors.dat slot %d (%s) — directory gone\n",
+                 ind, name);
+          sensorlist()[ind].name[0] = '\0';
+          sensorlist()[ind].starttime = 0;
+          sensorlist()[ind].endtime = 0;
+          sensorlist()[ind].present = 0;
+          sensorlist()[ind].finished = 0;
+          sensorlist()[ind].initialized = false;
+        }
         return nullptr;
       }
       sensorlist()[ind].present = 1;

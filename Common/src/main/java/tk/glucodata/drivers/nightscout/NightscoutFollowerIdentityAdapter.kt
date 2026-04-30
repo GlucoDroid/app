@@ -36,6 +36,9 @@ object NightscoutFollowerIdentityAdapter : ManagedSensorIdentityAdapter {
         return raw.takeIf { it.startsWith(NightscoutFollowerRegistry.SENSOR_PREFIX, ignoreCase = true) }
     }
 
+    override fun resolveStableStorageSensorId(sensorId: String?): String? =
+        resolveCanonicalSensorId(sensorId)
+
     override fun resolveNativeSensorName(sensorId: String?): String? = null
 
     override fun hasPersistedManagedRecord(sensorId: String?): Boolean {
