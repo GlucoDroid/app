@@ -1673,6 +1673,24 @@ const char * relstatefile() {
 public:
   SensorGlucoseData(string_view sensin, int sensorindex)
       : SensorGlucoseData(sensin, globalbasedir.size() + 1, sensorindex) {}
+  void setMirrorRemoteBase(std::string_view baseuit) {
+    if (baseuit.empty())
+      return;
+    const std::string_view current = polluit;
+    if (current.size() > baseuit.size() &&
+        current.substr(0, baseuit.size()) == baseuit &&
+        current[baseuit.size()] == '/') {
+      return;
+    }
+    polluit = pathconcat(baseuit, "polls.dat");
+    rawpolluit = pathconcat(baseuit, "rawpolls.dat");
+    temppolluit = pathconcat(baseuit, "temppolls.dat");
+    infopath = pathconcat(baseuit, infopdat);
+    updateinfopath = pathconcat(baseuit, "updateinfo.dat");
+    histpath = pathconcat(baseuit, "data.dat");
+    scanpath = pathconcat(baseuit, "current.dat");
+    trendspath = pathconcat(baseuit, trendsdat);
+  }
   // bool haserror=false;
   bool error() const {
     if (!haserror && meminfo.data() && historydata.data() && polls.data() &&

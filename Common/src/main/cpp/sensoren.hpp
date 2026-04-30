@@ -1308,6 +1308,17 @@ public:
     return 1;
   }
 
+  void alignMirrorRemoteBase(SensorGlucoseData *hist, const int sensorindex) const {
+    if (!hist || sensorindex < 0 || sensorindex > last())
+      return;
+    const auto fullname = getsensor(sensorindex)->fullname();
+    if (fullname.empty())
+      return;
+    std::string remoteBase("sensors/");
+    remoteBase.append(fullname.data(), fullname.size());
+    hist->setMirrorRemoteBase(remoteBase);
+  }
+
   int sendCalibrates(crypt_t *pass, const int sock, int ind,
                      uint16_t &startSendCalibrate) {
     const int lastsens = last();
@@ -1320,22 +1331,25 @@ public:
     int did = 0;
     for (int sindex = first; sindex <= lastsens; ++sindex) {
       SensorGlucoseData *sens = getSensorData(sindex);
+      if (!sens)
+        return 0;
+      alignMirrorRemoteBase(sens, sindex);
       int res = sens->updateCali(pass, sock, ind, sindex);
       if (!res)
         return 0;
       did |= res;
-      if (const auto *serial = sens->shortsensorname();
-          serial && serial->data()[0]) {
-        if (std::string json = javaExportCalibrationProfile(serial->data());
+      const char *serial = getsensor(sindex)->shortsensorname_chars();
+      if (serial && serial[0]) {
+        if (std::string json = javaExportCalibrationProfile(serial);
             !json.empty()) {
           std::string relpath = "mirror/calibration/";
-          relpath += serial->data();
+          relpath += serial;
           relpath += ".json";
           if (!senddata(pass, sock, 0,
                         reinterpret_cast<const senddata_t *>(json.data()),
                         static_cast<int>(json.size()), relpath)) {
             LOGGER("sendCalibrates: failed sending Kotlin profile for %s\n",
-                   serial->data());
+                   serial);
             return 0;
           }
           did |= 1;
@@ -1370,6 +1384,7 @@ public:
     for (int i = firstsensor; i <= lastsens; i++) {
       LOGGER("sensor %d\n", i);
       if (SensorGlucoseData *hist = getSensorData(i)) {
+        alignMirrorRemoteBase(hist, i);
         if (hist->error())
           continue;
         if (newfirst < 0 &&
@@ -1492,6 +1507,7 @@ public:
         break;
       if (!sensor.finished) {
         if (SensorGlucoseData *hist = getSensorData(i)) {
+          alignMirrorRemoteBase(hist, i);
           if (hist->error())
             continue;
           int subdid = (hist->*proc)(pass, sock, ind, i, otheralso);

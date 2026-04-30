@@ -21,6 +21,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <stdio.h>
 #include <algorithm>
 #include <string.h>
 #include <string>
@@ -47,6 +49,7 @@ extern Backup *backup;
 extern void        processglucosevalue(int sendindex,int newstart=-1);
 extern void javaMirrorSyncSensor(const char *serial, bool forceFull);
 extern void javaImportMirrorCalibrationProfile(const char *serial, const char *json);
+extern std::string_view globalbasedir;
 
 //getdata filedata("/data/local/tmp/testdir");
 getdata filedata;
@@ -125,6 +128,15 @@ static void mirrorSyncSensor(int sendindex, bool forceFull) {
     }
 }
 
+static int mirrorSendIndexFromDowith(uint16_t dowith) {
+    if ((dowith & startcalibratedupdate) == startcalibratedupdate ||
+        (dowith & streamupdatebit) == streamupdatebit ||
+        (dowith & starthistoryupdate) == starthistoryupdate) {
+        return dowith & 0x3FFF;
+    }
+    return -1;
+}
+
 static std::string extractMirrorSensorSerial(std::string_view name) {
     static constexpr std::string_view sensorsPrefix = "sensors/";
     if (name.size() <= sensorsPrefix.size() || name.substr(0, sensorsPrefix.size()) != sensorsPrefix) {
@@ -138,35 +150,167 @@ static std::string extractMirrorSensorSerial(std::string_view name) {
     return std::string(rest.substr(0, slash));
 }
 
-static void mirrorSyncSensorForPath(std::string_view path, int sendindex, bool forceFull) {
-    if (std::string serial = extractMirrorSensorSerial(path); !serial.empty()) {
-        javaMirrorSyncSensor(serial.c_str(), forceFull);
-        return;
+static std::string_view mirrorSensorPathTail(std::string_view name) {
+    static constexpr std::string_view sensorsPrefix = "sensors/";
+    if (name.size() <= sensorsPrefix.size() ||
+        name.substr(0, sensorsPrefix.size()) != sensorsPrefix) {
+        return {};
     }
-    mirrorSyncSensor(sendindex, forceFull);
+    const auto rest = name.substr(sensorsPrefix.size());
+    const auto slash = rest.find('/');
+    if (slash == std::string_view::npos || slash == 0) {
+        return {};
+    }
+    return rest.substr(slash);
 }
 
-static std::vector<std::pair<std::string, bool>> pendingMirrorSensorSyncs;
+static std::string mirrorSensorNameForIndex(int sendindex) {
+    if(sendindex < 0 || !sensors || sendindex > sensors->last()) {
+        return {};
+    }
+    const auto *sens = sensors->getsensor(sendindex);
+    if(!sens) {
+        return {};
+    }
+    const auto full = sens->fullname();
+    if(full.empty()) {
+        return {};
+    }
+    return std::string(full);
+}
 
-static void queueMirrorSyncSensorForPath(std::string_view path, bool forceFull) {
+static bool mirrorSensorDirectoryExists(std::string_view serial) {
+    if(serial.empty()) {
+        return false;
+    }
+    pathconcat dir(globalbasedir, "sensors", serial);
+    struct stat st;
+    return stat(dir.data(), &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static std::string canonicalMirrorSensorPath(std::string_view path, int sendindex) {
+    std::string alias = extractMirrorSensorSerial(path);
+    if(alias.empty()) {
+        return {};
+    }
+    std::string target = mirrorSensorNameForIndex(sendindex);
+    if(target.empty() || target == alias) {
+        return {};
+    }
+    if(!mirrorSensorDirectoryExists(target) && mirrorSensorDirectoryExists(alias)) {
+        return {};
+    }
+    std::string_view tail = mirrorSensorPathTail(path);
+    if(tail.empty()) {
+        return {};
+    }
+    std::string result = "sensors/";
+    result += target;
+    result.append(tail.data(), tail.size());
+    return result;
+}
+
+struct PendingMirrorSensorSync {
+    std::string serial;
+    int sendindex;
+    bool forceFull;
+};
+
+struct PendingMirrorSensorAlias {
+    std::string serial;
+    int sendindex;
+};
+
+static void mirrorSyncSensorForPath(std::string_view path, int sendindex, bool forceFull) {
+    if(std::string target = mirrorSensorNameForIndex(sendindex);
+       !target.empty() && mirrorSensorDirectoryExists(target)) {
+        mirrorSyncSensor(sendindex, forceFull);
+        return;
+    }
+    std::string serial = extractMirrorSensorSerial(path);
+    if(!serial.empty()) {
+        javaMirrorSyncSensor(serial.c_str(), forceFull);
+    } else {
+        mirrorSyncSensor(sendindex, forceFull);
+    }
+}
+
+static std::vector<PendingMirrorSensorSync> pendingMirrorSensorSyncs;
+
+static void queueMirrorSyncSensorForPath(std::string_view path, int sendindex, bool forceFull) {
+    if(sendindex < 0) {
+        return;
+    }
     std::string serial = extractMirrorSensorSerial(path);
     if (serial.empty()) {
         return;
     }
     for (auto &entry : pendingMirrorSensorSyncs) {
-        if (entry.first == serial) {
-            entry.second = entry.second || forceFull;
+        if (entry.serial == serial && entry.sendindex == sendindex) {
+            entry.forceFull = entry.forceFull || forceFull;
             return;
         }
     }
-    pendingMirrorSensorSyncs.emplace_back(std::move(serial), forceFull);
+    pendingMirrorSensorSyncs.push_back({std::move(serial), sendindex, forceFull});
+}
+
+static std::vector<PendingMirrorSensorAlias> pendingMirrorSensorAliases;
+
+static void rememberMirrorSensorAliasForPath(std::string_view path, int sendindex) {
+    if(sendindex < 0) {
+        return;
+    }
+    std::string serial = extractMirrorSensorSerial(path);
+    if(serial.empty()) {
+        return;
+    }
+    for(const auto &entry : pendingMirrorSensorAliases) {
+        if(entry.serial == serial && entry.sendindex == sendindex) {
+            return;
+        }
+    }
+    pendingMirrorSensorAliases.push_back({std::move(serial), sendindex});
+}
+
+static void reconcilePendingMirrorSensorDirs() {
+    for(const auto &entry : pendingMirrorSensorAliases) {
+        const std::string target = mirrorSensorNameForIndex(entry.sendindex);
+        if(target.empty() || target == entry.serial) {
+            continue;
+        }
+        pathconcat source(globalbasedir, "sensors", entry.serial);
+        pathconcat destination(globalbasedir, "sensors", target);
+        struct stat sourceStat;
+        if(stat(source.data(), &sourceStat) != 0 || !S_ISDIR(sourceStat.st_mode)) {
+            continue;
+        }
+        struct stat destinationStat;
+        if(stat(destination.data(), &destinationStat) == 0) {
+            LOGGERTAG("mirror alias %s -> %s skipped: destination exists\n",
+                      entry.serial.c_str(), target.c_str());
+            continue;
+        }
+        if(rename(source.data(), destination.data()) == 0) {
+            LOGGERTAG("mirror alias %s -> %s migrated\n",
+                      entry.serial.c_str(), target.c_str());
+        } else {
+            flerrortag("mirror alias rename %s -> %s failed",
+                       source.data(), destination.data());
+        }
+    }
 }
 
 static void flushPendingMirrorSensorSyncs() {
     for (const auto &entry : pendingMirrorSensorSyncs) {
-        javaMirrorSyncSensor(entry.first.c_str(), entry.second);
+        if(std::string target = mirrorSensorNameForIndex(entry.sendindex);
+           !target.empty() && mirrorSensorDirectoryExists(target)) {
+            mirrorSyncSensor(entry.sendindex, entry.forceFull);
+        } else {
+            javaMirrorSyncSensor(entry.serial.c_str(), entry.forceFull);
+        }
     }
     pendingMirrorSensorSyncs.clear();
+    pendingMirrorSensorAliases.clear();
 }
 
 static bool isMirrorSensorInfoPath(std::string_view path) {
@@ -415,6 +559,7 @@ for(int it=0;it<len;) {
                 return {it,comlen};
                 }
 extern                bool updateDevices() ;
+            reconcilePendingMirrorSensorDirs();
             ret=updateDevices();
             flushPendingMirrorSensorSyncs();
             LOGGERTAG("updateDevices=%d\n",ret);
@@ -865,10 +1010,18 @@ static bool startedreceiving() {
 static bool savefileonce(const struct fileonce_t *gegs) {
     const int nr=gegs->nr;
     const uint8_t *start=reinterpret_cast<const uint8_t*>(&gegs->gegs[nr]);
-    const char *name=reinterpret_cast<const char *>(start);
+    const char *incomingName=reinterpret_cast<const char *>(start);
+    const std::string_view incomingNamesv{incomingName};
+    const int mirrorSendIndex = mirrorSendIndexFromDowith(gegs->dowith);
+    std::string canonicalName = canonicalMirrorSensorPath(incomingNamesv, mirrorSendIndex);
+    const char *name = canonicalName.empty() ? incomingName : canonicalName.c_str();
     const std::string_view namesv{name};
     int fp=filedata.open(name);
     LOGGERTAG("savefileonce %s %d show=%d\n",name,nr, (gegs->dowith&startcalibratedupdate));
+    if(!canonicalName.empty()) {
+        LOGGERTAG("canonical mirror path %s -> %s index=%d\n",
+                  incomingName, canonicalName.c_str(), mirrorSendIndex);
+    }
     if(fp<0)
         return false;
     destruct des([fp](){filedata.close(fp);});
@@ -884,20 +1037,20 @@ static bool savefileonce(const struct fileonce_t *gegs) {
         if((gegs->dowith&startcalibratedupdate)==startcalibratedupdate) {
             const auto [sendindex,startpos]=getstartinfo(gegs,start);
             setcalibratedstart(sendindex,startpos);
-            mirrorSyncSensorForPath(namesv, sendindex, true);
+            mirrorSyncSensorForPath(incomingNamesv, sendindex, true);
             }
          else {
             if((gegs->dowith&streamupdatebit)==streamupdatebit) {
                     const auto [sendindex,startpos]=getstartinfo(gegs,start);
                     processglucosevalue(sendindex,startpos);
-                    mirrorSyncSensorForPath(namesv, sendindex, false);
+                    mirrorSyncSensorForPath(incomingNamesv, sendindex, false);
 
                     }
             else {
                     if((gegs->dowith&starthistoryupdate)==starthistoryupdate) {
                             const auto [sendindex,startpos]=getstartinfo(gegs,start);
                             sethistorystart(sendindex,startpos);
-                            mirrorSyncSensorForPath(namesv, sendindex, true);
+                            mirrorSyncSensorForPath(incomingNamesv, sendindex, true);
                             }
                  }
             }
@@ -910,8 +1063,10 @@ static bool savefileonce(const struct fileonce_t *gegs) {
                 json.c_str());
         }
     }
-    if (isMirrorSensorInfoPath(namesv) || isMirrorSensorDataPath(namesv)) {
-        queueMirrorSyncSensorForPath(namesv, isMirrorSensorDataPath(namesv));
+    if (isMirrorSensorInfoPath(incomingNamesv) || isMirrorSensorDataPath(incomingNamesv)) {
+        rememberMirrorSensorAliasForPath(incomingNamesv, mirrorSendIndex);
+        queueMirrorSyncSensorForPath(incomingNamesv, mirrorSendIndex,
+                                     isMirrorSensorDataPath(incomingNamesv));
     }
     LOGARTAG("savedata success");
 #ifdef WEAROS
