@@ -35,10 +35,12 @@ static bool prepareAidexStore(jlong dataptr, jlong mmsec, jfloat glucose,
     rawVal = (int)std::round(rawGlucose * mgdlToMmol * 10.0f);
   }
 
-  id = sens->getinfo()->pollcount;
-  if (id > 0) {
-    uint32_t start = sens->getinfo()->starttime;
+  id = 0;
+  uint32_t start = sens->getinfo()->starttime;
+  if (start > 0 && timsec >= start) {
     id = (timsec - start + 30) / 60;
+  } else {
+    id = sens->getinfo()->pollcount;
   }
   return true;
 }
@@ -116,7 +118,18 @@ extern "C" JNIEXPORT void JNICALL fromjava(aidexSetStartTime)(JNIEnv *env,
   aidexstream *sdata = reinterpret_cast<aidexstream *>(dataptr);
   if (sdata && sdata->hist) {
     auto *info = sdata->hist->getinfo();
-    info->starttime = timeMs / 1000L;
+    const uint32_t newstart = timeMs / 1000L;
+    const uint32_t oldstart = info->starttime;
+    const uint32_t pollcount = info->pollcount;
+    if (pollcount > 0 && oldstart > 0 && newstart > oldstart + 30 * 60) {
+      LOGGER("aidexSetStartTime: new session rebase oldstart=%u newstart=%u "
+             "pollcount=%u\n",
+             oldstart, newstart, pollcount);
+      sdata->hist->rebaseDirectStreamWindow(newstart);
+      info = sdata->hist->getinfo();
+    } else {
+      info->starttime = newstart;
+    }
     if (info->days < 10 || info->days > maxdays) {
       info->days = 15;
     }

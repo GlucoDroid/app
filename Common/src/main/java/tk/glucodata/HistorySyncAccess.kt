@@ -28,6 +28,9 @@ object HistorySyncAccess {
     private val mergeFullSensorMethod by lazy {
         runCatching { syncHolder?.getMethod("mergeFullSyncForSensor", String::class.java) }.getOrNull()
     }
+    private val markSensorResetMethod by lazy {
+        runCatching { syncHolder?.getMethod("markSensorReset", String::class.java) }.getOrNull()
+    }
 
     private val repositoryHolder by lazy { runCatching { Class.forName(REPOSITORY_CLASS_NAME) }.getOrNull() }
     private val resetBackfillMethod by lazy {
@@ -167,6 +170,19 @@ object HistorySyncAccess {
             Log.w(TAG, "mergeFullSyncForSensor unavailable for serial=$serial; falling back to syncSensorFromNative(forceFull=true)")
         }
         syncSensorFromNative(serial, forceFull = true)
+    }
+
+    @JvmStatic
+    fun markSensorReset(serial: String?) {
+        if (serial.isNullOrBlank()) return
+        val instance = syncInstance
+        val method = markSensorResetMethod
+        if (instance == null || method == null) {
+            Log.w(TAG, "markSensorReset unavailable for serial=$serial")
+            return
+        }
+        runCatching { method.invoke(instance, serial) }
+            .onFailure { Log.w(TAG, "markSensorReset failed for serial=$serial", it) }
     }
 
     @JvmStatic

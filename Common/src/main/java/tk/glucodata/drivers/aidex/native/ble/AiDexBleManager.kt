@@ -674,14 +674,14 @@ class AiDexBleManager(
         val timestamps = LongArray(size) { index -> pendingRoomHistoryTimestamps[index] }
         val values = FloatArray(size) { index -> pendingRoomHistoryValues[index] }
         val rawValues = FloatArray(size) { index -> pendingRoomHistoryRawValues[index] }
-        val stored = tk.glucodata.HistorySyncAccess.storeSensorHistoryBatchAsync(
+        val stored = tk.glucodata.HistorySyncAccess.storeSensorHistoryBatchBlocking(
             sensorSerial = SerialNumber,
             timestamps = timestamps,
             valuesMgdl = values,
             rawValuesMgdl = rawValues
         )
         if (stored) {
-            Log.i(TAG, "Queued $size history rows for direct Room merge")
+            Log.i(TAG, "Stored $size history rows for direct Room merge")
             clearPendingRoomHistory()
         }
         return stored
@@ -4896,6 +4896,7 @@ class AiDexBleManager(
 
     override fun resetSensor(): Boolean {
         Log.i(TAG, "resetSensor: CLEAR_STORAGE (0xF3) then RESET (0xF0) for $SerialNumber")
+        tk.glucodata.HistorySyncAccess.markSensorReset(SerialNumber)
 
         // Step 0: Build CLEAR_STORAGE command (requires session key)
         val cmd = commandBuilder.clearStorage() ?: run {
@@ -4930,6 +4931,7 @@ class AiDexBleManager(
         autoActivationAttemptedThisConnection = true
         hasAuthoritativeSessionStart = false
         armFirstValidReadingWait(System.currentTimeMillis(), "start-new-sensor")
+        tk.glucodata.HistorySyncAccess.markSensorReset(SerialNumber)
 
         // Reset history indices — new sensor means history starts from scratch
         historyRawNextIndex = 0

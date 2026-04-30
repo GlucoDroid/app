@@ -4106,7 +4106,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                                 vendorHistoryDownloading) {
                                 vendorHistoryLastProgressiveSyncAt = vendorHistoryRecordsStored
                                 Log.i(TAG, "Edit 73: Progressive sync at $vendorHistoryRecordsStored records")
-                                try { tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
+                                try { tk.glucodata.HistorySyncAccess.mergeFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
                             }
 
                             // Request next page if more records remain
@@ -4119,7 +4119,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                                             vendorHistoryDownloading = false
                                             // Still sync what we have so far
                                             if (vendorHistoryRecordsStored > 0) {
-                                                try { tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
+                                                try { tk.glucodata.HistorySyncAccess.mergeFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
                                             }
                                             return@execute
                                         }
@@ -4130,14 +4130,14 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                                         Log.e(TAG, "GET_HISTORIES: pagination failed: ${t.message}")
                                         vendorHistoryDownloading = false
                                         if (vendorHistoryRecordsStored > 0) {
-                                            try { tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
+                                            try { tk.glucodata.HistorySyncAccess.mergeFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
                                         }
                                     }
                                 }
                             } else {
-                                // Download complete — do a SINGLE forced full sync to update Compose chart.
-                                // Multi-sensor: Use forceFullSyncForSensor() to sync just this sensor's data
-                                // without destroying data from other sensors in Room.
+                                // Download complete — do a SINGLE non-destructive full merge to update Compose chart.
+                                // Multi-sensor: imported AiDex history must not delete older Room rows for this
+                                // transmitter/sensor id when the native stream currently exposes only a recent tail.
                                 // Also reset backfillCompleted so ensureBackfilled() re-runs if
                                 // it completed before the history download finished.
                                 Log.i(TAG, "GET_HISTORIES: download complete — $vendorHistoryRecordsStored records stored total")
@@ -4152,9 +4152,9 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                                     try { Thread.sleep(300) } catch (_: Throwable) {}
                                     try {
                                         tk.glucodata.HistorySyncAccess.resetBackfillFlag()
-                                        tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber ?: "")
+                                        tk.glucodata.HistorySyncAccess.mergeFullSyncForSensor(SerialNumber ?: "")
                                     } catch (_: Throwable) {}
-                                    Log.i(TAG, "GET_HISTORIES: HistorySync.forceFullSyncForSensor() triggered after $vendorHistoryRecordsStored records")
+                                    Log.i(TAG, "GET_HISTORIES: HistorySync.mergeFullSyncForSensor() triggered after $vendorHistoryRecordsStored records")
                                 }
                             }
                         } else {
@@ -4170,7 +4170,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                         vendorHistoryDownloading = false
                         clearRawHistoryPageState()
                         if (vendorHistoryRecordsStored > 0) {
-                            try { tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
+                            try { tk.glucodata.HistorySyncAccess.mergeFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
                         }
                     }
                 } else {
@@ -4182,7 +4182,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     }
                     clearRawHistoryPageState()
                     if (vendorHistoryRecordsStored > 0) {
-                        try { tk.glucodata.HistorySyncAccess.forceFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
+                        try { tk.glucodata.HistorySyncAccess.mergeFullSyncForSensor(SerialNumber ?: "") } catch (_: Throwable) {}
                     }
                 }
             }
@@ -10436,6 +10436,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         writeIntPref("vendorHistoryNextIndex", 0)
         vendorRawHistoryHydratedUpTo = 0
         writeIntPref("vendorRawHistoryHydratedUpTo", 0)
+        tk.glucodata.HistorySyncAccess.markSensorReset(SerialNumber)
 
         // --- Strategy 1: Vendor Native Lib ---
         // executeVendorCommand now properly waits for GATT + AES initialization
@@ -10574,6 +10575,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         writeIntPref("vendorHistoryNextIndex", 0)
         vendorRawHistoryHydratedUpTo = 0
         writeIntPref("vendorRawHistoryHydratedUpTo", 0)
+        tk.glucodata.HistorySyncAccess.markSensorReset(SerialNumber)
 
         // --- Strategy 1: Vendor Native Lib ---
         // executeVendorCommand now properly waits for GATT + AES initialization
