@@ -10,6 +10,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import tk.glucodata.BuildConfig
 import tk.glucodata.Natives
+import tk.glucodata.data.journal.JournalEntryEntity
+import tk.glucodata.data.journal.JournalInsulinPresetEntity
 import java.io.File
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
@@ -18,7 +20,7 @@ import java.util.Locale
 object SettingsExporter {
     private const val TAG = "SettingsExporter"
     private const val SCHEMA = "tk.glucodata.settings-export"
-    private const val SCHEMA_VERSION = 1
+    private const val SCHEMA_VERSION = 2
 
     private val nativeSettingsFiles = listOf(
         "settings.dat",
@@ -29,7 +31,9 @@ object SettingsExporter {
     data class ImportSummary(
         val sharedPreferenceFiles: Int,
         val preferenceValues: Int,
-        val nativeFiles: Int
+        val nativeFiles: Int,
+        val journalEntries: Int = 0,
+        val journalInsulinPresets: Int = 0
     )
 
     suspend fun exportToJson(context: Context, uri: Uri): Result<Unit> {
@@ -79,11 +83,17 @@ object SettingsExporter {
                     appContext,
                     payload.optJSONObject("nativeSettingsFiles") ?: JSONObject()
                 )
+                val journalSummary = importJournalData(
+                    appContext,
+                    payload.optJSONObject("journalData")
+                )
 
                 ImportSummary(
                     sharedPreferenceFiles = preferencesSummary.first,
                     preferenceValues = preferencesSummary.second,
-                    nativeFiles = nativeFileCount
+                    nativeFiles = nativeFileCount,
+                    journalEntries = journalSummary.first,
+                    journalInsulinPresets = journalSummary.second
                 )
             }.onFailure {
                 Log.e(TAG, "Settings import failed", it)
@@ -91,7 +101,7 @@ object SettingsExporter {
         }
     }
 
-    private fun buildPayload(context: Context): JSONObject {
+    private suspend fun buildPayload(context: Context): JSONObject {
         return JSONObject()
             .put("schema", SCHEMA)
             .put("schemaVersion", SCHEMA_VERSION)
@@ -100,6 +110,7 @@ object SettingsExporter {
             .put("app", buildAppInfo(context))
             .put("sharedPreferences", buildSharedPreferences(context))
             .put("nativeSettingsFiles", buildNativeSettingsFiles(context))
+            .put("journalData", buildJournalData(context))
             .put("nativeTransferSettings", buildNativeTransferSettings())
     }
 
@@ -275,6 +286,144 @@ object SettingsExporter {
                     result.put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))
                 }
         }
+    }
+
+    private suspend fun buildJournalData(context: Context): JSONObject {
+        val journalDao = HistoryDatabase.getInstance(context).journalDao()
+        return JSONObject()
+            .put(
+                "entries",
+                JSONArray().also { array ->
+                    journalDao.getEntries().forEach { array.put(it.toJson()) }
+                }
+            )
+            .put(
+                "insulinPresets",
+                JSONArray().also { array ->
+                    journalDao.getInsulinPresets().forEach { array.put(it.toJson()) }
+                }
+            )
+    }
+
+    private suspend fun importJournalData(context: Context, journalData: JSONObject?): Pair<Int, Int> {
+        if (journalData == null) return 0 to 0
+        val entries = journalData.optJSONArray("entries").toJournalEntries()
+        val insulinPresets = journalData.optJSONArray("insulinPresets").toInsulinPresets()
+        val journalDao = HistoryDatabase.getInstance(context).journalDao()
+
+        journalDao.deleteAllEntries()
+        journalDao.deleteAllInsulinPresets()
+        if (insulinPresets.isNotEmpty()) {
+            journalDao.insertInsulinPresets(insulinPresets)
+        }
+        if (entries.isNotEmpty()) {
+            journalDao.upsertEntries(entries)
+        }
+        return entries.size to insulinPresets.size
+    }
+
+    private fun JournalEntryEntity.toJson(): JSONObject {
+        return JSONObject()
+            .put("id", id)
+            .put("timestamp", timestamp)
+            .putNullable("sensorSerial", sensorSerial)
+            .put("entryType", entryType)
+            .put("title", title)
+            .putNullable("note", note)
+            .putNullable("amount", amount)
+            .putNullable("glucoseValueMgDl", glucoseValueMgDl)
+            .putNullable("durationMinutes", durationMinutes)
+            .putNullable("intensity", intensity)
+            .putNullable("insulinPresetId", insulinPresetId)
+            .put("source", source)
+            .putNullable("sourceRecordId", sourceRecordId)
+            .put("createdAt", createdAt)
+            .put("updatedAt", updatedAt)
+    }
+
+    private fun JournalInsulinPresetEntity.toJson(): JSONObject {
+        return JSONObject()
+            .put("id", id)
+            .put("displayName", displayName)
+            .put("onsetMinutes", onsetMinutes)
+            .put("durationMinutes", durationMinutes)
+            .put("accentColor", accentColor)
+            .put("curveJson", curveJson)
+            .put("isBuiltIn", isBuiltIn)
+            .put("isArchived", isArchived)
+            .put("countsTowardIob", countsTowardIob)
+            .put("sortOrder", sortOrder)
+    }
+
+    private fun JSONArray?.toJournalEntries(): List<JournalEntryEntity> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (index in 0 until length()) {
+                val item = optJSONObject(index) ?: continue
+                add(
+                    JournalEntryEntity(
+                        id = item.optLong("id", 0L),
+                        timestamp = item.getLong("timestamp"),
+                        sensorSerial = item.optNullableString("sensorSerial"),
+                        entryType = item.getString("entryType"),
+                        title = item.getString("title"),
+                        note = item.optNullableString("note"),
+                        amount = item.optNullableFloat("amount"),
+                        glucoseValueMgDl = item.optNullableFloat("glucoseValueMgDl"),
+                        durationMinutes = item.optNullableInt("durationMinutes"),
+                        intensity = item.optNullableString("intensity"),
+                        insulinPresetId = item.optNullableLong("insulinPresetId"),
+                        source = item.optString("source", "import"),
+                        sourceRecordId = item.optNullableString("sourceRecordId"),
+                        createdAt = item.optLong("createdAt", item.getLong("timestamp")),
+                        updatedAt = item.optLong("updatedAt", item.getLong("timestamp"))
+                    )
+                )
+            }
+        }
+    }
+
+    private fun JSONArray?.toInsulinPresets(): List<JournalInsulinPresetEntity> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (index in 0 until length()) {
+                val item = optJSONObject(index) ?: continue
+                add(
+                    JournalInsulinPresetEntity(
+                        id = item.optLong("id", 0L),
+                        displayName = item.getString("displayName"),
+                        onsetMinutes = item.getInt("onsetMinutes"),
+                        durationMinutes = item.getInt("durationMinutes"),
+                        accentColor = item.getInt("accentColor"),
+                        curveJson = item.optString("curveJson", ""),
+                        isBuiltIn = item.optBoolean("isBuiltIn", false),
+                        isArchived = item.optBoolean("isArchived", false),
+                        countsTowardIob = item.optBoolean("countsTowardIob", true),
+                        sortOrder = item.optInt("sortOrder", index)
+                    )
+                )
+            }
+        }
+    }
+
+    private fun JSONObject.putNullable(name: String, value: Any?): JSONObject {
+        return put(name, value ?: JSONObject.NULL)
+    }
+
+    private fun JSONObject.optNullableString(name: String): String? {
+        return if (isNull(name)) null else optString(name)
+    }
+
+    private fun JSONObject.optNullableFloat(name: String): Float? {
+        return if (isNull(name) || !has(name)) null else optDouble(name).toFloat()
+    }
+
+    private fun JSONObject.optNullableInt(name: String): Int? {
+        return if (isNull(name) || !has(name)) null else optInt(name)
+    }
+
+    private fun JSONObject.optNullableLong(name: String): Long? {
+        return if (isNull(name) || !has(name)) null else optLong(name)
     }
 
     private fun encodeFile(file: File): String {

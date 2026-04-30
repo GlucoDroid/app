@@ -24,11 +24,17 @@ interface JournalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertEntry(entry: JournalEntryEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertEntries(entries: List<JournalEntryEntity>)
+
     @Delete
     suspend fun deleteEntry(entry: JournalEntryEntity)
 
     @Query("DELETE FROM journal_entries WHERE id = :id")
     suspend fun deleteEntryById(id: Long)
+
+    @Query("DELETE FROM journal_entries")
+    suspend fun deleteAllEntries()
 
     @Query("SELECT * FROM journal_insulin_presets ORDER BY isArchived ASC, sortOrder ASC, displayName COLLATE NOCASE ASC")
     fun observeInsulinPresets(): Flow<List<JournalInsulinPresetEntity>>
@@ -44,6 +50,9 @@ interface JournalDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInsulinPresets(presets: List<JournalInsulinPresetEntity>)
+
+    @Query("DELETE FROM journal_insulin_presets")
+    suspend fun deleteAllInsulinPresets()
 
     @Query("SELECT COUNT(*) FROM journal_insulin_presets")
     suspend fun countInsulinPresets(): Int
