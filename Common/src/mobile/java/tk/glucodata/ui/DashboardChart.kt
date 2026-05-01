@@ -1725,7 +1725,22 @@ fun InteractiveGlucoseChart(
                                                 pointAtTouch.timestamp == currentSafeData.lastOrNull()?.timestamp &&
                                                 timeAtTouch > pointAtTouch.timestamp
 
-                                        if (isFutureTap) {
+                                        if (isFutureTap && onTimelineTap != null) {
+                                            buildTimelineTapSuggestion(down.position, forceMenu = false)?.let { suggestion ->
+                                                cancelPendingTimelineTap()
+                                                selectedPoint = null
+                                                pendingTimelineTapJob = coroutineScope.launch {
+                                                    kotlinx.coroutines.delay(280L)
+                                                    onTimelineTap.invoke(
+                                                        suggestion.copy(
+                                                            timestamp = suggestion.timestamp.coerceAtMost(
+                                                                System.currentTimeMillis()
+                                                            )
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        } else if (isFutureTap) {
                                             dismissJournalActionIfNeeded()
                                             selectedPoint = pointAtTouch
                                         } else {
@@ -2631,7 +2646,22 @@ fun InteractiveGlucoseChart(
                                 ?.let(::valToY)
                                 ?.takeIf { it.isFinite() }
                                 ?.coerceIn(6.dp.toPx(), chartHeight - 6.dp.toPx())
+                                ?: marker.chartYFraction
+                                    ?.let { fraction -> chartHeight - (fraction.coerceIn(0f, 1f) * chartHeight) }
+                                    ?.takeIf { it.isFinite() }
+                                    ?.coerceIn(6.dp.toPx(), chartHeight - 6.dp.toPx())
                                 ?: eventRailY
+                            if (marker.type == JournalEntryType.ACTIVITY && marker.durationMinutes != null) {
+                                val endX = timeToDataX(marker.timestamp + marker.durationMinutes.coerceAtLeast(1) * 60_000L)
+                                    .coerceIn(0f, dataWidth)
+                                drawLine(
+                                    color = tint.copy(alpha = 0.26f),
+                                    start = Offset(markerX, markerY),
+                                    end = Offset(endX, markerY),
+                                    strokeWidth = 3.dp.toPx(),
+                                    cap = StrokeCap.Round
+                                )
+                            }
                             if (marker.type == JournalEntryType.FINGERSTICK) {
                                 drawCircle(
                                     color = tint.copy(alpha = 0.18f),
@@ -2737,6 +2767,15 @@ fun InteractiveGlucoseChart(
                 val range = (yMax - yMin).takeIf { it > 0.001f } ?: 1f
                 (chartHeightPx - ((value - yMin) / range) * chartHeightPx).coerceIn(0f, chartHeightPx)
             }
+            fun markerOverlayY(marker: JournalChartMarker): Float? {
+                return marker.chartGlucoseValue
+                    ?.let(overlayValueToY)
+                    ?.takeIf { it.isFinite() }
+                    ?: marker.chartYFraction
+                        ?.let { fraction -> chartHeightPx - (fraction.coerceIn(0f, 1f) * chartHeightPx) }
+                        ?.takeIf { it.isFinite() }
+                        ?.coerceIn(0f, chartHeightPx)
+            }
             fun laneAssignments(markers: List<Pair<JournalChartMarker, Float>>): Map<Long, Int> {
                 val laneEndXs = mutableListOf<Float>()
                 val assignments = mutableMapOf<Long, Int>()
@@ -2829,7 +2868,7 @@ fun InteractiveGlucoseChart(
                         else -> {
                             val lane = eventLanes[marker.entryId] ?: 0
                             (
-                                (marker.chartGlucoseValue?.let(overlayValueToY) ?: eventBaseTopPx) -
+                                (markerOverlayY(marker) ?: eventBaseTopPx) -
                                     fingerstickLiftPx -
                                     (lane * journalChipLaneStepPx)
                                 ).coerceIn(journalChipMinTopPx, journalChipMaxTopPx)
@@ -2841,10 +2880,7 @@ fun InteractiveGlucoseChart(
                             ?.takeIf { it.isFinite() }
                             ?: eventRailOverlayY
                         JournalEntryType.INSULIN -> insulinConnectorY
-                        else -> marker.chartGlucoseValue
-                            ?.let(overlayValueToY)
-                            ?.takeIf { it.isFinite() }
-                            ?: eventRailOverlayY
+                        else -> markerOverlayY(marker) ?: eventRailOverlayY
                     }
                     val labelEdgeX = if (preferLeadingAnchor) {
                         markerX - journalChipSideOffsetPx - connectorUnderlapPx
@@ -2888,7 +2924,7 @@ fun InteractiveGlucoseChart(
                     else -> {
                         val lane = eventLanes[marker.entryId] ?: 0
                         (
-                            (marker.chartGlucoseValue?.let(overlayValueToY) ?: eventBaseTopPx) -
+                            (markerOverlayY(marker) ?: eventBaseTopPx) -
                                 fingerstickLiftPx -
                                 (lane * journalChipLaneStepPx)
                             ).coerceIn(journalChipMinTopPx, journalChipMaxTopPx)

@@ -740,6 +740,7 @@ private fun HistoryRoute(
                 timestamp = timestamp,
                 suggestedGlucoseMgDl = suggestedGlucoseMgDl,
                 suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl
+                    .takeIf { type == JournalEntryType.FINGERSTICK }
             )
         }
     )
@@ -2034,6 +2035,7 @@ fun DashboardScreen(
                                             timestamp = item.timestamp,
                                             suggestedGlucoseMgDl = rowGlucoseMgDl,
                                             suggestedChartAnchorGlucoseMgDl = rowGlucoseMgDl
+                                                .takeIf { lastJournalType == JournalEntryType.FINGERSTICK }
                                         )
                                     }
                                 } else {
@@ -2336,6 +2338,7 @@ fun DashboardScreen(
                                             timestamp = item.timestamp,
                                             suggestedGlucoseMgDl = rowGlucoseMgDl,
                                             suggestedChartAnchorGlucoseMgDl = rowGlucoseMgDl
+                                                .takeIf { lastJournalType == JournalEntryType.FINGERSTICK }
                                         )
                                     }
                                 } else {

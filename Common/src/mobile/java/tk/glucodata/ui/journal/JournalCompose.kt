@@ -136,9 +136,22 @@ fun buildJournalChartMarkers(
             JournalEntryType.FINGERSTICK -> entry.glucoseValueMgDl?.let {
                 GlucoseFormatter.displayFromMgDl(it, isMmol)
             }
-            else -> entry.glucoseValueMgDl?.let {
-                GlucoseFormatter.displayFromMgDl(it, isMmol)
+            else -> null
+        }
+        val chartYFraction = if (chartValue == null) {
+            when (entry.type) {
+                JournalEntryType.CARBS -> entry.amount
+                    ?.let { grams -> 0.18f + ((grams / 80f).coerceIn(0f, 1f) * 0.62f) }
+                JournalEntryType.ACTIVITY -> when (entry.intensity) {
+                    JournalIntensity.INTENSE -> 0.64f
+                    JournalIntensity.MODERATE -> 0.52f
+                    JournalIntensity.LIGHT, null -> 0.42f
+                }
+                JournalEntryType.NOTE -> 0.32f
+                else -> null
             }
+        } else {
+            null
         }
         JournalChartMarker(
             entryId = entry.id,
@@ -150,6 +163,8 @@ fun buildJournalChartMarkers(
             detailText = journalMarkerDetail(entry, preset, unit),
             amount = entry.amount,
             chartGlucoseValue = chartValue,
+            chartYFraction = chartYFraction,
+            durationMinutes = entry.durationMinutes,
             curvePoints = if (entry.type == JournalEntryType.INSULIN && preset != null) {
                 preset.curvePoints
             } else {
@@ -162,6 +177,8 @@ fun buildJournalChartMarkers(
             },
             activeEndMillis = if (entry.type == JournalEntryType.INSULIN && preset != null) {
                 preset.activeEndAt(entry.timestamp)
+            } else if (entry.type == JournalEntryType.ACTIVITY && entry.durationMinutes != null) {
+                entry.timestamp + (entry.durationMinutes.coerceAtLeast(1) * 60_000L)
             } else {
                 null
             }
