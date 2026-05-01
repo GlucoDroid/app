@@ -235,7 +235,7 @@ class ICanHealthBleManager(
         loadPersistedCoveredEdge(force = true)
     }
 
-    private val noDataWatchdog = Runnable {
+    private val noDataWatchdog: Runnable = Runnable {
         if (phase == Phase.STREAMING && lastGlucoseReceiptRealtimeMs > 0L) {
             val elapsed = System.currentTimeMillis() - lastGlucoseReceiptRealtimeMs
             if (elapsed > NO_DATA_WATCHDOG_MS) {
@@ -245,6 +245,11 @@ class ICanHealthBleManager(
                     mBluetoothGatt?.disconnect()
                 } catch (_: Throwable) {
                 }
+            } else {
+                handler.postDelayed(
+                    noDataWatchdog,
+                    (NO_DATA_WATCHDOG_MS - elapsed).coerceAtLeast(1_000L)
+                )
             }
         }
     }
@@ -2152,13 +2157,12 @@ class ICanHealthBleManager(
             val cappedHistoryPolling = canUseHistoryPastEndedStatusCap()
             suppressAutomaticHistoryBackfill = false
             shouldRequestAuthenticatedHistoryBackfill = cappedHistoryPolling
-            if (cappedHistoryPolling) {
-                lastGlucoseReceiptRealtimeMs = System.currentTimeMillis()
-                phase = Phase.STREAMING
-                setUiStatus(UiStatusKind.CONNECTED)
-                scheduleForegroundNotificationRefresh()
-                scheduleNoDataWatchdog()
-            }
+            receivedGlucoseThisConnection = true
+            lastGlucoseReceiptRealtimeMs = System.currentTimeMillis()
+            phase = Phase.STREAMING
+            setUiStatus(UiStatusKind.CONNECTED)
+            scheduleForegroundNotificationRefresh()
+            scheduleNoDataWatchdog()
             Log.i(
                 TAG,
                 "Authenticated glucose-history cycle completed with $importedGlucoseHistory imported records" +
