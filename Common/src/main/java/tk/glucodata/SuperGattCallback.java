@@ -767,6 +767,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 && managed.managesLiveRoomStorage()
                 && SerialNumber != null
                 && !SerialNumber.isEmpty();
+        final boolean shouldApplyGenericLiveCalibration = !liveRoomStorage;
 
         // Check viewMode early - RAW modes may have data even when calibrated glucose is 0
         int viewMode = Natives.getViewMode(dataptr);
@@ -792,9 +793,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 } else {
                     syncLegacyRoomHistoryAfterLive(SerialNumber, timmsec);
                 }
-                // Apply calibration
-                glucoseToUse = CalibrationAccess.getCalibratedValue(glucoseToUse, timmsec, true);
-                mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
+                if (shouldApplyGenericLiveCalibration) {
+                    glucoseToUse = CalibrationAccess.getCalibratedValue(glucoseToUse, timmsec, true);
+                    mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
+                }
 
                 if (doLog) {
                     Log.i(LOG_ID, "RAW mode during warmup: using raw=" + glucoseToUse + " mgdl=" + mgdlToUse);
@@ -872,9 +874,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 syncLegacyRoomHistoryAfterLive(SerialNumber, timmsec);
             }
 
-            // Apply Kotlin calibration if enabled
-            glucoseToUse = CalibrationAccess.getCalibratedValue(glucoseToUse, timmsec, isRawMode);
-            mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
+            if (shouldApplyGenericLiveCalibration) {
+                glucoseToUse = CalibrationAccess.getCalibratedValue(glucoseToUse, timmsec, isRawMode);
+                mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
+            }
             alarm = reconcileAlertCodeWithCalibratedValue(alarm, glucoseToUse, rate);
 
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
