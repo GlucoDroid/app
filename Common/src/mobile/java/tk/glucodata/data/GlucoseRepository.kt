@@ -244,7 +244,7 @@ class GlucoseRepository {
         val unit = Natives.getunit()
         val isMmol = (unit == 1)
         val preferredSerial = resolveDisplayPreferredSerial()
-        historyRepository.ensureBackfilled(preferredSerial)
+        historyRepository.ensureBackfilled(preferredSerial, 0L)
         val rawHistory = loadDisplayHistory(preferredSerial, 0L)
         
         // Convert to display unit
@@ -261,7 +261,7 @@ class GlucoseRepository {
      */
     suspend fun getHistory(startTime: Long, isMmol: Boolean): List<GlucosePoint> {
         val preferredSerial = resolveDisplayPreferredSerial()
-        historyRepository.ensureBackfilled(preferredSerial)
+        historyRepository.ensureBackfilled(preferredSerial, startTime)
         val raw = loadDisplayHistory(preferredSerial, startTime)
         return if (isMmol) {
             raw.map { p ->
@@ -283,7 +283,7 @@ class GlucoseRepository {
             val preferredSerial = resolveDisplayPreferredSerial(serial)
             channelFlow {
                 launch {
-                    historyRepository.ensureBackfilled(preferredSerial)
+                    historyRepository.ensureBackfilled(preferredSerial, startTime)
                 }
                 observeDisplayHistory(preferredSerial, startTime).collect { points ->
                     send(points)
@@ -307,7 +307,7 @@ class GlucoseRepository {
             val preferredSerial = resolveDisplayPreferredSerial(serial)
             channelFlow {
                 launch {
-                    historyRepository.ensureBackfilled(preferredSerial)
+                    historyRepository.ensureBackfilled(preferredSerial, startTime)
                 }
                 observeDisplayHistory(preferredSerial, startTime).collect { points ->
                     send(points)
@@ -323,7 +323,7 @@ class GlucoseRepository {
     fun getHistory(): List<GlucosePoint> {
         return kotlinx.coroutines.runBlocking {
             val preferredSerial = resolveDisplayPreferredSerial()
-            historyRepository.ensureBackfilled(preferredSerial)
+            historyRepository.ensureBackfilled(preferredSerial, 0L)
             val rawHistory = loadDisplayHistory(preferredSerial, 0L)
             val isMmol = (Natives.getunit() == 1)
             rawHistory.map { p ->
@@ -350,8 +350,8 @@ class GlucoseRepository {
         return kotlinx.coroutines.runBlocking {
             try {
                 val preferredSerial = resolveDisplayPreferredSerial()
-                historyRepository.ensureBackfilled(preferredSerial)
                 val startMs = (System.currentTimeMillis() - durationMs).coerceAtLeast(0L)
+                historyRepository.ensureBackfilled(preferredSerial, startMs)
                 val rawHistory = loadDisplayHistory(preferredSerial, startMs)
                 val isMmol = (Natives.getunit() == 1)
                 rawHistory.map { p ->

@@ -23,6 +23,7 @@ import tk.glucodata.data.journal.JournalInsulinPresetEntity
  *   v6 — insulin preset curves for richer activity modeling
  *   v7 — per-preset active-insulin participation flag
  *   v8 — per-reading delete tombstones to keep manual Room deletes durable
+ *   v9 — per-sensor timestamp index for bounded dashboard/stats history queries
  */
 @Database(
     entities = [
@@ -31,7 +32,7 @@ import tk.glucodata.data.journal.JournalInsulinPresetEntity
         JournalEntryEntity::class,
         JournalInsulinPresetEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class HistoryDatabase : RoomDatabase() {
@@ -163,6 +164,15 @@ abstract class HistoryDatabase : RoomDatabase() {
                 )
             }
         }
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_history_readings_sensorSerial_timestamp " +
+                        "ON history_readings (sensorSerial, timestamp)"
+                )
+            }
+        }
         
         fun getInstance(context: Context): HistoryDatabase =
             INSTANCE ?: synchronized(this) {
@@ -177,7 +187,8 @@ abstract class HistoryDatabase : RoomDatabase() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
-                    MIGRATION_7_8
+                    MIGRATION_7_8,
+                    MIGRATION_8_9
                 )
                 .fallbackToDestructiveMigration()  // Fallback if migration chain is broken
                 .build().also { INSTANCE = it }

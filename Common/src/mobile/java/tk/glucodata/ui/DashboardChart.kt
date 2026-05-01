@@ -309,7 +309,8 @@ private class CalibratedValueResolver(private val points: List<GlucosePoint>) {
             tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
                 baseValue,
                 point.timestamp,
-                isRawMode
+                isRawMode,
+                sensorIdOverride = point.sensorSerial
             )
         } else {
             baseValue
@@ -331,7 +332,8 @@ private class CalibratedValueResolver(private val points: List<GlucosePoint>) {
                 tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
                     baseValue,
                     point.timestamp,
-                    isRawMode
+                    isRawMode,
+                    sensorIdOverride = point.sensorSerial
                 )
             } else {
                 baseValue

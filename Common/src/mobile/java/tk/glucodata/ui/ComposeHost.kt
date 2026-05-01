@@ -356,6 +356,46 @@ private enum class PredictionHistorySource {
     CALIBRATED_RAW
 }
 
+private const val PREDICTION_HISTORY_WINDOW_MS = 60L * 60L * 1000L
+private const val PREDICTION_HISTORY_MAX_POINTS = 96
+
+private fun trimHistoryForPrediction(points: List<GlucosePoint>): List<GlucosePoint> {
+    if (points.size <= PREDICTION_HISTORY_MAX_POINTS) return points
+
+    var latestTimestamp = 0L
+    for (index in points.indices.reversed()) {
+        val point = points[index]
+        if (point.timestamp > 0L &&
+            ((point.value.isFinite() && point.value > 0.1f) ||
+                (point.rawValue.isFinite() && point.rawValue > 0.1f))
+        ) {
+            latestTimestamp = point.timestamp
+            break
+        }
+    }
+    if (latestTimestamp <= 0L) return points.takeLast(PREDICTION_HISTORY_MAX_POINTS)
+
+    val startTimestamp = latestTimestamp - PREDICTION_HISTORY_WINDOW_MS
+    val recent = ArrayList<GlucosePoint>(PREDICTION_HISTORY_MAX_POINTS)
+    for (index in points.indices.reversed()) {
+        val point = points[index]
+        if (point.timestamp < startTimestamp && recent.size >= 2) break
+        if (point.timestamp in startTimestamp..latestTimestamp &&
+            ((point.value.isFinite() && point.value > 0.1f) ||
+                (point.rawValue.isFinite() && point.rawValue > 0.1f))
+        ) {
+            recent.add(point)
+            if (recent.size >= PREDICTION_HISTORY_MAX_POINTS) break
+        }
+    }
+    recent.reverse()
+
+    return when {
+        recent.size >= 2 -> recent
+        else -> points.takeLast(PREDICTION_HISTORY_MAX_POINTS)
+    }
+}
+
 private fun buildDisplayHistoryForPrediction(
     points: List<GlucosePoint>,
     source: PredictionHistorySource
@@ -416,8 +456,11 @@ private fun buildPredictionSeriesForChart(
 ): List<GlucosePredictionSeries> {
     if (!settings.enabled || points.size < 2) return emptyList()
 
+    val predictionHistory = trimHistoryForPrediction(points)
+    if (predictionHistory.size < 2) return emptyList()
+
     val isRawMode = viewMode == 1 || viewMode == 3
-    val hasCalibration = hasAnyActiveCalibrationForPrediction(points, isRawMode)
+    val hasCalibration = hasAnyActiveCalibrationForPrediction(predictionHistory, isRawMode)
     val hideInitialWhenCalibrated = hasCalibration &&
         tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
     val drawRaw = !(hideInitialWhenCalibrated && isRawMode) && (viewMode == 1 || viewMode == 2 || viewMode == 3)
@@ -428,7 +471,7 @@ private fun buildPredictionSeriesForChart(
         source: PredictionHistorySource
     ): GlucosePredictionSeries? {
         val seriesPoints = buildGlucosePrediction(
-            history = buildDisplayHistoryForPrediction(points, source),
+            history = buildDisplayHistoryForPrediction(predictionHistory, source),
             journalEntries = journalEntries,
             insulinPresetsById = insulinPresetsById,
             unit = unit,
@@ -873,7 +916,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     val currentRoute = currentBackStackEntry?.destination?.route
 
     fun collectionModeForRoute(route: String?): DashboardViewModel.CollectionMode = when (route) {
-        "dashboard", "stats", "sensors", "settings" -> DashboardViewModel.CollectionMode.DASHBOARD
+        "dashboard", "sensors", "settings" -> DashboardViewModel.CollectionMode.DASHBOARD
+        "stats" -> DashboardViewModel.CollectionMode.INACTIVE
         "history", "journal", "calibrations", "settings/calibrations" -> DashboardViewModel.CollectionMode.FULL_HISTORY
         else -> when {
             route?.startsWith("sensors/") == true -> DashboardViewModel.CollectionMode.DASHBOARD
@@ -1909,7 +1953,14 @@ fun DashboardScreen(
         // Compute calibrated value for current reading (respects viewMode)
             val isRawModeHero = viewMode == 1 || viewMode == 3
             val calibrationSensorId = sensorName.ifBlank { null }
-            val calibratedValue = remember(latestPoint, viewMode, calibrationSensorId) {
+            val calibratedValue = remember(
+                latestPoint,
+                viewMode,
+                calibrationSensorId,
+                predictionCalibrationRefresh,
+                isRawEnabled,
+                isAutoEnabled
+            ) {
                 if (latestPoint != null && tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeHero, calibrationSensorId)) {
                     val baseValue = if (isRawModeHero) latestPoint.rawValue else latestPoint.value
                     if (baseValue.isFinite() && baseValue > 0.1f) {

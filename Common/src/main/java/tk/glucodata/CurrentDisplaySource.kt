@@ -315,6 +315,13 @@ object CurrentDisplaySource {
         if (current == null || current.timeMillis < historyStart) {
             return points
         }
+        val latestHistory = points.lastOrNull()
+        if (latestHistory != null &&
+            kotlin.math.abs(latestHistory.timestamp - current.timeMillis) <= MATCH_WINDOW_MS &&
+            hasUsableDisplayLane(latestHistory, viewMode)
+        ) {
+            return points
+        }
         val liveAuto = current.numericValue.takeIf { it.isFinite() && it > 0.1f } ?: Float.NaN
         val liveRawDirect = current.rawNumericValue.takeIf { it.isFinite() && it > 0.1f }
         // liveRawIsFallback signals to preferRicherLivePoint that, on an exact
@@ -376,6 +383,12 @@ object CurrentDisplaySource {
         val merged = GlucosePoint(historyPoint.timestamp, mergedValue, mergedRawValue)
         merged.color = historyPoint.color
         return merged
+    }
+
+    private fun hasUsableDisplayLane(point: GlucosePoint, viewMode: Int): Boolean {
+        val autoValid = point.value.isFinite() && point.value > 0.1f
+        val rawValid = point.rawValue.isFinite() && point.rawValue > 0.1f
+        return if (isRawPrimary(viewMode)) rawValid || autoValid else autoValid || rawValid
     }
 
     private fun shouldHideInitialWhenCalibrated(): Boolean {

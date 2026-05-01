@@ -75,10 +75,10 @@ object HistorySync {
      * Sync data from native layer to Room for ALL active sensors.
      *
      * Adaptive sync strategy per sensor:
-     * - First call per session: Full sync (all data from time 0) for every sensor
-     * - Subsequent calls: Keep doing full syncs per sensor until BLE backfill stabilizes
-     *   (same reading count for [STABLE_THRESHOLD] consecutive full syncs)
-     * - After backfill stabilizes: Switch to incremental sync (only last 5 min overlap)
+     * - Explicit force-full calls still sync all data from time 0.
+     * - Ordinary calls sync from the stored Room tail when Room already has this sensor.
+     * - Empty sensors keep doing full syncs until BLE backfill stabilizes
+     *   (same reading count for [STABLE_THRESHOLD] consecutive full syncs).
      *
      * The DAO uses IGNORE on the (timestamp, sensorSerial) unique index so duplicates
      * from full syncs are handled efficiently.
@@ -286,18 +286,22 @@ object HistorySync {
             )
             val (lastCount, stableCount) = sensorStability[serial] ?: Pair(-1, 0)
             val sensorStable = stableCount >= STABLE_THRESHOLD
+            val latestStoredTimestamp = if (forceFull) 0L else historyRepository.getLatestTimestampForSensor(serial)
 
             val startSec: Long
             val isFullSync: Boolean
 
-            if (forceFull || !initialSyncDone || !sensorStable) {
+            if (forceFull || (latestStoredTimestamp <= 0L && (!initialSyncDone || !sensorStable))) {
                 // Full sync: first sync, forced, or backfill still in progress for this sensor
                 startSec = 0L
                 isFullSync = true
             } else {
                 // Backfill done for this sensor: incremental only
-                val latestTs = historyRepository.getLatestTimestampForSensor(serial)
-                val startMs = if (latestTs > INCREMENTAL_OVERLAP_MS) latestTs - INCREMENTAL_OVERLAP_MS else 0L
+                val startMs = if (latestStoredTimestamp > INCREMENTAL_OVERLAP_MS) {
+                    latestStoredTimestamp - INCREMENTAL_OVERLAP_MS
+                } else {
+                    0L
+                }
                 startSec = startMs / 1000L
                 isFullSync = false
             }

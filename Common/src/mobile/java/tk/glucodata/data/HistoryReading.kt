@@ -16,7 +16,8 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "history_readings",
     indices = [Index(value = ["timestamp", "sensorSerial"], unique = true),
-               Index(value = ["sensorSerial"])]
+               Index(value = ["sensorSerial"]),
+               Index(value = ["sensorSerial", "timestamp"])]
 )
 data class HistoryReading(
     @PrimaryKey(autoGenerate = true)

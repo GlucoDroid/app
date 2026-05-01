@@ -30,11 +30,16 @@ internal object HistoryDisplayMerge {
         preferredSerial: String?
     ): List<HistoryReading> {
         if (readings.isEmpty()) return emptyList()
+        if (hasSingleStoredSensor(readings)) return readings
 
         val resolver = PreferredMatchResolver(preferredSerial)
+        singleLogicalSensorId(readings)?.let {
+            return collapseSingleLogicalSensorBuckets(readings, resolver)
+        }
+
         val coalesced = collapseLogicalSensorBuckets(readings, resolver)
         val filtered = applyPreferredOverlapDominance(coalesced, resolver)
-        val merged = ArrayList<HistoryReading>(readings.size)
+        val merged = ArrayList<HistoryReading>(filtered.size)
         var currentTimestamp = Long.MIN_VALUE
         var currentBest: HistoryReading? = null
 
@@ -52,6 +57,53 @@ internal object HistoryDisplayMerge {
         return merged
     }
 
+    private fun hasSingleStoredSensor(readings: List<HistoryReading>): Boolean {
+        if (readings.size < 2) return true
+        val firstSensor = readings.first().sensorSerial
+        for (index in 1 until readings.size) {
+            if (readings[index].sensorSerial != firstSensor) return false
+        }
+        return true
+    }
+
+    private fun singleLogicalSensorId(readings: List<HistoryReading>): String? {
+        var firstSensorId: String? = null
+        for (reading in readings) {
+            val sensorId = logicalSensorId(reading.sensorSerial) ?: return null
+            if (firstSensorId == null) {
+                firstSensorId = sensorId
+            } else if (sensorId != firstSensorId) {
+                return null
+            }
+        }
+        return firstSensorId
+    }
+
+    private fun collapseSingleLogicalSensorBuckets(
+        readings: List<HistoryReading>,
+        resolver: PreferredMatchResolver
+    ): List<HistoryReading> {
+        if (readings.size < 2) return readings
+
+        val collapsed = ArrayList<HistoryReading>(readings.size)
+        var currentBucket = Long.MIN_VALUE
+        var currentBest: HistoryReading? = null
+
+        for (reading in readings) {
+            val bucket = reading.timestamp / SENSOR_MINUTE_BUCKET_MS
+            if (currentBest == null || bucket != currentBucket) {
+                currentBest?.let(collapsed::add)
+                currentBucket = bucket
+                currentBest = reading
+            } else {
+                currentBest = choosePreferred(currentBest, reading, resolver)
+            }
+        }
+
+        currentBest?.let(collapsed::add)
+        return collapsed
+    }
+
     private fun collapseLogicalSensorBuckets(
         readings: List<HistoryReading>,
         resolver: PreferredMatchResolver
@@ -59,9 +111,7 @@ internal object HistoryDisplayMerge {
         val byBucket = LinkedHashMap<LogicalSensorBucket, HistoryReading>(readings.size)
         for (reading in readings) {
             val sensorSerial = reading.sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: continue
-            val resolvedSensorId = SensorIdentity.resolveRoomStorageSensorId(sensorSerial)
-                ?: SensorIdentity.resolveAppSensorId(sensorSerial)
-                ?: sensorSerial
+            val resolvedSensorId = logicalSensorId(sensorSerial) ?: continue
             val key = LogicalSensorBucket(
                 sensorId = resolvedSensorId,
                 bucket = reading.timestamp / SENSOR_MINUTE_BUCKET_MS
@@ -72,24 +122,43 @@ internal object HistoryDisplayMerge {
         return byBucket.values.sortedBy { it.timestamp }
     }
 
+    private fun logicalSensorId(sensorSerial: String?): String? {
+        val raw = sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return SensorIdentity.resolveRoomStorageSensorId(raw)
+            ?: SensorIdentity.resolveAppSensorId(raw)
+            ?: raw
+    }
+
     private fun applyPreferredOverlapDominance(
         readings: List<HistoryReading>,
         resolver: PreferredMatchResolver
     ): List<HistoryReading> {
         val preferredReadings = readings
             .filter { resolver.matches(it.sensorSerial) }
-            .sortedBy { it.timestamp }
         if (preferredReadings.isEmpty()) return readings
 
         val coverageSegments = buildCoverageSegments(preferredReadings)
 
-        return readings.filter { reading ->
-            resolver.matches(reading.sensorSerial) ||
-                coverageSegments.none { segment ->
-                    reading.timestamp >= (segment.start - OVERLAP_PADDING_MS) &&
-                        reading.timestamp <= (segment.last + OVERLAP_PADDING_MS)
-                }
+        val filtered = ArrayList<HistoryReading>(readings.size)
+        var segmentIndex = 0
+        for (reading in readings) {
+            if (resolver.matches(reading.sensorSerial)) {
+                filtered.add(reading)
+                continue
+            }
+            while (segmentIndex < coverageSegments.size &&
+                reading.timestamp > coverageSegments[segmentIndex].last + OVERLAP_PADDING_MS
+            ) {
+                segmentIndex++
+            }
+            val covered = segmentIndex < coverageSegments.size &&
+                reading.timestamp >= coverageSegments[segmentIndex].start - OVERLAP_PADDING_MS &&
+                reading.timestamp <= coverageSegments[segmentIndex].last + OVERLAP_PADDING_MS
+            if (!covered) {
+                filtered.add(reading)
+            }
         }
+        return filtered
     }
 
     private fun buildCoverageSegments(readings: List<HistoryReading>): List<LongRange> {

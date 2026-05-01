@@ -247,7 +247,7 @@ class StatsViewModel : ViewModel() {
 
         historyJob = viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                historyRepository.ensureBackfilled(serial)
+                historyRepository.ensureBackfilled(serial, startTime)
             }
             _availableRange.value = loadAvailableRange(serial)
 
@@ -318,7 +318,10 @@ class StatsViewModel : ViewModel() {
 
     private fun resubscribeToRequestedWindow() {
         val serial = activeSerial ?: resolveStatsSensorSerial() ?: return
-        subscribeToHistory(serial, resolveSubscriptionStartTime())
+        val requestedStartTime = resolveSubscriptionStartTime()
+        if (serial != activeSerial || needsHistoryWindowExpansion(requestedStartTime)) {
+            subscribeToHistory(serial, requestedStartTime)
+        }
     }
 
     private fun needsHistoryWindowExpansion(targetStartTime: Long): Boolean {
@@ -355,7 +358,7 @@ class StatsViewModel : ViewModel() {
         }
 
         withContext(Dispatchers.IO) {
-            historyRepository.ensureBackfilled(serial)
+            historyRepository.ensureBackfilled(serial, startTime)
         }
         return historyRepository.getHistoryForSensor(serial, startTime)
     }
