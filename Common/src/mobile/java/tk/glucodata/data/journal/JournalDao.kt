@@ -59,4 +59,26 @@ interface JournalDao {
 
     @Query("DELETE FROM journal_insulin_presets WHERE id = :id")
     suspend fun deleteInsulinPresetById(id: Long)
+
+    @Query(
+        """
+        SELECT * FROM journal_entries
+         WHERE timestamp >= :sinceMillis
+           AND (nsUploadedAt IS NULL OR updatedAt > nsUploadedAt)
+         ORDER BY timestamp ASC, id ASC
+        """
+    )
+    suspend fun getEntriesNeedingNightscoutUpload(sinceMillis: Long): List<JournalEntryEntity>
+
+    @Query("UPDATE journal_entries SET nsUploadedAt = :uploadedAt, nsRemoteId = :remoteId WHERE id = :id")
+    suspend fun markEntryUploadedToNightscout(id: Long, remoteId: String, uploadedAt: Long)
+
+    @Query("SELECT * FROM journal_pending_deletes ORDER BY deletedAt ASC")
+    suspend fun getPendingNightscoutDeletes(): List<JournalPendingDeleteEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun enqueuePendingNightscoutDelete(tombstone: JournalPendingDeleteEntity)
+
+    @Query("DELETE FROM journal_pending_deletes WHERE entryId = :entryId")
+    suspend fun clearPendingNightscoutDelete(entryId: Long)
 }

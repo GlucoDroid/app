@@ -29,5 +29,7 @@ data class JournalEntryEntity(
     val source: String,
     val sourceRecordId: String?,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val nsUploadedAt: Long? = null,
+    val nsRemoteId: String? = null
 )

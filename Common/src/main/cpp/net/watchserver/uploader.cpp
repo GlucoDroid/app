@@ -698,6 +698,26 @@ bool uploaderrunning=false;
 extern bool networkpresent;
 
 extern bool uploadtreatments(bool);
+static bool uploadJournalTreatmentsViaJava(bool useV3) {
+    if(nightpostclass==nullptr)
+        return true;
+    auto env=getenv();
+    if(env==nullptr)
+        return true;
+    const static jmethodID mid=env->GetStaticMethodID(nightpostclass,"uploadJournalTreatments","(Z)Z");
+    if(mid==nullptr) {
+        if(env->ExceptionCheck())
+            env->ExceptionClear();
+        return true;
+        }
+    const jboolean res=env->CallStaticBooleanMethod(nightpostclass,mid,(jboolean)useV3);
+    if(env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        return false;
+        }
+    return res==JNI_TRUE;
+    }
 static void uploaderthread() {
     int waitmin=0;
     uploaderrunning=true;
@@ -751,7 +771,7 @@ static void uploaderthread() {
                 }
             }
         if(current&(Backup::wakenums|Backup::wakeall)) {
-            bool treatmentsOk = uploadtreatments(useV3);
+            bool treatmentsOk = uploadJournalTreatmentsViaJava(useV3);
             if(!treatmentsOk && !useV3 && lastNightUploadCode==404) {
                 LOGSTRING("Nightscout v1 treatments endpoint returned 404, retrying with v3\n");
                 settings->data()->nightscoutV3 = true;
@@ -760,7 +780,7 @@ static void uploaderthread() {
                 makeuploadsecret(env);
                 makeuploadurls(env);
                 useV3 = true;
-                treatmentsOk = uploadtreatments(true);
+                treatmentsOk = uploadJournalTreatmentsViaJava(true);
             }
             if(!treatmentsOk) {
                 waitmin=lastNightUploadConfigError?0:15;

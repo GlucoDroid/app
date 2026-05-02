@@ -234,6 +234,33 @@ private static String gettoken(long now) {
     }
 
 private static long uploadtime=System.currentTimeMillis();
+
+/**
+ * Uploads journal-derived treatments (insulin / carbs / fingerstick) to Nightscout.
+ * Replaces the legacy native uploadtreatments() path. Looked up via reflection so
+ * the wearable build (which doesn't include the journal Room database) can no-op.
+ */
+@Keep
+static public boolean uploadJournalTreatments(boolean useV3) {
+    if(!Natives.getpostTreatments()) {
+        return true;
+        }
+    try {
+        Class<?> uploader = Class.forName("tk.glucodata.data.journal.JournalTreatmentUploader");
+        java.lang.reflect.Method method = uploader.getMethod("uploadAll", boolean.class);
+        Object result = method.invoke(null, useV3);
+        return Boolean.TRUE.equals(result);
+        }
+    catch(ClassNotFoundException nfe) {
+        // Wearable build: no journal DB compiled in. Treat as success.
+        return true;
+        }
+    catch(Throwable th) {
+        Log.e(LOG_ID,"uploadJournalTreatments error:\n"+stackline(th));
+        return false;
+        }
+    }
+
 @Keep
 static public int upload(String httpurl,byte[] postdata,String secret,boolean put) {
     patch();

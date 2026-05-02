@@ -57,13 +57,28 @@ class JournalRepository {
             source = input.source.storageValue,
             sourceRecordId = input.sourceRecordId?.takeIf { it.isNotBlank() },
             createdAt = existing?.createdAt ?: now,
-            updatedAt = now
+            updatedAt = now,
+            nsUploadedAt = existing?.nsUploadedAt,
+            nsRemoteId = existing?.nsRemoteId
         )
         return dao.upsertEntry(entity)
     }
 
     suspend fun deleteEntry(entryId: Long) {
-        dao.deleteEntryById(entryId)
+        database.withTransaction {
+            val existing = dao.getEntryById(entryId)
+            val remoteId = existing?.nsRemoteId
+            if (remoteId != null) {
+                dao.enqueuePendingNightscoutDelete(
+                    JournalPendingDeleteEntity(
+                        entryId = entryId,
+                        nsRemoteId = remoteId,
+                        deletedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+            dao.deleteEntryById(entryId)
+        }
     }
 
     suspend fun upsertInsulinPreset(input: JournalInsulinPresetInput): Long {
