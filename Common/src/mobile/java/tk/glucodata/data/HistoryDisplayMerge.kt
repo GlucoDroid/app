@@ -138,12 +138,21 @@ internal object HistoryDisplayMerge {
         if (preferredReadings.isEmpty()) return readings
 
         val coverageSegments = buildCoverageSegments(preferredReadings)
+        val preferredMinuteBuckets = preferredReadings
+            .mapTo(HashSet(preferredReadings.size)) { it.timestamp / SENSOR_MINUTE_BUCKET_MS }
 
         val filtered = ArrayList<HistoryReading>(readings.size)
         var segmentIndex = 0
         for (reading in readings) {
             if (resolver.matches(reading.sensorSerial)) {
                 filtered.add(reading)
+                continue
+            }
+            if (isImportedSerial(reading.sensorSerial)) {
+                val bucket = reading.timestamp / SENSOR_MINUTE_BUCKET_MS
+                if (bucket !in preferredMinuteBuckets) {
+                    filtered.add(reading)
+                }
                 continue
             }
             while (segmentIndex < coverageSegments.size &&
@@ -159,6 +168,13 @@ internal object HistoryDisplayMerge {
             }
         }
         return filtered
+    }
+
+    private fun isImportedSerial(sensorSerial: String?): Boolean {
+        val raw = sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        return raw == HistoryRepository.IMPORTED_SENSOR_SERIAL ||
+            raw.equals("imported", ignoreCase = true) ||
+            raw.equals("unknown", ignoreCase = true)
     }
 
     private fun buildCoverageSegments(readings: List<HistoryReading>): List<LongRange> {

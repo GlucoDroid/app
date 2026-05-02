@@ -358,6 +358,7 @@ private enum class PredictionHistorySource {
 
 private const val PREDICTION_HISTORY_WINDOW_MS = 60L * 60L * 1000L
 private const val PREDICTION_HISTORY_MAX_POINTS = 96
+private const val DASHBOARD_CONSUMER_HISTORY_MAX_POINTS = 512
 
 private fun trimHistoryForPrediction(points: List<GlucosePoint>): List<GlucosePoint> {
     if (points.size <= PREDICTION_HISTORY_MAX_POINTS) return points
@@ -502,9 +503,9 @@ private fun buildPredictionSeriesForChart(
  * Single source of truth for the history that downstream non-chart consumers see
  * (hero trend arrow, recent readings, predictive simulation).
  *
- * When data smoothing is on and not restricted to the graph, the full series is
- * smoothed segment-by-segment so the trend, prediction, and reading list all reflect
- * the same line the user sees on the chart. Otherwise the raw history is passed through.
+ * When data smoothing is on and not restricted to the graph, the recent dashboard
+ * consumer tail is smoothed segment-by-segment so the trend, prediction, and
+ * reading list reflect the same recent line without reprocessing all stored history.
  */
 private fun buildSmoothedConsumerHistory(
     points: List<GlucosePoint>,
@@ -512,12 +513,20 @@ private fun buildSmoothedConsumerHistory(
     smoothOnlyGraph: Boolean,
     collapseChunks: Boolean
 ): List<GlucosePoint> {
-    if (points.isEmpty() || smoothOnlyGraph || smoothingMinutes <= 0) {
+    if (points.isEmpty()) {
         return points
     }
+    val source = if (points.size > DASHBOARD_CONSUMER_HISTORY_MAX_POINTS) {
+        points.takeLast(DASHBOARD_CONSUMER_HISTORY_MAX_POINTS)
+    } else {
+        points
+    }
+    if (smoothOnlyGraph || smoothingMinutes <= 0) {
+        return source
+    }
 
-    val processed = ArrayList<GlucosePoint>(points.size)
-    GlucosePointSegments.split(points).forEach { segment ->
+    val processed = ArrayList<GlucosePoint>(source.size)
+    GlucosePointSegments.split(source).forEach { segment ->
         val sourceByTimestamp = segment.associateBy { it.timestamp }
         val smoothed = DataSmoothing.smoothNativePoints(
             segment.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) },

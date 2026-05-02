@@ -218,7 +218,7 @@ class GlucoseRepository {
     ): List<GlucosePoint> {
         val resolvedSerial = preferredSerial?.takeIf { it.isNotBlank() }
         return if (resolvedSerial != null) {
-            historyRepository.getHistoryForSensor(resolvedSerial, startTime)
+            historyRepository.getHistoryForDisplaySensor(resolvedSerial, startTime)
         } else {
             historyRepository.getDisplayHistory(null, startTime)
         }
@@ -230,7 +230,7 @@ class GlucoseRepository {
     ): Flow<List<GlucosePoint>> {
         val resolvedSerial = preferredSerial?.takeIf { it.isNotBlank() }
         return if (resolvedSerial != null) {
-            historyRepository.getHistoryFlowForSensor(resolvedSerial, startTime)
+            historyRepository.getHistoryFlowForDisplaySensor(resolvedSerial, startTime)
         } else {
             historyRepository.getDisplayHistoryFlow(null, startTime)
         }

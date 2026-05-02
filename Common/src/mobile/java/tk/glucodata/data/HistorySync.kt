@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,6 +45,8 @@ object HistorySync {
     private val sensorSyncInProgress = ConcurrentHashMap.newKeySet<String>()
     private val sensorRecentSyncInProgress = ConcurrentHashMap.newKeySet<String>()
     private val sensorLastRecentSyncBucketMs = ConcurrentHashMap<String, Long>()
+    private val sensorLastFullMergeTimeMs = ConcurrentHashMap<String, Long>()
+    private val sensorDelayedFullMergePending = ConcurrentHashMap.newKeySet<String>()
     private val sensorResetPreserveUntilMs = ConcurrentHashMap<String, Long>()
     private const val STABLE_THRESHOLD = 2
     private const val STABLE_GROWTH_TOLERANCE = 2
@@ -61,6 +64,7 @@ object HistorySync {
     private var lastSyncTimeMs = 0L
     private const val MIN_FULL_SYNC_INTERVAL_MS = 5_000L
     private const val MIN_INCR_SYNC_INTERVAL_MS = 3_000L
+    private const val MIN_FULL_MERGE_INTERVAL_MS = 30_000L
 
     // Incremental overlap: keep a generous window so reconnect/vendor repair work
     // does not leave permanent holes, while still avoiding all-history rescans.
@@ -459,21 +463,62 @@ object HistorySync {
      * older Room history when native currently exposes only a recent tail.
      */
     fun mergeFullSyncForSensor(serial: String) {
-        Log.i(TAG, "mergeFullSyncForSensor($serial) — full non-destructive Room/native merge requested")
-        if (!SensorIdentity.shouldUseNativeHistorySync(serial)) {
-            Log.i(TAG, "mergeFullSyncForSensor($serial) skipped: driver-owned Room history")
+        val canonicalSerial = SensorIdentity.resolveAppSensorId(serial) ?: serial
+        Log.i(TAG, "mergeFullSyncForSensor($canonicalSerial) — full non-destructive Room/native merge requested")
+        if (canonicalSerial.isBlank()) {
             return
         }
-        sensorStability.remove(serial)
-        sensorLastSyncTimeMs.remove(serial)
-        SensorIdentity.resolveNativeHistorySensorNames(serial).forEach {
+        if (!SensorIdentity.shouldUseNativeHistorySync(canonicalSerial)) {
+            Log.i(TAG, "mergeFullSyncForSensor($canonicalSerial) skipped: driver-owned Room history")
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        val lastFullMerge = sensorLastFullMergeTimeMs[canonicalSerial] ?: 0L
+        val elapsedSinceFullMerge = now - lastFullMerge
+        if (elapsedSinceFullMerge < MIN_FULL_MERGE_INTERVAL_MS) {
+            val delayMs = MIN_FULL_MERGE_INTERVAL_MS - elapsedSinceFullMerge
+            Log.d(TAG, "mergeFullSyncForSensor($canonicalSerial) delayed: recent full merge ${elapsedSinceFullMerge}ms ago")
+            scheduleDelayedFullMerge(canonicalSerial, delayMs)
+            return
+        }
+        if (!sensorSyncInProgress.add(canonicalSerial)) {
+            Log.d(TAG, "mergeFullSyncForSensor($canonicalSerial) delayed: sync already in progress")
+            scheduleDelayedFullMerge(canonicalSerial, MIN_FULL_MERGE_INTERVAL_MS)
+            return
+        }
+        sensorLastFullMergeTimeMs[canonicalSerial] = now
+
+        sensorStability.remove(canonicalSerial)
+        sensorLastSyncTimeMs.remove(canonicalSerial)
+        SensorIdentity.resolveNativeHistorySensorNames(canonicalSerial).forEach {
             sensorStability.remove(it)
             sensorLastSyncTimeMs.remove(it)
         }
         lastSyncTimeMs = 0L
         scope.launch {
-            syncGate.withLock {
-                doSyncSensor(serial, forceFull = true)
+            try {
+                syncGate.withLock {
+                    doSyncSensor(canonicalSerial, forceFull = true)
+                    sensorLastSyncTimeMs[canonicalSerial] = System.currentTimeMillis()
+                }
+            } finally {
+                sensorSyncInProgress.remove(canonicalSerial)
+            }
+        }
+    }
+
+    private fun scheduleDelayedFullMerge(serial: String, delayMs: Long) {
+        if (!sensorDelayedFullMergePending.add(serial)) {
+            return
+        }
+        scope.launch {
+            try {
+                delay(delayMs.coerceAtLeast(1L))
+                sensorDelayedFullMergePending.remove(serial)
+                mergeFullSyncForSensor(serial)
+            } finally {
+                sensorDelayedFullMergePending.remove(serial)
             }
         }
     }

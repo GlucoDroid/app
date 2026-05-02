@@ -219,7 +219,19 @@ class StatsViewModel : ViewModel() {
             _unit.value = unit
             _targets.value = resolveTargets(unit)
 
-            val serial = resolveStatsSensorSerial().orEmpty()
+            val nativeSerial = resolveStatsSensorSerial().orEmpty()
+            val serial = if (nativeSerial.isBlank()) {
+                val availableRange = loadAvailableRange()
+                if (availableRange != null) {
+                    _availableRange.value = availableRange
+                    HistoryRepository.IMPORTED_SENSOR_SERIAL
+                } else {
+                    ""
+                }
+            } else {
+                nativeSerial
+            }
+
             if (serial.isBlank()) {
                 _hasSensor.value = false
                 _isLoading.value = false
@@ -234,7 +246,7 @@ class StatsViewModel : ViewModel() {
             }
 
             _hasSensor.value = true
-            _viewMode.value = resolveViewMode(serial)
+            _viewMode.value = resolveViewModeForStats(serial)
             subscribeToHistory(serial, resolveSubscriptionStartTime())
         }
     }
@@ -246,17 +258,23 @@ class StatsViewModel : ViewModel() {
         historyWindowStartMs = startTime
 
         historyJob = viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                historyRepository.ensureBackfilled(serial, startTime)
+            if (!isImportedHistoryOnlySerial(serial)) {
+                withContext(Dispatchers.IO) {
+                    historyRepository.ensureBackfilled(serial, startTime)
+                }
             }
-            _availableRange.value = loadAvailableRange(serial)
+            _availableRange.value = loadAvailableRange()
 
-            historyRepository.getHistoryFlowForStatsSensor(serial, startTime)
+            historyRepository.getDisplayHistoryFlowForStats(serial, startTime)
                 .distinctUntilChangedBy(::historySignature)
                 .collect { points ->
                     _historyPoints.value = points
                     _isLoading.value = false
-                    _temperaturePoints.value = maybeRefreshTemperaturePoints(serial, points)
+                    _temperaturePoints.value = if (isImportedHistoryOnlySerial(serial)) {
+                        emptyList()
+                    } else {
+                        maybeRefreshTemperaturePoints(serial, points)
+                    }
 
                     // Keep unit/targets in sync if user changed unit while this screen is open.
                     val latestUnit = resolveUnit()
@@ -264,7 +282,7 @@ class StatsViewModel : ViewModel() {
                         _unit.value = latestUnit
                         _targets.value = resolveTargets(latestUnit)
                     }
-                    _viewMode.value = resolveViewMode(serial)
+                    _viewMode.value = resolveViewModeForStats(serial)
                 }
         }
     }
@@ -276,7 +294,19 @@ class StatsViewModel : ViewModel() {
             _unit.value = unit
             _targets.value = resolveTargets(unit)
 
-            val serial = resolveStatsSensorSerial().orEmpty()
+            val nativeSerial = resolveStatsSensorSerial().orEmpty()
+            val serial = if (nativeSerial.isBlank()) {
+                val availableRange = loadAvailableRange()
+                if (availableRange != null) {
+                    _availableRange.value = availableRange
+                    HistoryRepository.IMPORTED_SENSOR_SERIAL
+                } else {
+                    ""
+                }
+            } else {
+                nativeSerial
+            }
+
             if (serial.isBlank()) {
                 _hasSensor.value = false
                 _viewMode.value = 0
@@ -284,8 +314,8 @@ class StatsViewModel : ViewModel() {
             }
 
             _hasSensor.value = true
-            _viewMode.value = resolveViewMode(serial)
-            _availableRange.value = loadAvailableRange(serial)
+            _viewMode.value = resolveViewModeForStats(serial)
+            _availableRange.value = loadAvailableRange()
 
             if (serial != activeSerial || needsHistoryWindowExpansion(resolveSubscriptionStartTime())) {
                 subscribeToHistory(serial, resolveSubscriptionStartTime())
@@ -316,6 +346,14 @@ class StatsViewModel : ViewModel() {
         }
     }
 
+    private fun resolveViewModeForStats(serial: String): Int {
+        return if (isImportedHistoryOnlySerial(serial)) 0 else resolveViewMode(serial)
+    }
+
+    private fun isImportedHistoryOnlySerial(serial: String?): Boolean {
+        return serial == HistoryRepository.IMPORTED_SENSOR_SERIAL
+    }
+
     private fun resubscribeToRequestedWindow() {
         val serial = activeSerial ?: resolveStatsSensorSerial() ?: return
         val requestedStartTime = resolveSubscriptionStartTime()
@@ -341,7 +379,8 @@ class StatsViewModel : ViewModel() {
             _selectedRange.value == StatsTimeRange.DAY_ALL -> 0L
             else -> {
                 val quickRangeDays = (_selectedRange.value ?: DEFAULT_STATS_RANGE).days.toLong()
-                (System.currentTimeMillis() - (quickRangeDays * DAY_MS)).coerceAtLeast(0L)
+                val endMillis = _availableRange.value?.endMillis ?: System.currentTimeMillis()
+                (endMillis - (quickRangeDays * DAY_MS) + 1L).coerceAtLeast(0L)
             }
         }
     }
@@ -357,15 +396,17 @@ class StatsViewModel : ViewModel() {
             return currentHistory.filter { it.timestamp >= startTime }
         }
 
-        withContext(Dispatchers.IO) {
-            historyRepository.ensureBackfilled(serial, startTime)
+        if (!isImportedHistoryOnlySerial(serial)) {
+            withContext(Dispatchers.IO) {
+                historyRepository.ensureBackfilled(serial, startTime)
+            }
         }
-        return historyRepository.getHistoryForSensor(serial, startTime)
+        return historyRepository.getDisplayHistoryForStats(serial, startTime)
     }
 
-    private suspend fun loadAvailableRange(serial: String): StatsDateRange? {
-        val oldest = historyRepository.getOldestTimestampForSensor(serial)
-        val latest = historyRepository.getLatestTimestampForSensor(serial)
+    private suspend fun loadAvailableRange(): StatsDateRange? {
+        val oldest = historyRepository.getOldestDisplayTimestamp()
+        val latest = historyRepository.getLatestTimestamp()
         return if (oldest > 0L && latest >= oldest) {
             StatsDateRange(startMillis = oldest, endMillis = latest)
         } else {
@@ -392,10 +433,14 @@ class StatsViewModel : ViewModel() {
         return when (quickRange) {
             null -> availableRange
             StatsTimeRange.DAY_ALL -> availableRange
-            else -> StatsDateRange(
-                startMillis = (System.currentTimeMillis() - (quickRange.days.toLong() * DAY_MS)).coerceAtLeast(0L),
-                endMillis = System.currentTimeMillis()
-            )
+            else -> {
+                val endMillis = availableRange?.endMillis ?: System.currentTimeMillis()
+                val range = StatsDateRange(
+                    startMillis = (endMillis - (quickRange.days.toLong() * DAY_MS) + 1L).coerceAtLeast(0L),
+                    endMillis = endMillis
+                )
+                clampStatsDateRangeToAvailable(range, availableRange)
+            }
         }
     }
 

@@ -110,6 +110,58 @@ class HistoryDisplayMergeTests {
         assertEquals(listOf("1YL08230BFY", "1YL08230BFY"), merged.map { it.sensorSerial })
     }
 
+    @Test
+    fun mergeReadings_keepsImportedRowsAndPrefersLiveSensorOnOverlap() {
+        val merged = HistoryDisplayMerge.mergeReadings(
+            readings = listOf(
+                reading(id = 1, timestamp = 1 * HOUR_MS, sensorSerial = HistoryRepository.IMPORTED_SENSOR_SERIAL, value = 100f, rawValue = 90f),
+                reading(id = 2, timestamp = 2 * HOUR_MS, sensorSerial = HistoryRepository.IMPORTED_SENSOR_SERIAL, value = 101f, rawValue = 91f),
+                reading(id = 3, timestamp = 2 * HOUR_MS, sensorSerial = "sensor-new", value = 120f, rawValue = 110f),
+                reading(id = 4, timestamp = 3 * HOUR_MS, sensorSerial = "sensor-new", value = 121f, rawValue = 111f)
+            ),
+            preferredSerial = "sensor-new"
+        )
+
+        assertEquals(listOf(1 * HOUR_MS, 2 * HOUR_MS, 3 * HOUR_MS), merged.map { it.timestamp })
+        assertEquals(
+            listOf(HistoryRepository.IMPORTED_SENSOR_SERIAL, "sensor-new", "sensor-new"),
+            merged.map { it.sensorSerial }
+        )
+    }
+
+    @Test
+    fun mergeReadings_keepsImportedRowsInsidePreferredCoverageWhenTheyFillGaps() {
+        val merged = HistoryDisplayMerge.mergeReadings(
+            readings = listOf(
+                reading(id = 1, timestamp = 1 * HOUR_MS, sensorSerial = "sensor-new", value = 120f, rawValue = 110f),
+                reading(id = 2, timestamp = 1 * HOUR_MS + 5 * MINUTE_MS, sensorSerial = HistoryRepository.IMPORTED_SENSOR_SERIAL, value = 101f, rawValue = 91f),
+                reading(id = 3, timestamp = 1 * HOUR_MS + 10 * MINUTE_MS, sensorSerial = "sensor-new", value = 121f, rawValue = 111f),
+                reading(id = 4, timestamp = 1 * HOUR_MS + 10 * MINUTE_MS + 20_000L, sensorSerial = HistoryRepository.IMPORTED_SENSOR_SERIAL, value = 102f, rawValue = 92f),
+                reading(id = 5, timestamp = 1 * HOUR_MS + 20 * MINUTE_MS, sensorSerial = "sensor-new", value = 122f, rawValue = 112f)
+            ).sortedBy { it.timestamp },
+            preferredSerial = "sensor-new"
+        )
+
+        assertEquals(
+            listOf(
+                1 * HOUR_MS,
+                1 * HOUR_MS + 5 * MINUTE_MS,
+                1 * HOUR_MS + 10 * MINUTE_MS,
+                1 * HOUR_MS + 20 * MINUTE_MS
+            ),
+            merged.map { it.timestamp }
+        )
+        assertEquals(
+            listOf(
+                "sensor-new",
+                HistoryRepository.IMPORTED_SENSOR_SERIAL,
+                "sensor-new",
+                "sensor-new"
+            ),
+            merged.map { it.sensorSerial }
+        )
+    }
+
     private fun reading(
         id: Long,
         timestamp: Long,

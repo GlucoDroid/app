@@ -41,6 +41,13 @@ class HistoryRepository(context: Context = Applic.app) {
             .ifEmpty {
                 sensorSerial?.trim()?.takeIf { it.isNotEmpty() }?.let(::listOf) ?: emptyList()
             }
+
+    private fun resolveDisplayQuerySensorSerials(sensorSerial: String?): List<String> {
+        val resolved = LinkedHashSet<String>()
+        resolveQuerySensorSerials(sensorSerial).forEach(resolved::add)
+        IMPORTED_HISTORY_SENSOR_SERIALS.forEach(resolved::add)
+        return resolved.toList()
+    }
     
     companion object {
         private const val TAG = "HistoryRepo"
@@ -48,6 +55,12 @@ class HistoryRepository(context: Context = Applic.app) {
         private const val NATIVE_BACKFILL_OVERLAP_MS = 6L * 60L * 60L * 1000L
         private const val HISTORY_COVERAGE_TOLERANCE_MS = 5L * 60L * 1000L
         private const val DELETED_TIMESTAMP_QUERY_CHUNK = 900
+        const val IMPORTED_SENSOR_SERIAL = "__imported_csv__"
+        private val IMPORTED_HISTORY_SENSOR_SERIALS = listOf(
+            IMPORTED_SENSOR_SERIAL,
+            "imported",
+            "unknown"
+        )
         private val TIME_FORMATTER = object : ThreadLocal<SimpleDateFormat>() {
             override fun initialValue(): SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         }
@@ -153,7 +166,7 @@ class HistoryRepository(context: Context = Applic.app) {
                 val serial = SensorIdentity.resolveMainSensor() ?: ""
                 val repo = HistoryRepository()
                 val uiPoints = if (serial.isNotEmpty()) {
-                    repo.getHistoryForSensor(serial, startTime)
+                    repo.getHistoryForDisplaySensor(serial, startTime)
                 } else {
                     Log.w(TAG, "getHistoryForNotification: no main sensor serial, returning empty list")
                     emptyList()
@@ -184,7 +197,7 @@ class HistoryRepository(context: Context = Applic.app) {
                     Log.w(TAG, "getHistoryForNotificationForSensor: no sensor serial, returning empty list")
                     return@runBlocking emptyList()
                 }
-                val raw = HistoryRepository().getHistoryForSensor(serial, startTime)
+                val raw = HistoryRepository().getHistoryForDisplaySensor(serial, startTime)
                 raw.map { p ->
                     val v = if (isMmol) p.value / 18.0182f else p.value
                     val r = if (isMmol) p.rawValue / 18.0182f else p.rawValue
@@ -203,7 +216,7 @@ class HistoryRepository(context: Context = Applic.app) {
                 val serial = SensorIdentity.resolveMainSensor() ?: ""
                 val repo = HistoryRepository()
                 val uiPoints = if (serial.isNotEmpty()) {
-                    repo.getHistoryForSensor(serial, startTime)
+                    repo.getHistoryForDisplaySensor(serial, startTime)
                 } else {
                     Log.w(TAG, "getHistoryRawForNotification: no main sensor serial, returning empty list")
                     emptyList()
@@ -526,6 +539,24 @@ class HistoryRepository(context: Context = Applic.app) {
     }
 
     /**
+     * Display/history UI query for one live sensor plus CSV imports. Imported
+     * readings are intentionally kept out of sync/latest cursors so native
+     * backfill and current-glucose code cannot mistake them for sensor data.
+     */
+    fun getHistoryFlowForDisplaySensor(
+        serial: String,
+        startTime: Long = 0L
+    ): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
+        val serials = resolveDisplayQuerySensorSerials(serial)
+        if (serials.isEmpty()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        return dao.getHistoryFlowForSensors(serials, startTime).map { readings ->
+            mapReadings(mergeQueryReadings(readings, serial))
+        }.flowOn(Dispatchers.IO)
+    }
+
+    /**
      * Stats-only flow optimized for large datasets:
      * - No per-point time formatting
      * - No extra sorting/distinct pass (DAO already returns ASC by timestamp)
@@ -549,6 +580,21 @@ class HistoryRepository(context: Context = Applic.app) {
                     sensorSerial = reading.sensorSerial
                 )
             }
+        }.flowOn(Dispatchers.IO)
+    }
+
+    /**
+     * Stats should cover the persisted historical timeline, including imported
+     * CSV data and previous sensors. This uses all Room history and only applies
+     * merge preference to overlapping timestamps, so imported/old sensor data is
+     * visible without changing live sensor or native sync behavior.
+     */
+    fun getDisplayHistoryFlowForStats(
+        preferredSerial: String?,
+        startTime: Long
+    ): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
+        return dao.getHistoryFlow(startTime).map { readings ->
+            mergeQueryReadings(readings, preferredSerial).map(::mapReadingForStats)
         }.flowOn(Dispatchers.IO)
     }
 
@@ -586,6 +632,32 @@ class HistoryRepository(context: Context = Applic.app) {
                 mapReadings(mergeQueryReadings(readings, serial))
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting history for sensor $serial", e)
+                emptyList()
+            }
+        }
+    }
+
+    suspend fun getHistoryForDisplaySensor(serial: String, startTime: Long): List<GlucosePoint> {
+        val serials = resolveDisplayQuerySensorSerials(serial)
+        if (serials.isEmpty()) return emptyList()
+        return withContext(Dispatchers.IO) {
+            try {
+                val readings = dao.getReadingsSinceForSensors(serials, startTime)
+                mapReadings(mergeQueryReadings(readings, serial))
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting display history for sensor $serial", e)
+                emptyList()
+            }
+        }
+    }
+
+    suspend fun getDisplayHistoryForStats(preferredSerial: String?, startTime: Long): List<GlucosePoint> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val readings = dao.getReadingsSince(startTime)
+                mergeQueryReadings(readings, preferredSerial).map(::mapReadingForStats)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting stats display history", e)
                 emptyList()
             }
         }
@@ -633,6 +705,17 @@ class HistoryRepository(context: Context = Applic.app) {
                 dao.getOldestTimestampForSensors(serials) ?: 0L
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting oldest timestamp for sensor $serial", e)
+                0L
+            }
+        }
+    }
+
+    suspend fun getOldestDisplayTimestamp(): Long {
+        return withContext(Dispatchers.IO) {
+            try {
+                dao.getOldestTimestamp() ?: 0L
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting oldest display timestamp", e)
                 0L
             }
         }
@@ -785,6 +868,17 @@ class HistoryRepository(context: Context = Applic.app) {
         }
     }
 
+    private fun mapReadingForStats(reading: HistoryReading): GlucosePoint {
+        return GlucosePoint(
+            value = reading.value,
+            time = "",
+            timestamp = reading.timestamp,
+            rawValue = reading.rawValue,
+            rate = reading.rate,
+            sensorSerial = reading.sensorSerial
+        )
+    }
+
     private fun mapDisplayReadings(
         readings: List<HistoryReading>,
         preferredSerial: String?
@@ -811,7 +905,9 @@ class HistoryRepository(context: Context = Applic.app) {
             Natives.activeSensors(),
             Natives.lastsensorname(),
             preferredSerial
-        ).filter(SensorIdentity::shouldUseNativeHistorySync)
+        ).filter { sensor ->
+            sensor != IMPORTED_SENSOR_SERIAL && SensorIdentity.shouldUseNativeHistorySync(sensor)
+        }
         if (sensorsToCheck.isEmpty()) {
             Log.d(TAG, "No sensors for backfill")
             return

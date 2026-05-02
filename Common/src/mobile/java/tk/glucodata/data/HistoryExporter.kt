@@ -5,7 +5,6 @@ import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import tk.glucodata.Natives
 import tk.glucodata.ui.GlucosePoint
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -35,6 +34,31 @@ object HistoryExporter {
         return value?.let { String.format(Locale.US, "%.4f", it) }.orEmpty()
     }
 
+    private fun parseCsvLine(line: String): List<String> {
+        val cells = ArrayList<String>()
+        val current = StringBuilder()
+        var inQuotes = false
+        var index = 0
+        while (index < line.length) {
+            val char = line[index]
+            when {
+                char == '"' && inQuotes && index + 1 < line.length && line[index + 1] == '"' -> {
+                    current.append('"')
+                    index++
+                }
+                char == '"' -> inQuotes = !inQuotes
+                char == ',' && !inQuotes -> {
+                    cells.add(current.toString())
+                    current.setLength(0)
+                }
+                else -> current.append(char)
+            }
+            index++
+        }
+        cells.add(current.toString())
+        return cells
+    }
+
     private suspend fun loadExportJournalEntries(
         journalDao: tk.glucodata.data.journal.JournalDao,
         data: List<GlucosePoint>,
@@ -54,7 +78,8 @@ object HistoryExporter {
      * Export data to a CSV file.
      * Format: Timestamp(ms),Date,Value,RawValue,Unit,SensorSerial
      * Values are always exported in the User's preferred unit for consistency with what they see.
-     * Multi-sensor: includes SensorSerial column for re-import with proper tagging.
+     * Multi-sensor: includes SensorSerial column for traceability. Re-imported glucose
+     * rows are intentionally stored under a stable import namespace instead.
      */
     suspend fun exportToCsv(
         context: Context,
@@ -252,9 +277,8 @@ object HistoryExporter {
      * Import data from a CSV file.
      * Handles both old format (5 columns: Timestamp,Date,Value,RawValue,Unit)
      * and new format (6 columns: Timestamp,Date,Value,RawValue,Unit,SensorSerial).
-     *
-     * Old format: defaults sensorSerial to current main sensor.
-     * New format: uses the SensorSerial column from the CSV.
+     * Imported readings are stored under a stable import namespace, not a real
+     * sensor serial, so native resync/sensor replacement cannot wipe them.
      *
      * Internal storage is ALWAYS mg/dL.
      */
@@ -263,38 +287,37 @@ object HistoryExporter {
             var successCount = 0
             var failCount = 0
             val readings = mutableListOf<HistoryReading>()
-            // Default serial for old-format CSVs that don't have a SensorSerial column
-            val defaultSerial = Natives.lastsensorname() ?: "imported"
+            val importSerial = HistoryRepository.IMPORTED_SENSOR_SERIAL
 
             try {
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
                     BufferedReader(InputStreamReader(inputStream)).use { reader ->
                         // Read Header
                         val header = reader.readLine()
-                        if (header == null || !header.startsWith("Timestamp")) {
+                        val normalizedHeader = header?.removePrefix("\uFEFF")
+                        if (normalizedHeader == null || !normalizedHeader.startsWith("Timestamp")) {
                             return@withContext ImportResult(0, 0, false, "Invalid CSV format")
                         }
-                        val headerColumns = header.split(",")
-                        // Detect new format by checking if header has SensorSerial
-                        val hasSerialColumn = headerColumns.contains("SensorSerial")
+                        val headerColumns = parseCsvLine(normalizedHeader).map { it.trim() }
                         val recordTypeIndex = headerColumns.indexOf("RecordType")
 
                         reader.forEachLine { line ->
+                            if (line.isBlank()) return@forEachLine
                             try {
-                                val parts = line.split(",")
+                                val parts = parseCsvLine(line)
                                 if (parts.size >= 5) {
                                     val recordType = if (recordTypeIndex >= 0 && parts.size > recordTypeIndex) {
-                                        parts[recordTypeIndex].trim().trim('"').ifBlank { RECORD_TYPE_GLUCOSE }
+                                        parts[recordTypeIndex].trim().ifBlank { RECORD_TYPE_GLUCOSE }
                                     } else {
                                         RECORD_TYPE_GLUCOSE
                                     }
-                                    if (recordType != RECORD_TYPE_GLUCOSE) {
+                                    if (!recordType.equals(RECORD_TYPE_GLUCOSE, ignoreCase = true)) {
                                         return@forEachLine
                                     }
-                                    val timestamp = parts[0].toLong()
+                                    val timestamp = parts[0].trim().toLong()
                                     // parts[1] is Date string, skip
-                                    var value = parts[2].toFloat()
-                                    var rawValue = parts[3].toFloat()
+                                    var value = parts[2].trim().toFloat()
+                                    var rawValue = parts[3].trim().toFloat()
                                     val unit = parts[4].trim()
 
                                     // Convert back to mg/dL if needed
@@ -303,16 +326,9 @@ object HistoryExporter {
                                         rawValue *= 18.0182f
                                     }
 
-                                    // Use serial from CSV if available, otherwise default
-                                    val serial = if (hasSerialColumn && parts.size >= 6) {
-                                        parts[5].trim().ifEmpty { defaultSerial }
-                                    } else {
-                                        defaultSerial
-                                    }
-
                                     readings.add(HistoryReading(
                                         timestamp = timestamp,
-                                        sensorSerial = serial,
+                                        sensorSerial = importSerial,
                                         value = value,
                                         rawValue = rawValue,
                                         rate = 0f
