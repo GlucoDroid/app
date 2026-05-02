@@ -1,9 +1,13 @@
 package tk.glucodata
 
 import java.util.LinkedHashSet
+import java.util.concurrent.ConcurrentHashMap
 import tk.glucodata.drivers.ManagedSensorIdentityRegistry
 
 object SensorIdentity {
+    private const val NULL_SENTINEL = "\u0000"
+    private val nativeCanonicalCache = ConcurrentHashMap<String, String>()
+
     private fun normalized(sensorId: String?): String? {
         return sensorId?.trim()?.takeIf { it.isNotEmpty() }
     }
@@ -32,10 +36,13 @@ object SensorIdentity {
 
     private fun resolveNativeBackedCanonicalSensorId(sensorId: String?): String? {
         val raw = normalized(sensorId) ?: return null
-        return runCatching { Natives.resolveFullSensorName(raw) }
-            .getOrNull()
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
+        return nativeCanonicalCache.getOrPut(raw) {
+            runCatching { Natives.resolveFullSensorName(raw) }
+                .getOrNull()
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: NULL_SENTINEL
+        }.takeIf { it != NULL_SENTINEL }
     }
 
     private fun nativeShortAlias(sensorId: String?): String? {
@@ -48,8 +55,7 @@ object SensorIdentity {
 
     @JvmStatic
     fun invalidateCaches() {
-        // main keeps no identity cache by default; managed adapters call this
-        // when persisted identity state changes.
+        nativeCanonicalCache.clear()
     }
 
     @JvmStatic
@@ -232,17 +238,19 @@ object SensorIdentity {
         if (managedMatches(normalizedCandidate, normalizedExpected)) {
             return true
         }
+        val left = resolveAppSensorId(normalizedCandidate)
+        val right = resolveAppSensorId(normalizedExpected)
+        if (!left.isNullOrBlank() && !right.isNullOrBlank() &&
+            left.equals(right, ignoreCase = true)
+        ) {
+            return true
+        }
         val candidateNative = resolveNativeBackedCanonicalSensorId(normalizedCandidate)
         val expectedNative = resolveNativeBackedCanonicalSensorId(normalizedExpected)
         if (!candidateNative.isNullOrBlank() && !expectedNative.isNullOrBlank() &&
             candidateNative.equals(expectedNative, ignoreCase = true)
         ) {
             return true
-        }
-        val left = resolveAppSensorId(normalizedCandidate)
-        val right = resolveAppSensorId(normalizedExpected)
-        if (!left.isNullOrBlank() && !right.isNullOrBlank()) {
-            return left.equals(right, ignoreCase = true)
         }
         return false
     }

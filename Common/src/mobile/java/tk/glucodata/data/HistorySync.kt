@@ -74,6 +74,7 @@ object HistorySync {
     private const val RECENT_SYNC_MAX_LOOKBACK_MS = 30 * 60 * 1000L
     private const val DESTRUCTIVE_RESYNC_RESET_GAP_MS = 60 * 60 * 1000L
     private const val RESET_PRESERVE_WINDOW_MS = 10 * 60 * 1000L
+    private const val NATIVE_SYNC_INSERT_CHUNK = 1_000
 
     /**
      * Sync data from native layer to Room for ALL active sensors.
@@ -347,7 +348,9 @@ object HistorySync {
         }
 
         val roomSerial = SensorIdentity.resolveRoomStorageSensorId(serial) ?: serial
-        val readings = mutableListOf<HistoryReading>()
+        val readings = ArrayList<HistoryReading>(NATIVE_SYNC_INSERT_CHUNK)
+        var parsedCount = 0
+        var storedAny = false
 
         for (i in rawHistory.indices step 3) {
             if (i + 2 >= rawHistory.size) break
@@ -371,15 +374,25 @@ object HistorySync {
                         rate = null
                     )
                 )
+                parsedCount++
+                if (readings.size >= NATIVE_SYNC_INSERT_CHUNK) {
+                    historyRepository.storeReadings(readings)
+                    readings.clear()
+                    storedAny = true
+                }
             }
         }
 
         if (readings.isNotEmpty()) {
             historyRepository.storeReadings(readings)
+            readings.clear()
+            storedAny = true
+        }
+        if (storedAny) {
             UiRefreshBus.requestDataRefresh()
             UiRefreshBus.requestStatusRefresh()
         }
-        return readings.size
+        return parsedCount
     }
 
     private fun loadNativeHistory(serial: String, startSec: Long): LongArray? {

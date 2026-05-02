@@ -205,11 +205,14 @@ class GlucoseRepository {
         val preferred = (SensorIdentity.resolveAppSensorId(explicitSerial) ?: explicitSerial)
             ?.takeIf { it.isNotBlank() }
             ?: _currentSerial.value.takeIf { it.isNotBlank() }
+        if (!preferred.isNullOrBlank()) {
+            return preferred
+        }
         return SensorIdentity.resolveAvailableMainSensor(
             selectedMain = SensorIdentity.resolveMainSensor(),
-            preferredSensorId = preferred,
+            preferredSensorId = null,
             activeSensors = Natives.activeSensors()
-        ) ?: preferred
+        )
     }
 
     private suspend fun loadDisplayHistory(

@@ -44,6 +44,16 @@ class StatsViewModel : ViewModel() {
         val contentHash: Long
     )
 
+    private data class StatsHistoryEdgeSignature(
+        val size: Int,
+        val firstTimestamp: Long,
+        val middleTimestamp: Long,
+        val lastTimestamp: Long,
+        val firstValueBits: Int,
+        val middleValueBits: Int,
+        val lastValueBits: Int
+    )
+
     private data class StatsDisplayHistoryCacheKey(
         val historySignature: StatsHistorySignature,
         val viewMode: Int,
@@ -266,7 +276,7 @@ class StatsViewModel : ViewModel() {
             _availableRange.value = loadAvailableRange()
 
             historyRepository.getDisplayHistoryFlowForStats(serial, startTime)
-                .distinctUntilChangedBy(::historySignature)
+                .distinctUntilChangedBy(::historyEdgeSignature)
                 .collect { points ->
                     _historyPoints.value = points
                     _isLoading.value = false
@@ -324,11 +334,20 @@ class StatsViewModel : ViewModel() {
     }
 
     private fun resolveStatsSensorSerial(): String? {
+        val selectedMain = SensorIdentity.resolveMainSensor()?.takeIf { it.isNotBlank() }
+        if (selectedMain != null) {
+            return selectedMain
+        }
+        val preferred = (SensorIdentity.resolveAppSensorId(activeSerial) ?: activeSerial)
+            ?.takeIf { it.isNotBlank() }
+        if (preferred != null) {
+            return preferred
+        }
         return SensorIdentity.resolveAvailableMainSensor(
-            selectedMain = SensorIdentity.resolveMainSensor(),
-            preferredSensorId = SensorIdentity.resolveAppSensorId(activeSerial) ?: activeSerial,
+            selectedMain = null,
+            preferredSensorId = null,
             activeSensors = Natives.activeSensors()
-        ) ?: SensorIdentity.resolveMainSensor()
+        )
     }
 
     private fun resolveViewMode(serial: String): Int {
@@ -623,6 +642,22 @@ class StatsViewModel : ViewModel() {
             firstTimestamp = points.first().timestamp,
             lastTimestamp = points.last().timestamp,
             contentHash = hash
+        )
+    }
+
+    private fun historyEdgeSignature(points: List<GlucosePoint>): StatsHistoryEdgeSignature {
+        if (points.isEmpty()) {
+            return StatsHistoryEdgeSignature(0, 0L, 0L, 0L, 0, 0, 0)
+        }
+        val middle = points[points.lastIndex / 2]
+        return StatsHistoryEdgeSignature(
+            size = points.size,
+            firstTimestamp = points.first().timestamp,
+            middleTimestamp = middle.timestamp,
+            lastTimestamp = points.last().timestamp,
+            firstValueBits = java.lang.Float.floatToRawIntBits(points.first().value),
+            middleValueBits = java.lang.Float.floatToRawIntBits(middle.value),
+            lastValueBits = java.lang.Float.floatToRawIntBits(points.last().value)
         )
     }
 

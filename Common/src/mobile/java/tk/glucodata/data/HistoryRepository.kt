@@ -54,6 +54,8 @@ class HistoryRepository(context: Context = Applic.app) {
         private const val SENSOR_MINUTE_BUCKET_MS = 60_000L
         private const val NATIVE_BACKFILL_OVERLAP_MS = 6L * 60L * 60L * 1000L
         private const val HISTORY_COVERAGE_TOLERANCE_MS = 5L * 60L * 1000L
+        private const val BACKFILL_RETRY_COOLDOWN_MS = 2L * 60L * 1000L
+        private const val NATIVE_BACKFILL_INSERT_CHUNK = 1_000
         private const val DELETED_TIMESTAMP_QUERY_CHUNK = 900
         const val IMPORTED_SENSOR_SERIAL = "__imported_csv__"
         private val IMPORTED_HISTORY_SENSOR_SERIALS = listOf(
@@ -68,6 +70,8 @@ class HistoryRepository(context: Context = Applic.app) {
         private val backfillFinished = backfillLock.newCondition()
         private val backfilledSensorStartMs = HashMap<String, Long>()
         private val backfillInProgressStartMs = HashMap<String, Long>()
+        private val backfillAttemptStartMs = HashMap<String, Long>()
+        private val backfillAttemptWallMs = HashMap<String, Long>()
         
         /**
          * Reset per-sensor backfill tracking so [ensureBackfilled] re-checks native
@@ -79,6 +83,8 @@ class HistoryRepository(context: Context = Applic.app) {
             backfillLock.withLock {
                 backfilledSensorStartMs.clear()
                 backfillInProgressStartMs.clear()
+                backfillAttemptStartMs.clear()
+                backfillAttemptWallMs.clear()
                 backfillFinished.signalAll()
             }
             Log.d(TAG, "backfill sensor tracking reset — ensureBackfilled() will re-run")
@@ -901,11 +907,16 @@ class HistoryRepository(context: Context = Applic.app) {
      * has not yet been merged into Room during this process lifetime.
      */
     suspend fun ensureBackfilled(preferredSerial: String? = null, startTime: Long = 0L) {
-        val sensorsToCheck = linkedSetOfSensors(
-            Natives.activeSensors(),
-            Natives.lastsensorname(),
-            preferredSerial
-        ).filter { sensor ->
+        val preferred = (SensorIdentity.resolveAppSensorId(preferredSerial) ?: preferredSerial)
+            ?.takeIf { it.isNotBlank() }
+        val sensorsToCheck = if (preferred != null) {
+            linkedSetOf(preferred)
+        } else {
+            linkedSetOfSensors(
+                Natives.activeSensors(),
+                Natives.lastsensorname()
+            )
+        }.filter { sensor ->
             sensor != IMPORTED_SENSOR_SERIAL && SensorIdentity.shouldUseNativeHistorySync(sensor)
         }
         if (sensorsToCheck.isEmpty()) {
@@ -922,10 +933,19 @@ class HistoryRepository(context: Context = Applic.app) {
                     var alreadyCovered = false
                     backfillLock.withLock {
                         val coveredStart = backfilledSensorStartMs[serial]
+                        val lastAttemptStart = backfillAttemptStartMs[serial]
+                        val lastAttemptWall = backfillAttemptWallMs[serial] ?: 0L
+                        val recentAttemptCovers = lastAttemptStart != null &&
+                            lastAttemptStart <= requestedStart &&
+                            (System.currentTimeMillis() - lastAttemptWall) < BACKFILL_RETRY_COOLDOWN_MS
                         if (coveredStart != null && coveredStart <= requestedStart) {
+                            alreadyCovered = true
+                        } else if (recentAttemptCovers) {
                             alreadyCovered = true
                         } else if (!backfillInProgressStartMs.containsKey(serial)) {
                             backfillInProgressStartMs[serial] = requestedStart
+                            backfillAttemptStartMs[serial] = requestedStart
+                            backfillAttemptWallMs[serial] = System.currentTimeMillis()
                             shouldBackfill = true
                         } else {
                             backfillFinished.awaitUninterruptibly()
@@ -968,7 +988,8 @@ class HistoryRepository(context: Context = Applic.app) {
                 return false
             }
 
-            val readings = mutableListOf<HistoryReading>()
+            val readings = ArrayList<HistoryReading>(NATIVE_BACKFILL_INSERT_CHUNK)
+            var storedCount = 0
             for (i in rawHistory.indices step 3) {
                 if (i + 2 >= rawHistory.size) break
 
@@ -989,17 +1010,19 @@ class HistoryRepository(context: Context = Applic.app) {
                         rawValue = rawValue,
                         rate = 0f  // Rate not available from history
                     ))
+                    if (readings.size >= NATIVE_BACKFILL_INSERT_CHUNK) {
+                        storedCount += insertBackfillChunk(serial, readings)
+                        readings.clear()
+                    }
                 }
             }
 
             if (readings.isNotEmpty()) {
-                val filteredReadings = filterDeletedReadings(readings)
-                if (filteredReadings.isNotEmpty()) {
-                    dao.insertAll(filteredReadings)
-                    Log.d(TAG, "Backfilled ${filteredReadings.size} readings from native for sensor $serial start=$startSec")
-                } else {
-                    Log.d(TAG, "Backfill for $serial skipped — all readings were tombstoned")
-                }
+                storedCount += insertBackfillChunk(serial, readings)
+                readings.clear()
+            }
+            if (storedCount > 0) {
+                Log.d(TAG, "Backfilled $storedCount readings from native for sensor $serial start=$startSec")
             } else {
                 Log.d(TAG, "Backfill for $serial completed with 0 readings")
             }
@@ -1008,6 +1031,14 @@ class HistoryRepository(context: Context = Applic.app) {
             Log.e(TAG, "Error backfilling sensor $serial", e)
             return false
         }
+    }
+
+    private suspend fun insertBackfillChunk(serial: String, readings: List<HistoryReading>): Int {
+        if (readings.isEmpty()) return 0
+        val filteredReadings = filterDeletedReadings(readings)
+        if (filteredReadings.isEmpty()) return 0
+        dao.insertAll(filteredReadings)
+        return filteredReadings.size
     }
 
     private suspend fun resolveNativeBackfillStartSec(serial: String, requestedStartTimeMs: Long): Long {

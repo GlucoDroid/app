@@ -3,6 +3,7 @@ package tk.glucodata.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.os.SystemClock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.withContext
 import tk.glucodata.Natives
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.BatteryTrace
@@ -52,7 +54,6 @@ class DashboardViewModel(
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
-        const val DASHBOARD_HISTORY_WINDOW_MS = 3L * 24L * 60L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val PREDICTION_CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
         const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
@@ -547,10 +548,9 @@ class DashboardViewModel(
     }
 
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
-        val nowMs = System.currentTimeMillis()
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> (nowMs - DASHBOARD_HISTORY_WINDOW_MS).coerceAtLeast(0L)
+            CollectionMode.DASHBOARD,
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = when (mode) {
@@ -595,10 +595,12 @@ class DashboardViewModel(
                 )
                 val isMmol = unitStr == "mmol/L"
                 _glucoseHistory.value = if (isMmol) {
-                    rawHistory.map { p ->
-                        val v = p.value / 18.0182f
-                        val r = p.rawValue / 18.0182f
-                        tk.glucodata.ui.GlucosePoint(v, p.time, p.timestamp, r, p.rate, p.sensorSerial)
+                    withContext(Dispatchers.Default) {
+                        rawHistory.map { p ->
+                            val v = p.value / 18.0182f
+                            val r = p.rawValue / 18.0182f
+                            tk.glucodata.ui.GlucosePoint(v, p.time, p.timestamp, r, p.rate, p.sensorSerial)
+                        }
                     }
                 } else {
                     rawHistory
@@ -1034,11 +1036,14 @@ class DashboardViewModel(
         }
         val cachedSerial = _sensorName.value.takeIf { it.isNotBlank() }
             ?: glucoseRepository.currentSerial.value.takeIf { it.isNotBlank() }
+        if (!cachedSerial.isNullOrBlank()) {
+            return cachedSerial
+        }
         return SensorIdentity.resolveAvailableMainSensor(
             selectedMain = nativeCurrent,
-            preferredSensorId = cachedSerial,
+            preferredSensorId = null,
             activeSensors = Natives.activeSensors()
-        ) ?: cachedSerial
+        )
     }
 
     private fun Float.roundToStep(step: Float): Float {
