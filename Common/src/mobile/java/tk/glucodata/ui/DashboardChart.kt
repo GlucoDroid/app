@@ -1240,6 +1240,15 @@ fun InteractiveGlucoseChart(
     val currentInteractionData by rememberUpdatedState(interactionData)
     val currentViewMode by rememberUpdatedState(viewMode)
     val currentCalibratedValueResolver by rememberUpdatedState(calibratedValueResolver)
+    // The pointerInput lambda below is keyed on previewWindowReservedIntPx and otherwise
+    // long-lived, so it would otherwise capture these as stale snapshots — when the
+    // prediction horizon, zoom level, or expansion progress change, gesture clamping
+    // (maxAllowedTime) and useful-width math would keep using the values from the
+    // composition that started the gesture coroutine. With predictive simulation enabled
+    // that desynced clamp pulls centerTime back to the old bound after zoom or back-to-now.
+    val currentMaxAllowedTime by rememberUpdatedState(maxAllowedTime)
+    val currentHasPredictionOverlay by rememberUpdatedState(hasPredictionOverlay)
+    val currentSafeExpandedProgress by rememberUpdatedState(safeExpandedProgress)
 
     // --- DATA HELPER (Fixed Interpolation) ---
     fun getPointAt(timeAtTapRaw: Double): GlucosePoint? {
@@ -1401,11 +1410,12 @@ fun InteractiveGlucoseChart(
                                     val fraction = (localX / previewSafeWidth).coerceIn(0f, 1f)
                                     val targetCenter =
                                         (gesturePreviewStart + (previewDuration * fraction)).toLong()
-                                    centerTime = targetCenter.coerceAtMost(maxAllowedTime)
+                                    val maxAllowed = currentMaxAllowedTime
+                                    centerTime = targetCenter.coerceAtMost(maxAllowed)
                                     previewCenterTime = adjustedPreviewCenter(
                                         centerTime,
                                         gestureStartPreviewCenter
-                                    ).coerceAtMost(maxAllowedTime)
+                                    ).coerceAtMost(maxAllowed)
                                 }
 
                                 val windowStartTime = gestureStartCenter - visibleDuration / 2
@@ -1441,14 +1451,15 @@ fun InteractiveGlucoseChart(
                                         val totalDeltaX = localX - downLocalX
                                         val totalDeltaMs =
                                             ((totalDeltaX / previewSafeWidth) * previewDuration.toFloat()).toLong()
+                                        val maxAllowed = currentMaxAllowedTime
                                         centerTime =
                                             (gestureStartCenter + totalDeltaMs).coerceAtMost(
-                                                maxAllowedTime
+                                                maxAllowed
                                             )
                                         previewCenterTime = adjustedPreviewCenter(
                                             centerTime,
                                             gestureStartPreviewCenter
-                                        ).coerceAtMost(maxAllowedTime)
+                                        ).coerceAtMost(maxAllowed)
                                     } else {
                                         updatePreviewViewport(localX)
                                     }
@@ -1488,7 +1499,7 @@ fun InteractiveGlucoseChart(
 
                             // --- HIT TEST (Hit Logic reused) ---
                             val width = size.width.toFloat()
-                            val rightPaddingPx = if (hasPredictionOverlay) 0f else (16.dp.toPx() * safeExpandedProgress)
+                            val rightPaddingPx = if (currentHasPredictionOverlay) 0f else (16.dp.toPx() * currentSafeExpandedProgress)
                             val usefulWidth = (width - rightPaddingPx).coerceAtLeast(1f)
                             val contentHeight =
                                 (size.height.toFloat() - chartUnderlayBottomPx - previewWindowReservedPx).coerceAtLeast(1f)
@@ -1676,7 +1687,7 @@ fun InteractiveGlucoseChart(
                                                 visibleDuration.toFloat() / usefulWidth
                                             val timeDelta = -(panX * timePerPixel).toLong()
                                             centerTime =
-                                                (centerTime + timeDelta).coerceAtMost(maxAllowedTime)
+                                                (centerTime + timeDelta).coerceAtMost(currentMaxAllowedTime)
                                         } else if (totalDragDistance > 30f) {
                                             // Vertical scale
                                             val liveYMin = yMin
@@ -1777,7 +1788,7 @@ fun InteractiveGlucoseChart(
                                             ) {
                                                 val delta = this.value - lastVal
                                                 val rightPaddingPx =
-                                                    if (hasPredictionOverlay) 0f else (16.dp.toPx() * safeExpandedProgress)
+                                                    if (currentHasPredictionOverlay) 0f else (16.dp.toPx() * currentSafeExpandedProgress)
                                                 val usefulWidth =
                                                     (size.width.toFloat() - rightPaddingPx).coerceAtLeast(
                                                         1f
@@ -1786,7 +1797,7 @@ fun InteractiveGlucoseChart(
                                                     visibleDuration.toFloat() / usefulWidth
                                                 centerTime =
                                                     (centerTime + (delta * tPerPix).toLong()).coerceAtMost(
-                                                        maxAllowedTime
+                                                        currentMaxAllowedTime
                                                     )
                                                 lastVal = this.value
                                             }

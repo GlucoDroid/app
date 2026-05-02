@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import tk.glucodata.data.journal.JournalDao
 import tk.glucodata.data.journal.JournalEntryEntity
 import tk.glucodata.data.journal.JournalInsulinPresetEntity
+import tk.glucodata.data.journal.JournalPendingDeleteEntity
 
 /**
  * Room database for independent glucose history storage.
@@ -24,15 +25,17 @@ import tk.glucodata.data.journal.JournalInsulinPresetEntity
  *   v7 — per-preset active-insulin participation flag
  *   v8 — per-reading delete tombstones to keep manual Room deletes durable
  *   v9 — per-sensor timestamp index for bounded dashboard/stats history queries
+ *   v10 — Nightscout sync columns on journal entries + tombstone table for journal deletes
  */
 @Database(
     entities = [
         HistoryReading::class,
         DeletedHistoryReading::class,
         JournalEntryEntity::class,
-        JournalInsulinPresetEntity::class
+        JournalInsulinPresetEntity::class,
+        JournalPendingDeleteEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class HistoryDatabase : RoomDatabase() {
@@ -173,7 +176,23 @@ abstract class HistoryDatabase : RoomDatabase() {
                 )
             }
         }
-        
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE journal_entries ADD COLUMN nsUploadedAt INTEGER")
+                db.execSQL("ALTER TABLE journal_entries ADD COLUMN nsRemoteId TEXT")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS journal_pending_deletes (
+                        entryId INTEGER PRIMARY KEY NOT NULL,
+                        nsRemoteId TEXT NOT NULL,
+                        deletedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): HistoryDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -188,7 +207,8 @@ abstract class HistoryDatabase : RoomDatabase() {
                     MIGRATION_5_6,
                     MIGRATION_6_7,
                     MIGRATION_7_8,
-                    MIGRATION_8_9
+                    MIGRATION_8_9,
+                    MIGRATION_9_10
                 )
                 .fallbackToDestructiveMigration()  // Fallback if migration chain is broken
                 .build().also { INSTANCE = it }
