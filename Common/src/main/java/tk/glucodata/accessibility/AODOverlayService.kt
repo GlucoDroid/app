@@ -67,7 +67,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private var currentOverlayPosition = "TOP"
 
     private val broadcastFollowUpRunnable = Runnable {
-        if (isLocked && overlayView?.visibility == View.VISIBLE) {
+        if (overlayView?.visibility == View.VISIBLE) {
             BatteryTrace.bump("aod.overlay.refresh.followup", logEvery = 20L)
             updateOverlayContent()
         }
@@ -91,7 +91,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                     }
                 }
                 "tk.glucodata.action.GLUCOSE_UPDATE" -> {
-                    if (isLocked && overlayView?.visibility == View.VISIBLE) {
+                    if (overlayView?.visibility == View.VISIBLE) {
                         BatteryTrace.bump("aod.overlay.refresh.broadcast", logEvery = 20L)
                         updateOverlayContent()
                         if (shouldScheduleBroadcastFollowUp()) {
@@ -160,7 +160,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            if (overlayView != null && isLocked) {
+            if (overlayView?.visibility == View.VISIBLE) {
                 BatteryTrace.bump("aod.overlay.refresh.periodic", logEvery = 20L)
                 updateOverlayContent()
                 applyBurnInProtection()
@@ -188,7 +188,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
 
         serviceScope.launch {
             UiRefreshBus.revision.collectLatest {
-                if (isLocked && overlayView?.visibility == View.VISIBLE) {
+                if (overlayView?.visibility == View.VISIBLE) {
                     updateOverlayContent()
                 }
             }
