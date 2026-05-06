@@ -12,9 +12,11 @@ package tk.glucodata.drivers.icanhealth
 import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.content.Context
@@ -542,13 +544,16 @@ class ICanHealthBleManager(
     override fun softReconnect() {
         uiPaused = false
         clearSoftDisconnectState()
-        if (phase == Phase.IDLE && mBluetoothGatt == null) {
+        resetConnectionAttemptState()
+        val hadGatt = mBluetoothGatt != null
+        if (hadGatt) {
+            runCatching { close() }.onFailure {
+                Log.stack(TAG, "softReconnect(close stale gatt)", it)
+            }
+        }
+        if (!hadGatt) {
             connectDevice(0)
         } else {
-            try {
-                mBluetoothGatt?.disconnect()
-            } catch (_: Throwable) {
-            }
             handler.postDelayed({
                 if (!uiPaused && !stop) {
                     connectDevice(0)
@@ -961,14 +966,52 @@ class ICanHealthBleManager(
             return false
         }
         if (mBluetoothGatt != null) {
-            Log.d(TAG, "Skipping duplicate connect for $SerialNumber; GATT already active")
-            return true
+            if (phase == Phase.IDLE) {
+                Log.d(TAG, "Closing stale GATT before reconnect for $SerialNumber")
+                runCatching { close() }
+                    .onFailure { Log.stack(TAG, "connectDevice(close stale gatt)", it) }
+            } else {
+                Log.d(TAG, "Skipping duplicate connect for $SerialNumber; GATT already active")
+                return true
+            }
         }
         if (phase != Phase.IDLE) {
             Log.d(TAG, "Skipping duplicate connect for $SerialNumber; phase=$phase")
             return true
         }
+        hydrateBluetoothDeviceFromAddress()
         return super.connectDevice(delayMillis)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun hydrateBluetoothDeviceFromAddress(): Boolean {
+        if (mActiveBluetoothDevice != null) {
+            return true
+        }
+        val address = mActiveDeviceAddress
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return false
+        if (!BluetoothAdapter.checkBluetoothAddress(address)) {
+            Log.w(TAG, "Cannot hydrate BluetoothDevice for $SerialNumber; invalid address=$address")
+            return false
+        }
+        val adapter = runCatching {
+            (Applic.app?.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+                ?: BluetoothAdapter.getDefaultAdapter()
+        }.getOrNull()
+        if (adapter == null) {
+            Log.w(TAG, "Cannot hydrate BluetoothDevice for $SerialNumber; BluetoothAdapter unavailable")
+            return false
+        }
+        return runCatching {
+            mActiveBluetoothDevice = adapter.getRemoteDevice(address)
+            Log.d(TAG, "Hydrated BluetoothDevice from saved address for $SerialNumber")
+            true
+        }.getOrElse {
+            Log.stack(TAG, "hydrateBluetoothDeviceFromAddress", it)
+            false
+        }
     }
 
     override fun resetdataptr(): Long {
@@ -1027,7 +1070,7 @@ class ICanHealthBleManager(
             )
             return true
         }
-        if (phase != Phase.IDLE || mBluetoothGatt != null) {
+        if (phase != Phase.IDLE) {
             return true
         }
         return connectDevice(0)
@@ -1035,6 +1078,17 @@ class ICanHealthBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         if (stop) return
+        val currentGatt = mBluetoothGatt
+        if (currentGatt != null && currentGatt !== gatt) {
+            Log.d(TAG, "Ignoring stale GATT state=$newState status=$status for $SerialNumber")
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                runCatching { gatt.disconnect() }
+            }
+            if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                runCatching { gatt.close() }
+            }
+            return
+        }
 
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
