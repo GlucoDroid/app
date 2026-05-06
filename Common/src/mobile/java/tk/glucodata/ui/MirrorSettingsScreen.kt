@@ -292,12 +292,30 @@ fun MirrorSettingsScreen(navController: NavController) {
             item(key = "qr_share") {
                 SettingsItem(
                     title = "Share My QR",
-                    subtitle = "Let another device scan to connect",
+                    subtitle = "Same network — let another device scan",
                     icon = Icons.Outlined.QrCode,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.TOP,
                     onClick = {
                         val idx = Natives.makeHomeSender()
+                        if (idx >= 0) {
+                            showMyQR = Natives.getbackJson(idx)
+                            triggerRefresh++
+                        } else {
+                            Toast.makeText(context, context.getString(R.string.mirror_error_with_code, idx), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+            }
+            item(key = "qr_share_relay") {
+                SettingsItem(
+                    title = "Share Relay QR",
+                    subtitle = "Across networks — uses TURN/ICE relay",
+                    icon = Icons.Filled.Cloud,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    position = CardPosition.MIDDLE,
+                    onClick = {
+                        val idx = Natives.makeICESender()
                         if (idx >= 0) {
                             showMyQR = Natives.getbackJson(idx)
                             triggerRefresh++

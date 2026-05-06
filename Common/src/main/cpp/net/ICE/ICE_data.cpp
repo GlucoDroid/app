@@ -128,7 +128,9 @@ void ICE_data::ackeddata(juice_agent_t *agent,udp_header  *head) {
           uint32_t rel_msec=getRelMsec(starttime) ;
           int RTT=rel_msec-head->rel_msec;
           acknowledged[index]=true;
+#ifndef NOLOG
           auto oldRTO=RTO;
+#endif
           setRTO(RTT);
           if(head->fin) {
             ++nextAck;
@@ -469,7 +471,7 @@ std::chrono::duration_cast<std::chrono::milliseconds>(waited).count(),
 std::chrono::duration_cast<std::chrono::milliseconds>(waittime).count());
 
                         if(waited>waittime) {
-                             if(waited>std::chrono::seconds(10)) {
+                             if(waited>std::chrono::microseconds(RTO*timesRTO*100*16)) {
                                     LOGGERICE("%d senddata endConnection b\n",side);
                                     con->endConnection();
                                     return -1;
@@ -546,7 +548,7 @@ std::chrono::duration_cast<std::chrono::milliseconds>(waittime).count());
                 auto newnow = std::chrono::system_clock::now();
                 if(newnow>=endwait) {
                        LOGGER("trans_id=%d RTO=%d waittime=%d final took too long\n",trans_id,RTO,waittime);
-                       if((newnow-now)>std::chrono::seconds(10)) {
+                       if((newnow-now)> std::chrono::microseconds(RTO*timesRTO*100*16)) {
                             LOGGERICE("%d senddata endConnection c\n",side);
                             con->endConnection();
                             return -1;
@@ -613,7 +615,7 @@ void ICE_data::sendshutDown(juice_agent_t *agent) {
             if(!sendWithError(agent, reinterpret_cast<const char *>(&head),sizeof(udp_header))) {
                 return;
                 }
-            usleep(RTO*100);
+            usleep(RTO*100*(i+1));
             }
        LOGGERICE("end sendshutDown(%p) allindex=%d sendShutDown=%d\n",agent,allindex,sendShutdown);
     }
@@ -647,7 +649,7 @@ void ICE_data::end(juice_agent_t *agent) {
             udp_header  head{.rel_msec=rel_msec,.com=END,.side=side,.ack=false,.trans_id=send_trans_id};
             if(!sendWithError(agent, reinterpret_cast<const char *>(&head),sizeof(udp_header)))
                     return;
-            usleep(RTO*100);
+            usleep(RTO*100*(i+1));
             }
          LOGGERICE("end ICE_data::end  side=%d\n",side);
         }
@@ -665,13 +667,14 @@ int ICE_data::receive(juice_agent_t *agent,char *buf, const int maxbuf) {
            resetReceive();
            return -1;
            }
-        std::unique_lock<std::mutex> lck( receiveMutex);
         intmax_t waittime=RTO*100*timesRTO;
         int asked=0;
-        uint32_t timebegin=time(nullptr);
+        uint32_t beginReceive=time(nullptr);
         while(true) {
             LOGGERICE("side=%d ICE_data::receive before wait_for %d microsecs\n",side,waittime);
-            receiveCond.wait_for(lck,std::chrono::microseconds(waittime), [this,agent,&waittime,&asked]{
+            {
+            std::unique_lock<std::mutex> lck(receiveMutex);
+            receiveCond.wait_for(lck,std::chrono::microseconds(waittime), [this,agent,&waittime,&asked,beginReceive,&lck]{
                 if(shutdown) {
                     LOGGERICE("allindex=%d side=%d receive: wait_for shutdown\n",allindex,side);
                     return true;
@@ -682,30 +685,36 @@ int ICE_data::receive(juice_agent_t *agent,char *buf, const int maxbuf) {
                     ICEConnect *con=static_cast<ICEConnect *>(connections[allindex]);
                     if(con->isConnected)  {
                            if(asked>10) {
-                                if((time(nullptr)-timebegin)>5*60)
+                                if((time(nullptr)-beginReceive)>3*60) {
+                                    LOGGERICE("allindex=%d receive: askedData 11 times\n", allindex);
+                                    lck.unlock();
                                     con->endConnection();
+                                    lck.lock();
                                     return true;
                                     }
                                 }
-                           waittime=RTO*100*10;
+                           lck.unlock();
                            askdata(agent);
+                           lck.lock();
                            ++asked;
+                           waittime=RTO*100*asked*2;
                            if(shutdown) {
                                 LOGGERICE("%d receive: askdata shutdown\n",side);
                                 return true;
                                 }
                            }
                     else {
-                        LOGGER("allindex=%d side=%d receive:~isConnected\n",allindex,side);
+                        LOGGER("receive: allindex=%d side=%d receive:~isConnected\n",allindex,side);
                         waittime=5*60*1000*1000;
                         }
                     }
                  else {
-                      LOGGER("allindex=%d side=%d !askdata\n",allindex,side);
+                      LOGGER("receive: allindex=%d side=%d askedData\n",allindex,side);
                       waittime=5*60*1000*1000;
                       }
                  return datalen>offset;
                  });
+                 }
                if(shutdown) {
                     return -1;
                     }

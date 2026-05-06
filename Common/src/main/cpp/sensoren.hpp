@@ -1271,7 +1271,7 @@ public:
     }
   }
 
-  bool setbackuptime(crypt_t *pass, const int sock, const int ind,
+  bool setbackuptime(crypt_t *pass, Connect *connect, const int ind,
                      const uint32_t starttime, uint16_t &starttimeindex) {
     int nr = last() + 1;
     if (starttimeindex > nr)
@@ -1279,7 +1279,7 @@ public:
     while (starttimeindex > 0) {
       auto newindex = starttimeindex - 1;
       if (SensorGlucoseData *hist = getSensorData(newindex)) {
-        if (!hist->setbackuptime(pass, sock, ind, starttime))
+        if (!hist->setbackuptime(pass, connect, ind, starttime))
           return false;
       } else {
         LOGGER("getSensorData(%d) failed\n", newindex);
@@ -1293,12 +1293,12 @@ public:
   inline static constexpr const std::string_view sensorfile{
       "sensors/sensors.dat"};
 
-  int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
+  int writeStartime(crypt_t *pass, Connect *connect, const int sensorindex) {
     const uint8_t *starttimeptr =
         reinterpret_cast<uint8_t *>(&getsensor(sensorindex)->starttime);
     const uint8_t *startdata = reinterpret_cast<uint8_t *>(map.data());
     const int offset = starttimeptr - startdata;
-    if (!senddata(pass, sock, offset, starttimeptr, sizeof(uint32_t),
+    if (!connect->senddata(pass, offset, starttimeptr, sizeof(uint32_t),
                   sensorfile)) {
       LOGAR("writeStartime: sending starttime failed");
       return 0;
@@ -1319,7 +1319,7 @@ public:
     hist->setMirrorRemoteBase(remoteBase);
   }
 
-  int sendCalibrates(crypt_t *pass, const int sock, int ind,
+  int sendCalibrates(crypt_t *pass, Connect *connect, int ind,
                      uint16_t &startSendCalibrate) {
     const int lastsens = last();
     const int first = startSendCalibrate;
@@ -1334,7 +1334,7 @@ public:
       if (!sens)
         return 0;
       alignMirrorRemoteBase(sens, sindex);
-      int res = sens->updateCali(pass, sock, ind, sindex);
+      int res = sens->updateCali(pass, connect, ind, sindex);
       if (!res)
         return 0;
       did |= res;
@@ -1345,7 +1345,7 @@ public:
           std::string relpath = "mirror/calibration/";
           relpath += serial;
           relpath += ".json";
-          if (!senddata(pass, sock, 0,
+          if (!connect->senddata(pass, 0,
                         reinterpret_cast<const senddata_t *>(json.data()),
                         static_cast<int>(json.size()), relpath)) {
             LOGGER("sendCalibrates: failed sending Kotlin profile for %s\n",
@@ -1359,11 +1359,11 @@ public:
     startSendCalibrate = lastsens;
     return did;
   }
-  int update(crypt_t *pass, const int sock, const int ind, int &startupdate,
+  int update(crypt_t *pass, Connect *connect, const int ind, int &startupdate,
              int &firstsensor, const bool upstream, const bool upscan,
              const bool restoreinfo, const bool resetdevices) {
     LOGGER("Sensoren::update firstsensor=%d sock=%d ind=%d resetdevices=%d\n",
-           firstsensor, sock, ind, resetdevices);
+           firstsensor, connect->getSenderIdent(), ind, resetdevices);
     int changed = INT_MAX;
     int did = 2;
 
@@ -1393,7 +1393,7 @@ public:
         }
 
         if (upstream) {
-          const int resstream = hist->updatestream(pass, sock, ind, i, 0);
+          const int resstream = hist->updatestream(pass, connect, ind, i, 0);
           switch (resstream) {
           case 0:
             return did & 0x4;
@@ -1406,7 +1406,7 @@ public:
 #endif
           did |= resstream;
           if (hist->isSibionics()) {
-            int jsonres = hist->sendSibionicsState(pass, sock,
+            int jsonres = hist->sendSibionicsState(pass, connect,
                                                    ind); // TODO send less often
             if (!jsonres) {
               return did & 0x4;
@@ -1417,7 +1417,7 @@ public:
 
         if (upscan) {
           const int resscan =
-              hist->updatescan(pass, sock, ind, i, i >= startupdate, upstream);
+              hist->updatescan(pass, connect, ind, i, i >= startupdate, upstream);
           switch (resscan) {
           case 0:
             return did & 0x4;
@@ -1461,7 +1461,7 @@ public:
            static_cast<int>((afterend - changed) * sizeof(begin[0])) -
                subtract});
 
-      if (!senddata(pass, sock, vect, sensorfile))
+      if (!connect->senddata(pass, vect, sensorfile))
         return did & 0x4;
 
       /*
@@ -1471,22 +1471,19 @@ public:
 
       did = 1;
       if (newdevices) {
-        extern bool sendResetDevices(crypt_t * pass, const int sock);
-        if (!sendResetDevices(pass, sock)) {
-          LOGGER("GLU %s: sendResetDevices(pass,sock) failed\n",
+        if (!connect->sendResetDevices(pass)) {
+          LOGGER("GLU %s: sendResetDevices(pass) failed\n",
                  shortsensorname()->data());
           return did & 0x4;
         } else {
-          LOGGER("GLU %s: sendResetDevices(pass,sock)\n",
+          LOGGER("GLU %s: sendResetDevices(pass)\n",
                  shortsensorname()->data());
         }
       }
     }
 #ifdef SENDSHOW
     if (lastlast >= 0) {
-      bool sendshowglucose(crypt_t * pass, const int sock,
-                           const uint16_t sensorindex);
-      if (!sendshowglucose(pass, sock, lastlast))
+      if (!connect->sendshowglucose(pass, lastlast))
         return did & 0x4;
     }
 #endif
@@ -1496,9 +1493,9 @@ public:
     return did;
   }
 
-  int update(crypt_t *pass, const int sock, const int ind, int &firstsensor,
+  int update(crypt_t *pass, Connect *connect, const int ind, int &firstsensor,
              int otheralso,
-             int (SensorGlucoseData::*proc)(crypt_t *, int, int, int, int)) {
+             int (SensorGlucoseData::*proc)(crypt_t *, Connect *, int, int, int)) {
     uint32_t now = time(NULL);
     int did = 2;
     for (int i = last(); i >= firstsensor; i--) {
@@ -1510,7 +1507,7 @@ public:
           alignMirrorRemoteBase(hist, i);
           if (hist->error())
             continue;
-          int subdid = (hist->*proc)(pass, sock, ind, i, otheralso);
+          int subdid = (hist->*proc)(pass, connect, ind, i, otheralso);
           if (!subdid)
             return 0;
           did |= subdid;
@@ -1520,17 +1517,17 @@ public:
     return did;
   }
 
-  int updatescanss(crypt_t *pass, const int sock, const int ind,
+  int updatescanss(crypt_t *pass, Connect *connect, const int ind,
                    int &firstsensor, int streamalso) {
-    LOGGER("updatescanss sock=%d ind=%d\n", sock, ind);
-    return update(pass, sock, ind, firstsensor, streamalso,
+    LOGGER("updatescanss sock=%d ind=%d\n", connect->getSenderIdent(), ind);
+    return update(pass, connect, ind, firstsensor, streamalso,
                   &SensorGlucoseData::updatescanalg);
   }
 
-  int updatestreams(crypt_t *pass, const int sock, const int ind,
+  int updatestreams(crypt_t *pass, Connect *connect, const int ind,
                     int &firstsensor, int scanalso) {
-    LOGGER("updatestreams sock=%d ind=%d\n", sock, ind);
-    int res = update(pass, sock, ind, firstsensor, scanalso,
+    LOGGER("updatestreams sock=%d ind=%d\n", connect->getSenderIdent(), ind);
+    int res = update(pass, connect, ind, firstsensor, scanalso,
                      &SensorGlucoseData::updatestream);
 
     return res;

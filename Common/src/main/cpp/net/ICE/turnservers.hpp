@@ -18,31 +18,13 @@
 /*      along with Juggluco. If not, see <https://www.gnu.org/licenses/>.            */
 /*                                                                                   */
 /*      Fri Nov 21 11:08:14 CET 2025                                                 */
-#pragma once 
-#include <vector>
-#include <string_view>
-#include <span>
-#include <openssl/ssl.h>
+        {
+        .host="global.turn.twilio.com",
+        .port=3478
+        }
 
-using namespace std::literals;
-class ContextHTTPS {
-private:
-    SSL_CTX* ctx ;
-    bool error=false;
-static bool initLibrary();
-public:
-
-    static ContextHTTPS &getContext() ;
-    ContextHTTPS();
-    ~ContextHTTPS();
-std::pair<std::vector<char>,int>request(const std::string_view host,int port,const std::string_view path,const std::string_view TYPE,const std::span<const char> input, const std::string_view header={});
-std::pair<std::vector<char>,int>   getRequest(const std::string_view host,int port,const std::string_view path,const std::span<const char> input={}, const std::string_view header={})  {
-    return  request(host, port,path,"GET"sv, input,header) ;
-    }
-std::pair<std::vector<char>,int>  putRequest(const std::string_view host,int port,const std::string_view path,const std::span<const char> input={}, const std::string_view header={})  {
-    return  request(host, port,path,"PUT"sv, input,header) ;
-    }
-std::pair<std::vector<char>,int>  postRequest(const std::string_view host,int port,const std::string_view path,const std::span<const char> input={}, const std::string_view header={})  {
-    return  request(host, port,path,"POST"sv, input,header) ;
-    }
- };
+/*
+ * Do not commit credentialed TURN servers here. Local builds can provide
+ * Common/src/main/cpp/net/ICE/turnservers.local.hpp with the same initializer
+ * entries. Users can also configure a TURN server in app settings.
+ */

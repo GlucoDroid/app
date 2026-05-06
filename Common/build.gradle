@@ -320,7 +320,7 @@ buildTypes {
         applicationIdSuffix ".dub"
             resValue "string", "app_name", "JugglucoNG Dub"
             signingConfig signingConfigs.alg
-            minifyEnabled true 
+            minifyEnabled true
         shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
             jniDebuggable false
@@ -331,9 +331,31 @@ buildTypes {
             buildConfigField 'int', 'isRelease', '1'
         buildConfigField 'int', 'isReleaseID', '1'
             externalNativeBuild.cmake {
-                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           
-                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "           
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
 //                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1"         //, "-DSCANLOG=1" , "-DNOLOG=1"
+
+
+                }
+        }
+        releasedub2 {
+            versionNameSuffix 'DUB2'
+        applicationIdSuffix ".dub2"
+            resValue "string", "app_name", "JugglucoNG Dub 2"
+            signingConfig signingConfigs.alg
+            minifyEnabled true
+        shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
+            jniDebuggable false
+            debuggable false
+
+
+        buildConfigField 'int', 'doLog', '1'
+            buildConfigField 'int', 'isRelease', '1'
+        buildConfigField 'int', 'isReleaseID', '1'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
 
 
                 }

@@ -32,13 +32,16 @@ void SensorGlucoseData::backhistory(int pos) {
     }
   }
 }
-void SensorGlucoseData::backcalibrated(int pos) {
+void SensorGlucoseData::backcalibrated(int pos, bool history) {
   const int maxind = backup->getupdatedata()->sendnr;
   auto *caliUpdated = getinfo()->caliUpdated;
   for (int i = 0; i < maxind; i++) {
     if (pos < caliUpdated[i]) {
       caliUpdated[i] = pos;
     }
+  }
+  if (history) {
+    backhistory(pos);
   }
 }
 void SensorGlucoseData::backstream(int pos) {
@@ -56,7 +59,7 @@ void SensorGlucoseData::backstream(int pos) {
 string_view
 getpreviousstate(string_view sbasedir); // delete[] should be called on result
 
-int SensorGlucoseData::sendhistoryinfo(crypt_t *pass, int sock, int sensorindex,
+int SensorGlucoseData::sendhistoryinfo(crypt_t *pass, Connect *connect, int sensorindex,
                                        uint32_t histstart,
                                        uint32_t endhistory) {
   constexpr const int endhistoryoff = offsetof(Info, endhistory);
@@ -72,7 +75,7 @@ int SensorGlucoseData::sendhistoryinfo(crypt_t *pass, int sock, int sensorindex,
       {reinterpret_cast<const senddata_t *>(&getinfo()->lastLifeCountReceived),
        lastLifeCountReceivedoff, u32len});
   const uint16_t historystartcmd = starthistoryupdate | sensorindex;
-  if (!senddata(pass, sock, vect, infopath, historystartcmd,
+  if (!connect->senddata(pass, vect, infopath, historystartcmd,
                 reinterpret_cast<const uint8_t *>(&histstart),
                 sizeof(histstart))) {
     LOGSTRING("GLU: senddata info.data failed\n");
@@ -80,7 +83,7 @@ int SensorGlucoseData::sendhistoryinfo(crypt_t *pass, int sock, int sensorindex,
   }
   return 1;
 }
-int SensorGlucoseData::oldsendhistory(crypt_t *pass, int sock, int ind,
+int SensorGlucoseData::oldsendhistory(crypt_t *pass, Connect *connect, int ind,
                                       int sensorindex, bool sendinfo,
                                       int histend) {
   getinfo()->update[ind].changedhistorystart = false;
@@ -89,7 +92,7 @@ int SensorGlucoseData::oldsendhistory(crypt_t *pass, int sock, int ind,
     if (histstart > 0)
       histstart--; // TODO? Last in history contains only raw value, so should
                    // be overwritten
-    if (!senddata(pass, sock, histstart * getelsize(), elstart(histstart),
+    if (!connect->senddata(pass, histstart * getelsize(), elstart(histstart),
                   (histend + 1 - histstart) * getelsize(), histpath)) {
       LOGSTRING("GLU: senddata data.data failed\n");
       return 0;
@@ -98,14 +101,14 @@ int SensorGlucoseData::oldsendhistory(crypt_t *pass, int sock, int ind,
     if (!getinfo()->update[ind].changedhistorystart) {
       getinfo()->update[ind].histstart = histend;
       if (sendinfo) {
-        return sendhistoryinfo(pass, sock, sensorindex, histstart, histend);
+        return sendhistoryinfo(pass, connect, sensorindex, histstart, histend);
       }
       return 1;
     }
   }
   return 2;
 }
-int SensorGlucoseData::newsendhistory(crypt_t *pass, int sock, int ind,
+int SensorGlucoseData::newsendhistory(crypt_t *pass, Connect *connect, int ind,
                                       int sensorindex, bool sendStream,
                                       int histend) {
   int histstart = getinfo()->update[ind].histstart;
@@ -140,7 +143,7 @@ int SensorGlucoseData::newsendhistory(crypt_t *pass, int sock, int ind,
                       (pos - tusstart) * getelsize()});
     }
     if (vect.size()) {
-      if (!senddata(pass, sock, vect, histpath)) { // TODO: add command
+      if (!connect->senddata(pass, vect, histpath)) { // TODO: add command
         LOGSTRING("GLU: senddata data.data failed\n");
         return 0;
       }
@@ -153,13 +156,13 @@ int SensorGlucoseData::newsendhistory(crypt_t *pass, int sock, int ind,
   }
   return 2;
 }
-int SensorGlucoseData::updateKAuth(crypt_t *pass, int sock, int ind) {
+int SensorGlucoseData::updateKAuth(crypt_t *pass, Connect *connect, int ind) {
   if (getinfo()->update[ind].sendKAuth) {
     const int off = (getinfo()->haskAuth) ? offsetof(Info, kAuth)
                                           : offsetof(Info, haskAuth);
     constexpr const int endoff = offsetof(Info, haskAuth) + 1;
     const int len = endoff - off;
-    if (!senddata(pass, sock, off,
+    if (!connect->senddata(pass, off,
                   reinterpret_cast<const senddata_t *>(getinfo()) + off, len,
                   infopath)) {
       LOGSTRING("GLU: updateKAuth failed\n");
@@ -172,7 +175,7 @@ int SensorGlucoseData::updateKAuth(crypt_t *pass, int sock, int ind) {
   return 2;
 }
 //    int histend=sendStream?getStreamendhistory():getendhistory();
-int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
+int SensorGlucoseData::updatescan(crypt_t *pass, Connect *connect, int ind,
                                   int sensorindex, bool dotoch,
                                   int sendstream) {
   if (isDexcom()) {
@@ -187,7 +190,7 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
       vect.push_back({meminfo.data() + offsetof(Info, siIdlen),
                       offsetof(Info, siIdlen),
                       sizeof(Info::siIdlen) + sizeof(Info::siId)});
-      if (!senddata(pass, sock, vect, infopath)) {
+      if (!connect->senddata(pass, vect, infopath)) {
         LOGAR("GLU: senddata info.data failed");
         return 0;
       }
@@ -224,7 +227,7 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
         vect.push_back({meminfo.data() + offsetof(Info, siIdlen),
                         offsetof(Info, siIdlen),
                         sizeof(Info::siIdlen) + sizeof(Info::siId)});
-        if (!senddata(pass, sock, vect, infopath)) {
+        if (!connect->senddata(pass, vect, infopath)) {
           LOGSTRING("GLU: senddata info.data failed\n");
           return 0;
         }
@@ -256,7 +259,7 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
           vect.push_back({meminfo.data() + offsetof(Info, siIdlen),
                           offsetof(Info, siIdlen),
                           sizeof(Info::siIdlen) + sizeof(Info::siId)});
-          if (!senddata(pass, sock, vect, infopath)) {
+          if (!connect->senddata(pass, vect, infopath)) {
             LOGSTRING("GLU: senddata info.data failed\n");
             return 0;
           }
@@ -287,10 +290,10 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
             //    streamhistend=getStreamendhistory();
             memcpy(&endinfo, &getinfo()->endStreamhistory, sizeof(endinfo));
             wrotehistory = oldsendhistory(
-                pass, sock, ind, sensorindex, false,
+                pass, connect, ind, sensorindex, false,
                 std::max((int)endinfo.endStreamhistory, getScanendhistory()));
           } else {
-            wrotehistory = newsendhistory(pass, sock, ind, sensorindex, false,
+            wrotehistory = newsendhistory(pass, connect, ind, sensorindex, false,
                                           getScanendhistory());
           }
           switch (wrotehistory) {
@@ -301,7 +304,7 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
             did = true;
           };
         } else {
-          switch (updateKAuth(pass, sock, ind)) {
+          switch (updateKAuth(pass, connect, ind)) {
           case 0:
             return 0;
           case 1:
@@ -320,12 +323,12 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
           LOGAR("GLU: updatescan add scans");
           if (const struct ScanData *startscans = scans.data()) {
             if (scanpath) {
-              if (senddata(pass, sock, scanstart, startscans + scanstart,
+              if (connect->senddata(pass, scanstart, startscans + scanstart,
                            startscans + scanend, scanpath)) {
                 if (const std::array<uint16_t, 16> *starttrends =
                         trends.data()) {
                   if (trendspath) {
-                    if (!senddata(pass, sock, scanstart,
+                    if (!connect->senddata(pass, scanstart,
                                   starttrends + scanstart,
                                   starttrends + scanend, trendspath)) {
                       LOGSTRING("GLU: senddata trends.dat failed");
@@ -378,7 +381,7 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
                               offsetof(Info, endStreamhistory),
                               sizeof(endinfo)});
             }
-            if (!senddata(pass, sock, vect, infopath)) {
+            if (!connect->senddata(pass, vect, infopath)) {
               LOGSTRING("GLU: senddata info.data failed\n");
               return 0;
             }
@@ -392,7 +395,7 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
             Readall<senddata_t> dat(state.data());
             if (dat) {
               LOGGER("GLU: %s\n", state.data());
-              if (!senddata(pass, sock, 0, dat.data(), dat.size(),
+              if (!connect->senddata(pass, 0, dat.data(), dat.size(),
                             std::string_view(state.data() + specstart,
                                              state.size() - specstart))) {
                 LOGGER("GLU: senddata %s failed\n", state.data());
@@ -404,7 +407,7 @@ int SensorGlucoseData::updatescan(crypt_t *pass, int sock, int ind,
                               "state.lnk");
               LOGGER("GLU: link=%s\n", link.data());
               sensdirlen++;
-              if (!senddata(pass, sock, 0,
+              if (!connect->senddata(pass, 0,
                             reinterpret_cast<const senddata_t *>(state.data()) +
                                 sensdirlen,
                             state.size() - sensdirlen, link)) {
@@ -521,9 +524,14 @@ void sethistorystart(int sendindex, int newstart) {
   LOGGER("sethistorystart(%d,%d)\n", sendindex, newstart);
   setbackupstart(sendindex, newstart, &SensorGlucoseData::backhistory);
 }
-void setcalibratedstart(int sendindex, int newstart) {
-  LOGGER("setcalibratedstart(%d,%d)\n", sendindex, newstart);
-  setbackupstart(sendindex, newstart, &SensorGlucoseData::backcalibrated);
+extern void setCalibrates(uint16_t sensorindex);
+void setcalibratedstart(int sendindex, int newstart, bool history) {
+  LOGGER("setcalibratedstart(sensorinidex=%d,newstart=%d,history=%d)\n",
+         sendindex, newstart, history);
+  if (SensorGlucoseData *hist = sensors->getSensorData(sendindex)) {
+    hist->backcalibrated(newstart, history);
+  }
+  setCalibrates(sendindex);
 }
 /*
 void     sethistorystart(int sendindex,int newstart) {
@@ -581,8 +589,8 @@ std::string_view getdeltaname(float rate) {
   return getdeltanamefromindex(getdeltaindex(rate));
 }
 
-int writeStartime(crypt_t *pass, const int sock, const int sensorindex) {
-  return sensors->writeStartime(pass, sock, sensorindex);
+int writeStartime(crypt_t *pass, Connect *connect, const int sensorindex) {
+  return sensors->writeStartime(pass, connect, sensorindex);
 }
 
 std::vector<int> usedsensors;

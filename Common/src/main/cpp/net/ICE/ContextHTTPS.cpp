@@ -46,9 +46,9 @@
 #define lerror(...) perror(__VA_ARGS__) */
 #include "logs.hpp"
 #include "inout.hpp"
-#include "strconcat.hpp"
+#include "strsepconcat.hpp"
 //#define MAIN 1
-#define LOGHTTPS
+//#define LOGHTTPS
 #ifdef LOGHTTPS
 #define LOGGERHTTPS(...) LOGGER("HTTPS: " __VA_ARGS__)
 #define LOGARHTTPS(...) LOGAR("HTTPS: " __VA_ARGS__)
@@ -278,6 +278,10 @@ static int SSL_set_tlsext_host_name2(const SSL *s, const char *name) {
     ContextHTTPS::ContextHTTPS(){
         LOGARHTTPS("ContextHTTPS()");
         static bool initlib=initLibrary();
+        if(!initlib) {
+            error=true;
+            return;
+            }
         ctx=SSL_CTX_new(TLS_client_method());
         if (!ctx) {
             LOGARHTTPS("Failed to create SSL_CTX");
@@ -292,7 +296,8 @@ static int SSL_set_tlsext_host_name2(const SSL *s, const char *name) {
              }
      ContextHTTPS::~ContextHTTPS() {
         LOGARHTTPS("SSL_CTX_free(ctx)");
-        SSL_CTX_free(ctx);
+        if(ctx)
+            SSL_CTX_free(ctx);
         }
 bool ContextHTTPS::initLibrary() {
 
@@ -315,7 +320,7 @@ bool ContextHTTPS::initLibrary() {
         }
 //s/^ssl.h:# define \([^	 ]*\)[	 ]*\([0-9]\+\)[^0-9]*$/case \1: return "\1";/g
 //s/^ssl.h:# define \([^	 ]*\)[	 ]*\([0-9]\+\)[^0-9]*$/case \2: return "\1";/g
-
+#ifndef NOLOG
 static const char *geterrorstring(int error) {
     switch(error) {
         case 0: return "SSL_ERROR_NONE";
@@ -333,7 +338,7 @@ static const char *geterrorstring(int error) {
         default: return "SSL_UNKNOWN_ERROR";
         }
 }
-
+#endif
 
 static int SSLreadfull(SSL* ssl, char *dataptr,const int buflen) {
     LOGGERHTTPS("start SSLreadfull %d\n", buflen);
@@ -452,8 +457,11 @@ static void shutdowner(int sock,SSL* ssl) {
          }
       }
 
-std::pair<std::vector<char>,int> ContextHTTPS::request(const std::string_view host,int port,const std::string_view path,const std::string_view TYPE,const std::span<const char> input) {
+std::pair<std::vector<char>,int> ContextHTTPS::request(const std::string_view host,int port,const std::string_view path,const std::string_view TYPE,const std::span<const char> input, const std::string_view header) {
     std::vector<char> uit;   
+    if(error) {
+        return {uit,-1};
+        }
     int sock = tcp_connect(host.data(), port);
     if (sock < 0) {
         return {uit,-1};
@@ -484,7 +492,7 @@ std::pair<std::vector<char>,int> ContextHTTPS::request(const std::string_view ho
        LOGGERHTTPS("Certificate verification failed: %s\n", X509_verify_cert_error_string(verify_result)); 
     }; 
     const char closebuf[]{"\r\nConnection: close\r\n\r\n"};
-    strconcat req {""sv,TYPE , " "sv,path," HTTP/1.1\r\nHost: "sv , host , "\r\nContent-Length: "sv,std::to_string(input.size()), closebuf};
+    strsepconcat req {""sv,TYPE , " "sv,path," HTTP/1.1\r\nHost: "sv , host , "\r\nContent-Length: "sv,std::to_string(input.size()), header,closebuf};
 
     LOGGERHTTPS("connect %.*s %.*s\n",TYPE.size(),TYPE.data(),path.size(),path.data());
     const char *request=req.data();

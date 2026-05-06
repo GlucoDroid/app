@@ -54,6 +54,7 @@ inline int getpagesize(void) {
 
 #include "net/backup.hpp"
 #include "net/passhost.hpp"
+#include "net/Connect.hpp"
 #include "nfcdata.hpp"
 // namespace fs = std::filesystem;
 #include "destruct.hpp"
@@ -70,7 +71,7 @@ inline constexpr const char rawstream[] = "rawstream.dat";
 extern std::string_view globalbasedir;
 // string basedir(FILEDIR);
 
-extern int writeStartime(crypt_t *pass, const int sock, const int sensorindex);
+extern int writeStartime(crypt_t *pass, Connect *connect, const int sensorindex);
 extern int getgetsendnr();
 
 constexpr const int maxcaliNr = 50;
@@ -1530,6 +1531,9 @@ public:
   const Info *getinfo() const {
     return reinterpret_cast<const Info *>(meminfo.data());
   }
+  void updateCaliTime(int ind, const uint32_t time) {
+    getinfo()->updateCaliTime(ind, time);
+  }
 
 private:
   int specstart;
@@ -2262,7 +2266,7 @@ public:
     return curInperiod(getScandata(), starttime, endtime);
   }
 
-  dataonlyptr getfromfile(crypt_t *pass, int sock, std::string_view filename,
+  dataonlyptr getfromfile(crypt_t *pass, Connect *connect, std::string_view filename,
                           int offset, int asklen) {
     const int pathlen = filename.size() + 1;
     constexpr const int ali = alignof(struct askfile);
@@ -2275,14 +2279,14 @@ public:
 
     ask->namelen = pathlen;
 
-    LOGGER("GLU: getfromfile(sock=%d %s offset=%d asklen=%d comlen=%d)\n", sock,
+    LOGGER("GLU: getfromfile(sock=%d %s offset=%d asklen=%d comlen=%d)\n", connect->getSenderIdent(),
            filename.data(), offset, asklen, comlen);
     memcpy(ask->name, filename.data(), pathlen);
-    if (!noacksendcommand(pass, sock, buf, comlen)) {
+    if (!connect->s_noacksendcommand(pass, buf, comlen)) {
       LOGAR("GLU:  !noacksendcommand");
       return dataonlyptr(nullptr);
     }
-    return receivedataonly(sock, pass, asklen);
+    return connect->receivedataonly_s(pass, asklen);
   };
 
   int posearlier(int pos, uint32_t starttime) {
@@ -2370,16 +2374,16 @@ void setbackuptime(int ind,uint32_t starttime) {
    }
    */
   void backhistory(int pos);
-  void backcalibrated(int pos);
+  void backcalibrated(int pos, bool history);
   void backstream(int pos);
 
-  bool setbackuptime(crypt_t *pass, int sock, int ind, uint32_t starttime) {
+  bool setbackuptime(crypt_t *pass, Connect *connect, int ind, uint32_t starttime) {
 
     constexpr const int asklen = offsetof(Info, pollinterval);
     constexpr const int minlen = offsetof(Info, pollcount);
     LOGGER("GLU: %s setbackuptime %u asklen=%d\n", shortsensorname()->data(),
            starttime, asklen);
-    auto dontdestroy = getfromfile(pass, sock, infopath, 0, asklen);
+    auto dontdestroy = getfromfile(pass, connect, infopath, 0, asklen);
     dataonly *dat = dontdestroy.get();
     if (dat == nullptr) {
       LOGSTRING("GLU: ==nullptr\n");
@@ -2529,7 +2533,7 @@ void setbackuptime(int ind,uint32_t starttime) {
     }
   }
 
-  int updateKAuth(crypt_t *pass, int sock, int ind);
+  int updateKAuth(crypt_t *pass, Connect *connect, int ind);
   void setsendhiststart() {
     const int maxind = getgetsendnr();
     updatestate *up = getinfo()->update;
@@ -2544,7 +2548,7 @@ void setbackuptime(int ind,uint32_t starttime) {
   2: also via scan
   */
 private:
-  int sendSistate(const pathconcat *sfile, crypt_t *pass, int sock) {
+  int sendSistate(const pathconcat *sfile, crypt_t *pass, Connect *connect) {
     const char *statename = sfile->data();
     Readall<unsigned char> stateBytes(statename);
     if (!stateBytes.data() || !stateBytes.size()) {
@@ -2553,7 +2557,7 @@ private:
     }
     const auto relstate = absToRel(*sfile);
     LOGGER("statefile=%s\n", statename);
-    if (!senddata(pass, sock, 0, stateBytes.data(), stateBytes.size(),
+    if (!connect->senddata(pass, 0, stateBytes.data(), stateBytes.size(),
                   relstate)) {
       LOGGER("GLU: senddata %s failed\n", relstate.data());
       return 0;
@@ -2562,10 +2566,10 @@ private:
   }
 
 public:
-  int sendSibionicsState(crypt_t *pass, int sock, int ind) {
+  int sendSibionicsState(crypt_t *pass, Connect *connect, int ind) {
     int waslock = getinfo()->lockcount;
     if (getinfo()->update[ind].rawstreamstart < waslock) {
-      int res = sendSistate(&binstatefile, pass, sock);
+      int res = sendSistate(&binstatefile, pass, connect);
       /*
       if(res==2) {
           res=sendSistate(&statefile,pass,sock);
@@ -2578,13 +2582,13 @@ public:
     return 2;
   }
 
-  int updatestream(crypt_t *pass, int sock, int ind, int sensindex,
+  int updatestream(crypt_t *pass, Connect *connect, int ind, int sensindex,
                    int sendscan) {
     getinfo()->update[ind].changedstreamstart = false;
     int streamstart = getinfo()->update[ind].streamstart;
     LOGGER(
         "updatestream sock=%d ind=%d sensindex=%d streamstart=%d sendscan=%d\n",
-        sock, ind, sensindex, streamstart, sendscan);
+        connect->getSenderIdent(), ind, sensindex, streamstart, sendscan);
     struct {
       uint32_t pollcount;
       double pollinterval;
@@ -2607,7 +2611,7 @@ public:
              fn->g, cmd, ctime(&tim));
 #endif
 
-      if (!senddata(pass, sock, streamstart, startstreambuf + streamstart,
+      if (!connect->senddata(pass, streamstart, startstreambuf + streamstart,
                     startstreambuf + streamend, polluit)) {
         LOGSTRING("GLU: senddata polls.dat failed\n");
         return 0;
@@ -2617,7 +2621,7 @@ public:
       {
         const struct RawData *rawbuf = rawpolls.data();
         if (rawbuf) {
-          if (!senddata(pass, sock, streamstart, rawbuf + streamstart,
+          if (!connect->senddata(pass, streamstart, rawbuf + streamstart,
                         rawbuf + streamend, rawpolluit)) {
             LOGSTRING("GLU: senddata rawpolls.dat failed\n");
             return 0;
@@ -2629,7 +2633,7 @@ public:
       {
         const uint16_t *tempbuf = temppolls.data();
         if (tempbuf) {
-          if (!senddata(pass, sock, streamstart, tempbuf + streamstart,
+          if (!connect->senddata(pass, streamstart, tempbuf + streamstart,
                         tempbuf + streamend, temppolluit)) {
             LOGSTRING("GLU: senddata temppolls.dat failed\n");
             return 0;
@@ -2647,7 +2651,7 @@ public:
       switch (sendscan) {
       case 1: {
         memcpy(&endinfo, &getinfo()->endStreamhistory, sizeof(endinfo));
-        int res = newsendhistory(pass, sock, ind, sensindex, true,
+        int res = newsendhistory(pass, connect, ind, sensindex, true,
                                  endinfo.endStreamhistory);
         switch (res) {
         case 0:
@@ -2663,7 +2667,7 @@ public:
       }; break;
       case 2: {
         memcpy(&endinfo, &getinfo()->endStreamhistory, sizeof(endinfo));
-        int res = oldsendhistory(pass, sock, ind, sensindex, false,
+        int res = oldsendhistory(pass, connect, ind, sensindex, false,
                                  endinfo.endStreamhistory);
         switch (res) {
         case 0:
@@ -2738,14 +2742,14 @@ public:
       vect.push_back(
           {reinterpret_cast<const senddata_t *>(&getinfo()->broadcastfrom),
            offsetof(Info, broadcastfrom), sizeof(getinfo()->broadcastfrom)});
-      if (!senddata(pass, sock, vect, infopath, cmd,
+      if (!connect->senddata(pass, vect, infopath, cmd,
                     reinterpret_cast<const uint8_t *>(&streamstart),
                     sizeof(streamstart))) {
         LOGSTRING("GLU: senddata info.data failed\n");
         return 0;
       }
       if (updateStarttime) {
-        if (!writeStartime(pass, sock, sensindex)) {
+        if (!writeStartime(pass, connect, sensindex)) {
           return 0;
         }
         getinfo()->update[ind].siStream = true;
@@ -2762,7 +2766,7 @@ public:
         getinfo()->update[ind].sendhiststart = false;
       if (isLibre3() || isDexcom()) {
         int endhistory = getScanendhistory();
-        if (oldsendhistory(pass, sock, ind, sensindex, true, endhistory))
+        if (oldsendhistory(pass, connect, ind, sensindex, true, endhistory))
           return 1;
         return 0;
       }
@@ -2771,7 +2775,7 @@ public:
     } else {
       if (getinfo()->update[ind].sendbluetoothOn) {
         constexpr const int offset = offsetof(Info, streamingIsEnabled);
-        if (!senddata(pass, sock, offset, meminfo.data() + offset, 1,
+        if (!connect->senddata(pass, offset, meminfo.data() + offset, 1,
                       infopath)) {
           LOGSTRING("GLU: senddata bluetoothON info.data failed\n");
           return 0;
@@ -2784,20 +2788,20 @@ public:
   }
 
 private:
-  int sendhistoryinfo(crypt_t *pass, int sock, int sensorindex,
+  int sendhistoryinfo(crypt_t *pass, Connect *connect, int sensorindex,
                       uint32_t histstart, uint32_t endhistory);
   // int sendhistory(crypt_t *pass,int sock,int ind,int sendindex,bool) ;
-  int oldsendhistory(crypt_t *pass, int sock, int ind, int sensorindex,
+  int oldsendhistory(crypt_t *pass, Connect *connect, int ind, int sensorindex,
                      bool sendinfo, int histend);
-  int newsendhistory(crypt_t *pass, int sock, int ind, int sensorindex,
+  int newsendhistory(crypt_t *pass, Connect *connect, int ind, int sensorindex,
                      bool sendStream, int histend);
 
 public:
-  int updatescan(crypt_t *pass, int sock, int ind, int sensorindex, bool,
+  int updatescan(crypt_t *pass, Connect *connect, int ind, int sensorindex, bool,
                  int sendstream);
-  int updatescanalg(crypt_t *pass, int sock, int ind, int sensorindex,
+  int updatescanalg(crypt_t *pass, Connect *connect, int ind, int sensorindex,
                     int alsostream) {
-    return updatescan(pass, sock, ind, sensorindex, false, alsostream) & 3;
+    return updatescan(pass, connect, ind, sensorindex, false, alsostream) & 3;
   }
   int lastlifecount = 0;
   time_t timelastcurrent = 0;
@@ -2861,7 +2865,7 @@ public:
 
   void resetSiIndex();
 
-  int updateCali(crypt_t *pass, int sock, int ind, int sensorindex) {
+  int updateCali(crypt_t *pass, Connect *connect, int ind, int sensorindex) {
     uint32_t wascaliNr = getinfo()->caliNr;
     uint32_t updatefrom = getinfo()->caliUpdated[ind];
     if (updatefrom == wascaliNr)
@@ -2882,14 +2886,14 @@ public:
     vect.push_back({reinterpret_cast<const senddata_t *>(&wascaliNr),
                     offsetof(Info, caliNr), 4});
     const uint16_t calibratedstartcmd = startcalibratedupdate | sensorindex;
-    if (!senddata(pass, sock, vect, infopath, calibratedstartcmd,
+    if (!connect->senddata(pass, vect, infopath, calibratedstartcmd,
                   reinterpret_cast<const uint8_t *>(&updatefrom),
                   sizeof(updatefrom))) {
       LOGAR("updateCali: senddata info.data failed");
       return 0;
     }
     LOGGER("updateCali sock=%d ind=%d sensorindex=%d caliNR=%u updatefrom=%u\n",
-           sock, ind, sensorindex, wascaliNr, updatefrom);
+           connect->getSenderIdent(), ind, sensorindex, wascaliNr, updatefrom);
     getinfo()->caliUpdated[ind] = wascaliNr;
     return 1;
   }
