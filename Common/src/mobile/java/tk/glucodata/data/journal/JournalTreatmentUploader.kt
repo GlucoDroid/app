@@ -1,5 +1,6 @@
 package tk.glucodata.data.journal
 
+import androidx.annotation.Keep
 import kotlinx.coroutines.runBlocking
 import tk.glucodata.Applic
 import tk.glucodata.Log
@@ -21,6 +22,7 @@ import java.util.TimeZone
  * Sync state is tracked per-row on JournalEntryEntity (nsUploadedAt, nsRemoteId);
  * deletes are queued in journal_pending_deletes so they survive process death.
  */
+@Keep
 object JournalTreatmentUploader {
     private const val LOG_ID = "JournalTreatmentUploader"
     private const val ID_PREFIX = "jng-j-"
@@ -34,6 +36,7 @@ object JournalTreatmentUploader {
     }
 
     @JvmStatic
+    @Keep
     fun uploadAll(useV3: Boolean): Boolean = runBlocking {
         try {
             uploadInternal(useV3)
