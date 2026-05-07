@@ -163,6 +163,16 @@ fun SensorSelectionCards(
                 onClick = { onSensorSelected(SensorType.MQ) },
                 compact = compact
             )
+
+            SensorCard(
+                icon = Icons.Default.Bluetooth,
+                title = stringResource(R.string.anytime_sensor),
+                subtitle = stringResource(R.string.anytime_sensor_desc),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                onClick = { onSensorSelected(SensorType.ANYTIME) },
+                compact = compact
+            )
         }
     }
 }

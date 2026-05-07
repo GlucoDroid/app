@@ -5,6 +5,7 @@ import android.content.Context
 import tk.glucodata.SensorIdentity
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.AiDexManagedSensorIdentityAdapter
+import tk.glucodata.drivers.anytime.AnytimeManagedSensorIdentityAdapter
 import tk.glucodata.drivers.icanhealth.ICanHealthManagedSensorIdentityAdapter
 import tk.glucodata.drivers.mq.MQManagedSensorIdentityAdapter
 import tk.glucodata.drivers.nightscout.NightscoutFollowerIdentityAdapter
@@ -12,6 +13,7 @@ import tk.glucodata.drivers.nightscout.NightscoutFollowerIdentityAdapter
 object ManagedSensorIdentityRegistry {
     val all: List<ManagedSensorIdentityAdapter> = listOf(
         AiDexManagedSensorIdentityAdapter,
+        AnytimeManagedSensorIdentityAdapter,
         ICanHealthManagedSensorIdentityAdapter,
         MQManagedSensorIdentityAdapter,
         NightscoutFollowerIdentityAdapter,

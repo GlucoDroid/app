@@ -1,0 +1,393 @@
+// AnytimeFrames.kt — Wire-format builders, parsers and integrity checks.
+//
+// CT3 frames are 1–7 bytes for most commands and have NO trailing sum byte.
+// Voltage / version / formal commands (CT3_PLUS / CT3_YUWELL / CT4) DO carry a
+// sum byte. The CT2 family always uses a sum byte. We expose:
+//
+//   AnytimeFrames.sum(bytes, [from..to])     — compute sum byte
+//   AnytimeFrames.verifySum(bytes)           — true if last byte == sum of rest
+//   AnytimeFrames.builders                   — CT3 packet builders
+//   AnytimeFrames.parseRawRecords(bytes)     — 9-byte raw current records
+//   AnytimeFrames.parseComputedRecord(bytes) — 19-byte computed glucose record
+//   AnytimeFrames.parseCheckResponse(bytes)  — 0x05 health response
+//   AnytimeFrames.parseResetResponse(bytes)  — 0x11 reset response
+
+package tk.glucodata.drivers.anytime
+
+import java.util.Calendar
+
+/** Single 9-byte raw current record from RX_PUSH_GLUCOSE / RX_PULL_GLUCOSE. */
+data class AnytimeRawRecord(
+    val indexInPacket: Int,
+    val glucoseId: Int,
+    val ibNa: Float,
+    val iwNa: Float,
+    val temperatureC: Float,
+    val recordBytes: ByteArray,
+)
+
+/** 19-byte computed-glucose record (CT5 push, CT3 on demand). */
+data class AnytimeComputedRecord(
+    val glucoseId: Int,
+    val hypoEarlyWarnMinutes: Int,
+    val hyperEarlyWarnMinutes: Int,
+    val ibNa: Float,
+    val iwNa: Float,
+    val temperatureC: Float,
+    val gluMmol: Float,
+    val referenceBgMmol: Float,
+    val errorCode: Int,
+    val trend: Int,
+    val warnCode: Int,
+) {
+    val gluMgdl: Int get() = (gluMmol * 18.0f + 0.5f).toInt()
+}
+
+/** 0x05 check-response — battery, sensor age, IW. */
+data class AnytimeCheckStatus(
+    val sensorAgeReadings: Int,
+    val workingElectrodeCurrentNa: Float,
+    val batteryVolts: Float,
+    /** True when the snapshot looks healthy enough to enter active session. */
+    val isHealthy: Boolean,
+    /** When unhealthy, a hint at the failure reason (mirrors `EnumConnect.*`). */
+    val failure: CheckFailure?,
+) {
+    enum class CheckFailure { LOW_BATTERY, LOW_IW, BAD_TEMPERATURE, MALFORMED }
+}
+
+/** 0x11 reset response. byte 2 != 0 ⇒ device was bound. */
+data class AnytimeResetStatus(val isBound: Boolean)
+
+/** Generic frame parsed from a notification. */
+data class AnytimeFrame(
+    val opcode: Byte,
+    val payload: ByteArray,
+    val raw: ByteArray,
+) {
+    val opcodeUnsigned: Int get() = opcode.toInt() and 0xFF
+}
+
+object AnytimeFrames {
+
+    // ---- Integrity ----
+
+    @JvmStatic
+    fun sum(bytes: ByteArray, fromInclusive: Int = 0, toInclusive: Int = bytes.size - 2): Byte {
+        var acc = 0
+        var i = fromInclusive
+        while (i <= toInclusive && i < bytes.size) {
+            acc += bytes[i].toInt() and 0xFF
+            i++
+        }
+        return acc.toByte()
+    }
+
+    /**
+     * Whether the trailing byte equals `sum(bytes[0..len-2])`.
+     * For CT3 single-byte commands (`{0x06}`, etc.) this is meaningless — callers
+     * gate on opcode + length first.
+     */
+    @JvmStatic
+    fun verifySum(bytes: ByteArray): Boolean {
+        if (bytes.size < 2) return false
+        val expected = bytes[bytes.size - 1]
+        val computed = sum(bytes, 0, bytes.size - 2)
+        return expected == computed
+    }
+
+    // ---- Generic frame split (find opcode/payload boundaries) ----
+
+    @JvmStatic
+    fun parse(buffer: ByteArray?): AnytimeFrame? {
+        if (buffer == null || buffer.isEmpty()) return null
+        val opcode = buffer[0]
+        val payload = if (buffer.size > 1) buffer.copyOfRange(1, buffer.size) else ByteArray(0)
+        return AnytimeFrame(opcode = opcode, payload = payload, raw = buffer.copyOf())
+    }
+
+    // ---- Builders (TX → sensor) ----
+
+    object Builders {
+
+        @JvmStatic
+        fun version(): ByteArray = byteArrayOf(AnytimeConstants.TX_VERSION)
+
+        /** {0x05} — health check. */
+        @JvmStatic
+        fun check(): ByteArray = byteArrayOf(AnytimeConstants.TX_CHECK)
+
+        /** {0x06} — init. */
+        @JvmStatic
+        fun init(): ByteArray = byteArrayOf(AnytimeConstants.TX_INIT)
+
+        /** {0x0F} — low power. */
+        @JvmStatic
+        fun lowPower(): ByteArray = byteArrayOf(AnytimeConstants.TX_LOW_POWER)
+
+        /** {0x11} — reset. */
+        @JvmStatic
+        fun reset(): ByteArray = byteArrayOf(AnytimeConstants.TX_RESET)
+
+        /** {0x0A} — unbind. */
+        @JvmStatic
+        fun unbind(): ByteArray = byteArrayOf(AnytimeConstants.TX_UNBIND)
+
+        /** {0x03, year-1900, mon+1, day, hour, min, sec}. */
+        @JvmStatic
+        @JvmOverloads
+        fun setDate(calendar: Calendar = Calendar.getInstance()): ByteArray {
+            val year = (calendar.get(Calendar.YEAR) - 1900) and 0xFF
+            val month = (calendar.get(Calendar.MONTH) + 1) and 0xFF
+            val day = calendar.get(Calendar.DAY_OF_MONTH) and 0xFF
+            val hour = calendar.get(Calendar.HOUR_OF_DAY) and 0xFF
+            val minute = calendar.get(Calendar.MINUTE) and 0xFF
+            val second = calendar.get(Calendar.SECOND) and 0xFF
+            return byteArrayOf(
+                AnytimeConstants.TX_SET_DATE,
+                year.toByte(),
+                month.toByte(),
+                day.toByte(),
+                hour.toByte(),
+                minute.toByte(),
+                second.toByte(),
+            )
+        }
+
+        /** {0x08, idLo, idHi}. */
+        @JvmStatic
+        fun pullGlucose(nextId: Int): ByteArray {
+            val id = nextId and 0xFFFF
+            return byteArrayOf(
+                AnytimeConstants.TX_PULL_GLUCOSE,
+                (id and 0xFF).toByte(),
+                ((id ushr 8) and 0xFF).toByte(),
+            )
+        }
+
+        /** {0x0C, idLo, idHi} — re-fetch as transmitter-computed glucose. */
+        @JvmStatic
+        fun fetchComputedGlucose(nextId: Int): ByteArray {
+            val id = nextId and 0xFFFF
+            return byteArrayOf(
+                AnytimeConstants.TX_FETCH_COMPUTED_GLUCOSE,
+                (id and 0xFF).toByte(),
+                ((id ushr 8) and 0xFF).toByte(),
+            )
+        }
+
+        /**
+         * {0x09, mmolInt, mmolFrac/10}.
+         * The transmitter takes a fingerstick reference in mg/dL ÷ 18, encoded as
+         * `int + fraction/10`. Convert mg/dL → mmol/L × 10 then split.
+         */
+        @JvmStatic
+        fun inputBgMg(mgdl: Int): ByteArray {
+            // mmol = mgdl / 18.0; one decimal of precision.
+            val tenths = ((mgdl * 10) / 18) // truncating mirror of the official app
+            val intPart = tenths / 10
+            val fracPart = tenths - intPart * 10
+            return byteArrayOf(
+                AnytimeConstants.TX_INPUT_BG_MG,
+                (intPart and 0xFF).toByte(),
+                (fracPart and 0xFF).toByte(),
+            )
+        }
+
+        /** {0x0B, KInt, KFrac/10, RInt, RFrac/10}. */
+        @JvmStatic
+        fun inputKR(k: Float, r: Float): ByteArray {
+            val kInt = k.toInt()
+            val kFrac = ((k - kInt) * 10f).toInt() and 0xFF
+            val rInt = r.toInt()
+            val rFrac = ((r - rInt) * 10f).toInt() and 0xFF
+            return byteArrayOf(
+                AnytimeConstants.TX_INPUT_KR,
+                (kInt and 0xFF).toByte(),
+                kFrac.toByte(),
+                (rInt and 0xFF).toByte(),
+                rFrac.toByte(),
+            )
+        }
+
+        /**
+         * {0x15, voltage, 0×9, sum} — CT3_PLUS / CT3_YUWELL / CT3_ULTRASONIC / CT4
+         * voltage switch. `voltage` is 0 (1V mode) or 1 (2V mode), determined by
+         * the QR contents (`KRDecodeData` first sensor character).
+         */
+        @JvmStatic
+        fun modifyVoltage(voltage: Int): ByteArray {
+            val frame = ByteArray(12)
+            frame[0] = AnytimeConstants.TX_MODIFY_VOLTAGE
+            frame[1] = (voltage and 0xFF).toByte()
+            // Bytes 2..10 are zero.
+            frame[11] = sum(frame, 0, 10)
+            return frame
+        }
+
+        /** {0x20} — formal version request (CT3_x / CT4). Single byte. */
+        @JvmStatic
+        fun transmitterFormal(): ByteArray = byteArrayOf(AnytimeConstants.TX_TRANSMITTER_FORMAL)
+    }
+
+    // ---- Parsers (RX from sensor) ----
+
+    /**
+     * Parse N raw-current records from a `0x07` push or `0x08` pull notification.
+     * The first record is `RAW_RECORD_SIZE` bytes (with leading opcode byte).
+     * Subsequent records pack 8 bytes each (opcode skipped).
+     */
+    @JvmStatic
+    fun parseRawRecords(bytes: ByteArray): List<AnytimeRawRecord> {
+        if (bytes.size < AnytimeConstants.RAW_RECORD_SIZE) return emptyList()
+        val out = ArrayList<AnytimeRawRecord>()
+        var offset = 0
+        var index = 0
+        // First record: skip opcode byte then read 8 bytes
+        if (bytes[0] != AnytimeConstants.RX_PUSH_GLUCOSE &&
+            bytes[0] != AnytimeConstants.RX_PULL_GLUCOSE
+        ) {
+            return emptyList()
+        }
+        offset = 1
+        while (offset + AnytimeConstants.RAW_RECORD_CONTINUATION_SIZE <= bytes.size) {
+            val rec = decodeRaw(bytes, offset - 1, index, withLeadingOpcode = (index == 0))
+            if (rec != null) out.add(rec)
+            offset += AnytimeConstants.RAW_RECORD_CONTINUATION_SIZE
+            index++
+        }
+        return out
+    }
+
+    private fun decodeRaw(
+        source: ByteArray,
+        baseInclLeadingOpcode: Int,
+        index: Int,
+        withLeadingOpcode: Boolean,
+    ): AnytimeRawRecord? {
+        val base = if (withLeadingOpcode) baseInclLeadingOpcode + 1 else baseInclLeadingOpcode + 1
+        // Layout (after opcode skipped): id_lo, id_hi, ib_int, ib_frac, iw_int, iw_frac, t+40, t_frac
+        if (base + 7 >= source.size) return null
+        val idLo = source[base].toInt() and 0xFF
+        val idHi = source[base + 1].toInt() and 0xFF
+        val ibInt = source[base + 2].toInt() and 0xFF
+        val ibFrac = source[base + 3].toInt() and 0xFF
+        val iwInt = source[base + 4].toInt() and 0xFF
+        val iwFrac = source[base + 5].toInt() and 0xFF
+        val tPlus40 = source[base + 6].toInt() and 0xFF
+        val tFrac = source[base + 7].toInt() and 0xFF
+        val glucoseId = idLo or (idHi shl 8)
+        val ib = ibInt + ibFrac / 100f
+        val iw = iwInt + iwFrac / 100f
+        val temperature = (tPlus40 - AnytimeConstants.TEMP_INT_OFFSET) + tFrac / 100f
+        val recordBytes = source.copyOfRange(base, base + 8)
+        return AnytimeRawRecord(
+            indexInPacket = index,
+            glucoseId = glucoseId,
+            ibNa = ib,
+            iwNa = iw,
+            temperatureC = temperature,
+            recordBytes = recordBytes,
+        )
+    }
+
+    /** Parse a 19-byte 0x0C computed-glucose record. */
+    @JvmStatic
+    fun parseComputedRecord(bytes: ByteArray): AnytimeComputedRecord? {
+        if (bytes.size < AnytimeConstants.COMPUTED_RECORD_SIZE) return null
+        if (bytes[AnytimeConstants.COMPUTED_OFFSET_OPCODE] != AnytimeConstants.RX_COMPUTED_GLUCOSE) return null
+        val idLo = bytes[AnytimeConstants.COMPUTED_OFFSET_ID_LO].toInt() and 0xFF
+        val idHi = bytes[AnytimeConstants.COMPUTED_OFFSET_ID_HI].toInt() and 0xFF
+        val hypo = bytes[AnytimeConstants.COMPUTED_OFFSET_HYPO_MIN].toInt() and 0xFF
+        val hyper = bytes[AnytimeConstants.COMPUTED_OFFSET_HYPER_MIN].toInt() and 0xFF
+        val ibInt = bytes[AnytimeConstants.COMPUTED_OFFSET_IB_INT].toInt() and 0xFF
+        val ibFrac = bytes[AnytimeConstants.COMPUTED_OFFSET_IB_FRAC].toInt() and 0xFF
+        val iwInt = bytes[AnytimeConstants.COMPUTED_OFFSET_IW_INT].toInt() and 0xFF
+        val iwFrac = bytes[AnytimeConstants.COMPUTED_OFFSET_IW_FRAC].toInt() and 0xFF
+        val tPlus40 = bytes[AnytimeConstants.COMPUTED_OFFSET_T_INT_PLUS_40].toInt() and 0xFF
+        val tFrac = bytes[AnytimeConstants.COMPUTED_OFFSET_T_FRAC].toInt() and 0xFF
+        val gluInt = bytes[AnytimeConstants.COMPUTED_OFFSET_GLU_INT].toInt() and 0xFF
+        val gluFrac = bytes[AnytimeConstants.COMPUTED_OFFSET_GLU_FRAC].toInt() and 0xFF
+        val bgInt = bytes[AnytimeConstants.COMPUTED_OFFSET_BG_INT].toInt() and 0xFF
+        val bgFrac = bytes[AnytimeConstants.COMPUTED_OFFSET_BG_FRAC].toInt() and 0xFF
+        val err = bytes[AnytimeConstants.COMPUTED_OFFSET_ERROR].toInt() and 0xFF
+        val trend = bytes[AnytimeConstants.COMPUTED_OFFSET_TREND].toInt() and 0xFF
+        val warn = bytes[AnytimeConstants.COMPUTED_OFFSET_WARN].toInt() and 0xFF
+        return AnytimeComputedRecord(
+            glucoseId = idLo or (idHi shl 8),
+            hypoEarlyWarnMinutes = hypo,
+            hyperEarlyWarnMinutes = hyper,
+            ibNa = ibInt + ibFrac / 100f,
+            iwNa = iwInt + iwFrac / 100f,
+            temperatureC = (tPlus40 - AnytimeConstants.TEMP_INT_OFFSET) + tFrac / 100f,
+            gluMmol = gluInt + gluFrac / 100f,
+            referenceBgMmol = bgInt + bgFrac / 10f,
+            errorCode = err,
+            trend = trend,
+            warnCode = warn,
+        )
+    }
+
+    /**
+     * Parse a 0x05 check response.
+     *
+     * Layout (CT3): {0x05, _ageLo, _ageHi (×0.01 = sensor-age count), _, _, _, _IW_int, _IW_frac×0.01, _, batVoltsInt, batVoltsFrac×0.01, ...}
+     * Different sub-families slightly shuffle byte 2/3 vs 9/10. We use the
+     * vendor's standard CT3 layout (`checkResponse_CT3`).
+     */
+    @JvmStatic
+    fun parseCheckResponse(bytes: ByteArray, lowBatteryThresholdVolts: Float): AnytimeCheckStatus {
+        if (bytes.size < 12 || bytes[0] != AnytimeConstants.RX_CHECK) {
+            return AnytimeCheckStatus(0, 0f, 0f, isHealthy = false, failure = AnytimeCheckStatus.CheckFailure.MALFORMED)
+        }
+        val ageLo = bytes[2].toInt() and 0xFF
+        val ageHi = bytes[3].toInt() and 0xFF
+        val sensorAge = (ageLo or (ageHi shl 8))
+        val iwInt = bytes[6].toInt() and 0xFF
+        val iwFrac = bytes[7].toInt() and 0xFF
+        val iw = iwInt + iwFrac / 100f
+        val batVoltsInt = bytes[9].toInt() and 0xFF
+        val batVoltsFrac = bytes[10].toInt() and 0xFF
+        val volts = batVoltsInt + batVoltsFrac / 100f
+        val failure = when {
+            volts > 0f && volts < lowBatteryThresholdVolts -> AnytimeCheckStatus.CheckFailure.LOW_BATTERY
+            iw < 0.5f -> AnytimeCheckStatus.CheckFailure.LOW_IW
+            else -> null
+        }
+        return AnytimeCheckStatus(
+            sensorAgeReadings = sensorAge,
+            workingElectrodeCurrentNa = iw,
+            batteryVolts = volts,
+            isHealthy = failure == null,
+            failure = failure,
+        )
+    }
+
+    /** Parse 0x11 reset response. */
+    @JvmStatic
+    fun parseResetResponse(bytes: ByteArray): AnytimeResetStatus? {
+        if (bytes.size < 3) return null
+        if (bytes[0] != AnytimeConstants.RX_RESET) return null
+        val isBound = (bytes[2].toInt() and 0xFF) != 0
+        return AnytimeResetStatus(isBound = isBound)
+    }
+
+    /** Extract version string from 0x20 formal-version response (best-effort). */
+    @JvmStatic
+    fun parseFormalVersion(bytes: ByteArray): String {
+        if (bytes.size < 2 || bytes[0] != AnytimeConstants.RX_TRANSMITTER_FORMAL) return ""
+        val end = bytes.indexOfFirst { it == 0.toByte() }.let { if (it <= 1) bytes.size else it }
+        val raw = bytes.copyOfRange(1, end.coerceAtMost(bytes.size))
+        return raw.toString(Charsets.US_ASCII).trim().filter { it.isLetterOrDigit() || it in ".-_" }
+    }
+
+    /** Battery percent from volts (rough mapping). */
+    @JvmStatic
+    fun batteryPercent(volts: Float, lowThresholdVolts: Float): Int {
+        if (volts <= 0f) return -1
+        val span = AnytimeConstants.BATTERY_FULL_VOLTS - lowThresholdVolts
+        if (span <= 0f) return -1
+        val pct = ((volts - lowThresholdVolts) / span) * 100f
+        return pct.toInt().coerceIn(0, 100)
+    }
+}

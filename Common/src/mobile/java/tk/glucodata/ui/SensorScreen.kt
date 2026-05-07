@@ -284,6 +284,7 @@ fun SensorScreen(
     var showAiDexWizard by remember { mutableStateOf(false) }
     var showICanHealthWizard by remember { mutableStateOf(false) }
     var showMQWizard by remember { mutableStateOf(false) }
+    var showAnytimeWizard by remember { mutableStateOf(false) }
 
     // Sensor Type Picker Bottom Sheet
     if (showSensorPicker) {
@@ -300,6 +301,7 @@ fun SensorScreen(
                     tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
                     tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                     tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
+                    tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
                 }
             }
         )
@@ -406,6 +408,18 @@ fun SensorScreen(
         return
     }
 
+    // Anytime / Yuwell CT3 Setup Wizard
+    if (showAnytimeWizard) {
+        tk.glucodata.ui.setup.AnytimeSetupWizard(
+            onDismiss = { showAnytimeWizard = false },
+            onComplete = {
+                showAnytimeWizard = false
+                viewModel.refreshSensors()
+            },
+        )
+        return
+    }
+
     // Use Box instead of Scaffold to avoid double padding from parent nav
     Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         if (sensors.isEmpty()) {
@@ -437,6 +451,7 @@ fun SensorScreen(
                             tk.glucodata.ui.components.SensorType.AIDEX -> showAiDexWizard = true
                             tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                             tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
+                            tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
                         }
                     }
                 )
