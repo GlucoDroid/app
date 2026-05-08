@@ -32,3 +32,15 @@
 #	void summaryready() ;
 #}
 
+# Anytime / Yuwell CT3 — keep ist.com.sdk JNI bridge intact.
+# libalgorithm-jni.so resolves Java_ist_com_sdk_AlgorithmTools_* by exact symbol
+# name, and reads/writes the data classes via JNI reflection (Get/Set Field IDs
+# matched by name + signature).
+-keep class ist.com.sdk.AlgorithmTools { *; }
+-keepclasseswithmembernames class ist.com.sdk.AlgorithmTools { native <methods>; }
+-keep class ist.com.sdk.LatestData { *; }
+-keep class ist.com.sdk.HistoryData { *; }
+-keep class ist.com.sdk.CurrentGlucose { *; }
+-keep class ist.com.sdk.KRDecodeData { *; }
+-keep class ist.com.sdk.SDKVersion { *; }
+

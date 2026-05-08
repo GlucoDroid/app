@@ -95,6 +95,7 @@ data class SensorInfo(
     val vendorHardware: String = "",  // AiDex: hardware version from GET_DEVICE_INFO
     val vendorModel: String = "",  // AiDex: model name from GET_DEVICE_INFO (e.g. "GX-01S")
     val isIcan: Boolean = false,
+    val isAnytime: Boolean = false,  // Anytime/Yuwell: vendor reports battery as percent + voltage
     // Edit 59: Reset compensation state
     val resetCompensationActive: Boolean = false,  // AiDex: whether initialization bias compensation is active
     val resetCompensationStatus: String = ""  // AiDex: human-readable compensation status (e.g. "Phase 1: ×1.176 (23h left)")
@@ -275,6 +276,7 @@ class SensorViewModel : ViewModel() {
         val isAiDex = snapshot.uiFamily == ManagedSensorUiFamily.AIDEX
         val isMq = snapshot.uiFamily == ManagedSensorUiFamily.MQ
         val isIcan = snapshot.uiFamily == ManagedSensorUiFamily.ICAN
+        val isAnytime = snapshot.uiFamily == ManagedSensorUiFamily.ANYTIME
         val detailsConnectionStatus = if (snapshot.showConnectionStatusInDetails) {
             snapshot.connectionStatus
         } else {
@@ -298,6 +300,7 @@ class SensorViewModel : ViewModel() {
             isAidex = isAiDex,
             isMq = isMq,
             isIcan = isIcan,
+            isAnytime = isAnytime,
             startMs = snapshot.startTimeMs,
             officialEndMs = snapshot.officialEndMs,
             expectedEndMs = snapshot.expectedEndMs,

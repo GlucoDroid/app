@@ -69,6 +69,12 @@ class AnytimeBleManager(
         /** Watchdog after init — if no push/pull within 3.5× readingInterval, re-pull. */
         private const val PULL_FALLBACK_MULTIPLIER = 3L
 
+        /** Backfill loop: gap between consecutive pulls when records keep arriving. */
+        private const val HISTORY_PULL_BATCH_DELAY_MS = 500L
+
+        /** How many empty pull responses in a row count as "caught up". */
+        private const val HISTORY_EMPTY_RESPONSES_TO_STOP = 2
+
         /** Reset → reconnect grace period. */
         private const val RESET_RECONNECT_DELAY_MS = 700L
 
@@ -105,6 +111,9 @@ class AnytimeBleManager(
     @Volatile private var lastIwNa: Float = 0f
     @Volatile private var lastIbNa: Float = 0f
     @Volatile private var lastTemperatureC: Float = 0f
+    /** Most recent algorithm output — for diagnostics (5 electrode voltages,
+     *  IIR-filtered currents, sensitivity coefficient, K_BASE/K_AUTO). */
+    @Volatile private var lastAlgorithmResult: AnytimeAlgorithm.Result? = null
     @Volatile private var lastReferenceBgMgdlTimes10: Int = 0
     @Volatile private var lastReferenceBgGlucoseId: Int = 0
     @Volatile private var packetsSinceInit: Int = 0
@@ -115,6 +124,11 @@ class AnytimeBleManager(
     @Volatile private var pendingFingerstickMgdl: Int = -1
     @Volatile private var pendingKrPush: Boolean = false
     @Volatile private var lastProtocolFrameAtMs: Long = 0L
+
+    // ---- History backfill loop state ----
+    @Volatile private var historyBackfillActive: Boolean = false
+    @Volatile private var historyEmptyResponsesInARow: Int = 0
+    @Volatile private var historyLastPulledId: Int = -1
 
     override var viewMode: Int = 0
 
@@ -208,6 +222,40 @@ class AnytimeBleManager(
             writeFrame(AnytimeFrames.Builders.pullGlucose(lastGlucoseId + 1), "pullGlucose(fallback)")
         }
         armPullFallback()
+    }
+
+    private val historyBackfillRunnable = Runnable {
+        if (stop || !historyBackfillActive) return@Runnable
+        if (phase != Phase.STREAMING) return@Runnable
+        val nextId = (lastGlucoseId + 1).coerceAtLeast(0)
+        if (nextId >= familyEntry.endNumber) {
+            Log.i(TAG, "Backfill complete (lastId=$lastGlucoseId, endNumber=${familyEntry.endNumber})")
+            historyBackfillActive = false
+            return@Runnable
+        }
+        historyLastPulledId = nextId
+        Log.d(TAG, "Backfill pull next id=$nextId")
+        writeFrame(AnytimeFrames.Builders.pullGlucose(nextId), "pullGlucose(backfill)")
+    }
+
+    /**
+     * Start (or resume) the history backfill loop. Walks `lastGlucoseId+1`
+     * upward, batch by batch, until the transmitter starts returning empty
+     * frames or we hit the family's `endNumber`.
+     */
+    private fun startHistoryBackfill(reason: String) {
+        if (phase != Phase.STREAMING) return
+        if (historyBackfillActive) return
+        Log.i(TAG, "Starting history backfill ($reason) from id=${lastGlucoseId + 1}")
+        historyBackfillActive = true
+        historyEmptyResponsesInARow = 0
+        historyLastPulledId = -1
+        handler.postDelayed(historyBackfillRunnable, 250L)
+    }
+
+    private fun stopHistoryBackfill() {
+        historyBackfillActive = false
+        handler.removeCallbacks(historyBackfillRunnable)
     }
 
     private val serviceDiscoveryWatchdog = Runnable {
@@ -343,6 +391,7 @@ class AnytimeBleManager(
                 handler.removeCallbacks(serviceDiscoveryRetryRunnable)
                 handler.removeCallbacks(noDataWatchdog)
                 handler.removeCallbacks(pullFallbackRunnable)
+                stopHistoryBackfill()
                 if (!stop) scheduleReconnect("GATT disconnect status=$status")
                 UiRefreshBus.requestStatusRefresh()
             }
@@ -534,6 +583,10 @@ class AnytimeBleManager(
         writeFrame(AnytimeFrames.Builders.lowPower(), "lowPower")
         armPullFallback()
         armNoDataWatchdog()
+        // Pull any history we missed since last connect (or from id 0 on a
+        // fresh pair if persisted state has lastGlucoseId == -1, which falls
+        // through to "ask for id 0").
+        startHistoryBackfill("post-init")
         UiRefreshBus.requestStatusRefresh()
     }
 
@@ -548,10 +601,12 @@ class AnytimeBleManager(
         bound = parsed.isBound
         persistAlgorithmState()
         if (parsed.isBound) {
-            // Sensor confirms session is alive — proceed to streaming.
+            // Sensor confirms session is alive — proceed to streaming and pull
+            // any history we missed while disconnected.
             phase = Phase.STREAMING
             armPullFallback()
             armNoDataWatchdog()
+            startHistoryBackfill("post-reset(reconnect)")
             UiRefreshBus.requestStatusRefresh()
         } else {
             // Sensor lost binding — fall through to fresh handshake.
@@ -583,20 +638,39 @@ class AnytimeBleManager(
 
     private fun handleRawGlucose(data: ByteArray, push: Boolean) {
         val records = AnytimeFrames.parseRawRecords(data)
+        val context = Applic.app
+        val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
         if (records.isEmpty()) {
-            Log.w(TAG, "Empty raw record set: ${data.joinToHex()}")
+            // Empty pull response — transmitter has nothing more to give.
+            Log.d(TAG, "Empty raw frame (pull caught-up): ${data.joinToHex()}")
+            if (historyBackfillActive) {
+                historyEmptyResponsesInARow++
+                if (historyEmptyResponsesInARow >= HISTORY_EMPTY_RESPONSES_TO_STOP) {
+                    Log.i(TAG, "Backfill caught up at id=$lastGlucoseId after $historyEmptyResponsesInARow empty responses")
+                    stopHistoryBackfill()
+                } else {
+                    handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
+                }
+            }
             return
         }
+        historyEmptyResponsesInARow = 0
         val now = System.currentTimeMillis()
-        val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
-        val context = Applic.app
         for (rec in records) {
             packetsSinceInit++
             lastIwNa = rec.iwNa
             lastIbNa = rec.ibNa
             lastTemperatureC = rec.temperatureC
-            // Most-recent record is index 0; older records are indexInPacket back in time.
-            val sampleMs = now - rec.indexInPacket * intervalMs
+            // Anchor every reading on its absolute glucose id mapped through
+            // session start. This gives correct timestamps for both real-time
+            // pushes (id at end-of-stream) and backfill pulls (older ids in
+            // the middle of the session). Falls back to wall-clock anchoring
+            // if we have no session start (e.g. a stub-binding reconnect).
+            val sampleMs = if (sensorStartAtMs > 0L) {
+                sensorStartAtMs + rec.glucoseId.toLong() * intervalMs
+            } else {
+                now - rec.indexInPacket * intervalMs
+            }
             val result = AnytimeAlgorithm.compute(
                 record = rec,
                 qr = qr,
@@ -610,13 +684,14 @@ class AnytimeBleManager(
             commitReading(result, sampleMs, context)
             if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
         }
-        // Acknowledge missing ids (transmitter expects us to keep up).
-        if (push && lastGlucoseId in 0..(familyEntry.endNumber - 2)) {
-            // No explicit ack needed for push — just keep the watchdog alive.
-        }
         persistAlgorithmState()
         armNoDataWatchdog()
         armPullFallback()
+        // Chain the backfill loop: if this was a non-empty pull response, keep
+        // pulling until empty (i.e. caught up to live cadence).
+        if (historyBackfillActive) {
+            handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
+        }
         UiRefreshBus.requestStatusRefresh()
     }
 
@@ -625,9 +700,14 @@ class AnytimeBleManager(
             Log.w(TAG, "Bad computed-glucose frame: ${data.joinToHex()}")
             return
         }
-        val now = System.currentTimeMillis()
+        val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
+        val sampleMs = if (sensorStartAtMs > 0L) {
+            sensorStartAtMs + rec.glucoseId.toLong() * intervalMs
+        } else {
+            System.currentTimeMillis()
+        }
         val result = AnytimeAlgorithm.fromComputedRecord(rec)
-        commitReading(result, now, Applic.app)
+        commitReading(result, sampleMs, Applic.app)
         if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
         persistAlgorithmState()
         armNoDataWatchdog()
@@ -639,6 +719,7 @@ class AnytimeBleManager(
         if (sampleMs >= lastGlucoseAtMs) {
             lastGlucoseAtMs = sampleMs
             lastGlucoseMgdlTimes10 = result.mgdlTimes10
+            lastAlgorithmResult = result
         }
         Log.i(
             TAG,
@@ -725,6 +806,16 @@ class AnytimeBleManager(
         writeFrame(AnytimeFrames.Builders.unbind(), "unbind(user)")
         bound = false
         persistAlgorithmState()
+        stopHistoryBackfill()
+        return true
+    }
+
+    override fun requestHistoryBackfill(): Boolean {
+        if (phase != Phase.STREAMING) {
+            Log.w(TAG, "requestHistoryBackfill ignored — phase=$phase")
+            return false
+        }
+        startHistoryBackfill("user-requested")
         return true
     }
 
@@ -782,6 +873,36 @@ class AnytimeBleManager(
             val ageMin = ((System.currentTimeMillis() - lastGlucoseAtMs) / 60000L).toInt()
             "Streaming • last reading ${ageMin}m ago"
         } else "Streaming (warming up)"
+    }
+
+    /**
+     * Format the rich algorithm-internal state for a debug pane. Returns null if
+     * we have no readings yet or are running on the linear-fallback path (where
+     * none of the diagnostic fields are populated).
+     */
+    fun getAlgorithmDiagnostics(): String? {
+        val r = lastAlgorithmResult ?: return null
+        if (r.source == AnytimeAlgorithm.Source.LINEAR) {
+            return "Linear fallback · K=${qr?.k ?: 0f} R=${qr?.r ?: 0f}\n" +
+                "Iw=${"%.2f".format(r.iwNa)} nA · Ib=${"%.2f".format(r.ibNa)} nA · T=${"%.1f".format(r.temperatureC)}°C"
+        }
+        val voltagesLine = if (r.weVoltageMv != Int.MIN_VALUE) {
+            "WE=${r.weVoltageMv}mV BE=${r.beVoltageMv}mV RE=${r.reVoltageMv}mV CE=${r.ceVoltageMv}mV B=${r.bVoltageMv}mV"
+        } else ""
+        val iirLine = if (!r.iw30Iir.isNaN() || !r.iw48Iir.isNaN()) {
+            "Iw30IIR=${"%.2f".format(r.iw30Iir)} Iw48IIR=${"%.2f".format(r.iw48Iir)}"
+        } else ""
+        val kLine = if (!r.kBase.isNaN() || !r.kAuto.isNaN()) {
+            "K_BASE=${"%.3f".format(r.kBase)} K_AUTO=${"%.3f".format(r.kAuto)} sens=${"%.3f".format(r.sensitivityCoefficient)}"
+        } else ""
+        return listOf(
+            "Vendor algorithm",
+            "Iw=${"%.2f".format(r.iwNa)} nA · Ib=${"%.2f".format(r.ibNa)} nA · T=${"%.1f".format(r.temperatureC)}°C",
+            voltagesLine,
+            iirLine,
+            kLine,
+            "Trend=${r.trend} Err=${r.errorCode} Warn=${r.warnCode}",
+        ).filter { it.isNotBlank() }.joinToString("\n")
     }
 }
 

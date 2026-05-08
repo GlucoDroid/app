@@ -46,6 +46,14 @@ interface AnytimeDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenance
     /** Schedule an unbind-then-disconnect. */
     fun requestUnbind(): Boolean
 
+    /**
+     * Walk the transmitter's record buffer from `lastGlucoseId+1` upward until
+     * it returns no more data, populating Juggluco's history with everything
+     * we missed. Idempotent — extra calls are no-ops while a backfill is
+     * already running.
+     */
+    fun requestHistoryBackfill(): Boolean
+
     fun getCurrentSnapshot(maxAgeMillis: Long): AnytimeCurrentSnapshot? = null
 
     override fun getManagedCurrentSnapshot(maxAgeMillis: Long): ManagedSensorCurrentSnapshot? {
@@ -82,7 +90,7 @@ interface AnytimeDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenance
             serial = sensorSerial,
             displayName = runCatching { callback.mygetDeviceName() }.getOrDefault(sensorSerial),
             deviceAddress = callback.mActiveDeviceAddress ?: "Unknown",
-            uiFamily = ManagedSensorUiFamily.GENERIC,
+            uiFamily = ManagedSensorUiFamily.ANYTIME,
             connectionStatus = passiveStatus,
             detailedStatus = detailedStatus,
             subtitleStatus = detailedStatus.ifBlank { passiveStatus },
