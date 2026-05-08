@@ -613,8 +613,8 @@ fun ExpressiveSettingsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 // Restart App (Low Severity)
                 DangerItem(
-                    title = "Restart App",
-                    subtitle = "Force restart the application",
+                    title = stringResource(R.string.restart_app),
+                    subtitle = stringResource(R.string.restart_app_desc),
                     icon = Icons.Filled.Refresh,
                     position = CardPosition.TOP,
                     severity = DangerSeverity.LOW,

@@ -102,7 +102,7 @@ fun injectMirrorJson(jsonstr: String, context: Context): Boolean {
         tk.glucodata.Applic.wakemirrors()
         return true
     } catch (_: Exception) {
-        Toast.makeText(context, "Invalid QR data", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.mirror_invalid_qr_data), Toast.LENGTH_SHORT).show()
         return false
     }
 }
@@ -112,9 +112,9 @@ private fun changeHostErrorMessage(context: Context, code: Int): String = when (
     -2 -> context.getString(R.string.parseip)
     -3 -> context.getString(R.string.toomanyhosts)
     -4 -> context.getString(R.string.senthosts)
-    -5 -> "Hostname too long"
-    -6 -> "Database busy, try again"
-    -16 -> "ICE label should be at least 16 characters"
+    -5 -> context.getString(R.string.mirror_host_error_hostname_too_long)
+    -6 -> context.getString(R.string.mirror_host_error_database_busy)
+    -16 -> context.getString(R.string.mirror_host_error_ice_label_short)
     else -> context.getString(R.string.mirror_error_with_code, code)
 }
 
@@ -161,7 +161,7 @@ fun MirrorSettingsScreen(navController: NavController) {
         if (raw.contains("MirrorJuggluco") || raw.contains("\"port\"")) {
             scannedQrPayload = raw
         } else {
-            Toast.makeText(context, "Invalid QR Code", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.mirror_invalid_qr_code), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -180,7 +180,7 @@ fun MirrorSettingsScreen(navController: NavController) {
         val legacyFallback = {
             zxingLauncher.launch(
                 ScanOptions().apply {
-                    setPrompt("Scan Juggluco Mirror QR")
+                    setPrompt(context.getString(R.string.mirror_scan_prompt))
                     setBeepEnabled(false)
                 }
             )
@@ -206,13 +206,13 @@ fun MirrorSettingsScreen(navController: NavController) {
         AlertDialog(
             onDismissRequest = { scannedQrPayload = null },
             icon = { Icon(Icons.Filled.Link, contentDescription = null) },
-            title = { Text("Connect to this device?") },
-            text = { Text("A Juggluco Mirror QR code was scanned. This will sync glucose data with the remote device.") },
+            title = { Text(stringResource(R.string.mirror_connect_device_title)) },
+            text = { Text(stringResource(R.string.mirror_connect_qr_message)) },
             confirmButton = {
                 Button(onClick = {
                     if (injectMirrorJson(scannedQrPayload!!, context)) triggerRefresh++
                     scannedQrPayload = null
-                }) { Text("Connect") }
+                }) { Text(stringResource(R.string.mirror_connect_action)) }
             },
             dismissButton = { OutlinedButton(onClick = { scannedQrPayload = null }) { Text(stringResource(R.string.cancel)) } }
         )
@@ -223,18 +223,18 @@ fun MirrorSettingsScreen(navController: NavController) {
         AlertDialog(
             onDismissRequest = { pendingNearby = null },
             icon = { Icon(Icons.Filled.Wifi, contentDescription = null) },
-            title = { Text("Connect to ${device.name}?") },
-            text = { Text("Found at ${device.ip}:${device.port}.\nThis will receive glucose data from \"${device.name}\".") },
+            title = { Text(stringResource(R.string.mirror_connect_nearby_title, device.name)) },
+            text = { Text(stringResource(R.string.mirror_connect_nearby_message, device.ip, device.port, device.name)) },
             confirmButton = {
                 Button(onClick = {
                     // Use injectMirrorJson — same code path as QR scanning
                     if (device.mirrorJson.isNotEmpty()) {
                         if (injectMirrorJson(device.mirrorJson, context)) triggerRefresh++
                     } else {
-                        Toast.makeText(context, "Connection data missing", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.mirror_connection_data_missing), Toast.LENGTH_SHORT).show()
                     }
                     pendingNearby = null
-                }) { Text("Connect") }
+                }) { Text(stringResource(R.string.mirror_connect_action)) }
             },
             dismissButton = { OutlinedButton(onClick = { pendingNearby = null }) { Text(stringResource(R.string.cancel)) } }
         )
@@ -274,7 +274,7 @@ fun MirrorSettingsScreen(navController: NavController) {
                         Toast.makeText(context, context.getString(R.string.reinit_progress), Toast.LENGTH_SHORT).show()
                         triggerRefresh++
                     }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Reconnect All")
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.mirror_reconnect_all))
                     }
                 }
             )
@@ -287,12 +287,12 @@ fun MirrorSettingsScreen(navController: NavController) {
         ) {
             // ── QR Row ───────────────────────────────────────────────
             item(key = "qr_section") {
-                SectionLabel("Quick Pair", topPadding = 8.dp)
+                SectionLabel(stringResource(R.string.mirror_quick_pair), topPadding = 8.dp)
             }
             item(key = "qr_share") {
                 SettingsItem(
-                    title = "Share My QR",
-                    subtitle = "Same network — let another device scan",
+                    title = stringResource(R.string.mirror_share_my_qr),
+                    subtitle = stringResource(R.string.mirror_share_my_qr_desc),
                     icon = Icons.Outlined.QrCode,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.TOP,
@@ -309,8 +309,8 @@ fun MirrorSettingsScreen(navController: NavController) {
             }
             item(key = "qr_share_relay") {
                 SettingsItem(
-                    title = "Share Relay QR",
-                    subtitle = "Across networks — uses TURN/ICE relay",
+                    title = stringResource(R.string.mirror_share_relay_qr),
+                    subtitle = stringResource(R.string.mirror_share_relay_qr_desc),
                     icon = Icons.Filled.Cloud,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.MIDDLE,
@@ -327,8 +327,8 @@ fun MirrorSettingsScreen(navController: NavController) {
             }
             item(key = "qr_scan") {
                 SettingsItem(
-                    title = "Scan QR Code",
-                    subtitle = "Scan another device's QR to connect",
+                    title = stringResource(R.string.scan_qr_button),
+                    subtitle = stringResource(R.string.mirror_scan_qr_desc),
                     icon = Icons.Outlined.QrCodeScanner,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.BOTTOM,
@@ -338,12 +338,12 @@ fun MirrorSettingsScreen(navController: NavController) {
 
             // ── Local Network ────────────────────────────────────────
             item(key = "network_section") {
-                SectionLabel("Local Network")
+                SectionLabel(stringResource(R.string.mirror_local_network))
             }
             item(key = "broadcast") {
                 SettingsSwitchItem(
-                    title = "Broadcast on Network",
-                    subtitle = "Let nearby devices discover this device",
+                    title = stringResource(R.string.mirror_broadcast_network),
+                    subtitle = stringResource(R.string.mirror_broadcast_network_desc),
                     icon = Icons.Filled.CellTower,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     checked = isBroadcasting,
@@ -399,12 +399,12 @@ fun MirrorSettingsScreen(navController: NavController) {
 
             // ── Relay ────────────────────────────────────────────────
             item(key = "relay_section") {
-                SectionLabel("Relay")
+                SectionLabel(stringResource(R.string.mirror_relay))
             }
             item(key = "turn") {
                 SettingsItem(
                     title = stringResource(R.string.turnserver),
-                    subtitle = "TURN relay for remote connections",
+                    subtitle = stringResource(R.string.mirror_turn_server_desc),
                     icon = Icons.Filled.Cloud,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     showArrow = true,
@@ -416,7 +416,7 @@ fun MirrorSettingsScreen(navController: NavController) {
             // ── Connections ──────────────────────────────────────────
             item(key = "connections_section") {
                 Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp, start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Connections", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.mirror_connections), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = { editSheetPos = -1 }) {
                         Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_connection), tint = MaterialTheme.colorScheme.primary)
@@ -427,7 +427,7 @@ fun MirrorSettingsScreen(navController: NavController) {
             if (mirrors.isEmpty()) {
                 item(key = "empty_msg") {
                     Surface(Modifier.fillMaxWidth(), shape = cardShape(CardPosition.SINGLE), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                        Text("No connections. Use Quick Pair or tap + to add.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+                        Text(stringResource(R.string.mirror_no_connections), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
                     }
                 }
             } else {
@@ -499,8 +499,8 @@ fun MirrorConnectionCard(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             icon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Delete connection?") },
-            text = { Text("\"${mirror.label ?: mirror.names?.firstOrNull() ?: "Connection"}\" will be removed permanently.") },
+            title = { Text(stringResource(R.string.mirror_delete_connection_title)) },
+            text = { Text(stringResource(R.string.mirror_delete_connection_message, mirror.label ?: mirror.names?.firstOrNull() ?: stringResource(R.string.connection_label))) },
             confirmButton = {
                 Button(
                     onClick = { onDelete(); showDeleteConfirm = false },
@@ -577,6 +577,16 @@ enum class ConnectionDirection { PASSIVE, ACTIVE, BOTH }
 fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val isNew = pos == -1
+    fun connectionTypeLabel(option: ConnectionType): String = when (option) {
+        ConnectionType.LOCAL -> context.getString(R.string.mirror_type_local)
+        ConnectionType.ICE -> context.getString(R.string.ice)
+        ConnectionType.DIRECT -> context.getString(R.string.mirror_type_direct_ip)
+    }
+    fun directionLabel(option: ConnectionDirection): String = when (option) {
+        ConnectionDirection.PASSIVE -> context.getString(R.string.mirror_direction_passive)
+        ConnectionDirection.ACTIVE -> context.getString(R.string.mirror_direction_active)
+        ConnectionDirection.BOTH -> context.getString(R.string.mirror_direction_both)
+    }
 
     // Determine connection type from existing entry
     val existingICELabel = if (!isNew) Natives.getICElabel(pos) else null
@@ -731,25 +741,13 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             )
 
             // Connection Type
-            SectionLabel("Connection Type", topPadding = 0.dp, modifier = Modifier.padding(horizontal = 24.dp))
+            SectionLabel(stringResource(R.string.mirror_connection_type), topPadding = 0.dp, modifier = Modifier.padding(horizontal = 24.dp))
             ConnectedButtonGroup(
                 options = ConnectionType.entries.toList(),
                 selectedOption = connectionType,
                 onOptionSelected = { connectionType = it },
-                labelText = { option ->
-                    when (option) {
-                        ConnectionType.LOCAL -> "Local"
-                        ConnectionType.ICE -> "ICE"
-                        ConnectionType.DIRECT -> "Direct IP"
-                    }
-                },
-                label = { option ->
-                    Text(when (option) {
-                        ConnectionType.LOCAL -> "Local"
-                        ConnectionType.ICE -> "ICE"
-                        ConnectionType.DIRECT -> "Direct IP"
-                    })
-                },
+                labelText = ::connectionTypeLabel,
+                label = { option -> Text(connectionTypeLabel(option)) },
                 itemHeight = 40.dp,
                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                 selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -759,20 +757,20 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
 
             // Type hint
             val typeHint = when (connectionType) {
-                ConnectionType.LOCAL -> "Same Wi-Fi. IP auto-detected."
-                ConnectionType.ICE -> "Across networks via STUN/TURN."
-                ConnectionType.DIRECT -> "Specific IP/hostname."
+                ConnectionType.LOCAL -> stringResource(R.string.mirror_type_local_hint)
+                ConnectionType.ICE -> stringResource(R.string.mirror_type_ice_hint)
+                ConnectionType.DIRECT -> stringResource(R.string.mirror_type_direct_hint)
             }
             Text(typeHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
 
             // Fields per connection type
-            SectionLabel("Details", modifier = Modifier.padding(horizontal = 24.dp))
+            SectionLabel(stringResource(R.string.mirror_details), modifier = Modifier.padding(horizontal = 24.dp))
             Column(modifier = Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when (connectionType) {
                     ConnectionType.LOCAL -> {
                         SettingsSwitchItem(
-                            title = "Auto-detect IP",
-                            subtitle = "Use local network discovery for this connection",
+                            title = stringResource(R.string.mirror_auto_detect_ip),
+                            subtitle = stringResource(R.string.mirror_auto_detect_ip_desc),
                             checked = autoDetect,
                             onCheckedChange = { autoDetect = it },
                             icon = Icons.Filled.Wifi,
@@ -782,8 +780,8 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
                         if (!autoDetect) {
                             OutlinedTextField(
                                 value = hostname, onValueChange = { hostname = it },
-                                label = { Text("IP Address") },
-                                supportingText = { Text("Manual local IP for this device") },
+                                label = { Text(stringResource(R.string.mirror_ip_address)) },
+                                supportingText = { Text(stringResource(R.string.mirror_ip_address_desc)) },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true
                             )
                         }
@@ -791,16 +789,16 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
                     ConnectionType.ICE -> {
                         OutlinedTextField(
                             value = iceLabel, onValueChange = { iceLabel = it },
-                            label = { Text("ICE Label") },
-                            supportingText = { Text("Email or identifier — must match on both devices") },
+                            label = { Text(stringResource(R.string.ice_label)) },
+                            supportingText = { Text(stringResource(R.string.mirror_ice_label_desc)) },
                             modifier = Modifier.fillMaxWidth(), singleLine = true
                         )
                     }
                     ConnectionType.DIRECT -> {
                         OutlinedTextField(
                             value = hostname, onValueChange = { hostname = it },
-                            label = { Text("Hostname / IP Address") },
-                            supportingText = { Text("e.g. 192.168.1.100 or myserver.com") },
+                            label = { Text(stringResource(R.string.mirror_hostname_ip_address)) },
+                            supportingText = { Text(stringResource(R.string.mirror_hostname_ip_desc)) },
                             modifier = Modifier.fillMaxWidth(), singleLine = true
                         )
                     }
@@ -808,42 +806,30 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
                 OutlinedTextField(
                     value = port, onValueChange = { port = it },
                     label = { Text(stringResource(R.string.port)) },
-                    supportingText = { Text("Default: 8795") },
+                    supportingText = { Text(stringResource(R.string.mirror_port_default)) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             }
 
             // Connection label
-            SectionLabel("Label", modifier = Modifier.padding(horizontal = 24.dp))
+            SectionLabel(stringResource(R.string.label), modifier = Modifier.padding(horizontal = 24.dp))
             OutlinedTextField(
                 value = connectionLabel, onValueChange = { connectionLabel = it },
-                label = { Text("Connection Label (optional)") },
-                supportingText = { Text("Human-readable name for this connection") },
+                label = { Text(stringResource(R.string.mirror_connection_label)) },
+                supportingText = { Text(stringResource(R.string.mirror_connection_label_desc)) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), singleLine = true
             )
 
             // Connection Direction (visible for Local and Direct only)
             if (connectionType != ConnectionType.ICE) {
-                SectionLabel("Direction", modifier = Modifier.padding(horizontal = 24.dp))
+                SectionLabel(stringResource(R.string.mirror_direction), modifier = Modifier.padding(horizontal = 24.dp))
                 ConnectedButtonGroup(
                     options = ConnectionDirection.entries.toList(),
                     selectedOption = direction,
                     onOptionSelected = { direction = it },
-                    labelText = { option ->
-                        when (option) {
-                            ConnectionDirection.PASSIVE -> "Passive"
-                            ConnectionDirection.ACTIVE -> "Active"
-                            ConnectionDirection.BOTH -> "Both"
-                        }
-                    },
-                    label = { option ->
-                        Text(when (option) {
-                            ConnectionDirection.PASSIVE -> "Passive"
-                            ConnectionDirection.ACTIVE -> "Active"
-                            ConnectionDirection.BOTH -> "Both"
-                        })
-                    },
+                    labelText = ::directionLabel,
+                    label = { option -> Text(directionLabel(option)) },
                     itemHeight = 40.dp,
                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                     selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -851,24 +837,24 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
                 )
                 val dirHint = when (direction) {
-                    ConnectionDirection.PASSIVE -> "Only listen for incoming connections."
-                    ConnectionDirection.ACTIVE -> "Only connect outbound to the other device."
-                    ConnectionDirection.BOTH -> "Both listen and connect outbound."
+                    ConnectionDirection.PASSIVE -> stringResource(R.string.mirror_direction_passive_hint)
+                    ConnectionDirection.ACTIVE -> stringResource(R.string.mirror_direction_active_hint)
+                    ConnectionDirection.BOTH -> stringResource(R.string.mirror_direction_both_hint)
                 }
                 Text(dirHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             }
 
             // Role
-            SectionLabel("Role", modifier = Modifier.padding(horizontal = 24.dp))
+            SectionLabel(stringResource(R.string.mirror_role), modifier = Modifier.padding(horizontal = 24.dp))
             Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(horizontal = 24.dp)) {
                 SettingsSwitchItem(
-                    title = "Receive Data", subtitle = "This device receives glucose data",
+                    title = stringResource(R.string.mirror_receive_data), subtitle = stringResource(R.string.mirror_receive_data_desc),
                     checked = isReceiving, onCheckedChange = { isReceiving = it },
                     icon = Icons.Filled.Download, iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.TOP
                 )
                 SettingsSwitchItem(
-                    title = "Send Data", subtitle = "This device sends glucose data",
+                    title = stringResource(R.string.mirror_send_data), subtitle = stringResource(R.string.mirror_send_data_desc),
                     checked = isSending, onCheckedChange = { isSending = it },
                     icon = Icons.Filled.Upload, iconTint = MaterialTheme.colorScheme.tertiary,
                     position = CardPosition.BOTTOM
@@ -876,11 +862,11 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             }
 
             // Password
-            SectionLabel("Security", modifier = Modifier.padding(horizontal = 24.dp))
+            SectionLabel(stringResource(R.string.mirror_security), modifier = Modifier.padding(horizontal = 24.dp))
             OutlinedTextField(
                 value = password, onValueChange = { password = it },
                 label = { Text(stringResource(R.string.password)) },
-                supportingText = { Text("Must match on both devices") },
+                supportingText = { Text(stringResource(R.string.mirror_password_desc)) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), singleLine = true,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {

@@ -1200,11 +1200,12 @@ private fun DeliveryModeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val deliveryModeLabels = AlertDeliveryMode.entries.associateWith { it.localizedName() }
             AlertDeliveryMode.entries.forEach { deliveryMode ->
                 FilterChip(
                     selected = mode == deliveryMode,
                     onClick = { onModeChange(deliveryMode) },
-                    label = { Text(deliveryMode.displayName) },
+                    label = { Text(deliveryModeLabels[deliveryMode] ?: deliveryMode.displayName) },
                     leadingIcon = if (mode == deliveryMode) {
                         { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
                     } else null,
@@ -1221,6 +1222,7 @@ private fun VolumeProfileSelector(
     onProfileChange: (VolumeProfile) -> Unit
 ) {
     Column {
+        val volumeProfileLabels = VolumeProfile.entries.associateWith { it.localizedName() }
         Text(
             stringResource(R.string.volume_vibration_profile),
             style = MaterialTheme.typography.bodyMedium,
@@ -1234,7 +1236,7 @@ private fun VolumeProfileSelector(
                 FilterChip(
                     selected = profile == volumeProfile,
                     onClick = { onProfileChange(volumeProfile) },
-                    label = { Text(volumeProfile.displayName) },
+                    label = { Text(volumeProfileLabels[volumeProfile] ?: volumeProfile.displayName) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1248,7 +1250,7 @@ private fun VolumeProfileSelector(
                 FilterChip(
                     selected = profile == volumeProfile,
                     onClick = { onProfileChange(volumeProfile) },
-                    label = { Text(volumeProfile.displayName) },
+                    label = { Text(volumeProfileLabels[volumeProfile] ?: volumeProfile.displayName) },
                     modifier = Modifier.weight(1f)
                 )
             }

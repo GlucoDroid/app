@@ -137,12 +137,13 @@ fun CommonAlertSettings(
             modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
         ) {
             Text(stringResource(R.string.alert_style))
+            val deliveryModeLabels = AlertDeliveryMode.entries.associateWith { it.localizedName() }
             ConnectedButtonGroup(
                 options = AlertDeliveryMode.entries,
                 selectedOption = config.deliveryMode,
                 onOptionSelected = { onConfigChange(config.copy(deliveryMode = it)) },
-                labelText = { it.displayName },
-                label = { Text(it.displayName, style = MaterialTheme.typography.labelLarge) },
+                labelText = { deliveryModeLabels[it] ?: it.displayName },
+                label = { Text(deliveryModeLabels[it] ?: it.displayName, style = MaterialTheme.typography.labelLarge) },
                 modifier = Modifier.fillMaxWidth(),
                 selectedContainerColor = MaterialTheme.colorScheme.primary,
                 selectedContentColor = MaterialTheme.colorScheme.onPrimary,
@@ -152,17 +153,18 @@ fun CommonAlertSettings(
         }
         
         // === Intensity ===
-         Column(
+        Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
         ) {
             Text(stringResource(R.string.intensity))
+            val volumeProfileLabels = VolumeProfile.entries.associateWith { it.localizedName() }
             ConnectedButtonGroup(
                 options = listOf(VolumeProfile.HIGH, VolumeProfile.MEDIUM, VolumeProfile.ASCENDING),
                 selectedOption = if (config.volumeProfile in listOf(VolumeProfile.VIBRATE_ONLY, VolumeProfile.SILENT)) VolumeProfile.MEDIUM else config.volumeProfile,
                 onOptionSelected = { onConfigChange(config.copy(volumeProfile = it)) },
-                labelText = { it.displayName },
-                label = { Text(it.displayName, style = MaterialTheme.typography.labelLarge) },
+                labelText = { volumeProfileLabels[it] ?: it.displayName },
+                label = { Text(volumeProfileLabels[it] ?: it.displayName, style = MaterialTheme.typography.labelLarge) },
                 modifier = Modifier.fillMaxWidth(),
                 selectedContainerColor = MaterialTheme.colorScheme.primary,
                 selectedContentColor = MaterialTheme.colorScheme.onPrimary,

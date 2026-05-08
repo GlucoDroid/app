@@ -26,6 +26,15 @@ object AlertRuntimeManager {
     private var lastRate: Float = Float.NaN
     private var persistentHighStartedAtMs: Long = 0L
 
+    private val standardAlertTypes = listOf(
+        AlertType.VERY_HIGH,
+        AlertType.HIGH,
+        AlertType.VERY_LOW,
+        AlertType.LOW,
+        AlertType.PRE_HIGH,
+        AlertType.PRE_LOW
+    )
+
     fun ensureMonitoring() {
         synchronized(lock) {
             bootstrapLastReadingLocked()
@@ -35,7 +44,11 @@ object AlertRuntimeManager {
     }
 
     fun onNewReading(glucoseValue: Float, rate: Float, readingTimeMs: Long) {
-        val snapshot = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
+        val snapshot = CurrentDisplaySource.resolveIncomingReading(
+            liveNumericValue = glucoseValue,
+            rate = rate,
+            targetTimeMillis = readingTimeMs
+        )
         synchronized(lock) {
             lastReadingTimeMs = maxOf(lastReadingTimeMs, readingTimeMs)
             if (snapshot != null && snapshot.primaryValue.isFinite()) {
@@ -70,6 +83,7 @@ object AlertRuntimeManager {
         bootstrapLastReadingLocked()
         syncCurrentReadingLocked()
 
+        evaluateStandardGlucoseAlertsLocked()
         evaluateMissedReadingLocked(nowMs)
         evaluatePersistentHighLocked(nowMs)
         evaluateSensorExpiryLocked(nowMs)
@@ -113,6 +127,52 @@ object AlertRuntimeManager {
         } catch (t: Throwable) {
             Log.stack(LOG_ID, "syncCurrentReadingLocked", t)
         }
+    }
+
+    private fun evaluateStandardGlucoseAlertsLocked() {
+        val glucoseValue = currentGlucoseValueLocked() ?: return
+        val rate = currentRateLocked()
+        val configs = standardAlertTypes.associateWith { AlertRepository.loadConfig(it) }
+        val activeType = resolveActiveStandardAlertType(glucoseValue, rate, configs)
+
+        standardAlertTypes.forEach { type ->
+            if (type != activeType) {
+                clearRuntimeAlert(type, "display-condition-cleared")
+            }
+        }
+
+        val type = activeType ?: return
+        val config = configs[type] ?: return
+        if (!config.isActiveNow() || SnoozeManager.isSnoozed(type)) {
+            return
+        }
+
+        val message = Applic.app.getString(type.nameResId) + " " + Notify.glucosestr(glucoseValue)
+        triggerAlert(type, glucoseValue, rate, message)
+    }
+
+    private fun resolveActiveStandardAlertType(
+        glucoseValue: Float,
+        rate: Float,
+        configs: Map<AlertType, AlertConfig>
+    ): AlertType? {
+        fun threshold(type: AlertType): Float? {
+            val config = configs[type] ?: return null
+            if (!config.enabled) return null
+            return config.threshold?.takeIf { it.isFinite() && it > 0f }
+        }
+
+        threshold(AlertType.VERY_HIGH)?.let { if (glucoseValue >= it) return AlertType.VERY_HIGH }
+        threshold(AlertType.HIGH)?.let { if (glucoseValue >= it) return AlertType.HIGH }
+        threshold(AlertType.VERY_LOW)?.let { if (glucoseValue <= it) return AlertType.VERY_LOW }
+        threshold(AlertType.LOW)?.let { if (glucoseValue <= it) return AlertType.LOW }
+
+        val projected = if (rate.isFinite()) glucoseValue + rate * 0.4f * 180.0f else Float.NaN
+        if (projected.isFinite()) {
+            threshold(AlertType.PRE_HIGH)?.let { if (projected >= it) return AlertType.PRE_HIGH }
+            threshold(AlertType.PRE_LOW)?.let { if (projected <= it) return AlertType.PRE_LOW }
+        }
+        return null
     }
 
     private fun evaluateMissedReadingLocked(nowMs: Long) {

@@ -101,6 +101,87 @@ object CurrentDisplaySource {
         return initialSnapshot.copy(rate = canonicalRate)
     }
 
+    @JvmStatic
+    @JvmOverloads
+    fun resolveIncomingReading(
+        liveNumericValue: Float,
+        rate: Float,
+        targetTimeMillis: Long,
+        preferredSensorId: String? = null,
+        sensorGen: Int = 0,
+        index: Int = 0,
+        source: String = "incoming",
+        historyWindowMs: Long = DEFAULT_HISTORY_WINDOW_MS
+    ): Snapshot? {
+        if (!liveNumericValue.isFinite() || liveNumericValue <= 0.1f || targetTimeMillis <= 0L) {
+            return null
+        }
+        val resolvedSensorId = preferredSensorId ?: SensorIdentity.resolveMainSensor()
+        val isMmol = Applic.unit == 1
+        val smoothingMinutes = DataSmoothing.getMinutes(Applic.app)
+        val smoothAllData = smoothingMinutes > 0 && !DataSmoothing.isGraphOnly(Applic.app)
+        val collapseChunks = smoothAllData && DataSmoothing.collapseChunks(Applic.app)
+        val liveHistoryWindowMs = historyWindowMs.coerceAtLeast(LIVE_CONTEXT_WINDOW_MS)
+        val historyStart = (targetTimeMillis - liveHistoryWindowMs).coerceAtLeast(0L)
+        val recentPoints = try {
+            NotificationHistorySource.getDisplayHistory(historyStart, isMmol, resolvedSensorId)
+        } catch (_: Throwable) {
+            emptyList()
+        }
+        val viewMode = resolveSensorViewMode(resolvedSensorId)
+        val current = CurrentGlucoseSource.Snapshot(
+            timeMillis = targetTimeMillis,
+            valueText = "",
+            numericValue = liveNumericValue,
+            rawNumericValue = Float.NaN,
+            rate = rate,
+            sensorId = resolvedSensorId,
+            sensorGen = sensorGen,
+            index = index,
+            source = source
+        )
+        val processedPoints = prepareRecentPointsForCurrent(
+            recentPoints = recentPoints,
+            current = current,
+            historyStart = historyStart,
+            viewMode = viewMode,
+            smoothAllData = smoothAllData,
+            smoothingMinutes = smoothingMinutes,
+            collapseChunks = collapseChunks
+        )
+        val initialSnapshot = resolveFromLive(
+            liveValueText = null,
+            liveNumericValue = liveNumericValue,
+            rate = rate,
+            targetTimeMillis = if (collapseChunks) {
+                processedPoints.lastOrNull()?.timestamp ?: targetTimeMillis
+            } else {
+                targetTimeMillis
+            },
+            sensorId = resolvedSensorId,
+            sensorGen = sensorGen,
+            index = index,
+            source = source,
+            recentPoints = processedPoints,
+            viewMode = viewMode,
+            isMmol = isMmol
+        ) ?: return null
+        val trendPoints = DisplayTrendSource.augmentHistory(
+            historyPoints = processedPoints,
+            current = initialSnapshot,
+            activeSensorSerial = resolvedSensorId,
+            startTimeMs = historyStart
+        )
+        val canonicalRate = DisplayTrendSource.resolveArrowRate(
+            recentPoints = trendPoints,
+            current = initialSnapshot,
+            viewMode = viewMode,
+            isMmol = isMmol,
+            fallbackRate = rate
+        )
+        return initialSnapshot.copy(rate = canonicalRate)
+    }
+
     internal fun prepareRecentPointsForCurrent(
         recentPoints: List<GlucosePoint>,
         current: CurrentGlucoseSource.Snapshot?,

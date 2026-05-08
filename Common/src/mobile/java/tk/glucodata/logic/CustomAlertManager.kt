@@ -32,7 +32,11 @@ object CustomAlertManager {
     private var activeSession: ActiveSession? = null
 
     fun checkAndTrigger(context: Context, glucose: Float, rate: Float, timestamp: Long) {
-        val snapshot = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout) ?: return
+        val snapshot = CurrentDisplaySource.resolveIncomingReading(
+            liveNumericValue = glucose,
+            rate = rate,
+            targetTimeMillis = timestamp
+        ) ?: return
         @Suppress("NAME_SHADOWING") val glucose = snapshot.primaryValue
         @Suppress("NAME_SHADOWING") val rate = snapshot.rate
 
