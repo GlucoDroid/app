@@ -6,6 +6,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import tk.glucodata.Applic
+import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.Notify
 import tk.glucodata.alerts.CustomAlertConfig
 import tk.glucodata.alerts.CustomAlertRepository
@@ -31,6 +32,10 @@ object CustomAlertManager {
     private var activeSession: ActiveSession? = null
 
     fun checkAndTrigger(context: Context, glucose: Float, rate: Float, timestamp: Long) {
+        val snapshot = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout) ?: return
+        @Suppress("NAME_SHADOWING") val glucose = snapshot.primaryValue
+        @Suppress("NAME_SHADOWING") val rate = snapshot.rate
+
         val allAlerts = CustomAlertRepository.getAll()
         if (allAlerts.isEmpty()) {
             synchronized(sessionLock) {

@@ -35,11 +35,17 @@ object AlertRuntimeManager {
     }
 
     fun onNewReading(glucoseValue: Float, rate: Float, readingTimeMs: Long) {
+        val snapshot = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
         synchronized(lock) {
-            lastReadingTimeMs = readingTimeMs
+            lastReadingTimeMs = maxOf(lastReadingTimeMs, readingTimeMs)
+            if (snapshot != null && snapshot.primaryValue.isFinite()) {
+                lastGlucoseValue = snapshot.primaryValue
+                lastRate = snapshot.rate
+            } else {
+                lastGlucoseValue = glucoseValue
+                lastRate = rate
+            }
             lastDeliveredReadingTimeMs = maxOf(lastDeliveredReadingTimeMs, readingTimeMs)
-            lastGlucoseValue = glucoseValue
-            lastRate = rate
             ensureTaskLocked()
             evaluateLocked(readingTimeMs)
         }
@@ -80,7 +86,7 @@ object AlertRuntimeManager {
             return
         }
 
-        if (latest.timeMillis > lastReadingTimeMs || !lastGlucoseValue.isFinite()) {
+        if (latest.timeMillis >= lastReadingTimeMs || !lastGlucoseValue.isFinite()) {
             lastReadingTimeMs = latest.timeMillis
             lastGlucoseValue = latest.primaryValue
             lastRate = latest.rate
