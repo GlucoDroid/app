@@ -42,20 +42,20 @@ enum class AlertType(val id: Int, val nameResId: Int) {
     }
 }
 
-/**
- * Volume profile presets for alert sounds.
- * Inspired by xDrip+ volume profiles.
- */
-/**
- * Volume profile presets for alert sounds.
- * Inspired by xDrip+ volume profiles.
- */
-enum class VolumeProfile(val displayName: String) {
-    HIGH("High"),
-    MEDIUM("Medium"),
-    ASCENDING("Ascending"),      // Starts low, increases over time
-    VIBRATE_ONLY("Vibrate Only"),
-    SILENT("Silent")
+enum class HapticProfile(val displayName: String) {
+    SOFT("Soft"),
+    STEADY("Steady"),
+    STRONG("Strong"),
+    ESCALATING("Escalating")
+}
+
+const val MIN_ALERT_DURATION_SECONDS = 1
+const val MAX_ALERT_DURATION_SECONDS = 60
+const val DEFAULT_ALERT_DURATION_SECONDS = 10
+
+fun sanitizeAlertDurationSeconds(value: Int): Int {
+    return value.takeIf { it in MIN_ALERT_DURATION_SECONDS..MAX_ALERT_DURATION_SECONDS }
+        ?: DEFAULT_ALERT_DURATION_SECONDS
 }
 
 /**
@@ -81,20 +81,20 @@ data class AlertConfig(
     
     // Delivery settings
     val deliveryMode: AlertDeliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-    val volumeProfile: VolumeProfile = VolumeProfile.HIGH,
     val overrideDND: Boolean = false,       // Override Do Not Disturb
     
     // Sound & vibration
     val soundEnabled: Boolean = true,
     val customSoundUri: String? = null,     // null = use default
     val vibrationEnabled: Boolean = true,
+    val hapticProfile: HapticProfile = HapticProfile.STRONG,
     val flashEnabled: Boolean = false,
     
     // Snooze settings
     val defaultSnoozeMinutes: Int = 15,
     
     // Alarm duration (how long sound plays before auto-stop)
-    val alarmDurationSeconds: Int = 60,
+    val alarmDurationSeconds: Int = DEFAULT_ALERT_DURATION_SECONDS,
     
     // === NEW: Time range settings ===
     // Alert only active between these times. null = always active
@@ -207,7 +207,7 @@ object AlertDefaults {
                 enabled = true,
                 threshold = if (isMmol) LOW_THRESHOLD_MMOL else LOW_THRESHOLD_MGDL,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-                volumeProfile = VolumeProfile.HIGH,
+                hapticProfile = HapticProfile.STRONG,
                 overrideDND = true,
                 defaultSnoozeMinutes = 15
             )
@@ -216,7 +216,7 @@ object AlertDefaults {
                 enabled = true,
                 threshold = if (isMmol) HIGH_THRESHOLD_MMOL else HIGH_THRESHOLD_MGDL,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-                volumeProfile = VolumeProfile.MEDIUM,
+                hapticProfile = HapticProfile.STEADY,
                 overrideDND = false,
                 defaultSnoozeMinutes = 30
             )
@@ -225,7 +225,7 @@ object AlertDefaults {
                 enabled = true,
                 threshold = if (isMmol) VERY_LOW_THRESHOLD_MMOL else VERY_LOW_THRESHOLD_MGDL,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,  // Critical - use system alarm
-                volumeProfile = VolumeProfile.ASCENDING,
+                hapticProfile = HapticProfile.ESCALATING,
                 overrideDND = true,
                 flashEnabled = true,
                 defaultSnoozeMinutes = 10
@@ -235,7 +235,7 @@ object AlertDefaults {
                 enabled = true,
                 threshold = if (isMmol) VERY_HIGH_THRESHOLD_MMOL else VERY_HIGH_THRESHOLD_MGDL,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-                volumeProfile = VolumeProfile.ASCENDING,
+                hapticProfile = HapticProfile.STRONG,
                 overrideDND = true,
                 defaultSnoozeMinutes = 30
             )
@@ -245,7 +245,7 @@ object AlertDefaults {
                 threshold = if (isMmol) FORECAST_LOW_THRESHOLD_MMOL else FORECAST_LOW_THRESHOLD_MGDL,
                 forecastMinutes = FORECAST_LOOK_AHEAD_MINUTES,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-                volumeProfile = VolumeProfile.MEDIUM,
+                hapticProfile = HapticProfile.SOFT,
                 defaultSnoozeMinutes = 20
             )
             AlertType.PRE_HIGH -> AlertConfig(
@@ -254,7 +254,7 @@ object AlertDefaults {
                 threshold = if (isMmol) FORECAST_HIGH_THRESHOLD_MMOL else FORECAST_HIGH_THRESHOLD_MGDL,
                 forecastMinutes = FORECAST_LOOK_AHEAD_MINUTES,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-                volumeProfile = VolumeProfile.MEDIUM,
+                hapticProfile = HapticProfile.SOFT,
                 defaultSnoozeMinutes = 30
             )
             AlertType.MISSED_READING -> AlertConfig(
@@ -262,7 +262,7 @@ object AlertDefaults {
                 enabled = false,
                 durationMinutes = MISSED_READING_MINUTES,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-                volumeProfile = VolumeProfile.MEDIUM,
+                hapticProfile = HapticProfile.STEADY,
                 defaultSnoozeMinutes = 30
             )
             AlertType.PERSISTENT_HIGH -> AlertConfig(
@@ -271,14 +271,14 @@ object AlertDefaults {
                 threshold = if (isMmol) PERSISTENT_HIGH_THRESHOLD_MMOL else PERSISTENT_HIGH_THRESHOLD_MGDL,
                 durationMinutes = PERSISTENT_HIGH_MINUTES,
                 deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
-                volumeProfile = VolumeProfile.MEDIUM,
+                hapticProfile = HapticProfile.STEADY,
                 defaultSnoozeMinutes = 60
             )
             AlertType.SENSOR_EXPIRY -> AlertConfig(
                 type = type,
                 enabled = false,
                 deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
-                volumeProfile = VolumeProfile.MEDIUM,
+                hapticProfile = HapticProfile.SOFT,
                 soundEnabled = true,
                 defaultSnoozeMinutes = 120
             )
@@ -287,7 +287,7 @@ object AlertDefaults {
                 enabled = false,
                 durationMinutes = 30,
                 deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
-                volumeProfile = VolumeProfile.VIBRATE_ONLY,
+                hapticProfile = HapticProfile.STEADY,
                 defaultSnoozeMinutes = 30
             )
             else -> AlertConfig(type = type)

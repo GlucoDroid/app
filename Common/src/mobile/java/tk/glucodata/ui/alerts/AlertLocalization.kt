@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import tk.glucodata.R
 import tk.glucodata.alerts.AlertDeliveryMode
-import tk.glucodata.alerts.VolumeProfile
+import tk.glucodata.alerts.HapticProfile
 
 @Composable
 internal fun AlertDeliveryMode.localizedName(): String = stringResource(
@@ -16,12 +16,11 @@ internal fun AlertDeliveryMode.localizedName(): String = stringResource(
 )
 
 @Composable
-internal fun VolumeProfile.localizedName(): String = stringResource(
+internal fun HapticProfile.localizedName(): String = stringResource(
     when (this) {
-        VolumeProfile.HIGH -> R.string.volume_profile_high
-        VolumeProfile.MEDIUM -> R.string.volume_profile_medium
-        VolumeProfile.ASCENDING -> R.string.volume_profile_ascending
-        VolumeProfile.VIBRATE_ONLY -> R.string.volume_profile_vibrate_only
-        VolumeProfile.SILENT -> R.string.volume_profile_silent
+        HapticProfile.SOFT -> R.string.haptic_profile_soft
+        HapticProfile.STEADY -> R.string.haptic_profile_steady
+        HapticProfile.STRONG -> R.string.haptic_profile_strong
+        HapticProfile.ESCALATING -> R.string.haptic_profile_escalating
     }
 )

@@ -58,7 +58,6 @@ import android.graphics.Bitmap; // Added Import
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
-import android.media.MediaMetadataRetriever;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.os.VibrationEffect;
@@ -71,7 +70,6 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Vibrator;
 import android.os.VibratorManager;
-import android.provider.DocumentsContract;
 import android.util.DisplayMetrics;
 import android.widget.RemoteViews;
 
@@ -251,24 +249,6 @@ public class Notify {
         return "alert sound";
     }
 
-    private static boolean shouldPreferMediaPlayer(Uri uri) {
-        if (uri == null) {
-            return false;
-        }
-        final String scheme = uri.getScheme();
-        if ("file".equalsIgnoreCase(scheme)) {
-            return true;
-        }
-        if (!"content".equalsIgnoreCase(scheme)) {
-            return false;
-        }
-        try {
-            return DocumentsContract.isDocumentUri(Applic.app, uri);
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
     private AlertSoundHandle buildMediaPlayerHandle(Uri uri, boolean useAlarmStream) {
         MediaPlayer player = null;
         try {
@@ -277,6 +257,7 @@ public class Notify {
                 player.setAudioAttributes(useAlarmStream ? ScanNfcV.audioattributes : notification_audio);
             }
             player.setDataSource(Applic.app, uri);
+            player.setLooping(true);
             player.prepare();
             return new AlertSoundHandle(null, player, resolveSoundTitle(uri, null));
         } catch (Throwable th) {
@@ -298,11 +279,9 @@ public class Notify {
         final boolean useAlarmStream = (!AlertType.Companion.isLegacyOnlyId(kind) && getUSEALARM() && disturb);
         final Uri requestedUri = Uri.parse(requestedUriString);
 
-        if (shouldPreferMediaPlayer(requestedUri)) {
-            final AlertSoundHandle mediaHandle = buildMediaPlayerHandle(requestedUri, useAlarmStream);
-            if (mediaHandle != null) {
-                return mediaHandle;
-            }
+        final AlertSoundHandle mediaHandle = buildMediaPlayerHandle(requestedUri, useAlarmStream);
+        if (mediaHandle != null) {
+            return mediaHandle;
         }
 
         Ringtone ringtone = RingtoneManager.getRingtone(Applic.app, requestedUri);
@@ -315,13 +294,6 @@ public class Notify {
                 }
             }
             return new AlertSoundHandle(ringtone, null, resolveSoundTitle(requestedUri, ringtone));
-        }
-
-        if (!shouldPreferMediaPlayer(requestedUri)) {
-            final AlertSoundHandle mediaHandle = buildMediaPlayerHandle(requestedUri, useAlarmStream);
-            if (mediaHandle != null) {
-                return mediaHandle;
-            }
         }
 
         final Uri fallbackParsedUri = Uri.parse(fallbackUri);
@@ -804,10 +776,18 @@ public class Notify {
     private static Runnable runstopalarm = null;
     private static ScheduledFuture<?> stopschedule = null;
     private static final long RETRY_RESHOW_GAP_MS = 10_000L;
+    private static final long ALERT_EFFECT_QUIET_GAP_MS = 10_000L;
     private static final Object retrySessionLock = new Object();
+    private static final Object alertEffectLock = new Object();
     private static ScheduledFuture<?> retrySessionSchedule = null;
     private static AlertRetrySession activeRetrySession = null;
     private static volatile boolean alarmUiVisible = false;
+    private static ScheduledFuture<?> delayedAlertEffectSchedule = null;
+    private static long delayedAlertEffectGeneration = 0L;
+    private static int delayedAlertEffectPriority = Integer.MIN_VALUE;
+    private static AlertSoundHandle delayedAlertSoundHandle = null;
+    private static long nextAlertEffectStartAllowedMs = 0L;
+    private static long manualEffectBypassUntilMs = 0L;
 
     private static final class AlertRetrySession {
         int kind;
@@ -959,131 +939,21 @@ public class Notify {
         fornotify(makearrownotification(kind, glvalue, message, glucose, GLUCOSENOTIFICATION, true));
     }
 
+    private static final int MIN_ALERT_DURATION_SECONDS = 1;
+    private static final int MAX_ALERT_DURATION_SECONDS = 60;
+    private static final int DEFAULT_ALERT_DURATION_SECONDS = 10;
+
     private static int sanitizeAlarmDurationSeconds(int durationSeconds) {
-        if (durationSeconds <= 0 || durationSeconds > 120) {
-            return 60;
+        if (durationSeconds < MIN_ALERT_DURATION_SECONDS || durationSeconds > MAX_ALERT_DURATION_SECONDS) {
+            return DEFAULT_ALERT_DURATION_SECONDS;
         }
         return durationSeconds;
     }
 
-    private static Uri resolveAlertSoundUri(String uristr, int fallbackResId) {
-        if (uristr == null || uristr.isEmpty()) {
-            uristr = "android.resource://" + Applic.app.getPackageName() + "/" + fallbackResId;
-        }
-        return Uri.parse(uristr);
-    }
-
-    private static long estimateSoundDurationMs(String uristr, int fallbackResId) {
-        final Uri uri = resolveAlertSoundUri(uristr, fallbackResId);
-        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-        try {
-            retriever.setDataSource(Applic.app, uri);
-            final String duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-            if (duration != null && !duration.isEmpty()) {
-                return Long.parseLong(duration);
-            }
-        } catch (Throwable th) {
-            if (doLog) {
-                Log.i(LOG_ID, "estimateSoundDurationMs metadata failed: " + th);
-            }
-        } finally {
-            try {
-                retriever.release();
-            } catch (Throwable ignored) {
-            }
-        }
-
-        MediaPlayer player = null;
-        try {
-            player = MediaPlayer.create(Applic.app, uri);
-            if (player != null) {
-                final int duration = player.getDuration();
-                if (duration > 0) {
-                    return duration;
-                }
-            }
-        } catch (Throwable th) {
-            if (doLog) {
-                Log.i(LOG_ID, "estimateSoundDurationMs player failed: " + th);
-            }
-        } finally {
-            if (player != null) {
-                try {
-                    player.release();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-        return 0L;
-    }
-
-    private static long estimateVibrationDurationMs(int kind, String profileName) {
-        if (profileName != null && "SILENT".equals(profileName.toUpperCase())) {
-            return 0L;
-        }
-        final long[] timings;
-        if (kind == 0) {
-            timings = new long[] { 0, 200, 100, 200, 100, 800, 200 };
-        } else if (kind == 1) {
-            timings = new long[] { 0, 150, 100, 150, 100, 150, 100, 150, 300 };
-        } else if (kind == 5) {
-            timings = new long[] { 0, 300, 100, 300, 100, 300, 100, 1000, 200 };
-        } else if (kind == 6) {
-            timings = new long[] { 0, 800, 200, 800, 500 };
-        } else if (kind == 7 || kind == 8) {
-            timings = new long[] { 0, 400, 200, 400, 500 };
-        } else if (kind == 4) {
-            timings = new long[] { 0, 500, 1000, 500, 1000 };
-        } else {
-            timings = new long[] { 0, 500, 200, 500, 500 };
-        }
-        long total = 0L;
-        for (long timing : timings) {
-            total += timing;
-        }
-        return total;
-    }
-
-    private static int getFlashCountForProfile(String profile) {
-        if (profile == null) {
-            return 2;
-        }
-        switch (profile.toUpperCase()) {
-            case "HIGH":
-                return 6;
-            case "MEDIUM":
-                return 4;
-            case "ASCENDING":
-            default:
-                return 2;
-        }
-    }
-
-    private static long estimateFlashDurationMs(String profile) {
-        final int flashCount = getFlashCountForProfile(profile);
-        final long flashPeriod = 200L;
-        return Math.max(flashPeriod, ((flashCount * 2L) - 1L) * flashPeriod);
-    }
-
     public static long estimateAlertEffectDurationMs(String soundUri, int kind, boolean sound, boolean flash,
-            boolean vibrate, String profileName, int configuredDurationSeconds) {
+            boolean vibrate, String hapticProfileName, int configuredDurationSeconds) {
         final int sanitizedDurationSeconds = sanitizeAlarmDurationSeconds(configuredDurationSeconds);
-        final long configuredDurationMs = TimeUnit.SECONDS.toMillis(sanitizedDurationSeconds);
-        final int fallbackResId = defaults[Math.max(0, Math.min(kind, defaults.length - 1))];
-        long longestEffectMs = 0L;
-        if (sound) {
-            longestEffectMs = Math.max(longestEffectMs, estimateSoundDurationMs(soundUri, fallbackResId));
-        }
-        if (vibrate) {
-            longestEffectMs = Math.max(longestEffectMs, estimateVibrationDurationMs(kind, profileName));
-        }
-        if (flash) {
-            longestEffectMs = Math.max(longestEffectMs, estimateFlashDurationMs(profileName));
-        }
-        if (longestEffectMs <= 0L) {
-            return configuredDurationMs;
-        }
-        return Math.min(configuredDurationMs, longestEffectMs);
+        return TimeUnit.SECONDS.toMillis(sanitizedDurationSeconds);
     }
 
     private static float resolveAlarmRate(float requestedRate, boolean isHigh, boolean isTest) {
@@ -1413,6 +1283,24 @@ public class Notify {
         return true;
     }
 
+    private static boolean isDeviceInteractiveAndUnlocked() {
+        try {
+            final PowerManager powerManager = (PowerManager) Applic.app.getSystemService(Context.POWER_SERVICE);
+            if (powerManager != null && !powerManager.isInteractive()) {
+                return false;
+            }
+            final KeyguardManager keyguardManager = (KeyguardManager) Applic.app.getSystemService(Context.KEYGUARD_SERVICE);
+            return keyguardManager == null || !keyguardManager.isDeviceLocked();
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "isDeviceInteractiveAndUnlocked", th);
+            return false;
+        }
+    }
+
+    private static boolean shouldTryDirectAlarmActivity() {
+        return isAlarmUiForeground() || isDeviceInteractiveAndUnlocked();
+    }
+
     static public void stopalarm() {
         stopalarmnotsend(true);
     }
@@ -1424,7 +1312,70 @@ public class Notify {
         alarmUiVisible = visible;
     }
 
+    private static int alertEffectPriority(int kind) {
+        switch (kind) {
+            case 5: // Very low
+                return 100;
+            case 0: // Low
+                return 90;
+            case 6: // Very high
+                return 85;
+            case 4: // Loss
+            case 9: // Missed reading
+                return 80;
+            case 1: // High
+                return 70;
+            case 10: // Persistent high
+                return 60;
+            case 7: // Forecast low
+            case 8: // Forecast high
+                return 50;
+            case 11: // Sensor expiry
+                return 30;
+            default:
+                return 40;
+        }
+    }
+
+    private static void stopSoundHandleQuietly(AlertSoundHandle soundHandle) {
+        if (soundHandle == null || !soundHandle.isPresent()) {
+            return;
+        }
+        try {
+            soundHandle.stop();
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "stopSoundHandleQuietly", th);
+        }
+    }
+
+    private static void cancelDelayedAlertEffectsLocked(String reason) {
+        final boolean hadDelayed = delayedAlertEffectSchedule != null || delayedAlertSoundHandle != null;
+        if (delayedAlertEffectSchedule != null) {
+            delayedAlertEffectSchedule.cancel(false);
+            delayedAlertEffectSchedule = null;
+        }
+        if (delayedAlertSoundHandle != null) {
+            stopSoundHandleQuietly(delayedAlertSoundHandle);
+            delayedAlertSoundHandle = null;
+        }
+        delayedAlertEffectPriority = Integer.MIN_VALUE;
+        delayedAlertEffectGeneration++;
+        if (hadDelayed && doLog) {
+            Log.i(LOG_ID, "Cancelled delayed alert effects: " + reason);
+        }
+    }
+
+    private static void allowNextAlertEffectsForTest() {
+        synchronized (alertEffectLock) {
+            manualEffectBypassUntilMs = System.currentTimeMillis() + 5_000L;
+            cancelDelayedAlertEffectsLocked("manual-test");
+        }
+    }
+
     static public void stopalarmnotsend(boolean send) {
+        synchronized (alertEffectLock) {
+            cancelDelayedAlertEffectsLocked("stopalarm");
+        }
         if (!getisalarm()) {
             {
                 if (doLog) {
@@ -1467,27 +1418,20 @@ public class Notify {
 
     Vibrator vibrator = null;
 
-    private void vibrateOneShot(Vibrator vibrator, long[] timings, int[] amplitudes) {
+    private void vibrateWaveform(Vibrator vibrator, long[] timings, int[] amplitudes, int repeatIndex) {
         if (android.os.Build.VERSION.SDK_INT < 33) {
-            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1), ScanNfcV.audioattributes);
+            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, repeatIndex), ScanNfcV.audioattributes);
         } else {
-            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1), ScanNfcV.vibrationattributes);
+            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, repeatIndex), ScanNfcV.vibrationattributes);
         }
     }
 
     private void vibratealarm(int kind) {
         // Lookup profile from SharedPreferences for global alerts
-        String profileName = "HIGH";
-        try {
-            android.content.SharedPreferences prefs = Applic.app.getSharedPreferences("tk.glucodata.alerts",
-                    android.content.Context.MODE_PRIVATE);
-            profileName = prefs.getString("alert_" + kind + "_volume", "HIGH");
-        } catch (Exception e) {
-        }
-        vibratealarm(kind, profileName);
+        vibratealarm(kind, getHapticProfile(kind), DEFAULT_ALERT_DURATION_SECONDS);
     }
 
-    private void vibratealarm(int kind, String profileName) {
+    private void vibratealarm(int kind, String hapticProfileName, int durationSeconds) {
         var context = Applic.app;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             vibrator = ((VibratorManager) (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)))
@@ -1495,16 +1439,22 @@ public class Notify {
         } else
             vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
 
-        if (profileName == null)
-            profileName = "HIGH";
+        if (hapticProfileName == null)
+            hapticProfileName = "STRONG";
 
         float scale = 1.0f;
         boolean ascending = false;
 
-        switch (profileName) {
-            case "MEDIUM":
-                scale = 0.6f;
+        switch (hapticProfileName.toUpperCase()) {
+            case "SOFT":
+            case "LOW":
+                scale = 0.45f;
                 break;
+            case "STEADY":
+            case "MEDIUM":
+                scale = 0.70f;
+                break;
+            case "ESCALATING":
             case "ASCENDING":
                 ascending = true;
                 break;
@@ -1512,7 +1462,7 @@ public class Notify {
                 scale = 0.0f;
                 break;
             default:
-                scale = 1.0f; // HIGH, VIBRATE_ONLY
+                scale = 1.0f; // STRONG, HIGH, VIBRATE_ONLY
         }
 
         if (scale <= 0.01f)
@@ -1536,7 +1486,7 @@ public class Notify {
             amplitudes = new int[] { 0, 255, 0, 255, 0 };
         } else if (kind == 7 || kind == 8) { // PRE_LOW / PRE_HIGH: Gentle wave
             timings = new long[] { 0, 400, 200, 400, 500 };
-            amplitudes = new int[] { 0, 128, 0, 128, 0 }; // Lower intensity by default
+            amplitudes = new int[] { 0, 128, 0, 128, 0 }; // Gentler amplitude by default
         } else if (kind == 4) { // LOSS: Intermittent
             timings = new long[] { 0, 500, 1000, 500, 1000 };
             amplitudes = new int[] { 0, 200, 0, 200, 0 };
@@ -1563,19 +1513,16 @@ public class Notify {
                         amplitudes[i] = 1; // Ensure non-zero if it was meant to be on
                 }
             }
-            vibrateOneShot(vibrator, timings, amplitudes);
+            vibrateWaveform(vibrator, timings, amplitudes, 0);
         } else {
-            // Pre-Oreo fallback (no amplitudes support in standard API effectively)
-            vibrator.vibrate(timings, -1);
+            // Pre-Oreo fallback: repeat until the scheduled alarm stop cancels it.
+            vibrator.vibrate(timings, 0);
         }
 
-        {
-            if (doLog) {
-                Log.i(LOG_ID, "vibratealarm " + kind + " profile=" + profileName);
-            }
-            ;
+        if (doLog) {
+            Log.i(LOG_ID, "vibratealarm " + kind + " hapticProfile=" + hapticProfileName
+                    + " duration=" + sanitizeAlarmDurationSeconds(durationSeconds));
         }
-        ;
     }
 
     void stopvibratealarm() {
@@ -1593,15 +1540,8 @@ public class Notify {
 
     private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
             boolean disturb, int kind) {
-        // Default: use global profile from SharedPrefs
         playringhier(new AlertSoundHandle(ring, null, resolveSoundTitle(null, ring)),
                 duration, sound, flash, vibrate, disturb, kind, null, -1L);
-    }
-
-    private synchronized void playringhier(Ringtone ring, int duration, boolean sound, boolean flash, boolean vibrate,
-            boolean disturb, int kind, String intensityProfile) {
-        playringhier(new AlertSoundHandle(ring, null, resolveSoundTitle(null, ring)),
-                duration, sound, flash, vibrate, disturb, kind, intensityProfile, -1L);
     }
 
     private synchronized void playringhier(AlertSoundHandle soundHandle, int duration, boolean sound, boolean flash,
@@ -1610,20 +1550,60 @@ public class Notify {
     }
 
     private synchronized void playringhier(AlertSoundHandle soundHandle, int duration, boolean sound, boolean flash,
-            boolean vibrate, boolean disturb, int kind, String intensityProfile) {
-        playringhier(soundHandle, duration, sound, flash, vibrate, disturb, kind, intensityProfile, -1L);
-    }
-
-    private synchronized void playringhier(AlertSoundHandle soundHandle, int duration, boolean sound, boolean flash,
-            boolean vibrate, boolean disturb, int kind, String intensityProfile, long effectDurationMs) {
+            boolean vibrate, boolean disturb, int kind, String hapticProfile, long effectDurationMs) {
         final int sanitizedDuration = sanitizeAlarmDurationSeconds(duration);
         if (sanitizedDuration != duration) {
             duration = sanitizedDuration;
             if (doLog)
-                Log.i(LOG_ID, "Duration capped to 60s (was invalid or >120)");
+                Log.i(LOG_ID, "Duration reset to default (outside 1-60s)");
         }
         final long sanitizedDurationMs = TimeUnit.SECONDS.toMillis(duration);
         final long stopDelayMs = effectDurationMs > 0L ? Math.min(sanitizedDurationMs, effectDurationMs) : sanitizedDurationMs;
+        final long nowMs = System.currentTimeMillis();
+        synchronized (alertEffectLock) {
+            final boolean manualBypass = manualEffectBypassUntilMs >= nowMs;
+            if (manualBypass) {
+                manualEffectBypassUntilMs = 0L;
+            } else if (nowMs < nextAlertEffectStartAllowedMs) {
+                final long delayMs = nextAlertEffectStartAllowedMs - nowMs;
+                final int priority = alertEffectPriority(kind);
+                if (delayedAlertEffectSchedule != null && priority < delayedAlertEffectPriority) {
+                    stopSoundHandleQuietly(soundHandle);
+                    if (doLog) {
+                        Log.i(LOG_ID, "Dropping delayed alert effects kind=" + kind
+                                + " because a higher-priority effect is already queued");
+                    }
+                    return;
+                }
+                if (delayedAlertEffectSchedule != null) {
+                    delayedAlertEffectSchedule.cancel(false);
+                    stopSoundHandleQuietly(delayedAlertSoundHandle);
+                }
+                delayedAlertEffectPriority = priority;
+                delayedAlertSoundHandle = soundHandle;
+                final long generation = ++delayedAlertEffectGeneration;
+                final Notify target = this;
+                final int finalDuration = duration;
+                delayedAlertEffectSchedule = Applic.scheduler.schedule(() -> {
+                    synchronized (alertEffectLock) {
+                        if (generation != delayedAlertEffectGeneration) {
+                            return;
+                        }
+                        delayedAlertEffectSchedule = null;
+                        delayedAlertSoundHandle = null;
+                        delayedAlertEffectPriority = Integer.MIN_VALUE;
+                    }
+                    target.playringhier(soundHandle, finalDuration, sound, flash, vibrate, disturb, kind,
+                            hapticProfile, effectDurationMs);
+                }, delayMs, TimeUnit.MILLISECONDS);
+                if (doLog) {
+                    Log.i(LOG_ID, "Delaying alert effects kind=" + kind + " by " + delayMs + "ms");
+                }
+                return;
+            }
+            nextAlertEffectStartAllowedMs = Math.max(nextAlertEffectStartAllowedMs,
+                    nowMs + stopDelayMs + ALERT_EFFECT_QUIET_GAP_MS);
+        }
 
         notifyfocus = true;
         doTurnFocuson();
@@ -1763,8 +1743,7 @@ public class Notify {
         ;
 
         // MOVED EFFECTS START HERE - SAFER
-        // Get intensity profile: use passed value or look up from global settings
-        final String profile = (intensityProfile != null) ? intensityProfile : getVolumeProfile(kind);
+        final String resolvedHapticProfile = (hapticProfile != null) ? hapticProfile : getHapticProfile(kind);
 
         if (sound) {
             if (doplaysound[0] && hasSoundHandle) {
@@ -1777,14 +1756,11 @@ public class Notify {
         }
         if (!isWearable) {
             if (flash) {
-                // Flash count based on intensity: Ascending=2, Medium=4, High=6
-                int flashCount = getFlashCountForProfile(profile);
-                long flashPeriod = 200; // Fixed 200ms period for all intensities
-                Flash.start(app, flashPeriod, flashCount);
+                Flash.start(app, 200L);
             }
         }
         if (vibrate) {
-            vibratealarm(kind, profile);
+            vibratealarm(kind, resolvedHapticProfile, duration);
         }
 
         stopschedule = Applic.scheduler.schedule(runstopalarm, stopDelayMs, TimeUnit.MILLISECONDS);
@@ -1822,43 +1798,33 @@ public class Notify {
         return "NOTIFICATION_ONLY";
     }
 
-    private String getVolumeProfile(int kind) {
+    private String getHapticProfile(int kind) {
         try {
             android.content.SharedPreferences prefs = Applic.app.getSharedPreferences("tk.glucodata.alerts",
                     android.content.Context.MODE_PRIVATE);
-            return prefs.getString("alert_" + kind + "_volume", "HIGH");
+            if (prefs.contains("alert_" + kind + "_haptic")) {
+                return prefs.getString("alert_" + kind + "_haptic", "STRONG");
+            }
+            final String legacyProfile = prefs.getString("alert_" + kind + "_volume", "HIGH");
+            if (legacyProfile == null) {
+                return "STRONG";
+            }
+            switch (legacyProfile.toUpperCase()) {
+                case "MEDIUM":
+                    return "STEADY";
+                case "ASCENDING":
+                    return "ESCALATING";
+                case "LOW":
+                    return "SOFT";
+                case "SILENT":
+                    return "SILENT";
+                case "HIGH":
+                case "VIBRATE_ONLY":
+                default:
+                    return "STRONG";
+            }
         } catch (Exception e) {
-            return "HIGH";
-        }
-    }
-
-    private long getFlashPeriodFromProfile(String profile) {
-        if (profile == null)
-            return 150L;
-        switch (profile.toUpperCase()) {
-            case "LOW":
-                return 1000L;
-            case "MEDIUM":
-                return 500L;
-            case "HIGH":
-            case "ASCENDING":
-            default:
-                return 150L;
-        }
-    }
-
-    private float getVolumeFromProfile(String profile) {
-        if (profile == null)
-            return 1.0f;
-        switch (profile.toUpperCase()) {
-            case "LOW":
-                return 0.4f;
-            case "MEDIUM":
-                return 0.7f;
-            case "HIGH":
-            case "ASCENDING":
-            default:
-                return 1.0f;
+            return "STRONG";
         }
     }
 
@@ -1882,17 +1848,7 @@ public class Notify {
         android.content.SharedPreferences p = Applic.app.getSharedPreferences("tk.glucodata.alerts",
                 android.content.Context.MODE_PRIVATE);
 
-        // Defaults from Natives for legacy (0-8), or standard defaults for new types
-        // SPECIAL CASE: For LOSS (4), Natives now likely holds the Timeout value (e.g.
-        // 20 min).
-        // So we force default sound duration to 60s instead of reading Natives, to
-        // prevent 20-min alarm sounds.
-        int defDuration;
-        if (kind == 4) {
-            defDuration = 60;
-        } else {
-            defDuration = (kind <= 8) ? Natives.readalarmduration(kind) : 0;
-        }
+        int defDuration = DEFAULT_ALERT_DURATION_SECONDS;
 
         boolean defSound = (kind <= 8) ? Natives.alarmhassound(kind) : true;
         boolean defFlash = (kind <= 8) ? Natives.alarmhasflash(kind) : true;
@@ -1911,10 +1867,10 @@ public class Notify {
         Log.i(LOG_ID, "mksound DEBUG: kind=" + kind + " ring=" + (soundHandle != null ? soundHandle.getTitle() : "NULL")
                 + " duration=" + duration + " sound=" + sound + " flash=" + flash + " vibration=" + vibration);
 
-        final String profileName = getVolumeProfile(kind);
+        final String hapticProfileName = getHapticProfile(kind);
         final long effectDurationMs = estimateAlertEffectDurationMs(ringUri, kind, sound, flash, vibration,
-                profileName, duration);
-        playringhier(soundHandle, duration, sound, flash, vibration, dist, kind, profileName, effectDurationMs);
+                hapticProfileName, duration);
+        playringhier(soundHandle, duration, sound, flash, vibration, dist, kind, hapticProfileName, effectDurationMs);
     }
 
     /**
@@ -1963,12 +1919,11 @@ public class Notify {
                 AlertType alertType = AlertType.Companion.fromId(kind);
                 if (alertType != null) {
                     AlertStateTracker.INSTANCE.resetState(alertType);
+                    AlertStateTracker.INSTANCE.allowNextTriggerForTest(alertType);
                 }
+                allowNextAlertEffectsForTest();
 
                 if (kind == 4) {
-                    if (alertType != null) {
-                        AlertStateTracker.INSTANCE.allowNextTriggerForTest(alertType);
-                    }
                     onenot.lossofsignalalarm(kind, R.drawable.loss, message, typeStr, true);
                 } else {
                     notGlucose dummyGlucose = new notGlucose(System.currentTimeMillis(), String.valueOf(dummyValue), 0f,
@@ -1986,26 +1941,26 @@ public class Notify {
      */
 
     public static void triggerCustomAlert(String soundUri, boolean sound, boolean vibrate, boolean flash,
-            boolean isHigh, float glucoseValue, String deliveryMode, String volumeProfile, int durationSeconds,
-            boolean overrideDnd, String customAlertId, String customAlertName, float rate) {
+            boolean isHigh, float glucoseValue, String deliveryMode, String hapticProfile,
+            int durationSeconds, boolean overrideDnd, String customAlertId, String customAlertName, float rate) {
         triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, glucoseValue, false, deliveryMode,
-                volumeProfile, durationSeconds, overrideDnd, customAlertId, customAlertName, rate);
+                hapticProfile, durationSeconds, overrideDnd, customAlertId, customAlertName, rate);
     }
 
     public static void testCustomTrigger(String soundUri, boolean sound, boolean vibrate, boolean flash,
-            boolean isHigh, String deliveryMode, String volumeProfile, int durationSeconds, boolean overrideDnd,
-            String customAlertId, String customAlertName) {
+            boolean isHigh, String deliveryMode, String hapticProfile, int durationSeconds,
+            boolean overrideDnd, String customAlertId, String customAlertName) {
         boolean isMmol = tk.glucodata.Applic.unit == 1;
         float dummyValue = isHigh ? (isMmol ? 12.0f : 216f) : (isMmol ? 3.5f : 63f);
         triggerCustomAlertInternal(soundUri, sound, vibrate, flash, isHigh, dummyValue, true, deliveryMode,
-                volumeProfile, durationSeconds, overrideDnd, customAlertId, customAlertName, Float.NaN);
+                hapticProfile, durationSeconds, overrideDnd, customAlertId, customAlertName, Float.NaN);
     }
 
     private static long lastCustomTriggerTime = 0;
 
     private static void triggerCustomAlertInternal(String soundUri, boolean sound, boolean vibrate, boolean flash,
             boolean isHigh, float glucoseValue, boolean isTest, String deliveryMode,
-            String volumeProfile, int durationSeconds, boolean overrideDnd, String customAlertId,
+            String hapticProfile, int durationSeconds, boolean overrideDnd, String customAlertId,
             String customAlertName, float rate) {
 
         long now = System.currentTimeMillis();
@@ -2013,6 +1968,7 @@ public class Notify {
         if (isTest) {
             if (now - lastCustomTriggerTime < 2000)
                 return;
+            allowNextAlertEffectsForTest();
         }
         lastCustomTriggerTime = now;
 
@@ -2049,7 +2005,7 @@ public class Notify {
 
                 // Alarm mode should always try the full-screen activity first and only
                 // fall back to the notification surface if Android blocks the launch.
-                if ((isAlarmMode || isBothMode) && isAlarmUiForeground()) {
+                if ((isAlarmMode || isBothMode) && shouldTryDirectAlarmActivity()) {
                     activityLaunched = showpopupalarm(glucoseStr.value, message, glucoseStr.rate, kind, customAlertId,
                             mode);
                     if (!activityLaunched && doLog) {
@@ -2060,8 +2016,9 @@ public class Notify {
                 }
 
                 boolean skipBanner = false;
-                // Alarm-only mode should not also post a separate alert notification when the
-                // full-screen alarm activity is already visible.
+                // Alarm-only mode should open the alarm window without posting a parallel
+                // heads-up alert notification. If direct launch failed, skipBanner remains
+                // false and the notification path below becomes the fallback.
                 if (activityLaunched && isAlarmMode && !isBothMode) {
                     skipBanner = true;
                 }
@@ -2088,26 +2045,24 @@ public class Notify {
                         actualUri = soundUri;
                     }
 
-                    // Duration from config (default 10s for test, 30s for real)
-                    int finalDuration = (durationSeconds > 0) ? durationSeconds : (isTest ? 10 : 30);
+                    final int finalDuration = sanitizeAlarmDurationSeconds(
+                            durationSeconds > 0 ? durationSeconds : DEFAULT_ALERT_DURATION_SECONDS);
                     boolean disturb = isWearable || overrideDnd;
 
                     Log.i(LOG_ID, "Custom Alert DND check: overrideDnd=" + overrideDnd + " isWearable=" + isWearable
-                            + " disturb=" + disturb + " intensity=" + volumeProfile);
+                            + " disturb=" + disturb + " haptic=" + hapticProfile);
 
                     // Pass disturb to mkring so it uses the correct audio stream
                     AlertSoundHandle soundHandle = onenot.buildAlertSoundHandle(actualUri, kind, disturb);
                     final long effectDurationMs = estimateAlertEffectDurationMs(actualUri, kind, sound, flash,
-                            vibrate, volumeProfile, finalDuration);
+                            vibrate, hapticProfile, finalDuration);
 
-                    // playringhier with intensity profile - uses custom alert's intensity not
-                    // global
-                    onenot.playringhier(soundHandle, finalDuration, sound, flash, vibrate, disturb, kind, volumeProfile,
-                            effectDurationMs);
+                    onenot.playringhier(soundHandle, finalDuration, sound, flash, vibrate, disturb, kind,
+                            hapticProfile, effectDurationMs);
 
                     if (doLog)
                         Log.i(LOG_ID, "Custom Alert: sound=" + sound + " flash=" + flash + " vibrate=" + vibrate
-                                + " duration=" + finalDuration + " disturb=" + disturb + " intensity=" + volumeProfile);
+                                + " duration=" + finalDuration + " disturb=" + disturb + " haptic=" + hapticProfile);
                 }
 
                 // Keep the regular ongoing glucose notification on its normal surface instead of
@@ -2267,7 +2222,7 @@ public class Notify {
         boolean skipBanner = false;
 
         if (!AlertType.Companion.isLegacyOnlyId(kind)) {
-            String deliveryMode = getDeliveryMode(kind);
+            String deliveryMode = normalizeDeliveryMode(getDeliveryMode(kind));
 
             boolean isSystem = "SYSTEM_ALARM".equals(deliveryMode);
             boolean isBoth = "BOTH".equals(deliveryMode);
@@ -2278,7 +2233,7 @@ public class Notify {
                         deliveryMode, forceLaunch));
             }
 
-            if (forceLaunch && isAlarmUiForeground()) {
+            if (forceLaunch && shouldTryDirectAlarmActivity()) {
                 float rate = (strglucose != null) ? strglucose.rate : Float.NaN;
                 activityLaunched = showpopupalarm(strglucose != null ? strglucose.value : message, message,
                         rate, kind, null, deliveryMode);
@@ -2426,6 +2381,13 @@ public class Notify {
                 } catch (Exception e) {
                     Log.e(LOG_ID, "Error updating retry session: " + e.toString());
                 }
+            }
+
+            if (incomingAlarm) {
+                if (doLog) {
+                    Log.i(LOG_ID, "Suppressed alert did not update UI/notification: kind=" + kind);
+                }
+                return false;
             }
 
             final var act = MainActivity.thisone;

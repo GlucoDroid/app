@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.dp
 import tk.glucodata.R
 import tk.glucodata.alerts.AlertConfig
 import tk.glucodata.alerts.AlertDeliveryMode
-import tk.glucodata.alerts.VolumeProfile
+import tk.glucodata.alerts.MAX_ALERT_DURATION_SECONDS
+import tk.glucodata.alerts.MIN_ALERT_DURATION_SECONDS
+import tk.glucodata.alerts.HapticProfile
 import tk.glucodata.ui.components.StyledSwitch
 import tk.glucodata.ui.util.ConnectedButtonGroup
 
@@ -30,7 +32,8 @@ import tk.glucodata.ui.util.ConnectedButtonGroup
  * Options included:
  * - Feedback Modes (Sound, Vibrate, Flash)
  * - Alert Style (Notification, Alarm, Both)
- * - Intensity (High, Medium, Ascending)
+ * - Duration
+ * - Haptics (Soft, Steady, Strong, Escalating)
  * - Sound Picker (Conditional)
  * - Override Do Not Disturb
  * - Active Time Range
@@ -52,32 +55,34 @@ fun CommonAlertSettings(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-         if (showTestButton) {
-              FilledTonalButton(
-                  onClick = onTest,
-                  modifier = Modifier.fillMaxWidth().padding(horizontal = sectionHorizontalPadding),
-                  contentPadding = PaddingValues(8.dp)
-              ) {
-                  Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                 Spacer(Modifier.width(8.dp))
-                 Text(stringResource(R.string.test_alert))
-             }
-         }
-          
-         // === Header (Thresholds/Durations) ===
-         headerContent?.let {
-             Column(
-                 modifier = Modifier.padding(horizontal = sectionHorizontalPadding),
-                 verticalArrangement = Arrangement.spacedBy(8.dp)
-             ) {
-                 it()
-             }
-         }
+        // === Header (Thresholds/Durations) ===
+        headerContent?.let {
+            Column(
+                modifier = Modifier.padding(horizontal = sectionHorizontalPadding),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                it()
+            }
+        }
 
-          // === Feedback Modes (Sound, Vibrate, Flash) ===
-          // Source: GlobalAlertSettingsCard.kt
+        if (showTestButton) {
+            OutlinedButton(
+                onClick = onTest,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = sectionHorizontalPadding),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.test_alert))
+            }
+        }
+
+        // === Feedback Modes (Sound, Vibrate, Flash) ===
+        // Source: GlobalAlertSettingsCard.kt
         Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
         ) {
             Text(stringResource(R.string.modes))
@@ -129,8 +134,37 @@ fun CommonAlertSettings(
                 unselectedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f), // Transparent-ish on PrimaryContainer
                 unselectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
-        }
 
+            AnimatedVisibility(visible = config.vibrationEnabled) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(R.string.haptics),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val hapticProfileLabels = HapticProfile.entries.associateWith { it.localizedName() }
+                    ConnectedButtonGroup(
+                        options = listOf(
+                            HapticProfile.SOFT,
+                            HapticProfile.STEADY,
+                            HapticProfile.STRONG,
+                            HapticProfile.ESCALATING
+                        ),
+                        selectedOption = config.hapticProfile,
+                        onOptionSelected = { onConfigChange(config.copy(hapticProfile = it)) },
+                        labelText = { hapticProfileLabels[it] ?: it.displayName },
+                        label = { Text(hapticProfileLabels[it] ?: it.displayName, style = MaterialTheme.typography.labelMedium) },
+                        modifier = Modifier.fillMaxWidth(),
+                        itemHeight = 36.dp,
+                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        unselectedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
+                        unselectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+        
         // === Alert Style ===
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -151,29 +185,19 @@ fun CommonAlertSettings(
                 unselectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
-        
-        // === Intensity ===
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
-        ) {
-            Text(stringResource(R.string.intensity))
-            val volumeProfileLabels = VolumeProfile.entries.associateWith { it.localizedName() }
-            ConnectedButtonGroup(
-                options = listOf(VolumeProfile.HIGH, VolumeProfile.MEDIUM, VolumeProfile.ASCENDING),
-                selectedOption = if (config.volumeProfile in listOf(VolumeProfile.VIBRATE_ONLY, VolumeProfile.SILENT)) VolumeProfile.MEDIUM else config.volumeProfile,
-                onOptionSelected = { onConfigChange(config.copy(volumeProfile = it)) },
-                labelText = { volumeProfileLabels[it] ?: it.displayName },
-                label = { Text(volumeProfileLabels[it] ?: it.displayName, style = MaterialTheme.typography.labelLarge) },
-                modifier = Modifier.fillMaxWidth(),
-                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                selectedContentColor = MaterialTheme.colorScheme.onPrimary,
-                unselectedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
-                unselectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+
+        // === Duration ===
+        AnimatedVisibility(visible = config.soundEnabled || config.vibrationEnabled || config.flashEnabled) {
+            DurationSlider(
+                label = stringResource(R.string.duration_label),
+                value = config.alarmDurationSeconds,
+                range = MIN_ALERT_DURATION_SECONDS..MAX_ALERT_DURATION_SECONDS,
+                stepSize = 1,
+                onValueChange = { onConfigChange(config.copy(alarmDurationSeconds = it)) },
+                modifier = Modifier.padding(horizontal = sectionHorizontalPadding),
+                valueText = { seconds -> "$seconds ${stringResource(R.string.sec)}" }
             )
         }
-
-        Spacer(Modifier.height(2.dp))
 
         // === Sound Settings (Conditional) ===
         AnimatedVisibility(visible = config.soundEnabled) {
@@ -214,7 +238,7 @@ fun CommonAlertSettings(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                
+
                 // Override Silent Mode toggle (inside Sound section)
                 ClickableToggleRow(
                     icon = Icons.Default.VolumeOff,

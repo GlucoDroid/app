@@ -26,7 +26,7 @@ data class CustomAlertConfig(
     val vibrate: Boolean = true,
     val flash: Boolean = false,
     val style: String = "alarm", // notification, alarm, both
-    val intensity: String = "medium", // low, medium, high, ascending
+    val hapticProfile: String = "strong", // soft, steady, strong, escalating
     val overrideDnd: Boolean = false,
     val retryEnabled: Boolean = false,
     val retryIntervalMinutes: Int = 0,
@@ -34,7 +34,7 @@ data class CustomAlertConfig(
     
     val snoozedUntil: Long = 0L,
     val soundUri: String? = null,
-    val durationSeconds: Int = 60
+    val durationSeconds: Int = DEFAULT_ALERT_DURATION_SECONDS
 ) {
     fun isActiveTime(currentMinutes: Int): Boolean {
         if (!timeRangeEnabled) return true // Always active if time range disabled
@@ -63,7 +63,7 @@ data class CustomAlertConfig(
             put("vibrate", vibrate)
             put("flash", flash)
             put("style", style)
-            put("intensity", intensity)
+            put("hapticProfile", hapticProfile)
             put("overrideDnd", overrideDnd)
             
             put("retryEnabled", retryEnabled)
@@ -93,9 +93,14 @@ data class CustomAlertConfig(
                 vibrate = json.optBoolean("vibrate", true),
                 flash = json.optBoolean("flash", false),
                 style = json.optString("style", "alarm"),
-                intensity = json.optString("intensity", "medium"),
+                hapticProfile = json.optString(
+                    "hapticProfile",
+                    legacyHapticProfile(json.optString("intensity", "medium"))
+                ),
                 overrideDnd = json.optBoolean("overrideDnd", false),
-                durationSeconds = json.optInt("durationSeconds", 60),
+                durationSeconds = sanitizeAlertDurationSeconds(
+                    json.optInt("durationSeconds", DEFAULT_ALERT_DURATION_SECONDS)
+                ),
                 
                 retryEnabled = json.optBoolean("retryEnabled", false),
                 retryIntervalMinutes = json.optInt("retryInterval", 0),
@@ -104,6 +109,16 @@ data class CustomAlertConfig(
                 snoozedUntil = json.optLong("snoozedUntil", 0L),
                 soundUri = if (json.isNull("soundUri")) null else json.getString("soundUri")
             )
+        }
+
+        private fun legacyHapticProfile(legacyProfile: String): String {
+            return when (legacyProfile.lowercase()) {
+                "medium" -> "steady"
+                "ascending" -> "escalating"
+                "low" -> "soft"
+                "silent" -> "soft"
+                else -> "strong"
+            }
         }
     }
 }

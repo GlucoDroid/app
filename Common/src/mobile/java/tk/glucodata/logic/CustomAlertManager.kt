@@ -15,6 +15,7 @@ import tk.glucodata.alerts.CustomAlertType
 object CustomAlertManager {
     private const val TAG = "CustomAlertManager"
     private const val RETRY_RESHOW_GAP_MS = 10_000L
+    private const val REARM_COOLDOWN_MS = 5L * 60L * 1000L
 
     private data class ActiveSession(
         var config: CustomAlertConfig,
@@ -26,6 +27,7 @@ object CustomAlertManager {
     )
 
     private val lastTriggerMap = mutableMapOf<String, Long>()
+    private val cooldownUntilMap = mutableMapOf<String, Long>()
     private val dismissedMap = mutableSetOf<String>()
     private val sessionLock = Any()
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
@@ -44,6 +46,7 @@ object CustomAlertManager {
         if (allAlerts.isEmpty()) {
             synchronized(sessionLock) {
                 lastTriggerMap.clear()
+                cooldownUntilMap.clear()
                 dismissedMap.clear()
                 clearActiveSessionLocked("no-custom-alerts")
             }
@@ -107,9 +110,15 @@ object CustomAlertManager {
                 return@synchronized
             }
 
+            val cooldownUntil = cooldownUntilMap[candidate.id] ?: 0L
+            if (evaluationMs < cooldownUntil) {
+                return@synchronized
+            }
+
             if (!lastTriggerMap.containsKey(candidate.id)) {
                 val now = System.currentTimeMillis()
                 lastTriggerMap[candidate.id] = now
+                cooldownUntilMap[candidate.id] = now + REARM_COOLDOWN_MS
                 activeSession = ActiveSession(
                     config = candidate,
                     glucose = glucose,
@@ -176,7 +185,7 @@ object CustomAlertManager {
             config.type == CustomAlertType.HIGH,
             glucose,
             config.style,
-            config.intensity,
+            config.hapticProfile,
             config.durationSeconds,
             config.overrideDnd,
             config.id,
@@ -200,7 +209,7 @@ object CustomAlertManager {
             session.config.sound,
             session.config.flash,
             session.config.vibrate,
-            session.config.intensity,
+            session.config.hapticProfile,
             session.config.durationSeconds
         )
         val intervalMs = retryIntervalMs(session.config)
@@ -268,6 +277,7 @@ object CustomAlertManager {
             session.retriesUsed += 1
             sessionSnapshot = session.copy(config = refreshedConfig, glucose = session.glucose, rate = session.rate, lastFireStartedAtMs = now, retriesUsed = session.retriesUsed, scheduledRetry = null)
             lastTriggerMap[alertId] = now
+            cooldownUntilMap[alertId] = now + REARM_COOLDOWN_MS
             scheduleRetryFromStartLocked(session)
         }
 

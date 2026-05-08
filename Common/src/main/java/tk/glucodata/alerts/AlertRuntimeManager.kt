@@ -11,6 +11,11 @@ import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.SuperGattCallback
 
+data class AlertRuntimeEvaluation(
+    val standardGlucoseAlertHandled: Boolean = false,
+    val standardGlucoseAlertStarted: Boolean = false
+)
+
 object AlertRuntimeManager {
     private const val LOG_ID = "AlertRuntimeManager"
     private const val CHECK_INTERVAL_MS = 15_000L
@@ -26,13 +31,13 @@ object AlertRuntimeManager {
     private var lastRate: Float = Float.NaN
     private var persistentHighStartedAtMs: Long = 0L
 
-    private val standardAlertTypes = listOf(
-        AlertType.VERY_HIGH,
-        AlertType.HIGH,
+    private val standardGlucoseAlertTypes = listOf(
         AlertType.VERY_LOW,
         AlertType.LOW,
-        AlertType.PRE_HIGH,
-        AlertType.PRE_LOW
+        AlertType.VERY_HIGH,
+        AlertType.HIGH,
+        AlertType.PRE_LOW,
+        AlertType.PRE_HIGH
     )
 
     fun ensureMonitoring() {
@@ -43,11 +48,24 @@ object AlertRuntimeManager {
         }
     }
 
-    fun onNewReading(glucoseValue: Float, rate: Float, readingTimeMs: Long) {
+    fun onNewReading(glucoseValue: Float, rate: Float, readingTimeMs: Long): AlertRuntimeEvaluation {
+        return onNewReading(null, glucoseValue, rate, readingTimeMs, 0)
+    }
+
+    @JvmOverloads
+    fun onNewReading(
+        sensorId: String?,
+        glucoseValue: Float,
+        rate: Float,
+        readingTimeMs: Long,
+        sensorGen: Int = 0
+    ): AlertRuntimeEvaluation {
         val snapshot = CurrentDisplaySource.resolveIncomingReading(
             liveNumericValue = glucoseValue,
             rate = rate,
-            targetTimeMillis = readingTimeMs
+            targetTimeMillis = readingTimeMs,
+            preferredSensorId = sensorId,
+            sensorGen = sensorGen
         )
         synchronized(lock) {
             lastReadingTimeMs = maxOf(lastReadingTimeMs, readingTimeMs)
@@ -60,7 +78,7 @@ object AlertRuntimeManager {
             }
             lastDeliveredReadingTimeMs = maxOf(lastDeliveredReadingTimeMs, readingTimeMs)
             ensureTaskLocked()
-            evaluateLocked(readingTimeMs)
+            return evaluateLocked(readingTimeMs)
         }
     }
 
@@ -79,14 +97,15 @@ object AlertRuntimeManager {
         }
     }
 
-    private fun evaluateLocked(nowMs: Long) {
+    private fun evaluateLocked(nowMs: Long): AlertRuntimeEvaluation {
         bootstrapLastReadingLocked()
         syncCurrentReadingLocked()
 
-        evaluateStandardGlucoseAlertsLocked()
+        val standardAlertEvaluation = evaluateStandardGlucoseAlertsLocked()
         evaluateMissedReadingLocked(nowMs)
         evaluatePersistentHighLocked(nowMs)
         evaluateSensorExpiryLocked(nowMs)
+        return standardAlertEvaluation
     }
 
     private fun syncCurrentReadingLocked() {
@@ -129,29 +148,36 @@ object AlertRuntimeManager {
         }
     }
 
-    private fun evaluateStandardGlucoseAlertsLocked() {
-        val glucoseValue = currentGlucoseValueLocked() ?: return
+    private fun evaluateStandardGlucoseAlertsLocked(): AlertRuntimeEvaluation {
+        val glucoseValue = currentGlucoseValueLocked() ?: return AlertRuntimeEvaluation()
         val rate = currentRateLocked()
-        val configs = standardAlertTypes.associateWith { AlertRepository.loadConfig(it) }
-        val activeType = resolveActiveStandardAlertType(glucoseValue, rate, configs)
+        val configs = standardGlucoseAlertTypes.associateWith { AlertRepository.loadConfig(it) }
+        val activeType = resolveActiveStandardGlucoseAlert(glucoseValue, rate, configs)
 
-        standardAlertTypes.forEach { type ->
+        standardGlucoseAlertTypes.forEach { type ->
             if (type != activeType) {
-                clearRuntimeAlert(type, "display-condition-cleared")
+                clearRuntimeAlert(type, "standard-condition-cleared")
             }
         }
 
-        val type = activeType ?: return
-        val config = configs[type] ?: return
-        if (!config.isActiveNow() || SnoozeManager.isSnoozed(type)) {
-            return
+        val type = activeType ?: return AlertRuntimeEvaluation()
+        val config = configs[type] ?: return AlertRuntimeEvaluation()
+        if (!config.isActiveNow()) {
+            clearRuntimeAlert(type, "standard-time-inactive")
+            return AlertRuntimeEvaluation()
+        }
+        if (SnoozeManager.isSnoozed(type)) {
+            return AlertRuntimeEvaluation()
         }
 
         val message = Applic.app.getString(type.nameResId) + " " + Notify.glucosestr(glucoseValue)
-        triggerAlert(type, glucoseValue, rate, message)
+        return AlertRuntimeEvaluation(
+            standardGlucoseAlertHandled = true,
+            standardGlucoseAlertStarted = triggerAlert(type, glucoseValue, rate, message)
+        )
     }
 
-    private fun resolveActiveStandardAlertType(
+    private fun resolveActiveStandardGlucoseAlert(
         glucoseValue: Float,
         rate: Float,
         configs: Map<AlertType, AlertConfig>
@@ -162,17 +188,25 @@ object AlertRuntimeManager {
             return config.threshold?.takeIf { it.isFinite() && it > 0f }
         }
 
-        threshold(AlertType.VERY_HIGH)?.let { if (glucoseValue >= it) return AlertType.VERY_HIGH }
-        threshold(AlertType.HIGH)?.let { if (glucoseValue >= it) return AlertType.HIGH }
         threshold(AlertType.VERY_LOW)?.let { if (glucoseValue <= it) return AlertType.VERY_LOW }
         threshold(AlertType.LOW)?.let { if (glucoseValue <= it) return AlertType.LOW }
+        threshold(AlertType.VERY_HIGH)?.let { if (glucoseValue >= it) return AlertType.VERY_HIGH }
+        threshold(AlertType.HIGH)?.let { if (glucoseValue >= it) return AlertType.HIGH }
 
-        val projected = if (rate.isFinite()) glucoseValue + rate * 0.4f * 180.0f else Float.NaN
+        val projected = projectedGlucose(glucoseValue, rate)
         if (projected.isFinite()) {
-            threshold(AlertType.PRE_HIGH)?.let { if (projected >= it) return AlertType.PRE_HIGH }
             threshold(AlertType.PRE_LOW)?.let { if (projected <= it) return AlertType.PRE_LOW }
+            threshold(AlertType.PRE_HIGH)?.let { if (projected >= it) return AlertType.PRE_HIGH }
         }
+
         return null
+    }
+
+    private fun projectedGlucose(glucoseValue: Float, rate: Float): Float {
+        if (!glucoseValue.isFinite() || !rate.isFinite()) {
+            return Float.NaN
+        }
+        return glucoseValue + rate * 0.4f * 180.0f
     }
 
     private fun evaluateMissedReadingLocked(nowMs: Long) {
@@ -185,7 +219,11 @@ object AlertRuntimeManager {
             return
         }
 
-        if (!config.isActiveNow() || SnoozeManager.isSnoozed(type)) {
+        if (!config.isActiveNow()) {
+            clearRuntimeAlert(type, "missed-reading-time-inactive")
+            return
+        }
+        if (SnoozeManager.isSnoozed(type)) {
             return
         }
 
@@ -225,7 +263,12 @@ object AlertRuntimeManager {
             persistentHighStartedAtMs = lastReadingTimeMs.takeIf { it > 0L } ?: nowMs
         }
 
-        if (!config.isActiveNow() || SnoozeManager.isSnoozed(type)) {
+        if (!config.isActiveNow()) {
+            persistentHighStartedAtMs = 0L
+            clearRuntimeAlert(type, "persistent-high-time-inactive")
+            return
+        }
+        if (SnoozeManager.isSnoozed(type)) {
             return
         }
 
@@ -256,7 +299,11 @@ object AlertRuntimeManager {
             return
         }
 
-        if (!config.isActiveNow() || SnoozeManager.isSnoozed(type)) {
+        if (!config.isActiveNow()) {
+            clearRuntimeAlert(type, "sensor-expiry-time-inactive")
+            return
+        }
+        if (SnoozeManager.isSnoozed(type)) {
             return
         }
 
@@ -268,14 +315,16 @@ object AlertRuntimeManager {
         triggerAlert(type, glucoseValue, currentRateLocked(), message)
     }
 
-    private fun triggerAlert(type: AlertType, glucoseValue: Float, rate: Float, message: String) {
+    private fun triggerAlert(type: AlertType, glucoseValue: Float, rate: Float, message: String): Boolean {
         try {
             val triggered = Notify.triggerSupplementalGlucoseAlert(type.id, glucoseValue, rate, message)
             if (triggered) {
                 Log.i(LOG_ID, "Triggered ${type.name}: $message")
             }
+            return triggered
         } catch (t: Throwable) {
             Log.stack(LOG_ID, "triggerAlert ${type.name}", t)
+            return false
         }
     }
 

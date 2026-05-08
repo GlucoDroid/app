@@ -211,9 +211,10 @@ fun AlertSettingsScreen(
                                   vibrationEnabled = draft.vibrationEnabled,
                                   flashEnabled = draft.flashEnabled,
                                   deliveryMode = draft.deliveryMode,
-                                  volumeProfile = draft.volumeProfile,
+                                  hapticProfile = draft.hapticProfile,
                                   customSoundUri = draft.customSoundUri,
                                   overrideDND = draft.overrideDND,
+                                  alarmDurationSeconds = draft.alarmDurationSeconds,
                                   timeRangeEnabled = draft.timeRangeEnabled,
                                   activeStartHour = draft.activeStartHour,
                                   activeStartMinute = draft.activeStartMinute,
@@ -238,12 +239,8 @@ fun AlertSettingsScreen(
                                     AlertDeliveryMode.SYSTEM_ALARM -> "alarm"
                                     AlertDeliveryMode.BOTH -> "both"
                                 },
-                                intensity = when(draft.volumeProfile) {
-                                    VolumeProfile.HIGH -> "high"
-                                    VolumeProfile.MEDIUM -> "medium"
-                                    VolumeProfile.ASCENDING -> "ascending"
-                                    else -> "high"
-                                },
+                                hapticProfile = draft.hapticProfile.name.lowercase(),
+                                durationSeconds = draft.alarmDurationSeconds,
                                 overrideDnd = draft.overrideDND,
                                 retryEnabled = draft.retryEnabled,
                                 retryIntervalMinutes = draft.retryIntervalMinutes,
@@ -722,7 +719,8 @@ fun CustomAlertCard(
                         customSoundUri = alert.soundUri,
                         vibrationEnabled = alert.vibrate,
                         flashEnabled = alert.flash,
-                        volumeProfile = VolumeProfile.valueOf(alert.intensity.uppercase()),
+                        hapticProfile = customHapticProfile(alert.hapticProfile),
+                        alarmDurationSeconds = sanitizeAlertDurationSeconds(alert.durationSeconds),
                         deliveryMode = when(alert.style.lowercase()) {
                             "alarm", "system_alarm" -> AlertDeliveryMode.SYSTEM_ALARM
                             "both" -> AlertDeliveryMode.BOTH
@@ -769,7 +767,8 @@ fun CustomAlertCard(
                                     AlertDeliveryMode.BOTH -> "both"
                                     else -> "notification"
                                 },
-                                intensity = newConfig.volumeProfile.name,
+                                hapticProfile = newConfig.hapticProfile.name.lowercase(),
+                                durationSeconds = sanitizeAlertDurationSeconds(newConfig.alarmDurationSeconds),
                                 overrideDnd = newConfig.overrideDND,
                                 retryEnabled = newConfig.retryEnabled,
                                 retryIntervalMinutes = newConfig.retryIntervalMinutes,
@@ -789,8 +788,8 @@ fun CustomAlertCard(
                                 alert.flash,
                                 alert.type == CustomAlertType.HIGH,
                                 alert.style,
-                                alert.intensity,
-                                alert.durationSeconds,
+                                alert.hapticProfile,
+                                sanitizeAlertDurationSeconds(alert.durationSeconds),
                                 alert.overrideDnd,
                                 alert.id,
                                 alert.name
@@ -880,6 +879,17 @@ private fun cardShape(position: CardPosition, radius: androidx.compose.ui.unit.D
         CardPosition.TOP -> RoundedCornerShape(topStart = radius, topEnd = radius, bottomStart = 4.dp, bottomEnd = 4.dp)
         CardPosition.MIDDLE -> RoundedCornerShape(4.dp)
         CardPosition.BOTTOM -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = radius, bottomEnd = radius)
+    }
+}
+
+private fun customHapticProfile(value: String): HapticProfile {
+    return runCatching { HapticProfile.valueOf(value.uppercase()) }.getOrElse {
+        when (value.lowercase()) {
+            "soft", "low", "silent" -> HapticProfile.SOFT
+            "steady", "medium" -> HapticProfile.STEADY
+            "escalating", "ascending" -> HapticProfile.ESCALATING
+            else -> HapticProfile.STRONG
+        }
     }
 }
 
@@ -1136,7 +1146,7 @@ private fun ThresholdSlider(
 }
 
 /**
- * Duration slider with snapping to useful values (every 5 mins).
+ * Duration slider with snapping to useful values.
  */
 @Composable
 internal fun DurationSlider(
@@ -1145,9 +1155,14 @@ internal fun DurationSlider(
     range: IntRange,
     stepSize: Int = 5,
     onValueChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    valueText: @Composable (Int) -> String = { stringResource(R.string.minutes_short_format, it) }
 ) {
-    val steps = ((range.last - range.first) / stepSize) - 1
+    val steps = if (stepSize <= 1) {
+        0
+    } else {
+        ((range.last - range.first) / stepSize) - 1
+    }
 
     Column(modifier = modifier) {
         var sliderValue by remember { mutableStateOf(value.toFloat()) }
@@ -1164,7 +1179,7 @@ internal fun DurationSlider(
         ) {
             Text(label, style = MaterialTheme.typography.bodyMedium)
             Text(
-                stringResource(R.string.minutes_short_format, displayValue),
+                valueText(displayValue),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -1212,49 +1227,6 @@ private fun DeliveryModeSelector(
                     modifier = Modifier.weight(1f)
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun VolumeProfileSelector(
-    profile: VolumeProfile,
-    onProfileChange: (VolumeProfile) -> Unit
-) {
-    Column {
-        val volumeProfileLabels = VolumeProfile.entries.associateWith { it.localizedName() }
-        Text(
-            stringResource(R.string.volume_vibration_profile),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            VolumeProfile.entries.take(3).forEach { volumeProfile ->
-                FilterChip(
-                    selected = profile == volumeProfile,
-                    onClick = { onProfileChange(volumeProfile) },
-                    label = { Text(volumeProfileLabels[volumeProfile] ?: volumeProfile.displayName) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            VolumeProfile.entries.drop(3).forEach { volumeProfile ->
-                FilterChip(
-                    selected = profile == volumeProfile,
-                    onClick = { onProfileChange(volumeProfile) },
-                    label = { Text(volumeProfileLabels[volumeProfile] ?: volumeProfile.displayName) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.weight(1f)) // Balance the row
         }
     }
 }

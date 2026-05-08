@@ -249,9 +249,10 @@ private fun AlertConfig.sameMasterDraft(other: AlertConfig): Boolean {
         vibrationEnabled == other.vibrationEnabled &&
         flashEnabled == other.flashEnabled &&
         deliveryMode == other.deliveryMode &&
-        volumeProfile == other.volumeProfile &&
+        hapticProfile == other.hapticProfile &&
         customSoundUri == other.customSoundUri &&
         overrideDND == other.overrideDND &&
+        alarmDurationSeconds == other.alarmDurationSeconds &&
         timeRangeEnabled == other.timeRangeEnabled &&
         activeStartHour == other.activeStartHour &&
         activeStartMinute == other.activeStartMinute &&

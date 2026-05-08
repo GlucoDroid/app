@@ -31,7 +31,7 @@ object AlertRepository {
     private fun keyDuration(type: AlertType) = "alert_${type.id}_duration"
     private fun keyForecast(type: AlertType) = "alert_${type.id}_forecast"
     private fun keyDeliveryMode(type: AlertType) = "alert_${type.id}_delivery"
-    private fun keyVolumeProfile(type: AlertType) = "alert_${type.id}_volume"
+    private fun keyHapticProfile(type: AlertType) = "alert_${type.id}_haptic"
     private fun keyOverrideDND(type: AlertType) = "alert_${type.id}_dnd"
     private fun keySoundEnabled(type: AlertType) = "alert_${type.id}_sound"
     private fun keyCustomSound(type: AlertType) = "alert_${type.id}_soundUri"
@@ -48,6 +48,21 @@ object AlertRepository {
     private fun keyRetryEnabled(type: AlertType) = "alert_${type.id}_retryOn"
     private fun keyRetryInterval(type: AlertType) = "alert_${type.id}_retryInt"
     private fun keyRetryCount(type: AlertType) = "alert_${type.id}_retryCnt"
+
+    private inline fun <reified T : Enum<T>> parseEnumPref(value: String?, fallback: T): T {
+        return value?.let { raw ->
+            runCatching { enumValueOf<T>(raw.uppercase()) }.getOrNull()
+        } ?: fallback
+    }
+
+    private fun readAlarmDurationSeconds(type: AlertType, fallback: Int): Int {
+        val value = if (prefs.contains(keyAlarmDuration(type))) {
+            prefs.getInt(keyAlarmDuration(type), fallback)
+        } else {
+            fallback
+        }
+        return sanitizeAlertDurationSeconds(value)
+    }
     
     /**
      * Load configuration for an alert type.
@@ -134,17 +149,15 @@ object AlertRepository {
                 .takeIf { it > 0 },
             forecastMinutes = prefs.getInt(keyForecast(type), base.forecastMinutes ?: 0)
                 .takeIf { it > 0 },
-            deliveryMode = prefs.getString(keyDeliveryMode(type), null)
-                ?.let { AlertDeliveryMode.valueOf(it) } ?: base.deliveryMode,
-            volumeProfile = prefs.getString(keyVolumeProfile(type), null)
-                ?.let { VolumeProfile.valueOf(it) } ?: base.volumeProfile,
+            deliveryMode = parseEnumPref(prefs.getString(keyDeliveryMode(type), null), base.deliveryMode),
+            hapticProfile = parseEnumPref(prefs.getString(keyHapticProfile(type), null), base.hapticProfile),
             overrideDND = prefs.getBoolean(keyOverrideDND(type), Natives.getalarmdisturb(type.id)),
             soundEnabled = prefs.getBoolean(keySoundEnabled(type), Natives.alarmhassound(type.id)),
             vibrationEnabled = prefs.getBoolean(keyVibration(type), Natives.alarmhasvibration(type.id)),
             flashEnabled = prefs.getBoolean(keyFlash(type), Natives.alarmhasflash(type.id)),
             customSoundUri = prefs.getString(keyCustomSound(type), null),
             defaultSnoozeMinutes = prefs.getInt(keySnooze(type), base.defaultSnoozeMinutes),
-            alarmDurationSeconds = prefs.getInt(keyAlarmDuration(type), Natives.readalarmduration(type.id)),
+            alarmDurationSeconds = readAlarmDurationSeconds(type, base.alarmDurationSeconds),
             // NEW: Time range and retry
             timeRangeEnabled = prefs.getBoolean(keyTimeRangeEnabled(type), false),
             activeStartHour = prefs.getInt(keyActiveStartHour(type), -1).takeIf { it >= 0 },
@@ -170,17 +183,15 @@ object AlertRepository {
             threshold = prefs.getFloat(keyThreshold(type), default.threshold ?: 0f).takeIf { it > 0 },
             durationMinutes = prefs.getInt(keyDuration(type), default.durationMinutes ?: 0).takeIf { it > 0 },
             forecastMinutes = prefs.getInt(keyForecast(type), default.forecastMinutes ?: 0).takeIf { it > 0 },
-            deliveryMode = prefs.getString(keyDeliveryMode(type), default.deliveryMode.name)
-                ?.let { AlertDeliveryMode.valueOf(it) } ?: default.deliveryMode,
-            volumeProfile = prefs.getString(keyVolumeProfile(type), default.volumeProfile.name)
-                ?.let { VolumeProfile.valueOf(it) } ?: default.volumeProfile,
+            deliveryMode = parseEnumPref(prefs.getString(keyDeliveryMode(type), default.deliveryMode.name), default.deliveryMode),
+            hapticProfile = parseEnumPref(prefs.getString(keyHapticProfile(type), default.hapticProfile.name), default.hapticProfile),
             overrideDND = prefs.getBoolean(keyOverrideDND(type), default.overrideDND),
             soundEnabled = prefs.getBoolean(keySoundEnabled(type), default.soundEnabled),
             customSoundUri = prefs.getString(keyCustomSound(type), default.customSoundUri),
             vibrationEnabled = prefs.getBoolean(keyVibration(type), default.vibrationEnabled),
             flashEnabled = prefs.getBoolean(keyFlash(type), default.flashEnabled),
             defaultSnoozeMinutes = prefs.getInt(keySnooze(type), default.defaultSnoozeMinutes),
-            alarmDurationSeconds = prefs.getInt(keyAlarmDuration(type), default.alarmDurationSeconds),
+            alarmDurationSeconds = readAlarmDurationSeconds(type, default.alarmDurationSeconds),
             // NEW: Time range and retry
             timeRangeEnabled = prefs.getBoolean(keyTimeRangeEnabled(type), false),
             activeStartHour = prefs.getInt(keyActiveStartHour(type), -1).takeIf { it >= 0 },
@@ -216,7 +227,7 @@ object AlertRepository {
             if (config.durationMinutes != null) putInt(keyDuration(config.type), config.durationMinutes) else remove(keyDuration(config.type))
             if (config.forecastMinutes != null) putInt(keyForecast(config.type), config.forecastMinutes) else remove(keyForecast(config.type))
             putString(keyDeliveryMode(config.type), config.deliveryMode.name)
-            putString(keyVolumeProfile(config.type), config.volumeProfile.name)
+            putString(keyHapticProfile(config.type), config.hapticProfile.name)
             putBoolean(keyOverrideDND(config.type), config.overrideDND)
             putBoolean(keySoundEnabled(config.type), config.soundEnabled)
             // Save customSoundUri - if null, remove the key so it defaults to app default
@@ -228,7 +239,7 @@ object AlertRepository {
             putBoolean(keyVibration(config.type), config.vibrationEnabled)
             putBoolean(keyFlash(config.type), config.flashEnabled)
             putInt(keySnooze(config.type), config.defaultSnoozeMinutes)
-            putInt(keyAlarmDuration(config.type), config.alarmDurationSeconds)
+            putInt(keyAlarmDuration(config.type), sanitizeAlertDurationSeconds(config.alarmDurationSeconds))
             putBoolean(keyTimeRangeEnabled(config.type), config.timeRangeEnabled)
             if (config.activeStartHour != null) putInt(keyActiveStartHour(config.type), config.activeStartHour) else remove(keyActiveStartHour(config.type))
             if (config.activeStartMinute != null) putInt(keyActiveStartMinute(config.type), config.activeStartMinute) else remove(keyActiveStartMinute(config.type))
@@ -261,7 +272,7 @@ object AlertRepository {
             val durationValue = if (config.type == AlertType.LOSS) {
                 (config.durationMinutes ?: 30) * 60
             } else {
-                config.alarmDurationSeconds
+                sanitizeAlertDurationSeconds(config.alarmDurationSeconds)
             }
             Natives.writealarmduration(typeId, durationValue)
             
@@ -281,7 +292,7 @@ object AlertRepository {
             )
 
             Natives.setalarmdisturb(typeId, config.overrideDND)
-            Natives.writealarmduration(typeId, config.alarmDurationSeconds)
+            Natives.writealarmduration(typeId, sanitizeAlertDurationSeconds(config.alarmDurationSeconds))
             Natives.writering(
                 typeId,
                 config.customSoundUri ?: "",
