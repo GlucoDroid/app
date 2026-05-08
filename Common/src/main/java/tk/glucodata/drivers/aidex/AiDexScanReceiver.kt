@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.PowerManager
 import tk.glucodata.Log
 import tk.glucodata.SensorBluetooth
+import tk.glucodata.SensorIdentity
 import tk.glucodata.drivers.aidex.native.ble.AiDexBleManager
 
 /**
@@ -30,7 +31,9 @@ class AiDexScanReceiver : BroadcastReceiver() {
         val wl = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AiDexSensor:ReceiverWakeup")
         wl?.acquire(10_000L) // 10s should be plenty to start the scan
 
-        val callback = SensorBluetooth.gattcallbacks.find { it.SerialNumber == serial }
+        val callback = SensorBluetooth.gattcallbacks.find {
+            it.SerialNumber == serial || SensorIdentity.matches(it.SerialNumber, serial)
+        }
         when (callback) {
             is AiDexSensor -> {
                 if (callback.broadcastScanActive) {

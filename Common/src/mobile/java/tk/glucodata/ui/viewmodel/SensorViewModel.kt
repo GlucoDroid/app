@@ -130,6 +130,15 @@ class SensorViewModel : ViewModel() {
     private var pollingJob: Job? = null
     private var lastDeviceSyncElapsedMs: Long = 0L
 
+    private fun findGatt(serial: String): SuperGattCallback? {
+        val gatts = SensorBluetooth.mygatts() ?: return null
+        return gatts.firstOrNull { it.SerialNumber == serial }
+            ?: gatts.firstOrNull { SensorIdentity.matches(it.SerialNumber, serial) }
+            ?: gatts.firstOrNull {
+                (it as? ManagedBluetoothSensorDriver)?.matchesManagedSensorId(serial) == true
+            }
+    }
+
     private fun normalizePublishedSensor(sensor: SensorInfo): SensorInfo {
         val resolved = SensorIdentity.resolveAppSensorId(sensor.serial) ?: sensor.serial
         return if (resolved == sensor.serial) sensor else sensor.copy(serial = resolved)
@@ -496,8 +505,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun setAutoResetDays(serial: String, days: Int) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null) {
             Natives.setAutoResetDays(gatt.dataptr, days)
             refreshSensors()
@@ -613,9 +621,7 @@ class SensorViewModel : ViewModel() {
         // Edit 56b: Switch lastsensorname away BEFORE teardown to prevent Notify.java
         // from calling getdataptr on the finished sensor during the teardown window
         switchAwayFromSensor(serial)
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
-            ?: gatts.find { SensorIdentity.matches(it.SerialNumber, serial) }
+        val gatt = findGatt(serial)
         if (gatt != null) {
             try {
                 if (gatt is ManagedBluetoothSensorDriver) {
@@ -684,8 +690,7 @@ class SensorViewModel : ViewModel() {
     fun forgetSensor(serial: String) {
         // Edit 56b: Switch lastsensorname away first
         switchAwayFromSensor(serial)
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null) {
             if (gatt is ManagedBluetoothSensorDriver) {
                 try {
@@ -739,8 +744,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun resetSensor(serial: String, enableBiasCompensation: Boolean = false) {
-         val gatts = SensorBluetooth.mygatts()
-         val gatt = gatts.find { it.SerialNumber == serial }
+         val gatt = findGatt(serial)
          if (gatt != null) {
              if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
                  // Route AiDex to multi-strategy reset (runs on IO thread)
@@ -758,16 +762,14 @@ class SensorViewModel : ViewModel() {
     }
 
     fun clearCalibration(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null && gatt.dataptr != 0L) {
             try { Natives.siClearCalibration(gatt.dataptr) } catch (_: Throwable) {}
         }
     }
 
     fun localReplay(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null && gatt.dataptr != 0L) {
             try { Natives.siLocalReplay(gatt.dataptr) } catch (_: Throwable) {}
             // Force chart refresh — localReplay modifies polls[] in mmap,
@@ -785,8 +787,7 @@ class SensorViewModel : ViewModel() {
      * current view mode (Auto/Raw/Auto+Raw/Raw+Auto).
      */
     fun restartSibionicsNativeFresh(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial } ?: return
+        val gatt = findGatt(serial) ?: return
         if (gatt.dataptr == 0L) return
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -812,8 +813,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun clearAll(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null && gatt.dataptr != 0L) {
             try { tk.glucodata.data.HistorySync.markSensorReset(serial) } catch (_: Throwable) {}
             try { Natives.siClearAll(gatt.dataptr) } catch (_: Throwable) {}
@@ -821,8 +821,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun setCalibrationMode(serial: String, mode: Int) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null) {
             if (gatt is ManagedBluetoothSensorDriver) {
                 gatt.viewMode = mode
@@ -836,8 +835,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun updateCustomCalibration(serial: String, enabled: Boolean, index: Int, autoReset: Boolean) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null && gatt.dataptr != 0L) {
             val opId = sibionicsCustomToggleSeq.getAndIncrement()
             val currentSettings = try { Natives.getCustomCalibrationSettings(gatt.dataptr) } catch (_: Throwable) { -1L }
@@ -871,8 +869,7 @@ class SensorViewModel : ViewModel() {
      * Falls back to native rebind only; never falls back to destructive native replay.
      */
     fun disableCustomCalAndReplay(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null && gatt.dataptr != 0L) {
             val opId = sibionicsDisableSeq.getAndIncrement()
             val wasCustomEnabled = try {
@@ -908,8 +905,7 @@ class SensorViewModel : ViewModel() {
     // Edit 39d: AiDex-safe reconnect. For AiDex, restart vendor stack instead of
     // calling native resetbluetooth (SIGSEGV risk). For legacy sensors, use proven sequence.
     fun reconnectSensor(serial: String, wipeData: Boolean = false) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null) {
             viewModelScope.launch {
                 if (gatt is ManagedBluetoothSensorDriver) {
@@ -953,8 +949,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun wipeSensorData(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null && gatt.dataptr != 0L) {
             try {
                 wipeSibionicsDataIfNeeded(gatt, "wipeData")
@@ -981,8 +976,7 @@ class SensorViewModel : ViewModel() {
     // the sensor — this was the "pause button disconnected Sibionics" bug.
     fun disconnectSensor(serial: String) {
         android.util.Log.d("SensorViewModel", "disconnectSensor called for: $serial")
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt != null) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 if (gatt is ManagedBluetoothSensorDriver) {
@@ -1014,8 +1008,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun sendAiDexMaintenanceCommand(serial: String, opCode: Int) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val success = gatt.sendMaintenanceCommand(opCode)
@@ -1031,8 +1024,7 @@ class SensorViewModel : ViewModel() {
      * Must run on IO dispatcher (uses Thread.sleep internally).
      */
     fun resetAiDexSensor(serial: String, enableBiasCompensation: Boolean = false) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 // Edit 59d: Enable/disable bias compensation before reset
@@ -1052,8 +1044,7 @@ class SensorViewModel : ViewModel() {
      * Disable AiDex initialization bias compensation for a sensor.
      */
     fun disableAiDexBiasCompensation(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             gatt.disableResetCompensation()
             viewModelScope.launch { refreshSensors() }
@@ -1066,8 +1057,7 @@ class SensorViewModel : ViewModel() {
      * window, so the persisted compensation state was lost. This lets the user re-enable it.
      */
     fun enableAiDexBiasCompensation(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             gatt.enableResetCompensation()
             viewModelScope.launch { refreshSensors() }
@@ -1079,8 +1069,7 @@ class SensorViewModel : ViewModel() {
      * Must run on IO dispatcher (uses Thread.sleep internally).
      */
     fun startNewAiDexSensor(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val success = gatt.startNewSensor()
@@ -1095,8 +1084,7 @@ class SensorViewModel : ViewModel() {
      * @param glucoseMgDl glucose in mg/dL (integer)
      */
     fun calibrateAiDexSensor(serial: String, glucoseMgDl: Int) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val success = gatt.calibrateSensor(glucoseMgDl)
@@ -1106,8 +1094,7 @@ class SensorViewModel : ViewModel() {
     }
 
     fun calibrateManagedSensor(serial: String, glucoseMgDl: Int) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is ManagedSensorMaintenanceDriver) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val success = gatt.calibrateSensor(glucoseMgDl)
@@ -1119,8 +1106,7 @@ class SensorViewModel : ViewModel() {
 
     fun fetchMqBootstrap(serial: String, qrCode: String?) {
         val context = Applic.app ?: return
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             if (gatt is MQDriver) {
                 val success = gatt.refreshVendorBootstrap(
@@ -1156,8 +1142,7 @@ class SensorViewModel : ViewModel() {
      * Unpair from the AiDex sensor: delete bond on sensor side, clear saved keys.
      */
     fun unpairAiDexSensor(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val success = gatt.unpairSensor()
@@ -1171,8 +1156,7 @@ class SensorViewModel : ViewModel() {
      * Re-pair with the AiDex sensor: clear keys and restart vendor stack for fresh pairing.
      */
     fun rePairAiDexSensor(serial: String) {
-        val gatts = SensorBluetooth.mygatts()
-        val gatt = gatts.find { it.SerialNumber == serial }
+        val gatt = findGatt(serial)
         if (gatt is tk.glucodata.drivers.aidex.AiDexDriver) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 gatt.rePairSensor()

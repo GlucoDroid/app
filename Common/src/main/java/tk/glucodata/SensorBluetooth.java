@@ -896,10 +896,11 @@ public class SensorBluetooth {
         // the live gattcallbacks SerialNumber, leaving stale gatts in the list.
         for (int i = 0; i < gattcallbacks.size(); i++) {
             var gatt = gattcallbacks.get(i);
-            if (str.equals(gatt.SerialNumber) || SensorIdentity.matches(gatt.SerialNumber, str)) {
+            if (callbackMatchesSensorId(gatt, str)) {
+                final String removedSerial = gatt.SerialNumber;
                 {
                     if (doLog) {
-                        Log.i(LOG_ID, "removeDevice " + gatt.SerialNumber);
+                        Log.i(LOG_ID, "removeDevice " + removedSerial);
                     }
                     ;
                 }
@@ -907,8 +908,14 @@ public class SensorBluetooth {
                 gatt.free();
                 gattcallbacks.remove(i);
                 rehomeCurrentSensorAfterRemoval(str);
+                if (removedSerial != null && !removedSerial.equals(str)) {
+                    rehomeCurrentSensorAfterRemoval(removedSerial);
+                }
                 Natives.setmaxsensors(gattcallbacks.size());
                 removePersistedManagedSensor(str);
+                if (removedSerial != null && !removedSerial.equals(str)) {
+                    removePersistedManagedSensor(removedSerial);
+                }
                 for (; i < gattcallbacks.size(); ++i) {
                     gatt = gattcallbacks.get(i);
                     gatt.stopHealth = false;
@@ -1277,7 +1284,7 @@ public class SensorBluetooth {
 
     public void connectNamedDevice(String id, long delayMillis) {
         for (var cb : gattcallbacks) {
-            if (SensorIdentity.matches(id, cb.SerialNumber)) {
+            if (callbackMatchesSensorId(cb, id)) {
                 if (!cb.connectDevice(delayMillis)) {
                     scanStarter(delayMillis);
                 }

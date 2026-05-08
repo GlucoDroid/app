@@ -399,6 +399,7 @@ object CurrentDisplaySource {
         val latestHistory = points.lastOrNull()
         if (latestHistory != null &&
             kotlin.math.abs(latestHistory.timestamp - current.timeMillis) <= MATCH_WINDOW_MS &&
+            latestHistory.timestamp != current.timeMillis &&
             hasUsableDisplayLane(latestHistory, viewMode)
         ) {
             return points
