@@ -53,8 +53,6 @@ import static tk.glucodata.Log.doLog;
 import static tk.glucodata.Log.showbytes;
 import static tk.glucodata.Natives.thresholdchange;
 import static tk.glucodata.SensorBluetooth.blueone;
-import tk.glucodata.alerts.AlertStateTracker;
-import tk.glucodata.alerts.AlertType;
 
 public abstract class SuperGattCallback extends BluetoothGattCallback {
     volatile protected boolean stop = false;
@@ -296,117 +294,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         }
     }
 
-    private static void resetAlertState(AlertType type) {
-        AlertStateTracker.INSTANCE.resetState(type);
-        Notify.cancelRetrySession(type.getId(), "supergatt-reset");
-    }
-
-    private static void resetLowFamilyAlertState() {
-        resetAlertState(AlertType.PRE_LOW);
-        resetAlertState(AlertType.LOW);
-        resetAlertState(AlertType.VERY_LOW);
-    }
-
-    private static void resetHighFamilyAlertState() {
-        resetAlertState(AlertType.PRE_HIGH);
-        resetAlertState(AlertType.HIGH);
-        resetAlertState(AlertType.VERY_HIGH);
-    }
-
-    // Standard glucose alerts now use AlertStateTracker for cadence. The old
-    // native alarmsuspension gate remains for loss-of-signal only.
-    private static void syncStandardAlertState(int activeKind) {
-        switch (activeKind) {
-            case 0:
-            case 5:
-            case 7:
-                resetHighFamilyAlertState();
-                break;
-            case 1:
-            case 6:
-            case 8:
-                resetLowFamilyAlertState();
-                break;
-            default:
-                resetLowFamilyAlertState();
-                resetHighFamilyAlertState();
-                break;
-        }
-    }
-
-    private static int markAlertTriggered(int alarm, boolean triggered, boolean[] alarmspeak) {
-        if (triggered) {
-            alarm |= 8;
-            if (!DontTalk) {
-                if ((alarmspeak[0] = Natives.speakalarms()))
-                    Talker.nexttime = 0L;
-            }
-        }
-        return alarm;
-    }
-
-    static private int veryhigh(notGlucose sglucose, float gl, float rate, int alarm, boolean[] alarmspeak) {
-        syncStandardAlertState(6);
-        return markAlertTriggered(alarm, Notify.onenot.veryhighglucose(sglucose, gl, rate, true), alarmspeak);
-    }
-
-    static private int high(notGlucose sglucose, float gl, float rate, int alarm, boolean[] alarmspeak) {
-        syncStandardAlertState(1);
-        return markAlertTriggered(alarm, Notify.onenot.highglucose(sglucose, gl, rate, true), alarmspeak);
-    }
-
-    static private int verylow(notGlucose sglucose, float gl, float rate, int alarm, boolean[] alarmspeak) {
-        syncStandardAlertState(5);
-        return markAlertTriggered(alarm, Notify.onenot.verylowglucose(sglucose, gl, rate, true), alarmspeak);
-    }
-
-    static private int low(notGlucose sglucose, float gl, float rate, int alarm, boolean[] alarmspeak) {
-        syncStandardAlertState(0);
-        return markAlertTriggered(alarm, Notify.onenot.lowglucose(sglucose, gl, rate, true), alarmspeak);
-    }
-
     private static boolean isStandardGlucoseAlertCode(int alarm) {
         return alarm == 4 || alarm == 5 || alarm == 6 || alarm == 7 || alarm == 16 || alarm == 17 || alarm == 18
                 || alarm == 19;
-    }
-
-    private static int resolveCalibratedAlertCode(float glucoseValue, float rate) {
-        if (!Float.isFinite(glucoseValue) || glucoseValue <= 0f) {
-            return 0;
-        }
-
-        if (Natives.hasalarmveryhigh() && glucoseValue > Natives.alarmveryhigh()) {
-            return 16;
-        }
-        if (Natives.hasalarmhigh() && glucoseValue > Natives.alarmhigh()) {
-            return 6;
-        }
-        if (Natives.hasalarmverylow() && glucoseValue < Natives.alarmverylow()) {
-            return 17;
-        }
-        if (Natives.hasalarmlow() && glucoseValue < Natives.alarmlow()) {
-            return 7;
-        }
-
-        final float projected = glucoseValue + rate * 0.4f * 180.0f;
-        if (Natives.hasalarmprelow() && projected < Natives.alarmprelow()) {
-            return 19;
-        }
-        if (Natives.hasalarmprehigh() && projected > Natives.alarmprehigh()) {
-            return 18;
-        }
-        return 0;
-    }
-
-    private static int reconcileAlertCodeWithCalibratedValue(int existingAlarm, float glucoseValue, float rate) {
-        final int calibratedAlarm = resolveCalibratedAlertCode(glucoseValue, rate);
-        if (calibratedAlarm != 0) {
-            return calibratedAlarm;
-        }
-        if (isStandardGlucoseAlertCode(existingAlarm)) {
-            return 0;
-        }
-        return existingAlarm;
     }
 
     public static void processExternalCurrentReading(String sensorSerial, float glucoseValue, float rate,
@@ -421,8 +311,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 ? sensorSerial
                 : Natives.lastsensorname();
         final int mgdlValue = Math.round(glucoseValue * (Applic.unit == 1 ? mgdLmult : 1.0f));
-        final int alertCode = reconcileAlertCodeWithCalibratedValue(0, glucoseValue, rate);
-        dowithglucose(resolvedSensorSerial, mgdlValue, glucoseValue, rate, alertCode, timmsec,
+        dowithglucose(resolvedSensorSerial, mgdlValue, glucoseValue, rate, 0, timmsec,
                 0L, Notify.glucosetimeout, sensorgen);
     }
 
@@ -578,7 +467,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         }
 
         glucosealarms.setagealarm(timmsec, showtime);
-        tk.glucodata.alerts.AlertRuntimeManager.INSTANCE.onNewReading(gl, rate, timmsec);
+        final var alertEvaluation = tk.glucodata.alerts.AlertRuntimeManager.INSTANCE.onNewReading(SerialNumber,
+                gl, rate, timmsec, sensorgen);
+        final boolean runtimeHandledStandardGlucoseAlert = alertEvaluation.getStandardGlucoseAlertHandled();
+        final boolean glucoseAlertStarted = alertEvaluation.getStandardGlucoseAlertStarted();
         final long tim = timmsec / 1000L;
         boolean waiting = false;
         var sglucose = new notGlucose(timmsec, String.format(Applic.usedlocale, Notify.pureglucoseformat, gl), rate,
@@ -589,68 +481,36 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         Applic.app.sendBroadcast(new Intent("tk.glucodata.action.AOD_IMMEDIATE_REFRESH"));
         final var fview = Floating.floatview;
         // MainActivity.showmessage=null;
-        boolean[] alarmspeak = { false };
+        final boolean alarmSpeechStarted = glucoseAlertStarted && !DontTalk && Natives.speakalarms();
+        if (alarmSpeechStarted)
+            Talker.nexttime = 0L;
         if (fview != null)
             fview.postInvalidate();
 
         try {
 
-            switch (alarm) {
-                case 4: {
-                    if (Natives.hasalarmveryhigh())
-                        alarm = veryhigh(sglucose, gl, rate, alarm, alarmspeak);
-                    else {
-                        if (Natives.hasalarmhigh())
-                            alarm = high(sglucose, gl, rate, alarm, alarmspeak);
-                        else {
-                            syncStandardAlertState(-1);
-                            Notify.onenot.normalglucose(sglucose, gl, rate, false);
-                        }
+            if (runtimeHandledStandardGlucoseAlert) {
+                if (isStandardGlucoseAlertCode(alarm)) {
+                    if (doLog) {
+                        Log.i(LOG_ID, "Ignoring native standard glucose alarm code " + alarm
+                                + "; AlertRuntimeManager owns glucose alert decisions");
                     }
-                    break;
+                    alarm = 0;
                 }
-                case 18: {
-                    syncStandardAlertState(8);
-                    alarm = markAlertTriggered(alarm, Notify.onenot.prehighglucose(sglucose, gl, rate, true),
-                            alarmspeak);
-                    break;
+            } else if (isStandardGlucoseAlertCode(alarm)) {
+                if (doLog) {
+                    Log.i(LOG_ID, "Ignoring native standard glucose alarm code " + alarm
+                            + "; AlertRuntimeManager owns glucose alert decisions");
                 }
-                case 16:
-                    alarm = veryhigh(sglucose, gl, rate, alarm, alarmspeak);
-                    break;
-                case 6:
-                    alarm = high(sglucose, gl, rate, alarm, alarmspeak);
-                    break;
-                case 5: {
-                    if (Natives.hasalarmverylow()) {
-                        alarm = verylow(sglucose, gl, rate, alarm, alarmspeak);
-                    } else {
-                        if (Natives.hasalarmlow()) {
-                            alarm = low(sglucose, gl, rate, alarm, alarmspeak);
-                        } else {
-                            syncStandardAlertState(-1);
-                            Notify.onenot.normalglucose(sglucose, gl, rate, false);
-                        }
-                    }
-                    break;
+                alarm = 0;
+                Notify.onenot.normalglucose(sglucose, gl, rate, false);
+            } else {
+                switch (alarm) {
+                    case 3:
+                        waiting = true;
+                    default:
+                        Notify.onenot.normalglucose(sglucose, gl, rate, waiting);
                 }
-                case 17:
-                    alarm = verylow(sglucose, gl, rate, alarm, alarmspeak);
-                    break;
-                case 7:
-                    alarm = low(sglucose, gl, rate, alarm, alarmspeak);
-                    break;
-                case 19: {
-                    syncStandardAlertState(7);
-                    alarm = markAlertTriggered(alarm, Notify.onenot.prelowglucose(sglucose, gl, rate, true),
-                            alarmspeak);
-                    break;
-                }
-                case 3:
-                    waiting = true;
-                default:
-                    syncStandardAlertState(-1);
-                    Notify.onenot.normalglucose(sglucose, gl, rate, waiting);
             }
             ;
         } catch (Throwable e) {
@@ -669,7 +529,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         UiRefreshBus.requestDataRefresh();
 
         if (!DontTalk) {
-            if (dotalk && !alarmspeak[0]) {
+            if (dotalk && !alarmSpeechStarted) {
                 talker.selspeak(sglucose.value);
             }
         }
@@ -678,8 +538,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         }
 
         final boolean shouldBroadcastMinuteUpdate = tim > nexttime;
+        final boolean outboundApiEnabled = OutboundApiSettings.isEnabled(app);
         final boolean shouldResolveExchangePayload =
                 Natives.getJugglucobroadcast()
+                || outboundApiEnabled
                 || (shouldBroadcastMinuteUpdate && (
                         Natives.getlibrelinkused()
                         || Natives.geteverSensebroadcast()
@@ -699,6 +561,16 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
         if (Natives.getJugglucobroadcast() && shouldEmitExchangeUpdate)
             JugglucoSend.broadcastglucose(SerialNumber, exchangePayload, alarm);
+        if (outboundApiEnabled && shouldEmitExchangeUpdate)
+            OutboundApi.enqueueGlucose(
+                    exchangePayload.getSensorId(),
+                    exchangePayload.getPrimaryText(),
+                    exchangePayload.getPrimaryDisplayValue(),
+                    exchangePayload.getPrimaryMgdl(),
+                    exchangePayload.getRate(),
+                    exchangePayload.getTimeMillis(),
+                    exchangePayload.getSensorGen(),
+                    alarm);
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
             GlucoseWidget.update();
@@ -878,7 +750,6 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 glucoseToUse = CalibrationAccess.getCalibratedValue(glucoseToUse, timmsec, isRawMode);
                 mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
             }
-            alarm = reconcileAlertCodeWithCalibratedValue(alarm, glucoseToUse, rate);
 
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
                     sensorgen);

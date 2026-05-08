@@ -391,6 +391,15 @@ fun ExpressiveSettingsScreen(
                     onCheckedChange = { viewModel.toggleGlucodataBroadcast(it) }
                 )
                 SettingsItem(
+                    title = stringResource(R.string.outbound_api_title),
+                    subtitle = stringResource(R.string.outbound_api_desc),
+                    showArrow = true,
+                    icon = Icons.Default.CloudUpload,
+                    iconTint = exchangeColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/outbound-api") }
+                )
+                SettingsItem(
                     title = stringResource(R.string.mirror),
                     subtitle = stringResource(R.string.mirror_desc),
                     showArrow = true,
