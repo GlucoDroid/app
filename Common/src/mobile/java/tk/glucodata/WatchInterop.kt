@@ -203,6 +203,25 @@ object WatchInterop {
     fun isKerfstokEnabled(): Boolean = Natives.getusegarmin()
 
     @JvmStatic
+    fun setKerfstokEnabled(context: Context, enabled: Boolean): Boolean {
+        val app = Applic.app ?: return false
+        val wasEnabled = try { Natives.getusegarmin() } catch (_: Throwable) { false }
+        return try {
+            Natives.setusegarmin(enabled)
+            val data = app.numdata
+            if (enabled && !wasEnabled) {
+                data?.reinit(context)
+            } else if (!enabled && wasEnabled) {
+                Natives.sethasgarmin(false)
+                data?.stop()
+            }
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    @JvmStatic
     fun isKerfstokDarkMode(): Boolean = Natives.getkerfstokblack()
 
     @JvmStatic

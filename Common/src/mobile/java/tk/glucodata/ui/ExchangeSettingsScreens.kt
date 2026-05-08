@@ -252,8 +252,11 @@ fun WatchSettingsScreen(navController: NavController) {
                         iconTint = MaterialTheme.colorScheme.secondary,
                         position = CardPosition.TOP,
                         onCheckedChange = { enabled ->
-                            kerfstokEnabled = enabled
-                            Natives.setusegarmin(enabled)
+                            if (WatchInterop.setKerfstokEnabled(context, enabled)) {
+                                kerfstokEnabled = enabled
+                            } else {
+                                Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                     SettingsItem(
