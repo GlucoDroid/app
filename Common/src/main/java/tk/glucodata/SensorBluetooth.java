@@ -888,9 +888,15 @@ public class SensorBluetooth {
     }
 
     private void removeDevice(String str) {
+        // Use SensorIdentity.matches() instead of strict String.equals so that
+        // disconnect/forget works regardless of which form of the serial the UI
+        // passes in: provisional ICN- alias, 11-char short tail, 16-char
+        // canonical, or 24-char vendor-padded form. Strict equality previously
+        // logged "didn't remove" whenever any of those forms didn't byte-match
+        // the live gattcallbacks SerialNumber, leaving stale gatts in the list.
         for (int i = 0; i < gattcallbacks.size(); i++) {
             var gatt = gattcallbacks.get(i);
-            if (str.equals(gatt.SerialNumber)) {
+            if (str.equals(gatt.SerialNumber) || SensorIdentity.matches(gatt.SerialNumber, str)) {
                 {
                     if (doLog) {
                         Log.i(LOG_ID, "removeDevice " + gatt.SerialNumber);
@@ -929,6 +935,17 @@ public class SensorBluetooth {
             ManagedSensorIdentityRegistry.INSTANCE.removePersistedSensor(Applic.app, serial);
         } catch (Throwable t) {
             Log.e(LOG_ID, "removePersistedManagedSensor failed: " + t.getMessage());
+        }
+        // Also drop the ambient managed-current-sensor SharedPrefs slot if it was
+        // pointing at this serial. Without this clear, after app restart the
+        // dashboard's _currentSerial init resolves through ManagedCurrentSensor
+        // → returns the deleted serial → Natives.getSensorStatusByName fires
+        // "ERROR: <name> unknown sensor" on every refresh tick (and the same
+        // ghost id surfaces in CSV export / "sensor not found" UI fallbacks).
+        try {
+            ManagedCurrentSensor.clearIfMatches(serial);
+        } catch (Throwable t) {
+            Log.e(LOG_ID, "ManagedCurrentSensor.clearIfMatches failed: " + t.getMessage());
         }
     }
 

@@ -28,7 +28,11 @@ object ICanHealthConstants {
     const val DEFAULT_NEW_AUTH_AES_KEY_ASCII = "px@9k5K*23cV%YDc"
     const val DEFAULT_GLUCOSE_AES_KEY_ASCII = DEFAULT_OLD_GLUCOSE_AES_KEY_ASCII
     const val DEFAULT_AUTH_USER_ID = ""
-    const val ADVISORY_EXPECTED_LIFETIME_DAYS = 31
+    // Late-life iCan firmware freezes its CGM-status offset at exactly 28 days
+    // (see LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES below) — observed end-of-life
+    // sequence count = 40320 min. The advisory expected end UI label should match
+    // this physical cap, not the previous 31-day estimate.
+    const val ADVISORY_EXPECTED_LIFETIME_DAYS = 28
     private const val STANDALONE_USER_ID_LENGTH = 12
 
     // ---- BLE Service UUIDs ----
