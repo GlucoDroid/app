@@ -13,7 +13,6 @@ import androidx.work.WorkerParameters
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -31,6 +30,8 @@ object OutboundApi {
     private const val WORK_TAG = "outbound_api_glucose"
     private const val MGDL_PER_MMOLL = 18.0182f
 
+    private const val IN_DESTINATION_ID = "destination_id"
+    private const val IN_RECIPIENT = "recipient"
     private const val IN_EVENT_ID = "event_id"
     private const val IN_SENSOR_ID = "sensor_id"
     private const val IN_PRIMARY_TEXT = "primary_text"
@@ -63,14 +64,17 @@ object OutboundApi {
             timeMillis = timeMillis,
             sensorGen = sensorGen,
             alarm = alarm,
-            test = false
+            test = false,
+            destinationId = null
         )
     }
 
     @JvmStatic
-    fun enqueueCurrentTest(context: Context = Applic.app): Int {
+    @JvmOverloads
+    fun enqueueCurrentTest(context: Context = Applic.app, destinationId: String? = null): Int {
         val config = OutboundApiSettings.load(context)
-        if (!config.isReady()) {
+        val destinations = resolveDestinations(config, destinationId)
+        if (destinations.isEmpty()) {
             return TEST_NOT_CONFIGURED
         }
         val current = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout) ?: return TEST_NO_CURRENT_READING
@@ -84,7 +88,8 @@ object OutboundApi {
             timeMillis = current.timeMillis,
             sensorGen = current.sensorGen,
             alarm = 0,
-            test = true
+            test = true,
+            destinationId = destinationId
         )
         return TEST_QUEUED
     }
@@ -99,11 +104,11 @@ object OutboundApi {
         timeMillis: Long,
         sensorGen: Int,
         alarm: Int,
-        test: Boolean
+        test: Boolean,
+        destinationId: String?
     ) {
         val appContext = context.applicationContext
         val config = OutboundApiSettings.load(appContext)
-        if (!config.isReady()) return
         if (timeMillis <= 0L || primaryMgdl <= 0) return
 
         val eventId = if (test) {
@@ -112,37 +117,88 @@ object OutboundApi {
             "${sensorId.orEmpty()}:$timeMillis:$primaryMgdl"
         }
         val now = System.currentTimeMillis()
-        if (!test && !OutboundApiSettings.shouldQueue(appContext, eventId, now)) {
-            return
-        }
-
-        val input = Data.Builder()
-            .putString(IN_EVENT_ID, eventId)
-            .putString(IN_SENSOR_ID, sensorId.orEmpty())
-            .putString(IN_PRIMARY_TEXT, primaryText.orEmpty())
-            .putDouble(IN_DISPLAY_VALUE, primaryDisplayValue)
-            .putInt(IN_MGDL, primaryMgdl)
-            .putFloat(IN_RATE, rate)
-            .putLong(IN_TIME_MILLIS, timeMillis)
-            .putInt(IN_SENSOR_GEN, sensorGen)
-            .putInt(IN_ALARM, alarm)
-            .putBoolean(IN_TEST, test)
-            .build()
-
-        val request = OneTimeWorkRequestBuilder<OutboundApiWorker>()
-            .setInputData(input)
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
+        resolveDestinations(config, destinationId).forEach { destination ->
+            if (!test && !OutboundApiSettings.shouldQueue(appContext, destination, eventId, now)) {
+                return@forEach
+            }
+            enqueueForDestination(
+                context = appContext,
+                destination = destination,
+                eventId = eventId,
+                sensorId = sensorId,
+                primaryText = primaryText,
+                primaryDisplayValue = primaryDisplayValue,
+                primaryMgdl = primaryMgdl,
+                rate = rate,
+                timeMillis = timeMillis,
+                sensorGen = sensorGen,
+                alarm = alarm,
+                test = test
             )
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .addTag(WORK_TAG)
-            .build()
+            if (!test) {
+                OutboundApiSettings.recordQueued(appContext, destination.id, eventId, now)
+            }
+        }
+    }
 
-        WorkManager.getInstance(appContext).enqueue(request)
-        if (!test) {
-            OutboundApiSettings.recordQueued(appContext, eventId, now)
+    private fun resolveDestinations(
+        config: OutboundApiSettings.Config,
+        destinationId: String?
+    ): List<OutboundApiSettings.Destination> {
+        val candidates = destinationId
+            ?.let { id -> listOfNotNull(config.findDestination(id)) }
+            ?: config.activeDestinations()
+        return candidates.filter { it.isReady() }
+    }
+
+    private fun enqueueForDestination(
+        context: Context,
+        destination: OutboundApiSettings.Destination,
+        eventId: String,
+        sensorId: String?,
+        primaryText: String?,
+        primaryDisplayValue: Double,
+        primaryMgdl: Int,
+        rate: Float,
+        timeMillis: Long,
+        sensorGen: Int,
+        alarm: Int,
+        test: Boolean
+    ) {
+        val recipients = when (destination.normalizedPreset()) {
+            OutboundApiSettings.PRESET_TELEGRAM_BOT,
+            OutboundApiSettings.PRESET_GLUCO_WATCH_VK,
+            OutboundApiSettings.PRESET_VK_MESSAGES -> destination.recipients()
+            else -> listOf("")
+        }
+        recipients.forEach { recipient ->
+            val input = Data.Builder()
+                .putString(IN_DESTINATION_ID, destination.id)
+                .putString(IN_RECIPIENT, recipient)
+                .putString(IN_EVENT_ID, eventId)
+                .putString(IN_SENSOR_ID, sensorId.orEmpty())
+                .putString(IN_PRIMARY_TEXT, primaryText.orEmpty())
+                .putDouble(IN_DISPLAY_VALUE, primaryDisplayValue)
+                .putInt(IN_MGDL, primaryMgdl)
+                .putFloat(IN_RATE, rate)
+                .putLong(IN_TIME_MILLIS, timeMillis)
+                .putInt(IN_SENSOR_GEN, sensorGen)
+                .putInt(IN_ALARM, alarm)
+                .putBoolean(IN_TEST, test)
+                .build()
+
+            val request = OneTimeWorkRequestBuilder<OutboundApiWorker>()
+                .setInputData(input)
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+                )
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .addTag(WORK_TAG)
+                .build()
+
+            WorkManager.getInstance(context).enqueue(request)
         }
     }
 
@@ -153,6 +209,7 @@ object OutboundApi {
         val displayValue = input.getDouble(IN_DISPLAY_VALUE, Double.NaN)
         return Reading(
             eventId = input.getString(IN_EVENT_ID).orEmpty(),
+            recipient = input.getString(IN_RECIPIENT).orEmpty(),
             sensorId = input.getString(IN_SENSOR_ID).orEmpty(),
             primaryText = input.getString(IN_PRIMARY_TEXT).orEmpty(),
             displayValue = displayValue,
@@ -167,6 +224,7 @@ object OutboundApi {
 
     internal data class Reading(
         val eventId: String,
+        val recipient: String,
         val sensorId: String,
         val primaryText: String,
         val displayValue: Double,
@@ -182,6 +240,7 @@ object OutboundApi {
         val rateMmolPerMinute: Float get() = rateMgdlPerMinute / MGDL_PER_MMOLL
         val trendName: String get() = Natives.getxDripTrendName(rateMgdlPerMinute) ?: ""
         val trendArrow: String get() = trendArrow(trendName)
+        val iob: Float get() = runCatching { Natives.getIOBvalue(timeMillis) }.getOrDefault(Float.NaN)
         val displayText: String
             get() = primaryText.ifBlank {
                 if (Applic.unit == 1) formatNumber(mmol, 1) else mgdl.toString()
@@ -196,6 +255,7 @@ object OutboundApi {
         ).format(Date(reading.timeMillis))
         return template
             .replace("{event_id}", reading.eventId)
+            .replace("{recipient}", reading.recipient)
             .replace("{value}", reading.displayText)
             .replace("{unit}", reading.unit)
             .replace("{mgdl}", reading.mgdl.toString())
@@ -209,6 +269,8 @@ object OutboundApi {
             .replace("{sensor}", reading.sensorId)
             .replace("{sensor_gen}", reading.sensorGen.toString())
             .replace("{alarm}", reading.alarm.toString())
+            .replace("{iob}", if (reading.iob.isFinite()) formatNumber(reading.iob, 2) else "0")
+            .replace("{cob}", "0")
             .replace("{test}", reading.test.toString())
     }
 
@@ -237,24 +299,26 @@ class OutboundApiWorker(
 
     override fun doWork(): Result {
         val context = applicationContext
+        val destinationId = inputData.getString(IN_DESTINATION_ID).orEmpty()
         val config = OutboundApiSettings.load(context)
-        if (!config.isReady()) {
+        val destination = config.findDestination(destinationId) ?: return Result.success()
+        if (!destination.isReady()) {
             return Result.success()
         }
         val reading = OutboundApi.inputToReading(inputData) ?: return Result.success()
 
         return try {
-            val response = send(config, reading)
+            val response = send(destination, reading)
             if (response.ok) {
-                OutboundApiSettings.recordSuccess(context, response.code)
+                OutboundApiSettings.recordSuccess(context, destination.id, response.code)
                 Result.success()
             } else {
-                OutboundApiSettings.recordAttempt(context, response.code, response.error)
+                OutboundApiSettings.recordAttempt(context, destination.id, response.code, response.error)
                 if (response.retryable && runAttemptCount < 5) Result.retry() else Result.failure()
             }
         } catch (th: Throwable) {
             Log.e(TAG, "send failed: ${Log.stackline(th)}")
-            OutboundApiSettings.recordAttempt(context, -1, th.message ?: th.javaClass.simpleName)
+            OutboundApiSettings.recordAttempt(context, destination.id, -1, friendlyError(destination, th))
             if (runAttemptCount < 5) Result.retry() else Result.failure()
         }
     }
@@ -266,50 +330,111 @@ class OutboundApiWorker(
         val error: String?
     )
 
+    private data class ApiError(
+        val message: String,
+        val code: Int? = null,
+        val retryable: Boolean = false
+    )
+
     private fun send(
-        config: OutboundApiSettings.Config,
+        destination: OutboundApiSettings.Destination,
         reading: OutboundApi.Reading
     ): SendResponse {
-        val message = OutboundApi.renderMessage(config.resolvedTemplate(), reading)
-        val provider = config.normalizedProvider()
-        val body = when (provider) {
-            OutboundApiSettings.PROVIDER_VK -> buildVkBody(config, reading, message)
-            else -> buildJsonBody(reading, message).toString().toByteArray(Charsets.UTF_8)
+        val message = OutboundApi.renderMessage(destination.resolvedTemplate(), reading)
+        return when (destination.normalizedPreset()) {
+            OutboundApiSettings.PRESET_TELEGRAM_BOT -> sendTelegram(destination, reading, message)
+            OutboundApiSettings.PRESET_GLUCO_WATCH_VK,
+            OutboundApiSettings.PRESET_VK_MESSAGES -> sendVk(destination, reading, message)
+            else -> sendJson(destination, reading, message)
         }
-        val contentType = when (provider) {
-            OutboundApiSettings.PROVIDER_VK -> "application/x-www-form-urlencoded; charset=UTF-8"
-            else -> "application/json; charset=UTF-8"
-        }
+    }
 
-        val url = URL(config.resolvedUrl())
-        val connection = (url.openConnection() as HttpURLConnection).apply {
+    private fun sendTelegram(
+        destination: OutboundApiSettings.Destination,
+        reading: OutboundApi.Reading,
+        message: String
+    ): SendResponse {
+        val body = formEncode(
+            linkedMapOf(
+                "chat_id" to reading.recipient,
+                "text" to message
+            )
+        ).toByteArray(Charsets.UTF_8)
+        return executePost(
+            urlString = destination.resolvedUrl(),
+            contentType = "application/x-www-form-urlencoded; charset=UTF-8",
+            headers = "",
+            body = body,
+            parseApiError = ::parseTelegramError
+        )
+    }
+
+    private fun sendVk(
+        destination: OutboundApiSettings.Destination,
+        reading: OutboundApi.Reading,
+        message: String
+    ): SendResponse {
+        val fields = linkedMapOf(
+            "access_token" to destination.token.trim(),
+            "v" to destination.apiVersion.trim().ifBlank { OutboundApiSettings.DEFAULT_VK_API_VERSION },
+            "peer_id" to reading.recipient,
+            "random_id" to stableRandomId(reading).toString(),
+            "message" to message
+        )
+        return executePost(
+            urlString = destination.resolvedUrl(),
+            contentType = "application/x-www-form-urlencoded; charset=UTF-8",
+            headers = "",
+            body = formEncode(fields).toByteArray(Charsets.UTF_8),
+            parseApiError = ::parseVkError
+        )
+    }
+
+    private fun sendJson(
+        destination: OutboundApiSettings.Destination,
+        reading: OutboundApi.Reading,
+        message: String
+    ): SendResponse {
+        return executePost(
+            urlString = destination.resolvedUrl(),
+            contentType = "application/json; charset=UTF-8",
+            headers = destination.headers,
+            body = buildJsonBody(destination, reading, message).toString().toByteArray(Charsets.UTF_8),
+            parseApiError = { null }
+        )
+    }
+
+    private fun executePost(
+        urlString: String,
+        contentType: String,
+        headers: String,
+        body: ByteArray,
+        parseApiError: (String) -> ApiError?
+    ): SendResponse {
+        val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 15_000
             readTimeout = 30_000
             doOutput = true
             setRequestProperty("Content-Type", contentType)
-            if (provider != OutboundApiSettings.PROVIDER_VK) {
-                applyHeaders(config.headers)
-            }
+            applyHeaders(headers)
         }
 
         try {
-            OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                writer.write(String(body, Charsets.UTF_8))
+            connection.outputStream.use { stream ->
+                stream.write(body)
             }
 
             val code = connection.responseCode
-            val responseText = readResponse(connection)
-            if (provider == OutboundApiSettings.PROVIDER_VK) {
-                val vkError = parseVkError(responseText)
-                if (vkError != null) {
-                    return SendResponse(
-                        code = code,
-                        ok = false,
-                        retryable = code >= 500 || code == 429,
-                        error = vkError
-                    )
-                }
+            val responseText = readResponse(connection, code)
+            parseApiError(responseText)?.let { apiError ->
+                val responseCode = apiError.code ?: code
+                return SendResponse(
+                    code = responseCode,
+                    ok = false,
+                    retryable = apiError.retryable || responseCode == 429 || responseCode >= 500,
+                    error = apiError.message
+                )
             }
             val ok = code in 200..299
             return SendResponse(
@@ -323,29 +448,16 @@ class OutboundApiWorker(
         }
     }
 
-    private fun buildVkBody(
-        config: OutboundApiSettings.Config,
-        reading: OutboundApi.Reading,
-        message: String
-    ): ByteArray {
-        val randomId = stableRandomId(reading)
-        val fields = linkedMapOf(
-            "access_token" to config.token.trim(),
-            "v" to config.apiVersion.trim().ifBlank { OutboundApiSettings.DEFAULT_VK_API_VERSION },
-            "peer_id" to config.chatId.trim(),
-            "random_id" to randomId.toString(),
-            "message" to message
-        )
-        return formEncode(fields).toByteArray(Charsets.UTF_8)
-    }
-
     private fun buildJsonBody(
+        destination: OutboundApiSettings.Destination,
         reading: OutboundApi.Reading,
         message: String
     ): JSONObject {
         return JSONObject()
             .put("schema", "tk.glucodata.outbound.glucose.v1")
             .put("type", "glucose")
+            .put("destination_id", destination.id)
+            .put("destination_preset", destination.normalizedPreset())
             .put("event_id", reading.eventId)
             .put("test", reading.test)
             .put("app", "JugglucoNG")
@@ -361,6 +473,8 @@ class OutboundApiWorker(
             .put("trend", reading.trendName)
             .put("trend_arrow", reading.trendArrow)
             .put("alarm", reading.alarm)
+            .put("iob", reading.iob.takeIf { it.isFinite() })
+            .put("cob", 0)
             .put("message", message)
     }
 
@@ -390,13 +504,18 @@ class OutboundApiWorker(
 
     private fun stableRandomId(reading: OutboundApi.Reading): Int {
         var hash = reading.eventId.hashCode()
+        hash = 31 * hash + reading.recipient.hashCode()
         hash = 31 * hash + reading.timeMillis.hashCode()
         hash = 31 * hash + reading.mgdl
         return hash and Int.MAX_VALUE
     }
 
-    private fun readResponse(connection: HttpURLConnection): String {
-        val stream = connection.errorStream ?: connection.inputStream ?: return ""
+    private fun readResponse(connection: HttpURLConnection, code: Int): String {
+        val stream = if (code in 200..299) {
+            connection.inputStream
+        } else {
+            connection.errorStream ?: runCatching { connection.inputStream }.getOrNull()
+        } ?: return ""
         return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
             buildString {
                 var line = reader.readLine()
@@ -408,18 +527,50 @@ class OutboundApiWorker(
         }
     }
 
-    private fun parseVkError(responseText: String): String? {
+    private fun parseVkError(responseText: String): ApiError? {
         if (responseText.isBlank()) return null
         return try {
             val root = JSONObject(responseText)
             val error = root.optJSONObject("error") ?: return null
-            error.optString("error_msg", "VK API error").ifBlank { "VK API error" }
+            val code = error.optInt("error_code", 0).takeIf { it != 0 }
+            ApiError(
+                message = error.optString("error_msg", "VK API error").ifBlank { "VK API error" },
+                code = code,
+                retryable = code == 6 || code == 9 || code == 10
+            )
         } catch (_: Throwable) {
             null
         }
     }
 
+    private fun parseTelegramError(responseText: String): ApiError? {
+        if (responseText.isBlank()) return null
+        return try {
+            val root = JSONObject(responseText)
+            if (root.optBoolean("ok", true)) return null
+            val code = root.optInt("error_code", 0).takeIf { it != 0 }
+            ApiError(
+                message = root.optString("description", "Telegram API error").ifBlank { "Telegram API error" },
+                code = code,
+                retryable = code == 429 || code == 500 || code == 502 || code == 503
+            )
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun friendlyError(destination: OutboundApiSettings.Destination, th: Throwable): String {
+        val raw = th.message ?: th.javaClass.simpleName
+        if (destination.normalizedPreset() == OutboundApiSettings.PRESET_TELEGRAM_BOT &&
+            raw.contains("api.telegram.org", ignoreCase = true)
+        ) {
+            return "Cannot reach Telegram API from this network. Check VPN/firewall or use a Telegram-compatible relay URL."
+        }
+        return raw
+    }
+
     private companion object {
         private const val TAG = "OutboundApiWorker"
+        private const val IN_DESTINATION_ID = "destination_id"
     }
 }

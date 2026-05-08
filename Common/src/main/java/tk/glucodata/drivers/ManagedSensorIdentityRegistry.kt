@@ -5,6 +5,7 @@ import android.content.Context
 import tk.glucodata.SensorIdentity
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.AiDexManagedSensorIdentityAdapter
+import tk.glucodata.drivers.api.ApiGlucoseSourceIdentityAdapter
 import tk.glucodata.drivers.anytime.AnytimeManagedSensorIdentityAdapter
 import tk.glucodata.drivers.icanhealth.ICanHealthManagedSensorIdentityAdapter
 import tk.glucodata.drivers.mq.MQManagedSensorIdentityAdapter
@@ -17,6 +18,7 @@ object ManagedSensorIdentityRegistry {
         ICanHealthManagedSensorIdentityAdapter,
         MQManagedSensorIdentityAdapter,
         NightscoutFollowerIdentityAdapter,
+        ApiGlucoseSourceIdentityAdapter,
     )
 
     private fun orderedAdapters(sensorId: String?, context: Context?): Sequence<ManagedSensorIdentityAdapter> {
