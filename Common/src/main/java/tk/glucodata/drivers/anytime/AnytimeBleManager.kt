@@ -263,6 +263,7 @@ class AnytimeBleManager(
         val tag = lastProtocolFrameTag
         val elapsed = System.currentTimeMillis() - lastProtocolFrameAtMs
         Log.w(TAG, "Protocol timeout after $tag (${elapsed}ms)")
+
         if (tag.startsWith("pullGlucose(backfill)")) {
             historyPullInFlight = false
             if (historyBackfillActive && phase == Phase.STREAMING && !stop) {
@@ -270,6 +271,13 @@ class AnytimeBleManager(
             }
             return@Runnable
         }
+
+        if (tag.startsWith("setDate")) {
+            Log.w(TAG, "setDate ACK timeout; keeping GATT alive and waiting for raw glucose/init ack")
+            clearProtocolFrameTimeout()
+            return@Runnable
+        }
+
         if (phase != Phase.HANDSHAKING) return@Runnable
         if (familyEntry.family == AnytimeConstants.Family.CT4 && tryCt4HandshakeFallback()) {
             return@Runnable
@@ -768,8 +776,12 @@ class AnytimeBleManager(
         }
         Log.i(TAG, "Check OK (battery=${status.batteryVolts}V iw=${status.workingElectrodeCurrentNa}nA age=${status.sensorAgeReadings})")
         updateSensorStartFromCheckAge(status.sensorAgeReadings)
-        writeFrame(setDateFrame(), "setDate")
-    }
+        writeFrame(setDateFrame(), "setDate", expectResponse = false)
+        handler.postDelayed({
+            if (!stop && phase == Phase.HANDSHAKING) {
+                writeFrame(initFrame(), "init(after-setDate-best-effort)")
+            }
+        }, 250L)    }
 
     private fun updateSensorStartFromCheckAge(sensorAgeCounter: Int) {
         if (sensorAgeCounter <= 0) return
