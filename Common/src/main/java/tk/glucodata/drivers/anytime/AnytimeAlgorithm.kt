@@ -55,6 +55,8 @@ object AnytimeAlgorithm {
         val errorCode: Int,
         val warnCode: Int,
         val source: Source,
+        /** Uncalibrated/simple K/R glucose estimate for raw-history view. */
+        val rawMgdl: Float = Float.NaN,
         // Native-only diagnostics (NaN/-1 for linear path):
         val sensitivityCoefficient: Float = Float.NaN,
         val kBase: Float = Float.NaN,
@@ -95,6 +97,7 @@ object AnytimeAlgorithm {
     ): Result {
         val k = qr?.k ?: 0f
         val r = qr?.r ?: 0f
+        val linear = computeLinear(record, k, r)
         if (isNativeAvailable && qr != null && k > 0f && r > 0f) {
             runCatching {
                 val cal = Calendar.getInstance().apply { timeInMillis = sampleTimeMs }
@@ -133,8 +136,8 @@ object AnytimeAlgorithm {
                 }
                 val out: CurrentGlucose? = AlgorithmTools.getInstance().algorithmLatestGlucose(latest)
                 if (out != null) {
-                    val mapped = mapNative(record, out)
-                    if (isPlausibleNative(mapped)) {
+                    val mapped = mapNative(record, out, linear.mgdl)
+                    if (isNativeResultUsable(mapped)) {
                         return mapped
                     }
                     Log.w(
@@ -150,7 +153,7 @@ object AnytimeAlgorithm {
         } else if (isNativeAvailable && qr != null) {
             Log.w(TAG, "native algorithm skipped: invalid QR K/R (K=$k R=$r)")
         }
-        return computeLinear(record, k, r)
+        return linear
     }
 
     /** Linear K/R fallback. */
@@ -173,6 +176,7 @@ object AnytimeAlgorithm {
             errorCode = 0,
             warnCode = 0,
             source = Source.LINEAR,
+            rawMgdl = mgdlTimes10 / 10f,
         )
     }
 
@@ -233,25 +237,15 @@ object AnytimeAlgorithm {
         return AnytimeQr.parse(qr)
     }
 
-
-    private fun isPlausibleNative(result: Result): Boolean {
-        if (result.errorCode != 0) return false
-        if (result.mgdlTimes10 !in AnytimeConstants.ALGO_MGDL_MIN_TIMES10..AnytimeConstants.ALGO_MGDL_MAX_TIMES10) return false
-        if (result.trend !in 0..6) return false
-        if (!result.mmol.isFinite() || result.mmol <= 0f) return false
-        val mgdlFromMmol = result.mmol * 18f
-        // The vendor shim can occasionally return an internally inconsistent CurrentGlucose
-        // object (for example glu=27.8 mmol/L while gluMG maps to 50 mg/dL and trend=10).
-        // Treat that as a refused native result and keep the raw packet via linear K/R instead.
-        if (kotlin.math.abs(mgdlFromMmol - result.mgdl) > 20f) return false
-        return true
-    }
-
-    private fun mapNative(record: AnytimeRawRecord, native: CurrentGlucose): Result =
-        Result(
+    private fun mapNative(record: AnytimeRawRecord, native: CurrentGlucose, rawMgdl: Float): Result {
+        val rawNativeMmol = native.glu
+        val mgdlTimes10 = native.gluMG.takeIf { it > 0 }
+            ?: ((normaliseNativeMmol(rawNativeMmol, 0) * 18f * 10f + 0.5f).toInt())
+        val mmol = normaliseNativeMmol(rawNativeMmol, mgdlTimes10)
+        return Result(
             glucoseId = native.glucoseId.takeIf { it > 0 } ?: record.glucoseId,
-            mmol = native.glu,
-            mgdlTimes10 = native.gluMG.takeIf { it > 0 } ?: ((native.glu * 18f * 10f + 0.5f).toInt()),
+            mmol = mmol,
+            mgdlTimes10 = mgdlTimes10,
             ibNa = record.ibNa,
             iwNa = record.iwNa,
             temperatureC = record.temperatureC,
@@ -259,6 +253,7 @@ object AnytimeAlgorithm {
             errorCode = native.errorCode,
             warnCode = native.warnCode,
             source = Source.NATIVE,
+            rawMgdl = rawMgdl,
             sensitivityCoefficient = native.sensitivityCoefficient,
             kBase = native.k_BASE,
             kAuto = native.k_AUTO,
@@ -270,4 +265,25 @@ object AnytimeAlgorithm {
             ceVoltageMv = native.ceVoltage,
             bVoltageMv = native.bVoltage,
         )
+    }
+
+    private fun normaliseNativeMmol(rawMmol: Float, mgdlTimes10: Int): Float {
+        if (rawMmol <= 0f) return rawMmol
+        val mgdl = mgdlTimes10 / 10f
+        if (mgdl <= 0f) return if (rawMmol > 25f) rawMmol / 10f else rawMmol
+        val directDiff = kotlin.math.abs(rawMmol * 18f - mgdl)
+        val scaledMmol = rawMmol / 10f
+        val scaledDiff = kotlin.math.abs(scaledMmol * 18f - mgdl)
+        return if (rawMmol > 20f && scaledDiff < directDiff) scaledMmol else rawMmol
+    }
+
+    private fun isNativeResultUsable(result: Result): Boolean {
+        if (result.errorCode != 0) return false
+        if (result.mgdlTimes10 !in AnytimeConstants.ALGO_MGDL_MIN_TIMES10..AnytimeConstants.ALGO_MGDL_MAX_TIMES10) return false
+        if (result.mmol <= 0f || result.mmol.isNaN()) return false
+        val mgdl = result.mgdl
+        val fromMmol = result.mmol * 18f
+        val tolerance = maxOf(20f, mgdl * 0.35f)
+        return kotlin.math.abs(fromMmol - mgdl) <= tolerance
+    }
 }
