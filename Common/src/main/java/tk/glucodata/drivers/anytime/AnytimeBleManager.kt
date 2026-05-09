@@ -46,6 +46,7 @@ import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.drivers.VirtualGlucoseSensorBridge
 
 @SuppressLint("MissingPermission")
 class AnytimeBleManager(
@@ -82,6 +83,12 @@ class AnytimeBleManager(
         /** Check / setDate / init each get a per-frame timeout. */
         private const val PROTOCOL_FRAME_TIMEOUT_MS = 8_000L
 
+        /** Avoid duplicate Room rows when the same point arrives through live/backfill/native refresh. */
+        private const val ROOM_HISTORY_NEAR_DUPLICATE_MS = 90_000L
+
+        /** Check-frame age counter is seconds for CT4/Anytime v3 traces. */
+        private const val SENSOR_AGE_COUNTER_TO_MS = 1_000L
+
         /** Values exposed through AnytimeCurrentSnapshot are mmol/L, while native history uses mg/dL. */
         private const val MGDL_TO_MMOLL = 1f / 18f
     }
@@ -110,6 +117,7 @@ class AnytimeBleManager(
     @Volatile private var lastGlucoseAtMs: Long = 0L
     @Volatile private var lastGlucoseMgdlTimes10: Int = 0
     @Volatile private var sensorStartAtMs: Long = 0L
+    @Volatile private var glucoseTimelineStartAtMs: Long = 0L
     @Volatile private var warmupStartedAtMs: Long = 0L
     @Volatile private var lastBatteryVolts: Float = 0f
     @Volatile private var lastIwNa: Float = 0f
@@ -404,19 +412,10 @@ class AnytimeBleManager(
     private fun tryCt4HandshakeFallback(): Boolean {
         val timedOutTag = lastProtocolFrameTag
         if (timedOutTag.startsWith("setDate")) {
-            Log.w(TAG, "setDate ACK timeout; continuing with init")
-            writeFrame(initFrame(), "init(after-setDate-timeout)")
-            return true
+            return false
         }
         if (timedOutTag.startsWith("init")) {
-            if (timedOutTag.contains("ct4-")) return false
-            val useSummedFallback = postVoltagePlainControlFrames
-            Log.i(TAG, "CT4 fallback: retrying init with ${if (useSummedFallback) "summed" else "plain"} frame")
-            writeFrame(
-                if (useSummedFallback) AnytimeFrames.Builders.initSummed() else AnytimeFrames.Builders.init(),
-                if (useSummedFallback) "init(ct4-summed-fallback)" else "init(ct4-plain-fallback)",
-            )
-            return true
+            return false
         }
         if (!timedOutTag.startsWith("transmitterFormal") && !timedOutTag.startsWith("check")) {
             Log.i(TAG, "CT4 fallback skipped after $timedOutTag")
@@ -702,7 +701,11 @@ class AnytimeBleManager(
             AnytimeConstants.RX_SET_DATE_ACK_A,
             AnytimeConstants.RX_SET_DATE_ACK_B -> {
                 Log.d(TAG, "RX setDate ack")
-                writeFrame(initFrame(), "init")
+                if (phase == Phase.HANDSHAKING) {
+                    writeFrame(initFrame(), "init")
+                } else {
+                    Log.d(TAG, "Ignoring setDate ack while phase=$phase")
+                }
             }
             AnytimeConstants.RX_CHECK -> handleCheckResponse(data)
             AnytimeConstants.RX_INIT -> handleInitResponse()
@@ -742,10 +745,18 @@ class AnytimeBleManager(
     private fun handleVoltageAck(data: ByteArray) {
         val echoed = if (data.size >= 2) data[1].toInt() and 0xFF else -1
         Log.i(TAG, "Voltage switch ack: $echoed")
+        if (phase != Phase.HANDSHAKING) {
+            Log.d(TAG, "Ignoring voltage ack while phase=$phase")
+            return
+        }
         writeFrame(checkFrame(), "check(post-voltage)")
     }
 
     private fun handleCheckResponse(data: ByteArray) {
+        if (phase != Phase.HANDSHAKING) {
+            Log.d(TAG, "Ignoring check response while phase=$phase")
+            return
+        }
         val status = AnytimeFrames.parseCheckResponse(data, profile.lowBatteryVolts)
         lastBatteryVolts = status.batteryVolts
         if (!status.isHealthy) {
@@ -756,7 +767,26 @@ class AnytimeBleManager(
             return
         }
         Log.i(TAG, "Check OK (battery=${status.batteryVolts}V iw=${status.workingElectrodeCurrentNa}nA age=${status.sensorAgeReadings})")
+        updateSensorStartFromCheckAge(status.sensorAgeReadings)
         writeFrame(setDateFrame(), "setDate")
+    }
+
+    private fun updateSensorStartFromCheckAge(sensorAgeCounter: Int) {
+        if (sensorAgeCounter <= 0) return
+        val ageMs = sensorAgeCounter.toLong() * SENSOR_AGE_COUNTER_TO_MS
+        val now = System.currentTimeMillis()
+        val candidateStart = (now - ageMs).coerceAtLeast(1L)
+        val jitterToleranceMs = 10L * 60L * 1000L
+        if (sensorStartAtMs == 0L || kotlin.math.abs(sensorStartAtMs - candidateStart) > jitterToleranceMs) {
+            val oldStart = sensorStartAtMs
+            sensorStartAtMs = candidateStart
+            sensorstartmsec = candidateStart
+            if (warmupStartedAtMs == 0L || warmupStartedAtMs > candidateStart) {
+                warmupStartedAtMs = candidateStart
+            }
+            Log.i(TAG, "Sensor start from check age=$sensorAgeCounter sec (oldStart=$oldStart newStart=$candidateStart)")
+            persistAlgorithmState()
+        }
     }
 
     private fun handleInitResponse() {
@@ -840,12 +870,6 @@ class AnytimeBleManager(
 
     private fun handleGlucoseFrame(data: ByteArray, push: Boolean) {
         if (phase == Phase.HANDSHAKING && push) {
-            val records = AnytimeFrames.parseRawRecords(data, usesWideRawRecords())
-            val firstId = records.maxOfOrNull { it.glucoseId }
-            if (firstId != null) {
-                val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
-                anchorSensorTimelineIfNeeded(firstId, System.currentTimeMillis(), intervalMs)
-            }
             enterStreaming("Raw glucose during handshake")
         }
         handleRawGlucose(data, push)
@@ -880,6 +904,9 @@ class AnytimeBleManager(
         val now = System.currentTimeMillis()
         val anchorId = records.maxOfOrNull { it.glucoseId } ?: -1
         val anchorMs = if (push && anchorId >= 0) now else 0L
+        if (push && anchorMs > 0L && anchorId >= 0) {
+            updateTimelineFromLiveGlucoseId(anchorId, anchorMs, intervalMs)
+        }
         for (rec in records) {
             packetsSinceInit++
             lastIwNa = rec.iwNa
@@ -891,6 +918,8 @@ class AnytimeBleManager(
                 // live packets to sensorStartAtMs makes fresh readings appear several minutes old
                 // and trips the loss-of-sensor alarm.
                 anchorMs - (anchorId - rec.glucoseId).toLong() * intervalMs
+            } else if (glucoseTimelineStartAtMs > 0L) {
+                glucoseTimelineStartAtMs + rec.glucoseId.toLong() * intervalMs
             } else if (sensorStartAtMs > 0L) {
                 sensorStartAtMs + rec.glucoseId.toLong() * intervalMs
             } else {
@@ -928,7 +957,9 @@ class AnytimeBleManager(
         }
         val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
         anchorSensorTimelineIfNeeded(rec.glucoseId, System.currentTimeMillis(), intervalMs)
-        val sampleMs = if (sensorStartAtMs > 0L) {
+        val sampleMs = if (glucoseTimelineStartAtMs > 0L) {
+            glucoseTimelineStartAtMs + rec.glucoseId.toLong() * intervalMs
+        } else if (sensorStartAtMs > 0L) {
             sensorStartAtMs + rec.glucoseId.toLong() * intervalMs
         } else {
             System.currentTimeMillis()
@@ -942,10 +973,35 @@ class AnytimeBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
+    private fun updateTimelineFromLiveGlucoseId(glucoseId: Int, sampleMs: Long, intervalMs: Long) {
+        if (glucoseId < 0 || intervalMs <= 0L) return
+        val anchoredStartMs = (sampleMs - glucoseId.toLong() * intervalMs).coerceAtLeast(1L)
+        val oldTimelineStart = glucoseTimelineStartAtMs
+        val oldSensorStart = sensorStartAtMs
+        glucoseTimelineStartAtMs = anchoredStartMs
+
+        // The CT4 check-frame "age" field is not stable after a delete/re-add.
+        // A live glucose id with the known cadence is the only start estimate that
+        // stays aligned with backfilled ids, so prefer it when it materially
+        // disagrees with the check-derived value.
+        val driftMs = kotlin.math.abs(sensorStartAtMs - anchoredStartMs)
+        if (sensorStartAtMs <= 0L || driftMs > intervalMs * 2L) {
+            sensorStartAtMs = anchoredStartMs
+            sensorstartmsec = anchoredStartMs
+            if (warmupStartedAtMs == 0L || kotlin.math.abs(warmupStartedAtMs - anchoredStartMs) > intervalMs * 2L) {
+                warmupStartedAtMs = anchoredStartMs
+            }
+            Log.i(TAG, "Sensor start from live glucose id=$glucoseId (oldStart=$oldSensorStart newStart=$anchoredStartMs)")
+        }
+        if (oldTimelineStart != anchoredStartMs) {
+            Log.i(TAG, "Glucose timeline from live id=$glucoseId (oldStart=$oldTimelineStart newStart=$anchoredStartMs)")
+        }
+    }
+
     private fun anchorSensorTimelineIfNeeded(glucoseId: Int, sampleMs: Long, intervalMs: Long) {
         if (glucoseId < 0 || intervalMs <= 0L) return
-        val projectedMs = if (sensorStartAtMs > 0L) {
-            sensorStartAtMs + glucoseId.toLong() * intervalMs
+        val projectedMs = if (glucoseTimelineStartAtMs > 0L) {
+            glucoseTimelineStartAtMs + glucoseId.toLong() * intervalMs
         } else {
             Long.MAX_VALUE
         }
@@ -953,16 +1009,13 @@ class AnytimeBleManager(
         if (projectedMs <= sampleMs + futureToleranceMs) return
 
         val anchoredStartMs = (sampleMs - glucoseId.toLong() * intervalMs).coerceAtLeast(1L)
+        val oldStart = glucoseTimelineStartAtMs
+        glucoseTimelineStartAtMs = anchoredStartMs
         Log.i(
             TAG,
-            "Anchoring sensor timeline from glucose id=$glucoseId " +
-                    "(oldStart=$sensorStartAtMs newStart=$anchoredStartMs)"
+            "Anchoring glucose timeline from glucose id=$glucoseId " +
+                    "(oldStart=$oldStart newStart=$anchoredStartMs)"
         )
-        sensorStartAtMs = anchoredStartMs
-        sensorstartmsec = anchoredStartMs
-        if (warmupStartedAtMs == 0L || warmupStartedAtMs > sampleMs + futureToleranceMs) {
-            warmupStartedAtMs = anchoredStartMs
-        }
     }
 
     private fun commitReading(
@@ -1001,6 +1054,7 @@ class AnytimeBleManager(
             )
         )
         mirrorReadingIntoNative(sampleMs, result.mgdl)
+        mirrorReadingIntoRoom(sampleMs, result)
         if (live) {
             emitGlucose(result, sampleMs)
         } else if (history && newest) {
@@ -1025,6 +1079,26 @@ class AnytimeBleManager(
             Natives.addGlucoseStream(sampleMs / 1000L, glucoseMgdl, name)
             Natives.wakebackup()
         }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
+    }
+
+    private fun mirrorReadingIntoRoom(sampleMs: Long, result: AnytimeAlgorithm.Result) {
+        val name = SerialNumber ?: return
+        runCatching {
+            val imported = VirtualGlucoseSensorBridge.importHistory(
+                sensorSerial = name,
+                readings = listOf(
+                    VirtualGlucoseSensorBridge.Reading(
+                        timestampMs = sampleMs,
+                        glucoseMgdl = result.mgdl,
+                    )
+                ),
+                logLabel = "Anytime ${result.source}",
+                nearDuplicateWindowMs = ROOM_HISTORY_NEAR_DUPLICATE_MS,
+            )
+            if (imported > 0) {
+                Log.i(TAG, "Imported $imported Anytime ${result.source} point into Room history")
+            }
+        }.onFailure { Log.stack(TAG, "mirrorReadingIntoRoom", it) }
     }
 
     private fun emitGlucose(result: AnytimeAlgorithm.Result, sampleMs: Long) {

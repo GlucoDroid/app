@@ -41,6 +41,7 @@ object AnytimeProfileResolver {
         if (entry.family == AnytimeConstants.Family.UNKNOWN) return DEFAULT_PROFILE
 
         val readingMinutes = when (entry.family) {
+            AnytimeConstants.Family.CT4 -> 3
             AnytimeConstants.Family.CT5 -> 5
             else -> AnytimeConstants.DEFAULT_READING_INTERVAL_MINUTES
         }
@@ -55,7 +56,7 @@ object AnytimeProfileResolver {
             family = entry.family,
             readingIntervalMinutes = readingMinutes,
             warmupMinutes = AnytimeConstants.DEFAULT_WARMUP_MINUTES,
-            ratedLifetimeDays = entry.ratedLifetimeDays.coerceAtLeast(7),
+            ratedLifetimeDays = ((entry.endNumber.toLong() * readingMinutes) / (60L * 24L)).toInt().coerceAtLeast(7),
             algorithmId = entry.algorithm,
             endNumber = entry.endNumber,
             lowBatteryVolts = lowVolts,
