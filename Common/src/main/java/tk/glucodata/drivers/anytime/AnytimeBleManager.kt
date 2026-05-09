@@ -7,10 +7,10 @@
 //   3. onServicesDiscovered → find service (legacy 0xFFF0 or proprietary 0x1000)
 //                            and enable notifications on the notify char (CCCD)
 //   4. onDescriptorWrite:
-//        if persisted bound flag is set: write {0x11} reset
+//        if persisted bound flag is set: write reset
 //        else if family ∈ CT3_PLUS / CT3_YUWELL / CT3_ULTRASONIC / CT4:
-//             write {0x20} transmitterFormal — handles voltage switch
-//        else: write {0x05} check
+//             write transmitterFormal — handles voltage switch
+//        else: write check
 //   5. RX 0x05 (check) → batt + IW + age check → write {0x03,...} setDate
 //   6. RX 0x03/0x04 (setDate ack) → write {0x06} init
 //   7. RX 0x06 (init ack) → mark bound, write {0x0F} lowPower, schedule pull
@@ -30,6 +30,7 @@
 package tk.glucodata.drivers.anytime
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
@@ -124,6 +125,9 @@ class AnytimeBleManager(
     @Volatile private var pendingFingerstickMgdl: Int = -1
     @Volatile private var pendingKrPush: Boolean = false
     @Volatile private var lastProtocolFrameAtMs: Long = 0L
+    @Volatile private var lastProtocolFrameTag: String = ""
+    @Volatile private var ct4HandshakeFallbackStep: Int = 0
+    @Volatile private var postVoltagePlainControlFrames: Boolean = false
 
     // ---- History backfill loop state ----
     @Volatile private var historyBackfillActive: Boolean = false
@@ -219,7 +223,7 @@ class AnytimeBleManager(
         if (stop || phase != Phase.STREAMING) return@Runnable
         // If the transmitter went quiet, ask for the next id explicitly.
         if (lastGlucoseId >= 0) {
-            writeFrame(AnytimeFrames.Builders.pullGlucose(lastGlucoseId + 1), "pullGlucose(fallback)")
+            writeFrame(pullGlucoseFrame(lastGlucoseId + 1), "pullGlucose(fallback)")
         }
         armPullFallback()
     }
@@ -235,7 +239,18 @@ class AnytimeBleManager(
         }
         historyLastPulledId = nextId
         Log.d(TAG, "Backfill pull next id=$nextId")
-        writeFrame(AnytimeFrames.Builders.pullGlucose(nextId), "pullGlucose(backfill)")
+        writeFrame(pullGlucoseFrame(nextId), "pullGlucose(backfill)")
+    }
+
+    private val protocolFrameTimeoutRunnable = Runnable {
+        if (stop || phase != Phase.HANDSHAKING) return@Runnable
+        val elapsed = System.currentTimeMillis() - lastProtocolFrameAtMs
+        Log.w(TAG, "Protocol timeout after $lastProtocolFrameTag (${elapsed}ms)")
+        if (familyEntry.family == AnytimeConstants.Family.CT4 && tryCt4HandshakeFallback()) {
+            return@Runnable
+        }
+        runCatching { mBluetoothGatt?.disconnect() }
+        scheduleReconnect("protocol timeout after $lastProtocolFrameTag", ACTIVE_SESSION_RECONNECT_DELAY_MS)
     }
 
     /**
@@ -303,6 +318,118 @@ class AnytimeBleManager(
         handler.postDelayed(pullFallbackRunnable, delayMs)
     }
 
+    private fun usesSummedFrames(): Boolean =
+        familyEntry.family in setOf(
+            AnytimeConstants.Family.CT2_5,
+            AnytimeConstants.Family.CT3_PLUS,
+            AnytimeConstants.Family.CT3_YUWELL,
+            AnytimeConstants.Family.CT3_ULTRASONIC,
+            AnytimeConstants.Family.CT4,
+        )
+
+    private fun usesWideRawRecords(): Boolean = usesSummedFrames()
+
+    private fun checkFrame(): ByteArray =
+        if (usesSummedFrames()) AnytimeFrames.Builders.checkSummed() else AnytimeFrames.Builders.check()
+
+    private fun initFrame(): ByteArray =
+        if (usesPlainControlFrames()) AnytimeFrames.Builders.init()
+        else if (usesSummedFrames()) AnytimeFrames.Builders.initSummed()
+        else AnytimeFrames.Builders.init()
+
+    private fun lowPowerFrame(): ByteArray =
+        if (usesPlainControlFrames()) AnytimeFrames.Builders.lowPower()
+        else if (usesSummedFrames()) AnytimeFrames.Builders.lowPowerSummed()
+        else AnytimeFrames.Builders.lowPower()
+
+    private fun resetFrame(): ByteArray =
+        if (usesSummedFrames()) AnytimeFrames.Builders.resetSummed() else AnytimeFrames.Builders.reset()
+
+    private fun unbindFrame(): ByteArray =
+        if (usesSummedFrames()) AnytimeFrames.Builders.unbindSummed() else AnytimeFrames.Builders.unbind()
+
+    private fun setDateFrame(): ByteArray =
+        if (usesPlainControlFrames()) AnytimeFrames.Builders.setDate()
+        else if (usesSummedFrames()) AnytimeFrames.Builders.setDateSummed()
+        else AnytimeFrames.Builders.setDate()
+
+    private fun pullGlucoseFrame(nextId: Int): ByteArray =
+        if (usesPlainControlFrames()) AnytimeFrames.Builders.pullGlucose(nextId)
+        else if (usesSummedFrames()) AnytimeFrames.Builders.pullGlucoseSummed(nextId)
+        else AnytimeFrames.Builders.pullGlucose(nextId)
+
+    private fun inputKrFrame(k: Float, r: Float): ByteArray =
+        if (usesSummedFrames()) AnytimeFrames.Builders.inputKRSummed(k, r) else AnytimeFrames.Builders.inputKR(k, r)
+
+    private fun inputBgFrame(mgdl: Int): ByteArray =
+        if (usesSummedFrames()) AnytimeFrames.Builders.inputBgMgSummed(mgdl) else AnytimeFrames.Builders.inputBgMg(mgdl)
+
+    private fun transmitterFormalFrame(): ByteArray =
+        if (usesSummedFrames()) AnytimeFrames.Builders.transmitterFormalSummed() else AnytimeFrames.Builders.transmitterFormal()
+
+    private fun usesPlainControlFrames(): Boolean =
+        familyEntry.family == AnytimeConstants.Family.CT4 && postVoltagePlainControlFrames
+
+    private fun armProtocolFrameTimeout(tag: String) {
+        if (phase != Phase.HANDSHAKING) return
+        lastProtocolFrameTag = tag
+        lastProtocolFrameAtMs = System.currentTimeMillis()
+        handler.removeCallbacks(protocolFrameTimeoutRunnable)
+        handler.postDelayed(protocolFrameTimeoutRunnable, PROTOCOL_FRAME_TIMEOUT_MS)
+    }
+
+    private fun clearProtocolFrameTimeout() {
+        handler.removeCallbacks(protocolFrameTimeoutRunnable)
+        lastProtocolFrameTag = ""
+    }
+
+    private fun tryCt4HandshakeFallback(): Boolean {
+        val timedOutTag = lastProtocolFrameTag
+        if (timedOutTag.startsWith("setDate")) {
+            if (timedOutTag.contains("ct4-")) return false
+            val useSummedFallback = postVoltagePlainControlFrames
+            Log.i(TAG, "CT4 fallback: retrying setDate with ${if (useSummedFallback) "summed" else "plain"} frame")
+            writeFrame(
+                if (useSummedFallback) AnytimeFrames.Builders.setDateSummed() else AnytimeFrames.Builders.setDate(),
+                if (useSummedFallback) "setDate(ct4-summed-fallback)" else "setDate(ct4-plain-fallback)",
+            )
+            return true
+        }
+        if (timedOutTag.startsWith("init")) {
+            if (timedOutTag.contains("ct4-")) return false
+            val useSummedFallback = postVoltagePlainControlFrames
+            Log.i(TAG, "CT4 fallback: retrying init with ${if (useSummedFallback) "summed" else "plain"} frame")
+            writeFrame(
+                if (useSummedFallback) AnytimeFrames.Builders.initSummed() else AnytimeFrames.Builders.init(),
+                if (useSummedFallback) "init(ct4-summed-fallback)" else "init(ct4-plain-fallback)",
+            )
+            return true
+        }
+        if (!timedOutTag.startsWith("transmitterFormal") && !timedOutTag.startsWith("check")) {
+            Log.i(TAG, "CT4 fallback skipped after $timedOutTag")
+            return false
+        }
+        ct4HandshakeFallbackStep++
+        return when (ct4HandshakeFallbackStep) {
+            1 -> {
+                Log.i(TAG, "CT4 fallback: sending summed check")
+                writeFrame(AnytimeFrames.Builders.checkSummed(), "check(ct4-fallback-sum)")
+                true
+            }
+            2 -> {
+                Log.i(TAG, "CT4 fallback: requesting plain formal version")
+                writeFrame(AnytimeFrames.Builders.transmitterFormal(), "transmitterFormal(ct4-fallback-plain)")
+                true
+            }
+            3 -> {
+                Log.i(TAG, "CT4 fallback: sending plain check")
+                writeFrame(AnytimeFrames.Builders.check(), "check(ct4-fallback-plain)")
+                true
+            }
+            else -> false
+        }
+    }
+
     // ---- BLE lifecycle ----
 
     override fun getService(): UUID = primaryServiceUuid
@@ -310,6 +437,7 @@ class AnytimeBleManager(
     @Synchronized
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
+        resolveActiveDeviceFromStoredAddress()
         if (phase == Phase.CONNECTING || phase == Phase.DISCOVERING ||
             phase == Phase.HANDSHAKING || phase == Phase.STREAMING
         ) {
@@ -321,6 +449,19 @@ class AnytimeBleManager(
         val scheduled = super.connectDevice(delayMillis)
         if (!scheduled && phase == Phase.CONNECTING) phase = Phase.IDLE
         return scheduled
+    }
+
+    private fun resolveActiveDeviceFromStoredAddress() {
+        if (mActiveBluetoothDevice != null) return
+        val address = mActiveDeviceAddress
+            ?.trim()
+            ?.takeIf { BluetoothAdapter.checkBluetoothAddress(it) }
+            ?: return
+        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
+        mActiveBluetoothDevice = runCatching { adapter.getRemoteDevice(address) }.getOrNull()
+        if (mActiveBluetoothDevice != null) {
+            Log.i(TAG, "Resolved active BLE device from stored address $address")
+        }
     }
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
@@ -391,6 +532,7 @@ class AnytimeBleManager(
                 handler.removeCallbacks(serviceDiscoveryRetryRunnable)
                 handler.removeCallbacks(noDataWatchdog)
                 handler.removeCallbacks(pullFallbackRunnable)
+                clearProtocolFrameTimeout()
                 stopHistoryBackfill()
                 if (!stop) scheduleReconnect("GATT disconnect status=$status")
                 UiRefreshBus.requestStatusRefresh()
@@ -430,26 +572,44 @@ class AnytimeBleManager(
         }
         primaryService = svc
         val notify = charNotify
-        if (svc == null || notify == null || charWrite == null) {
+        val write = charWrite
+        if (svc == null || notify == null || write == null) {
             Log.e(TAG, "Required Anytime characteristics not found")
             scheduleReconnect("missing characteristics", ACTIVE_SESSION_RECONNECT_DELAY_MS)
             return
         }
+        Log.i(
+            TAG,
+            "GATT service=${svc.uuid} notify=${notify.uuid} props=0x%02X write=${write.uuid} props=0x%02X".format(
+                notify.properties,
+                write.properties,
+            )
+        )
         gatt.setCharacteristicNotification(notify, true)
         val cccd = notify.getDescriptor(AnytimeConstants.CCCD)
         if (cccd != null) {
-            cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            cccd.value = if ((notify.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            } else {
+                BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+            }
+            Log.d(TAG, "Writing CCCD=${cccd.value.joinToHex()}")
             runCatching { gatt.writeDescriptor(cccd) }
+        } else {
+            Log.w(TAG, "Notify characteristic has no CCCD descriptor")
         }
     }
 
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+        Log.d(TAG, "onDescriptorWrite ${descriptor.uuid} status=$status")
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "onDescriptorWrite status=$status — retry reconnect")
             scheduleReconnect("descriptor write failed", ACTIVE_SESSION_RECONNECT_DELAY_MS)
             return
         }
         phase = Phase.HANDSHAKING
+        ct4HandshakeFallbackStep = 0
+        postVoltagePlainControlFrames = false
 
         val cachedName = SerialNumber?.let { AnytimeRegistry.loadDeviceName(Applic.app, it) }.orEmpty()
         familyEntry = AnytimeProfileResolver.familyEntry(cachedName)
@@ -458,7 +618,7 @@ class AnytimeBleManager(
         when {
             bound -> {
                 Log.i(TAG, "Already bound — sending reset to confirm session")
-                writeFrame(AnytimeFrames.Builders.reset(), "reset")
+                writeFrame(resetFrame(), "reset")
             }
             familyEntry.family in setOf(
                 AnytimeConstants.Family.CT3_PLUS,
@@ -466,12 +626,26 @@ class AnytimeBleManager(
                 AnytimeConstants.Family.CT3_ULTRASONIC,
                 AnytimeConstants.Family.CT4,
             ) -> {
+                if (familyEntry.family == AnytimeConstants.Family.CT4 && qr == null) {
+                    Log.w(TAG, "CT4 QR calibration is missing; continuing BLE handshake but glucose computation may stay unavailable")
+                }
                 Log.i(TAG, "Family ${familyEntry.family} — requesting formal version first")
-                writeFrame(AnytimeFrames.Builders.transmitterFormal(), "transmitterFormal")
+                writeFrame(transmitterFormalFrame(), "transmitterFormal")
             }
             else -> {
-                writeFrame(AnytimeFrames.Builders.check(), "check")
+                writeFrame(checkFrame(), "check")
             }
+        }
+    }
+
+    override fun onCharacteristicWrite(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        status: Int,
+    ) {
+        Log.d(TAG, "onCharacteristicWrite ${characteristic.uuid} status=$status")
+        if (status != BluetoothGatt.GATT_SUCCESS && phase == Phase.HANDSHAKING) {
+            scheduleReconnect("write failed status=$status", ACTIVE_SESSION_RECONNECT_DELAY_MS)
         }
     }
 
@@ -479,12 +653,29 @@ class AnytimeBleManager(
         gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic,
     ) {
+        val data = characteristic.value ?: return
+        handleCharacteristicChanged(characteristic, data)
+    }
+
+    override fun onCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+    ) {
+        handleCharacteristicChanged(characteristic, value)
+    }
+
+    private fun handleCharacteristicChanged(
+        characteristic: BluetoothGattCharacteristic,
+        data: ByteArray,
+    ) {
         if (stop) return
         if (characteristic.uuid != charNotify?.uuid) return
-        val data = characteristic.value ?: return
         if (data.isEmpty()) return
         lastProtocolFrameAtMs = System.currentTimeMillis()
         val opcode = data[0]
+        Log.d(TAG, "RX op=0x%02X bytes=%s".format(opcode.toInt() and 0xFF, data.joinToHex()))
+        clearProtocolFrameTimeout()
         try {
             dispatch(opcode, data)
         } catch (t: Throwable) {
@@ -498,12 +689,12 @@ class AnytimeBleManager(
             AnytimeConstants.RX_SET_DATE_ACK_A,
             AnytimeConstants.RX_SET_DATE_ACK_B -> {
                 Log.d(TAG, "RX setDate ack")
-                writeFrame(AnytimeFrames.Builders.init(), "init")
+                writeFrame(initFrame(), "init")
             }
             AnytimeConstants.RX_CHECK -> handleCheckResponse(data)
             AnytimeConstants.RX_INIT -> handleInitResponse()
-            AnytimeConstants.RX_PUSH_GLUCOSE -> handleRawGlucose(data, push = true)
-            AnytimeConstants.RX_PULL_GLUCOSE -> handleRawGlucose(data, push = false)
+            AnytimeConstants.RX_PUSH_GLUCOSE -> handleGlucoseFrame(data, push = true)
+            AnytimeConstants.RX_PULL_GLUCOSE -> handleGlucoseFrame(data, push = false)
             AnytimeConstants.RX_INPUT_BG_ACK -> handleInputBgAck(data)
             AnytimeConstants.RX_UNBIND_ACK -> handleUnbindAck()
             AnytimeConstants.RX_INPUT_KR_ACK -> handleInputKrAck()
@@ -525,21 +716,23 @@ class AnytimeBleManager(
             Log.i(TAG, "Transmitter version: $version")
             persistAlgorithmState()
         }
-        // Voltage switch: if firmware is V1300 or V1400 and we have a QR, switch.
-        val needsVoltageSwitch = (version.contains("V1300", ignoreCase = true) ||
-            version.contains("V1400", ignoreCase = true))
+        // Voltage switch: vendor firmware branches V13xx/V14xx need the QR-derived voltage mode.
+        val needsVoltageSwitch = Regex("""V1[34]\d{2}""", RegexOption.IGNORE_CASE).containsMatchIn(version)
         if (needsVoltageSwitch && qr != null) {
             voltageFlag = qr?.voltageFlag ?: voltageFlag
             writeFrame(AnytimeFrames.Builders.modifyVoltage(voltageFlag), "modifyVoltage($voltageFlag)")
         } else {
-            writeFrame(AnytimeFrames.Builders.check(), "check")
+            writeFrame(checkFrame(), "check")
         }
     }
 
     private fun handleVoltageAck(data: ByteArray) {
         val echoed = if (data.size >= 2) data[1].toInt() and 0xFF else -1
         Log.i(TAG, "Voltage switch ack: $echoed")
-        writeFrame(AnytimeFrames.Builders.check(), "check(post-voltage)")
+        if (familyEntry.family == AnytimeConstants.Family.CT4) {
+            postVoltagePlainControlFrames = true
+        }
+        writeFrame(checkFrame(), "check(post-voltage)")
     }
 
     private fun handleCheckResponse(data: ByteArray) {
@@ -553,13 +746,18 @@ class AnytimeBleManager(
             return
         }
         Log.i(TAG, "Check OK (battery=${status.batteryVolts}V iw=${status.workingElectrodeCurrentNa}nA age=${status.sensorAgeReadings})")
-        writeFrame(AnytimeFrames.Builders.setDate(), "setDate")
+        writeFrame(setDateFrame(), "setDate")
     }
 
     private fun handleInitResponse() {
-        Log.i(TAG, "Init OK — entering streaming")
+        enterStreaming("Init OK")
+    }
+
+    private fun enterStreaming(reason: String) {
+        Log.i(TAG, "$reason — entering streaming")
         bound = true
         phase = Phase.STREAMING
+        clearProtocolFrameTimeout()
         if (sensorStartAtMs == 0L) {
             val now = System.currentTimeMillis()
             sensorStartAtMs = now
@@ -570,9 +768,9 @@ class AnytimeBleManager(
         persistAlgorithmState()
         if (pendingKrPush) {
             pendingKrPush = false
-            qr?.let { writeFrame(AnytimeFrames.Builders.inputKR(it.k, it.r), "inputKR(deferred)") }
+            qr?.let { writeFrame(inputKrFrame(it.k, it.r), "inputKR(deferred)") }
         }
-        writeFrame(AnytimeFrames.Builders.lowPower(), "lowPower")
+        writeFrame(lowPowerFrame(), "lowPower")
         armPullFallback()
         armNoDataWatchdog()
         // Pull any history we missed since last connect (or from id 0 on a
@@ -596,13 +794,14 @@ class AnytimeBleManager(
             // Sensor confirms session is alive — proceed to streaming and pull
             // any history we missed while disconnected.
             phase = Phase.STREAMING
+            writeFrame(lowPowerFrame(), "lowPower(post-reset)")
             armPullFallback()
             armNoDataWatchdog()
             startHistoryBackfill("post-reset(reconnect)")
             UiRefreshBus.requestStatusRefresh()
         } else {
             // Sensor lost binding — fall through to fresh handshake.
-            writeFrame(AnytimeFrames.Builders.check(), "check(post-reset)")
+            writeFrame(checkFrame(), "check(post-reset)")
         }
     }
 
@@ -628,8 +827,15 @@ class AnytimeBleManager(
 
     // ---- Glucose pipeline ----
 
+    private fun handleGlucoseFrame(data: ByteArray, push: Boolean) {
+        if (phase == Phase.HANDSHAKING && familyEntry.family == AnytimeConstants.Family.CT4) {
+            enterStreaming("Raw glucose during CT4 handshake")
+        }
+        handleRawGlucose(data, push)
+    }
+
     private fun handleRawGlucose(data: ByteArray, push: Boolean) {
-        val records = AnytimeFrames.parseRawRecords(data)
+        val records = AnytimeFrames.parseRawRecords(data, usesWideRawRecords())
         val context = Applic.app
         val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
         if (records.isEmpty()) {
@@ -653,6 +859,7 @@ class AnytimeBleManager(
             lastIwNa = rec.iwNa
             lastIbNa = rec.ibNa
             lastTemperatureC = rec.temperatureC
+            anchorSensorTimelineIfNeeded(rec.glucoseId, now, intervalMs)
             // Anchor every reading on its absolute glucose id mapped through
             // session start. This gives correct timestamps for both real-time
             // pushes (id at end-of-stream) and backfill pulls (older ids in
@@ -693,6 +900,7 @@ class AnytimeBleManager(
             return
         }
         val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
+        anchorSensorTimelineIfNeeded(rec.glucoseId, System.currentTimeMillis(), intervalMs)
         val sampleMs = if (sensorStartAtMs > 0L) {
             sensorStartAtMs + rec.glucoseId.toLong() * intervalMs
         } else {
@@ -707,7 +915,45 @@ class AnytimeBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
+    private fun anchorSensorTimelineIfNeeded(glucoseId: Int, nowMs: Long, intervalMs: Long) {
+        if (glucoseId < 0 || intervalMs <= 0L) return
+        val projectedMs = if (sensorStartAtMs > 0L) {
+            sensorStartAtMs + glucoseId.toLong() * intervalMs
+        } else {
+            Long.MAX_VALUE
+        }
+        val futureToleranceMs = (intervalMs / 2L).coerceAtLeast(30_000L)
+        if (projectedMs <= nowMs + futureToleranceMs) return
+
+        val anchoredStartMs = (nowMs - glucoseId.toLong() * intervalMs).coerceAtLeast(1L)
+        Log.i(
+            TAG,
+            "Anchoring sensor timeline from glucose id=$glucoseId " +
+                "(oldStart=$sensorStartAtMs newStart=$anchoredStartMs)"
+        )
+        sensorStartAtMs = anchoredStartMs
+        sensorstartmsec = anchoredStartMs
+        if (warmupStartedAtMs == 0L || warmupStartedAtMs > nowMs + futureToleranceMs) {
+            warmupStartedAtMs = anchoredStartMs
+        }
+    }
+
     private fun commitReading(result: AnytimeAlgorithm.Result, sampleMs: Long, context: Context?) {
+        if (result.errorCode != 0 || result.mgdlTimes10 < 170) {
+            Log.w(
+                TAG,
+                "Dropping invalid BG id=%d source=%s mgdl=%.1f err=%d Iw=%.2f Ib=%.2f T=%.1f".format(
+                    result.glucoseId,
+                    result.source,
+                    result.mgdl,
+                    result.errorCode,
+                    result.iwNa,
+                    result.ibNa,
+                    result.temperatureC,
+                )
+            )
+            return
+        }
         if (sampleMs >= lastGlucoseAtMs) {
             lastGlucoseAtMs = sampleMs
             lastGlucoseMgdlTimes10 = result.mgdlTimes10
@@ -748,12 +994,17 @@ class AnytimeBleManager(
         val gatt = mBluetoothGatt ?: return
         val ch = charWrite ?: return
         ch.value = bytes
-        ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        ch.writeType = if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
+            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        } else {
+            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+        }
         val ok = runCatching { gatt.writeCharacteristic(ch) }.getOrDefault(false)
         if (!ok) {
             Log.w(TAG, "writeCharacteristic($tag) returned false bytes=${bytes.joinToHex()}")
         } else {
             Log.d(TAG, "TX $tag bytes=${bytes.joinToHex()}")
+            armProtocolFrameTimeout(tag)
         }
     }
 
@@ -769,7 +1020,7 @@ class AnytimeBleManager(
         persistAlgorithmState()
         // If actively streaming, push K/R now; otherwise queue for next init.
         if (phase == Phase.STREAMING) {
-            writeFrame(AnytimeFrames.Builders.inputKR(parsed.k, parsed.r), "inputKR")
+            writeFrame(inputKrFrame(parsed.k, parsed.r), "inputKR")
         } else {
             pendingKrPush = true
         }
@@ -780,7 +1031,7 @@ class AnytimeBleManager(
         if (mgdl <= 0) return false
         pendingFingerstickMgdl = mgdl
         return if (phase == Phase.STREAMING) {
-            writeFrame(AnytimeFrames.Builders.inputBgMg(mgdl), "inputBg($mgdl)")
+            writeFrame(inputBgFrame(mgdl), "inputBg($mgdl)")
             true
         } else {
             Log.w(TAG, "pushReferenceBg($mgdl) deferred — not streaming (phase=$phase)")
@@ -790,12 +1041,12 @@ class AnytimeBleManager(
 
     override fun requestTransmitterReset(): Boolean {
         if (phase != Phase.STREAMING && phase != Phase.HANDSHAKING) return false
-        writeFrame(AnytimeFrames.Builders.reset(), "reset(user)")
+        writeFrame(resetFrame(), "reset(user)")
         return true
     }
 
     override fun requestUnbind(): Boolean {
-        writeFrame(AnytimeFrames.Builders.unbind(), "unbind(user)")
+        writeFrame(unbindFrame(), "unbind(user)")
         bound = false
         persistAlgorithmState()
         stopHistoryBackfill()

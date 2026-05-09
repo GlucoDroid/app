@@ -1,13 +1,14 @@
 // AnytimeFrames.kt — Wire-format builders, parsers and integrity checks.
 //
-// CT3 frames are 1–7 bytes for most commands and have NO trailing sum byte.
-// Voltage / version / formal commands (CT3_PLUS / CT3_YUWELL / CT4) DO carry a
-// sum byte. The CT2 family always uses a sum byte. We expose:
+// Plain CT3 frames are 1-7 bytes for most commands and have NO trailing sum
+// byte. CT2.5 / CT3_YUWELL / CT3_PLUS / CT3_ULTRASONIC / CT4 use the same
+// opcode set but append an 8-bit sum byte to protocol requests. Voltage switch
+// commands always carry a sum byte. We expose:
 //
 //   AnytimeFrames.sum(bytes, [from..to])     — compute sum byte
 //   AnytimeFrames.verifySum(bytes)           — true if last byte == sum of rest
 //   AnytimeFrames.builders                   — CT3 packet builders
-//   AnytimeFrames.parseRawRecords(bytes)     — 9-byte raw current records
+//   AnytimeFrames.parseRawRecords(bytes)     — 9-byte or 11-byte raw records
 //   AnytimeFrames.parseComputedRecord(bytes) — 19-byte computed glucose record
 //   AnytimeFrames.parseCheckResponse(bytes)  — 0x05 health response
 //   AnytimeFrames.parseResetResponse(bytes)  — 0x11 reset response
@@ -16,7 +17,7 @@ package tk.glucodata.drivers.anytime
 
 import java.util.Calendar
 
-/** Single 9-byte raw current record from RX_PUSH_GLUCOSE / RX_PULL_GLUCOSE. */
+/** Single raw current record from RX_PUSH_GLUCOSE / RX_PULL_GLUCOSE. */
 data class AnytimeRawRecord(
     val indexInPacket: Int,
     val glucoseId: Int,
@@ -117,21 +118,41 @@ object AnytimeFrames {
         @JvmStatic
         fun check(): ByteArray = byteArrayOf(AnytimeConstants.TX_CHECK)
 
+        /** {0x05, 0x55, 0xAA, sum} — CT2.5/CT3A/CT4 health check. */
+        @JvmStatic
+        fun checkSummed(): ByteArray = withSum(0x05, 0x55, 0xAA)
+
         /** {0x06} — init. */
         @JvmStatic
         fun init(): ByteArray = byteArrayOf(AnytimeConstants.TX_INIT)
+
+        /** {0x06, 0x55, 0xAA, sum} — CT2.5/CT3A/CT4 init. */
+        @JvmStatic
+        fun initSummed(): ByteArray = withSum(0x06, 0x55, 0xAA)
 
         /** {0x0F} — low power. */
         @JvmStatic
         fun lowPower(): ByteArray = byteArrayOf(AnytimeConstants.TX_LOW_POWER)
 
+        /** {0x0F, 0x55, 0xAA, sum} — CT2.5/CT3A/CT4 low power. */
+        @JvmStatic
+        fun lowPowerSummed(): ByteArray = withSum(0x0F, 0x55, 0xAA)
+
         /** {0x11} — reset. */
         @JvmStatic
         fun reset(): ByteArray = byteArrayOf(AnytimeConstants.TX_RESET)
 
+        /** {0x11, 0x55, 0xAA, sum} — CT2.5/CT3A/CT4 reset. */
+        @JvmStatic
+        fun resetSummed(): ByteArray = withSum(0x11, 0x55, 0xAA)
+
         /** {0x0A} — unbind. */
         @JvmStatic
         fun unbind(): ByteArray = byteArrayOf(AnytimeConstants.TX_UNBIND)
+
+        /** {0x0A, 0x55, 0xAA, sum} — CT2.5/CT3A/CT4 unbind. */
+        @JvmStatic
+        fun unbindSummed(): ByteArray = withSum(0x0A, 0x55, 0xAA)
 
         /** {0x03, year-1900, mon+1, day, hour, min, sec}. */
         @JvmStatic
@@ -154,6 +175,16 @@ object AnytimeFrames {
             )
         }
 
+        /** {0x03, year-1900, mon+1, day, hour, min, sec, sum}. */
+        @JvmStatic
+        @JvmOverloads
+        fun setDateSummed(calendar: Calendar = Calendar.getInstance()): ByteArray {
+            val base = setDate(calendar)
+            val frame = base.copyOf(base.size + 1)
+            frame[frame.lastIndex] = sum(frame, 0, frame.lastIndex - 1)
+            return frame
+        }
+
         /** {0x08, idLo, idHi}. */
         @JvmStatic
         fun pullGlucose(nextId: Int): ByteArray {
@@ -162,6 +193,17 @@ object AnytimeFrames {
                 AnytimeConstants.TX_PULL_GLUCOSE,
                 (id and 0xFF).toByte(),
                 ((id ushr 8) and 0xFF).toByte(),
+            )
+        }
+
+        /** {0x08, idLo, idHi, sum} — CT2.5/CT3A/CT4 pull. */
+        @JvmStatic
+        fun pullGlucoseSummed(nextId: Int): ByteArray {
+            val id = nextId and 0xFFFF
+            return withSum(
+                0x08,
+                id and 0xFF,
+                (id ushr 8) and 0xFF,
             )
         }
 
@@ -194,6 +236,19 @@ object AnytimeFrames {
             )
         }
 
+        /** {0x09, mmolInt, mmolFrac/10, sum}. */
+        @JvmStatic
+        fun inputBgMgSummed(mgdl: Int): ByteArray {
+            val tenths = ((mgdl * 10) / 18)
+            val intPart = tenths / 10
+            val fracPart = tenths - intPart * 10
+            return withSum(
+                0x09,
+                intPart and 0xFF,
+                fracPart and 0xFF,
+            )
+        }
+
         /** {0x0B, KInt, KFrac/10, RInt, RFrac/10}. */
         @JvmStatic
         fun inputKR(k: Float, r: Float): ByteArray {
@@ -207,6 +262,22 @@ object AnytimeFrames {
                 kFrac.toByte(),
                 (rInt and 0xFF).toByte(),
                 rFrac.toByte(),
+            )
+        }
+
+        /** {0x0B, KInt, KFrac/100, RInt, RFrac/100, sum}. */
+        @JvmStatic
+        fun inputKRSummed(k: Float, r: Float): ByteArray {
+            val kInt = k.toInt()
+            val kFrac = ((k - kInt) * 100f).toInt() and 0xFF
+            val rInt = r.toInt()
+            val rFrac = ((r - rInt) * 100f).toInt() and 0xFF
+            return withSum(
+                0x0B,
+                kInt and 0xFF,
+                kFrac,
+                rInt and 0xFF,
+                rFrac,
             )
         }
 
@@ -225,9 +296,22 @@ object AnytimeFrames {
             return frame
         }
 
-        /** {0x20} — formal version request (CT3_x / CT4). Single byte. */
+        /** {0x20} — formal version request for plain CT3. */
         @JvmStatic
         fun transmitterFormal(): ByteArray = byteArrayOf(AnytimeConstants.TX_TRANSMITTER_FORMAL)
+
+        /** {0x20, 0x55, 0xAA, sum} — CT2.5/CT3A/CT4 formal version request. */
+        @JvmStatic
+        fun transmitterFormalSummed(): ByteArray = withSum(0x20, 0x55, 0xAA)
+
+        private fun withSum(vararg values: Int): ByteArray {
+            val frame = ByteArray(values.size + 1)
+            for (i in values.indices) {
+                frame[i] = (values[i] and 0xFF).toByte()
+            }
+            frame[frame.lastIndex] = sum(frame, 0, frame.lastIndex - 1)
+            return frame
+        }
     }
 
     // ---- Parsers (RX from sensor) ----
@@ -238,7 +322,16 @@ object AnytimeFrames {
      * Subsequent records pack 8 bytes each (opcode skipped).
      */
     @JvmStatic
-    fun parseRawRecords(bytes: ByteArray): List<AnytimeRawRecord> {
+    fun parseRawRecords(bytes: ByteArray): List<AnytimeRawRecord> =
+        parseRawRecords(bytes, wideRecords = false)
+
+    /**
+     * CT2.5/CT3A/CT4 raw records encode Ib/Iw as unsigned big-endian shorts
+     * divided by 100 and include electric-current bytes after temperature.
+     */
+    @JvmStatic
+    fun parseRawRecords(bytes: ByteArray, wideRecords: Boolean): List<AnytimeRawRecord> {
+        if (wideRecords) return parseWideRawRecords(bytes)
         if (bytes.size < AnytimeConstants.RAW_RECORD_SIZE) return emptyList()
         val out = ArrayList<AnytimeRawRecord>()
         var offset = 0
@@ -254,6 +347,50 @@ object AnytimeFrames {
             val rec = decodeRaw(bytes, offset - 1, index, withLeadingOpcode = (index == 0))
             if (rec != null) out.add(rec)
             offset += AnytimeConstants.RAW_RECORD_CONTINUATION_SIZE
+            index++
+        }
+        return out
+    }
+
+    private fun parseWideRawRecords(bytes: ByteArray): List<AnytimeRawRecord> {
+        if (bytes.size < AnytimeConstants.WIDE_RAW_RECORD_SIZE) return emptyList()
+        if (bytes[0] != AnytimeConstants.RX_PUSH_GLUCOSE &&
+            bytes[0] != AnytimeConstants.RX_PULL_GLUCOSE
+        ) {
+            return emptyList()
+        }
+        val out = ArrayList<AnytimeRawRecord>()
+        var offset = 0
+        var index = 0
+        while (offset + AnytimeConstants.WIDE_RAW_RECORD_SIZE <= bytes.size) {
+            val opcode = bytes[offset]
+            if (opcode != AnytimeConstants.RX_PUSH_GLUCOSE &&
+                opcode != AnytimeConstants.RX_PULL_GLUCOSE
+            ) {
+                break
+            }
+            val idLo = bytes[offset + 1].toInt() and 0xFF
+            val idHi = bytes[offset + 2].toInt() and 0xFF
+            val isPlaceholder = (offset + 10 < bytes.size) &&
+                (offset + 3..offset + 10).all { (bytes[it].toInt() and 0xFF) == 0xFF }
+            if (isPlaceholder) break
+            val ibRaw = ((bytes[offset + 3].toInt() and 0xFF) shl 8) or (bytes[offset + 4].toInt() and 0xFF)
+            val iwRaw = ((bytes[offset + 5].toInt() and 0xFF) shl 8) or (bytes[offset + 6].toInt() and 0xFF)
+            val tPlus40 = bytes[offset + 7].toInt() and 0xFF
+            val tFrac = bytes[offset + 8].toInt() and 0xFF
+            val temperature = (tPlus40 - AnytimeConstants.TEMP_INT_OFFSET) + tFrac / 100f
+            if (temperature < -10f || temperature > 60f || ibRaw >= 0xFFF0 || iwRaw >= 0xFFF0) break
+            out.add(
+                AnytimeRawRecord(
+                    indexInPacket = index,
+                    glucoseId = idLo or (idHi shl 8),
+                    ibNa = ibRaw / 100f,
+                    iwNa = iwRaw / 100f,
+                    temperatureC = temperature,
+                    recordBytes = bytes.copyOfRange(offset + 1, offset + AnytimeConstants.WIDE_RAW_RECORD_SIZE),
+                )
+            )
+            offset += AnytimeConstants.WIDE_RAW_RECORD_SIZE
             index++
         }
         return out

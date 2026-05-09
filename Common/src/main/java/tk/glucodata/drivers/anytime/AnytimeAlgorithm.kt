@@ -95,7 +95,7 @@ object AnytimeAlgorithm {
     ): Result {
         val k = qr?.k ?: 0f
         val r = qr?.r ?: 0f
-        if (isNativeAvailable && qr != null) {
+        if (isNativeAvailable && qr != null && k > 0f && r > 0f) {
             runCatching {
                 val cal = Calendar.getInstance().apply { timeInMillis = sampleTimeMs }
                 val latest = LatestData().apply {
@@ -133,11 +133,21 @@ object AnytimeAlgorithm {
                 }
                 val out: CurrentGlucose? = AlgorithmTools.getInstance().algorithmLatestGlucose(latest)
                 if (out != null) {
-                    return mapNative(record, out)
+                    val mapped = mapNative(record, out)
+                    if (mapped.errorCode == 0 && mapped.mgdlTimes10 >= AnytimeConstants.ALGO_MGDL_MIN_TIMES10) {
+                        return mapped
+                    }
+                    Log.w(
+                        TAG,
+                        "native algorithm returned invalid result: id=${mapped.glucoseId} " +
+                            "mgdl=${mapped.mgdl} err=${mapped.errorCode}; using linear fallback"
+                    )
                 }
             }.onFailure { t ->
                 Log.w(TAG, "native algorithm failed: ${t.message}")
             }
+        } else if (isNativeAvailable && qr != null) {
+            Log.w(TAG, "native algorithm skipped: invalid QR K/R (K=$k R=$r)")
         }
         return computeLinear(record, k, r)
     }
@@ -192,7 +202,7 @@ object AnytimeAlgorithm {
         if (isNativeAvailable) {
             runCatching {
                 val data: KRDecodeData? = AlgorithmTools.getInstance().decodeCT(qr.toCharArray())
-                if (data != null) {
+                if (data != null && data.k > 0f && data.r > 0f) {
                     return AnytimeQrCalibration(
                         rawQr = qr,
                         format = AnytimeQrCalibration.Format.B,
@@ -212,6 +222,8 @@ object AnytimeAlgorithm {
                         voltageFlag = qr.firstOrNull()?.digitToIntOrNull() ?: 0,
                         calibrationCount = data.calibration,
                     )
+                } else if (data != null) {
+                    Log.w(TAG, "native decodeCT returned invalid K/R: K=${data.k} R=${data.r}")
                 }
             }.onFailure { t ->
                 Log.w(TAG, "native decodeCT failed: ${t.message}")

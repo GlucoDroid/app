@@ -135,9 +135,10 @@ object AnytimeConstants {
     /** Series response (CT5 push). */
     const val RX_SERIES: Byte = 0x22
 
-    // ---- 9-byte raw-current record offsets (RX_PUSH_GLUCOSE / RX_PULL_GLUCOSE) ----
+    // ---- 9-byte / 11-byte raw-current records (RX_PUSH_GLUCOSE / RX_PULL_GLUCOSE) ----
 
     const val RAW_RECORD_SIZE = 9
+    const val WIDE_RAW_RECORD_SIZE = 11
     const val RAW_OFFSET_OPCODE = 0
     const val RAW_OFFSET_ID_LO = 1
     const val RAW_OFFSET_ID_HI = 2
