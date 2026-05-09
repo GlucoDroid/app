@@ -81,6 +81,9 @@ class AnytimeBleManager(
 
         /** Check / setDate / init each get a per-frame timeout. */
         private const val PROTOCOL_FRAME_TIMEOUT_MS = 8_000L
+
+        /** Values exposed through AnytimeCurrentSnapshot are mmol/L, while native history uses mg/dL. */
+        private const val MGDL_TO_MMOLL = 1f / 18f
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, HANDSHAKING, STREAMING }
@@ -133,6 +136,7 @@ class AnytimeBleManager(
     @Volatile private var historyBackfillActive: Boolean = false
     @Volatile private var historyEmptyResponsesInARow: Int = 0
     @Volatile private var historyLastPulledId: Int = -1
+    @Volatile private var historyPullInFlight: Boolean = false
 
     override var viewMode: Int = 0
 
@@ -228,48 +232,63 @@ class AnytimeBleManager(
         armPullFallback()
     }
 
-    private val historyBackfillRunnable = Runnable {
+    private val historyBackfillRunnable: Runnable = Runnable {
         if (stop || !historyBackfillActive) return@Runnable
         if (phase != Phase.STREAMING) return@Runnable
-        val nextId = (lastGlucoseId + 1).coerceAtLeast(0)
+        if (historyPullInFlight) return@Runnable
+        val nextId = (historyLastPulledId + 1).coerceAtLeast(0)
         if (nextId >= familyEntry.endNumber) {
             Log.i(TAG, "Backfill complete (lastId=$lastGlucoseId, endNumber=${familyEntry.endNumber})")
-            historyBackfillActive = false
+            stopHistoryBackfill()
             return@Runnable
         }
-        historyLastPulledId = nextId
+        historyPullInFlight = true
         Log.d(TAG, "Backfill pull next id=$nextId")
-        writeFrame(pullGlucoseFrame(nextId), "pullGlucose(backfill)")
+        if (!writeFrame(pullGlucoseFrame(nextId), "pullGlucose(backfill)")) {
+            historyPullInFlight = false
+            handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
+        }
     }
 
     private val protocolFrameTimeoutRunnable = Runnable {
-        if (stop || phase != Phase.HANDSHAKING) return@Runnable
+        if (stop) return@Runnable
+        val tag = lastProtocolFrameTag
         val elapsed = System.currentTimeMillis() - lastProtocolFrameAtMs
-        Log.w(TAG, "Protocol timeout after $lastProtocolFrameTag (${elapsed}ms)")
+        Log.w(TAG, "Protocol timeout after $tag (${elapsed}ms)")
+        if (tag.startsWith("pullGlucose(backfill)")) {
+            historyPullInFlight = false
+            if (historyBackfillActive && phase == Phase.STREAMING && !stop) {
+                handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
+            }
+            return@Runnable
+        }
+        if (phase != Phase.HANDSHAKING) return@Runnable
         if (familyEntry.family == AnytimeConstants.Family.CT4 && tryCt4HandshakeFallback()) {
             return@Runnable
         }
         runCatching { mBluetoothGatt?.disconnect() }
-        scheduleReconnect("protocol timeout after $lastProtocolFrameTag", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+        scheduleReconnect("protocol timeout after $tag", ACTIVE_SESSION_RECONNECT_DELAY_MS)
     }
 
     /**
-     * Start (or resume) the history backfill loop. Walks `lastGlucoseId+1`
-     * upward, batch by batch, until the transmitter starts returning empty
-     * frames or we hit the family's `endNumber`.
+     * Start (or resume) the history backfill loop. Walks ids upward from 0
+     * on a clean start, one request at a time, until the transmitter starts
+     * returning empty frames or we hit the family's `endNumber`.
      */
     private fun startHistoryBackfill(reason: String) {
         if (phase != Phase.STREAMING) return
         if (historyBackfillActive) return
-        Log.i(TAG, "Starting history backfill ($reason) from id=${lastGlucoseId + 1}")
+        Log.i(TAG, "Starting history backfill ($reason) from id=0")
         historyBackfillActive = true
         historyEmptyResponsesInARow = 0
         historyLastPulledId = -1
+        historyPullInFlight = false
         handler.postDelayed(historyBackfillRunnable, 250L)
     }
 
     private fun stopHistoryBackfill() {
         historyBackfillActive = false
+        historyPullInFlight = false
         handler.removeCallbacks(historyBackfillRunnable)
     }
 
@@ -367,8 +386,7 @@ class AnytimeBleManager(
     private fun transmitterFormalFrame(): ByteArray =
         if (usesSummedFrames()) AnytimeFrames.Builders.transmitterFormalSummed() else AnytimeFrames.Builders.transmitterFormal()
 
-    private fun usesPlainControlFrames(): Boolean =
-        familyEntry.family == AnytimeConstants.Family.CT4 && postVoltagePlainControlFrames
+    private fun usesPlainControlFrames(): Boolean = false
 
     private fun armProtocolFrameTimeout(tag: String) {
         if (phase != Phase.HANDSHAKING) return
@@ -386,13 +404,8 @@ class AnytimeBleManager(
     private fun tryCt4HandshakeFallback(): Boolean {
         val timedOutTag = lastProtocolFrameTag
         if (timedOutTag.startsWith("setDate")) {
-            if (timedOutTag.contains("ct4-")) return false
-            val useSummedFallback = postVoltagePlainControlFrames
-            Log.i(TAG, "CT4 fallback: retrying setDate with ${if (useSummedFallback) "summed" else "plain"} frame")
-            writeFrame(
-                if (useSummedFallback) AnytimeFrames.Builders.setDateSummed() else AnytimeFrames.Builders.setDate(),
-                if (useSummedFallback) "setDate(ct4-summed-fallback)" else "setDate(ct4-plain-fallback)",
-            )
+            Log.w(TAG, "setDate ACK timeout; continuing with init")
+            writeFrame(initFrame(), "init(after-setDate-timeout)")
             return true
         }
         if (timedOutTag.startsWith("init")) {
@@ -729,9 +742,6 @@ class AnytimeBleManager(
     private fun handleVoltageAck(data: ByteArray) {
         val echoed = if (data.size >= 2) data[1].toInt() and 0xFF else -1
         Log.i(TAG, "Voltage switch ack: $echoed")
-        if (familyEntry.family == AnytimeConstants.Family.CT4) {
-            postVoltagePlainControlFrames = true
-        }
         writeFrame(checkFrame(), "check(post-voltage)")
     }
 
@@ -770,13 +780,13 @@ class AnytimeBleManager(
             pendingKrPush = false
             qr?.let { writeFrame(inputKrFrame(it.k, it.r), "inputKR(deferred)") }
         }
-        writeFrame(lowPowerFrame(), "lowPower")
+        writeFrame(lowPowerFrame(), "lowPower", expectResponse = false)
         armPullFallback()
         armNoDataWatchdog()
-        // Pull any history we missed since last connect (or from id 0 on a
-        // fresh pair if persisted state has lastGlucoseId == -1, which falls
-        // through to "ask for id 0").
-        startHistoryBackfill("post-init")
+        // Pull any history we missed after low-power is written. Starting too
+        // early can leave CT4 ignoring the first pull and wedging the backfill
+        // cursor in-flight forever.
+        handler.postDelayed({ startHistoryBackfill("post-init") }, 750L)
         UiRefreshBus.requestStatusRefresh()
     }
 
@@ -793,11 +803,12 @@ class AnytimeBleManager(
         if (parsed.isBound) {
             // Sensor confirms session is alive — proceed to streaming and pull
             // any history we missed while disconnected.
+
             phase = Phase.STREAMING
-            writeFrame(lowPowerFrame(), "lowPower(post-reset)")
+            writeFrame(lowPowerFrame(), "lowPower(post-reset)", expectResponse = false)
             armPullFallback()
             armNoDataWatchdog()
-            startHistoryBackfill("post-reset(reconnect)")
+            handler.postDelayed({ startHistoryBackfill("post-reset(reconnect)") }, 750L)
             UiRefreshBus.requestStatusRefresh()
         } else {
             // Sensor lost binding — fall through to fresh handshake.
@@ -828,8 +839,14 @@ class AnytimeBleManager(
     // ---- Glucose pipeline ----
 
     private fun handleGlucoseFrame(data: ByteArray, push: Boolean) {
-        if (phase == Phase.HANDSHAKING && familyEntry.family == AnytimeConstants.Family.CT4) {
-            enterStreaming("Raw glucose during CT4 handshake")
+        if (phase == Phase.HANDSHAKING && push) {
+            val records = AnytimeFrames.parseRawRecords(data, usesWideRawRecords())
+            val firstId = records.maxOfOrNull { it.glucoseId }
+            if (firstId != null) {
+                val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
+                anchorSensorTimelineIfNeeded(firstId, System.currentTimeMillis(), intervalMs)
+            }
+            enterStreaming("Raw glucose during handshake")
         }
         handleRawGlucose(data, push)
     }
@@ -841,6 +858,7 @@ class AnytimeBleManager(
         if (records.isEmpty()) {
             // Empty pull response — transmitter has nothing more to give.
             Log.d(TAG, "Empty raw frame (pull caught-up): ${data.joinToHex()}")
+            if (!push) historyPullInFlight = false
             if (historyBackfillActive) {
                 historyEmptyResponsesInARow++
                 if (historyEmptyResponsesInARow >= HISTORY_EMPTY_RESPONSES_TO_STOP) {
@@ -853,23 +871,32 @@ class AnytimeBleManager(
             return
         }
         historyEmptyResponsesInARow = 0
+        if (!push) {
+            historyPullInFlight = false
+            records.maxOfOrNull { it.glucoseId }?.let { maxId ->
+                if (maxId > historyLastPulledId) historyLastPulledId = maxId
+            }
+        }
         val now = System.currentTimeMillis()
+        val anchorId = records.maxOfOrNull { it.glucoseId } ?: -1
+        val anchorMs = if (push && anchorId >= 0) now else 0L
         for (rec in records) {
             packetsSinceInit++
             lastIwNa = rec.iwNa
             lastIbNa = rec.ibNa
             lastTemperatureC = rec.temperatureC
-            anchorSensorTimelineIfNeeded(rec.glucoseId, now, intervalMs)
-            // Anchor every reading on its absolute glucose id mapped through
-            // session start. This gives correct timestamps for both real-time
-            // pushes (id at end-of-stream) and backfill pulls (older ids in
-            // the middle of the session). Falls back to wall-clock anchoring
-            // if we have no session start (e.g. a stub-binding reconnect).
-            val sampleMs = if (sensorStartAtMs > 0L) {
+            val sampleMs = if (push && anchorMs > 0L && anchorId >= rec.glucoseId) {
+                // Live pushes are wall-clock anchored. The transmitter glucose id is monotonic,
+                // but CT4 cadence/profile metadata can be wrong early in a new session; anchoring
+                // live packets to sensorStartAtMs makes fresh readings appear several minutes old
+                // and trips the loss-of-sensor alarm.
+                anchorMs - (anchorId - rec.glucoseId).toLong() * intervalMs
+            } else if (sensorStartAtMs > 0L) {
                 sensorStartAtMs + rec.glucoseId.toLong() * intervalMs
             } else {
                 now - rec.indexInPacket * intervalMs
             }
+            anchorSensorTimelineIfNeeded(rec.glucoseId, sampleMs, intervalMs)
             val result = AnytimeAlgorithm.compute(
                 record = rec,
                 qr = qr,
@@ -880,7 +907,7 @@ class AnytimeBleManager(
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
                 sessionPacketsSinceInit = packetsSinceInit,
             )
-            commitReading(result, sampleMs, context)
+            commitReading(result, sampleMs, context, live = push, history = !push)
             if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
         }
         persistAlgorithmState()
@@ -907,7 +934,7 @@ class AnytimeBleManager(
             System.currentTimeMillis()
         }
         val result = AnytimeAlgorithm.fromComputedRecord(rec)
-        commitReading(result, sampleMs, Applic.app)
+        commitReading(result, sampleMs, Applic.app, live = true, history = false)
         if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
         persistAlgorithmState()
         armNoDataWatchdog()
@@ -915,7 +942,7 @@ class AnytimeBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
-    private fun anchorSensorTimelineIfNeeded(glucoseId: Int, nowMs: Long, intervalMs: Long) {
+    private fun anchorSensorTimelineIfNeeded(glucoseId: Int, sampleMs: Long, intervalMs: Long) {
         if (glucoseId < 0 || intervalMs <= 0L) return
         val projectedMs = if (sensorStartAtMs > 0L) {
             sensorStartAtMs + glucoseId.toLong() * intervalMs
@@ -923,22 +950,28 @@ class AnytimeBleManager(
             Long.MAX_VALUE
         }
         val futureToleranceMs = (intervalMs / 2L).coerceAtLeast(30_000L)
-        if (projectedMs <= nowMs + futureToleranceMs) return
+        if (projectedMs <= sampleMs + futureToleranceMs) return
 
-        val anchoredStartMs = (nowMs - glucoseId.toLong() * intervalMs).coerceAtLeast(1L)
+        val anchoredStartMs = (sampleMs - glucoseId.toLong() * intervalMs).coerceAtLeast(1L)
         Log.i(
             TAG,
             "Anchoring sensor timeline from glucose id=$glucoseId " +
-                "(oldStart=$sensorStartAtMs newStart=$anchoredStartMs)"
+                    "(oldStart=$sensorStartAtMs newStart=$anchoredStartMs)"
         )
         sensorStartAtMs = anchoredStartMs
         sensorstartmsec = anchoredStartMs
-        if (warmupStartedAtMs == 0L || warmupStartedAtMs > nowMs + futureToleranceMs) {
+        if (warmupStartedAtMs == 0L || warmupStartedAtMs > sampleMs + futureToleranceMs) {
             warmupStartedAtMs = anchoredStartMs
         }
     }
 
-    private fun commitReading(result: AnytimeAlgorithm.Result, sampleMs: Long, context: Context?) {
+    private fun commitReading(
+        result: AnytimeAlgorithm.Result,
+        sampleMs: Long,
+        context: Context?,
+        live: Boolean,
+        history: Boolean,
+    ) {
         if (result.errorCode != 0 || result.mgdlTimes10 < 170) {
             Log.w(
                 TAG,
@@ -954,7 +987,8 @@ class AnytimeBleManager(
             )
             return
         }
-        if (sampleMs >= lastGlucoseAtMs) {
+        val newest = sampleMs >= lastGlucoseAtMs
+        if (newest) {
             lastGlucoseAtMs = sampleMs
             lastGlucoseMgdlTimes10 = result.mgdlTimes10
             lastAlgorithmResult = result
@@ -966,7 +1000,12 @@ class AnytimeBleManager(
                 result.iwNa, result.ibNa, result.temperatureC, result.trend, result.errorCode,
             )
         )
-        mirrorReadingIntoNative(sampleMs, result.mgdlTimes10 / 10)
+        mirrorReadingIntoNative(sampleMs, result.mgdl)
+        if (live) {
+            emitGlucose(result, sampleMs)
+        } else if (history && newest) {
+            Log.d(TAG, "Backfill stored newer native point without live emit id=${result.glucoseId}")
+        }
     }
 
     private fun ensureNativeSensorShell() {
@@ -980,19 +1019,31 @@ class AnytimeBleManager(
         }.onFailure { Log.stack(TAG, "ensureNativeSensorShell", it) }
     }
 
-    private fun mirrorReadingIntoNative(sampleMs: Long, glucoseMgdl: Int) {
+    private fun mirrorReadingIntoNative(sampleMs: Long, glucoseMgdl: Float) {
         val name = SerialNumber ?: return
         runCatching {
-            Natives.addGlucoseStream(sampleMs / 1000L, glucoseMgdl.toFloat(), name)
+            Natives.addGlucoseStream(sampleMs / 1000L, glucoseMgdl, name)
             Natives.wakebackup()
         }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
     }
 
+    private fun emitGlucose(result: AnytimeAlgorithm.Result, sampleMs: Long) {
+        val alarm = 0L
+        val rateShort = 0 // we do not compute trend rate yet
+        val mgdlTimes10 = result.mgdlTimes10.toLong() and 0xFFFFFFFFL
+        val res = (alarm shl 48) or ((rateShort.toLong() and 0xFFFF) shl 32) or mgdlTimes10
+        try {
+            handleGlucoseResult(res, sampleMs)
+        } catch (t: Throwable) {
+            Log.stack(TAG, "emitGlucose", t)
+        }
+    }
+
     // ---- Frame writer ----
 
-    private fun writeFrame(bytes: ByteArray, tag: String) {
-        val gatt = mBluetoothGatt ?: return
-        val ch = charWrite ?: return
+    private fun writeFrame(bytes: ByteArray, tag: String, expectResponse: Boolean = true): Boolean {
+        val gatt = mBluetoothGatt ?: return false
+        val ch = charWrite ?: return false
         ch.value = bytes
         ch.writeType = if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
             BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
@@ -1004,8 +1055,11 @@ class AnytimeBleManager(
             Log.w(TAG, "writeCharacteristic($tag) returned false bytes=${bytes.joinToHex()}")
         } else {
             Log.d(TAG, "TX $tag bytes=${bytes.joinToHex()}")
-            armProtocolFrameTimeout(tag)
+            if (expectResponse) {
+                armProtocolFrameTimeout(tag)
+            }
         }
+        return ok
     }
 
     // ---- AnytimeDriver implementation ----
@@ -1067,7 +1121,11 @@ class AnytimeBleManager(
         if (System.currentTimeMillis() - lastGlucoseAtMs > maxAgeMillis) return null
         return AnytimeCurrentSnapshot(
             timeMillis = lastGlucoseAtMs,
-            glucoseValue = lastGlucoseMgdlTimes10 / 10f,
+            glucoseValue = if (Applic.unit == 1) {
+                lastGlucoseMgdlTimes10 * MGDL_TO_MMOLL / 10f
+            } else {
+                lastGlucoseMgdlTimes10 / 10f
+            },
             rawValue = lastIwNa,
             rate = Float.NaN,
             sensorGen = SENSOR_GEN,
@@ -1107,6 +1165,8 @@ class AnytimeBleManager(
 
     override fun hasNativeSensorBacking(): Boolean = true
 
+    override fun shouldUseNativeHistorySync(): Boolean = false
+
     override fun getDetailedBleStatus(): String = when (phase) {
         Phase.IDLE -> "Idle"
         Phase.CONNECTING -> "Connecting"
@@ -1127,7 +1187,7 @@ class AnytimeBleManager(
         val r = lastAlgorithmResult ?: return null
         if (r.source == AnytimeAlgorithm.Source.LINEAR) {
             return "Linear fallback · K=${qr?.k ?: 0f} R=${qr?.r ?: 0f}\n" +
-                "Iw=${"%.2f".format(r.iwNa)} nA · Ib=${"%.2f".format(r.ibNa)} nA · T=${"%.1f".format(r.temperatureC)}°C"
+                    "Iw=${"%.2f".format(r.iwNa)} nA · Ib=${"%.2f".format(r.ibNa)} nA · T=${"%.1f".format(r.temperatureC)}°C"
         }
         val voltagesLine = if (r.weVoltageMv != Int.MIN_VALUE) {
             "WE=${r.weVoltageMv}mV BE=${r.beVoltageMv}mV RE=${r.reVoltageMv}mV CE=${r.ceVoltageMv}mV B=${r.bVoltageMv}mV"

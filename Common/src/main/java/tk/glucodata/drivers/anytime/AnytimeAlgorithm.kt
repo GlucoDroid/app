@@ -134,13 +134,14 @@ object AnytimeAlgorithm {
                 val out: CurrentGlucose? = AlgorithmTools.getInstance().algorithmLatestGlucose(latest)
                 if (out != null) {
                     val mapped = mapNative(record, out)
-                    if (mapped.errorCode == 0 && mapped.mgdlTimes10 >= AnytimeConstants.ALGO_MGDL_MIN_TIMES10) {
+                    if (isPlausibleNative(mapped)) {
                         return mapped
                     }
                     Log.w(
                         TAG,
                         "native algorithm returned invalid result: id=${mapped.glucoseId} " +
-                            "mgdl=${mapped.mgdl} err=${mapped.errorCode}; using linear fallback"
+                                "mmol=${mapped.mmol} mgdl=${mapped.mgdl} trend=${mapped.trend} " +
+                                "err=${mapped.errorCode}; using linear fallback"
                     )
                 }
             }.onFailure { t ->
@@ -230,6 +231,20 @@ object AnytimeAlgorithm {
             }
         }
         return AnytimeQr.parse(qr)
+    }
+
+
+    private fun isPlausibleNative(result: Result): Boolean {
+        if (result.errorCode != 0) return false
+        if (result.mgdlTimes10 !in AnytimeConstants.ALGO_MGDL_MIN_TIMES10..AnytimeConstants.ALGO_MGDL_MAX_TIMES10) return false
+        if (result.trend !in 0..6) return false
+        if (!result.mmol.isFinite() || result.mmol <= 0f) return false
+        val mgdlFromMmol = result.mmol * 18f
+        // The vendor shim can occasionally return an internally inconsistent CurrentGlucose
+        // object (for example glu=27.8 mmol/L while gluMG maps to 50 mg/dL and trend=10).
+        // Treat that as a refused native result and keep the raw packet via linear K/R instead.
+        if (kotlin.math.abs(mgdlFromMmol - result.mgdl) > 20f) return false
+        return true
     }
 
     private fun mapNative(record: AnytimeRawRecord, native: CurrentGlucose): Result =
