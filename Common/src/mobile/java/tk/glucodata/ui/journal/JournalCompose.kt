@@ -121,6 +121,13 @@ data class JournalDoseProfile(
     val targetHighMgDl: Float
 )
 
+private enum class JournalMealShape(val durationMinutes: Int, val labelRes: Int) {
+    FAST(45, R.string.journal_meal_shape_fast),
+    MIXED(90, R.string.journal_meal_shape_mixed),
+    SLOW(180, R.string.journal_meal_shape_slow),
+    EXTENDED(240, R.string.journal_meal_shape_extended)
+}
+
 fun buildJournalChartMarkers(
     entries: List<JournalEntry>,
     presetsById: Map<Long, JournalInsulinPreset>,
@@ -178,6 +185,8 @@ fun buildJournalChartMarkers(
             activeEndMillis = if (entry.type == JournalEntryType.INSULIN && preset != null) {
                 preset.activeEndAt(entry.timestamp)
             } else if (entry.type == JournalEntryType.ACTIVITY && entry.durationMinutes != null) {
+                entry.timestamp + (entry.durationMinutes.coerceAtLeast(1) * 60_000L)
+            } else if (entry.type == JournalEntryType.CARBS && entry.durationMinutes != null) {
                 entry.timestamp + (entry.durationMinutes.coerceAtLeast(1) * 60_000L)
             } else {
                 null
@@ -555,6 +564,14 @@ fun JournalEntrySheet(
                             prominent = true
                         )
                     }
+                    item(key = "carbs_meal_shape") {
+                        JournalMealShapeSelector(
+                            durationText = draft.durationText,
+                            onShapeSelected = { shape ->
+                                draft = draft.copy(durationText = shape.durationMinutes.toString())
+                            }
+                        )
+                    }
                     if (existingEntry == null && calculatorProfile != null) {
                         item(key = "carbs_dose_assist") {
                             JournalDoseAssistCard(
@@ -760,6 +777,11 @@ private fun buildDraft(
             } else {
                 ""
             },
+            durationText = if (initialType == JournalEntryType.CARBS) {
+                JournalMealShape.MIXED.durationMinutes.toString()
+            } else {
+                ""
+            },
             chartAnchorGlucoseMgDl = suggestedChartAnchorGlucoseMgDl,
             doseGlucoseMgDl = suggestedGlucoseMgDl
         )
@@ -810,7 +832,7 @@ private fun JournalEntryDraft.normalizedForType(
                 suggestedAmountFraction?.let(::suggestedCarbAmountForFraction).orEmpty()
             },
             glucoseText = "",
-            durationText = "",
+            durationText = durationText.ifBlank { JournalMealShape.MIXED.durationMinutes.toString() },
             intensity = null,
             insulinPresetId = null,
             pairWithDose = false,
@@ -877,6 +899,7 @@ private fun JournalEntryDraft.toInput(
 
         JournalEntryType.CARBS -> {
             val grams = amountText.parseFloatOrNull() ?: return null
+            val absorptionMinutes = durationText.parseIntOrNull()?.coerceIn(15, 480)
             JournalEntryInput(
                 id = entryId,
                 timestamp = timestamp,
@@ -885,7 +908,8 @@ private fun JournalEntryDraft.toInput(
                 title = Applic.app.getString(R.string.carbo),
                 note = noteValue,
                 amount = grams,
-                glucoseValueMgDl = chartAnchorGlucoseMgDl
+                glucoseValueMgDl = chartAnchorGlucoseMgDl,
+                durationMinutes = absorptionMinutes
             )
         }
 
@@ -968,7 +992,8 @@ private fun JournalEntryDraft.toInputs(
                 type = JournalEntryType.CARBS,
                 title = Applic.app.getString(R.string.carbo),
                 amount = grams,
-                glucoseValueMgDl = chartAnchorGlucoseMgDl
+                glucoseValueMgDl = chartAnchorGlucoseMgDl,
+                durationMinutes = durationText.parseIntOrNull()?.coerceIn(15, 480)
             )
         }
 
@@ -1187,6 +1212,51 @@ private fun JournalDoseAssistCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun JournalMealShapeSelector(
+    durationText: String,
+    onShapeSelected: (JournalMealShape) -> Unit
+) {
+    val selected = remember(durationText) {
+        val minutes = durationText.parseIntOrNull()
+        if (minutes == null) {
+            JournalMealShape.MIXED
+        } else {
+            JournalMealShape.entries.minBy { abs(it.durationMinutes - minutes) }
+        }
+    }
+    val labels = mapOf(
+        JournalMealShape.FAST to stringResource(R.string.journal_meal_shape_fast),
+        JournalMealShape.MIXED to stringResource(R.string.journal_meal_shape_mixed),
+        JournalMealShape.SLOW to stringResource(R.string.journal_meal_shape_slow),
+        JournalMealShape.EXTENDED to stringResource(R.string.journal_meal_shape_extended)
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.journal_meal_shape),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        ConnectedButtonGroup(
+            options = JournalMealShape.entries.toList(),
+            selectedOption = selected,
+            onOptionSelected = onShapeSelected,
+            label = { },
+            labelText = { labels[it].orEmpty() },
+            modifier = Modifier.fillMaxWidth(),
+            itemHeight = 44.dp,
+            selectedContainerColor = journalTypeSelectedContainerColor(
+                JournalEntryType.CARBS,
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+            selectedContentColor = MaterialTheme.colorScheme.onSurface,
+            unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f),
+            unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -1722,7 +1792,10 @@ private fun describeJournalEntry(
 
         JournalEntryType.CARBS -> {
             val amount = entry.amount?.let(::formatFloatForEditor).orEmpty()
-            listOfNotNull("$amount g".takeIf { amount.isNotBlank() }, entry.note).joinToString(" · ")
+            val curve = entry.durationMinutes?.let {
+                Applic.app.getString(R.string.minutes_short_format, it)
+            }
+            listOfNotNull("$amount g".takeIf { amount.isNotBlank() }, curve, entry.note).joinToString(" · ")
         }
 
         JournalEntryType.FINGERSTICK -> {

@@ -215,7 +215,8 @@ fun FloatingGlucoseOverlay(
             val unit = if (unitInt == 1) "mmol/L" else "mg/dL"
             val dvs = currentSnapshot?.displayValues ?: run {
                 val isRawModeForCal = viewMode == 1 || viewMode == 3
-                val hasCalibration = CalibrationManager.hasActiveCalibration(isRawModeForCal)
+                val hasCalibration = !CalibrationManager.shouldOverwriteSensorValues() &&
+                    CalibrationManager.hasActiveCalibration(isRawModeForCal)
                 val calibratedValue = if (hasCalibration) {
                     val baseValue = if (isRawModeForCal) point.rawValue else point.value
                     if (baseValue.isFinite() && baseValue > 0.1f) {

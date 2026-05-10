@@ -147,12 +147,14 @@ private fun JournalEntry.projectedDisplayDelta(
     return when (type) {
         JournalEntryType.CARBS -> {
             val grams = amount?.takeIf { it > 0f } ?: return 0f
-            val absorptionMinutes = (grams / carbAbsorptionGramsPerHour * 60f)
-                .coerceIn(30f, 360f)
+            val absorptionMinutes = durationMinutes
+                ?.coerceIn(15, 480)
+                ?.toFloat()
+                ?: (grams / carbAbsorptionGramsPerHour * 60f).coerceIn(30f, 360f)
             val totalRise = (grams / carbRatioGramsPerUnit) * sensitivityDisplay
             totalRise * (
-                linearProgress(timestamp, absorptionMinutes, atMillis) -
-                    linearProgress(timestamp, absorptionMinutes, baselineMillis)
+                mealProgress(timestamp, absorptionMinutes, atMillis) -
+                    mealProgress(timestamp, absorptionMinutes, baselineMillis)
                 )
         }
         JournalEntryType.INSULIN -> {
@@ -186,6 +188,11 @@ private fun linearProgress(startMillis: Long, durationMinutes: Float, atMillis: 
     if (atMillis <= startMillis) return 0f
     val elapsedMinutes = (atMillis - startMillis) / 60_000f
     return (elapsedMinutes / durationMinutes.coerceAtLeast(1f)).coerceIn(0f, 1f)
+}
+
+private fun mealProgress(startMillis: Long, durationMinutes: Float, atMillis: Long): Float {
+    val x = linearProgress(startMillis, durationMinutes, atMillis)
+    return x * x * (3f - 2f * x)
 }
 
 private fun cumulativeCurveFraction(points: List<JournalCurvePoint>, doseTimestamp: Long, atMillis: Long): Float {
