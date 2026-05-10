@@ -75,7 +75,7 @@ class AnytimeBleManager(
         private const val PULL_FALLBACK_MULTIPLIER = 3L
 
         /** Backfill loop: gap between consecutive pulls when records keep arriving. */
-        private const val HISTORY_PULL_BATCH_DELAY_MS = 75L
+        private const val HISTORY_PULL_BATCH_DELAY_MS = 25L
 
         /** How many empty pull responses in a row count as "caught up". */
         private const val HISTORY_EMPTY_RESPONSES_TO_STOP = 2
@@ -86,11 +86,27 @@ class AnytimeBleManager(
         /** Check / setDate / init each get a per-frame timeout. */
         private const val PROTOCOL_FRAME_TIMEOUT_MS = 8_000L
 
+        /** Android may deliver CCCD callbacks late after Bluetooth toggles; do not write while descriptor op is still pending. */
+        private const val CCCD_WRITE_TIMEOUT_MS = 4_000L
+
+        /** Bound for manually recovering a half-open GATT that never reported STATE_DISCONNECTED. */
+        private const val STALE_GATT_RECOVERY_MS = 20_000L
+
         /** Avoid duplicate Room rows when the same point arrives through live/backfill/native refresh. */
         private const val ROOM_HISTORY_NEAR_DUPLICATE_MS = 90_000L
 
         /** Legacy Yuwell JNI returns 0 until it has enough warmup history. */
         private const val NATIVE_HISTORY_WARMUP_RECORDS = 20
+
+        /**
+         * Fresh installs should become useful quickly, then continue filling older
+         * history in the background. CT4 pulls are one-record-per-request, so doing
+         * id=0..current before showing the recent tail feels broken.
+         */
+        private const val FRESH_AUTO_BACKFILL_RECORDS = 24
+
+        /** Small pause between the quick recent tail and the older full-prefix fill. */
+        private const val FRESH_OLDER_BACKFILL_DELAY_MS = 2_000L
 
         /** Check-frame age counter is seconds for CT4/Anytime v3 traces. */
         private const val SENSOR_AGE_COUNTER_TO_MS = 1_000L
@@ -140,6 +156,8 @@ class AnytimeBleManager(
     @Volatile private var reconnectReason: String = ""
     @Volatile private var serviceDiscoveryHandled: Boolean = false
     @Volatile private var serviceDiscoveryRetryCount: Int = 0
+    @Volatile private var pendingCccdGatt: BluetoothGatt? = null
+    @Volatile private var lastConnectRequestAtMs: Long = 0L
     @Volatile private var pendingFingerstickMgdl: Int = -1
     @Volatile private var pendingKrPush: Boolean = false
     @Volatile private var lastProtocolFrameAtMs: Long = 0L
@@ -151,14 +169,30 @@ class AnytimeBleManager(
     private val rawAlgorithmWindow = java.util.TreeMap<Int, AnytimeRawRecord>()
     private val pendingNativeRecomputeIds = java.util.TreeSet<Int>()
 
+    /**
+     * During the fresh recent-tail pass rolling native can be computed from a
+     * still-growing window (e.g. id=589 before ids=590..593 are present). Keep
+     * those ids and rewrite them once the whole tail range is loaded so the
+     * chart settles on one final native lane instead of keeping transitional
+     * rolling estimates.
+     */
+    private val freshRecentTailFinalRecomputeIds = java.util.TreeSet<Int>()
+
     /** True only when this process restored an existing Anytime session cache. */
     @Volatile private var restoredGlucoseState: Boolean = false
+
+    /** Fresh sessions first get a short recent tail, then the older prefix in background. */
+    @Volatile private var freshPostLiveBackfillStarted: Boolean = false
+    @Volatile private var freshOlderBackfillStarted: Boolean = false
+    @Volatile private var pendingFreshOlderBackfillStartId: Int = -1
 
     // ---- History backfill loop state ----
     @Volatile private var historyBackfillActive: Boolean = false
     @Volatile private var historyEmptyResponsesInARow: Int = 0
     @Volatile private var historyLastPulledId: Int = -1
     @Volatile private var historyPullInFlight: Boolean = false
+    @Volatile private var historyStopBeforeId: Int = Int.MAX_VALUE
+    @Volatile private var historyBackfillReason: String = ""
 
     override var viewMode: Int = 0
 
@@ -189,6 +223,9 @@ class AnytimeBleManager(
             rawHistory.forEach { rawAlgorithmWindow[it.glucoseId] = it }
         }
         restoredGlucoseState = lastGlucoseId >= 0 || rawHistory.isNotEmpty()
+        freshPostLiveBackfillStarted = false
+        freshOlderBackfillStarted = false
+        pendingFreshOlderBackfillStartId = -1
     }
 
     private fun synthesiseQr(raw: String, k: Float, r: Float): AnytimeQrCalibration =
@@ -248,8 +285,7 @@ class AnytimeBleManager(
             return@Runnable
         }
         Log.w(TAG, "No glucose for ${elapsed / 1000}s — forcing reconnect")
-        runCatching { mBluetoothGatt?.disconnect() }
-        scheduleReconnect("no-data watchdog", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+        recoverGattAndReconnect("no-data watchdog", ACTIVE_SESSION_RECONNECT_DELAY_MS)
     }
 
     private val pullFallbackRunnable = Runnable {
@@ -266,9 +302,14 @@ class AnytimeBleManager(
         if (phase != Phase.STREAMING) return@Runnable
         if (historyPullInFlight) return@Runnable
         val nextId = (historyLastPulledId + 1).coerceAtLeast(0)
+        if (nextId >= historyStopBeforeId) {
+            Log.i(TAG, "Backfill range complete ($historyBackfillReason, nextId=$nextId stopBefore=$historyStopBeforeId)")
+            finishHistoryBackfill()
+            return@Runnable
+        }
         if (nextId >= familyEntry.endNumber) {
             Log.i(TAG, "Backfill complete (lastId=$lastGlucoseId, endNumber=${familyEntry.endNumber})")
-            stopHistoryBackfill()
+            finishHistoryBackfill()
             return@Runnable
         }
         historyPullInFlight = true
@@ -305,8 +346,7 @@ class AnytimeBleManager(
         if (familyEntry.family == AnytimeConstants.Family.CT4 && tryCt4HandshakeFallback()) {
             return@Runnable
         }
-        runCatching { mBluetoothGatt?.disconnect() }
-        scheduleReconnect("protocol timeout after $tag", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+        recoverGattAndReconnect("protocol timeout after $tag", ACTIVE_SESSION_RECONNECT_DELAY_MS)
     }
 
     /**
@@ -315,15 +355,27 @@ class AnytimeBleManager(
      * start from the first id after the newest id we have already seen, otherwise
      * we either replay the whole session or immediately stop on old empty frames.
      */
-    private fun startHistoryBackfill(reason: String, fromId: Int) {
+    private fun startHistoryBackfill(
+        reason: String,
+        fromId: Int,
+        stopBeforeId: Int = Int.MAX_VALUE,
+    ) {
         if (phase != Phase.STREAMING) return
         if (historyBackfillActive) {
             Log.d(TAG, "Backfill already active; ignoring $reason from id=$fromId")
             return
         }
         val startId = fromId.coerceAtLeast(0)
-        Log.i(TAG, "Starting history backfill ($reason) from id=$startId")
+        val stopId = stopBeforeId.coerceAtLeast(startId)
+        if (startId >= stopId) {
+            Log.i(TAG, "Skipping empty backfill range ($reason, start=$startId stopBefore=$stopId)")
+            maybeStartPendingFreshOlderBackfill()
+            return
+        }
+        Log.i(TAG, "Starting history backfill ($reason) from id=$startId stopBefore=${if (stopId == Int.MAX_VALUE) "∞" else stopId.toString()}")
         historyBackfillActive = true
+        historyBackfillReason = reason
+        historyStopBeforeId = stopId
         historyEmptyResponsesInARow = 0
         historyLastPulledId = startId - 1
         historyPullInFlight = false
@@ -352,9 +404,100 @@ class AnytimeBleManager(
         return startId
     }
 
+    private fun hasUsableHistoryTimeline(): Boolean =
+        glucoseTimelineStartAtMs > 0L || sensorStartAtMs > 0L
+
+    private fun freshAutoBackfillStartId(anchorId: Int): Int =
+        (anchorId - FRESH_AUTO_BACKFILL_RECORDS + 1).coerceAtLeast(0)
+
+    private fun maybeStartFreshPostLiveBackfill(anchorId: Int) {
+        if (restoredGlucoseState || freshPostLiveBackfillStarted || historyBackfillActive) return
+        if (anchorId < 0 || !hasUsableHistoryTimeline()) return
+        freshPostLiveBackfillStarted = true
+        val recentStartId = freshAutoBackfillStartId(anchorId)
+        pendingFreshOlderBackfillStartId = recentStartId
+        Log.i(
+            TAG,
+            "Fresh live anchor id=$anchorId; auto-backfilling recent $FRESH_AUTO_BACKFILL_RECORDS " +
+                    "records first (id=$recentStartId..$anchorId), then older history in background"
+        )
+        handler.postDelayed({
+            startHistoryBackfill(
+                reason = "post-live-anchor(recent)",
+                fromId = recentStartId,
+                stopBeforeId = anchorId + 1,
+            )
+        }, 250L)
+    }
+
+    private fun maybeStartPendingFreshOlderBackfill() {
+        if (stop || phase != Phase.STREAMING) return
+        if (restoredGlucoseState || freshOlderBackfillStarted) return
+        val recentStartId = pendingFreshOlderBackfillStartId
+        if (recentStartId <= 0) return
+        freshOlderBackfillStarted = true
+        handler.postDelayed({
+            if (!stop && phase == Phase.STREAMING && !historyBackfillActive) {
+                Log.i(TAG, "Recent tail loaded; continuing automatic older history backfill id=0..${recentStartId - 1}")
+                startHistoryBackfill(
+                    reason = "post-live-anchor(older-background)",
+                    fromId = 0,
+                    stopBeforeId = recentStartId,
+                )
+            }
+        }, FRESH_OLDER_BACKFILL_DELAY_MS)
+    }
+
+    private fun isFreshRecentBackfillReason(reason: String = historyBackfillReason): Boolean =
+        reason.startsWith("post-live-anchor(recent)")
+
+    private fun rememberFreshRecentTailForFinalRewrite(id: Int) {
+        if (!isFreshRecentBackfillReason()) return
+        val startId = pendingFreshOlderBackfillStartId
+        if (startId < 0 || id < startId) return
+        synchronized(freshRecentTailFinalRecomputeIds) {
+            freshRecentTailFinalRecomputeIds.add(id)
+        }
+    }
+
     private fun hasContiguousRawHistoryThrough(targetId: Int): Boolean {
         return firstMissingRawHistoryIdThrough(targetId) == null
     }
+
+    private fun hasContiguousRawTailThrough(targetId: Int, minCount: Int): Boolean {
+        if (targetId < 0 || minCount <= 0) return false
+        synchronized(rawAlgorithmWindow) {
+            var count = 0
+            var id = targetId
+            while (id >= 0 && rawAlgorithmWindow.containsKey(id)) {
+                count++
+                if (count >= minCount) return true
+                id--
+            }
+        }
+        return false
+    }
+
+    /**
+     * Give the native algorithm only the contiguous records it can actually use.
+     * Passing the whole session map on every pulled id made startup/background
+     * backfill O(n²) and forced the algorithm to re-filter/re-sort unrelated
+     * future gaps. This keeps the result semantics the same: full prefix when it
+     * exists, otherwise the contiguous rolling tail ending at targetId.
+     */
+    private fun rawRecordsForAlgorithm(targetId: Int): List<AnytimeRawRecord> =
+        synchronized(rawAlgorithmWindow) {
+            val target = rawAlgorithmWindow[targetId] ?: return@synchronized emptyList()
+            var startId = targetId
+            while (startId > 0 && rawAlgorithmWindow.containsKey(startId - 1)) {
+                startId--
+            }
+            val out = ArrayList<AnytimeRawRecord>(targetId - startId + 1)
+            for (id in startId..targetId) {
+                out.add(rawAlgorithmWindow[id] ?: break)
+            }
+            if (out.isEmpty()) listOf(target) else out
+        }
 
     private fun firstMissingRawHistoryIdThrough(targetId: Int): Int? {
         if (targetId < 0) return null
@@ -371,17 +514,81 @@ class AnytimeBleManager(
         }
     }
 
+    private fun finishHistoryBackfill() {
+        val completedReason = historyBackfillReason
+        val completedStopBefore = historyStopBeforeId
+        stopHistoryBackfill()
+        if (isFreshRecentBackfillReason(completedReason)) {
+            rewriteFreshRecentTailAfterRangeComplete(completedStopBefore)
+        }
+        maybeStartPendingFreshOlderBackfill()
+    }
+
+
+    private fun rewriteFreshRecentTailAfterRangeComplete(completedStopBefore: Int) {
+        if (!nativeAlgorithmExpected()) return
+        val ids = synchronized(freshRecentTailFinalRecomputeIds) {
+            freshRecentTailFinalRecomputeIds
+                .filter { it < completedStopBefore }
+                .also { done -> freshRecentTailFinalRecomputeIds.removeAll(done.toSet()) }
+        }
+        if (ids.isEmpty()) return
+
+        val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
+        if (intervalMs <= 0L) return
+        val context = Applic.app
+        var replaced = 0
+        for (id in ids) {
+            if (!hasContiguousRawHistoryThrough(id) && !hasContiguousRawTailThrough(id, NATIVE_HISTORY_WARMUP_RECORDS)) continue
+            val rec = synchronized(rawAlgorithmWindow) { rawAlgorithmWindow[id] } ?: continue
+            val sampleMs = when {
+                glucoseTimelineStartAtMs > 0L -> glucoseTimelineStartAtMs + id.toLong() * intervalMs
+                sensorStartAtMs > 0L -> sensorStartAtMs + id.toLong() * intervalMs
+                else -> continue
+            }
+            val result = AnytimeAlgorithm.compute(
+                record = rec,
+                qr = qr,
+                family = familyEntry,
+                sensorIdName = algorithmTransmitterName(context),
+                sampleTimeMs = sampleMs,
+                lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
+                lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
+                sessionPacketsSinceInit = packetsSinceInit,
+                recentRecords = rawRecordsForAlgorithm(rec.glucoseId),
+                sensorStartTimeMs = glucoseTimelineStartAtMs.takeIf { it > 0L } ?: sensorStartAtMs,
+            )
+            if (result.source == AnytimeAlgorithm.Source.NATIVE && result.errorCode == 0) {
+                commitReading(
+                    result = result,
+                    sampleMs = sampleMs,
+                    context = context,
+                    live = id == lastGlucoseId || sampleMs >= lastGlucoseAtMs,
+                    history = true,
+                )
+                trackNativeRecomputeNeed(result)
+                synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.remove(id) }
+                replaced++
+            }
+        }
+        if (replaced > 0) {
+            Log.i(TAG, "Rewrote $replaced fresh recent-tail point(s) after full tail range loaded")
+            UiRefreshBus.requestStatusRefresh()
+        }
+    }
+
     private fun stopHistoryBackfill() {
         historyBackfillActive = false
         historyPullInFlight = false
+        historyStopBeforeId = Int.MAX_VALUE
+        historyBackfillReason = ""
         handler.removeCallbacks(historyBackfillRunnable)
     }
 
     private val serviceDiscoveryWatchdog = Runnable {
         if (stop || phase != Phase.DISCOVERING || serviceDiscoveryHandled) return@Runnable
         Log.w(TAG, "Service discovery wedged — reconnecting")
-        runCatching { mBluetoothGatt?.disconnect() }
-        scheduleReconnect("service discovery timeout", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+        recoverGattAndReconnect("service discovery timeout", ACTIVE_SESSION_RECONNECT_DELAY_MS)
     }
 
     private val serviceDiscoveryRetryRunnable: Runnable = Runnable {
@@ -392,6 +599,65 @@ class AnytimeBleManager(
         if (gatt.discoverServices()) {
             handler.postDelayed(serviceDiscoveryRetryRunnable, SERVICE_DISCOVERY_RETRY_DELAY_MS)
         }
+    }
+
+    private val cccdWriteTimeoutRunnable: Runnable = Runnable {
+        val gatt = pendingCccdGatt ?: return@Runnable
+        if (stop || mBluetoothGatt !== gatt || phase != Phase.DISCOVERING) return@Runnable
+        Log.w(TAG, "CCCD write callback timed out; closing stale GATT before retry")
+        recoverGattAndReconnect("CCCD write timeout", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+    }
+
+    private fun isBluetoothAdapterReady(): Boolean {
+        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return false
+        return adapter.isEnabled
+    }
+
+    private fun clearGattCallbacks() {
+        handler.removeCallbacks(serviceDiscoveryWatchdog)
+        handler.removeCallbacks(serviceDiscoveryRetryRunnable)
+        handler.removeCallbacks(cccdWriteTimeoutRunnable)
+        handler.removeCallbacks(noDataWatchdog)
+        handler.removeCallbacks(pullFallbackRunnable)
+        pendingCccdGatt = null
+        clearProtocolFrameTimeout()
+        stopHistoryBackfill()
+    }
+
+    private fun clearGattReferences() {
+        primaryService = null
+        charNotify = null
+        charWrite = null
+        serviceDiscoveryHandled = false
+        serviceDiscoveryRetryCount = 0
+        mBluetoothGatt = null
+        mActiveBluetoothDevice = null
+    }
+
+    private fun recoverGattAndReconnect(reason: String, delayMs: Long = ACTIVE_SESSION_RECONNECT_DELAY_MS) {
+        if (stop) return
+        val gatt = mBluetoothGatt
+        Log.w(TAG, "Recovering GATT: $reason")
+        clearGattCallbacks()
+        phase = Phase.IDLE
+        clearGattReferences()
+        runCatching { gatt?.disconnect() }
+        runCatching { gatt?.close() }
+        scheduleReconnect(reason, delayMs)
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    private fun shouldForceStaleGattReconnect(now: Long): Boolean {
+        if (phase == Phase.IDLE) return false
+        if (mBluetoothGatt == null) return true
+        if (phase == Phase.CONNECTING || phase == Phase.DISCOVERING) {
+            return lastConnectRequestAtMs > 0L && now - lastConnectRequestAtMs > STALE_GATT_RECOVERY_MS
+        }
+        if (phase == Phase.HANDSHAKING) {
+            val sinceFrame = if (lastProtocolFrameAtMs > 0L) now - lastProtocolFrameAtMs else Long.MAX_VALUE
+            return sinceFrame > STALE_GATT_RECOVERY_MS
+        }
+        return false
     }
 
     private fun cancelReconnect() {
@@ -526,17 +792,34 @@ class AnytimeBleManager(
     @Synchronized
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
+        val now = System.currentTimeMillis()
+        if (!isBluetoothAdapterReady()) {
+            if (phase != Phase.IDLE || mBluetoothGatt != null) {
+                recoverGattAndReconnect("Bluetooth adapter is off", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            } else {
+                scheduleReconnect("Bluetooth adapter is off", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            }
+            return false
+        }
         resolveActiveDeviceFromStoredAddress()
         if (phase == Phase.CONNECTING || phase == Phase.DISCOVERING ||
             phase == Phase.HANDSHAKING || phase == Phase.STREAMING
         ) {
+            if (shouldForceStaleGattReconnect(now)) {
+                recoverGattAndReconnect("stale $phase before connectDevice", 250L)
+                return true
+            }
             val hasGatt = mBluetoothGatt != null
             val hasDevice = mActiveBluetoothDevice != null || !mActiveDeviceAddress.isNullOrBlank()
             if (hasGatt || hasDevice) return true
         }
+        lastConnectRequestAtMs = now
         phase = Phase.CONNECTING
         val scheduled = super.connectDevice(delayMillis)
-        if (!scheduled && phase == Phase.CONNECTING) phase = Phase.IDLE
+        if (!scheduled && phase == Phase.CONNECTING) {
+            phase = Phase.IDLE
+            scheduleReconnect("connectDevice returned false", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+        }
         return scheduled
     }
 
@@ -587,8 +870,7 @@ class AnytimeBleManager(
             BluetoothProfile.STATE_CONNECTED -> {
                 Log.i(TAG, "Connected to ${gatt.device?.address}")
                 cancelReconnect()
-                handler.removeCallbacks(noDataWatchdog)
-                handler.removeCallbacks(pullFallbackRunnable)
+                clearGattCallbacks()
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
                 connectTime = System.currentTimeMillis()
@@ -609,20 +891,9 @@ class AnytimeBleManager(
             BluetoothProfile.STATE_DISCONNECTED -> {
                 Log.i(TAG, "Disconnected (status=$status)")
                 phase = Phase.IDLE
-                primaryService = null
-                charNotify = null
-                charWrite = null
-                serviceDiscoveryHandled = false
-                serviceDiscoveryRetryCount = 0
+                clearGattCallbacks()
                 runCatching { gatt.close() }
-                mBluetoothGatt = null
-                mActiveBluetoothDevice = null
-                handler.removeCallbacks(serviceDiscoveryWatchdog)
-                handler.removeCallbacks(serviceDiscoveryRetryRunnable)
-                handler.removeCallbacks(noDataWatchdog)
-                handler.removeCallbacks(pullFallbackRunnable)
-                clearProtocolFrameTimeout()
-                stopHistoryBackfill()
+                clearGattReferences()
                 if (!stop) scheduleReconnect("GATT disconnect status=$status")
                 UiRefreshBus.requestStatusRefresh()
             }
@@ -641,7 +912,7 @@ class AnytimeBleManager(
         handler.removeCallbacks(serviceDiscoveryRetryRunnable)
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "onServicesDiscovered failed status=$status")
-            scheduleReconnect("services discovery failed", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            recoverGattAndReconnect("services discovery failed status=$status", ACTIVE_SESSION_RECONNECT_DELAY_MS)
             return
         }
         serviceDiscoveryHandled = true
@@ -664,7 +935,7 @@ class AnytimeBleManager(
         val write = charWrite
         if (svc == null || notify == null || write == null) {
             Log.e(TAG, "Required Anytime characteristics not found")
-            scheduleReconnect("missing characteristics", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            recoverGattAndReconnect("missing characteristics", ACTIVE_SESSION_RECONNECT_DELAY_MS)
             return
         }
         Log.i(
@@ -685,15 +956,13 @@ class AnytimeBleManager(
             Log.d(TAG, "Writing CCCD=${cccd.value.joinToHex()}")
             val started = runCatching { gatt.writeDescriptor(cccd) }.getOrDefault(false)
             if (!started) {
-                Log.w(TAG, "writeDescriptor returned false; starting handshake fallback")
+                Log.w(TAG, "writeDescriptor returned false; starting handshake without descriptor callback")
+                pendingCccdGatt = null
                 beginHandshake(gatt, "cccd-write-false")
             } else {
-                handler.postDelayed({
-                    if (!stop && phase == Phase.DISCOVERING && mBluetoothGatt === gatt) {
-                        Log.w(TAG, "CCCD write callback timed out; starting handshake fallback")
-                        beginHandshake(gatt, "cccd-timeout")
-                    }
-                }, 750L)
+                pendingCccdGatt = gatt
+                handler.removeCallbacks(cccdWriteTimeoutRunnable)
+                handler.postDelayed(cccdWriteTimeoutRunnable, CCCD_WRITE_TIMEOUT_MS)
             }
         } else {
             Log.w(TAG, "Notify characteristic has no CCCD descriptor")
@@ -703,9 +972,15 @@ class AnytimeBleManager(
 
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
         Log.d(TAG, "onDescriptorWrite ${descriptor.uuid} status=$status")
+        if (mBluetoothGatt !== gatt) {
+            Log.d(TAG, "Ignoring descriptor callback from stale GATT")
+            return
+        }
+        pendingCccdGatt = null
+        handler.removeCallbacks(cccdWriteTimeoutRunnable)
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "onDescriptorWrite status=$status — retry reconnect")
-            scheduleReconnect("descriptor write failed", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            recoverGattAndReconnect("descriptor write failed status=$status", ACTIVE_SESSION_RECONNECT_DELAY_MS)
             return
         }
         beginHandshake(gatt, "cccd-ok")
@@ -763,7 +1038,7 @@ class AnytimeBleManager(
     ) {
         Log.d(TAG, "onCharacteristicWrite ${characteristic.uuid} status=$status")
         if (status != BluetoothGatt.GATT_SUCCESS && phase == Phase.HANDSHAKING) {
-            scheduleReconnect("write failed status=$status", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            recoverGattAndReconnect("write failed status=$status", ACTIVE_SESSION_RECONNECT_DELAY_MS)
         }
     }
 
@@ -905,13 +1180,14 @@ class AnytimeBleManager(
         bound = true
         phase = Phase.STREAMING
         clearProtocolFrameTimeout()
-        if (sensorStartAtMs == 0L) {
-            val now = System.currentTimeMillis()
-            sensorStartAtMs = now
-            sensorstartmsec = now
-            warmupStartedAtMs = now
+        // Do not invent a start time here. CT4 start/history timestamps must be
+        // anchored from a real live glucose id; otherwise fresh installs display
+        // a fake Started time and all pulled history is shifted.
+        if (sensorStartAtMs > 0L) {
+            ensureNativeSensorShell()
+        } else {
+            Log.d(TAG, "Entering streaming without anchored start; native shell will be created after first live 0x07")
         }
-        ensureNativeSensorShell()
         persistAlgorithmState()
         if (pendingKrPush) {
             pendingKrPush = false
@@ -922,10 +1198,15 @@ class AnytimeBleManager(
         writeFrame(lowPowerFrame(), "lowPower", expectResponse = false)
         armPullFallback()
         armNoDataWatchdog()
-        // Pull any history we missed after low-power is written. Starting too
-        // early can leave CT4 ignoring the first pull and wedging the backfill
-        // cursor in-flight forever.
-        handler.postDelayed({ startHistoryBackfill("post-init", fromId = postInitBackfillStartId()) }, 750L)
+        // Restored sessions already have a usable id→time timeline, so resume
+        // the missing tail immediately. Fresh sessions wait for the first real
+        // live 0x07 anchor and then auto-fill only a short recent tail. Full
+        // replay from id=0 remains available through requestHistoryBackfill().
+        if (hasUsableHistoryTimeline()) {
+            handler.postDelayed({ startHistoryBackfill("post-init", fromId = postInitBackfillStartId()) }, 750L)
+        } else {
+            Log.i(TAG, "Fresh Anytime session has no live timeline yet; waiting for first 0x07 before history backfill")
+        }
         UiRefreshBus.requestStatusRefresh()
     }
 
@@ -1002,7 +1283,7 @@ class AnytimeBleManager(
                 historyEmptyResponsesInARow++
                 if (historyEmptyResponsesInARow >= HISTORY_EMPTY_RESPONSES_TO_STOP) {
                     Log.i(TAG, "Backfill caught up at id=$lastGlucoseId after $historyEmptyResponsesInARow empty responses")
-                    stopHistoryBackfill()
+                    finishHistoryBackfill()
                 } else {
                     handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
                 }
@@ -1021,6 +1302,7 @@ class AnytimeBleManager(
         val anchorMs = if (push && anchorId >= 0) now else 0L
         if (push && anchorMs > 0L && anchorId >= 0) {
             updateTimelineFromLiveGlucoseId(anchorId, anchorMs, intervalMs)
+            maybeStartFreshPostLiveBackfill(anchorId)
         }
         for (rec in records) {
             packetsSinceInit++
@@ -1053,14 +1335,14 @@ class AnytimeBleManager(
                 lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
                 sessionPacketsSinceInit = packetsSinceInit,
-                recentRecords = synchronized(rawAlgorithmWindow) { rawAlgorithmWindow.values.toList() },
+                recentRecords = rawRecordsForAlgorithm(rec.glucoseId),
                 sensorStartTimeMs = glucoseTimelineStartAtMs.takeIf { it > 0L } ?: sensorStartAtMs,
             )
             commitReading(result, sampleMs, context, live = push, history = !push)
             trackNativeRecomputeNeed(result)
             if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
         }
-        if (!push) {
+        if (!push && !isFreshRecentBackfillReason()) {
             recomputePendingNativeReadings(context, intervalMs)
         }
         persistAlgorithmState()
@@ -1071,22 +1353,40 @@ class AnytimeBleManager(
         if (historyBackfillActive) {
             handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
         }
-        UiRefreshBus.requestStatusRefresh()
+        // Recent tail and live updates should appear immediately. Older prefix
+        // background fill is intentionally quieter: Room flows still update the
+        // chart, but we avoid an extra global UI refresh for every historical id.
+        if (push || !historyBackfillActive || isFreshRecentBackfillReason()) {
+            UiRefreshBus.requestStatusRefresh()
+        }
     }
 
     private fun trackNativeRecomputeNeed(result: AnytimeAlgorithm.Result) {
+        rememberFreshRecentTailForFinalRewrite(result.glucoseId)
         if (!nativeAlgorithmExpected()) return
+
+        val id = result.glucoseId
+        val hasFullPrefix = hasContiguousRawHistoryThrough(id)
+        val hasRollingTail = hasContiguousRawTailThrough(id, NATIVE_HISTORY_WARMUP_RECORDS)
+
         synchronized(pendingNativeRecomputeIds) {
-            if (result.source == AnytimeAlgorithm.Source.NATIVE && result.errorCode == 0) {
-                pendingNativeRecomputeIds.remove(result.glucoseId)
-            } else if (result.source == AnytimeAlgorithm.Source.LINEAR &&
-                result.glucoseId >= NATIVE_HISTORY_WARMUP_RECORDS
-            ) {
-                // The legacy Yuwell JNI returns 0 for the initial warmup records.
-                // Do not enqueue those ids for repeated recomputation; otherwise
-                // each later backfill point replays id=0..18 and floods the log.
-                pendingNativeRecomputeIds.add(result.glucoseId)
+            if (id < NATIVE_HISTORY_WARMUP_RECORDS) {
+                pendingNativeRecomputeIds.remove(id)
+                return@synchronized
             }
+
+            if (result.source == AnytimeAlgorithm.Source.NATIVE && result.errorCode == 0) {
+                if (hasFullPrefix) {
+                    pendingNativeRecomputeIds.remove(id)
+                } else if (hasRollingTail) {
+                    pendingNativeRecomputeIds.add(id)
+                } else {
+                    pendingNativeRecomputeIds.add(id)
+                }
+                return@synchronized
+            }
+
+            pendingNativeRecomputeIds.add(id)
         }
     }
 
@@ -1099,6 +1399,7 @@ class AnytimeBleManager(
         if (ids.isEmpty()) return
         for (id in ids) {
             if (!hasContiguousRawHistoryThrough(id)) continue
+            //            if (!hasContiguousRawHistoryThrough(id) && !hasContiguousRawTailThrough(id, NATIVE_HISTORY_WARMUP_RECORDS)) continue
             val rec = synchronized(rawAlgorithmWindow) { rawAlgorithmWindow[id] } ?: continue
             val sampleMs = if (glucoseTimelineStartAtMs > 0L) {
                 glucoseTimelineStartAtMs + id.toLong() * intervalMs
@@ -1116,7 +1417,7 @@ class AnytimeBleManager(
                 lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
                 sessionPacketsSinceInit = packetsSinceInit,
-                recentRecords = synchronized(rawAlgorithmWindow) { rawAlgorithmWindow.values.toList() },
+                recentRecords = rawRecordsForAlgorithm(rec.glucoseId),
                 sensorStartTimeMs = glucoseTimelineStartAtMs.takeIf { it > 0L } ?: sensorStartAtMs,
             )
             if (result.source != AnytimeAlgorithm.Source.NATIVE || result.errorCode != 0) {
@@ -1126,7 +1427,7 @@ class AnytimeBleManager(
                 synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.remove(id) }
                 continue
             }
-            Log.i(TAG, "Replacing pending linear Anytime point id=$id with native algorithm output")
+            Log.i(TAG, "Replacing provisional Anytime point id=$id with full-prefix native algorithm output")
             commitReading(result, sampleMs, context, live = id == lastGlucoseId || sampleMs >= lastGlucoseAtMs, history = true)
             synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.remove(id) }
         }
@@ -1181,7 +1482,10 @@ class AnytimeBleManager(
             changed = true
             Log.i(TAG, "Glucose timeline from live id=$glucoseId (oldStart=$oldTimelineStart newStart=$anchoredStartMs)")
         }
-        if (changed) persistAlgorithmState()
+        if (changed) {
+            ensureNativeSensorShell()
+            persistAlgorithmState()
+        }
     }
 
     private fun anchorSensorTimelineIfNeeded(glucoseId: Int, sampleMs: Long, intervalMs: Long) {
@@ -1339,6 +1643,9 @@ class AnytimeBleManager(
         val ok = runCatching { gatt.writeCharacteristic(ch) }.getOrDefault(false)
         if (!ok) {
             Log.w(TAG, "writeCharacteristic($tag) returned false bytes=${bytes.joinToHex()}")
+            if (!tag.startsWith("pullGlucose(backfill)")) {
+                recoverGattAndReconnect("writeCharacteristic($tag) returned false", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            }
         } else {
             Log.d(TAG, "TX $tag bytes=${bytes.joinToHex()}")
             if (expectResponse) {
@@ -1384,6 +1691,76 @@ class AnytimeBleManager(
         }
     }
 
+
+    override fun softDisconnect() {
+        Log.i(TAG, "softDisconnect requested")
+        setPause(true)
+        cancelReconnect()
+        clearGattCallbacks()
+        val gatt = mBluetoothGatt
+        phase = Phase.IDLE
+        clearGattReferences()
+        runCatching { gatt?.disconnect() }
+            .onFailure { Log.stack(TAG, "softDisconnect(disconnect)", it) }
+        runCatching { gatt?.close() }
+            .onFailure { Log.stack(TAG, "softDisconnect(closeGatt)", it) }
+        runCatching { close() }
+            .onFailure { Log.stack(TAG, "softDisconnect(close)", it) }
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    override fun softReconnect() {
+        Log.i(TAG, "softReconnect requested")
+        setPause(false)
+        cancelReconnect()
+        clearGattCallbacks()
+        val gatt = mBluetoothGatt
+        phase = Phase.IDLE
+        clearGattReferences()
+        runCatching { gatt?.disconnect() }
+            .onFailure { Log.stack(TAG, "softReconnect(disconnect)", it) }
+        runCatching { gatt?.close() }
+            .onFailure { Log.stack(TAG, "softReconnect(closeGatt)", it) }
+        runCatching { close() }
+            .onFailure { Log.stack(TAG, "softReconnect(close)", it) }
+        if (dataptr != 0L) {
+            runCatching { Natives.unfinishSensor(dataptr) }
+                .onFailure { Log.stack(TAG, "softReconnect(unfinishSensor)", it) }
+        }
+        handler.postDelayed({
+            if (!stop) connectDevice(0)
+        }, 250L)
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    override fun terminateManagedSensor(wipeData: Boolean) {
+        Log.i(TAG, "terminateManagedSensor requested wipeData=$wipeData")
+        setPause(true)
+        cancelReconnect()
+        clearGattCallbacks()
+        val gatt = mBluetoothGatt
+        phase = Phase.IDLE
+        clearGattReferences()
+        runCatching { gatt?.disconnect() }
+            .onFailure { Log.stack(TAG, "terminateManagedSensor(disconnect)", it) }
+        runCatching { gatt?.close() }
+            .onFailure { Log.stack(TAG, "terminateManagedSensor(closeGatt)", it) }
+        runCatching { close() }
+            .onFailure { Log.stack(TAG, "terminateManagedSensor(close)", it) }
+        if (dataptr != 0L) {
+            runCatching { Natives.finishfromSensorptr(dataptr) }
+                .onFailure { Log.stack(TAG, "terminateManagedSensor(finishfromSensorptr)", it) }
+            dataptr = 0L
+        }
+        if (wipeData) {
+            Applic.app?.let { ctx ->
+                runCatching { AnytimeRegistry.removeSensor(ctx, SerialNumber) }
+                    .onFailure { Log.stack(TAG, "terminateManagedSensor(removeSensor)", it) }
+            }
+        }
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     override fun requestTransmitterReset(): Boolean {
         if (phase != Phase.STREAMING && phase != Phase.HANDSHAKING) return false
         writeFrame(resetFrame(), "reset(user)")
@@ -1397,6 +1774,8 @@ class AnytimeBleManager(
         stopHistoryBackfill()
         return true
     }
+
+    override fun isUiEnabled(): Boolean = !stop
 
     override fun requestHistoryBackfill(): Boolean {
         if (phase != Phase.STREAMING) {
@@ -1464,15 +1843,18 @@ class AnytimeBleManager(
 
     override fun shouldUseNativeHistorySync(): Boolean = false
 
-    override fun getDetailedBleStatus(): String = when (phase) {
+    override fun getDetailedBleStatus(): String = if (stop) {
+        "Paused"
+    } else when (phase) {
         Phase.IDLE -> "Idle"
         Phase.CONNECTING -> "Connecting"
         Phase.DISCOVERING -> "Discovering"
         Phase.HANDSHAKING -> "Handshaking"
         Phase.STREAMING -> if (lastGlucoseAtMs > 0L) {
             val ageMin = ((System.currentTimeMillis() - lastGlucoseAtMs) / 60000L).toInt()
-            "Streaming • last reading ${ageMin}m ago"
-        } else "Streaming (warming up)"
+            "Connected"
+//            "Streaming • last reading ${ageMin}m ago"
+        } else "Connected (warming up)"
     }
 
     /**
