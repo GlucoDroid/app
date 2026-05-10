@@ -566,15 +566,20 @@ juice_agent *createAgent(int allindex) {
     int servercount;
 
     juice_turn_server_t conf_server;
-    if(backup->getupdatedata()->NRturnserver) {
-        conf_server.host=backup->getupdatedata()->turnserver[0].hostname;
-        conf_server.username=backup->getupdatedata()->turnserver[0].username;
-        conf_server.password=backup->getupdatedata()->turnserver[0].password;
-        conf_server.port=backup->getupdatedata()->turnserver[0].port;
+    auto *updatedata = backup->getupdatedata();
+    if(updatedata->NRturnserver&&updatedata->turnserver[0].hostname[0]) {
+        conf_server.host=updatedata->turnserver[0].hostname;
+        conf_server.username=updatedata->turnserver[0].username;
+        conf_server.password=updatedata->turnserver[0].password;
+        conf_server.port=updatedata->turnserver[0].port;
         servercount=1;
         turn_servers=&conf_server;
         }
     else {
+        if(updatedata->NRturnserver) {
+            LOGAR("createAgent: ignoring empty configured TURN host");
+            updatedata->NRturnserver=0;
+            }
         servercount=defaultservercount;
         turn_servers=default_turn_servers;
 #if JUGGLUCO_HAS_TWILIO_TOKEN

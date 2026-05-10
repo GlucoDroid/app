@@ -286,6 +286,9 @@ private class CalibratedValueResolver(private val points: List<GlucosePoint>) {
     private val autoCalibrationActive = HashMap<String?, Boolean>()
 
     fun hasCalibration(isRawMode: Boolean, sensorId: String? = null): Boolean {
+        if (tk.glucodata.data.calibration.CalibrationManager.shouldOverwriteSensorValues()) {
+            return false
+        }
         val cache = if (isRawMode) rawCalibrationActive else autoCalibrationActive
         return cache.getOrPut(sensorId) {
             tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawMode, sensorId)

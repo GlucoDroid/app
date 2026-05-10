@@ -1078,6 +1078,12 @@ public:
   void closeallsocks() {
     LOGAR("closeallsocks");
     for (int i = 0; i < getupdatedata()->hostnr; i++) {
+      if (auto *con = connections[i]) {
+        LOGGER("connection %d endConnection()\n", i);
+        con->endConnection();
+      }
+    }
+    for (int i = 0; i < getupdatedata()->hostnr; i++) {
       LOGGER("hostsock %d shutdown(%d)\n", i, hostsocks[i]);
       ::shutdown(hostsocks[i], SHUT_RDWR);
     }

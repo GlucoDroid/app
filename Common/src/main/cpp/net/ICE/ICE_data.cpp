@@ -288,7 +288,7 @@ void ICE_data::on_recv(juice_agent_t *agent, const char *data, size_t size,int a
                   if(head->trans_id==receive_trans_id) {
                     askedData=true;
                     LOGGERICE("trans_id=%d side=%d received packet %d\n",head->trans_id,side,index);
-                    if(index>=0||index<acknowledged.size()) {
+                    if(index<acknowledged.size()) {
                         const char *input=data+sizeof(udp_header);
                         int  inputlen=size-sizeof(udp_header);
                         int pos= index*dataunit;
@@ -300,6 +300,9 @@ void ICE_data::on_recv(juice_agent_t *agent, const char *data, size_t size,int a
                             LOGGERICE("%d on_recv: final packet received, handle data ++receive_trans_id =%d\n",side,receive_trans_id); 
                             
                             }
+                        }
+                    else {
+                        LOGGERICE("%d received DATA packet with invalid index %d\n",side,index);
                         }
                      return;
                       }

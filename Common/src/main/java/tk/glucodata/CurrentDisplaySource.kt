@@ -321,8 +321,8 @@ object CurrentDisplaySource {
         allowLiveFallback: Boolean
     ): Float? {
         val isRawMode = isRawPrimary(viewMode)
-        if (!CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)) {
-            if (allowLiveFallback && liveValue != null && CalibrationAccess.hasActiveCalibration(isRawMode, null)) {
+        if (!shouldApplyDisplayCalibration(isRawMode, sensorId)) {
+            if (allowLiveFallback && liveValue != null && shouldApplyDisplayCalibration(isRawMode, null)) {
                 val fallbackCalibrated = CalibrationAccess.getCalibratedValue(
                     liveValue,
                     targetTimeMillis,
@@ -358,9 +358,7 @@ object CurrentDisplaySource {
         sensorId: String?
     ): DisplayValues {
         val isRawMode = isRawPrimary(viewMode)
-        val calibratedValue = if (
-            CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)
-        ) {
+        val calibratedValue = if (shouldApplyDisplayCalibration(isRawMode, sensorId)) {
             val baseValue = if (isRawMode) point.rawValue else point.value
             if (baseValue.isFinite() && baseValue > 0.1f) {
                 CalibrationAccess.getCalibratedValue(
@@ -399,7 +397,6 @@ object CurrentDisplaySource {
         val latestHistory = points.lastOrNull()
         if (latestHistory != null &&
             kotlin.math.abs(latestHistory.timestamp - current.timeMillis) <= MATCH_WINDOW_MS &&
-            latestHistory.timestamp != current.timeMillis &&
             hasUsableDisplayLane(latestHistory, viewMode)
         ) {
             return points
@@ -470,11 +467,19 @@ object CurrentDisplaySource {
     private fun hasUsableDisplayLane(point: GlucosePoint, viewMode: Int): Boolean {
         val autoValid = point.value.isFinite() && point.value > 0.1f
         val rawValid = point.rawValue.isFinite() && point.rawValue > 0.1f
-        return if (isRawPrimary(viewMode)) rawValid || autoValid else autoValid || rawValid
+        return when (viewMode) {
+            2, 3 -> autoValid && rawValid
+            else -> if (isRawPrimary(viewMode)) rawValid || autoValid else autoValid || rawValid
+        }
     }
 
     private fun shouldHideInitialWhenCalibrated(): Boolean {
         return CalibrationAccess.shouldHideInitialWhenCalibrated()
+    }
+
+    private fun shouldApplyDisplayCalibration(isRawMode: Boolean, sensorId: String?): Boolean {
+        return !CalibrationAccess.shouldOverwriteSensorValues() &&
+            CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)
     }
 
     private fun isRawPrimary(viewMode: Int): Boolean = viewMode == 1 || viewMode == 3
@@ -565,7 +570,7 @@ object CurrentDisplaySource {
         if (!baseValue.isFinite() || baseValue <= 0f) {
             return 0f
         }
-        if (!CalibrationAccess.hasActiveCalibration(isRawMode, sensorId)) {
+        if (!shouldApplyDisplayCalibration(isRawMode, sensorId)) {
             return 0f
         }
         val calibrated = CalibrationAccess.getCalibratedValue(

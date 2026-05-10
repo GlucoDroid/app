@@ -64,14 +64,17 @@ internal fun buildDisplayHistoryForPrediction(
 
     val useRaw = source == PredictionHistorySource.RAW || source == PredictionHistorySource.CALIBRATED_RAW
     val useCalibration = source == PredictionHistorySource.CALIBRATED_AUTO || source == PredictionHistorySource.CALIBRATED_RAW
+    val overwriteSensorValues = tk.glucodata.data.calibration.CalibrationManager.shouldOverwriteSensorValues()
     val calibrationActiveBySensor = HashMap<String?, Boolean>()
 
     return points.map { point ->
         val baseValue = if (useRaw) point.rawValue else point.value
         val sensorId = point.sensorSerial?.takeIf { it.isNotBlank() }
-        val activeCalibration = useCalibration && calibrationActiveBySensor.getOrPut(sensorId) {
-            tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(useRaw, sensorId)
-        }
+        val activeCalibration = useCalibration &&
+            !overwriteSensorValues &&
+            calibrationActiveBySensor.getOrPut(sensorId) {
+                tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(useRaw, sensorId)
+            }
         val displayValue = if (activeCalibration && baseValue.isFinite() && baseValue > 0.1f) {
             tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
                 baseValue,

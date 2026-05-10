@@ -240,7 +240,7 @@ int  connect(const passhost_t *pass) {
             }
         if(index!=allindex)   {
             LOGGERICE("%s %d: ICE::Connect::connect allindex old=%d new=%d\n",pass->getICEname().data(),pass->side,allindex,index);
-            return -2;
+            return newConnection(index);
             }
         if(!isConnected)   {
             LOGGERICE("allindex=%d %s %d: ICE::Connect::connect !isConnection\n",allindex,pass->getICEname().data(),pass->side);
@@ -415,4 +415,3 @@ void setConnected() {
     }
     void receiverThread(int allindex);
  };
-

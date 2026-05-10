@@ -1002,7 +1002,10 @@ fun DashboardScreen(
                 isRawEnabled,
                 isAutoEnabled
             ) {
-                if (latestPoint != null && tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeHero, calibrationSensorId)) {
+                if (latestPoint != null &&
+                    !tk.glucodata.data.calibration.CalibrationManager.shouldOverwriteSensorValues() &&
+                    tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModeHero, calibrationSensorId)
+                ) {
                     val baseValue = if (isRawModeHero) latestPoint.rawValue else latestPoint.value
                     if (baseValue.isFinite() && baseValue > 0.1f) {
                         tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
