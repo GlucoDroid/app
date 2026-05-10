@@ -51,7 +51,7 @@ enum class HapticProfile(val displayName: String) {
 
 const val MIN_ALERT_DURATION_SECONDS = 1
 const val MAX_ALERT_DURATION_SECONDS = 60
-const val DEFAULT_ALERT_DURATION_SECONDS = 10
+const val DEFAULT_ALERT_DURATION_SECONDS = 5
 
 fun sanitizeAlertDurationSeconds(value: Int): Int {
     return value.takeIf { it in MIN_ALERT_DURATION_SECONDS..MAX_ALERT_DURATION_SECONDS }

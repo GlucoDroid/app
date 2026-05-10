@@ -1119,14 +1119,20 @@ private fun ThresholdSlider(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Text(
                 // Use LOCAL sliderValue for real-time updates
                 formatThreshold(sliderValue, isMmol),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
             )
         }
@@ -1140,7 +1146,14 @@ private fun ThresholdSlider(
             },
             valueRange = range,
             steps = steps.coerceAtLeast(0),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                activeTickColor = MaterialTheme.colorScheme.onPrimary,
+                inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f),
+                inactiveTickColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+            )
         )
     }
 }
