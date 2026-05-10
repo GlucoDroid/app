@@ -466,13 +466,59 @@ class AiDexBleManager(
     private val cccdWriteWatchdog: Runnable = Runnable {
         val pendingUuid = cccdPendingWriteUuid ?: return@Runnable
         val gatt = mBluetoothGatt ?: return@Runnable
+        if (
+            pendingUuid == CHAR_F001 &&
+            !hasPersistedPairKey() &&
+            cccdMissingCallbackRetries >= CCCD_WRITE_CALLBACK_MAX_EXTRA_WAITS
+        ) {
+            val bondState = currentBondState()
+            if (bondState == BluetoothDevice.BOND_NONE) {
+                Log.w(TAG, "F001 CCCD callback missing with no Android bond — explicitly starting pairing")
+                runCatching { gatt.device?.createBond() }
+                    .onFailure { Log.w(TAG, "createBond after F001 CCCD stall failed: ${it.message}") }
+                cccdMissingCallbackRetries = 0
+                cccdWriteInProgress = false
+                pendingBondedCccdUuid = CHAR_F001
+                scheduleDeferredBondCompletionCheck(gatt, attempt = 1)
+                return@Runnable
+            }
+            if (bondState == BluetoothDevice.BOND_BONDING) {
+                Log.i(TAG, "F001 CCCD callback missing while pairing is in progress — waiting for BOND_BONDED")
+                cccdMissingCallbackRetries = 0
+                cccdWriteInProgress = false
+                pendingBondedCccdUuid = CHAR_F001
+                scheduleDeferredBondCompletionCheck(gatt, attempt = 1)
+                return@Runnable
+            }
+            Log.w(
+                TAG,
+                "F001 CCCD callback missing on setup without saved key — rebuilding BLE bond/state (bondState=$bondState)"
+            )
+            cccdWriteInProgress = false
+            cccdPendingWriteUuid = null
+            cccdMissingCallbackRetries = 0
+            handler.removeCallbacks(cccdWriteWatchdog)
+            setBondValidatedByStreaming(false, "f001-cccd-missing-no-saved-key")
+            clearPersistedPairKey("f001-cccd-missing-no-saved-key")
+            removeBondSafely(gatt.device, "f001CccdMissing")
+            close()
+            connectTime = 0L
+            setPhase(Phase.IDLE)
+            resetConnectionRuntimeState(reason = "f001-cccd-missing-no-saved-key", resetInvalidSetupCounter = false)
+            reconnect.reset()
+            handler.postDelayed({
+                stop = false
+                connectDevice(0)
+            }, 1_500L)
+            return@Runnable
+        }
         when (
             AiDexRuntimePolicy.decideMissingCccdCallbackAction(
                 cccdWriteInProgress = cccdWriteInProgress,
                 hasPendingCccd = true,
                 timeoutRetries = cccdMissingCallbackRetries,
                 maxRetries = CCCD_WRITE_CALLBACK_MAX_EXTRA_WAITS,
-                canInferComplete = canInferMissingCccdCallbackComplete(),
+                canInferComplete = canInferMissingCccdCallbackComplete(pendingUuid),
             )
         ) {
             AiDexRuntimePolicy.MissingCccdCallbackAction.IGNORE -> Unit
@@ -1373,7 +1419,10 @@ class AiDexBleManager(
         handler.postDelayed(preAuthEncryptedTrafficWatchdog, PRE_AUTH_ENCRYPTED_TRAFFIC_TIMEOUT_MS)
     }
 
-    private fun canInferMissingCccdCallbackComplete(): Boolean {
+    private fun canInferMissingCccdCallbackComplete(pendingUuid: UUID): Boolean {
+        if (pendingUuid == CHAR_F001 && !hasPersistedPairKey()) {
+            return false
+        }
         return currentBondState() == BluetoothDevice.BOND_BONDED
     }
 
@@ -1381,10 +1430,17 @@ class AiDexBleManager(
         setBondValidatedByStreaming(false, "$reason-removeBond")
         clearPersistedPairKey("$reason-removeBond")
         try {
-            if (device?.bondState == BluetoothDevice.BOND_BONDED) {
-                val removeBond = device.javaClass.getMethod("removeBond")
-                removeBond.invoke(device)
-                Log.i(TAG, "$reason: BLE bond removed")
+            when (device?.bondState) {
+                BluetoothDevice.BOND_BONDED -> {
+                    val removeBond = device.javaClass.getMethod("removeBond")
+                    removeBond.invoke(device)
+                    Log.i(TAG, "$reason: BLE bond removed")
+                }
+                BluetoothDevice.BOND_BONDING -> {
+                    val cancelBondProcess = device.javaClass.getMethod("cancelBondProcess")
+                    cancelBondProcess.invoke(device)
+                    Log.i(TAG, "$reason: BLE bond creation cancelled")
+                }
             }
         } catch (t: Throwable) {
             Log.w(TAG, "$reason: removeBond failed: ${t.message}")
@@ -1531,6 +1587,17 @@ class AiDexBleManager(
      *   - mBluetoothGatt != null: GATT handle exists
      */
     override fun connectDevice(delayMillis: Long): Boolean {
+        if (BluetoothAdapter.getDefaultAdapter()?.isEnabled != true) {
+            Log.i(TAG, "connectDevice: skip — Bluetooth is disabled")
+            connectAttemptInFlight = false
+            setPhase(Phase.IDLE)
+            handler.postDelayed({
+                if (!stop && !isPaused && !isUnpaired && mBluetoothGatt == null && phase == Phase.IDLE) {
+                    connectDevice(0)
+                }
+            }, 10_000L)
+            return true
+        }
         // Guard: paused, unpaired, or broadcast-only — refuse connection
         if (isPaused || isUnpaired) {
             Log.d(TAG, "connectDevice: skip — isPaused=$isPaused isUnpaired=$isUnpaired")
@@ -1989,13 +2056,15 @@ class AiDexBleManager(
             }
         )
 
-        // Full first-pair path enables F001 so its PAIR notification can arrive.
-        // Bonded reconnects with a saved pair key follow upstream: F003 -> F002.
+        // Full first-pair path needs F001 first so the PAIR notification is real before
+        // encrypted live traffic starts. Saved-key reconnects follow upstream: F003 -> F002.
         cccdQueue.clear()
-        cccdQueue.add(CHAR_F003)
-        cccdQueue.add(CHAR_F002)
-        if (!useSavedPairKeyReconnect) {
+        if (useSavedPairKeyReconnect) {
+            cccdQueue.add(CHAR_F003)
+            cccdQueue.add(CHAR_F002)
+        } else {
             cccdQueue.add(CHAR_F001)
+            cccdQueue.add(CHAR_F002)
         }
         cccdWriteInProgress = false
         cccdPendingWriteUuid = null
@@ -2075,12 +2144,14 @@ class AiDexBleManager(
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "onDescriptorWrite: CCCD $charUuid failed status=$status")
             cccdWriteInProgress = false
+            lastInferredCccdUuid = null
             // Try next anyway
         } else {
             val suffix = if (inferred) " (callback inferred)" else ""
             Log.i(TAG, "onDescriptorWrite: CCCD $charUuid enabled successfully$suffix")
             cccdWriteInProgress = false
             cccdMissingCallbackRetries = 0
+            lastInferredCccdUuid = if (inferred) charUuid else null
             if (pendingBondedCccdUuid == charUuid) {
                 pendingBondedCccdUuid = null
             }
@@ -2088,7 +2159,11 @@ class AiDexBleManager(
 
         // Continue CCCD chain
         if (cccdQueue.isNotEmpty()) {
-            writeNextCccd(gatt)
+            if (inferred) {
+                handler.postDelayed({ if (mBluetoothGatt === gatt) writeNextCccd(gatt) }, 1_000L)
+            } else {
+                writeNextCccd(gatt)
+            }
         } else {
             cccdChainComplete = true
 
@@ -2145,8 +2220,7 @@ class AiDexBleManager(
             val waitingForBondedCccd =
                 phase == Phase.CCCD_CHAIN &&
                     !cccdWriteInProgress &&
-                    pendingBondedCccdUuid != null &&
-                    cccdQueue.peekFirst() == pendingBondedCccdUuid
+                    pendingBondedCccdUuid != null
 
             val waitingForDeferredKeyExchange = cccdChainComplete && keyExchangePendingBond
 
@@ -2164,6 +2238,9 @@ class AiDexBleManager(
                         val charUuid = pendingBondedCccdUuid
                         pendingBondedCccdUuid = null
                         Log.w(TAG, "BOND_BONDED observed via fallback check — resuming CCCD chain for $charUuid")
+                        if (charUuid != null && !cccdQueue.contains(charUuid)) {
+                            cccdQueue.addFirst(charUuid)
+                        }
                         writeNextCccd(gatt)
                     }
 
@@ -2424,6 +2501,17 @@ class AiDexBleManager(
                 handler.post { writeNextCccd(gatt) }
             }
 
+            pendingBondedCccdUuid?.let { charUuid ->
+                pendingBondedCccdUuid = null
+                cccdWriteInProgress = false
+                cccdPendingWriteUuid = null
+                Log.i(TAG, "Bond complete. Resuming CCCD chain after deferred $charUuid")
+                if (!cccdQueue.contains(charUuid)) {
+                    cccdQueue.addFirst(charUuid)
+                }
+                handler.post { writeNextCccd(gatt) }
+            }
+
             // Start deferred key exchange if CCCDs completed while bonding
             if (keyExchangePendingBond && cccdChainComplete) {
                 keyExchangePendingBond = false
@@ -2540,7 +2628,8 @@ class AiDexBleManager(
 
     private var cccdRetryCount = 0
     private val CCCD_MAX_RETRIES = 5
-    private val CCCD_RETRY_DELAY_MS = 300L
+    private val CCCD_RETRY_DELAY_MS = 1_000L
+    private var lastInferredCccdUuid: UUID? = null
 
     private fun writeNextCccd(gatt: BluetoothGatt) {
         if (cccdWriteInProgress) return
@@ -2564,6 +2653,17 @@ class AiDexBleManager(
         if (!ok) {
             cccdWriteInProgress = false
             cccdPendingWriteUuid = null
+            if (
+                charUuid == CHAR_F002 &&
+                lastInferredCccdUuid == CHAR_F003 &&
+                shouldUseSavedPairKeyReconnect(gatt.device?.bondState ?: BluetoothDevice.BOND_NONE)
+            ) {
+                Log.w(TAG, "F002 CCCD rejected after inferred F003 CCCD — treating GATT as stale and reconnecting")
+                cccdRetryCount = 0
+                lastInferredCccdUuid = null
+                recoverFromInvalidSetupState("stale-gatt-after-inferred-f003-cccd")
+                return
+            }
             cccdRetryCount++
             if (cccdRetryCount >= CCCD_MAX_RETRIES) {
                 Log.e(TAG, "writeNextCccd: CCCD $charUuid failed after $cccdRetryCount retries — skipping")
@@ -2598,6 +2698,7 @@ class AiDexBleManager(
             // Success — remove from queue, reset retry count. onDescriptorWrite will advance chain.
             cccdQueue.pollFirst()
             cccdRetryCount = 0
+            lastInferredCccdUuid = null
             handler.removeCallbacks(cccdWriteWatchdog)
             handler.postDelayed(cccdWriteWatchdog, CCCD_WRITE_CALLBACK_TIMEOUT_MS)
         }

@@ -34,8 +34,17 @@ internal object AiDexHistoryPolicy {
             )
         }
 
+        val effectiveRawNextIndex = if (
+            persistedBriefNextIndex > 0 &&
+            persistedRawNextIndex > persistedBriefNextIndex
+        ) {
+            persistedBriefNextIndex
+        } else {
+            persistedRawNextIndex
+        }
+
         val rawNextIndex = normalizePersistedIndex(
-            persistedIndex = persistedRawNextIndex,
+            persistedIndex = effectiveRawNextIndex,
             startIndex = rawStart,
             newest = newest,
         )
