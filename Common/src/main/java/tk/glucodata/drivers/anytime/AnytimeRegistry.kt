@@ -14,11 +14,13 @@
 //   anytime_device_name_<id> → advertised name (for family resolve after restart)
 //   anytime_tx_version_<id>  → firmware version string (e.g. "V1300")
 //   anytime_bound_<id>       → 1/0 ("known bound from previous session")
+//   anytime_raw_history_<id> → compact raw id/Ib/Iw/T history for JNI restore
 
 package tk.glucodata.drivers.anytime
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlin.math.roundToInt
 import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.SensorBluetooth
@@ -172,6 +174,62 @@ object AnytimeRegistry {
         prefs(c).edit().putBoolean(AnytimeConstants.PREF_BOUND_PREFIX + id, bound).apply()
     }
 
+    @JvmStatic
+    fun loadRawHistory(c: Context, id: String): List<AnytimeRawRecord> {
+        val encoded = prefs(c).getString(AnytimeConstants.PREF_RAW_HISTORY_PREFIX + id, null).orEmpty()
+        if (encoded.isBlank()) return emptyList()
+        val out = ArrayList<AnytimeRawRecord>()
+        encoded.split(';').forEach { token ->
+            if (token.isBlank()) return@forEach
+            val parts = token.split(',')
+            if (parts.size != 4) return@forEach
+            val glucoseId = parts[0].toIntOrNull() ?: return@forEach
+            val ibRaw = parts[1].toIntOrNull() ?: return@forEach
+            val iwRaw = parts[2].toIntOrNull() ?: return@forEach
+            val tempRaw = parts[3].toIntOrNull() ?: return@forEach
+            if (glucoseId < 0 || ibRaw < 0 || iwRaw < 0 || tempRaw < 0) return@forEach
+            out.add(
+                AnytimeRawRecord(
+                    indexInPacket = 0,
+                    glucoseId = glucoseId,
+                    ibNa = ibRaw / 100f,
+                    iwNa = iwRaw / 100f,
+                    temperatureC = tempRaw / 100f - AnytimeConstants.TEMP_INT_OFFSET,
+                    recordBytes = ByteArray(0),
+                )
+            )
+        }
+        return out.distinctBy { it.glucoseId }.sortedBy { it.glucoseId }
+    }
+
+    @JvmStatic
+    fun saveRawHistory(c: Context, id: String, records: Collection<AnytimeRawRecord>) {
+        val ordered = records
+            .asSequence()
+            .filter { it.glucoseId >= 0 }
+            .distinctBy { it.glucoseId }
+            .sortedBy { it.glucoseId }
+            .toList()
+        val editor = prefs(c).edit()
+        if (ordered.isEmpty()) {
+            editor.remove(AnytimeConstants.PREF_RAW_HISTORY_PREFIX + id).apply()
+            return
+        }
+        val encoded = buildString(ordered.size * 20) {
+            ordered.forEach { rec ->
+                append(rec.glucoseId)
+                append(',')
+                append((rec.ibNa * 100f).roundToInt().coerceIn(0, 0xFFFF))
+                append(',')
+                append((rec.iwNa * 100f).roundToInt().coerceIn(0, 0xFFFF))
+                append(',')
+                append(((rec.temperatureC + AnytimeConstants.TEMP_INT_OFFSET) * 100f).roundToInt().coerceIn(0, 0xFFFF))
+                append(';')
+            }
+        }
+        editor.putString(AnytimeConstants.PREF_RAW_HISTORY_PREFIX + id, encoded).apply()
+    }
+
     private fun clearPerSensorState(context: Context, sensorId: String) {
         prefs(context).edit().apply {
             remove(AnytimeConstants.PREF_QR_CONTENT_PREFIX + sensorId)
@@ -185,6 +243,7 @@ object AnytimeRegistry {
             remove(AnytimeConstants.PREF_DEVICE_NAME_PREFIX + sensorId)
             remove(AnytimeConstants.PREF_TRANSMITTER_VERSION_PREFIX + sensorId)
             remove(AnytimeConstants.PREF_BOUND_PREFIX + sensorId)
+            remove(AnytimeConstants.PREF_RAW_HISTORY_PREFIX + sensorId)
         }.apply()
     }
 

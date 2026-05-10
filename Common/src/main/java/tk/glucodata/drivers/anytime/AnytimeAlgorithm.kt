@@ -30,6 +30,8 @@ import tk.glucodata.Log
 object AnytimeAlgorithm {
 
     private const val TAG = AnytimeConstants.TAG
+    @Volatile private var officialLatestMissing: Boolean = false
+    @Volatile private var officialHistoryMissing: Boolean = false
     @Volatile private var legacyAlgorithmMissing: Boolean = false
 
     /** The .so loads lazily on first JNI call (or first `getInstance()`). */
@@ -112,8 +114,8 @@ object AnytimeAlgorithm {
                 .filter { it.glucoseId <= record.glucoseId }
                 .distinctBy { it.glucoseId }
                 .sortedBy { it.glucoseId }
-                .takeLast(128)
                 .ifEmpty { listOf(record) }
+            val contiguousHistory = contiguousHistoryThrough(record, window)
             tryOfficialLatest(
                 record = record,
                 calibration = calibration,
@@ -122,7 +124,7 @@ object AnytimeAlgorithm {
                 sampleTimeMs = sampleTimeMs,
                 lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
-                rawMgdl = linear.mgdl,
+                rawMgdl = linear.rawMgdl,
             )?.let { mapped ->
                 if (isNativeResultUsable(mapped)) return mapped
                 Log.w(
@@ -140,9 +142,9 @@ object AnytimeAlgorithm {
                 sampleTimeMs = sampleTimeMs,
                 lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
-                window = window,
+                window = contiguousHistory,
                 sensorStartTimeMs = sensorStartTimeMs,
-                rawMgdl = linear.mgdl,
+                rawMgdl = linear.rawMgdl,
             )?.let { mapped ->
                 if (isNativeResultUsable(mapped)) return mapped
                 Log.w(
@@ -160,9 +162,9 @@ object AnytimeAlgorithm {
                 sampleTimeMs = sampleTimeMs,
                 lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
-                window = window,
+                window = contiguousHistory,
                 sensorStartTimeMs = sensorStartTimeMs,
-                rawMgdl = linear.mgdl,
+                rawMgdl = linear.rawMgdl,
             )?.let { mapped ->
                 if (isNativeResultUsable(mapped)) return mapped
                 Log.w(
@@ -192,6 +194,7 @@ object AnytimeAlgorithm {
         lastReferenceBgGlucoseId: Int,
         rawMgdl: Float,
     ): Result? {
+        if (officialLatestMissing) return null
         return runCatching {
             val latest = LatestData().apply {
                 setGlucoseId(record.glucoseId)
@@ -213,6 +216,7 @@ object AnytimeAlgorithm {
             out?.let { mapCurrentNative(record, it, rawMgdl) }
         }.getOrElse { t ->
             if (t is UnsatisfiedLinkError) {
+                officialLatestMissing = true
                 Log.d(TAG, "official latest algorithm unavailable: ${t.message}")
             } else {
                 Log.w(TAG, "official latest algorithm failed: ${t.message}")
@@ -233,6 +237,7 @@ object AnytimeAlgorithm {
         sensorStartTimeMs: Long,
         rawMgdl: Float,
     ): Result? {
+        if (officialHistoryMissing) return null
         if (window.size < 2) return null
         return runCatching {
             val eventIds: IntArray
@@ -262,6 +267,7 @@ object AnytimeAlgorithm {
             out?.let { mapCurrentNative(record, it, rawMgdl) }
         }.getOrElse { t ->
             if (t is UnsatisfiedLinkError) {
+                officialHistoryMissing = true
                 Log.d(TAG, "official history algorithm unavailable: ${t.message}")
             } else {
                 Log.w(TAG, "official history algorithm failed: ${t.message}")
@@ -283,6 +289,7 @@ object AnytimeAlgorithm {
         rawMgdl: Float,
     ): Result? {
         if (legacyAlgorithmMissing) return null
+        if (window.isEmpty()) return null
         return runCatching {
                 val eventIds: IntArray?
                 val bgValues: IntArray?
@@ -322,6 +329,20 @@ object AnytimeAlgorithm {
             }
     }
 
+    private fun contiguousHistoryThrough(
+        record: AnytimeRawRecord,
+        sortedRecords: List<AnytimeRawRecord>,
+    ): List<AnytimeRawRecord> {
+        if (record.glucoseId < 0) return emptyList()
+        val byId = sortedRecords.associateBy { it.glucoseId }
+        val out = ArrayList<AnytimeRawRecord>(record.glucoseId + 1)
+        for (id in 0..record.glucoseId) {
+            val rec = byId[id] ?: return emptyList()
+            out.add(rec)
+        }
+        return out
+    }
+
     /** Linear K/R fallback. */
     @JvmStatic
     fun computeLinear(
@@ -335,7 +356,8 @@ object AnytimeAlgorithm {
         val kEff = if (k > 0f) k else 0.30f
         val rEff = if (r > 0f) r else 50f
         val rawIw = normalizedRawIw(record.iwNa, family, voltageFlag)
-        val mmol = (kEff * rawIw + rEff / 100f).coerceAtLeast(AnytimeConstants.ALGO_MMOL_FLOOR.toFloat())
+        val rawMmol = kEff * rawIw + rEff / 100f
+        val mmol = rawMmol.coerceAtLeast(AnytimeConstants.ALGO_MMOL_FLOOR.toFloat())
         val mgdlTimes10 = (mmol * 18.0f * 10f + 0.5f).toInt()
             .coerceIn(AnytimeConstants.ALGO_MGDL_MIN_TIMES10, AnytimeConstants.ALGO_MGDL_MAX_TIMES10)
         return Result(
@@ -349,7 +371,7 @@ object AnytimeAlgorithm {
             errorCode = 0,
             warnCode = 0,
             source = Source.LINEAR,
-            rawMgdl = mgdlTimes10 / 10f,
+            rawMgdl = rawMmol * 18.0f,
         )
     }
 
@@ -389,7 +411,7 @@ object AnytimeAlgorithm {
             errorCode = rec.errorCode,
             warnCode = rec.warnCode,
             source = Source.NATIVE, // it's transmitter-native, even more authoritative
-            rawMgdl = rawLinear.mgdl,
+            rawMgdl = rawLinear.rawMgdl,
         )
     }
 

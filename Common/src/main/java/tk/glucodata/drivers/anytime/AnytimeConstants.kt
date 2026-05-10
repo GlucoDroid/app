@@ -407,4 +407,5 @@ object AnytimeConstants {
     const val PREF_DEVICE_NAME_PREFIX = "anytime_device_name_"
     const val PREF_TRANSMITTER_VERSION_PREFIX = "anytime_tx_version_"
     const val PREF_BOUND_PREFIX = "anytime_bound_"
+    const val PREF_RAW_HISTORY_PREFIX = "anytime_raw_history_"
 }

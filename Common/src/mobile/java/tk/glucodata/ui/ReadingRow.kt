@@ -227,10 +227,11 @@ fun ReadingRow(
             val timeWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
             val isRawModeRR = viewMode == 1 || viewMode == 3
             val calibrationSensorId = sensorId?.takeIf { it.isNotBlank() }
-            val hasCalibrationRR = tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(
-                isRawModeRR,
-                calibrationSensorId
-            )
+            val hasCalibrationRR = !tk.glucodata.data.calibration.CalibrationManager.shouldOverwriteSensorValues() &&
+                tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(
+                    isRawModeRR,
+                    calibrationSensorId
+                )
             val calibratedValueRR = if (hasCalibrationRR) {
                 val baseValue = if (isRawModeRR) point.rawValue else point.value
                 if (baseValue.isFinite() && baseValue > 0.1f) {

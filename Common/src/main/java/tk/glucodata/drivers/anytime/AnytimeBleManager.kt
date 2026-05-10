@@ -143,7 +143,10 @@ class AnytimeBleManager(
     @Volatile private var lastProtocolFrameTag: String = ""
     @Volatile private var ct4HandshakeFallbackStep: Int = 0
     @Volatile private var postVoltagePlainControlFrames: Boolean = false
+    // Native Yuwell algorithm inputs have no start-id field; the raw arrays must
+    // represent glucose ids from 0..current. Keep the full session history.
     private val rawAlgorithmWindow = java.util.TreeMap<Int, AnytimeRawRecord>()
+    private val pendingNativeRecomputeIds = java.util.TreeSet<Int>()
 
     // ---- History backfill loop state ----
     @Volatile private var historyBackfillActive: Boolean = false
@@ -174,6 +177,11 @@ class AnytimeBleManager(
         sensorStartAtMs = AnytimeRegistry.loadSensorStartAt(context, id)
         warmupStartedAtMs = AnytimeRegistry.loadWarmupStartedAt(context, id)
         bound = AnytimeRegistry.loadBound(context, id)
+        val rawHistory = AnytimeRegistry.loadRawHistory(context, id)
+        synchronized(rawAlgorithmWindow) {
+            rawAlgorithmWindow.clear()
+            rawHistory.forEach { rawAlgorithmWindow[it.glucoseId] = it }
+        }
     }
 
     private fun synthesiseQr(raw: String, k: Float, r: Float): AnytimeQrCalibration =
@@ -212,6 +220,7 @@ class AnytimeBleManager(
         AnytimeRegistry.saveLastGlucoseId(ctx, id, lastGlucoseId)
         AnytimeRegistry.saveSensorStartAt(ctx, id, sensorStartAtMs)
         AnytimeRegistry.saveWarmupStartedAt(ctx, id, warmupStartedAtMs)
+        AnytimeRegistry.saveRawHistory(ctx, id, synchronized(rawAlgorithmWindow) { rawAlgorithmWindow.values.toList() })
     }
 
     // ---- Reconnect / watchdog ----
@@ -312,6 +321,40 @@ class AnytimeBleManager(
         historyLastPulledId = startId - 1
         historyPullInFlight = false
         handler.postDelayed(historyBackfillRunnable, 250L)
+    }
+
+    private fun reconnectBackfillStartId(): Int {
+        val nextId = (lastGlucoseId + 1).coerceAtLeast(0)
+        if (lastGlucoseId <= 0) return 0
+        val needsNativeHistory = qr?.isFactoryCalibration == true
+        if (!needsNativeHistory) return nextId
+        val firstMissing = firstMissingRawHistoryIdThrough(lastGlucoseId)
+        if (firstMissing == null) return nextId
+        Log.i(
+            TAG,
+            "Raw JNI history is incomplete after restore; seeding native history from id=$firstMissing " +
+                    "(lastId=$lastGlucoseId cached=${synchronized(rawAlgorithmWindow) { rawAlgorithmWindow.size }})"
+        )
+        return firstMissing
+    }
+
+    private fun hasContiguousRawHistoryThrough(targetId: Int): Boolean {
+        return firstMissingRawHistoryIdThrough(targetId) == null
+    }
+
+    private fun firstMissingRawHistoryIdThrough(targetId: Int): Int? {
+        if (targetId < 0) return null
+        return synchronized(rawAlgorithmWindow) {
+            if (rawAlgorithmWindow.size < targetId + 1) {
+                for (id in 0..targetId) {
+                    if (!rawAlgorithmWindow.containsKey(id)) return@synchronized id
+                }
+            }
+            for (id in 0..targetId) {
+                if (!rawAlgorithmWindow.containsKey(id)) return@synchronized id
+            }
+            null
+        }
     }
 
     private fun stopHistoryBackfill() {
@@ -890,7 +933,7 @@ class AnytimeBleManager(
             writeFrame(lowPowerFrame(), "lowPower(post-reset)", expectResponse = false)
             armPullFallback()
             armNoDataWatchdog()
-            handler.postDelayed({ startHistoryBackfill("post-reset(reconnect)", fromId = (lastGlucoseId + 1).coerceAtLeast(0)) }, 750L)
+            handler.postDelayed({ startHistoryBackfill("post-reset(reconnect)", fromId = reconnectBackfillStartId()) }, 750L)
             UiRefreshBus.requestStatusRefresh()
         } else {
             // Sensor lost binding — fall through to fresh handshake.
@@ -969,9 +1012,6 @@ class AnytimeBleManager(
             packetsSinceInit++
             synchronized(rawAlgorithmWindow) {
                 rawAlgorithmWindow[rec.glucoseId] = rec
-                while (rawAlgorithmWindow.size > 128) {
-                    rawAlgorithmWindow.pollFirstEntry()
-                }
             }
             lastIwNa = rec.iwNa
             lastIbNa = rec.ibNa
@@ -1003,7 +1043,11 @@ class AnytimeBleManager(
                 sensorStartTimeMs = glucoseTimelineStartAtMs.takeIf { it > 0L } ?: sensorStartAtMs,
             )
             commitReading(result, sampleMs, context, live = push, history = !push)
+            trackNativeRecomputeNeed(result)
             if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
+        }
+        if (!push) {
+            recomputePendingNativeReadings(context, intervalMs)
         }
         persistAlgorithmState()
         armNoDataWatchdog()
@@ -1014,6 +1058,53 @@ class AnytimeBleManager(
             handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
         }
         UiRefreshBus.requestStatusRefresh()
+    }
+
+    private fun trackNativeRecomputeNeed(result: AnytimeAlgorithm.Result) {
+        if (!nativeAlgorithmExpected()) return
+        synchronized(pendingNativeRecomputeIds) {
+            if (result.source == AnytimeAlgorithm.Source.NATIVE && result.errorCode == 0) {
+                pendingNativeRecomputeIds.remove(result.glucoseId)
+            } else if (result.source == AnytimeAlgorithm.Source.LINEAR) {
+                pendingNativeRecomputeIds.add(result.glucoseId)
+            }
+        }
+    }
+
+    private fun nativeAlgorithmExpected(): Boolean =
+        qr?.isFactoryCalibration == true && AnytimeAlgorithm.isNativeAvailable
+
+    private fun recomputePendingNativeReadings(context: Context?, intervalMs: Long) {
+        if (!nativeAlgorithmExpected() || intervalMs <= 0L) return
+        val ids = synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.toList() }
+        if (ids.isEmpty()) return
+        for (id in ids) {
+            if (!hasContiguousRawHistoryThrough(id)) continue
+            val rec = synchronized(rawAlgorithmWindow) { rawAlgorithmWindow[id] } ?: continue
+            val sampleMs = if (glucoseTimelineStartAtMs > 0L) {
+                glucoseTimelineStartAtMs + id.toLong() * intervalMs
+            } else if (sensorStartAtMs > 0L) {
+                sensorStartAtMs + id.toLong() * intervalMs
+            } else {
+                continue
+            }
+            val result = AnytimeAlgorithm.compute(
+                record = rec,
+                qr = qr,
+                family = familyEntry,
+                sensorIdName = algorithmTransmitterName(context),
+                sampleTimeMs = sampleMs,
+                lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
+                lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
+                sessionPacketsSinceInit = packetsSinceInit,
+                recentRecords = synchronized(rawAlgorithmWindow) { rawAlgorithmWindow.values.toList() },
+                sensorStartTimeMs = glucoseTimelineStartAtMs.takeIf { it > 0L } ?: sensorStartAtMs,
+            )
+            if (result.source != AnytimeAlgorithm.Source.NATIVE || result.errorCode != 0) continue
+            Log.i(TAG, "Replacing pending linear Anytime point id=$id with native algorithm output")
+            commitReading(result, sampleMs, context, live = id == lastGlucoseId || sampleMs >= lastGlucoseAtMs, history = true)
+            synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.remove(id) }
+        }
     }
 
     private fun handleComputedGlucose(data: ByteArray) {
@@ -1165,7 +1256,11 @@ class AnytimeBleManager(
                     )
                 ),
                 logLabel = "Anytime ${result.source}",
-                nearDuplicateWindowMs = ROOM_HISTORY_NEAR_DUPLICATE_MS,
+                nearDuplicateWindowMs = if (result.source == AnytimeAlgorithm.Source.NATIVE) {
+                    0L
+                } else {
+                    ROOM_HISTORY_NEAR_DUPLICATE_MS
+                },
             )
             if (imported > 0) {
                 val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
