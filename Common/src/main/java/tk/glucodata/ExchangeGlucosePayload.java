@@ -9,6 +9,7 @@ final class ExchangeGlucosePayload {
     final String primaryText;
     final double primaryDisplayValue;
     final int primaryMgdl;
+    final float rawValue;
     final float rate;
     final long timeMillis;
     final int sensorGen;
@@ -18,6 +19,7 @@ final class ExchangeGlucosePayload {
             String primaryText,
             double primaryDisplayValue,
             int primaryMgdl,
+            float rawValue,
             float rate,
             long timeMillis,
             int sensorGen) {
@@ -25,6 +27,7 @@ final class ExchangeGlucosePayload {
         this.primaryText = primaryText;
         this.primaryDisplayValue = primaryDisplayValue;
         this.primaryMgdl = primaryMgdl;
+        this.rawValue = rawValue;
         this.rate = rate;
         this.timeMillis = timeMillis;
         this.sensorGen = sensorGen;
@@ -44,6 +47,10 @@ final class ExchangeGlucosePayload {
 
     int getPrimaryMgdl() {
         return primaryMgdl;
+    }
+
+    float getRawValue() {
+        return rawValue;
     }
 
     float getRate() {
@@ -89,11 +96,13 @@ final class ExchangeGlucosePayload {
             final long timeMillis = current.getTimeMillis() > 0L ? current.getTimeMillis() : fallbackTimeMillis;
             final int sensorGen = current.getSensorGen() != 0 ? current.getSensorGen() : fallbackSensorGen;
             final int primaryMgdl = toMgdl(primaryDisplayValue);
+            final float rawValue = current.getRawValue();
             return new ExchangeGlucosePayload(
                     sensorId,
                     primaryText,
                     primaryDisplayValue,
                     primaryMgdl,
+                    rawValue,
                     rate,
                     timeMillis,
                     sensorGen);
@@ -108,6 +117,7 @@ final class ExchangeGlucosePayload {
                 formatPrimary(fallbackDisplayValue, fallbackPrimaryText),
                 fallbackDisplayValue,
                 toMgdl(fallbackDisplayValue),
+                Float.NaN,
                 fallbackRate,
                 fallbackTimeMillis,
                 fallbackSensorGen);

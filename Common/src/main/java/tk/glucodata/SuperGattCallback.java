@@ -388,10 +388,14 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         return match != null ? match.rawMgdl : Float.NaN;
     }
 
-    private static boolean shouldResolveRawLane(int viewMode) {
+    private static boolean shouldUseRawAsPrimary(int viewMode) {
         // Mode 2 is Auto+Raw, not Raw-primary. Live publishing must only
-        // substitute the raw lane when raw is actually the primary display lane.
+        // substitute the primary value when raw is actually the primary lane.
         return viewMode == 1 || viewMode == 3;
+    }
+
+    private static boolean shouldStoreRawLane(int viewMode) {
+        return viewMode == 1 || viewMode == 2 || viewMode == 3;
     }
 
     private static final long ROOM_MINUTE_BUCKET_MS = 60_000L;
@@ -570,6 +574,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     exchangePayload.getRate(),
                     exchangePayload.getTimeMillis(),
                     exchangePayload.getSensorGen(),
+                    exchangePayload.getRawValue(),
                     alarm);
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
@@ -644,7 +649,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         // Check viewMode early - RAW modes may have data even when calibrated glucose is 0
         int viewMode = Natives.getViewMode(dataptr);
         boolean isRawMode = (viewMode == 1 || viewMode == 3);
-        boolean shouldResolveRawLane = shouldResolveRawLane(viewMode);
+        boolean shouldUseRawAsPrimary = shouldUseRawAsPrimary(viewMode);
+        boolean hasPreferredRawLane = Float.isFinite(preferredRawMgdl) && preferredRawMgdl > 0f;
+        boolean shouldStoreRawLane = hasPreferredRawLane || shouldStoreRawLane(viewMode);
 
         // In RAW mode with zero calibrated glucose, try to get raw from history
         // This handles warmup period where algorithm returns 0 but raw data exists
@@ -713,13 +720,13 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             final float autoMgdl = glumgL / 10.0f;
             float rawMgdl = Float.NaN;
 
-            if (shouldResolveRawLane) {
+            if (shouldStoreRawLane) {
                 long timeSec = timmsec / 1000L;
                 rawMgdl = (Float.isFinite(preferredRawMgdl) && preferredRawMgdl > 0f)
                         ? preferredRawMgdl
                         : findRawMgdlNear(SerialNumber, timeSec);
                 boolean found = Float.isFinite(rawMgdl) && rawMgdl > 0f;
-                if (found) {
+                if (shouldUseRawAsPrimary && found) {
                     mgdlToUse = (int) Math.round(rawMgdl);
                     float glVal = rawMgdl;
                     if (Applic.unit == 1) {
@@ -730,7 +737,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         Log.i(LOG_ID, "Using RAW value: " + glucoseToUse + " (mgdl: " + mgdlToUse + ")");
                     }
                 }
-                if (isRawMode && !found && retryCount < 3) {
+                if (shouldUseRawAsPrimary && !found && retryCount < 3) {
                     if (doLog) {
                         Log.i(LOG_ID, "History lookup failed, retrying (" + (retryCount + 1) + "/3)...");
                     }
