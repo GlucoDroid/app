@@ -89,7 +89,7 @@ object ICanHealthParser {
         warmupMinutes: Int,
     ): ICanHealthGlucoseReading? {
         if (data.size != ICanHealthConstants.GLUCOSE_NOTIFICATION_SIZE) {
-            Log.e(TAG, "parseGlucose: expected ${ICanHealthConstants.GLUCOSE_NOTIFICATION_SIZE} bytes, got ${data.size}")
+            logError("parseGlucose: expected ${ICanHealthConstants.GLUCOSE_NOTIFICATION_SIZE} bytes, got ${data.size}")
             return null
         }
 
@@ -100,21 +100,23 @@ object ICanHealthParser {
         val typeByte = data[2]
 
         if (typeByte != ICanHealthConstants.MEASUREMENT_TYPE_BYTE) {
-            Log.w(TAG, "parseGlucose: unexpected type byte 0x${"%02X".format(typeByte)}, expected 0x02")
+            logWarn("parseGlucose: unexpected type byte 0x${"%02X".format(typeByte)}, expected 0x02")
             // Continue anyway — some firmware versions may differ
         }
 
         // Decrypt the 16-byte payload
         val encrypted = data.copyOfRange(3, 19)
         val decrypted = ICanHealthCrypto.decryptBlock(encrypted, aesKey) ?: run {
-            Log.e(TAG, "parseGlucose: AES decryption failed")
+            logError("parseGlucose: AES decryption failed")
             return null
         }
 
-        // Validate size/flags marker
+        // Validate fixed marker before accepting any decrypted glucose. With the
+        // wrong firmware key AES output can still decode to an in-range number.
         val sizeFlags = decrypted[ICanHealthConstants.OFFSET_SIZE_FLAGS].toInt() and 0xFF
         if (sizeFlags != 0x0D) {
-            Log.w(TAG, "parseGlucose: unexpected sizeFlags=0x${"%02X".format(sizeFlags)}, expected 0x0D — key may be wrong")
+            logWarn("parseGlucose: rejecting packet with sizeFlags=0x${"%02X".format(sizeFlags)}, expected 0x0D")
+            return null
         }
 
         val statusByte = decrypted[ICanHealthConstants.OFFSET_STATUS].toInt() and 0xFF
@@ -150,13 +152,14 @@ object ICanHealthParser {
         val seqCheckHi = decrypted[ICanHealthConstants.OFFSET_SEQ_CHECK_U16LE + 1].toInt() and 0xFF
         val seqCheck = seqCheckLo or (seqCheckHi shl 8)
         if (seqCheck != headerSeq) {
-            Log.w(TAG, "parseGlucose: seq mismatch header=$headerSeq payload=$seqCheck — possible decryption error")
+            logWarn("parseGlucose: rejecting seq mismatch header=$headerSeq payload=$seqCheck")
+            return null
         }
 
         // Validate glucose range
         if (glucoseMgdl < ICanHealthConstants.MIN_VALID_GLUCOSE_MGDL ||
             glucoseMgdl > ICanHealthConstants.MAX_VALID_GLUCOSE_MGDL) {
-            Log.w(TAG, "parseGlucose: glucose out of range ${glucoseMgdl} mg/dL (seq=$headerSeq)")
+            logWarn("parseGlucose: glucose out of range ${glucoseMgdl} mg/dL (seq=$headerSeq)")
         }
 
         return ICanHealthGlucoseReading(
@@ -181,7 +184,7 @@ object ICanHealthParser {
      */
     fun parseSessionStartTime(data: ByteArray): ICanHealthSessionStartTime? {
         if (data.size < 7) {
-            Log.e(TAG, "parseSessionStart: expected >= 7 bytes, got ${data.size}")
+            logError("parseSessionStart: expected >= 7 bytes, got ${data.size}")
             return null
         }
 
@@ -291,7 +294,7 @@ object ICanHealthParser {
         if (data.size < 8) return null
         val declaredPayloadLength = data[2].toInt() and 0xFF
         if (declaredPayloadLength != data.size - 3) {
-            Log.w(TAG, "parseSnHistoryBatch: declared length=$declaredPayloadLength actual=${data.size - 3}")
+            logWarn("parseSnHistoryBatch: declared length=$declaredPayloadLength actual=${data.size - 3}")
         }
         val encryptedPayload = data.copyOfRange(6, data.size - 1)
         if (encryptedPayload.isEmpty()) {
@@ -308,7 +311,7 @@ object ICanHealthParser {
         val iv = buildAuthIv(authChallenge) ?: return null
         val decrypted = ICanHealthCrypto.decryptCbcPkcs7(encryptedPayload, key, iv) ?: return null
         if (decrypted.size < 4 || decrypted.first() != 0x55.toByte() || decrypted.last() != 0xAA.toByte()) {
-            Log.w(TAG, "parseSnHistoryBatch: invalid decrypted envelope ${decrypted.toHexCompact()}")
+            logWarn("parseSnHistoryBatch: invalid decrypted envelope ${decrypted.toHexCompact()}")
             return null
         }
         val baseSequence = parseLeUnsigned(decrypted, 1)
@@ -535,7 +538,7 @@ object ICanHealthParser {
         val plaintext = buildAuthPlaintext(userId)
         val encrypted = ICanHealthCrypto.encryptCbcPkcs7(plaintext, authKey, iv) ?: return null
         if (encrypted.size != ICanHealthConstants.AES_BLOCK_SIZE) {
-            Log.e(TAG, "deriveAuthToken: expected 16-byte auth block, got ${encrypted.size}")
+            logError("deriveAuthToken: expected 16-byte auth block, got ${encrypted.size}")
             return null
         }
         return encrypted
@@ -568,7 +571,7 @@ object ICanHealthParser {
 
     private fun buildAuthIv(challenge: ByteArray): ByteArray? {
         if (challenge.size != 4) {
-            Log.e(TAG, "buildAuthIv: expected 4 challenge bytes, got ${challenge.size}")
+            logError("buildAuthIv: expected 4 challenge bytes, got ${challenge.size}")
             return null
         }
         return ByteArray(ICanHealthConstants.AES_BLOCK_SIZE).apply {
@@ -615,7 +618,7 @@ object ICanHealthParser {
         warmupMinutes: Int,
     ): ICanHealthSnHistoryRecord? {
         if (decrypted.size < 13) {
-            Log.w(TAG, "parseDecryptedHistoryRecord: decrypted payload too short (${decrypted.size} bytes)")
+            logWarn("parseDecryptedHistoryRecord: decrypted payload too short (${decrypted.size} bytes)")
             return null
         }
         val sequenceNumber = parseLeUnsigned(decrypted, 4)
@@ -686,7 +689,7 @@ object ICanHealthParser {
         } else {
             ICanHealthConstants.LEGACY_HISTORY_GLUCOSE_XOR_TABLE_OLD
         }
-        val offset = (challenge[0].toInt() and 0xFF) % (table.size - 2)
+        val offset = (challenge[3].toInt() and 0xFF) % (table.size - 2)
         return byteArrayOf(
             ((low.toInt() and 0xFF) xor (table[offset].toInt() and 0xFF)).toByte(),
             ((high.toInt() and 0xFF) xor (table[offset + 1].toInt() and 0xFF)).toByte(),
@@ -708,6 +711,14 @@ object ICanHealthParser {
         val decoded = ((lo.toInt() and 0xFF) xor 0x88) or (((hi.toInt() and 0xFF) xor 0x88) shl 8)
         val vendorFormatted = "25${decoded.toString().padStart(5, '0')}"
         return vendorFormatted.toFloatOrNull() ?: Float.NaN
+    }
+
+    private fun logWarn(message: String) {
+        runCatching { Log.w(TAG, message) }
+    }
+
+    private fun logError(message: String) {
+        runCatching { Log.e(TAG, message) }
     }
 }
 

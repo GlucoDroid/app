@@ -881,7 +881,7 @@ class ICanHealthBleManager(
         )
         if (!saved.isNullOrBlank()) {
             recoveredAuthUserId = saved
-            Log.i(TAG, "Loaded recovered userId for $sensorId: '$saved'")
+            Log.i(TAG, "Loaded recovered userId for $sensorId: ${maskAuthUserId(saved)}")
         }
     }
 
@@ -902,7 +902,14 @@ class ICanHealthBleManager(
             editor.putString("${ICanHealthConstants.PREF_RECOVERED_USER_ID_PREFIX}$canonical", userId)
         }
         editor.apply()
-        Log.i(TAG, "Persisted recovered userId for ${sensorId ?: canonical}: '$userId'")
+        Log.i(TAG, "Persisted recovered userId for ${sensorId ?: canonical}: ${maskAuthUserId(userId)}")
+    }
+
+    private fun maskAuthUserId(userId: String?): String {
+        val normalized = ICanHealthConstants.normalizeConfiguredAuthUserId(userId)
+        if (normalized.isEmpty()) return "<empty>"
+        val suffix = normalized.takeLast(4)
+        return "len=${normalized.length}, suffix=$suffix"
     }
 
     private fun shouldSkipHistoryOverlap(sequenceNumber: Int, sampleTimeMs: Long): Boolean {
@@ -1842,7 +1849,7 @@ class ICanHealthBleManager(
                     hasAuthenticatedReconnectHint = false
                     Log.w(
                         TAG,
-                        "Failed to derive auth token for ${challenge.toHexString()} userId=$userId ${bundledKeyContext()} — continuing without vendor auth"
+                        "Failed to derive auth token for ${challenge.toHexString()} userId=${maskAuthUserId(userId)} ${bundledKeyContext()} — continuing without vendor auth"
                     )
                     startPostAuthSetup("auth-derivation-failed")
                     return
@@ -1961,7 +1968,7 @@ class ICanHealthBleManager(
                     persistRecoveredUserId(recovered)
                     Log.w(
                         TAG,
-                        "Auth rejected (0x${"%02X".format(authResult)}) but recovered realUserId='$recovered' — retrying auth"
+                        "Auth rejected (0x${"%02X".format(authResult)}) but recovered realUserId=${maskAuthUserId(recovered)} — retrying auth"
                     )
                     // Re-request a fresh challenge with the recovered userId
                     ICanHealthConstants.CMD_REQUEST_CHALLENGE.let {
@@ -1972,7 +1979,7 @@ class ICanHealthBleManager(
                     hasAuthenticatedReconnectHint = false
                     Log.w(
                         TAG,
-                        "Vendor auth rejected with code=0x${"%02X".format(authResult)} userId=${resolveAuthUserId()} ${bundledKeyContext()} — continuing unauthenticated"
+                        "Vendor auth rejected with code=0x${"%02X".format(authResult)} userId=${maskAuthUserId(resolveAuthUserId())} ${bundledKeyContext()} — continuing unauthenticated"
                     )
                     startPostAuthSetup("auth-failed-0x${"%02X".format(authResult)}")
                 }
