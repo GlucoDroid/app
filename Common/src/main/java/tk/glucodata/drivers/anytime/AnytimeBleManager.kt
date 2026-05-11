@@ -518,9 +518,22 @@ class AnytimeBleManager(
         val completedReason = historyBackfillReason
         val completedStopBefore = historyStopBeforeId
         stopHistoryBackfill()
+
         if (isFreshRecentBackfillReason(completedReason)) {
+            // Fast UX pass: rewrite the recent tail once the tail itself is loaded.
+            // These values may still be rolling/provisional because ids 0..recentStart-1
+            // are not loaded yet.
             rewriteFreshRecentTailAfterRangeComplete(completedStopBefore)
+        } else if (completedReason.startsWith("post-live-anchor(older-background)")) {
+            // Final correctness pass: now ids 0..recentStart-1 are loaded, so pending
+            // rolling/provisional recent-tail values can be recomputed using the full
+            // contiguous prefix and replace the old Room buckets.
+            recomputePendingNativeReadings(
+                context = Applic.app,
+                intervalMs = profile.readingIntervalMinutes * 60L * 1000L,
+            )
         }
+
         maybeStartPendingFreshOlderBackfill()
     }
 
@@ -566,8 +579,13 @@ class AnytimeBleManager(
                     live = id == lastGlucoseId || sampleMs >= lastGlucoseAtMs,
                     history = true,
                 )
+
+// Important: this recent-tail rewrite may still be rolling/provisional.
+// Do NOT remove the id from pending here. trackNativeRecomputeNeed() will keep
+// rolling-native values queued until the older prefix exists and a full-prefix
+// recompute can replace the same Room bucket.
                 trackNativeRecomputeNeed(result)
-                synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.remove(id) }
+                Log.i(TAG, "Rewrote fresh recent-tail point $id")
                 replaced++
             }
         }
@@ -1342,7 +1360,7 @@ class AnytimeBleManager(
             trackNativeRecomputeNeed(result)
             if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
         }
-        if (!push && !isFreshRecentBackfillReason()) {
+        if (!push && !isFreshRecentBackfillReason() && !historyBackfillReason.startsWith("post-live-anchor(older-background)")) {
             recomputePendingNativeReadings(context, intervalMs)
         }
         persistAlgorithmState()

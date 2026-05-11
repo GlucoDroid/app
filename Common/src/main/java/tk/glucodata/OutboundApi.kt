@@ -477,7 +477,10 @@ class OutboundApiWorker(
             contentType = "application/json; charset=UTF-8",
             headers = destination.headers,
             body = body,
-            parseApiError = ::parseTelegramError
+            parseApiError = ::parseTelegramError,
+            connectTimeoutMs = 45_000,
+            readTimeoutMs = 45_000,
+            preResponseRetries = 2
         )
     }
 
@@ -521,12 +524,45 @@ class OutboundApiWorker(
         contentType: String,
         headers: String,
         body: ByteArray,
-        parseApiError: (String) -> ApiError?
+        parseApiError: (String) -> ApiError?,
+        connectTimeoutMs: Int = 15_000,
+        readTimeoutMs: Int = 30_000,
+        preResponseRetries: Int = 0
+    ): SendResponse {
+        var lastFailure: Throwable? = null
+        repeat(preResponseRetries + 1) { attempt ->
+            try {
+                return executePostOnce(
+                    urlString = urlString,
+                    contentType = contentType,
+                    headers = headers,
+                    body = body,
+                    parseApiError = parseApiError,
+                    connectTimeoutMs = connectTimeoutMs,
+                    readTimeoutMs = readTimeoutMs
+                )
+            } catch (th: Throwable) {
+                lastFailure = th
+                if (attempt >= preResponseRetries) throw th
+                Thread.sleep(750L * (attempt + 1))
+            }
+        }
+        throw lastFailure ?: IllegalStateException("HTTP request failed")
+    }
+
+    private fun executePostOnce(
+        urlString: String,
+        contentType: String,
+        headers: String,
+        body: ByteArray,
+        parseApiError: (String) -> ApiError?,
+        connectTimeoutMs: Int,
+        readTimeoutMs: Int
     ): SendResponse {
         val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 15_000
-            readTimeout = 30_000
+            connectTimeout = connectTimeoutMs
+            readTimeout = readTimeoutMs
             doOutput = true
             setRequestProperty("Content-Type", contentType)
             setRequestProperty("Accept", "application/json, text/plain")

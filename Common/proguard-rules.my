@@ -95,3 +95,14 @@
 -renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable
 -printmapping printmappingout.txt
+
+# Anytime / Yuwell native algorithm JNI uses reflection/GetMethodID on these classes.
+# Do not obfuscate or strip class names, fields, constructors, or accessors.
+-keep class ist.com.sdk.** { *; }
+-keepclassmembers class ist.com.sdk.** { *; }
+-keepnames class ist.com.sdk.**
+
+# If any SDK models are in com.sdk instead of ist.com.sdk in this build:
+-keep class com.sdk.** { *; }
+-keepclassmembers class com.sdk.** { *; }
+-keepnames class com.sdk.**
