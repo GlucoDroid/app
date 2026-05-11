@@ -468,7 +468,7 @@ class AiDexBleManager(
                 hasPendingCccd = true,
                 timeoutRetries = cccdMissingCallbackRetries,
                 maxRetries = CCCD_WRITE_CALLBACK_MAX_EXTRA_WAITS,
-                canInferComplete = canInferMissingCccdCallbackComplete(pendingUuid),
+                canInferComplete = canInferMissingCccdCallbackComplete(),
             )
         ) {
             AiDexRuntimePolicy.MissingCccdCallbackAction.IGNORE -> Unit
@@ -2069,7 +2069,8 @@ class AiDexBleManager(
             val waitingForBondedCccd =
                 phase == Phase.CCCD_CHAIN &&
                     !cccdWriteInProgress &&
-                    pendingBondedCccdUuid != null
+                    pendingBondedCccdUuid != null &&
+                    cccdQueue.peekFirst() == pendingBondedCccdUuid
 
             val waitingForDeferredKeyExchange = cccdChainComplete && keyExchangePendingBond
 
@@ -2449,7 +2450,7 @@ class AiDexBleManager(
             cccdPendingWriteUuid = null
             if (
                 charUuid == CHAR_F002 &&
-                lastInferredCccdUuid == CHAR_F003 &&
+                lastInferredCccdUuid == CHAR_F003
             ) {
                 Log.w(TAG, "F002 CCCD rejected after inferred F003 CCCD — treating GATT as stale and reconnecting")
                 cccdRetryCount = 0
