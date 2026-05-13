@@ -86,6 +86,7 @@ import tk.glucodata.alerts.AlertRepository;
 import tk.glucodata.alerts.AlertStateTracker;
 import tk.glucodata.drivers.ManagedSensorRuntime;
 import tk.glucodata.drivers.ManagedSensorStatusPolicy;
+import tk.glucodata.drivers.ManagedSensorViewModeStore;
 import java.util.Collections;
 import java.util.List;
 
@@ -704,48 +705,24 @@ public class Notify {
     // channel.setShowBadge(false);
     boolean lowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_low) + " " + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(0, gl, msg, strgl, alertChannelForKind(0), alarm);
-        if (!isWearable) {
-            if (triggered) {
-                tk.glucodata.WearInt.alarm("LOW " + strgl.value);
-            }
-        }
-        return triggered;
+        return arrowglucosealarm(0, gl, msg, strgl, alertChannelForKind(0), alarm);
     }
 
     boolean highglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_high) + " " + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(1, gl, msg, strgl, alertChannelForKind(1), alarm);
-        if (!isWearable) {
-            if (triggered) {
-                tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
-            }
-        }
-        return triggered;
+        return arrowglucosealarm(1, gl, msg, strgl, alertChannelForKind(1), alarm);
     }
 
     boolean veryhighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_very_high) + " "
                 + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(6, gl, msg, strgl, alertChannelForKind(6), alarm);
-        if (!isWearable) {
-            if (triggered) {
-                tk.glucodata.WearInt.alarm("HIGH " + strgl.value);
-            }
-        }
-        return triggered;
+        return arrowglucosealarm(6, gl, msg, strgl, alertChannelForKind(6), alarm);
     }
 
     boolean verylowglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
         String msg = Applic.getContext().getString(R.string.alert_very_low) + " "
                 + format(usedlocale, glucoseformat, gl);
-        final boolean triggered = arrowglucosealarm(5, gl, msg, strgl, alertChannelForKind(5), alarm);
-        if (!isWearable) {
-            if (triggered) {
-                tk.glucodata.WearInt.alarm("LOW " + strgl.value);
-            }
-        }
-        return triggered;
+        return arrowglucosealarm(5, gl, msg, strgl, alertChannelForKind(5), alarm);
     }
 
     boolean prehighglucose(notGlucose strgl, float gl, float rate, boolean alarm) {
@@ -772,6 +749,43 @@ public class Notify {
         snapshot.value = format(usedlocale, pureglucoseformat, glucoseValue);
         snapshot.rate = rate;
         return notify.arrowglucosealarm(kind, glucoseValue, message, snapshot, alertChannelForKind(kind), true);
+    }
+
+    private static void sendLegacyWatchAlert(int kind, float glvalue, String message, notGlucose strglucose) {
+        if (isWearable) {
+            return;
+        }
+        try {
+            if (kind == AlertType.MISSED_READING.getId()) {
+                WearInt.missingalarm(System.currentTimeMillis());
+                return;
+            }
+            final String watchMessage = legacyWatchAlertMessage(kind, glvalue, message, strglucose);
+            if (watchMessage != null && !watchMessage.isBlank()) {
+                WearInt.alarm(watchMessage);
+            }
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "sendLegacyWatchAlert", th);
+        }
+    }
+
+    private static String legacyWatchAlertMessage(int kind, float glvalue, String message, notGlucose strglucose) {
+        final String value = strglucose != null && strglucose.value != null && !strglucose.value.isBlank()
+                ? strglucose.value
+                : (Float.isFinite(glvalue) ? format(usedlocale, pureglucoseformat, glvalue) : "");
+        switch (kind) {
+            case 0:
+            case 5:
+            case 7:
+                return value.isBlank() ? message : "LOW " + value;
+            case 1:
+            case 6:
+            case 8:
+            case 10:
+                return value.isBlank() ? message : "HIGH " + value;
+            default:
+                return message != null && !message.isBlank() ? message : value;
+        }
     }
 
     static private final int glucosenotificationid = 81431;
@@ -1332,7 +1346,7 @@ public class Notify {
         try {
             final var managedSnapshot = ManagedSensorRuntime.resolveUiSnapshot(sensorName, sensorName);
             if (managedSnapshot != null) {
-                return managedSnapshot.getViewMode();
+                return ManagedSensorViewModeStore.INSTANCE.read(Applic.app, sensorName, managedSnapshot.getViewMode());
             }
         } catch (Throwable ignored) {
         }
@@ -1342,12 +1356,12 @@ public class Notify {
         try {
             final long[] snapshot = Natives.getSensorUiSnapshot(sensorName);
             if (snapshot != null && snapshot.length >= 2) {
-                return (int) snapshot[1];
+                return ManagedSensorViewModeStore.INSTANCE.read(Applic.app, sensorName, (int) snapshot[1]);
             }
         } catch (Throwable th) {
             Log.stack(LOG_ID, "resolveSensorViewMode", th);
         }
-        return 0;
+        return ManagedSensorViewModeStore.INSTANCE.read(Applic.app, sensorName, 0);
     }
 
     private static boolean isAlarmUiForeground() {
@@ -2163,6 +2177,8 @@ public class Notify {
                                 + " alarmStream=" + useAlarmStream + " haptic=" + hapticProfile);
                 }
 
+                sendLegacyWatchAlert(kind, glucoseValue, message, glucoseStr);
+
                 // Keep the regular ongoing glucose notification on its normal surface instead of
                 // turning it into a second custom-alert card.
                 onenot.updateForegroundGlucoseNotification(kind, glucoseValue, glucoseStr);
@@ -2352,6 +2368,7 @@ public class Notify {
         }
 
         arrowsoundalarm(kind, glvalue, message, strglucose, type, true, skipBanner);
+        sendLegacyWatchAlert(kind, glvalue, message, strglucose);
     }
 
     private void lossofsignalalarm(int kind, int draw, String message, String type, boolean alarm) {
