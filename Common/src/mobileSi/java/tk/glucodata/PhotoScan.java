@@ -46,6 +46,7 @@ import java.util.regex.Pattern;
 
 public class PhotoScan {
     private static final String LOG_ID = "PhotoScan";
+    private static final String GROUP_SEPARATOR = "\u001D";
     private static final String SIBIONICS_GTIN = "0697283164";
     private static final String SIBIONICS_GTIN_NO_LEADING_ZERO = "697283164";
     private static final int SIBIONICS_PREFIX_PADDING = 43;
@@ -58,6 +59,9 @@ public class PhotoScan {
     private static final Pattern AI21_GS = Pattern.compile("(?:\\u001D|\\^])21([A-Z0-9]{4,40})(?=(?:\\u001D|\\^]|$))",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern SIBIONICS2_SERIAL_TOKEN = Pattern.compile("P[0-9A-Z]{12,24}",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SIBIONICS_PACKAGE_AI21 = Pattern.compile(
+            "^(.*10LT[A-Z0-9]{9})(?:\\u001D)?21(P[A-Z0-9\\u001D]{8,40})$",
             Pattern.CASE_INSENSITIVE);
 
     private static void wrongtag() {
@@ -245,9 +249,14 @@ public class PhotoScan {
                 || upper.contains("^]21") || upper.contains("21P2");
         final boolean hasAi10Token = upper.contains("(10)") || upper.contains("\u001D10")
                 || upper.contains("^]10");
-        return upper.contains(SIBIONICS_GTIN_NO_LEADING_ZERO)
+        return hasSibionicsGtin(upper)
                 || upper.contains("(SI)")
                 || (hasAi10Token && hasAi21Token);
+    }
+
+    private static boolean hasSibionicsGtin(String text) {
+        final String upper = text.toUpperCase(Locale.ROOT);
+        return upper.contains(SIBIONICS_GTIN) || upper.contains(SIBIONICS_GTIN_NO_LEADING_ZERO);
     }
 
     private static String buildCanonicalSibionicsPayload(String input) {
@@ -256,7 +265,7 @@ public class PhotoScan {
             return null;
         }
 
-        final String normalized = trimmed.toUpperCase(Locale.ROOT).replace(" ", "");
+        final String normalized = cleanSibionicsInput(trimmed);
 
         String serial = lastGroupMatch(AI21_PAREN, normalized);
         if (serial == null) {
@@ -295,9 +304,7 @@ public class PhotoScan {
         }
 
         final String canonical = SIBIONICS_GTIN + "0".repeat(SIBIONICS_PREFIX_PADDING) + codePart;
-        if (doLog) {
-            Log.i(LOG_ID, "Normalized Sibionics QR payload for stable native parse");
-        }
+        scanLog("Normalized Sibionics QR payload for stable native parse");
         return canonical;
     }
 
@@ -321,33 +328,72 @@ public class PhotoScan {
         return preview.length() > 96 ? preview.substring(0, 96) + "..." : preview;
     }
 
-    private static String normalizeSibionicsFraming(String input) {
+    private static void scanLog(String message) {
+        if (!doLog) {
+            return;
+        }
+        try {
+            Log.i(LOG_ID, message);
+        } catch (RuntimeException ignored) {
+            // JVM unit tests do not mock android.util.Log.
+        }
+    }
+
+    private static String cleanSibionicsInput(String input) {
         if (input == null || input.isEmpty()) {
             return input;
         }
         String out = input.toUpperCase(Locale.ROOT).replace(" ", "");
         out = stripSymbologyPrefix(out);
-        out = out.replace("^]", "\u001D");
+        return out.replace("^]", GROUP_SEPARATOR);
+    }
 
-        final boolean hasGs = out.indexOf('\u001D') >= 0;
-        int ai21 = out.lastIndexOf("21");
-        int ai10 = ai21 > 0 ? out.lastIndexOf("10", ai21 - 1) : -1;
+    private static String repairSibionicsPackageAi21Framing(String input) {
+        String out = cleanSibionicsInput(input);
+        if (out == null || out.isEmpty()) {
+            return null;
+        }
+        if (!hasSibionicsGtin(out)) {
+            return null;
+        }
+        final String body = out.startsWith(GROUP_SEPARATOR) ? out.substring(GROUP_SEPARATOR.length()) : out;
+        final Matcher matcher = SIBIONICS_PACKAGE_AI21.matcher(body);
+        if (!matcher.matches()) {
+            return null;
+        }
+        final String serial = sanitizeAlnumUpper(matcher.group(2));
+        if (serial.length() < 8 || serial.length() > 40) {
+            return null;
+        }
+        return GROUP_SEPARATOR + matcher.group(1) + GROUP_SEPARATOR + "21" + serial;
+    }
 
-        if (hasGs) {
-            if (!out.startsWith("\u001D")) {
-                out = "\u001D" + out;
-                if (ai21 >= 0) {
-                    ai21++;
-                }
+    private static String normalizeSibionicsFraming(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        String out = cleanSibionicsInput(input);
+
+        final String repairedPackagePayload = repairSibionicsPackageAi21Framing(out);
+        if (repairedPackagePayload != null) {
+            if (!repairedPackagePayload.equals(out)) {
+                scanLog("Repaired Sibionics package-label AI21 framing");
             }
-            if (ai21 > 0 && out.charAt(ai21 - 1) != '\u001D') {
-                out = out.substring(0, ai21) + "\u001D" + out.substring(ai21);
-            }
-            return out;
+            return repairedPackagePayload;
         }
 
-        if (ai10 > 0 && ai21 > (ai10 + 2) && ai21 < (out.length() - 2)) {
-            return "\u001D" + out.substring(0, ai21) + "\u001D" + out.substring(ai21);
+        if (out.indexOf(GROUP_SEPARATOR.charAt(0)) >= 0) {
+            if (!out.startsWith(GROUP_SEPARATOR)) {
+                out = GROUP_SEPARATOR + out;
+            }
+            if (out.indexOf(GROUP_SEPARATOR, GROUP_SEPARATOR.length()) < 0) {
+                final int ai21 = out.lastIndexOf("21");
+                if (ai21 > 0 && out.charAt(ai21 - 1) != GROUP_SEPARATOR.charAt(0)
+                        && !out.contains("21P")) {
+                    return out.substring(0, ai21) + GROUP_SEPARATOR + out.substring(ai21);
+                }
+            }
+            return out;
         }
         return out;
     }
@@ -360,7 +406,7 @@ public class PhotoScan {
         if (!compact.startsWith(SIBIONICS_GTIN)) {
             return null;
         }
-        if (compact.contains("^]") || compact.indexOf('\u001D') >= 0
+        if (compact.contains("^]") || compact.indexOf(GROUP_SEPARATOR.charAt(0)) >= 0
                 || compact.contains("(10)") || compact.contains("(21)")) {
             return null;
         }
@@ -392,9 +438,7 @@ public class PhotoScan {
 
         final String syntheticName16 = "00000" + shortName;
         final String rebuilt = SIBIONICS_GTIN + "0".repeat(SIBIONICS_PREFIX_PADDING) + syntheticName16 + "X";
-        if (doLog) {
-            Log.i(LOG_ID, "Expanded compact Sibionics fake payload to long sensor format");
-        }
+        scanLog("Expanded compact Sibionics fake payload to long sensor format");
         return rebuilt;
     }
 
@@ -402,11 +446,16 @@ public class PhotoScan {
         if (input == null || input.isEmpty()) {
             return null;
         }
+        final String repairedPackagePayload = repairSibionicsPackageAi21Framing(input);
+        if (repairedPackagePayload != null) {
+            return repairedPackagePayload;
+        }
+
         final String compact = input.toUpperCase(Locale.ROOT).replace(" ", "");
         if (!looksLikeSibionicsPayload(compact)) {
             return null;
         }
-        if (compact.contains("^]") || compact.indexOf('\u001D') >= 0
+        if (compact.contains("^]") || compact.indexOf(GROUP_SEPARATOR.charAt(0)) >= 0
                 || compact.contains("(10)") || compact.contains("(21)")) {
             return null;
         }
@@ -423,10 +472,8 @@ public class PhotoScan {
             return null;
         }
 
-        final String delimited = "\u001D" + compact.substring(0, ai21) + "\u001D" + compact.substring(ai21);
-        if (doLog) {
-            Log.i(LOG_ID, "Injected GS separators for compact Sibionics payload");
-        }
+        final String delimited = GROUP_SEPARATOR + compact.substring(0, ai21) + GROUP_SEPARATOR + compact.substring(ai21);
+        scanLog("Injected GS separators for compact Sibionics payload");
         return delimited;
     }
 
@@ -553,10 +600,8 @@ public class PhotoScan {
 
         if (looksLikeSibionicsPayload(normalized)) {
             normalized = normalizeSibionicsFraming(normalized);
-            if (doLog) {
-                Log.i(LOG_ID, "Sibionics scan after framing normalize len=" + normalized.length()
-                        + " payload=" + printableScanPreview(normalized));
-            }
+            scanLog("Sibionics scan after framing normalize len=" + normalized.length()
+                    + " payload=" + printableScanPreview(normalized));
         }
 
         // Conservative fallback: some decoders drop the leading zero in Sibionics GTIN.
@@ -564,9 +609,7 @@ public class PhotoScan {
                 && looksLikeSibionicsPayload(normalized)) {
             final int idx = normalized.indexOf(SIBIONICS_GTIN_NO_LEADING_ZERO);
             if (idx >= 0) {
-                if (doLog) {
-                    Log.i(LOG_ID, "Inserted missing GTIN leading zero for Sibionics QR payload");
-                }
+                scanLog("Inserted missing GTIN leading zero for Sibionics QR payload");
                 normalized = normalized.substring(0, idx) + "0" + normalized.substring(idx);
             }
         }
@@ -574,10 +617,8 @@ public class PhotoScan {
         final String expandedFake = expandCompactSibionicsFakePayload(normalized);
         if (expandedFake != null) {
             normalized = expandedFake;
-            if (doLog) {
-                Log.i(LOG_ID, "Sibionics fake payload normalize len=" + normalized.length()
-                        + " payload=" + printableScanPreview(normalized));
-            }
+            scanLog("Sibionics fake payload normalize len=" + normalized.length()
+                    + " payload=" + printableScanPreview(normalized));
         }
 
         final String delimited = delimitCompactSibionicsPayload(normalized);
@@ -606,7 +647,7 @@ public class PhotoScan {
                             Log.i(LOG_ID, "Sibionics addSIscangetName output name=" + name + " index=" + indexptr[0]);
                         }
                         if ((name == null || name.isEmpty()) && indexptr[0] < 0 && looksLikeSibionicsPayload(normalizedTag)) {
-                            // Keep legacy behavior first (raw payload). Only if native parse fails, try a
+                            // Keep the native raw-payload path first. Only if native parse fails, try a
                             // canonicalized Sibionics payload to recover scans from strict/odd decoders.
                             String canonical = buildCanonicalSibionicsPayload(normalizedTag);
                             if (canonical != null && !canonical.equals(normalizedTag)) {

@@ -1019,6 +1019,7 @@ public class SensorBluetooth {
     }
 
     private void setDevices(String[] names) {
+        names = filterActiveSensorNames(names);
         for (String name : distinctRuntimeSensorIds(names != null ? Arrays.asList(names) : null)) {
             if (name != null) {
                 if (!isValidShortSensorName(name)) {
@@ -1278,8 +1279,74 @@ public class SensorBluetooth {
         // Accept any non-null, non-blank name. Sensor name formats vary by vendor:
         //   Libre: 11 alphanumeric chars
         //   AiDex/LinX: "X-" prefix
-        //   Sibionics: native-layer serial (variable format)
-        return name != null && !name.trim().isEmpty();
+        //   Sibionics: serial (variable format)
+        if (name == null || name.trim().isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < name.length(); i++) {
+            if (Character.isISOControl(name.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasControlCharacter(String name) {
+        if (name == null) {
+            return false;
+        }
+        for (int i = 0; i < name.length(); i++) {
+            if (Character.isISOControl(name.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void finishCorruptActiveSensorName(String name) {
+        if (!hasControlCharacter(name)) {
+            return;
+        }
+        final String displayName = name.replace("\u001D", "<GS>");
+        try {
+            final long sensorptr = Natives.str2sensorptr(name);
+            if (sensorptr == 0L) {
+                clearCurrentCorruptSensorName(name);
+                Log.w(LOG_ID, "Ignored corrupt active sensor name " + displayName);
+                return;
+            }
+            Natives.finishfromSensorptr(sensorptr);
+            clearCurrentCorruptSensorName(name);
+            Log.w(LOG_ID, "Finished corrupt active sensor name " + displayName);
+        } catch (Throwable t) {
+            Log.e(LOG_ID, "finish corrupt active sensor failed: " + t.getMessage());
+        }
+    }
+
+    private static void clearCurrentCorruptSensorName(String name) {
+        try {
+            final String current = Natives.lastsensorname();
+            if (name.equals(current) || hasControlCharacter(current)) {
+                setCurrentSensorSelection("");
+            }
+        } catch (Throwable t) {
+            Log.e(LOG_ID, "clear corrupt current sensor failed: " + t.getMessage());
+        }
+    }
+
+    private static String[] filterActiveSensorNames(String[] names) {
+        if (names == null) {
+            return null;
+        }
+        final ArrayList<String> valid = new ArrayList<>(names.length);
+        for (String name : names) {
+            if (isValidShortSensorName(name)) {
+                valid.add(name);
+            } else {
+                finishCorruptActiveSensorName(name);
+            }
+        }
+        return valid.toArray(new String[0]);
     }
 
     public void connectNamedDevice(String id, long delayMillis) {
@@ -1323,7 +1390,7 @@ public class SensorBluetooth {
             blueone = null;
             return false;
         }
-        String[] nativeDevs = Natives.activeSensors();
+        String[] nativeDevs = filterActiveSensorNames(Natives.activeSensors());
 
         ArrayList<String> candidateDevs = new ArrayList<>();
         if (nativeDevs != null) {
@@ -1693,7 +1760,7 @@ public class SensorBluetooth {
     }
 
     static void start(boolean usebluetooth) {
-        final var sensors = Natives.activeSensors();
+        final var sensors = filterActiveSensorNames(Natives.activeSensors());
         final boolean hasSensors = sensors != null && sensors.length > 0;
         if (hasSensors) {
             // if(!keeprunning.started) Notify.shownovalue();
