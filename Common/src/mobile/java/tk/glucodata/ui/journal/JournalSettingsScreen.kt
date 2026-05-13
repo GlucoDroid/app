@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -452,7 +454,8 @@ private fun JournalInsulinPresetSheet(
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 24.dp)
+                .imePadding(),
             contentPadding = PaddingValues(top = 4.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -469,7 +472,9 @@ private fun JournalInsulinPresetSheet(
                         ),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     if (preset != null) {
                         val archived = draft.isArchived
@@ -613,7 +618,9 @@ private fun JournalInsulinPresetSheet(
                             text = stringResource(R.string.journal_curve_preview),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (resetProfile != null && curveDiffersFromDefault) {
                             TextButton(
@@ -623,7 +630,9 @@ private fun JournalInsulinPresetSheet(
                                     selectedPointIndex = defaultSelectedPointIndex(defaultCurve)
                                 },
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                modifier = Modifier.height(32.dp)
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .widthIn(max = 132.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Restore,
@@ -633,7 +642,9 @@ private fun JournalInsulinPresetSheet(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = stringResource(R.string.journal_curve_reset),
-                                    style = MaterialTheme.typography.labelLarge
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Spacer(modifier = Modifier.width(6.dp))
@@ -641,7 +652,9 @@ private fun JournalInsulinPresetSheet(
                         Text(
                             text = curveWindowSummary(draft.curvePoints),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     InteractiveJournalCurveEditor(
@@ -871,6 +884,11 @@ private fun SelectedCurvePointEditor(
     var activityText by remember(index, point.activity) {
         mutableStateOf((point.activity * 100f).roundToInt().toString())
     }
+    val fallbackMinuteSuffix = stringResource(R.string.minutes)
+    val compactMinuteSuffix = stringResource(R.string.minutes_short_format, 1)
+        .replace(Regex("\\d+"), "")
+        .trim()
+        .ifBlank { fallbackMinuteSuffix }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -895,19 +913,24 @@ private fun SelectedCurvePointEditor(
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             OutlinedTextField(
                 value = minuteText,
                 onValueChange = { updated ->
                     minuteText = updated.filter(Char::isDigit)
                     minuteText.toIntOrNull()?.let(onMinuteChange)
                 },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .widthIn(min = 0.dp),
                 label = { Text(stringResource(R.string.journal_curve_minutes)) },
                 singleLine = true,
                 enabled = canEditMinute,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                suffix = { Text(stringResource(R.string.minutes)) }
+                suffix = { Text(compactMinuteSuffix, maxLines = 1) }
             )
             OutlinedTextField(
                 value = activityText,
@@ -917,7 +940,9 @@ private fun SelectedCurvePointEditor(
                         onActivityChange((percent / 100f).coerceIn(0f, 1f))
                     }
                 },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .widthIn(min = 0.dp),
                 label = { Text(stringResource(R.string.journal_curve_activity)) },
                 singleLine = true,
                 enabled = canEditActivity,
