@@ -2030,7 +2030,8 @@ private fun LanguagePickerDialog(onDismiss: () -> Unit) {
         "Russian" to "ru",
         "Swedish" to "sv",
         "Turkish" to "tr",
-        "Ukrainian" to "uk"
+        "Ukrainian" to "uk",
+        "Mongolian" to "mn",
     )
     BasicAlertDialog(onDismissRequest = onDismiss) {
         Surface(
