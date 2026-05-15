@@ -42,10 +42,19 @@ class DataSmoothingTests {
     }
 
     @Test
-    fun shouldSmoothExchangeOutputsIsExplicitOnly() {
+    fun shouldSmoothExchangeOutputsFollowsAllDataScopeByDefault() {
+        assertTrue(
+            DataSmoothing.shouldSmoothExchangeOutputs(
+                smoothingMinutes = 5,
+                graphOnly = false,
+                exchangeOutputsOnly = false
+            )
+        )
+
         assertFalse(
             DataSmoothing.shouldSmoothExchangeOutputs(
                 smoothingMinutes = 5,
+                graphOnly = true,
                 exchangeOutputsOnly = false
             )
         )
@@ -53,6 +62,7 @@ class DataSmoothingTests {
         assertTrue(
             DataSmoothing.shouldSmoothExchangeOutputs(
                 smoothingMinutes = 5,
+                graphOnly = true,
                 exchangeOutputsOnly = true
             )
         )
@@ -63,6 +73,7 @@ class DataSmoothingTests {
         assertFalse(
             DataSmoothing.shouldSmoothExchangeOutputs(
                 smoothingMinutes = 0,
+                graphOnly = false,
                 exchangeOutputsOnly = true
             )
         )
@@ -73,6 +84,7 @@ class DataSmoothingTests {
         assertFalse(
             DataSmoothing.shouldCollapseExchangeOutputs(
                 smoothingMinutes = 5,
+                graphOnly = true,
                 exchangeOutputsOnly = false,
                 collapseChunks = true
             )
@@ -81,8 +93,27 @@ class DataSmoothingTests {
         assertTrue(
             DataSmoothing.shouldCollapseExchangeOutputs(
                 smoothingMinutes = 5,
+                graphOnly = false,
+                exchangeOutputsOnly = false,
+                collapseChunks = true
+            )
+        )
+
+        assertTrue(
+            DataSmoothing.shouldCollapseExchangeOutputs(
+                smoothingMinutes = 5,
+                graphOnly = true,
                 exchangeOutputsOnly = true,
                 collapseChunks = true
+            )
+        )
+
+        assertFalse(
+            DataSmoothing.shouldCollapseExchangeOutputs(
+                smoothingMinutes = 5,
+                graphOnly = false,
+                exchangeOutputsOnly = false,
+                collapseChunks = false
             )
         )
     }

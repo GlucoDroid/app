@@ -84,6 +84,7 @@ object DataSmoothing {
     fun shouldSmoothExchangeOutputs(context: Context): Boolean {
         return shouldSmoothExchangeOutputs(
             smoothingMinutes = getMinutes(context),
+            graphOnly = isGraphOnly(context),
             exchangeOutputsOnly = smoothOnlyExchangeOutputs(context)
         )
     }
@@ -92,6 +93,7 @@ object DataSmoothing {
     fun shouldCollapseExchangeOutputs(context: Context): Boolean {
         return shouldCollapseExchangeOutputs(
             smoothingMinutes = getMinutes(context),
+            graphOnly = isGraphOnly(context),
             exchangeOutputsOnly = smoothOnlyExchangeOutputs(context),
             collapseChunks = collapseChunks(context)
         )
@@ -281,18 +283,21 @@ object DataSmoothing {
 
     internal fun shouldSmoothExchangeOutputs(
         smoothingMinutes: Int,
+        graphOnly: Boolean,
         exchangeOutputsOnly: Boolean
     ): Boolean {
-        return sanitizeMinutes(smoothingMinutes) > 0 && exchangeOutputsOnly
+        return sanitizeMinutes(smoothingMinutes) > 0 && (exchangeOutputsOnly || !graphOnly)
     }
 
     internal fun shouldCollapseExchangeOutputs(
         smoothingMinutes: Int,
+        graphOnly: Boolean,
         exchangeOutputsOnly: Boolean,
         collapseChunks: Boolean
     ): Boolean {
         return collapseChunks && shouldSmoothExchangeOutputs(
             smoothingMinutes = smoothingMinutes,
+            graphOnly = graphOnly,
             exchangeOutputsOnly = exchangeOutputsOnly
         )
     }
