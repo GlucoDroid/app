@@ -146,6 +146,7 @@ import tk.glucodata.QRmake
 import tk.glucodata.R
 import tk.glucodata.MainActivity
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.drivers.anytime.AnytimeCalibrationPolicy
 import android.widget.Toast
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
@@ -924,6 +925,12 @@ fun SensorCard(
                 val unitLabel = if (isMmol) "mmol/L" else "mg/dL"
                 Column {
                     Text(stringResource(R.string.calibrate_sensor_desc, unitLabel))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.calibrate_sensor_timing_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     androidx.compose.material3.OutlinedTextField(
                         value = calibrationInputText,
@@ -2013,7 +2020,7 @@ fun SensorCard(
             }
 
             if (sensor.isAnytime && sensor.supportsManualCalibration) {
-                val warmupComplete = sensor.sensorAgeHours >= 24
+                val warmupComplete = AnytimeCalibrationPolicy.canAcceptManualCalibration(sensor.sensorAgeHours)
                 val canCalibrate = sensor.isVendorConnected && warmupComplete
                 FilledTonalButton(
                     onClick = { showSensorCalibrateDialog = true },

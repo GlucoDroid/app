@@ -644,6 +644,15 @@
     
     <string name="select_sensor_type">Выберите тип сенсора</string>
     <string name="choose_theme">Выберите тему</string>
+    <string name="sibionics_sensor_picker_desc">Скан QR</string>
+    <string name="libre_sensor_picker_desc">Скан NFC</string>
+    <string name="dexcom_sensor_picker_desc">Скан QR</string>
+    <string name="accuchek_sensor_picker_desc">Матрица + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Код + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Настройка Bluetooth</string>
+    <string name="icanhealth_sensor_picker_desc">Настройка Bluetooth</string>
+    <string name="mq_sensor_picker_desc">Сопряжение Bluetooth</string>
+    <string name="anytime_sensor_picker_desc">Сопряжение Bluetooth</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">Сканировать QR-код</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -905,6 +914,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Непрозрачность фона: %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Не калибруйте в течение 2 часов после еды или инсулина.</string>
     <string name="calibration_with_mode">Калибровка (%1$s)</string>
     <string name="calibrations_count">Калибровки: %1$d</string>
     <string name="calibrations_deleted_count">Удалены калибровки %1$d.</string>

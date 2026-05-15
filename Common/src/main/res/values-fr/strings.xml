@@ -495,6 +495,15 @@
     <string name="status_disconnected">Déconnecté</string>
     <string name="select_sensor_type">Choisir le type de capteur</string>
     <string name="choose_theme">Choisir le thème</string>
+    <string name="sibionics_sensor_picker_desc">Scan QR</string>
+    <string name="libre_sensor_picker_desc">Scan NFC</string>
+    <string name="dexcom_sensor_picker_desc">Scan QR</string>
+    <string name="accuchek_sensor_picker_desc">Data Matrix + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Code + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Configuration Bluetooth</string>
+    <string name="icanhealth_sensor_picker_desc">Configuration Bluetooth</string>
+    <string name="mq_sensor_picker_desc">Appairage Bluetooth</string>
+    <string name="anytime_sensor_picker_desc">Appairage Bluetooth</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">Scanner le code QR</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -870,6 +879,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Opacité de l\'arrière-plan : %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Évitez d\'étalonner dans les 2 heures suivant un repas ou une dose d\'insuline.</string>
     <string name="calibration_with_mode">Étalonnage (%1$s)</string>
     <string name="calibrations_count">Étalonnages : %1$d</string>
     <string name="calibrations_deleted_count">Étalonnages %1$d supprimés</string>

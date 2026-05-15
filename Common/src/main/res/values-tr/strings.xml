@@ -601,6 +601,15 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="status_disconnected">Bağlantı kesildi</string>
     <string name="select_sensor_type">Sensör tipi seç</string>
     <string name="choose_theme">Tema seç</string>
+    <string name="sibionics_sensor_picker_desc">QR tara</string>
+    <string name="libre_sensor_picker_desc">NFC tara</string>
+    <string name="dexcom_sensor_picker_desc">QR tara</string>
+    <string name="accuchek_sensor_picker_desc">Veri matrisi + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Kod + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Bluetooth kurulumu</string>
+    <string name="icanhealth_sensor_picker_desc">Bluetooth kurulumu</string>
+    <string name="mq_sensor_picker_desc">Bluetooth eşleştirme</string>
+    <string name="anytime_sensor_picker_desc">Bluetooth eşleştirme</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">QR Kodu tara</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -892,6 +901,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Arka plan opaklığı: %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Yemeklerden veya insülinden sonraki 2 saat içinde kalibrasyon yapmaktan kaçının.</string>
     <string name="calibration_with_mode">Kalibrasyon (%1$s)</string>
     <string name="calibrations_count">Kalibrasyonlar: %1$d</string>
     <string name="calibrations_deleted_count">Silinen %1$d kalibrasyonları</string>

@@ -76,6 +76,8 @@ object AnytimeAlgorithm {
         val reVoltageMv: Int = Int.MIN_VALUE,
         val ceVoltageMv: Int = Int.MIN_VALUE,
         val bVoltageMv: Int = Int.MIN_VALUE,
+        /** Official native calibration status; -1 when the native path did not report it. */
+        val calibrationStatus: Int = AnytimeCalibrationPolicy.CALIBRATION_STATUS_UNKNOWN,
     ) {
         val mgdl: Float get() = mgdlTimes10 / 10f
     }
@@ -493,6 +495,7 @@ object AnytimeAlgorithm {
             reVoltageMv = native.reVoltage,
             ceVoltageMv = native.ceVoltage,
             bVoltageMv = native.bVoltage,
+            calibrationStatus = native.calibrationStatus,
         )
     }
 
@@ -510,6 +513,7 @@ object AnytimeAlgorithm {
             warnCode = native.warnCode,
             source = Source.NATIVE,
             rawMgdl = rawMgdl,
+            calibrationStatus = native.calibrationStatus,
         )
     }
 

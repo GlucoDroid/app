@@ -105,9 +105,6 @@ class AnytimeBleManager(
         /** Legacy Yuwell JNI returns 0 until it has enough warmup history. */
         private const val NATIVE_HISTORY_WARMUP_RECORDS = 20
 
-        /** Blueberry/original-compatible rule: do not accept manual BG calibration in the first 24h. */
-        private const val MANUAL_CALIBRATION_MIN_AGE_HOURS = 24
-
         /** Keep the last calibration result visible in the Sensor card long enough to notice. */
         private const val CALIBRATION_STATUS_TTL_MS = 60L * 60L * 1000L
 
@@ -180,6 +177,8 @@ class AnytimeBleManager(
     @Volatile private var lastReferenceAppliedGlucoseId: Int = 0
     @Volatile private var calibrationStatusText: String = ""
     @Volatile private var calibrationStatusAtMs: Long = 0L
+    @Volatile private var lastAlgorithmCalibrationStatus: Int =
+        AnytimeCalibrationPolicy.CALIBRATION_STATUS_UNKNOWN
     @Volatile private var packetsSinceInit: Int = 0
     @Volatile private var bound: Boolean = false
     @Volatile private var reconnectReason: String = ""
@@ -2165,6 +2164,9 @@ class AnytimeBleManager(
             return false
         }
         val newest = sampleMs >= lastGlucoseAtMs
+        if (result.calibrationStatus != AnytimeCalibrationPolicy.CALIBRATION_STATUS_UNKNOWN) {
+            lastAlgorithmCalibrationStatus = result.calibrationStatus
+        }
         if (newest) {
             lastGlucoseAtMs = sampleMs
             lastGlucoseMgdlTimes10 = result.mgdlTimes10
@@ -2173,9 +2175,10 @@ class AnytimeBleManager(
         }
         Log.i(
             TAG,
-            "BG id=%d %s mmol=%.2f mgdl=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d".format(
+            "BG id=%d %s mmol=%.2f mgdl=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d cal=%s".format(
                 result.glucoseId, result.source, result.mmol, result.mgdl,
                 result.iwNa, result.ibNa, result.temperatureC, result.trend, result.errorCode,
+                AnytimeCalibrationPolicy.calibrationStatusName(result.calibrationStatus),
             )
         )
         // Managed Anytime history is written through Room only.
@@ -2327,12 +2330,20 @@ class AnytimeBleManager(
     override fun pushReferenceBg(mgdl: Int): Boolean {
         if (mgdl <= 0 || lastGlucoseId < 0) return false
         val ageHours = getSensorAgeHours()
-        if (ageHours < MANUAL_CALIBRATION_MIN_AGE_HOURS) {
+        if (!AnytimeCalibrationPolicy.canAcceptManualCalibration(ageHours)) {
             val ageLabel = if (ageHours >= 0) "${ageHours}h" else "unknown"
             Log.w(
                 TAG,
                 "pushReferenceBg($mgdl) rejected — manual calibration unavailable before " +
-                        "${MANUAL_CALIBRATION_MIN_AGE_HOURS}h (age=$ageLabel)"
+                        "${AnytimeCalibrationPolicy.MANUAL_CALIBRATION_MIN_AGE_HOURS}h (age=$ageLabel)"
+            )
+            return false
+        }
+        if (!AnytimeCalibrationPolicy.canAcceptAlgorithmCalibrationStatus(lastAlgorithmCalibrationStatus)) {
+            Log.w(
+                TAG,
+                "pushReferenceBg($mgdl) rejected — native calibration status is " +
+                        AnytimeCalibrationPolicy.calibrationStatusName(lastAlgorithmCalibrationStatus)
             )
             return false
         }

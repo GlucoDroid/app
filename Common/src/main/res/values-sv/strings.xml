@@ -549,6 +549,15 @@
     <string name="status_disconnected">Frånkopplad</string>
     <string name="select_sensor_type">Välj sensortyp</string>
     <string name="choose_theme">Välj tema</string>
+    <string name="sibionics_sensor_picker_desc">Skanna QR</string>
+    <string name="libre_sensor_picker_desc">Skanna NFC</string>
+    <string name="dexcom_sensor_picker_desc">Skanna QR</string>
+    <string name="accuchek_sensor_picker_desc">Datamatris + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Kod + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Bluetooth-inställning</string>
+    <string name="icanhealth_sensor_picker_desc">Bluetooth-inställning</string>
+    <string name="mq_sensor_picker_desc">Bluetooth-parkoppling</string>
+    <string name="anytime_sensor_picker_desc">Bluetooth-parkoppling</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">Skanna QR-kod</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -864,6 +873,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Bakgrundsopacitet: %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Undvik kalibrering inom 2 timmar efter måltider eller insulin.</string>
     <string name="calibration_with_mode">Kalibrering (%1$s)</string>
     <string name="calibrations_count">Kalibreringar: %1$d</string>
     <string name="calibrations_deleted_count">Raderade %1$d-kalibreringar</string>

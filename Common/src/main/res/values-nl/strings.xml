@@ -626,6 +626,15 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="status_disconnected">Verbroken</string>
     <string name="select_sensor_type">Selecteer sensortype</string>
     <string name="choose_theme">Thema kiezen</string>
+    <string name="sibionics_sensor_picker_desc">QR-scan</string>
+    <string name="libre_sensor_picker_desc">NFC-scan</string>
+    <string name="dexcom_sensor_picker_desc">QR-scan</string>
+    <string name="accuchek_sensor_picker_desc">Datamatrix + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Code + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Bluetooth-instelling</string>
+    <string name="icanhealth_sensor_picker_desc">Bluetooth-instelling</string>
+    <string name="mq_sensor_picker_desc">Bluetooth-koppeling</string>
+    <string name="anytime_sensor_picker_desc">Bluetooth-koppeling</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">Scan QR-code</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -907,6 +916,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Achtergronddekking: %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Kalibreer liever niet binnen 2 uur na maaltijden of insuline.</string>
     <string name="calibration_with_mode">Kalibratie (%1$s)</string>
     <string name="calibrations_count">Kalibraties: %1$d</string>
     <string name="calibrations_deleted_count">%1$d-kalibraties verwijderd</string>

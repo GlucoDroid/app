@@ -538,6 +538,15 @@
     <string name="status_disconnected">Адключана</string>
     <string name="select_sensor_type">Абярыце тып сэнсара</string>
     <string name="choose_theme">Абярыце тэму</string>
+    <string name="sibionics_sensor_picker_desc">Скан QR</string>
+    <string name="libre_sensor_picker_desc">Скан NFC</string>
+    <string name="dexcom_sensor_picker_desc">Скан QR</string>
+    <string name="accuchek_sensor_picker_desc">Матрыца + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Код + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Налада Bluetooth</string>
+    <string name="icanhealth_sensor_picker_desc">Налада Bluetooth</string>
+    <string name="mq_sensor_picker_desc">Спалучэнне Bluetooth</string>
+    <string name="anytime_sensor_picker_desc">Спалучэнне Bluetooth</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">Скан. QR-код</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -863,6 +872,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Непразрыстасць фону: %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Пазбягайце каліброўкі на працягу 2 гадзін пасля ежы або інсуліну.</string>
     <string name="calibration_with_mode">Каліброўка (%1$s)</string>
     <string name="calibrations_count">Каліброўкі: %1$d</string>
     <string name="calibrations_deleted_count">Выдалены каліброўкі %1$d</string>

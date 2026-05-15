@@ -624,6 +624,15 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="status_disconnected">Getrennt</string>
     <string name="select_sensor_type">Sensortyp wählen</string>
     <string name="choose_theme">Design wählen</string>
+    <string name="sibionics_sensor_picker_desc">QR-Scan</string>
+    <string name="libre_sensor_picker_desc">NFC-Scan</string>
+    <string name="dexcom_sensor_picker_desc">QR-Scan</string>
+    <string name="accuchek_sensor_picker_desc">Data Matrix + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Code + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Bluetooth-Setup</string>
+    <string name="icanhealth_sensor_picker_desc">Bluetooth-Setup</string>
+    <string name="mq_sensor_picker_desc">Bluetooth-Kopplung</string>
+    <string name="anytime_sensor_picker_desc">Bluetooth-Kopplung</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">QR-Code scannen</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -902,6 +911,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Hintergrunddeckkraft: %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Vermeide eine Kalibrierung innerhalb von 2 Stunden nach Mahlzeiten oder Insulin.</string>
     <string name="calibration_with_mode">Kalibrierung (%1$s)</string>
     <string name="calibrations_count">Kalibrierungen: %1$d</string>
     <string name="calibrations_deleted_count">%1$d-Kalibrierungen gelöscht</string>

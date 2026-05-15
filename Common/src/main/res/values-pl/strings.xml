@@ -624,6 +624,15 @@
     <string name="status_disconnected">Rozłączono</string>
     <string name="select_sensor_type">Wybierz typ sensora</string>
     <string name="choose_theme">Wybierz motyw</string>
+    <string name="sibionics_sensor_picker_desc">Skan QR</string>
+    <string name="libre_sensor_picker_desc">Skan NFC</string>
+    <string name="dexcom_sensor_picker_desc">Skan QR</string>
+    <string name="accuchek_sensor_picker_desc">Matryca + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Kod + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Konfiguracja Bluetooth</string>
+    <string name="icanhealth_sensor_picker_desc">Konfiguracja Bluetooth</string>
+    <string name="mq_sensor_picker_desc">Parowanie Bluetooth</string>
+    <string name="anytime_sensor_picker_desc">Parowanie Bluetooth</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">Skanuj kod QR</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -899,6 +908,7 @@
     <!-- Auto-added formatted strings -->
     <string name="background_opacity_percent">Nieprzezroczystość tła: %1$d%%</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor.</string>
+    <string name="calibrate_sensor_timing_note">Unikaj kalibracji w ciągu 2 godzin po posiłku lub insulinie.</string>
     <string name="calibration_with_mode">Kalibracja (%1$s)</string>
     <string name="calibrations_count">Kalibracje: %1$d</string>
     <string name="calibrations_deleted_count">Usunięto kalibracje %1$d</string>

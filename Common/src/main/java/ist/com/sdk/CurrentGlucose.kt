@@ -28,7 +28,7 @@ class CurrentGlucose {
     @JvmField var trend: Int = 6
     @JvmField var errorCode: Int = 0
     @JvmField var warnCode: Int = 0
-    @JvmField var calibrationStatus: Int = 0
+    @JvmField var calibrationStatus: Int = -1
     @JvmField var hypoglycemiaEarlyWarnMinutes: Int = 0
     @JvmField var hyperglycemiaEarlyWarnMinutes: Int = 0
     @JvmField var countdownDays: Int = 0
