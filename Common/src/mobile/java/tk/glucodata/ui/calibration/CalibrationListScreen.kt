@@ -784,14 +784,14 @@ private fun MasterCalibrationCard(
                         onToggle = onToggleLockPastHistory
                     )
                     HorizontalDivider(color = rowDividerColor)
-                    MasterToggleRow(
-                        title = stringResource(R.string.calibration_overwrite_values_title),
-                        subtitle = stringResource(R.string.calibration_overwrite_values_subtitle),
-                        checked = overwriteSensorValues,
-                        enabled = isEnabled,
-                        onToggle = onToggleOverwriteSensorValues
-                    )
-                    HorizontalDivider(color = rowDividerColor)
+//                    MasterToggleRow(
+//                        title = stringResource(R.string.calibration_overwrite_values_title),
+//                        subtitle = stringResource(R.string.calibration_overwrite_values_subtitle),
+//                        checked = overwriteSensorValues,
+//                        enabled = isEnabled,
+//                        onToggle = onToggleOverwriteSensorValues
+//                    )
+//                    HorizontalDivider(color = rowDividerColor)
                     MasterToggleRow(
                         title = stringResource(R.string.calibrate_a),
                         subtitle = stringResource(R.string.calibration_visual_continuity_subtitle),
