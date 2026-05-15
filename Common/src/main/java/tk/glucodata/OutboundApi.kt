@@ -20,6 +20,7 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorUiFamily
 
@@ -39,6 +40,8 @@ object OutboundApi {
     private const val IN_PRIMARY_TEXT = "primary_text"
     private const val IN_DISPLAY_VALUE = "display_value"
     private const val IN_MGDL = "mgdl"
+    private const val IN_AUTO_VALUE = "auto_value"
+    private const val IN_AUTO_MGDL = "auto_mgdl"
     private const val IN_RAW_VALUE = "raw_value"
     private const val IN_RATE = "rate"
     private const val IN_TIME_MILLIS = "time_millis"
@@ -65,6 +68,8 @@ object OutboundApi {
             rate = rate,
             timeMillis = timeMillis,
             sensorGen = sensorGen,
+            autoValue = Float.NaN,
+            autoMgdl = 0,
             rawValue = Float.NaN,
             alarm = alarm
         )
@@ -82,6 +87,35 @@ object OutboundApi {
         rawValue: Float,
         alarm: Int
     ) {
+        enqueueGlucose(
+            sensorId = sensorId,
+            primaryText = primaryText,
+            primaryDisplayValue = primaryDisplayValue,
+            primaryMgdl = primaryMgdl,
+            rate = rate,
+            timeMillis = timeMillis,
+            sensorGen = sensorGen,
+            autoValue = Float.NaN,
+            autoMgdl = 0,
+            rawValue = rawValue,
+            alarm = alarm
+        )
+    }
+
+    @JvmStatic
+    fun enqueueGlucose(
+        sensorId: String?,
+        primaryText: String?,
+        primaryDisplayValue: Double,
+        primaryMgdl: Int,
+        rate: Float,
+        timeMillis: Long,
+        sensorGen: Int,
+        autoValue: Float,
+        autoMgdl: Int,
+        rawValue: Float,
+        alarm: Int
+    ) {
         enqueueGlucoseInternal(
             context = Applic.app,
             sensorId = sensorId,
@@ -92,6 +126,8 @@ object OutboundApi {
             rate = rate,
             timeMillis = timeMillis,
             sensorGen = sensorGen,
+            autoValue = autoValue,
+            autoMgdl = autoMgdl,
             alarm = alarm,
             test = false,
             destinationId = null
@@ -117,6 +153,8 @@ object OutboundApi {
             rate = current.rate,
             timeMillis = current.timeMillis,
             sensorGen = current.sensorGen,
+            autoValue = current.autoValue,
+            autoMgdl = displayToMgdl(current.autoValue),
             alarm = 0,
             test = true,
             destinationId = destinationId
@@ -134,6 +172,8 @@ object OutboundApi {
         rate: Float,
         timeMillis: Long,
         sensorGen: Int,
+        autoValue: Float,
+        autoMgdl: Int,
         alarm: Int,
         test: Boolean,
         destinationId: String?
@@ -167,6 +207,8 @@ object OutboundApi {
                 rate = rate,
                 timeMillis = timeMillis,
                 sensorGen = sensorGen,
+                autoValue = autoValue,
+                autoMgdl = autoMgdl,
                 alarm = alarm,
                 test = test
             )
@@ -198,6 +240,8 @@ object OutboundApi {
         rate: Float,
         timeMillis: Long,
         sensorGen: Int,
+        autoValue: Float,
+        autoMgdl: Int,
         alarm: Int,
         test: Boolean
     ) {
@@ -216,6 +260,8 @@ object OutboundApi {
                 .putString(IN_PRIMARY_TEXT, primaryText.orEmpty())
                 .putDouble(IN_DISPLAY_VALUE, primaryDisplayValue)
                 .putInt(IN_MGDL, primaryMgdl)
+                .putFloat(IN_AUTO_VALUE, autoValue)
+                .putInt(IN_AUTO_MGDL, autoMgdl)
                 .putFloat(IN_RAW_VALUE, rawValue)
                 .putFloat(IN_RATE, rate)
                 .putLong(IN_TIME_MILLIS, timeMillis)
@@ -251,6 +297,8 @@ object OutboundApi {
             primaryText = input.getString(IN_PRIMARY_TEXT).orEmpty(),
             displayValue = displayValue,
             mgdl = mgdl,
+            autoValue = input.getFloat(IN_AUTO_VALUE, Float.NaN),
+            autoMgdl = input.getInt(IN_AUTO_MGDL, 0),
             rawValue = input.getFloat(IN_RAW_VALUE, Float.NaN),
             rateMgdlPerMinute = input.getFloat(IN_RATE, Float.NaN),
             timeMillis = timeMillis,
@@ -267,6 +315,8 @@ object OutboundApi {
         val primaryText: String,
         val displayValue: Double,
         val mgdl: Int,
+        val autoValue: Float,
+        val autoMgdl: Int,
         val rawValue: Float,
         val rateMgdlPerMinute: Float,
         val timeMillis: Long,
@@ -276,6 +326,7 @@ object OutboundApi {
     ) {
         val unit: String get() = if (Applic.unit == 1) "mmol/L" else "mg/dL"
         val mmol: Float get() = mgdl / MGDL_PER_MMOLL
+        val autoMmol: Float get() = autoMgdl / MGDL_PER_MMOLL
         val rawGlucoseMgdl: Float
             get() = rawValue.takeIf { rawValueLooksGlucoseScaled(sensorId, it) }
                 ?.let { if (Applic.unit == 1) it * MGDL_PER_MMOLL else it }
@@ -289,6 +340,11 @@ object OutboundApi {
         val displayText: String
             get() = primaryText.ifBlank {
                 if (Applic.unit == 1) formatNumber(mmol, 1) else mgdl.toString()
+            }
+        val autoDisplayText: String
+            get() {
+                if (!autoValue.isFinite() || autoValue <= 0f) return ""
+                return if (Applic.unit == 1) formatNumber(autoValue, 1) else formatNumber(autoValue, 0)
             }
         val rawDisplayText: String
             get() {
@@ -331,6 +387,10 @@ object OutboundApi {
             .replace("{unit}", reading.unit)
             .replace("{mgdl}", reading.mgdl.toString())
             .replace("{mmol}", formatNumber(reading.mmol, 2))
+            .replace("{auto}", reading.autoDisplayText)
+            .replace("{auto_value}", reading.autoDisplayText)
+            .replace("{auto_mgdl}", if (reading.autoMgdl > 0) reading.autoMgdl.toString() else "")
+            .replace("{auto_mmol}", if (reading.autoMgdl > 0) formatNumber(reading.autoMmol, 2) else "")
             .replace("{raw}", reading.rawDisplayText)
             .replace("{raw_mgdl}", if (reading.rawGlucoseMgdl.isFinite() && reading.rawGlucoseMgdl > 0f) {
                 formatNumber(reading.rawGlucoseMgdl, 0)
@@ -361,6 +421,11 @@ object OutboundApi {
     internal fun formatNumber(value: Float, decimals: Int): String {
         if (!value.isFinite()) return ""
         return "%.${decimals}f".format(Locale.US, value)
+    }
+
+    internal fun displayToMgdl(value: Float): Int {
+        if (!value.isFinite() || value <= 0f) return 0
+        return (if (Applic.unit == 1) value * MGDL_PER_MMOLL else value).roundToInt()
     }
 
     private fun rawValueLooksGlucoseScaled(sensorId: String?, rawValue: Float): Boolean {
@@ -617,6 +682,13 @@ class OutboundApiWorker(
             .put("timestamp", reading.timeMillis)
             .put("glucose_mgdl", reading.mgdl)
             .put("glucose_mmol", OutboundApi.formatNumber(reading.mmol, 2).toDoubleOrNull())
+            .put("auto_glucose_mgdl", reading.autoMgdl.takeIf { it > 0 })
+            .put("auto_glucose_mmol", if (reading.autoMgdl > 0) {
+                OutboundApi.formatNumber(reading.autoMmol, 2).toDoubleOrNull()
+            } else {
+                null
+            })
+            .put("auto_display_value", reading.autoDisplayText.takeIf { it.isNotBlank() })
             .put("raw_value", reading.rawValue.takeIf { it.isFinite() && it > 0f })
             .put("raw_glucose_mgdl", reading.rawGlucoseMgdl.takeIf { it.isFinite() && it > 0f })
             .put(

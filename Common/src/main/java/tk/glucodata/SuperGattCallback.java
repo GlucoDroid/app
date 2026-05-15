@@ -571,6 +571,8 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     exchangePayload.getRate(),
                     exchangePayload.getTimeMillis(),
                     exchangePayload.getSensorGen(),
+                    exchangePayload.getAutoValue(),
+                    exchangePayload.getAutoMgdl(),
                     exchangePayload.getRawValue(),
                     alarm);
         if (!isWearable) {
