@@ -159,6 +159,7 @@ fun ExpressiveSettingsScreen(
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingExportPackageImportUri by remember { mutableStateOf<Uri?>(null) }
     var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
     var predictiveSimulationExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -543,6 +544,10 @@ fun ExpressiveSettingsScreen(
                                 withContext(Dispatchers.Main) {
                                     pendingSettingsImportUri = uri
                                 }
+                            } else if (tk.glucodata.data.ExportPackageExporter.isExportPackage(context, uri)) {
+                                withContext(Dispatchers.Main) {
+                                    pendingExportPackageImportUri = uri
+                                }
                             } else {
                                 // Show loading? For now just toast result
                                 val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
@@ -731,6 +736,52 @@ fun ExpressiveSettingsScreen(
                 }
             },
             onDismiss = { pendingSettingsImportUri = null }
+        )
+    }
+    pendingExportPackageImportUri?.let { uri ->
+        ConfirmActionDialog(
+            title = stringResource(R.string.import_data_settings),
+            message = stringResource(R.string.settings_import_confirm_message),
+            icon = Icons.Default.FolderOpen,
+            onConfirm = {
+                pendingExportPackageImportUri = null
+                scope.launch {
+                    val result = tk.glucodata.data.ExportPackageExporter.importFromJson(context, uri)
+                    withContext(Dispatchers.Main) {
+                        if (result.isSuccess) {
+                            val summary = result.getOrThrow()
+                            Toast.makeText(
+                                context,
+                                if (summary.restartRequired) {
+                                    context.getString(R.string.settings_import_successful)
+                                } else {
+                                    context.getString(
+                                        R.string.imported_readings_count,
+                                        summary.historyReadings
+                                    )
+                                },
+                                Toast.LENGTH_LONG
+                            ).show()
+                            if (summary.restartRequired) {
+                                context.findActivity()?.fullRestart()
+                            } else {
+                                viewModel.refreshData()
+                            }
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    R.string.import_failed_with_error,
+                                    result.exceptionOrNull()?.localizedMessage
+                                        ?: context.getString(R.string.unknown_error)
+                                ),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = { pendingExportPackageImportUri = null }
         )
     }
 

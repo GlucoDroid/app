@@ -214,65 +214,96 @@ object HistoryExporter {
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                // Get serial map for enriching export
-                val database = HistoryDatabase.getInstance(context)
-                val dao = database.historyDao()
-                val journalDao = database.journalDao()
-                val allReadings = dao.getReadingsSince(0L)
-                val serialByTimestamp = HashMap<Long, String>(allReadings.size)
-                for (reading in allReadings) {
-                    serialByTimestamp[reading.timestamp] = reading.sensorSerial
-                }
-                val journalEntries = loadExportJournalEntries(journalDao, data, startMillis, endMillis)
-                val insulinPresets = journalDao.getInsulinPresets()
-
                 context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                     outputStream.bufferedWriter().use { writer ->
-                        writer.write("JugglucoNG Glucose History Export\n")
-                        writer.write("Generated on: ${READABLE_DATE_FORMAT.format(Date())}\n")
-                        writer.write("Total Readings: ${data.size}\n\n")
-                        
-                        for (point in data) {
-                            val dateStr = READABLE_DATE_FORMAT.format(Date(point.timestamp))
-                            val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
-                            val valueStr = tk.glucodata.ui.util.GlucoseFormatter.format(point.value, isMmol)
-                            val rawStr = tk.glucodata.ui.util.GlucoseFormatter.format(point.rawValue, isMmol)
-                            val serial = serialByTimestamp[point.timestamp] ?: ""
-                            
-                            val sensorTag = if (serial.isNotEmpty() && serial != "unknown") " [$serial]" else ""
-                            val line = "$dateStr: $valueStr $unit (Raw: $rawStr)$sensorTag\n"
-                            writer.write(line)
-                        }
-                        if (journalEntries.isNotEmpty()) {
-                            writer.write("\nJournal Entries: ${journalEntries.size}\n")
-                            for (entry in journalEntries) {
-                                val dateStr = READABLE_DATE_FORMAT.format(Date(entry.timestamp))
-                                val amount = entry.amount?.let { " · $it" }.orEmpty()
-                                val glucose = entry.glucoseValueMgDl?.let { " · ${it.toInt()} mg/dL" }.orEmpty()
-                                val duration = entry.durationMinutes?.let { " · ${it}min" }.orEmpty()
-                                val intensity = entry.intensity?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
-                                val source = entry.source.takeIf { it.isNotBlank() && it != "manual" }?.let { " · $it" }.orEmpty()
-                                val note = entry.note?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
-                                writer.write("$dateStr: ${entry.entryType} · ${entry.title}$amount$glucose$duration$intensity$source$note\n")
-                            }
-                        }
-                        if (insulinPresets.isNotEmpty()) {
-                            writer.write("\nInsulin Presets: ${insulinPresets.size}\n")
-                            for (preset in insulinPresets) {
-                                val archived = if (preset.isArchived) "archived" else "enabled"
-                                val iob = if (preset.countsTowardIob) "IOB" else "no IOB"
-                                writer.write(
-                                    "${preset.displayName}: ${preset.onsetMinutes}-${preset.durationMinutes} min · " +
-                                        "$archived · $iob · color ${preset.accentColor}\n"
-                                )
-                            }
-                        }
+                        writeReadableReport(context, writer, data, unit, startMillis, endMillis)
                     }
                 }
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Error exporting to text", e)
                 false
+            }
+        }
+    }
+
+    suspend fun exportReadableToFile(
+        context: Context,
+        file: java.io.File,
+        data: List<GlucosePoint>,
+        unit: String,
+        startMillis: Long? = null,
+        endMillis: Long? = null
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                file.outputStream().bufferedWriter().use { writer ->
+                    writeReadableReport(context, writer, data, unit, startMillis, endMillis)
+                }
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Error exporting readable report to file", e)
+                false
+            }
+        }
+    }
+
+    private suspend fun writeReadableReport(
+        context: Context,
+        writer: java.io.Writer,
+        data: List<GlucosePoint>,
+        unit: String,
+        startMillis: Long?,
+        endMillis: Long?
+    ) {
+        val database = HistoryDatabase.getInstance(context)
+        val dao = database.historyDao()
+        val journalDao = database.journalDao()
+        val allReadings = dao.getReadingsSince(0L)
+        val serialByTimestamp = HashMap<Long, String>(allReadings.size)
+        for (reading in allReadings) {
+            serialByTimestamp[reading.timestamp] = reading.sensorSerial
+        }
+        val journalEntries = loadExportJournalEntries(journalDao, data, startMillis, endMillis)
+        val insulinPresets = journalDao.getInsulinPresets()
+
+        writer.write("JugglucoNG Glucose History Export\n")
+        writer.write("Generated on: ${READABLE_DATE_FORMAT.format(Date())}\n")
+        writer.write("Total Readings: ${data.size}\n\n")
+
+        for (point in data) {
+            val dateStr = READABLE_DATE_FORMAT.format(Date(point.timestamp))
+            val isMmol = GlucoseFormatter.isMmol(unit)
+            val valueStr = GlucoseFormatter.format(point.value, isMmol)
+            val rawStr = GlucoseFormatter.format(point.rawValue, isMmol)
+            val serial = serialByTimestamp[point.timestamp] ?: ""
+
+            val sensorTag = if (serial.isNotEmpty() && serial != "unknown") " [$serial]" else ""
+            val line = "$dateStr: $valueStr $unit (Raw: $rawStr)$sensorTag\n"
+            writer.write(line)
+        }
+        if (journalEntries.isNotEmpty()) {
+            writer.write("\nJournal Entries: ${journalEntries.size}\n")
+            for (entry in journalEntries) {
+                val dateStr = READABLE_DATE_FORMAT.format(Date(entry.timestamp))
+                val amount = entry.amount?.let { " · $it" }.orEmpty()
+                val glucose = entry.glucoseValueMgDl?.let { " · ${it.toInt()} mg/dL" }.orEmpty()
+                val duration = entry.durationMinutes?.let { " · ${it}min" }.orEmpty()
+                val intensity = entry.intensity?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+                val source = entry.source.takeIf { it.isNotBlank() && it != "manual" }?.let { " · $it" }.orEmpty()
+                val note = entry.note?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+                writer.write("$dateStr: ${entry.entryType} · ${entry.title}$amount$glucose$duration$intensity$source$note\n")
+            }
+        }
+        if (insulinPresets.isNotEmpty()) {
+            writer.write("\nInsulin Presets: ${insulinPresets.size}\n")
+            for (preset in insulinPresets) {
+                val archived = if (preset.isArchived) "archived" else "enabled"
+                val iob = if (preset.countsTowardIob) "IOB" else "no IOB"
+                writer.write(
+                    "${preset.displayName}: ${preset.onsetMinutes}-${preset.durationMinutes} min · " +
+                        "$archived · $iob · color ${preset.accentColor}\n"
+                )
             }
         }
     }

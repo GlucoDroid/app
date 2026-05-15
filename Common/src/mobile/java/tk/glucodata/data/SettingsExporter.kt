@@ -84,37 +84,55 @@ object SettingsExporter {
         return withContext(Dispatchers.IO) {
             runCatching {
                 val payload = readPayload(appContext, uri)
-                require(payload.optString("schema") == SCHEMA) { "Unsupported settings export" }
-                val schemaVersion = payload.optInt("schemaVersion", 0)
-                require(schemaVersion in 1..SCHEMA_VERSION) {
-                    "Unsupported settings export version: $schemaVersion"
-                }
-
-                val preferencesSummary = importSharedPreferences(
-                    appContext,
-                    payload.optJSONObject("sharedPreferences") ?: JSONObject()
-                )
-                val nativeFileCount = importNativeSettingsFiles(
-                    appContext,
-                    payload.optJSONObject("nativeSettingsFiles") ?: JSONObject()
-                )
-                val journalSummary = importJournalData(
-                    appContext,
-                    payload.optJSONObject("journalData")
-                )
-
-                ImportSummary(
-                    sharedPreferenceFiles = preferencesSummary.first,
-                    preferenceValues = preferencesSummary.second,
-                    nativeFiles = nativeFileCount,
-                    journalEntries = journalSummary.entries,
-                    journalInsulinPresets = journalSummary.insulinPresets,
-                    journalFoods = journalSummary.foods
-                )
+                importPayloadUnchecked(appContext, payload)
             }.onFailure {
                 Log.e(TAG, "Settings import failed", it)
             }
         }
+    }
+
+    suspend fun importPayload(context: Context, payload: JSONObject): Result<ImportSummary> {
+        val appContext = context.applicationContext
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                importPayloadUnchecked(appContext, payload)
+            }.onFailure {
+                Log.e(TAG, "Settings import failed", it)
+            }
+        }
+    }
+
+    private suspend fun importPayloadUnchecked(
+        context: Context,
+        payload: JSONObject
+    ): ImportSummary {
+        require(payload.optString("schema") == SCHEMA) { "Unsupported settings export" }
+        val schemaVersion = payload.optInt("schemaVersion", 0)
+        require(schemaVersion in 1..SCHEMA_VERSION) {
+            "Unsupported settings export version: $schemaVersion"
+        }
+
+        val preferencesSummary = importSharedPreferences(
+            context,
+            payload.optJSONObject("sharedPreferences") ?: JSONObject()
+        )
+        val nativeFileCount = importNativeSettingsFiles(
+            context,
+            payload.optJSONObject("nativeSettingsFiles") ?: JSONObject()
+        )
+        val journalSummary = importJournalData(
+            context,
+            payload.optJSONObject("journalData")
+        )
+
+        return ImportSummary(
+            sharedPreferenceFiles = preferencesSummary.first,
+            preferenceValues = preferencesSummary.second,
+            nativeFiles = nativeFileCount,
+            journalEntries = journalSummary.entries,
+            journalInsulinPresets = journalSummary.insulinPresets,
+            journalFoods = journalSummary.foods
+        )
     }
 
     private suspend fun buildPayload(
