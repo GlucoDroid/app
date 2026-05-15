@@ -5,6 +5,9 @@ import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalIntensity
 import tk.glucodata.data.journal.JournalCurvePoint
+import tk.glucodata.data.journal.journalFoodTailDelayMinutes
+import tk.glucodata.data.journal.journalFoodTailDurationMinutes
+import tk.glucodata.data.journal.journalFoodTailEquivalentCarbs
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.GlucoseFormatter
 import kotlin.math.exp
@@ -34,7 +37,8 @@ data class PredictiveSimulationSettings(
     val stepMinutes: Int = 5,
     val carbRatioGramsPerUnit: Float = 10f,
     val insulinSensitivityMgDlPerUnit: Float = 54f,
-    val carbAbsorptionGramsPerHour: Float = 35f
+    val carbAbsorptionGramsPerHour: Float = 35f,
+    val foodMacrosEnabled: Boolean = false
 )
 
 fun buildGlucosePrediction(
@@ -83,6 +87,7 @@ fun buildGlucosePrediction(
                 sensitivityDisplay = sensitivity,
                 carbRatioGramsPerUnit = safeCarbRatio,
                 carbAbsorptionGramsPerHour = safeAbsorption,
+                foodMacrosEnabled = settings.foodMacrosEnabled,
                 insulinPresetsById = insulinPresetsById
             ).toDouble()
         }.toFloat()
@@ -142,6 +147,7 @@ private fun JournalEntry.projectedDisplayDelta(
     sensitivityDisplay: Float,
     carbRatioGramsPerUnit: Float,
     carbAbsorptionGramsPerHour: Float,
+    foodMacrosEnabled: Boolean,
     insulinPresetsById: Map<Long, JournalInsulinPreset>
 ): Float {
     return when (type) {
@@ -152,9 +158,20 @@ private fun JournalEntry.projectedDisplayDelta(
                 ?.toFloat()
                 ?: (grams / carbAbsorptionGramsPerHour * 60f).coerceIn(30f, 360f)
             val totalRise = (grams / carbRatioGramsPerUnit) * sensitivityDisplay
-            totalRise * (
+            val carbRise = totalRise * (
                 mealProgress(timestamp, absorptionMinutes, atMillis) -
                     mealProgress(timestamp, absorptionMinutes, baselineMillis)
+                )
+            if (!foodMacrosEnabled) return carbRise
+
+            val tailGrams = journalFoodTailEquivalentCarbs(proteinGrams, fatGrams)
+            if (tailGrams <= 0f) return carbRise
+            val tailStart = timestamp + (journalFoodTailDelayMinutes(proteinGrams, fatGrams) * 60_000f).toLong()
+            val tailDuration = journalFoodTailDurationMinutes(proteinGrams, fatGrams)
+            val tailRise = (tailGrams / carbRatioGramsPerUnit) * sensitivityDisplay
+            carbRise + tailRise * (
+                mealProgress(tailStart, tailDuration, atMillis) -
+                    mealProgress(tailStart, tailDuration, baselineMillis)
                 )
         }
         JournalEntryType.INSULIN -> {

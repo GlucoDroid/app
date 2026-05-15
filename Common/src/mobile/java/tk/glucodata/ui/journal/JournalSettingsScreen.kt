@@ -147,16 +147,11 @@ fun JournalSettingsScreen(
 ) {
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
+    val journalFoodMacrosEnabled by viewModel.journalFoodMacrosEnabled.collectAsState()
     val allPresets by viewModel.journalInsulinPresets.collectAsState()
     val allFoods by viewModel.journalFoods.collectAsState()
     val activePresets = remember(allPresets) { allPresets.filter { !it.isArchived } }
-    val archivedPresets = remember(allPresets) { allPresets.filter { it.isArchived } }
     val activeFoods = remember(allFoods) { allFoods.filter { !it.isArchived } }
-    val archivedFoods = remember(allFoods) { allFoods.filter { it.isArchived } }
-    var editingPreset by remember { mutableStateOf<JournalInsulinPreset?>(null) }
-    var creatingPreset by remember { mutableStateOf(false) }
-    var editingFood by remember { mutableStateOf<JournalFood?>(null) }
-    var creatingFood by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -217,6 +212,16 @@ fun JournalSettingsScreen(
                 )
             }
 
+            item(key = "food_macros") {
+                JournalCompactSwitchRow(
+                    title = stringResource(R.string.journal_food_macros_title),
+                    subtitle = stringResource(R.string.journal_food_macros_desc),
+                    checked = journalFoodMacrosEnabled,
+                    onCheckedChange = { viewModel.setJournalFoodMacrosEnabled(it) },
+                    icon = Icons.Default.Restaurant
+                )
+            }
+
             item(key = "import_health_activity") {
                 FilledTonalButton(
                     onClick = { viewModel.importHealthConnectActivity(daysBack = 14) },
@@ -233,13 +238,71 @@ fun JournalSettingsScreen(
                 }
             }
 
-            item(key = "food_label") {
-                SectionLabel(
-                    text = stringResource(R.string.journal_food_library),
-                    topPadding = 2.dp
+            item(key = "food_library_nav") {
+                JournalLibraryNavRow(
+                    title = stringResource(R.string.journal_food_library),
+                    subtitle = stringResource(
+                        R.string.journal_food_library_count,
+                        activeFoods.size,
+                        allFoods.size
+                    ),
+                    icon = Icons.Default.Restaurant,
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    onClick = { navController.navigate("settings/journal/foods") }
                 )
             }
 
+            item(key = "insulin_library_nav") {
+                JournalLibraryNavRow(
+                    title = stringResource(R.string.journal_insulin_library),
+                    subtitle = stringResource(
+                        R.string.journal_insulin_library_count,
+                        activePresets.size,
+                        allPresets.size
+                    ),
+                    icon = Icons.Default.Vaccines,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    onClick = { navController.navigate("settings/journal/insulin") }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun JournalFoodLibraryScreen(
+    navController: NavController,
+    viewModel: DashboardViewModel
+) {
+    val allFoods by viewModel.journalFoods.collectAsState()
+    val activeFoods = remember(allFoods) { allFoods.filter { !it.isArchived } }
+    val archivedFoods = remember(allFoods) { allFoods.filter { it.isArchived } }
+    var editingFood by remember { mutableStateOf<JournalFood?>(null) }
+    var creatingFood by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.journal_food_library)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.navigate_back)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             if (activeFoods.isNotEmpty()) {
                 item(key = "food_group") {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -280,14 +343,75 @@ fun JournalSettingsScreen(
                     }
                 }
             }
+        }
+    }
 
-            item(key = "active_label") {
-                SectionLabel(
-                    text = stringResource(R.string.journal_insulin_library),
-                    topPadding = 2.dp
-                )
+    if (creatingFood) {
+        JournalFoodSheet(
+            food = null,
+            onDismiss = { creatingFood = false },
+            onSave = {
+                viewModel.saveJournalFood(it)
+                creatingFood = false
+            },
+            onDelete = null
+        )
+    }
+
+    editingFood?.let { food ->
+        JournalFoodSheet(
+            food = food,
+            onDismiss = { editingFood = null },
+            onSave = {
+                viewModel.saveJournalFood(it)
+                editingFood = null
+            },
+            onDelete = if (food.isBuiltIn) {
+                null
+            } else {
+                {
+                    viewModel.deleteJournalFood(food.id)
+                    editingFood = null
+                }
             }
+        )
+    }
+}
 
+@Composable
+fun JournalInsulinLibraryScreen(
+    navController: NavController,
+    viewModel: DashboardViewModel
+) {
+    val allPresets by viewModel.journalInsulinPresets.collectAsState()
+    val activePresets = remember(allPresets) { allPresets.filter { !it.isArchived } }
+    val archivedPresets = remember(allPresets) { allPresets.filter { it.isArchived } }
+    var editingPreset by remember { mutableStateOf<JournalInsulinPreset?>(null) }
+    var creatingPreset by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.journal_insulin_library)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.navigate_back)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             if (activePresets.isNotEmpty()) {
                 item(key = "active_group") {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -361,36 +485,58 @@ fun JournalSettingsScreen(
             }
         )
     }
+}
 
-    if (creatingFood) {
-        JournalFoodSheet(
-            food = null,
-            onDismiss = { creatingFood = false },
-            onSave = {
-                viewModel.saveJournalFood(it)
-                creatingFood = false
-            },
-            onDelete = null
-        )
-    }
-
-    editingFood?.let { food ->
-        JournalFoodSheet(
-            food = food,
-            onDismiss = { editingFood = null },
-            onSave = {
-                viewModel.saveJournalFood(it)
-                editingFood = null
-            },
-            onDelete = if (food.isBuiltIn) {
-                null
-            } else {
-                {
-                    viewModel.deleteJournalFood(food.id)
-                    editingFood = null
+@Composable
+private fun JournalLibraryNavRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    iconTint: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                color = iconTint.copy(alpha = 0.16f),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
-        )
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 

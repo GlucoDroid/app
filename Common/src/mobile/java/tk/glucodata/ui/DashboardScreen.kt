@@ -302,6 +302,7 @@ fun DashboardScreen(
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
+    val journalFoodMacrosEnabled by viewModel.journalFoodMacrosEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
@@ -375,7 +376,9 @@ fun DashboardScreen(
         predictionCarbRatioGramsPerUnit,
         predictionInsulinSensitivityMgDlPerUnit,
         predictionCarbAbsorptionGramsPerHour,
-        predictionHorizonMinutes
+        predictionHorizonMinutes,
+        journalEnabled,
+        journalFoodMacrosEnabled
     ) {
         PredictiveSimulationSettings(
             enabled = predictiveSimulationEnabled,
@@ -383,7 +386,8 @@ fun DashboardScreen(
             horizonMinutes = predictionHorizonMinutes,
             carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
             insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
-            carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour
+            carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour,
+            foodMacrosEnabled = journalEnabled && journalFoodMacrosEnabled
         )
     }
     val consumerHistory = remember(
@@ -611,11 +615,13 @@ fun DashboardScreen(
             suggestedAmountFraction = request.suggestedAmountFraction,
             insulinPresets = if (request.existingEntry != null) journalInsulinPresets else activeJournalPresets,
             foods = journalFoods,
+            foodMacrosEnabled = journalFoodMacrosEnabled,
             doseJournalEntries = scopedJournalEntries,
             doseProfile = JournalDoseProfile(
                 enabled = journalEnabled && journalDoseCalculatorEnabled,
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
+                foodMacrosEnabled = journalFoodMacrosEnabled,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {
