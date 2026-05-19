@@ -652,6 +652,7 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
         val isLocal = connectionType == ConnectionType.LOCAL
         val finalActiveOnly = direction == ConnectionDirection.ACTIVE
         val finalPassiveOnly = direction == ConnectionDirection.PASSIVE
+        val finalDetect = isLocal && autoDetect && !finalActiveOnly
 
         if (!isSending && !isReceiving) {
             Toast.makeText(context, context.getString(R.string.specifyreceiveordata), Toast.LENGTH_SHORT).show()
@@ -661,7 +662,7 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             Toast.makeText(context, context.getString(R.string.allsentnoreceive), Toast.LENGTH_LONG).show()
             return false
         }
-        if ((isDirect || (isLocal && !autoDetect)) && hostname.isBlank()) {
+        if ((isDirect || (isLocal && !finalDetect)) && hostname.isBlank()) {
             Toast.makeText(context, context.getString(R.string.specifyip), Toast.LENGTH_SHORT).show()
             return false
         }
@@ -676,7 +677,7 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
         if (isICE) {
             finalNames = arrayOf("")
             nameCount = 0
-        } else if (isLocal && autoDetect) {
+        } else if (finalDetect) {
             finalNames = arrayOf("")
             nameCount = 0
         } else if (hostname.isNotEmpty()) {
@@ -697,7 +698,7 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             if (isNew) -1 else pos,
             finalNames,
             nameCount,
-            /* detect */ isLocal && autoDetect,
+            /* detect */ finalDetect,
             finalPort,
             /* nums */ isSending,
             /* stream */ isSending,
@@ -768,16 +769,19 @@ fun MirrorEditSheet(pos: Int, sheetState: SheetState, onDismiss: () -> Unit) {
             Column(modifier = Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when (connectionType) {
                     ConnectionType.LOCAL -> {
-                        SettingsSwitchItem(
-                            title = stringResource(R.string.mirror_auto_detect_ip),
-                            subtitle = stringResource(R.string.mirror_auto_detect_ip_desc),
-                            checked = autoDetect,
-                            onCheckedChange = { autoDetect = it },
-                            icon = Icons.Filled.Wifi,
-                            iconTint = MaterialTheme.colorScheme.tertiary,
-                            position = CardPosition.SINGLE
-                        )
-                        if (!autoDetect) {
+                        val localActiveOnly = direction == ConnectionDirection.ACTIVE
+                        if (!localActiveOnly) {
+                            SettingsSwitchItem(
+                                title = stringResource(R.string.mirror_auto_detect_ip),
+                                subtitle = stringResource(R.string.mirror_auto_detect_ip_desc),
+                                checked = autoDetect,
+                                onCheckedChange = { autoDetect = it },
+                                icon = Icons.Filled.Wifi,
+                                iconTint = MaterialTheme.colorScheme.tertiary,
+                                position = CardPosition.SINGLE
+                            )
+                        }
+                        if (localActiveOnly || !autoDetect) {
                             OutlinedTextField(
                                 value = hostname, onValueChange = { hostname = it },
                                 label = { Text(stringResource(R.string.mirror_ip_address)) },

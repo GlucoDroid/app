@@ -9,6 +9,8 @@ final class ExchangeGlucosePayload {
     final String primaryText;
     final double primaryDisplayValue;
     final int primaryMgdl;
+    final float autoValue;
+    final int autoMgdl;
     final float rawValue;
     final float rate;
     final long timeMillis;
@@ -19,6 +21,8 @@ final class ExchangeGlucosePayload {
             String primaryText,
             double primaryDisplayValue,
             int primaryMgdl,
+            float autoValue,
+            int autoMgdl,
             float rawValue,
             float rate,
             long timeMillis,
@@ -27,6 +31,8 @@ final class ExchangeGlucosePayload {
         this.primaryText = primaryText;
         this.primaryDisplayValue = primaryDisplayValue;
         this.primaryMgdl = primaryMgdl;
+        this.autoValue = autoValue;
+        this.autoMgdl = autoMgdl;
         this.rawValue = rawValue;
         this.rate = rate;
         this.timeMillis = timeMillis;
@@ -47,6 +53,14 @@ final class ExchangeGlucosePayload {
 
     int getPrimaryMgdl() {
         return primaryMgdl;
+    }
+
+    float getAutoValue() {
+        return autoValue;
+    }
+
+    int getAutoMgdl() {
+        return autoMgdl;
     }
 
     float getRawValue() {
@@ -96,12 +110,16 @@ final class ExchangeGlucosePayload {
             final long timeMillis = current.getTimeMillis() > 0L ? current.getTimeMillis() : fallbackTimeMillis;
             final int sensorGen = current.getSensorGen() != 0 ? current.getSensorGen() : fallbackSensorGen;
             final int primaryMgdl = toMgdl(primaryDisplayValue);
+            final float autoValue = current.getAutoValue();
+            final int autoMgdl = toMgdl(autoValue);
             final float rawValue = current.getRawValue();
             return new ExchangeGlucosePayload(
                     sensorId,
                     primaryText,
                     primaryDisplayValue,
                     primaryMgdl,
+                    autoValue,
+                    autoMgdl,
                     rawValue,
                     rate,
                     timeMillis,
@@ -117,6 +135,8 @@ final class ExchangeGlucosePayload {
                 formatPrimary(fallbackDisplayValue, fallbackPrimaryText),
                 fallbackDisplayValue,
                 toMgdl(fallbackDisplayValue),
+                Float.NaN,
+                0,
                 Float.NaN,
                 fallbackRate,
                 fallbackTimeMillis,

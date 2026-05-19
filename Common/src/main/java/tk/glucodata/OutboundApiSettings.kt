@@ -55,6 +55,9 @@ object OutboundApiSettings {
     const val DEFAULT_GLUCO_WATCH_TEMPLATE =
         "GV:{mmol}|RAW:{raw}|TR:{trend_arrow}|AL:{alarm}|RT:{rate_mmol}|IOB:{iob}|COB:{cob}|TS:{timestamp}"
 
+    @Volatile
+    private var cachedConfig: Config? = null
+
     data class Config(
         val enabled: Boolean,
         val destinations: List<Destination>
@@ -176,6 +179,14 @@ object OutboundApiSettings {
 
     @JvmStatic
     fun load(context: Context = Applic.app): Config {
+        cachedConfig?.let { return it }
+        synchronized(this) {
+            cachedConfig?.let { return it }
+            return loadUncached(context).also { cachedConfig = it }
+        }
+    }
+
+    private fun loadUncached(context: Context): Config {
         val prefs = prefs(context)
         val stored = prefs.getString(KEY_DESTINATIONS_JSON, null)
         if (!stored.isNullOrBlank()) {
@@ -196,9 +207,11 @@ object OutboundApiSettings {
 
     @JvmStatic
     fun save(context: Context = Applic.app, config: Config) {
+        val normalized = config.copy(enabled = true)
+        cachedConfig = normalized
         prefs(context).edit()
             .putBoolean(KEY_ENABLED, true)
-            .putString(KEY_DESTINATIONS_JSON, encodeDestinations(config.destinations).toString())
+            .putString(KEY_DESTINATIONS_JSON, encodeDestinations(normalized.destinations).toString())
             .apply()
     }
 
@@ -270,7 +283,7 @@ object OutboundApiSettings {
     }
 
     fun recordQueued(context: Context, destinationId: String, eventId: String, nowMs: Long) {
-        updateDestination(context, destinationId) {
+        updateDestination(context, destinationId, persist = false) {
             it.copy(lastQueuedEventId = eventId, lastQueuedAtMs = nowMs)
         }
     }
@@ -300,13 +313,19 @@ object OutboundApiSettings {
     fun updateDestination(
         context: Context,
         destinationId: String,
+        persist: Boolean = true,
         transform: (Destination) -> Destination
     ) {
         val config = load(context)
         val updated = config.destinations.map { destination ->
             if (destination.id == destinationId) transform(destination) else destination
         }
-        save(context, config.copy(destinations = updated))
+        val updatedConfig = config.copy(destinations = updated)
+        if (persist) {
+            save(context, updatedConfig)
+        } else {
+            cachedConfig = updatedConfig
+        }
     }
 
     private fun migrateLegacy(context: Context): Config {

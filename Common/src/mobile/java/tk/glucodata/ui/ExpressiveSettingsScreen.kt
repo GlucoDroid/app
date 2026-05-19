@@ -159,6 +159,7 @@ fun ExpressiveSettingsScreen(
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingExportPackageImportUri by remember { mutableStateOf<Uri?>(null) }
     var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
     var predictiveSimulationExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -534,28 +535,6 @@ fun ExpressiveSettingsScreen(
         item(key = "data_group") {
             // Theme: Secondary (Files match notifications/system)
             val dataColor = MaterialTheme.colorScheme.secondary
-            val settingsExportLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.CreateDocument("application/json"),
-                onResult = { uri ->
-                    if (uri != null) {
-                        scope.launch {
-                            val result = tk.glucodata.data.SettingsExporter.exportToJson(context, uri)
-                            withContext(Dispatchers.Main) {
-                                val message = if (result.isSuccess) {
-                                    context.getString(R.string.export_successful)
-                                } else {
-                                    context.getString(
-                                        R.string.export_failed_with_error,
-                                        result.exceptionOrNull()?.localizedMessage
-                                            ?: context.getString(R.string.unknown_error)
-                                    )
-                                }
-                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
-                }
-            )
             val importLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument(),
                 onResult = { uri ->
@@ -564,6 +543,10 @@ fun ExpressiveSettingsScreen(
                             if (tk.glucodata.data.SettingsExporter.isSettingsExport(context, uri)) {
                                 withContext(Dispatchers.Main) {
                                     pendingSettingsImportUri = uri
+                                }
+                            } else if (tk.glucodata.data.ExportPackageExporter.isExportPackage(context, uri)) {
+                                withContext(Dispatchers.Main) {
+                                    pendingExportPackageImportUri = uri
                                 }
                             } else {
                                 // Show loading? For now just toast result
@@ -585,24 +568,12 @@ fun ExpressiveSettingsScreen(
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SettingsItem(
-                    title = stringResource(R.string.export_data),
-                    subtitle = stringResource(R.string.export_data_desc),
+                    title = stringResource(R.string.export_data_settings),
+                    subtitle = stringResource(R.string.export_data_settings_desc),
                     icon = androidx.compose.material.icons.Icons.Default.CloudUpload,
                     iconTint = dataColor,
                     position = CardPosition.TOP,
                     onClick = { showExportDialog = true }
-                )
-                SettingsItem(
-                    title = stringResource(R.string.export_settings),
-                    subtitle = stringResource(R.string.export_settings_desc),
-                    icon = Icons.Default.Settings,
-                    iconTint = dataColor,
-                    position = CardPosition.MIDDLE,
-                    onClick = {
-                        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                            .format(System.currentTimeMillis())
-                        settingsExportLauncher.launch("Juggluco_Settings_$date.json")
-                    }
                 )
 
                 SettingsItem(
@@ -728,7 +699,7 @@ fun ExpressiveSettingsScreen(
     
     if (showExportDialog) {
         val sheetState = rememberModalBottomSheetState()
-        HistoryExportSheet(
+        ExportDataSettingsSheet(
             onDismiss = { showExportDialog = false },
             sheetState = sheetState
         )
@@ -765,6 +736,52 @@ fun ExpressiveSettingsScreen(
                 }
             },
             onDismiss = { pendingSettingsImportUri = null }
+        )
+    }
+    pendingExportPackageImportUri?.let { uri ->
+        ConfirmActionDialog(
+            title = stringResource(R.string.import_data_settings),
+            message = stringResource(R.string.settings_import_confirm_message),
+            icon = Icons.Default.FolderOpen,
+            onConfirm = {
+                pendingExportPackageImportUri = null
+                scope.launch {
+                    val result = tk.glucodata.data.ExportPackageExporter.importFromJson(context, uri)
+                    withContext(Dispatchers.Main) {
+                        if (result.isSuccess) {
+                            val summary = result.getOrThrow()
+                            Toast.makeText(
+                                context,
+                                if (summary.restartRequired) {
+                                    context.getString(R.string.settings_import_successful)
+                                } else {
+                                    context.getString(
+                                        R.string.imported_readings_count,
+                                        summary.historyReadings
+                                    )
+                                },
+                                Toast.LENGTH_LONG
+                            ).show()
+                            if (summary.restartRequired) {
+                                context.findActivity()?.fullRestart()
+                            } else {
+                                viewModel.refreshData()
+                            }
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    R.string.import_failed_with_error,
+                                    result.exceptionOrNull()?.localizedMessage
+                                        ?: context.getString(R.string.unknown_error)
+                                ),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = { pendingExportPackageImportUri = null }
         )
     }
 
@@ -2033,7 +2050,8 @@ private fun LanguagePickerDialog(onDismiss: () -> Unit) {
         "Russian" to "ru",
         "Swedish" to "sv",
         "Turkish" to "tr",
-        "Ukrainian" to "uk"
+        "Ukrainian" to "uk",
+        "Mongolian" to "mn",
     )
     BasicAlertDialog(onDismissRequest = onDismiss) {
         Surface(

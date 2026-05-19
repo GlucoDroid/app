@@ -24,6 +24,8 @@ import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryInput
+import tk.glucodata.data.journal.JournalFood
+import tk.glucodata.data.journal.JournalFoodInput
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalInsulinPresetInput
 import tk.glucodata.ui.util.inDisplayUnit
@@ -33,7 +35,6 @@ import tk.glucodata.alerts.CustomAlertRepository
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorStatusPolicy
 import tk.glucodata.drivers.ManagedSensorUiFamily
-import tk.glucodata.drivers.ManagedSensorViewModeStore
 import tk.glucodata.ui.util.resolveDashboardSensorStatus
 import kotlin.math.roundToInt
 
@@ -58,6 +59,7 @@ class DashboardViewModel(
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
+        const val JOURNAL_FOOD_MACROS_KEY = "dashboard_journal_food_macros_enabled"
         const val PREDICTION_CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
         const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
         const val PREDICTION_CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
@@ -189,6 +191,9 @@ class DashboardViewModel(
     private val _journalDoseCalculatorEnabled = MutableStateFlow(false)
     val journalDoseCalculatorEnabled = _journalDoseCalculatorEnabled.asStateFlow()
 
+    private val _journalFoodMacrosEnabled = MutableStateFlow(false)
+    val journalFoodMacrosEnabled = _journalFoodMacrosEnabled.asStateFlow()
+
     private val _predictiveSimulationEnabled = MutableStateFlow(true)
     val predictiveSimulationEnabled = _predictiveSimulationEnabled.asStateFlow()
 
@@ -213,6 +218,9 @@ class DashboardViewModel(
     private val _journalInsulinPresets = MutableStateFlow<List<JournalInsulinPreset>>(emptyList())
     val journalInsulinPresets = _journalInsulinPresets.asStateFlow()
 
+    private val _journalFoods = MutableStateFlow<List<JournalFood>>(emptyList())
+    val journalFoods = _journalFoods.asStateFlow()
+
     private val _lowAlarmSoundMode = MutableStateFlow(0)
     val lowAlarmSoundMode = _lowAlarmSoundMode.asStateFlow()
 
@@ -229,6 +237,7 @@ class DashboardViewModel(
     private var uiRefreshJob: Job? = null
     private var journalEntriesJob: Job? = null
     private var journalPresetsJob: Job? = null
+    private var journalFoodsJob: Job? = null
     private var activeHistoryMode: CollectionMode? = null
     private var activeHistoryStartTimeMs: Long? = null
 
@@ -242,6 +251,7 @@ class DashboardViewModel(
 
     private fun observeJournalState() {
         ensureJournalPresetsObserved()
+        ensureJournalFoodsObserved()
         if (_journalEnabled.value) {
             ensureJournalEntriesObserved()
         }
@@ -265,6 +275,14 @@ class DashboardViewModel(
         journalPresetsJob = viewModelScope.launch {
             journalRepository.ensureDefaultInsulinPresets()
             journalRepository.observeInsulinPresets().collect { _journalInsulinPresets.value = it }
+        }
+    }
+
+    private fun ensureJournalFoodsObserved() {
+        if (journalFoodsJob?.isActive == true) return
+        journalFoodsJob = viewModelScope.launch {
+            journalRepository.ensureDefaultFoods()
+            journalRepository.observeFoods().collect { _journalFoods.value = it }
         }
     }
 
@@ -409,6 +427,7 @@ class DashboardViewModel(
         val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", true)
         _journalEnabled.value = journalEnabled
         _journalDoseCalculatorEnabled.value = prefs.getBoolean(JOURNAL_DOSE_CALCULATOR_KEY, false)
+        _journalFoodMacrosEnabled.value = prefs.getBoolean(JOURNAL_FOOD_MACROS_KEY, false)
         _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", true)
         _predictionTrendMomentumEnabled.value = prefs.getBoolean("dashboard_prediction_trend_momentum_enabled", true)
         _predictionCarbRatioGramsPerUnit.value = prefs
@@ -519,7 +538,7 @@ class DashboardViewModel(
                 val officialEnd = snapshot[4]
                 _sensorStatus.value = resolveDashboardSensorStatus(sName, sensorKind, startMsec, nativeStatus)
 
-                _viewMode.value = ManagedSensorViewModeStore.read(Applic.app, sName, managedSnapshot?.viewMode ?: vm)
+                _viewMode.value = managedSnapshot?.viewMode ?: vm
 
                 val lifecycle = ManagedSensorStatusPolicy.resolveLifecycleSummary(
                     startTimeMs = managedSnapshot?.startTimeMs?.takeIf { it > 0L } ?: startMsec,
@@ -536,7 +555,7 @@ class DashboardViewModel(
                 _currentDay.value = lifecycle.currentDay
             } else {
                 _sensorStatus.value = resolveDashboardSensorStatus(sName, nativeStatus)
-                _viewMode.value = ManagedSensorViewModeStore.read(Applic.app, sName, managedSnapshot?.viewMode ?: 0)
+                _viewMode.value = managedSnapshot?.viewMode ?: 0
                 val lifecycle = ManagedSensorStatusPolicy.resolveLifecycleSummary(
                     startTimeMs = managedSnapshot?.startTimeMs ?: 0L,
                     officialEndMs = managedSnapshot?.officialEndMs ?: 0L,
@@ -585,23 +604,25 @@ class DashboardViewModel(
         activeHistoryMode = mode
         _isLoading.value = _glucoseHistory.value.isEmpty()
 
-        // Parallel cross-sensor merged stream that backs the History browse
-        // screen. Lives alongside the per-sensor [historyJob] below — keeping
-        // the two flows separate preserves the dashboard's recovery and
-        // overlap-pruning semantics while still giving the History screen a
-        // complete cross-sensor timeline.
-        historyScreenJob = viewModelScope.launch {
-            combine(
-                _unit,
-                glucoseRepository.getMergedHistoryFlowRaw(queryStartTimeMs)
-                    .distinctUntilChangedBy(::historyEdgeSignature)
-            ) { unitStr, rawHistory ->
-                unitStr to rawHistory
-            }.collect { (unitStr, rawHistory) ->
-                _historyScreenGlucoseHistory.value = withContext(Dispatchers.Default) {
-                    rawHistory.inDisplayUnit(unitStr)
+        if (mode == CollectionMode.FULL_HISTORY) {
+            // Parallel cross-sensor merged stream that backs the History browse
+            // screen. Keep it off the dashboard path so dashboard startup does
+            // not scan and convert the full multi-sensor Room timeline.
+            historyScreenJob = viewModelScope.launch {
+                combine(
+                    _unit,
+                    glucoseRepository.getMergedHistoryFlowRaw(queryStartTimeMs)
+                        .distinctUntilChangedBy(::historyEdgeSignature)
+                ) { unitStr, rawHistory ->
+                    unitStr to rawHistory
+                }.collect { (unitStr, rawHistory) ->
+                    _historyScreenGlucoseHistory.value = withContext(Dispatchers.Default) {
+                        rawHistory.inDisplayUnit(unitStr)
+                    }
                 }
             }
+        } else {
+            _historyScreenGlucoseHistory.value = emptyList()
         }
 
         historyJob = viewModelScope.launch {
@@ -876,6 +897,13 @@ class DashboardViewModel(
         _journalDoseCalculatorEnabled.value = enabled
     }
 
+    fun setJournalFoodMacrosEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(JOURNAL_FOOD_MACROS_KEY, enabled).apply()
+        _journalFoodMacrosEnabled.value = enabled
+    }
+
     fun importHealthConnectActivity(daysBack: Int = 14) {
         tk.glucodata.HealthConnection.importActivity(daysBack)
     }
@@ -967,6 +995,18 @@ class DashboardViewModel(
     fun deleteJournalInsulinPreset(presetId: Long) {
         viewModelScope.launch {
             journalRepository.deleteInsulinPreset(presetId)
+        }
+    }
+
+    fun saveJournalFood(input: JournalFoodInput) {
+        viewModelScope.launch {
+            journalRepository.upsertFood(input)
+        }
+    }
+
+    fun deleteJournalFood(foodId: Long) {
+        viewModelScope.launch {
+            journalRepository.deleteFood(foodId)
         }
     }
 

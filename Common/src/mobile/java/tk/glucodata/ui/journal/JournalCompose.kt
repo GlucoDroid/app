@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
@@ -91,8 +92,10 @@ import tk.glucodata.data.journal.JournalCurvePoint
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryInput
 import tk.glucodata.data.journal.JournalEntryType
+import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalIntensity
+import tk.glucodata.data.journal.journalFoodDoseCarbs
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.util.GlucoseFormatter
@@ -108,6 +111,9 @@ data class JournalEntryDraft(
     val note: String = "",
     val intensity: JournalIntensity? = null,
     val insulinPresetId: Long? = null,
+    val foodId: Long? = null,
+    val proteinText: String = "",
+    val fatText: String = "",
     val chartAnchorGlucoseMgDl: Float? = null,
     val doseGlucoseMgDl: Float? = null,
     val pairWithDose: Boolean = false,
@@ -118,6 +124,7 @@ data class JournalDoseProfile(
     val enabled: Boolean,
     val carbRatioGramsPerUnit: Float,
     val insulinSensitivityMgDlPerUnit: Float,
+    val foodMacrosEnabled: Boolean = false,
     val targetHighMgDl: Float
 )
 
@@ -132,12 +139,14 @@ fun buildJournalChartMarkers(
     entries: List<JournalEntry>,
     presetsById: Map<Long, JournalInsulinPreset>,
     unit: String,
-    history: List<GlucosePoint> = emptyList()
+    history: List<GlucosePoint> = emptyList(),
+    foodsById: Map<Long, JournalFood> = emptyMap()
 ): List<JournalChartMarker> {
     val isMmol = GlucoseFormatter.isMmol(unit)
 
     return entries.map { entry ->
         val preset = entry.insulinPresetId?.let(presetsById::get)
+        val food = entry.foodId?.let(foodsById::get)
         val chartValue = when (entry.type) {
             JournalEntryType.INSULIN -> null
             JournalEntryType.FINGERSTICK -> entry.glucoseValueMgDl?.let {
@@ -165,7 +174,7 @@ fun buildJournalChartMarkers(
             timestamp = entry.timestamp,
             type = entry.type,
             title = entry.title,
-            accentColor = preset?.accentColor ?: journalTypeColor(entry.type).toArgb(),
+            accentColor = preset?.accentColor ?: food?.accentColor ?: journalTypeColor(entry.type).toArgb(),
             badgeText = journalMarkerBadge(entry.type),
             detailText = journalMarkerDetail(entry, preset, unit),
             amount = entry.amount,
@@ -295,6 +304,8 @@ fun JournalEntrySheet(
     suggestedChartAnchorGlucoseMgDl: Float? = null,
     suggestedAmountFraction: Float? = null,
     insulinPresets: List<JournalInsulinPreset>,
+    foods: List<JournalFood> = emptyList(),
+    foodMacrosEnabled: Boolean = false,
     doseJournalEntries: List<JournalEntry> = emptyList(),
     doseProfile: JournalDoseProfile? = null,
     initialType: JournalEntryType,
@@ -309,6 +320,7 @@ fun JournalEntrySheet(
     val context = LocalContext.current
     val activeInsulinPresets = remember(insulinPresets) { insulinPresets.filter { !it.isArchived } }
     val presetsById = remember(insulinPresets) { insulinPresets.associateBy { it.id } }
+    val activeFoods = remember(foods) { foods.filter { !it.isArchived } }
     val initialDraft = remember(
         existingEntry?.id,
         initialType,
@@ -343,7 +355,7 @@ fun JournalEntrySheet(
     }
     var showDatePicker by remember(existingEntry?.id, initialType, selectedTimestamp) { mutableStateOf(false) }
     var showTimePicker by remember(existingEntry?.id, initialType, selectedTimestamp) { mutableStateOf(false) }
-    val saveInputs = draft.toInputs(unit, sensorSerialProvider(), presetsById)
+    val saveInputs = draft.toInputs(unit, sensorSerialProvider(), presetsById, foodMacrosEnabled)
     val canSave = saveInputs.isNotEmpty()
     val calculatorProfile = remember(doseProfile) {
         doseProfile?.takeIf {
@@ -377,6 +389,8 @@ fun JournalEntrySheet(
     LaunchedEffect(
         draft.type,
         draft.amountText,
+        draft.proteinText,
+        draft.fatText,
         draft.doseGlucoseMgDl,
         draft.pairWithDose,
         calculatorProfile,
@@ -386,6 +400,8 @@ fun JournalEntrySheet(
         val suggestedPair = when (draft.type) {
             JournalEntryType.CARBS -> calculateInsulinForCarbs(
                 carbs = draft.amountText.parseFloatOrNull(),
+                protein = draft.proteinText.parseFloatOrNull(),
+                fat = draft.fatText.parseFloatOrNull(),
                 glucoseMgDl = draft.doseGlucoseMgDl,
                 profile = calculatorProfile,
                 activeInsulinUnits = activeInsulinUnits
@@ -430,6 +446,7 @@ fun JournalEntrySheet(
                             text = stringResource(
                                 when (draft.type) {
                                     JournalEntryType.FINGERSTICK -> R.string.journal_type_bg_short
+                                    JournalEntryType.CARBS -> if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo
                                     else -> draft.type.labelRes()
                                 }
                             ),
@@ -552,6 +569,33 @@ fun JournalEntrySheet(
                 }
 
                 JournalEntryType.CARBS -> {
+                    if (activeFoods.isNotEmpty()) {
+                        item(key = "carbs_foods") {
+                            JournalFoodLibrarySelector(
+                                foods = activeFoods,
+                                selectedFoodId = draft.foodId,
+                                foodMacrosEnabled = foodMacrosEnabled,
+                                onFoodSelected = { food ->
+                                    draft = draft.copy(
+                                        foodId = food.id,
+                                        title = food.displayName,
+                                        amountText = formatFloatForEditor(food.carbsGrams),
+                                        proteinText = food.proteinGrams?.let(::formatFloatForEditor).orEmpty(),
+                                        fatText = food.fatGrams?.let(::formatFloatForEditor).orEmpty(),
+                                        durationText = food.absorptionMinutes.toString()
+                                    )
+                                },
+                                onManualSelected = {
+                                    draft = draft.copy(
+                                        foodId = null,
+                                        title = "",
+                                        proteinText = if (foodMacrosEnabled) draft.proteinText else "",
+                                        fatText = if (foodMacrosEnabled) draft.fatText else ""
+                                    )
+                                }
+                            )
+                        }
+                    }
                     item(key = "carbs_amount") {
                         JournalStepperField(
                             value = draft.amountText,
@@ -559,7 +603,7 @@ fun JournalEntrySheet(
                             onStep = { delta ->
                                 draft = draft.copy(amountText = adjustDecimalDraft(draft.amountText, delta, step = 5f))
                             },
-                            label = stringResource(R.string.carbo),
+                            label = stringResource(if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo),
                             suffix = "g",
                             prominent = true
                         )
@@ -571,6 +615,16 @@ fun JournalEntrySheet(
                                 draft = draft.copy(durationText = shape.durationMinutes.toString())
                             }
                         )
+                    }
+                    if (foodMacrosEnabled) {
+                        item(key = "carbs_macros") {
+                            JournalMacroFields(
+                                proteinText = draft.proteinText,
+                                fatText = draft.fatText,
+                                onProteinChange = { draft = draft.copy(proteinText = it) },
+                                onFatChange = { draft = draft.copy(fatText = it) }
+                            )
+                        }
                     }
                     if (existingEntry == null && calculatorProfile != null) {
                         item(key = "carbs_dose_assist") {
@@ -797,6 +851,9 @@ private fun buildDraft(
         note = existingEntry.note.orEmpty(),
         intensity = existingEntry.intensity,
         insulinPresetId = existingEntry.insulinPresetId,
+        foodId = existingEntry.foodId,
+        proteinText = existingEntry.proteinGrams?.let(::formatFloatForEditor).orEmpty(),
+        fatText = existingEntry.fatGrams?.let(::formatFloatForEditor).orEmpty(),
         chartAnchorGlucoseMgDl = existingEntry.glucoseValueMgDl,
         doseGlucoseMgDl = existingEntry.glucoseValueMgDl
     )
@@ -822,6 +879,9 @@ private fun JournalEntryDraft.normalizedForType(
             glucoseText = "",
             durationText = "",
             intensity = null,
+            foodId = null,
+            proteinText = "",
+            fatText = "",
             pairWithDose = false,
             pairedAmountText = ""
         )
@@ -835,6 +895,8 @@ private fun JournalEntryDraft.normalizedForType(
             durationText = durationText.ifBlank { JournalMealShape.MIXED.durationMinutes.toString() },
             intensity = null,
             insulinPresetId = null,
+            proteinText = proteinText,
+            fatText = fatText,
             pairWithDose = false,
             pairedAmountText = ""
         )
@@ -845,6 +907,9 @@ private fun JournalEntryDraft.normalizedForType(
             durationText = "",
             intensity = null,
             insulinPresetId = null,
+            foodId = null,
+            proteinText = "",
+            fatText = "",
             pairWithDose = false,
             pairedAmountText = "",
             glucoseText = glucoseText.ifBlank {
@@ -857,6 +922,9 @@ private fun JournalEntryDraft.normalizedForType(
             amountText = "",
             glucoseText = "",
             insulinPresetId = null,
+            foodId = null,
+            proteinText = "",
+            fatText = "",
             pairWithDose = false,
             pairedAmountText = ""
         )
@@ -867,6 +935,9 @@ private fun JournalEntryDraft.normalizedForType(
             durationText = "",
             intensity = null,
             insulinPresetId = null,
+            foodId = null,
+            proteinText = "",
+            fatText = "",
             pairWithDose = false,
             pairedAmountText = ""
         )
@@ -876,7 +947,8 @@ private fun JournalEntryDraft.normalizedForType(
 private fun JournalEntryDraft.toInput(
     unit: String,
     sensorSerial: String?,
-    presetsById: Map<Long, JournalInsulinPreset>
+    presetsById: Map<Long, JournalInsulinPreset>,
+    foodMacrosEnabled: Boolean
 ): JournalEntryInput? {
     val noteValue = note.trim().takeIf { it.isNotBlank() }
     return when (type) {
@@ -900,16 +972,21 @@ private fun JournalEntryDraft.toInput(
         JournalEntryType.CARBS -> {
             val grams = amountText.parseFloatOrNull() ?: return null
             val absorptionMinutes = durationText.parseIntOrNull()?.coerceIn(15, 480)
+            val titleValue = title.trim().takeIf { it.isNotBlank() }
+                ?: Applic.app.getString(if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo)
             JournalEntryInput(
                 id = entryId,
                 timestamp = timestamp,
                 sensorSerial = sensorSerial,
                 type = type,
-                title = Applic.app.getString(R.string.carbo),
+                title = titleValue,
                 note = noteValue,
                 amount = grams,
                 glucoseValueMgDl = chartAnchorGlucoseMgDl,
-                durationMinutes = absorptionMinutes
+                durationMinutes = absorptionMinutes,
+                foodId = foodId,
+                proteinGrams = if (foodMacrosEnabled) proteinText.parseFloatOrNull()?.coerceAtLeast(0f) else null,
+                fatGrams = if (foodMacrosEnabled) fatText.parseFloatOrNull()?.coerceAtLeast(0f) else null
             )
         }
 
@@ -962,9 +1039,10 @@ private fun JournalEntryDraft.toInput(
 private fun JournalEntryDraft.toInputs(
     unit: String,
     sensorSerial: String?,
-    presetsById: Map<Long, JournalInsulinPreset>
+    presetsById: Map<Long, JournalInsulinPreset>,
+    foodMacrosEnabled: Boolean
 ): List<JournalEntryInput> {
-    val primary = toInput(unit, sensorSerial, presetsById) ?: return emptyList()
+    val primary = toInput(unit, sensorSerial, presetsById, foodMacrosEnabled) ?: return emptyList()
     if (!pairWithDose || entryId != null || type !in setOf(JournalEntryType.INSULIN, JournalEntryType.CARBS)) {
         return listOf(primary)
     }
@@ -990,10 +1068,13 @@ private fun JournalEntryDraft.toInputs(
                 timestamp = timestamp,
                 sensorSerial = sensorSerial,
                 type = JournalEntryType.CARBS,
-                title = Applic.app.getString(R.string.carbo),
+                title = Applic.app.getString(if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo),
                 amount = grams,
                 glucoseValueMgDl = chartAnchorGlucoseMgDl,
-                durationMinutes = durationText.parseIntOrNull()?.coerceIn(15, 480)
+                durationMinutes = durationText.parseIntOrNull()?.coerceIn(15, 480),
+                proteinGrams = null,
+                fatGrams = null,
+                foodId = null
             )
         }
 
@@ -1011,9 +1092,18 @@ private fun JournalDoseAssistCard(
     unit: String,
     onDraftChange: (JournalEntryDraft) -> Unit
 ) {
-    val insulinSuggestion = remember(draft.amountText, draft.doseGlucoseMgDl, profile, activeInsulinUnits) {
+    val insulinSuggestion = remember(
+        draft.amountText,
+        draft.proteinText,
+        draft.fatText,
+        draft.doseGlucoseMgDl,
+        profile,
+        activeInsulinUnits
+    ) {
         calculateInsulinForCarbs(
             carbs = draft.amountText.parseFloatOrNull(),
+            protein = draft.proteinText.parseFloatOrNull(),
+            fat = draft.fatText.parseFloatOrNull(),
             glucoseMgDl = draft.doseGlucoseMgDl,
             profile = profile,
             activeInsulinUnits = activeInsulinUnits
@@ -1235,12 +1325,12 @@ private fun JournalMealShapeSelector(
         JournalMealShape.EXTENDED to stringResource(R.string.journal_meal_shape_extended)
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.journal_meal_shape),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+//        Text(
+//            text = stringResource(R.string.journal_meal_shape),
+//            style = MaterialTheme.typography.labelLarge,
+//            fontWeight = FontWeight.SemiBold,
+//            color = MaterialTheme.colorScheme.onSurfaceVariant
+//        )
         ConnectedButtonGroup(
             options = JournalMealShape.entries.toList(),
             selectedOption = selected,
@@ -1256,6 +1346,290 @@ private fun JournalMealShapeSelector(
             selectedContentColor = MaterialTheme.colorScheme.onSurface,
             unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f),
             unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun JournalFoodLibrarySelector(
+    foods: List<JournalFood>,
+    selectedFoodId: Long?,
+    foodMacrosEnabled: Boolean,
+    onFoodSelected: (JournalFood) -> Unit,
+    onManualSelected: () -> Unit
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val selectedFood = remember(foods, selectedFoodId) { foods.firstOrNull { it.id == selectedFoodId } }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+//        Text(
+//            text = stringResource(R.string.journal_food_choose),
+//            style = MaterialTheme.typography.labelLarge,
+//            fontWeight = FontWeight.SemiBold,
+//            color = MaterialTheme.colorScheme.onSurfaceVariant
+//        )
+        Surface(
+            onClick = { showPicker = true },
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(22.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = selectedFood?.accentColor?.let(::Color) ?: MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = selectedFood?.displayName ?: stringResource(R.string.journal_food_manual),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = selectedFood?.let { foodMacroSummary(it, foodMacrosEnabled) }
+                            ?: stringResource(R.string.journal_food_choose_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+
+    if (showPicker) {
+        JournalFoodPickerDialog(
+            foods = foods,
+            selectedFoodId = selectedFoodId,
+            foodMacrosEnabled = foodMacrosEnabled,
+            onDismiss = { showPicker = false },
+            onManualSelected = {
+                onManualSelected()
+                showPicker = false
+            },
+            onFoodSelected = {
+                onFoodSelected(it)
+                showPicker = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun JournalFoodPickerDialog(
+    foods: List<JournalFood>,
+    selectedFoodId: Long?,
+    foodMacrosEnabled: Boolean,
+    onDismiss: () -> Unit,
+    onManualSelected: () -> Unit,
+    onFoodSelected: (JournalFood) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filteredFoods = remember(foods, query) {
+        val needle = query.trim()
+        if (needle.isBlank()) {
+            foods
+        } else {
+            foods.filter { it.displayName.contains(needle, ignoreCase = true) }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.journal_food_choose)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    label = { Text(stringResource(R.string.journal_food_search)) }
+                )
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 320.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item(key = "manual") {
+                        JournalFoodPickerRow(
+                            title = stringResource(R.string.journal_food_manual),
+                            subtitle = stringResource(R.string.journal_food_choose_desc),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            selected = selectedFoodId == null,
+                            onClick = onManualSelected
+                        )
+                    }
+                    filteredFoods.forEach { food ->
+                        item(key = food.id) {
+                            JournalFoodPickerRow(
+                                title = food.displayName,
+                                subtitle = foodMacroSummary(food, foodMacrosEnabled),
+                                color = Color(food.accentColor),
+                                selected = selectedFoodId == food.id,
+                                onClick = { onFoodSelected(food) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun JournalFoodPickerRow(
+    title: String,
+    subtitle: String,
+    color: Color,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = if (selected) color.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(color, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun foodMacroSummary(food: JournalFood, foodMacrosEnabled: Boolean): String {
+    return if (foodMacrosEnabled) {
+        stringResource(
+            R.string.journal_food_macro_summary,
+            formatFloatForEditor(food.carbsGrams),
+            formatFloatForEditor(food.proteinGrams ?: 0f),
+            formatFloatForEditor(food.fatGrams ?: 0f),
+            food.absorptionMinutes
+        )
+    } else {
+        stringResource(
+            R.string.journal_food_carb_summary,
+            formatFloatForEditor(food.carbsGrams),
+            food.absorptionMinutes
+        )
+    }
+}
+
+@Composable
+private fun JournalFoodPill(
+    food: JournalFood,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val color = Color(food.accentColor)
+    Surface(
+        onClick = onClick,
+        color = if (selected) color.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(color, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.widthIn(max = 180.dp)) {
+                Text(
+                    text = food.displayName,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(
+                        R.string.journal_food_macro_summary,
+                        formatFloatForEditor(food.carbsGrams),
+                        formatFloatForEditor(food.proteinGrams ?: 0f),
+                        formatFloatForEditor(food.fatGrams ?: 0f),
+                        food.absorptionMinutes
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun JournalMacroFields(
+    proteinText: String,
+    fatText: String,
+    onProteinChange: (String) -> Unit,
+    onFatChange: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OutlinedTextField(
+            value = proteinText,
+            onValueChange = onProteinChange,
+            modifier = Modifier
+                .weight(1f)
+                .widthIn(min = 0.dp),
+            label = { Text(stringResource(R.string.journal_food_protein)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            suffix = { Text("g") }
+        )
+        OutlinedTextField(
+            value = fatText,
+            onValueChange = onFatChange,
+            modifier = Modifier
+                .weight(1f)
+                .widthIn(min = 0.dp),
+            label = { Text(stringResource(R.string.journal_food_fat)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            suffix = { Text("g") }
         )
     }
 }
@@ -1284,12 +1658,19 @@ private data class JournalInsulinDoseSuggestion(
 
 private fun calculateInsulinForCarbs(
     carbs: Float?,
+    protein: Float?,
+    fat: Float?,
     glucoseMgDl: Float?,
     profile: JournalDoseProfile,
     activeInsulinUnits: Float
 ): JournalInsulinDoseSuggestion? {
-    val carbValue = carbs?.takeIf { it > 0f } ?: return null
-    val food = carbValue / profile.carbRatioGramsPerUnit
+    val foodDoseCarbs = journalFoodDoseCarbs(
+        carbsGrams = carbs,
+        proteinGrams = protein,
+        fatGrams = fat,
+        macrosEnabled = profile.foodMacrosEnabled
+    ) ?: return null
+    val food = foodDoseCarbs / profile.carbRatioGramsPerUnit
     val rawCorrection = glucoseMgDl
         ?.let { ((it - profile.targetHighMgDl) / profile.insulinSensitivityMgDlPerUnit).coerceAtLeast(0f) }
         ?: 0f
@@ -1795,7 +2176,14 @@ private fun describeJournalEntry(
             val curve = entry.durationMinutes?.let {
                 Applic.app.getString(R.string.minutes_short_format, it)
             }
-            listOfNotNull("$amount g".takeIf { amount.isNotBlank() }, curve, entry.note).joinToString(" · ")
+            val protein = entry.proteinGrams?.takeIf { it > 0f }?.let {
+                Applic.app.getString(R.string.journal_food_protein_short, formatFloatForEditor(it))
+            }
+            val fat = entry.fatGrams?.takeIf { it > 0f }?.let {
+                Applic.app.getString(R.string.journal_food_fat_short, formatFloatForEditor(it))
+            }
+            listOfNotNull("$amount g".takeIf { amount.isNotBlank() }, protein, fat, curve, entry.note)
+                .joinToString(" · ")
         }
 
         JournalEntryType.FINGERSTICK -> {

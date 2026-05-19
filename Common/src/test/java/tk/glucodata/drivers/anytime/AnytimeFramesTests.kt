@@ -135,6 +135,14 @@ class AnytimeFramesTests {
     }
 
     @Test
+    fun ct5InputBgUsesOfficialBigEndianMgdlFrame() {
+        assertEquals(
+            listOf(0x09, 0x00, 0x64, 0x6D),
+            AnytimeFrames.Builders.ct5InputBgMg(100).map { it.toInt() and 0xFF },
+        )
+    }
+
+    @Test
     fun ct5EncodeDecodeRoundTripMatchesOfficialInversePair() {
         val plain = byteArrayOf(0x01, 0x09, 0x01, 0x00, 0x03, 0x53, 0x55, 0x00, 0x31, 0x32, 0x33, 0x34)
         val key = 0x5A

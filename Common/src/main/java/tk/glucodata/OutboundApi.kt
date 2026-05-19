@@ -1,13 +1,10 @@
 package tk.glucodata
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.annotation.Keep
-import androidx.work.BackoffPolicy
-import androidx.work.Constraints
 import androidx.work.Data
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import org.json.JSONObject
@@ -19,7 +16,10 @@ import java.net.URLEncoder
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.roundToInt
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorUiFamily
 
@@ -29,8 +29,18 @@ object OutboundApi {
     const val TEST_NOT_CONFIGURED = 1
     const val TEST_NO_CURRENT_READING = 2
 
-    private const val WORK_TAG = "outbound_api_glucose"
     private const val MGDL_PER_MMOLL = 18.0182f
+    private const val MAX_PENDING_SENDS = 12
+    private const val QUEUE_BUSY_STATUS_INTERVAL_MS = 5 * 60 * 1000L
+    private const val ERROR_QUEUE_BUSY = "API send queue is busy; dropped stale live reading"
+    private const val ERROR_NETWORK_UNAVAILABLE = "Network unavailable; skipped live API send"
+
+    private val pendingSends = AtomicInteger(0)
+    private val lastQueueBusyStatusAtMs = AtomicLong(0)
+    private val lastNetworkUnavailableStatusAtMs = AtomicLong(0)
+    private val sendExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "OutboundApiSend")
+    }
 
     private const val IN_DESTINATION_ID = "destination_id"
     private const val IN_RECIPIENT = "recipient"
@@ -39,6 +49,8 @@ object OutboundApi {
     private const val IN_PRIMARY_TEXT = "primary_text"
     private const val IN_DISPLAY_VALUE = "display_value"
     private const val IN_MGDL = "mgdl"
+    private const val IN_AUTO_VALUE = "auto_value"
+    private const val IN_AUTO_MGDL = "auto_mgdl"
     private const val IN_RAW_VALUE = "raw_value"
     private const val IN_RATE = "rate"
     private const val IN_TIME_MILLIS = "time_millis"
@@ -65,6 +77,8 @@ object OutboundApi {
             rate = rate,
             timeMillis = timeMillis,
             sensorGen = sensorGen,
+            autoValue = Float.NaN,
+            autoMgdl = 0,
             rawValue = Float.NaN,
             alarm = alarm
         )
@@ -82,6 +96,35 @@ object OutboundApi {
         rawValue: Float,
         alarm: Int
     ) {
+        enqueueGlucose(
+            sensorId = sensorId,
+            primaryText = primaryText,
+            primaryDisplayValue = primaryDisplayValue,
+            primaryMgdl = primaryMgdl,
+            rate = rate,
+            timeMillis = timeMillis,
+            sensorGen = sensorGen,
+            autoValue = Float.NaN,
+            autoMgdl = 0,
+            rawValue = rawValue,
+            alarm = alarm
+        )
+    }
+
+    @JvmStatic
+    fun enqueueGlucose(
+        sensorId: String?,
+        primaryText: String?,
+        primaryDisplayValue: Double,
+        primaryMgdl: Int,
+        rate: Float,
+        timeMillis: Long,
+        sensorGen: Int,
+        autoValue: Float,
+        autoMgdl: Int,
+        rawValue: Float,
+        alarm: Int
+    ) {
         enqueueGlucoseInternal(
             context = Applic.app,
             sensorId = sensorId,
@@ -92,6 +135,8 @@ object OutboundApi {
             rate = rate,
             timeMillis = timeMillis,
             sensorGen = sensorGen,
+            autoValue = autoValue,
+            autoMgdl = autoMgdl,
             alarm = alarm,
             test = false,
             destinationId = null
@@ -117,6 +162,8 @@ object OutboundApi {
             rate = current.rate,
             timeMillis = current.timeMillis,
             sensorGen = current.sensorGen,
+            autoValue = current.autoValue,
+            autoMgdl = displayToMgdl(current.autoValue),
             alarm = 0,
             test = true,
             destinationId = destinationId
@@ -134,6 +181,8 @@ object OutboundApi {
         rate: Float,
         timeMillis: Long,
         sensorGen: Int,
+        autoValue: Float,
+        autoMgdl: Int,
         alarm: Int,
         test: Boolean,
         destinationId: String?
@@ -155,6 +204,9 @@ object OutboundApi {
             if (!test && !OutboundApiSettings.shouldQueue(appContext, destination, eventId, now)) {
                 return@forEach
             }
+            if (!test) {
+                OutboundApiSettings.recordQueued(appContext, destination.id, eventId, now)
+            }
             enqueueForDestination(
                 context = appContext,
                 destination = destination,
@@ -167,12 +219,11 @@ object OutboundApi {
                 rate = rate,
                 timeMillis = timeMillis,
                 sensorGen = sensorGen,
+                autoValue = autoValue,
+                autoMgdl = autoMgdl,
                 alarm = alarm,
                 test = test
             )
-            if (!test) {
-                OutboundApiSettings.recordQueued(appContext, destination.id, eventId, now)
-            }
         }
     }
 
@@ -198,6 +249,8 @@ object OutboundApi {
         rate: Float,
         timeMillis: Long,
         sensorGen: Int,
+        autoValue: Float,
+        autoMgdl: Int,
         alarm: Int,
         test: Boolean
     ) {
@@ -216,6 +269,8 @@ object OutboundApi {
                 .putString(IN_PRIMARY_TEXT, primaryText.orEmpty())
                 .putDouble(IN_DISPLAY_VALUE, primaryDisplayValue)
                 .putInt(IN_MGDL, primaryMgdl)
+                .putFloat(IN_AUTO_VALUE, autoValue)
+                .putInt(IN_AUTO_MGDL, autoMgdl)
                 .putFloat(IN_RAW_VALUE, rawValue)
                 .putFloat(IN_RATE, rate)
                 .putLong(IN_TIME_MILLIS, timeMillis)
@@ -224,18 +279,66 @@ object OutboundApi {
                 .putBoolean(IN_TEST, test)
                 .build()
 
-            val request = OneTimeWorkRequestBuilder<OutboundApiWorker>()
-                .setInputData(input)
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-                .addTag(WORK_TAG)
-                .build()
+            sendInProcess(context, destination.id, input, test)
+        }
+    }
 
-            WorkManager.getInstance(context).enqueue(request)
+    private fun sendInProcess(context: Context, destinationId: String, input: Data, test: Boolean) {
+        if (!test && !hasUsableNetwork(context)) {
+            recordThrottledAttempt(
+                context = context,
+                destinationId = destinationId,
+                lastStatusAtMs = lastNetworkUnavailableStatusAtMs,
+                error = ERROR_NETWORK_UNAVAILABLE
+            )
+            return
+        }
+
+        val pending = pendingSends.incrementAndGet()
+        if (!test && pending > MAX_PENDING_SENDS) {
+            pendingSends.decrementAndGet()
+            recordThrottledAttempt(
+                context = context,
+                destinationId = destinationId,
+                lastStatusAtMs = lastQueueBusyStatusAtMs,
+                error = ERROR_QUEUE_BUSY
+            )
+            return
+        }
+        sendExecutor.execute {
+            try {
+                OutboundApiWorker.runOnce(
+                    context = context.applicationContext,
+                    inputData = input,
+                    runAttemptCount = 0,
+                    allowRetry = false
+                )
+            } finally {
+                pendingSends.decrementAndGet()
+            }
+        }
+    }
+
+    private fun hasUsableNetwork(context: Context): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return true
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private fun recordThrottledAttempt(
+        context: Context,
+        destinationId: String,
+        lastStatusAtMs: AtomicLong,
+        error: String
+    ) {
+        val now = System.currentTimeMillis()
+        val last = lastStatusAtMs.get()
+        if (now - last >= QUEUE_BUSY_STATUS_INTERVAL_MS &&
+            lastStatusAtMs.compareAndSet(last, now)
+        ) {
+            OutboundApiSettings.recordAttempt(context, destinationId, -1, error)
         }
     }
 
@@ -251,6 +354,8 @@ object OutboundApi {
             primaryText = input.getString(IN_PRIMARY_TEXT).orEmpty(),
             displayValue = displayValue,
             mgdl = mgdl,
+            autoValue = input.getFloat(IN_AUTO_VALUE, Float.NaN),
+            autoMgdl = input.getInt(IN_AUTO_MGDL, 0),
             rawValue = input.getFloat(IN_RAW_VALUE, Float.NaN),
             rateMgdlPerMinute = input.getFloat(IN_RATE, Float.NaN),
             timeMillis = timeMillis,
@@ -267,6 +372,8 @@ object OutboundApi {
         val primaryText: String,
         val displayValue: Double,
         val mgdl: Int,
+        val autoValue: Float,
+        val autoMgdl: Int,
         val rawValue: Float,
         val rateMgdlPerMinute: Float,
         val timeMillis: Long,
@@ -276,6 +383,7 @@ object OutboundApi {
     ) {
         val unit: String get() = if (Applic.unit == 1) "mmol/L" else "mg/dL"
         val mmol: Float get() = mgdl / MGDL_PER_MMOLL
+        val autoMmol: Float get() = autoMgdl / MGDL_PER_MMOLL
         val rawGlucoseMgdl: Float
             get() = rawValue.takeIf { rawValueLooksGlucoseScaled(sensorId, it) }
                 ?.let { if (Applic.unit == 1) it * MGDL_PER_MMOLL else it }
@@ -289,6 +397,11 @@ object OutboundApi {
         val displayText: String
             get() = primaryText.ifBlank {
                 if (Applic.unit == 1) formatNumber(mmol, 1) else mgdl.toString()
+            }
+        val autoDisplayText: String
+            get() {
+                if (!autoValue.isFinite() || autoValue <= 0f) return ""
+                return if (Applic.unit == 1) formatNumber(autoValue, 1) else formatNumber(autoValue, 0)
             }
         val rawDisplayText: String
             get() {
@@ -331,6 +444,10 @@ object OutboundApi {
             .replace("{unit}", reading.unit)
             .replace("{mgdl}", reading.mgdl.toString())
             .replace("{mmol}", formatNumber(reading.mmol, 2))
+            .replace("{auto}", reading.autoDisplayText)
+            .replace("{auto_value}", reading.autoDisplayText)
+            .replace("{auto_mgdl}", if (reading.autoMgdl > 0) reading.autoMgdl.toString() else "")
+            .replace("{auto_mmol}", if (reading.autoMgdl > 0) formatNumber(reading.autoMmol, 2) else "")
             .replace("{raw}", reading.rawDisplayText)
             .replace("{raw_mgdl}", if (reading.rawGlucoseMgdl.isFinite() && reading.rawGlucoseMgdl > 0f) {
                 formatNumber(reading.rawGlucoseMgdl, 0)
@@ -361,6 +478,11 @@ object OutboundApi {
     internal fun formatNumber(value: Float, decimals: Int): String {
         if (!value.isFinite()) return ""
         return "%.${decimals}f".format(Locale.US, value)
+    }
+
+    internal fun displayToMgdl(value: Float): Int {
+        if (!value.isFinite() || value <= 0f) return 0
+        return (if (Applic.unit == 1) value * MGDL_PER_MMOLL else value).roundToInt()
     }
 
     private fun rawValueLooksGlucoseScaled(sensorId: String?, rawValue: Float): Boolean {
@@ -410,330 +532,351 @@ class OutboundApiWorker(
     workerParams: WorkerParameters
 ) : Worker(appContext, workerParams) {
 
-    override fun doWork(): Result {
-        val context = applicationContext
-        val destinationId = inputData.getString(IN_DESTINATION_ID).orEmpty()
-        val config = OutboundApiSettings.load(context)
-        val destination = config.findDestination(destinationId) ?: return Result.success()
-        if (!destination.isReady()) {
-            return Result.success()
-        }
-        val reading = OutboundApi.inputToReading(inputData) ?: return Result.success()
-
-        return try {
-            val response = send(destination, reading)
-            if (response.ok) {
-                OutboundApiSettings.recordSuccess(context, destination.id, response.code)
-                Result.success()
-            } else {
-                OutboundApiSettings.recordAttempt(context, destination.id, response.code, response.error)
-                if (response.retryable && runAttemptCount < 5) Result.retry() else Result.failure()
-            }
-        } catch (th: Throwable) {
-            Log.e(TAG, "send failed: ${Log.stackline(th)}")
-            OutboundApiSettings.recordAttempt(context, destination.id, -1, friendlyError(destination, th))
-            if (runAttemptCount < 5) Result.retry() else Result.failure()
-        }
-    }
-
-    private data class SendResponse(
-        val code: Int,
-        val ok: Boolean,
-        val retryable: Boolean,
-        val error: String?
-    )
-
-    private data class ApiError(
-        val message: String,
-        val code: Int? = null,
-        val retryable: Boolean = false
-    )
-
-    private fun send(
-        destination: OutboundApiSettings.Destination,
-        reading: OutboundApi.Reading
-    ): SendResponse {
-        val message = OutboundApi.renderMessage(destination.resolvedTemplate(), reading)
-        return when (destination.normalizedPreset()) {
-            OutboundApiSettings.PRESET_TELEGRAM_BOT -> sendTelegram(destination, reading, message)
-            OutboundApiSettings.PRESET_GLUCO_WATCH_VK,
-            OutboundApiSettings.PRESET_VK_MESSAGES -> sendVk(destination, reading, message)
-            else -> sendJson(destination, reading, message)
-        }
-    }
-
-    private fun sendTelegram(
-        destination: OutboundApiSettings.Destination,
-        reading: OutboundApi.Reading,
-        message: String
-    ): SendResponse {
-        val body = JSONObject()
-            .put("chat_id", reading.recipient)
-            .put("text", message)
-            .toString()
-            .toByteArray(Charsets.UTF_8)
-        return executePost(
-            urlString = destination.resolvedUrl(),
-            contentType = "application/json; charset=UTF-8",
-            headers = destination.headers,
-            body = body,
-            parseApiError = ::parseTelegramError,
-            connectTimeoutMs = 45_000,
-            readTimeoutMs = 45_000,
-            preResponseRetries = 2
+    override fun doWork(): Result =
+        runOnce(
+            context = applicationContext,
+            inputData = inputData,
+            runAttemptCount = runAttemptCount,
+            allowRetry = false
         )
-    }
 
-    private fun sendVk(
-        destination: OutboundApiSettings.Destination,
-        reading: OutboundApi.Reading,
-        message: String
-    ): SendResponse {
-        val fields = linkedMapOf(
-            "access_token" to destination.token.trim(),
-            "v" to destination.apiVersion.trim().ifBlank { OutboundApiSettings.DEFAULT_VK_API_VERSION },
-            "peer_id" to reading.recipient,
-            "random_id" to stableRandomId(reading).toString(),
-            "message" to message
-        )
-        return executePost(
-            urlString = destination.resolvedUrl(),
-            contentType = "application/x-www-form-urlencoded; charset=UTF-8",
-            headers = "",
-            body = formEncode(fields).toByteArray(Charsets.UTF_8),
-            parseApiError = ::parseVkError
-        )
-    }
-
-    private fun sendJson(
-        destination: OutboundApiSettings.Destination,
-        reading: OutboundApi.Reading,
-        message: String
-    ): SendResponse {
-        return executePost(
-            urlString = destination.resolvedUrl(),
-            contentType = "application/json; charset=UTF-8",
-            headers = destination.headers,
-            body = buildJsonBody(destination, reading, message).toString().toByteArray(Charsets.UTF_8),
-            parseApiError = { null }
-        )
-    }
-
-    private fun executePost(
-        urlString: String,
-        contentType: String,
-        headers: String,
-        body: ByteArray,
-        parseApiError: (String) -> ApiError?,
-        connectTimeoutMs: Int = 15_000,
-        readTimeoutMs: Int = 30_000,
-        preResponseRetries: Int = 0
-    ): SendResponse {
-        var lastFailure: Throwable? = null
-        repeat(preResponseRetries + 1) { attempt ->
-            try {
-                return executePostOnce(
-                    urlString = urlString,
-                    contentType = contentType,
-                    headers = headers,
-                    body = body,
-                    parseApiError = parseApiError,
-                    connectTimeoutMs = connectTimeoutMs,
-                    readTimeoutMs = readTimeoutMs
-                )
-            } catch (th: Throwable) {
-                lastFailure = th
-                if (attempt >= preResponseRetries) throw th
-                Thread.sleep(750L * (attempt + 1))
-            }
-        }
-        throw lastFailure ?: IllegalStateException("HTTP request failed")
-    }
-
-    private fun executePostOnce(
-        urlString: String,
-        contentType: String,
-        headers: String,
-        body: ByteArray,
-        parseApiError: (String) -> ApiError?,
-        connectTimeoutMs: Int,
-        readTimeoutMs: Int
-    ): SendResponse {
-        val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = connectTimeoutMs
-            readTimeout = readTimeoutMs
-            doOutput = true
-            setRequestProperty("Content-Type", contentType)
-            setRequestProperty("Accept", "application/json, text/plain")
-            setRequestProperty("User-Agent", "JugglucoNG API destinations")
-            applyHeaders(headers)
-        }
-
-        try {
-            connection.outputStream.use { stream ->
-                stream.write(body)
-            }
-
-            val code = connection.responseCode
-            val responseText = readResponse(connection, code)
-            parseApiError(responseText)?.let { apiError ->
-                val responseCode = apiError.code ?: code
-                return SendResponse(
-                    code = responseCode,
-                    ok = false,
-                    retryable = apiError.retryable || responseCode == 429 || responseCode >= 500,
-                    error = apiError.message
-                )
-            }
-            val ok = code in 200..299
-            return SendResponse(
-                code = code,
-                ok = ok,
-                retryable = code == 429 || code >= 500,
-                error = if (ok) null else responseText.take(500).ifBlank { "HTTP $code" }
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun buildJsonBody(
-        destination: OutboundApiSettings.Destination,
-        reading: OutboundApi.Reading,
-        message: String
-    ): JSONObject {
-        val journal = reading.journal
-        return JSONObject()
-            .put("schema", "tk.glucodata.outbound.glucose.v1")
-            .put("type", "glucose")
-            .put("destination_id", destination.id)
-            .put("destination_preset", destination.normalizedPreset())
-            .put("event_id", reading.eventId)
-            .put("test", reading.test)
-            .put("app", "JugglucoNG")
-            .put("sensor_id", reading.sensorId)
-            .put("sensor_gen", reading.sensorGen)
-            .put("timestamp", reading.timeMillis)
-            .put("glucose_mgdl", reading.mgdl)
-            .put("glucose_mmol", OutboundApi.formatNumber(reading.mmol, 2).toDoubleOrNull())
-            .put("raw_value", reading.rawValue.takeIf { it.isFinite() && it > 0f })
-            .put("raw_glucose_mgdl", reading.rawGlucoseMgdl.takeIf { it.isFinite() && it > 0f })
-            .put(
-                "raw_glucose_mmol",
-                if (reading.rawGlucoseMgdl.isFinite() && reading.rawGlucoseMgdl > 0f) {
-                    OutboundApi.formatNumber(reading.rawGlucoseMmol, 2).toDoubleOrNull()
-                } else {
-                    null
-                }
-            )
-            .put("display_value", reading.displayText)
-            .put("display_unit", reading.unit)
-            .put("rate_mgdl_per_min", reading.rateMgdlPerMinute.takeIf { it.isFinite() })
-            .put("rate_mmol_per_min", reading.rateMmolPerMinute.takeIf { it.isFinite() })
-            .put("trend", reading.trendName)
-            .put("trend_arrow", reading.trendArrow)
-            .put("alarm", reading.alarm)
-            .put("iob", reading.iob.takeIf { it.isFinite() })
-            .put("journal_iob", journal.iob.takeIf { it.isFinite() })
-            .put("cob", journal.cob.takeIf { it.isFinite() })
-            .put("journal", journal.json)
-            .put("message", message)
-    }
-
-    private fun HttpURLConnection.applyHeaders(rawHeaders: String) {
-        rawHeaders.lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .forEach { line ->
-                val separator = line.indexOf(':')
-                if (separator <= 0) return@forEach
-                val name = line.substring(0, separator).trim()
-                val value = line.substring(separator + 1).trim()
-                if (name.equals("Content-Type", ignoreCase = true)) return@forEach
-                if (name.isNotEmpty() && value.isNotEmpty()) {
-                    setRequestProperty(name, value)
-                }
-            }
-    }
-
-    private fun formEncode(fields: Map<String, String>): String =
-        fields.entries.joinToString("&") { (key, value) ->
-            "${urlEncode(key)}=${urlEncode(value)}"
-        }
-
-    private fun urlEncode(value: String): String =
-        URLEncoder.encode(value, "UTF-8")
-
-    private fun stableRandomId(reading: OutboundApi.Reading): Int {
-        var hash = reading.eventId.hashCode()
-        hash = 31 * hash + reading.recipient.hashCode()
-        hash = 31 * hash + reading.timeMillis.hashCode()
-        hash = 31 * hash + reading.mgdl
-        return hash and Int.MAX_VALUE
-    }
-
-    private fun readResponse(connection: HttpURLConnection, code: Int): String {
-        val stream = if (code in 200..299) {
-            connection.inputStream
-        } else {
-            connection.errorStream ?: runCatching { connection.inputStream }.getOrNull()
-        } ?: return ""
-        return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-            buildString {
-                var line = reader.readLine()
-                while (line != null) {
-                    append(line)
-                    line = reader.readLine()
-                }
-            }
-        }
-    }
-
-    private fun parseVkError(responseText: String): ApiError? {
-        if (responseText.isBlank()) return null
-        return try {
-            val root = JSONObject(responseText)
-            val error = root.optJSONObject("error") ?: return null
-            val code = error.optInt("error_code", 0).takeIf { it != 0 }
-            ApiError(
-                message = error.optString("error_msg", "VK API error").ifBlank { "VK API error" },
-                code = code,
-                retryable = code == 6 || code == 9 || code == 10
-            )
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    private fun parseTelegramError(responseText: String): ApiError? {
-        if (responseText.isBlank()) return null
-        return try {
-            val root = JSONObject(responseText)
-            if (root.optBoolean("ok", true)) return null
-            val code = root.optInt("error_code", 0).takeIf { it != 0 }
-            ApiError(
-                message = root.optString("description", "Telegram API error").ifBlank { "Telegram API error" },
-                code = code,
-                retryable = code == 429 || code == 500 || code == 502 || code == 503
-            )
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    private fun friendlyError(destination: OutboundApiSettings.Destination, th: Throwable): String {
-        val raw = th.message ?: th.javaClass.simpleName
-        if (destination.normalizedPreset() == OutboundApiSettings.PRESET_TELEGRAM_BOT &&
-            raw.contains("api.telegram.org", ignoreCase = true)
-        ) {
-            return "Telegram Bot API connection failed before a JSON response: $raw"
-        }
-        return raw
-    }
-
-    private companion object {
+    companion object {
         private const val TAG = "OutboundApiWorker"
         private const val IN_DESTINATION_ID = "destination_id"
+
+        internal fun runOnce(
+            context: Context,
+            inputData: Data,
+            runAttemptCount: Int,
+            allowRetry: Boolean
+        ): Result {
+            val destinationId = inputData.getString(IN_DESTINATION_ID).orEmpty()
+            val config = OutboundApiSettings.load(context)
+            val destination = config.findDestination(destinationId) ?: return Result.success()
+            if (!destination.isReady()) {
+                return Result.success()
+            }
+            val reading = OutboundApi.inputToReading(inputData) ?: return Result.success()
+
+            return try {
+                val response = send(destination, reading)
+                if (response.ok) {
+                    OutboundApiSettings.recordSuccess(context, destination.id, response.code)
+                    Result.success()
+                } else {
+                    OutboundApiSettings.recordAttempt(context, destination.id, response.code, response.error)
+                    if (allowRetry && response.retryable && runAttemptCount < 5) {
+                        Result.retry()
+                    } else {
+                        Result.failure()
+                    }
+                }
+            } catch (th: Throwable) {
+                Log.e(TAG, "send failed: ${Log.stackline(th)}")
+                OutboundApiSettings.recordAttempt(context, destination.id, -1, friendlyError(destination, th))
+                if (allowRetry && runAttemptCount < 5) Result.retry() else Result.failure()
+            }
+        }
+
+        private data class SendResponse(
+            val code: Int,
+            val ok: Boolean,
+            val retryable: Boolean,
+            val error: String?
+        )
+
+        private data class ApiError(
+            val message: String,
+            val code: Int? = null,
+            val retryable: Boolean = false
+        )
+
+        private fun send(
+            destination: OutboundApiSettings.Destination,
+            reading: OutboundApi.Reading
+        ): SendResponse {
+            val message = OutboundApi.renderMessage(destination.resolvedTemplate(), reading)
+            return when (destination.normalizedPreset()) {
+                OutboundApiSettings.PRESET_TELEGRAM_BOT -> sendTelegram(destination, reading, message)
+                OutboundApiSettings.PRESET_GLUCO_WATCH_VK,
+                OutboundApiSettings.PRESET_VK_MESSAGES -> sendVk(destination, reading, message)
+                else -> sendJson(destination, reading, message)
+            }
+        }
+
+        private fun sendTelegram(
+            destination: OutboundApiSettings.Destination,
+            reading: OutboundApi.Reading,
+            message: String
+        ): SendResponse {
+            val body = JSONObject()
+                .put("chat_id", reading.recipient)
+                .put("text", message)
+                .toString()
+                .toByteArray(Charsets.UTF_8)
+            return executePost(
+                urlString = destination.resolvedUrl(),
+                contentType = "application/json; charset=UTF-8",
+                headers = destination.headers,
+                body = body,
+                parseApiError = ::parseTelegramError,
+                connectTimeoutMs = 20_000,
+                readTimeoutMs = 30_000
+            )
+        }
+
+        private fun sendVk(
+            destination: OutboundApiSettings.Destination,
+            reading: OutboundApi.Reading,
+            message: String
+        ): SendResponse {
+            val fields = linkedMapOf(
+                "access_token" to destination.token.trim(),
+                "v" to destination.apiVersion.trim().ifBlank { OutboundApiSettings.DEFAULT_VK_API_VERSION },
+                "peer_id" to reading.recipient,
+                "random_id" to stableRandomId(reading).toString(),
+                "message" to message
+            )
+            return executePost(
+                urlString = destination.resolvedUrl(),
+                contentType = "application/x-www-form-urlencoded; charset=UTF-8",
+                headers = "",
+                body = formEncode(fields).toByteArray(Charsets.UTF_8),
+                parseApiError = ::parseVkError
+            )
+        }
+
+        private fun sendJson(
+            destination: OutboundApiSettings.Destination,
+            reading: OutboundApi.Reading,
+            message: String
+        ): SendResponse =
+            executePost(
+                urlString = destination.resolvedUrl(),
+                contentType = "application/json; charset=UTF-8",
+                headers = destination.headers,
+                body = buildJsonBody(destination, reading, message).toString().toByteArray(Charsets.UTF_8),
+                parseApiError = { null }
+            )
+
+        private fun executePost(
+            urlString: String,
+            contentType: String,
+            headers: String,
+            body: ByteArray,
+            parseApiError: (String) -> ApiError?,
+            connectTimeoutMs: Int = 15_000,
+            readTimeoutMs: Int = 30_000,
+            preResponseRetries: Int = 0
+        ): SendResponse {
+            var lastFailure: Throwable? = null
+            repeat(preResponseRetries + 1) { attempt ->
+                try {
+                    return executePostOnce(
+                        urlString = urlString,
+                        contentType = contentType,
+                        headers = headers,
+                        body = body,
+                        parseApiError = parseApiError,
+                        connectTimeoutMs = connectTimeoutMs,
+                        readTimeoutMs = readTimeoutMs
+                    )
+                } catch (th: Throwable) {
+                    lastFailure = th
+                    if (attempt >= preResponseRetries) throw th
+                    Thread.sleep(750L * (attempt + 1))
+                }
+            }
+            throw lastFailure ?: IllegalStateException("HTTP request failed")
+        }
+
+        private fun executePostOnce(
+            urlString: String,
+            contentType: String,
+            headers: String,
+            body: ByteArray,
+            parseApiError: (String) -> ApiError?,
+            connectTimeoutMs: Int,
+            readTimeoutMs: Int
+        ): SendResponse {
+            val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
+                doOutput = true
+                setRequestProperty("Content-Type", contentType)
+                setRequestProperty("Accept", "application/json, text/plain")
+                setRequestProperty("User-Agent", "JugglucoNG API destinations")
+                applyHeaders(headers)
+            }
+
+            try {
+                connection.outputStream.use { stream ->
+                    stream.write(body)
+                }
+
+                val code = connection.responseCode
+                val responseText = readResponse(connection, code)
+                parseApiError(responseText)?.let { apiError ->
+                    val responseCode = apiError.code ?: code
+                    return SendResponse(
+                        code = responseCode,
+                        ok = false,
+                        retryable = apiError.retryable || responseCode == 429 || responseCode >= 500,
+                        error = apiError.message
+                    )
+                }
+                val ok = code in 200..299
+                return SendResponse(
+                    code = code,
+                    ok = ok,
+                    retryable = code == 429 || code >= 500,
+                    error = if (ok) null else responseText.take(500).ifBlank { "HTTP $code" }
+                )
+            } finally {
+                connection.disconnect()
+            }
+        }
+
+        private fun buildJsonBody(
+            destination: OutboundApiSettings.Destination,
+            reading: OutboundApi.Reading,
+            message: String
+        ): JSONObject {
+            val journal = reading.journal
+            return JSONObject()
+                .put("schema", "tk.glucodata.outbound.glucose.v1")
+                .put("type", "glucose")
+                .put("destination_id", destination.id)
+                .put("destination_preset", destination.normalizedPreset())
+                .put("event_id", reading.eventId)
+                .put("test", reading.test)
+                .put("app", "JugglucoNG")
+                .put("sensor_id", reading.sensorId)
+                .put("sensor_gen", reading.sensorGen)
+                .put("timestamp", reading.timeMillis)
+                .put("glucose_mgdl", reading.mgdl)
+                .put("glucose_mmol", OutboundApi.formatNumber(reading.mmol, 2).toDoubleOrNull())
+                .put("auto_glucose_mgdl", reading.autoMgdl.takeIf { it > 0 })
+                .put("auto_glucose_mmol", if (reading.autoMgdl > 0) {
+                    OutboundApi.formatNumber(reading.autoMmol, 2).toDoubleOrNull()
+                } else {
+                    null
+                })
+                .put("auto_display_value", reading.autoDisplayText.takeIf { it.isNotBlank() })
+                .put("raw_value", reading.rawValue.takeIf { it.isFinite() && it > 0f })
+                .put("raw_glucose_mgdl", reading.rawGlucoseMgdl.takeIf { it.isFinite() && it > 0f })
+                .put(
+                    "raw_glucose_mmol",
+                    if (reading.rawGlucoseMgdl.isFinite() && reading.rawGlucoseMgdl > 0f) {
+                        OutboundApi.formatNumber(reading.rawGlucoseMmol, 2).toDoubleOrNull()
+                    } else {
+                        null
+                    }
+                )
+                .put("display_value", reading.displayText)
+                .put("display_unit", reading.unit)
+                .put("rate_mgdl_per_min", reading.rateMgdlPerMinute.takeIf { it.isFinite() })
+                .put("rate_mmol_per_min", reading.rateMmolPerMinute.takeIf { it.isFinite() })
+                .put("trend", reading.trendName)
+                .put("trend_arrow", reading.trendArrow)
+                .put("alarm", reading.alarm)
+                .put("iob", reading.iob.takeIf { it.isFinite() })
+                .put("journal_iob", journal.iob.takeIf { it.isFinite() })
+                .put("cob", journal.cob.takeIf { it.isFinite() })
+                .put("journal", journal.json)
+                .put("message", message)
+        }
+
+        private fun HttpURLConnection.applyHeaders(rawHeaders: String) {
+            rawHeaders.lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .forEach { line ->
+                    val separator = line.indexOf(':')
+                    if (separator <= 0) return@forEach
+                    val name = line.substring(0, separator).trim()
+                    val value = line.substring(separator + 1).trim()
+                    if (name.equals("Content-Type", ignoreCase = true)) return@forEach
+                    if (name.isNotEmpty() && value.isNotEmpty()) {
+                        setRequestProperty(name, value)
+                    }
+                }
+        }
+
+        private fun formEncode(fields: Map<String, String>): String =
+            fields.entries.joinToString("&") { (key, value) ->
+                "${urlEncode(key)}=${urlEncode(value)}"
+            }
+
+        private fun urlEncode(value: String): String =
+            URLEncoder.encode(value, "UTF-8")
+
+        private fun stableRandomId(reading: OutboundApi.Reading): Int {
+            var hash = reading.eventId.hashCode()
+            hash = 31 * hash + reading.recipient.hashCode()
+            hash = 31 * hash + reading.timeMillis.hashCode()
+            hash = 31 * hash + reading.mgdl
+            return hash and Int.MAX_VALUE
+        }
+
+        private fun readResponse(connection: HttpURLConnection, code: Int): String {
+            val stream = if (code in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream ?: runCatching { connection.inputStream }.getOrNull()
+            } ?: return ""
+            return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
+                buildString {
+                    var line = reader.readLine()
+                    while (line != null) {
+                        append(line)
+                        line = reader.readLine()
+                    }
+                }
+            }
+        }
+
+        private fun parseVkError(responseText: String): ApiError? {
+            if (responseText.isBlank()) return null
+            return try {
+                val root = JSONObject(responseText)
+                val error = root.optJSONObject("error") ?: return null
+                val code = error.optInt("error_code", 0).takeIf { it != 0 }
+                ApiError(
+                    message = error.optString("error_msg", "VK API error").ifBlank { "VK API error" },
+                    code = code,
+                    retryable = code == 6 || code == 9 || code == 10
+                )
+            } catch (_: Throwable) {
+                null
+            }
+        }
+
+        private fun parseTelegramError(responseText: String): ApiError? {
+            if (responseText.isBlank()) return null
+            return try {
+                val root = JSONObject(responseText)
+                if (root.optBoolean("ok", true)) return null
+                val code = root.optInt("error_code", 0).takeIf { it != 0 }
+                ApiError(
+                    message = root.optString("description", "Telegram API error").ifBlank { "Telegram API error" },
+                    code = code,
+                    retryable = code == 429 || code == 500 || code == 502 || code == 503
+                )
+            } catch (_: Throwable) {
+                null
+            }
+        }
+
+        private fun friendlyError(destination: OutboundApiSettings.Destination, th: Throwable): String {
+            val raw = th.message ?: th.javaClass.simpleName
+            if (destination.normalizedPreset() == OutboundApiSettings.PRESET_TELEGRAM_BOT &&
+                raw.contains("api.telegram.org", ignoreCase = true)
+            ) {
+                return "Telegram Bot API connection failed before a JSON response: $raw"
+            }
+            return raw
+        }
     }
 }

@@ -391,6 +391,7 @@
     <string name="chsibionics">Sibionics Chinese</string>
     <string name="hematonix">Hematonix</string>
     <string name="sibionics2">Sibionics 2 Split</string>
+    <string name="gs3">Sibionics GS3</string>
     <string name="datapresent">"Data present: "</string>
     <string name="overwrite">Overwrite?</string>
     <string name="autoqr">Auto QR</string>
@@ -712,6 +713,19 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="export_data_desc">Save history to CSV/TSV</string>
     <string name="export_settings">Export Settings</string>
     <string name="export_settings_desc">Save all app settings, credentials, and device keys</string>
+    <string name="export_data_settings">Export data/settings</string>
+    <string name="export_data_settings_desc">Choose settings, history, calibrations, or a complete package</string>
+    <string name="export_everything">Everything</string>
+    <string name="export_history_data_desc">Glucose history, journal entries, and insulin presets</string>
+    <string name="export_calibrations_desc">Manual calibration points and calibration behavior</string>
+    <string name="export_range_title">History range</string>
+    <string name="export_range_30_days">30 days</string>
+    <string name="export_range_90_days">90 days</string>
+    <string name="export_range_365_days">365 days</string>
+    <string name="export_range_all">All history</string>
+    <string name="export_save_to_files">Save to Files</string>
+    <string name="export_share_to_cloud">Share to cloud app</string>
+    <string name="export_nothing_selected">Choose at least one export item</string>
     <string name="import_data">Import Data</string>
     <string name="import_data_desc">Load backup or Libreview file</string>
     <string name="import_data_settings">Import Data/Settings</string>
@@ -756,7 +770,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="graph_smoothing_7_minutes">7 minutes</string>
     <string name="data_smoothing_window_title">Smoothing window</string>
     <string name="data_smoothing_graph_only_title">Smooth only graph</string>
-    <string name="data_smoothing_graph_only_desc">Keep current glucose, widgets and alerts unsmoothed; exchange outputs follow the setting below</string>
+    <string name="data_smoothing_graph_only_desc">Keep current glucose, widgets, alerts and exchange outputs unsmoothed</string>
     <string name="data_smoothing_exchange_only_title">Smooth only exchange outputs</string>
     <string name="data_smoothing_exchange_only_desc">Apply smoothing and chunk filtering only to broadcasts and outbound API payloads; chart, current glucose, widgets and alerts stay unchanged</string>
     <string name="data_smoothing_collapse_title">Collapse into chunks</string>
@@ -887,6 +901,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     
     <string name="select_sensor_type">Select sensor type</string>
     <string name="choose_theme">Choose theme</string>
+    <string name="sibionics_sensor_picker_desc">QR scan</string>
+    <string name="libre_sensor_picker_desc">NFC scan</string>
+    <string name="dexcom_sensor_picker_desc">QR scan</string>
+    <string name="accuchek_sensor_picker_desc">Data Matrix + Bluetooth</string>
+    <string name="caresens_air_sensor_picker_desc">Code + Bluetooth</string>
+    <string name="aidex_sensor_picker_desc">Bluetooth setup</string>
+    <string name="icanhealth_sensor_picker_desc">Bluetooth setup</string>
+    <string name="mq_sensor_picker_desc">Bluetooth pairing</string>
+    <string name="anytime_sensor_picker_desc">Bluetooth pairing</string>
     <string name="sibionics_sensor">Sibionics</string>
     <string name="sibionics_sensor_desc">Scan QR code</string>
     <string name="libre_sensor">Libre 2/3</string>
@@ -903,7 +926,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="icanhealth_sensor_desc">Configure iCan i3/i6/i7 CGM via Bluetooth</string>
     <string name="mq_sensor">MQ / Glutec</string>
     <string name="mq_sensor_desc">Pair a Glutec / MQ CGM transmitter via Bluetooth</string>
-    <string name="anytime_sensor">Anytime / Yuwell 4 / 4H</string>
+    <string name="anytime_sensor">Anytime / Yuwell 4 / 4H / 5</string>
     <string name="anytime_sensor_desc">Pair an Anytime / Yuwell CT3 CGM transmitter via Bluetooth</string>
 
     <!-- Anytime/Yuwell Setup Wizard Strings -->
@@ -1148,8 +1171,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="broadcast_only_mode_desc">No pairing or GATT connection required</string>
     <string name="broadcast_only_mode_title">Broadcast-only mode</string>
     <string name="calibrate_action">Calibrate</string>
+    <string name="calibrate_after_24h">Calibrate after 24h</string>
     <string name="calibrate_connect_first">Connect sensor first to calibrate.</string>
+    <string name="anytime_calibration_sent_status">Calibration sent; waiting for sensor</string>
+    <string name="anytime_calibration_accepted_status">Calibration accepted; applies from reading #%1$d</string>
+    <string name="anytime_calibration_used_status">Calibration used at reading #%1$d: %2$.0f mg/dL</string>
+    <string name="anytime_calibration_send_failed_status">Calibration send failed</string>
     <string name="calibrate_sensor_desc">Enter a blood glucose value in %1$s to calibrate the sensor</string>
+    <string name="calibrate_sensor_timing_note">Avoid calibrating within 2 hours after meals or insulin.</string>
     <string name="calibrate_sensor_title">Calibrate Sensor</string>
     <string name="calibration_deleted">Calibration deleted</string>
     <string name="calibration_profile_exported">Calibration profile exported</string>
@@ -1565,6 +1594,30 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_forecast_horizon">Forecast horizon</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Dose calculator</string>
+    <string name="journal_food_macros_title">Advanced food absorption</string>
+    <string name="journal_food_macros_desc">Use optional protein and fat for delayed food curves and dose math</string>
+    <string name="journal_food_library">Food library</string>
+    <string name="journal_food_library_count">%1$d active · %2$d total</string>
+    <string name="journal_insulin_library_count">%1$d active · %2$d total</string>
+    <string name="journal_food_disabled_library">Disabled foods</string>
+    <string name="journal_add_food">Add food</string>
+    <string name="journal_edit_food">Edit food</string>
+    <string name="journal_food_choose">Choose food</string>
+    <string name="journal_food_choose_desc">Search library foods or keep manual amounts</string>
+    <string name="journal_food_manual">Manual food</string>
+    <string name="journal_food_search">Search food</string>
+    <string name="journal_food_presets">Food presets</string>
+    <string name="journal_food_fast_carbs">Fast carbs</string>
+    <string name="journal_food_balanced_meal">Balanced meal</string>
+    <string name="journal_food_slow_meal">Slow meal</string>
+    <string name="journal_food_protein_snack">Protein snack</string>
+    <string name="journal_food_macro_summary">%1$s g carbs · %2$s g protein · %3$s g fat · %4$d min</string>
+    <string name="journal_food_carb_summary">%1$s g carbs · %2$d min</string>
+    <string name="journal_food_absorption">Absorption</string>
+    <string name="journal_food_protein">Protein</string>
+    <string name="journal_food_fat">Fat</string>
+    <string name="journal_food_protein_short">%1$s g protein</string>
+    <string name="journal_food_fat_short">%1$s g fat</string>
     <string name="journal_dose_calculator_desc">Suggest paired insulin or carbs from model profile and active insulin</string>
     <string name="journal_meal_shape">Meal curve</string>
     <string name="journal_meal_shape_fast">Fast</string>
@@ -1585,6 +1638,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>
     <string name="journal_type_insulin">Insulin</string>
+    <string name="journal_type_food">Food</string>
     <string name="journal_type_bg_short">BG</string>
     <string name="journal_type_fingerstick">Fingerstick</string>
     <string name="journal_type_activity">Activity</string>

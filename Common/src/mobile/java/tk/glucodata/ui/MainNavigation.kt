@@ -57,6 +57,8 @@ import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.ui.journal.JournalDoseProfile
 import tk.glucodata.ui.journal.JournalEntrySheet
+import tk.glucodata.ui.journal.JournalFoodLibraryScreen
+import tk.glucodata.ui.journal.JournalInsulinLibraryScreen
 import tk.glucodata.ui.journal.JournalSettingsScreen
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 
@@ -119,8 +121,10 @@ private fun HistoryRoute(
     val previewWindowMode by dashboardViewModel.previewWindowMode.collectAsStateWithLifecycle()
     val journalEnabled by dashboardViewModel.journalEnabled.collectAsStateWithLifecycle()
     val journalDoseCalculatorEnabled by dashboardViewModel.journalDoseCalculatorEnabled.collectAsStateWithLifecycle()
+    val journalFoodMacrosEnabled by dashboardViewModel.journalFoodMacrosEnabled.collectAsStateWithLifecycle()
     val journalEntries by dashboardViewModel.journalEntries.collectAsStateWithLifecycle()
     val journalInsulinPresets by dashboardViewModel.journalInsulinPresets.collectAsStateWithLifecycle()
+    val journalFoods by dashboardViewModel.journalFoods.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
@@ -151,6 +155,7 @@ private fun HistoryRoute(
         journalEnabled = journalEnabled,
         journalEntries = scopedJournalEntries,
         journalInsulinPresets = journalInsulinPresets,
+        journalFoods = journalFoods,
         onBack = onBack,
         onPointClick = { point ->
             onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
@@ -190,11 +195,14 @@ private fun HistoryRoute(
             suggestedChartAnchorGlucoseMgDl = request.suggestedChartAnchorGlucoseMgDl,
             suggestedAmountFraction = request.suggestedAmountFraction,
             insulinPresets = journalInsulinPresets,
+            foods = journalFoods,
+            foodMacrosEnabled = journalFoodMacrosEnabled,
             doseJournalEntries = scopedJournalEntries,
             doseProfile = JournalDoseProfile(
                 enabled = journalEnabled && journalDoseCalculatorEnabled,
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
+                foodMacrosEnabled = journalFoodMacrosEnabled,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {
@@ -473,6 +481,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                     composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                     composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }
+                    composable("settings/journal/foods") { JournalFoodLibraryScreen(navController, dashboardViewModel) }
+                    composable("settings/journal/insulin") { JournalInsulinLibraryScreen(navController, dashboardViewModel) }
                     composable("settings/calibrations") {
                         CalibrationListRoute(
                             dashboardViewModel = dashboardViewModel,
@@ -587,6 +597,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                 composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                 composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }
+                composable("settings/journal/foods") { JournalFoodLibraryScreen(navController, dashboardViewModel) }
+                composable("settings/journal/insulin") { JournalInsulinLibraryScreen(navController, dashboardViewModel) }
                 composable("settings/calibrations") {
                     CalibrationListRoute(
                         dashboardViewModel = dashboardViewModel,

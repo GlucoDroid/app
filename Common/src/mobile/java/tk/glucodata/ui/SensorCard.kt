@@ -146,6 +146,7 @@ import tk.glucodata.QRmake
 import tk.glucodata.R
 import tk.glucodata.MainActivity
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.drivers.anytime.AnytimeCalibrationPolicy
 import android.widget.Toast
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
@@ -292,7 +293,7 @@ fun SensorCard(
 
     // AiDex Maintenance Dialogs
     var showAiDexClearDialog by remember { mutableStateOf(false) }
-    var showAiDexCalibrateDialog by remember { mutableStateOf(false) }
+    var showSensorCalibrateDialog by remember { mutableStateOf(false) }
     var showAiDexUnpairDialog by remember { mutableStateOf(false) }
     var showMqRestoreSheet by remember { mutableStateOf(false) }
     var showMqCalibrationSheet by remember { mutableStateOf(false) }
@@ -912,10 +913,10 @@ fun SensorCard(
         }
     }
 
-    if (showAiDexCalibrateDialog) {
+    if (showSensorCalibrateDialog) {
         AlertDialog(
             onDismissRequest = {
-                showAiDexCalibrateDialog = false
+                showSensorCalibrateDialog = false
                 calibrationInputText = ""
             },
             title = { Text(stringResource(R.string.calibrate_sensor_title)) },
@@ -924,6 +925,12 @@ fun SensorCard(
                 val unitLabel = if (isMmol) "mmol/L" else "mg/dL"
                 Column {
                     Text(stringResource(R.string.calibrate_sensor_desc, unitLabel))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.calibrate_sensor_timing_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     androidx.compose.material3.OutlinedTextField(
                         value = calibrationInputText,
@@ -956,14 +963,18 @@ fun SensorCard(
                 val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
                 val inputValue = calibrationInputText.toFloatOrNull()
                 val glucoseMgDl = inputValue?.let {
-                    (if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(it) else it).toInt()
+                    (if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(it) else it).roundToInt()
                 }
                 val isValid = glucoseMgDl != null && glucoseMgDl in 30..500
                 TextButton(
                     onClick = {
                         if (glucoseMgDl != null && isValid) {
-                            viewModel.calibrateAiDexSensor(sensor.serial, glucoseMgDl)
-                            showAiDexCalibrateDialog = false
+                            if (sensor.isAidex) {
+                                viewModel.calibrateAiDexSensor(sensor.serial, glucoseMgDl)
+                            } else {
+                                viewModel.calibrateManagedSensor(sensor.serial, glucoseMgDl)
+                            }
+                            showSensorCalibrateDialog = false
                             calibrationInputText = ""
                         }
                     },
@@ -972,7 +983,7 @@ fun SensorCard(
             },
             dismissButton = {
                 TextButton(onClick = {
-                    showAiDexCalibrateDialog = false
+                    showSensorCalibrateDialog = false
                     calibrationInputText = ""
                 }) { Text(stringResource(R.string.cancel)) }
             }
@@ -1631,7 +1642,7 @@ fun SensorCard(
                 // Full-width Calibrate button — disabled when vendor BLE is not connected
                 val canCalibrate = sensor.isVendorConnected
                 FilledTonalButton(
-                    onClick = { showAiDexCalibrateDialog = true },
+                    onClick = { showSensorCalibrateDialog = true },
                     enabled = canCalibrate,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     shape = RoundedCornerShape(28.dp),
@@ -2005,6 +2016,41 @@ fun SensorCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.mq_manual_calibration_title))
+                }
+            }
+
+            if (sensor.isAnytime && sensor.supportsManualCalibration) {
+                val warmupComplete = AnytimeCalibrationPolicy.canAcceptManualCalibration(sensor.sensorAgeHours)
+                val canCalibrate = sensor.isVendorConnected && warmupComplete
+                FilledTonalButton(
+                    onClick = { showSensorCalibrateDialog = true },
+                    enabled = canCalibrate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bloodtype,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = when {
+                            !sensor.isVendorConnected -> stringResource(R.string.calibrate_connect_first)
+                            !warmupComplete -> stringResource(R.string.calibrate_after_24h)
+                            else -> stringResource(R.string.calibrate_action)
+                        },
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                 }
             }
 
