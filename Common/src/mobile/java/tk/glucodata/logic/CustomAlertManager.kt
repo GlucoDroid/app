@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.Notify
+import tk.glucodata.alerts.AlertEpisodeState
 import tk.glucodata.alerts.CustomAlertConfig
 import tk.glucodata.alerts.CustomAlertRepository
 import tk.glucodata.alerts.CustomAlertType
@@ -31,6 +32,7 @@ object CustomAlertManager {
     private val dismissedMap = mutableSetOf<String>()
     private val sessionLock = Any()
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
+    private val conditionEpisodes = AlertEpisodeState<String>()
     private var activeSession: ActiveSession? = null
 
     fun checkAndTrigger(context: Context, glucose: Float, rate: Float, timestamp: Long) {
@@ -48,6 +50,7 @@ object CustomAlertManager {
                 lastTriggerMap.clear()
                 cooldownUntilMap.clear()
                 dismissedMap.clear()
+                conditionEpisodes.clearAll()
                 clearActiveSessionLocked("no-custom-alerts")
             }
             return
@@ -59,36 +62,54 @@ object CustomAlertManager {
         val evaluationMs = System.currentTimeMillis()
         val evaluationMinutes = ((evaluationMs / 60000L) % (24 * 60)).toInt()
 
-        val validConfigs = allAlerts.filter { config ->
+        val activeWindowConfigs = allAlerts.filter { config ->
             if (!config.enabled) return@filter false
             if (!config.isActiveTime(evaluationMinutes)) return@filter false
-            if (evaluationMs < config.snoozedUntil) return@filter false
             true
         }
 
-        val triggeredCandidates = validConfigs.filter { config ->
-            if (config.type == CustomAlertType.HIGH) glucose >= config.threshold
-            else glucose <= config.threshold
+        val activeConditionConfigs = activeWindowConfigs.filter { config ->
+            isConditionActive(config, glucose)
         }
 
-        val activeIds = triggeredCandidates.map { it.id }.toSet()
+        val activeIds = activeConditionConfigs.map { it.id }.toSet()
+        val transition = synchronized(sessionLock) {
+            conditionEpisodes.update(activeIds)
+        }
         synchronized(sessionLock) {
-            val staleIds = (lastTriggerMap.keys + dismissedMap + listOfNotNull(activeSession?.config?.id)).minus(activeIds)
+            val staleIds = (
+                transition.cleared +
+                    lastTriggerMap.keys +
+                    dismissedMap +
+                    listOfNotNull(activeSession?.config?.id)
+                ).minus(activeIds)
             staleIds.forEach { id ->
                 lastTriggerMap.remove(id)
                 dismissedMap.remove(id)
+                conditionEpisodes.clear(id)
                 if (activeSession?.config?.id == id) {
                     clearActiveSessionLocked("condition-cleared:$id")
                 }
             }
         }
 
-        if (triggeredCandidates.isEmpty()) return
+        if (activeConditionConfigs.isEmpty()) return
 
-        val candidate = triggeredCandidates.sortedWith(
+        val candidate = activeConditionConfigs.sortedWith(
             compareBy<CustomAlertConfig> { it.type == CustomAlertType.HIGH }
                 .thenBy { if (it.type == CustomAlertType.LOW) it.threshold else -it.threshold }
         ).firstOrNull() ?: return
+
+        if (!transition.shouldTryFire(candidate.id)) {
+            return
+        }
+
+        if (evaluationMs < candidate.snoozedUntil) {
+            synchronized(sessionLock) {
+                conditionEpisodes.markPendingAfterSnooze(candidate.id)
+            }
+            return
+        }
 
         var shouldFire = false
         synchronized(sessionLock) {
@@ -99,6 +120,7 @@ object CustomAlertManager {
             }
 
             if (dismissedMap.contains(candidate.id)) {
+                conditionEpisodes.clearPending(candidate.id)
                 return@synchronized
             }
 
@@ -112,6 +134,7 @@ object CustomAlertManager {
 
             val cooldownUntil = cooldownUntilMap[candidate.id] ?: 0L
             if (evaluationMs < cooldownUntil) {
+                conditionEpisodes.clearPending(candidate.id)
                 return@synchronized
             }
 
@@ -132,6 +155,7 @@ object CustomAlertManager {
         if (shouldFire) {
             triggerAlert(context, candidate, glucose, rate)
             synchronized(sessionLock) {
+                conditionEpisodes.clearPending(candidate.id)
                 activeSession?.takeIf { it.config.id == candidate.id }?.let { session ->
                     scheduleRetryFromStartLocked(session)
                 }
@@ -142,6 +166,7 @@ object CustomAlertManager {
     fun dismissAlert(alertId: String) {
         synchronized(sessionLock) {
             dismissedMap.add(alertId)
+            conditionEpisodes.clearPending(alertId)
             if (activeSession?.config?.id == alertId) {
                 clearActiveSessionLocked("dismiss:$alertId")
             }
@@ -157,6 +182,7 @@ object CustomAlertManager {
         synchronized(sessionLock) {
             dismissedMap.remove(alertId)
             lastTriggerMap.remove(alertId)
+            conditionEpisodes.clear(alertId)
             if (activeSession?.config?.id == alertId) {
                 clearActiveSessionLocked("snooze:$alertId")
             }
@@ -192,6 +218,14 @@ object CustomAlertManager {
             config.name,
             rate
         )
+    }
+
+    private fun isConditionActive(config: CustomAlertConfig, glucose: Float): Boolean {
+        return if (config.type == CustomAlertType.HIGH) {
+            glucose > config.threshold
+        } else {
+            glucose < config.threshold
+        }
     }
 
     private fun scheduleRetryFromStartLocked(session: ActiveSession) {

@@ -30,6 +30,7 @@ object AlertRuntimeManager {
     private var lastGlucoseValue: Float = Float.NaN
     private var lastRate: Float = Float.NaN
     private var persistentHighStartedAtMs: Long = 0L
+    private val standardEpisodes = AlertEpisodeState<AlertType>()
 
     private val standardGlucoseAlertTypes = listOf(
         AlertType.VERY_LOW,
@@ -152,54 +153,74 @@ object AlertRuntimeManager {
         val glucoseValue = currentGlucoseValueLocked() ?: return AlertRuntimeEvaluation()
         val rate = currentRateLocked()
         val configs = standardGlucoseAlertTypes.associateWith { AlertRepository.loadConfig(it) }
-        val activeType = resolveActiveStandardGlucoseAlert(glucoseValue, rate, configs)
+        val activeConditions = resolveActiveStandardGlucoseAlerts(glucoseValue, rate, configs)
+        val activeTypes = activeConditions.keys
+        val transition = standardEpisodes.update(activeTypes)
 
-        standardGlucoseAlertTypes.forEach { type ->
-            if (type != activeType) {
-                clearRuntimeAlert(type, "standard-condition-cleared")
-            }
+        transition.cleared.forEach { type ->
+            clearRuntimeAlert(type, "standard-condition-cleared")
         }
 
-        val type = activeType ?: return AlertRuntimeEvaluation()
-        val config = configs[type] ?: return AlertRuntimeEvaluation()
-        if (!config.isActiveNow()) {
-            clearRuntimeAlert(type, "standard-time-inactive")
-            return AlertRuntimeEvaluation()
+        val type = standardGlucoseAlertTypes.firstOrNull { it in activeTypes }
+            ?: return AlertRuntimeEvaluation()
+        val condition = activeConditions[type] ?: return AlertRuntimeEvaluation()
+
+        if (!transition.shouldTryFire(type)) {
+            return AlertRuntimeEvaluation(standardGlucoseAlertHandled = true)
         }
+
         if (SnoozeManager.isSnoozed(type)) {
+            standardEpisodes.markPendingAfterSnooze(type)
             return AlertRuntimeEvaluation()
         }
 
-        val message = Applic.app.getString(type.nameResId) + " " + Notify.glucosestr(glucoseValue)
+        val message = Applic.app.getString(type.nameResId) + " " + Notify.glucosestr(condition.glucoseValue)
+        val triggered = triggerAlert(type, condition.glucoseValue, rate, message)
+        standardEpisodes.clearPending(type)
         return AlertRuntimeEvaluation(
             standardGlucoseAlertHandled = true,
-            standardGlucoseAlertStarted = triggerAlert(type, glucoseValue, rate, message)
+            standardGlucoseAlertStarted = triggered
         )
     }
 
-    private fun resolveActiveStandardGlucoseAlert(
+    private data class StandardAlertCondition(val glucoseValue: Float)
+
+    private fun resolveActiveStandardGlucoseAlerts(
         glucoseValue: Float,
         rate: Float,
         configs: Map<AlertType, AlertConfig>
-    ): AlertType? {
-        fun threshold(type: AlertType): Float? {
-            val config = configs[type] ?: return null
-            if (!config.enabled) return null
-            return config.threshold?.takeIf { it.isFinite() && it > 0f }
-        }
-
-        threshold(AlertType.VERY_LOW)?.let { if (glucoseValue <= it) return AlertType.VERY_LOW }
-        threshold(AlertType.LOW)?.let { if (glucoseValue <= it) return AlertType.LOW }
-        threshold(AlertType.VERY_HIGH)?.let { if (glucoseValue >= it) return AlertType.VERY_HIGH }
-        threshold(AlertType.HIGH)?.let { if (glucoseValue >= it) return AlertType.HIGH }
-
+    ): Map<AlertType, StandardAlertCondition> {
         val projected = projectedGlucose(glucoseValue, rate)
-        if (projected.isFinite()) {
-            threshold(AlertType.PRE_LOW)?.let { if (projected <= it) return AlertType.PRE_LOW }
-            threshold(AlertType.PRE_HIGH)?.let { if (projected >= it) return AlertType.PRE_HIGH }
-        }
+        return standardGlucoseAlertTypes.mapNotNull { type ->
+            val config = configs[type] ?: return@mapNotNull null
+            if (!config.enabled) return@mapNotNull null
+            if (!config.isActiveNow()) return@mapNotNull null
+            val threshold = config.threshold?.takeIf { it.isFinite() && it > 0f } ?: return@mapNotNull null
+            val value = if (isForecastAlert(type)) projected else glucoseValue
+            if (!value.isFinite()) return@mapNotNull null
 
-        return null
+            if (isThresholdConditionActive(type, value, threshold)) {
+                type to StandardAlertCondition(glucoseValue)
+            } else {
+                null
+            }
+        }.toMap()
+    }
+
+    private fun isForecastAlert(type: AlertType): Boolean {
+        return type == AlertType.PRE_LOW || type == AlertType.PRE_HIGH
+    }
+
+    private fun isThresholdConditionActive(type: AlertType, value: Float, threshold: Float): Boolean {
+        return when (type) {
+            AlertType.LOW,
+            AlertType.VERY_LOW,
+            AlertType.PRE_LOW -> value < threshold
+            AlertType.HIGH,
+            AlertType.VERY_HIGH,
+            AlertType.PRE_HIGH -> value > threshold
+            else -> false
+        }
     }
 
     private fun projectedGlucose(glucoseValue: Float, rate: Float): Float {
