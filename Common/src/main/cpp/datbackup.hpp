@@ -977,6 +977,8 @@ public:
     deupdated();
 
     closesocksone(index, getupdatedata()->allhosts + index);
+    if (newhost && !connections[index])
+      connections[index] = new TCPConnect(index);
     if (startthreads) {
       if (newthread)
         startthread(index, tohost);
@@ -1103,7 +1105,7 @@ public:
       ::shutdown(sock, SHUT_RDWR);
     }
     int ind = host->index;
-    if (ind >= 0) {
+    if (ind >= 0 && ind < (int)sendsocks.size()) {
       int ssock = sendsocks[ind];
       if (ssock >= 0) {
         sendsocks[ind] = -1;
