@@ -270,6 +270,17 @@ class GlucoseRepository {
     }
 
     /**
+     * Get the merged display timeline used by History/Stats-style views. This
+     * keeps readable/CSV exports aligned with screen-level history after a
+     * sensor swap instead of narrowing export output to only the active sensor.
+     */
+    suspend fun getMergedHistory(startTime: Long, isMmol: Boolean): List<GlucosePoint> {
+        val preferredSerial = resolveDisplayPreferredSerial()
+        historyRepository.ensureBackfilled(preferredSerial, startTime)
+        return historyRepository.getDisplayHistory(preferredSerial, startTime).inDisplayUnit(isMmol)
+    }
+
+    /**
      * Get history as a Flow for reactive updates.
      * Follows the selected sensor's Room history directly when we know which sensor is
      * active, and only falls back to the merged display timeline when there is no current

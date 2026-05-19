@@ -303,6 +303,7 @@ fun DashboardScreen(
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
     val journalFoodMacrosEnabled by viewModel.journalFoodMacrosEnabled.collectAsState()
+    val journalFoodLibraryEnabled by viewModel.journalFoodLibraryEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
@@ -614,7 +615,7 @@ fun DashboardScreen(
             suggestedChartAnchorGlucoseMgDl = request.suggestedChartAnchorGlucoseMgDl,
             suggestedAmountFraction = request.suggestedAmountFraction,
             insulinPresets = if (request.existingEntry != null) journalInsulinPresets else activeJournalPresets,
-            foods = journalFoods,
+            foods = if (journalFoodLibraryEnabled) journalFoods else emptyList(),
             foodMacrosEnabled = journalFoodMacrosEnabled,
             doseJournalEntries = scopedJournalEntries,
             doseProfile = JournalDoseProfile(

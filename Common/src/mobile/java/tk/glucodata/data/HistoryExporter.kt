@@ -35,6 +35,18 @@ object HistoryExporter {
         return value?.let { String.format(Locale.US, "%.4f", it) }.orEmpty()
     }
 
+    private fun resolveExportSensorSerial(
+        point: GlucosePoint,
+        serialByTimestamp: Map<Long, String>,
+        fallback: String = "unknown"
+    ): String {
+        return point.sensorSerial
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: serialByTimestamp[point.timestamp]
+            ?: fallback
+    }
+
     private fun parseCsvLine(line: String): List<String> {
         val cells = ArrayList<String>()
         val current = StringBuilder()
@@ -123,7 +135,7 @@ object HistoryExporter {
                             // Ensure dot decimal separator for CSV
                             val valueStr = tk.glucodata.ui.util.GlucoseFormatter.formatCsv(point.value, unit)
                             val rawStr = tk.glucodata.ui.util.GlucoseFormatter.formatCsv(point.rawValue, unit)
-                            val serial = serialByTimestamp[point.timestamp] ?: "unknown"
+                            val serial = resolveExportSensorSerial(point, serialByTimestamp)
                             
                             writer.write("${point.timestamp},$dateStr,$valueStr,$rawStr,$unit,$serial,$RECORD_TYPE_GLUCOSE\n")
                         }
@@ -276,7 +288,7 @@ object HistoryExporter {
             val isMmol = GlucoseFormatter.isMmol(unit)
             val valueStr = GlucoseFormatter.format(point.value, isMmol)
             val rawStr = GlucoseFormatter.format(point.rawValue, isMmol)
-            val serial = serialByTimestamp[point.timestamp] ?: ""
+            val serial = resolveExportSensorSerial(point, serialByTimestamp, fallback = "")
 
             val sensorTag = if (serial.isNotEmpty() && serial != "unknown") " [$serial]" else ""
             val line = "$dateStr: $valueStr $unit (Raw: $rawStr)$sensorTag\n"

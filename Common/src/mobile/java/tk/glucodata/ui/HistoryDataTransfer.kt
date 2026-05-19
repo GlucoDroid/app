@@ -90,7 +90,7 @@ fun HistoryExportSheet(
                 val days = daysText.toLongOrNull() ?: 30L
                 val endTime = System.currentTimeMillis()
                 val startTime = endTime - (days * 24 * 60 * 60 * 1000L)
-                val data = tk.glucodata.data.GlucoseRepository().getHistory(startTime, isMmol)
+                val data = tk.glucodata.data.GlucoseRepository().getMergedHistory(startTime, isMmol)
                 val unit = if (isMmol) "mmol/L" else "mg/dL"
                 val success = tk.glucodata.data.HistoryExporter.exportToCsv(
                     context = context,
@@ -124,7 +124,7 @@ fun HistoryExportSheet(
                 val days = daysText.toLongOrNull() ?: 30L
                 val endTime = System.currentTimeMillis()
                 val startTime = endTime - (days * 24 * 60 * 60 * 1000L)
-                val data = tk.glucodata.data.GlucoseRepository().getHistory(startTime, isMmol)
+                val data = tk.glucodata.data.GlucoseRepository().getMergedHistory(startTime, isMmol)
                 val unit = if (isMmol) "mmol/L" else "mg/dL"
                 val success = tk.glucodata.data.HistoryExporter.exportToReadable(
                     context = context,
@@ -275,7 +275,7 @@ fun ExportDataSettingsSheet(
         val startTime = request.historyDays
             ?.let { endTime - TimeUnit.DAYS.toMillis(it.coerceAtLeast(1L)) }
             ?: 0L
-        val data = GlucoseRepository().getHistory(startTime, isMmol)
+        val data = GlucoseRepository().getMergedHistory(startTime, isMmol)
         val unit = if (isMmol) "mmol/L" else "mg/dL"
         return HistoryExportArgs(
             data = data,
