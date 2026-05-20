@@ -110,7 +110,6 @@ fun ExpressiveSettingsScreen(
     val dataSmoothingExchangeOnly by viewModel.dataSmoothingExchangeOnly.collectAsState()
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
-    val journalInsulinPresets by viewModel.journalInsulinPresets.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
@@ -277,7 +276,6 @@ fun ExpressiveSettingsScreen(
 
                 JournalSettingsItem(
                     journalEnabled = journalEnabled,
-                    activePresetCount = journalInsulinPresets.count { !it.isArchived },
                     onToggleEnabled = { viewModel.setJournalEnabled(it) },
                     onOpenJournal = { navController.navigate("settings/journal") },
                     iconTint = glucoseColor,
@@ -1172,7 +1170,6 @@ private fun ManualCalibrationSettingsItem(
 @Composable
 private fun JournalSettingsItem(
     journalEnabled: Boolean,
-    activePresetCount: Int,
     onToggleEnabled: (Boolean) -> Unit,
     onOpenJournal: () -> Unit,
     iconTint: Color,
@@ -1199,11 +1196,7 @@ private fun JournalSettingsItem(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = stringResource(
-                        R.string.journal_settings_summary,
-                        stringResource(if (journalEnabled) R.string.enabled_status else R.string.disabled_status),
-                        activePresetCount
-                    ),
+                    text = stringResource(if (journalEnabled) R.string.enabled_status else R.string.disabled_status),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1

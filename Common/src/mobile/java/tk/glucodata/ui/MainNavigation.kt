@@ -100,7 +100,8 @@ private fun DashboardRoute(
 private fun HistoryRoute(
     dashboardViewModel: DashboardViewModel,
     onBack: () -> Unit,
-    onTriggerCalibration: (CalibrationSheetState) -> Unit
+    onTriggerCalibration: (CalibrationSheetState) -> Unit,
+//    initialShowReadingRows: Boolean = true
 ) {
     // Use the merged multi-sensor flow so the previous sensor's calibrated
     // readings (and any imported/older sensor data) remain visible on the
@@ -152,6 +153,7 @@ private fun HistoryRoute(
         calibrations = calibrations,
         title = stringResource(R.string.historyname),
         browseMode = TimelineBrowseMode.HISTORY,
+//        initialShowReadingRows = initialShowReadingRows,
         journalEnabled = journalEnabled,
         journalEntries = scopedJournalEntries,
         journalInsulinPresets = journalInsulinPresets,
@@ -222,6 +224,7 @@ private fun HistoryRoute(
                 inputs.firstOrNull()?.let { lastJournalType = it.type }
                 journalEditorRequest = null
             },
+            onSaveFood = dashboardViewModel::saveJournalFood,
             onDelete = { entryId ->
                 dashboardViewModel.deleteJournalEntry(entryId)
                 journalEditorRequest = null
@@ -440,7 +443,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                         HistoryRoute(
                             dashboardViewModel = dashboardViewModel,
                             onBack = { navController.popBackStack() },
-                            onTriggerCalibration = onTriggerCalibration
+                            onTriggerCalibration = onTriggerCalibration,
+//                            initialShowReadingRows = false
                         )
                     }
                     composable("stats") { tk.glucodata.ui.stats.StatsScreen() }
@@ -556,7 +560,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     HistoryRoute(
                         dashboardViewModel = dashboardViewModel,
                         onBack = { navController.popBackStack() },
-                        onTriggerCalibration = onTriggerCalibration
+                        onTriggerCalibration = onTriggerCalibration,
+//                        initialShowReadingRows = false
                     )
                 }
                 composable("stats") { tk.glucodata.ui.stats.StatsScreen() }

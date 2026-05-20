@@ -7,12 +7,96 @@ import tk.glucodata.Natives
 object LegacyJournalFoodDatabase {
     private const val LEGACY_ID_OFFSET = 10_000_000L
 
+    data class FoodComponentDetail(
+        val label: String,
+        val rawValue: Int,
+        val unit: String
+    )
+
+    data class FoodDetails(
+        val title: String,
+        val components: List<FoodComponentDetail>
+    )
+
     fun search(query: String, limit: Int = 8): List<JournalFood> {
         val needle = query.trim()
         if (needle.length < 2) return emptyList()
 
+        val terms = needle
+            .lowercase(Locale.ROOT)
+            .split(Regex("\\s+"))
+            .filter { it.length >= 2 }
+            .distinct()
+
         return runCatching {
-            val ptr = Natives.foodsearch(needle)
+            val merged = linkedMapOf<Int, JournalFood>()
+            fun collect(nativeQuery: String) {
+                searchNative(nativeQuery, limit * 2).forEach { food ->
+                    merged[legacyStorageId(food.id)] = food
+                }
+            }
+
+            collect(needle)
+            terms.filterNot { it.equals(needle, ignoreCase = true) }.forEach(::collect)
+
+            val ranked = merged.values.mapNotNull { food ->
+                val name = food.displayName.lowercase(Locale.ROOT)
+                val allTermsMatch = terms.all { name.contains(it) }
+                val anyTermMatches = terms.any { name.contains(it) }
+                if (!anyTermMatches) return@mapNotNull null
+                val score = when {
+                    name == needle.lowercase(Locale.ROOT) -> 0
+                    name.startsWith(needle.lowercase(Locale.ROOT)) -> 1
+                    allTermsMatch -> 2
+                    else -> 3
+                }
+                RankedFood(food, score, allTermsMatch)
+            }.sortedWith(
+                compareBy<RankedFood> { it.score }
+                    .thenBy { it.food.displayName.length }
+                    .thenBy { it.food.displayName.lowercase(Locale.ROOT) }
+            )
+            val strict = ranked.filter { it.allTermsMatch }
+            (strict.ifEmpty { ranked }).map { it.food }.take(limit)
+        }.getOrDefault(emptyList())
+    }
+
+    fun details(food: JournalFood, showZero: Boolean = false): FoodDetails {
+        val nativeId = legacyNativeId(food.id)
+        if (nativeId != null) {
+            val nativeDetails = runCatching {
+                val components = Natives.getcomponents(nativeId)
+                val labels = Natives.getcomponentlabels()
+                val units = Natives.getcomponentunits()
+                val rows = components.indices.mapNotNull { index ->
+                    val value = components[index]
+                    val shouldShow = if (showZero) value != -1 else value > 0
+                    if (!shouldShow) return@mapNotNull null
+                    val label = labels.getOrNull(index).orEmpty().ifBlank { return@mapNotNull null }
+                    FoodComponentDetail(
+                        label = label,
+                        rawValue = value,
+                        unit = units.getOrNull(index).orEmpty()
+                    )
+                }
+                FoodDetails(title = food.displayName, components = rows)
+            }.getOrNull()
+            if (nativeDetails != null && nativeDetails.components.isNotEmpty()) {
+                return nativeDetails
+            }
+        }
+
+        val fallback = buildList {
+            add(FoodComponentDetail("Carbohydrate", (food.carbsGrams * 1000f).roundToInt(), "g"))
+            food.proteinGrams?.let { add(FoodComponentDetail("Protein", (it * 1000f).roundToInt(), "g")) }
+            food.fatGrams?.let { add(FoodComponentDetail("Fat", (it * 1000f).roundToInt(), "g")) }
+        }
+        return FoodDetails(title = food.displayName, components = fallback)
+    }
+
+    private fun searchNative(query: String, limit: Int): List<JournalFood> {
+        return runCatching {
+            val ptr = Natives.foodsearch(query)
             if (ptr == 0L) return@runCatching emptyList()
             try {
                 val count = Natives.foodhitnr(ptr).coerceAtMost(limit).coerceAtLeast(0)
@@ -25,6 +109,18 @@ object LegacyJournalFoodDatabase {
                 Natives.freefoodptr(ptr)
             }
         }.getOrDefault(emptyList())
+    }
+
+    private fun legacyStorageId(journalId: Long): Int {
+        return (kotlin.math.abs(journalId) - LEGACY_ID_OFFSET).toInt()
+    }
+
+    fun isLegacyFood(food: JournalFood): Boolean = legacyNativeId(food.id) != null
+
+    private fun legacyNativeId(journalId: Long): Int? {
+        if (journalId >= 0) return null
+        val nativeId = (kotlin.math.abs(journalId) - LEGACY_ID_OFFSET).toInt()
+        return nativeId.takeIf { it >= 0 }
     }
 
     private fun legacyFoodToJournalFood(id: Int, label: String): JournalFood? {
@@ -92,5 +188,11 @@ object LegacyJournalFoodDatabase {
         val carbs: Int,
         val protein: Int?,
         val fat: Int?
+    )
+
+    private data class RankedFood(
+        val food: JournalFood,
+        val score: Int,
+        val allTermsMatch: Boolean
     )
 }

@@ -41,6 +41,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tk.glucodata.data.journal.JournalEntryInput
 import tk.glucodata.data.journal.JournalEntrySource
 import tk.glucodata.data.journal.JournalEntryType
@@ -115,7 +116,9 @@ private suspend fun checkPermissionsAndRun(act:MainActivity?) {
             hasPermission = false
             if(act?.permHealth!=null) {
                 val launch=act.permHealth
-                launch.permissionsLauncher.launch(PERMISSIONS)
+                withContext(Dispatchers.Main) {
+                    launch.permissionsLauncher.launch(PERMISSIONS)
+                }
                 Log.i(LOG_ID,"requested")
                 }
             else
