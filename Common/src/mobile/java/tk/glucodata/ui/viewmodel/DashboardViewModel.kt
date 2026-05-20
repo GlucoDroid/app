@@ -3,9 +3,10 @@ package tk.glucodata.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.os.SystemClock
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -29,6 +30,7 @@ import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalFoodInput
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalInsulinPresetInput
+import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.inDisplayUnit
 import tk.glucodata.data.journal.JournalRepository
 import tk.glucodata.alerts.AlertRepository
@@ -38,6 +40,14 @@ import tk.glucodata.drivers.ManagedSensorStatusPolicy
 import tk.glucodata.drivers.ManagedSensorUiFamily
 import tk.glucodata.ui.util.resolveDashboardSensorStatus
 import kotlin.math.roundToInt
+
+internal object DashboardHistoryCollectionPolicy {
+    fun usesMergedCrossSensorHistory(mode: DashboardViewModel.CollectionMode): Boolean =
+        mode == DashboardViewModel.CollectionMode.FULL_HISTORY
+
+    fun shouldCoalesceEmission(mode: DashboardViewModel.CollectionMode, hasSeenHistoryEmission: Boolean): Boolean =
+        mode == DashboardViewModel.CollectionMode.DASHBOARD && hasSeenHistoryEmission
+}
 
 class DashboardViewModel(
     private val glucoseRepository: GlucoseRepository = GlucoseRepository(),
@@ -54,14 +64,21 @@ class DashboardViewModel(
         val lastSerial: String?
     )
 
+    private data class DashboardHistoryCacheKey(
+        val signature: HistoryEdgeSignature,
+        val unit: String
+    )
+
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
+        const val DASHBOARD_HISTORY_COALESCE_MS = 300L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val JOURNAL_FOOD_MACROS_KEY = "dashboard_journal_food_macros_enabled"
         const val JOURNAL_FOOD_LIBRARY_KEY = "dashboard_journal_food_library_enabled"
+        const val JOURNAL_HEALTH_CONNECT_ACTIVITY_KEY = "dashboard_journal_health_connect_activity_enabled"
         const val PREDICTION_CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
         const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
         const val PREDICTION_CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
@@ -70,6 +87,21 @@ class DashboardViewModel(
         const val PREDICTION_INSULIN_SENSITIVITY_DEFAULT = 54f
         const val PREDICTION_CARB_ABSORPTION_DEFAULT = 35f
         const val PREDICTION_HORIZON_MINUTES_DEFAULT = 120
+
+        private val processUiRecoveryLock = Any()
+        private val processHistoryRecoveryLock = Any()
+        private val processDashboardHistoryCacheLock = Any()
+
+        @Volatile
+        private var processLastUiRecoverySyncAtMs = 0L
+        @Volatile
+        private var processLastHistoryRecoverySyncAtMs = 0L
+        @Volatile
+        private var processLastHistoryRecoverySerial: String? = null
+        @Volatile
+        private var processDashboardHistoryCacheKey: DashboardHistoryCacheKey? = null
+        @Volatile
+        private var processDashboardHistoryCacheValue: List<GlucosePoint> = emptyList()
     }
 
     enum class CollectionMode {
@@ -198,6 +230,9 @@ class DashboardViewModel(
 
     private val _journalFoodLibraryEnabled = MutableStateFlow(true)
     val journalFoodLibraryEnabled = _journalFoodLibraryEnabled.asStateFlow()
+
+    private val _journalHealthConnectActivityEnabled = MutableStateFlow(false)
+    val journalHealthConnectActivityEnabled = _journalHealthConnectActivityEnabled.asStateFlow()
 
     private val _aapsJournalImportEnabled = MutableStateFlow(false)
     val aapsJournalImportEnabled = _aapsJournalImportEnabled.asStateFlow()
@@ -338,15 +373,17 @@ class DashboardViewModel(
 
     private suspend fun requestUiRecoverySync() {
         val nowMs = SystemClock.elapsedRealtime()
-        synchronized(this) {
-            if ((nowMs - lastUiRecoverySyncAtMs) < UI_RECOVERY_SYNC_MIN_INTERVAL_MS) {
+        synchronized(processUiRecoveryLock) {
+            val lastRunMs = maxOf(lastUiRecoverySyncAtMs, processLastUiRecoverySyncAtMs)
+            if ((nowMs - lastRunMs) < UI_RECOVERY_SYNC_MIN_INTERVAL_MS) {
                 android.util.Log.d(
                     "DashboardVM",
-                    "requestUiRecoverySync skipped — last run was ${(nowMs - lastUiRecoverySyncAtMs)}ms ago"
+                    "requestUiRecoverySync skipped — last run was ${(nowMs - lastRunMs)}ms ago"
                 )
                 return
             }
             lastUiRecoverySyncAtMs = nowMs
+            processLastUiRecoverySyncAtMs = nowMs
         }
         val serial = preferredDashboardSensorId()?.takeIf { it.isNotBlank() }
         val historyStartTimeMs = activeHistoryStartTimeMs
@@ -437,6 +474,7 @@ class DashboardViewModel(
         _journalDoseCalculatorEnabled.value = prefs.getBoolean(JOURNAL_DOSE_CALCULATOR_KEY, false)
         _journalFoodMacrosEnabled.value = prefs.getBoolean(JOURNAL_FOOD_MACROS_KEY, false)
         _journalFoodLibraryEnabled.value = prefs.getBoolean(JOURNAL_FOOD_LIBRARY_KEY, true)
+        _journalHealthConnectActivityEnabled.value = prefs.getBoolean(JOURNAL_HEALTH_CONNECT_ACTIVITY_KEY, false)
         _aapsJournalImportEnabled.value = AapsJournalImport.isEnabled(context)
         _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", true)
         _predictionTrendMomentumEnabled.value = prefs.getBoolean("dashboard_prediction_trend_momentum_enabled", true)
@@ -618,7 +656,7 @@ class DashboardViewModel(
         activeHistoryMode = mode
         _isLoading.value = _glucoseHistory.value.isEmpty()
 
-        if (mode == CollectionMode.FULL_HISTORY) {
+        if (DashboardHistoryCollectionPolicy.usesMergedCrossSensorHistory(mode)) {
             // Parallel cross-sensor merged stream that backs the History browse
             // screen. Keep it off the dashboard path so dashboard startup does
             // not scan and convert the full multi-sensor Room timeline.
@@ -641,13 +679,23 @@ class DashboardViewModel(
 
         historyJob = viewModelScope.launch {
             var lastRecoveryRequestSerial: String? = null
+            var hasSeenHistoryEmission = false
             combine(
                 _unit,
                 glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
                     .distinctUntilChangedBy(::historyEdgeSignature)
             ) { unitStr, rawHistory ->
                 unitStr to rawHistory
-            }.collect { (unitStr, rawHistory) ->
+            }.collectLatest { (unitStr, rawHistory) ->
+                val shouldCoalesce = DashboardHistoryCollectionPolicy.shouldCoalesceEmission(
+                    mode,
+                    hasSeenHistoryEmission,
+                )
+                hasSeenHistoryEmission = true
+                if (shouldCoalesce) {
+                    delay(DASHBOARD_HISTORY_COALESCE_MS)
+                }
+                val signature = historyEdgeSignature(rawHistory)
                 val preferredSerial = preferredDashboardSensorId()?.takeIf { it.isNotBlank() }
                 val current = resolveCurrentForHistoryRecovery(preferredSerial)
                 val currentRecoveryStartTimeMs = activeHistoryStartTimeMs ?: recoveryStartTimeMs
@@ -666,12 +714,39 @@ class DashboardViewModel(
                     logEvery = 20L,
                     detail = "mode=$mode size=${rawHistory.size}"
                 )
-                _glucoseHistory.value = withContext(Dispatchers.Default) {
-                    rawHistory.inDisplayUnit(unitStr)
-                }
+                _glucoseHistory.value = resolveHistoryDisplayList(rawHistory, unitStr, mode, signature)
                 _isLoading.value = false
             }
         }
+    }
+
+    private suspend fun resolveHistoryDisplayList(
+        rawHistory: List<GlucosePoint>,
+        unitStr: String,
+        mode: CollectionMode,
+        signature: HistoryEdgeSignature
+    ): List<GlucosePoint> {
+        if (mode != CollectionMode.DASHBOARD) {
+            return withContext(Dispatchers.Default) {
+                rawHistory.inDisplayUnit(unitStr)
+            }
+        }
+
+        val cacheKey = DashboardHistoryCacheKey(signature, unitStr)
+        synchronized(processDashboardHistoryCacheLock) {
+            if (processDashboardHistoryCacheKey == cacheKey) {
+                return processDashboardHistoryCacheValue
+            }
+        }
+
+        val converted = withContext(Dispatchers.Default) {
+            rawHistory.inDisplayUnit(unitStr)
+        }
+        synchronized(processDashboardHistoryCacheLock) {
+            processDashboardHistoryCacheKey = cacheKey
+            processDashboardHistoryCacheValue = converted
+        }
+        return converted
     }
 
 
@@ -925,6 +1000,16 @@ class DashboardViewModel(
         _journalFoodLibraryEnabled.value = enabled
     }
 
+    fun setJournalHealthConnectActivityEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(JOURNAL_HEALTH_CONNECT_ACTIVITY_KEY, enabled).apply()
+        _journalHealthConnectActivityEnabled.value = enabled
+        if (enabled) {
+            importHealthConnectActivity(daysBack = 14)
+        }
+    }
+
     fun setAapsJournalImportEnabled(enabled: Boolean) {
         val context = tk.glucodata.Applic.app
         AapsJournalImport.setEnabled(context, enabled)
@@ -1098,14 +1183,20 @@ class DashboardViewModel(
             return
         }
         val nowMs = SystemClock.elapsedRealtime()
-        synchronized(this) {
-            if (serial == lastHistoryRecoverySerial &&
-                (nowMs - lastHistoryRecoverySyncAtMs) < UI_RECOVERY_SYNC_MIN_INTERVAL_MS
-            ) {
+        synchronized(processHistoryRecoveryLock) {
+            val lastSerial = lastHistoryRecoverySerial ?: processLastHistoryRecoverySerial
+            val lastRunMs = if (serial == lastSerial) {
+                maxOf(lastHistoryRecoverySyncAtMs, processLastHistoryRecoverySyncAtMs)
+            } else {
+                0L
+            }
+            if (serial == lastSerial && (nowMs - lastRunMs) < UI_RECOVERY_SYNC_MIN_INTERVAL_MS) {
                 return
             }
             lastHistoryRecoverySerial = serial
             lastHistoryRecoverySyncAtMs = nowMs
+            processLastHistoryRecoverySerial = serial
+            processLastHistoryRecoverySyncAtMs = nowMs
         }
         BatteryTrace.bump(
             key = "dashboard.history.recovery.request",

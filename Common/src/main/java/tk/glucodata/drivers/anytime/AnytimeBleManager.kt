@@ -90,6 +90,12 @@ class AnytimeBleManager(
         /** How many empty pull responses in a row count as "caught up". */
         private const val HISTORY_EMPTY_RESPONSES_TO_STOP = 2
 
+        /** Avoid immediately re-pulling the same caught-up id after wake/reconnect churn. */
+        private const val HISTORY_CAUGHT_UP_COOLDOWN_MS = 2L * 60L * 1000L
+
+        /** Exact/near-exact Room timestamp guard for repeated provisional catch-up imports. */
+        private const val HISTORY_ROOM_IMPORT_NEAR_DUPLICATE_MS = 1L
+
         /** Reset → reconnect grace period. */
         private const val RESET_RECONNECT_DELAY_MS = 700L
 
@@ -230,6 +236,8 @@ class AnytimeBleManager(
     @Volatile private var historyStopBeforeId: Int = Int.MAX_VALUE
     @Volatile private var historyBackfillReason: String = ""
     @Volatile private var historyBackfillStartedAfterGlucoseId: Int = -1
+    private val historyCaughtUpCooldown = AnytimeHistoryCaughtUpCooldown(HISTORY_CAUGHT_UP_COOLDOWN_MS)
+    private val historyRoomImportBuffer = AnytimeHistoryRoomImportBuffer()
 
     // If a long one-by-one history pull is interrupted by BLE loss, keep the
     // range and resume it after the next successful handshake/reset instead of
@@ -518,6 +526,11 @@ class AnytimeBleManager(
         if (phase != Phase.STREAMING) return@Runnable
         if (historyPullInFlight) return@Runnable
         var nextId = nextBackfillIdSkippingCached((historyLastPulledId + 1).coerceAtLeast(0))
+        if (shouldSuppressCaughtUpBackfill(nextId, historyStopBeforeId, historyBackfillReason)) {
+            Log.d(TAG, "Backfill suppressed by caught-up cooldown ($historyBackfillReason, nextId=$nextId)")
+            finishHistoryBackfill()
+            return@Runnable
+        }
         if (nextId >= historyStopBeforeId) {
             Log.i(TAG, "Backfill range complete ($historyBackfillReason, nextId=$nextId stopBefore=$historyStopBeforeId)")
             finishHistoryBackfill()
@@ -607,6 +620,27 @@ class AnytimeBleManager(
         return id
     }
 
+    private fun markHistoryCaughtUp(nextRequestId: Int) {
+        historyCaughtUpCooldown.markCaughtUp(nextRequestId)
+    }
+
+    private fun clearCaughtUpCooldownIfNewerData(glucoseId: Int) {
+        historyCaughtUpCooldown.clearIfNewerData(glucoseId)
+    }
+
+    private fun shouldSuppressCaughtUpBackfill(
+        startId: Int,
+        stopBeforeId: Int,
+        reason: String,
+    ): Boolean {
+        return historyCaughtUpCooldown.shouldSuppressBackfill(
+            startId = startId,
+            stopBeforeId = stopBeforeId,
+            reason = reason,
+            lastGlucoseId = lastGlucoseId,
+        )
+    }
+
     /**
      * Start (or resume) the history backfill loop.
      * Clean/manual backfill can explicitly start from 0. Reconnect backfill must
@@ -625,6 +659,11 @@ class AnytimeBleManager(
         }
         val startId = fromId.coerceAtLeast(0)
         val stopId = stopBeforeId.coerceAtLeast(startId)
+        if (shouldSuppressCaughtUpBackfill(startId, stopId, reason)) {
+            Log.d(TAG, "Skipping backfill during caught-up cooldown ($reason, start=$startId)")
+            maybeStartPendingFreshOlderBackfill()
+            return
+        }
         if (startId >= stopId) {
             Log.i(TAG, "Skipping empty backfill range ($reason, start=$startId stopBefore=$stopId)")
             maybeStartPendingFreshOlderBackfill()
@@ -1903,6 +1942,8 @@ class AnytimeBleManager(
                 historyEmptyResponsesInARow++
                 if (historyEmptyResponsesInARow >= HISTORY_EMPTY_RESPONSES_TO_STOP) {
                     Log.i(TAG, "Backfill caught up at id=$lastGlucoseId after $historyEmptyResponsesInARow empty responses")
+                    markHistoryCaughtUp((historyLastPulledId + 1).coerceAtLeast(0))
+                    flushPendingHistoryRoomImports()
                     finishHistoryBackfill()
                 } else {
                     handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
@@ -1922,6 +1963,9 @@ class AnytimeBleManager(
         val now = System.currentTimeMillis()
         val anchorId = records.maxOfOrNull { it.glucoseId } ?: -1
         val anchorMs = if (push && anchorId >= 0) now else 0L
+        if (anchorId >= 0) {
+            clearCaughtUpCooldownIfNewerData(anchorId)
+        }
         if (push && anchorMs > 0L && anchorId >= 0) {
             updateTimelineFromLiveGlucoseId(anchorId, anchorMs, intervalMs)
             maybeStartFreshPostLiveBackfill(anchorId)
@@ -1990,6 +2034,7 @@ class AnytimeBleManager(
         if (!push && !isFreshRecentBackfillReason() && !historyBackfillReason.startsWith("post-live-anchor(older-background)")) {
             recomputePendingNativeReadings(context, intervalMs)
         }
+        flushPendingHistoryRoomImports()
         persistAlgorithmState()
         armNoDataWatchdog()
         armPullFallback()
@@ -2092,6 +2137,7 @@ class AnytimeBleManager(
             commitReading(result, sampleMs, context, live = false, history = true)
             synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.remove(id) }
         }
+        flushPendingHistoryRoomImports()
     }
 
     private fun handleComputedGlucose(data: ByteArray) {
@@ -2135,6 +2181,7 @@ class AnytimeBleManager(
         val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
         val now = System.currentTimeMillis()
         updateTimelineFromLiveGlucoseId(rec.glucoseId, now, intervalMs)
+        clearCaughtUpCooldownIfNewerData(rec.glucoseId)
         maybeStartFreshPostLiveBackfill(rec.glucoseId)
         val sampleMs = if (glucoseTimelineStartAtMs > 0L) {
             glucoseTimelineStartAtMs + rec.glucoseId.toLong() * intervalMs
@@ -2179,6 +2226,8 @@ class AnytimeBleManager(
                 historyEmptyResponsesInARow++
                 if (historyEmptyResponsesInARow >= HISTORY_EMPTY_RESPONSES_TO_STOP) {
                     Log.i(TAG, "CT5 backfill caught up at id=$lastGlucoseId")
+                    markHistoryCaughtUp((historyLastPulledId + 1).coerceAtLeast(0))
+                    flushPendingHistoryRoomImports()
                     finishHistoryBackfill()
                 } else {
                     handler.postDelayed(historyBackfillRunnable, HISTORY_PULL_BATCH_DELAY_MS)
@@ -2190,6 +2239,7 @@ class AnytimeBleManager(
         historyEmptyResponsesInARow = 0
         records.maxOfOrNull { it.glucoseId }?.let { maxId ->
             if (maxId > historyLastPulledId) historyLastPulledId = maxId
+            clearCaughtUpCooldownIfNewerData(maxId)
         }
         val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
         val now = System.currentTimeMillis()
@@ -2216,6 +2266,7 @@ class AnytimeBleManager(
             commitReading(result, sampleMs, Applic.app, live = false, history = true)
             if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
         }
+        flushPendingHistoryRoomImports()
         persistAlgorithmState()
         armNoDataWatchdog()
         armPullFallback()
@@ -2324,7 +2375,11 @@ class AnytimeBleManager(
         // and was producing duplicate phantom rows such as 25.9 (mmol*10) beside
         // the Room-managed 2.59 mmol/L point.
         if (!skipHistoryImport) {
-            mirrorReadingIntoRoom(sampleMs, result)
+            if (history && !live) {
+                queueHistoryReadingForRoom(sampleMs, result)
+            } else {
+                mirrorReadingIntoRoom(sampleMs, result)
+            }
         } else {
             Log.d(TAG, "Skipping startup provisional Room import id=${result.glucoseId} source=${result.source}")
         }
@@ -2350,6 +2405,47 @@ class AnytimeBleManager(
     // Intentionally unused: managed Anytime history must not be mirrored into
     // native SensorGlucoseData. Current/live updates go through emitGlucose();
     // history rows go through VirtualGlucoseSensorBridge.importHistory().
+
+    private fun queueHistoryReadingForRoom(sampleMs: Long, result: AnytimeAlgorithm.Result) {
+        if (!historyRoomImportBuffer.queue(sampleMs, result)) {
+            Log.d(
+                TAG,
+                "Skipping duplicate Anytime ${result.source} history import id=${result.glucoseId} " +
+                        "sample=$sampleMs"
+            )
+        }
+    }
+
+    private fun flushPendingHistoryRoomImports() {
+        val name = SerialNumber ?: return
+        val pending = historyRoomImportBuffer.drain()
+        if (pending.isEmpty()) return
+        pending.groupBy { it.source }.forEach { (source, imports) ->
+            runCatching {
+                val imported = VirtualGlucoseSensorBridge.importHistory(
+                    sensorSerial = name,
+                    readings = imports.map { it.reading },
+                    logLabel = "Anytime $source",
+                    nearDuplicateWindowMs = if (source == AnytimeAlgorithm.Source.LINEAR) {
+                        HISTORY_ROOM_IMPORT_NEAR_DUPLICATE_MS
+                    } else {
+                        0L
+                    },
+                )
+                if (imported > 0) {
+                    val firstId = imports.firstOrNull()?.glucoseId
+                    val lastId = imports.lastOrNull()?.glucoseId
+                    val raw = imports.lastOrNull()?.rawMgdl ?: Float.NaN
+                    Log.i(
+                        TAG,
+                        "Imported $imported Anytime $source history points into Room " +
+                                "(ids=$firstId..$lastId rawLast=${"%.1f".format(raw)} mg/dL)"
+                    )
+                    historyRoomImportBuffer.markImported(imports)
+                }
+            }.onFailure { Log.stack(TAG, "flushPendingHistoryRoomImports", it) }
+        }
+    }
 
     private fun mirrorReadingIntoRoom(sampleMs: Long, result: AnytimeAlgorithm.Result) {
         val name = SerialNumber ?: return
