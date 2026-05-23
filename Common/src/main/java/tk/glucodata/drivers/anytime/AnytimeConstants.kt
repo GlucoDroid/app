@@ -224,6 +224,7 @@ object AnytimeConstants {
     const val BATTERY_LOW_VOLTS_CT3 = 4.05f
     const val BATTERY_LOW_VOLTS_CT3_A = 3.9f
     const val BATTERY_LOW_VOLTS_CT2_5 = 2.97f
+    const val BATTERY_LOW_VOLTS_CT4 = 2.97f
 
     /** Battery rated voltage (full transmitter). */
     const val BATTERY_FULL_VOLTS = 4.2f

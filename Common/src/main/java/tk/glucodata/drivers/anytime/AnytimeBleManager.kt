@@ -1571,11 +1571,11 @@ class AnytimeBleManager(
             UiRefreshBus.requestStatusRefresh()
             return
         }
+        if (status.failure != null) {
+            Log.w(TAG, "Check warning: ${status.failure} (battery=${status.batteryVolts}V iw=${status.workingElectrodeCurrentNa}nA)")
+        }
         if (!status.isHealthy) {
             Log.w(TAG, "Check failed: ${status.failure} (battery=${status.batteryVolts}V iw=${status.workingElectrodeCurrentNa}nA)")
-            if (status.failure == AnytimeCheckStatus.CheckFailure.LOW_BATTERY) {
-                runCatching { mBluetoothGatt?.disconnect() }
-            }
             return
         }
         Log.i(TAG, "Check OK (battery=${status.batteryVolts}V iw=${status.workingElectrodeCurrentNa}nA age=${status.sensorAgeReadings})")

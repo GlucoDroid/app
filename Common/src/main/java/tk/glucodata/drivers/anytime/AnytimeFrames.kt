@@ -850,7 +850,7 @@ object AnytimeFrames {
             sensorAgeReadings = sensorAge,
             workingElectrodeCurrentNa = iw,
             batteryVolts = volts,
-            isHealthy = failure == null,
+            isHealthy = failure == null || failure == AnytimeCheckStatus.CheckFailure.LOW_BATTERY,
             failure = failure,
         )
     }

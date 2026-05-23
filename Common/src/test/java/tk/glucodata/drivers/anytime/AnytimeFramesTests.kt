@@ -2,6 +2,7 @@ package tk.glucodata.drivers.anytime
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -39,6 +40,72 @@ class AnytimeFramesTests {
         assertEquals(1380, status.sensorAgeReadings)
         assertEquals(13.8f, status.workingElectrodeCurrentNa, 0.001f)
         assertEquals(4.27f, status.batteryVolts, 0.001f)
+    }
+
+    @Test
+    fun ct4CheckDoesNotTreat398VoltsAsLowBattery() {
+        val status = AnytimeFrames.parseCheckResponse(
+            byteArrayOf(
+                0x05,
+                0x12,
+                0x02,
+                0x78,
+                0x00,
+                0x01,
+                0x42,
+                0x49,
+                0x0B,
+                0x03,
+                0x62,
+                0x06,
+                0xD1.toByte(),
+                0x06,
+                0xD1.toByte(),
+                0x05,
+                0x18,
+                0x00,
+                0x00,
+                0x58,
+            ),
+            AnytimeConstants.BATTERY_LOW_VOLTS_CT4,
+        )
+
+        assertTrue(status.isHealthy)
+        assertNull(status.failure)
+        assertEquals(3.98f, status.batteryVolts, 0.001f)
+        assertEquals(82, AnytimeFrames.batteryPercent(status.batteryVolts, AnytimeConstants.BATTERY_LOW_VOLTS_CT4))
+    }
+
+    @Test
+    fun lowBatteryCheckIsAdvisoryNotSessionBlocking() {
+        val status = AnytimeFrames.parseCheckResponse(
+            byteArrayOf(
+                0x05,
+                0x12,
+                0x02,
+                0x78,
+                0x00,
+                0x01,
+                0x42,
+                0x49,
+                0x0B,
+                0x03,
+                0x62,
+                0x06,
+                0xD1.toByte(),
+                0x06,
+                0xD1.toByte(),
+                0x05,
+                0x18,
+                0x00,
+                0x00,
+                0x58,
+            ),
+            AnytimeConstants.BATTERY_LOW_VOLTS_CT3,
+        )
+
+        assertTrue(status.isHealthy)
+        assertEquals(AnytimeCheckStatus.CheckFailure.LOW_BATTERY, status.failure)
     }
 
     @Test
