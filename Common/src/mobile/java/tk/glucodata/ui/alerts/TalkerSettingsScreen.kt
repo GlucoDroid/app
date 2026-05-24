@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Schedule
@@ -50,8 +51,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -79,6 +84,7 @@ import kotlin.math.round
 import tk.glucodata.MainActivity
 import tk.glucodata.Natives
 import tk.glucodata.R
+import tk.glucodata.SpeakSchedule
 import tk.glucodata.Talker
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.SettingsItem
@@ -96,6 +102,7 @@ private data class TalkerUiState(
     val speakMessages: Boolean,
     val speakAlarms: Boolean,
     val mediaSound: Boolean,
+    val overrideSilent: Boolean,
     val separationSeconds: Int,
     val speed: Float,
     val pitch: Float,
@@ -114,8 +121,14 @@ fun TalkerSettingsScreen(navController: NavController) {
     var uiState by remember(activity) { mutableStateOf(loadTalkerUiState(activity)) }
     var separationText by remember { mutableStateOf(uiState.separationSeconds.toString()) }
     var voiceNames by remember(activity) { mutableStateOf(Talker.getVoiceNames().toList()) }
+    var previewingVoiceIndex by remember { mutableStateOf(-1) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
     var voiceMenuExpanded by remember { mutableStateOf(false) }
+    var scheduleEnabled by remember { mutableStateOf(SpeakSchedule.isEnabled(activity)) }
+    var scheduleStart by remember { mutableStateOf(SpeakSchedule.getStartMinutes(activity)) }
+    var scheduleEnd by remember { mutableStateOf(SpeakSchedule.getEndMinutes(activity)) }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.separationSeconds) {
         separationText = uiState.separationSeconds.toString()
@@ -136,8 +149,11 @@ fun TalkerSettingsScreen(navController: NavController) {
         }
         Talker.addVoiceOptionsListener(listener)
         listener.run()
+        Talker.setPreviewDoneListener { previewingVoiceIndex = -1 }
         onDispose {
             Talker.removeVoiceOptionsListener(listener)
+            Talker.setPreviewDoneListener(null)
+            Talker.stopPreview()
             Talker.finishComposeSession()
         }
     }
@@ -151,6 +167,7 @@ fun TalkerSettingsScreen(navController: NavController) {
             updated.speakMessages,
             updated.speakAlarms,
             updated.mediaSound,
+            updated.overrideSilent,
             updated.speed,
             updated.pitch,
             updated.separationSeconds,
@@ -176,6 +193,33 @@ fun TalkerSettingsScreen(navController: NavController) {
     }
     val headlineSummary = enabledSpeechLabels.joinToString(" • ").ifEmpty { selectedVoiceLabel }
     val profileLabel = profiles.getOrElse(uiState.profile) { profiles.first() }
+
+    if (showStartPicker) {
+        ScheduleTimePickerDialog(
+            initialHour = scheduleStart / 60,
+            initialMinute = scheduleStart % 60,
+            onDismiss = { showStartPicker = false },
+            onConfirm = { h, m ->
+                val mins = h * 60 + m
+                scheduleStart = mins
+                SpeakSchedule.setStartMinutes(activity, mins)
+                showStartPicker = false
+            }
+        )
+    }
+    if (showEndPicker) {
+        ScheduleTimePickerDialog(
+            initialHour = scheduleEnd / 60,
+            initialMinute = scheduleEnd % 60,
+            onDismiss = { showEndPicker = false },
+            onConfirm = { h, m ->
+                val mins = h * 60 + m
+                scheduleEnd = mins
+                SpeakSchedule.setEndMinutes(activity, mins)
+                showEndPicker = false
+            }
+        )
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp),
@@ -279,8 +323,25 @@ fun TalkerSettingsScreen(navController: NavController) {
                     onExpandedChange = { voiceMenuExpanded = it }
                 ) {
                     voiceNames.forEachIndexed { index, label ->
+                        val isPreviewing = previewingVoiceIndex == index
                         DropdownMenuItem(
                             text = { Text(label) },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    if (isPreviewing) {
+                                        Talker.stopPreview()
+                                        previewingVoiceIndex = -1
+                                    } else {
+                                        previewingVoiceIndex = index
+                                        Talker.previewVoice(index)
+                                    }
+                                }) {
+                                    Icon(
+                                        if (isPreviewing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = null
+                                    )
+                                }
+                            },
                             onClick = {
                                 voiceMenuExpanded = false
                                 persist(uiState.copy(selectedVoiceIndex = index))
@@ -292,9 +353,18 @@ fun TalkerSettingsScreen(navController: NavController) {
                 SettingsSwitchItem(
                     title = "Media",
                     checked = uiState.mediaSound,
-                    onCheckedChange = { persist(uiState.copy(mediaSound = it)) },
+                    onCheckedChange = { persist(uiState.copy(mediaSound = it, overrideSilent = false)) },
                     icon = Icons.Default.MusicNote,
                     iconTint = MaterialTheme.colorScheme.tertiary,
+                    position = CardPosition.MIDDLE
+                )
+                SettingsSwitchItem(
+                    title = stringResource(R.string.override_silent_mode),
+                    subtitle = stringResource(R.string.override_silent_mode_desc),
+                    checked = uiState.overrideSilent,
+                    onCheckedChange = { persist(uiState.copy(overrideSilent = it, mediaSound = false)) },
+                    icon = Icons.Default.NotificationsActive,
+                    iconTint = MaterialTheme.colorScheme.error,
                     position = CardPosition.BOTTOM
                 )
             }
@@ -370,8 +440,46 @@ fun TalkerSettingsScreen(navController: NavController) {
 //                }
 //            }
 
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SettingsSwitchItem(
+                    title = stringResource(R.string.voice_schedule_title),
+                    subtitle = stringResource(R.string.voice_schedule_desc),
+                    checked = scheduleEnabled,
+                    onCheckedChange = {
+                        scheduleEnabled = it
+                        SpeakSchedule.setEnabled(activity, it)
+                    },
+                    icon = Icons.Default.Schedule,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    position = if (scheduleEnabled) CardPosition.TOP else CardPosition.SINGLE
+                )
+                if (scheduleEnabled) {
+                    SettingsItem(
+                        title = stringResource(R.string.voice_schedule_from),
+                        subtitle = SpeakSchedule.formatMinutes(scheduleStart),
+                        showArrow = true,
+                        icon = Icons.Default.Schedule,
+                        iconTint = MaterialTheme.colorScheme.secondary,
+                        position = CardPosition.MIDDLE,
+                        onClick = { showStartPicker = true }
+                    )
+                    SettingsItem(
+                        title = stringResource(R.string.voice_schedule_until),
+                        subtitle = SpeakSchedule.formatMinutes(scheduleEnd),
+                        showArrow = true,
+                        icon = Icons.Default.Schedule,
+                        iconTint = MaterialTheme.colorScheme.tertiary,
+                        position = CardPosition.BOTTOM,
+                        onClick = { showEndPicker = true }
+                    )
+                }
+            }
+
             FilledTonalButton(
-                onClick = { Talker.testCurrentValue(activity) },
+                onClick = {
+                    persist(uiState)
+                    Talker.testCurrentValue(activity)
+                },
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp)
             ) {
@@ -611,12 +719,14 @@ private fun SliderCard(
 
 private fun loadTalkerUiState(context: Context): TalkerUiState {
     Talker.ensureComposeTalker(context)
+    val soundType = Natives.getSoundType()
     return TalkerUiState(
         speakGlucose = Natives.getVoiceActive(),
         talkTouch = Natives.gettouchtalk(),
         speakMessages = Natives.speakmessages(),
         speakAlarms = Natives.speakalarms(),
-        mediaSound = Natives.getSoundType() == AudioAttributes.USAGE_MEDIA,
+        mediaSound = soundType == AudioAttributes.USAGE_MEDIA,
+        overrideSilent = soundType == AudioAttributes.USAGE_ALARM,
         separationSeconds = Talker.getSeparationSeconds().coerceAtLeast(1),
         speed = Talker.getSelectedSpeed().coerceAtLeast(0.18f),
         pitch = Talker.getSelectedPitch().coerceAtLeast(0.18f),
@@ -650,4 +760,28 @@ private fun talkerSliderProgressToRatio(progress: Float): Float {
 
 private fun formatTalkerRatio(value: Float): String {
     return String.format(Locale.US, "%.2f", value)
+}
+
+@Composable
+private fun ScheduleTimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (hour: Int, minute: Int) -> Unit
+) {
+    val state = rememberTimePickerState(initialHour = initialHour, initialMinute = initialMinute)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
+                Text(stringResource(android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
+        text = { TimePicker(state = state) }
+    )
 }

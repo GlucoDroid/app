@@ -78,12 +78,14 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Set;
 
 public class Talker {
 static public final String LOG_ID="Talker";
     private TextToSpeech engine;
+    volatile boolean engineReady = false;
 
 static    private float curpitch=1.0f;
 static  private float curspeed=1.0f;
@@ -146,11 +148,76 @@ public static void removeVoiceOptionsListener(Runnable listener) {
         }
     }
 
+static String getFriendlyVoiceName(Voice voice) {
+    String systemName = voice.getName();
+    if (systemName.contains("-x-")) {
+        String id = systemName.split("-x-")[1].split("-")[0];
+        if (id.startsWith("msm")) return "Device Voice";
+        switch (id) {
+            case "iob": return "Voice A";
+            case "iog": return "Voice B";
+            case "iol": return "Voice C";
+            case "iom": return "Voice D";
+            case "sfg": return "Voice E";
+            case "tpc": return "Voice F";
+            case "tpd": return "Voice G";
+            case "tpf": return "Voice H";
+            default:    return "Voice (" + id.toUpperCase() + ")";
+        }
+    }
+    return systemName;
+}
+
+private static volatile Runnable previewDoneCallback;
+
+public static void setPreviewDoneListener(Runnable r) {
+    previewDoneCallback = r;
+}
+
+public static void previewVoice(int index) {
+    if (DontTalk) return;
+    var talk = SuperGattCallback.talker;
+    if (talk == null || !talk.engineReady) return;
+    Voice voice;
+    synchronized (voiceChoice) {
+        if (index < 0 || index >= voiceChoice.size()) return;
+        voice = voiceChoice.get(index);
+    }
+    talk.setvalues();
+    talk.engine.setVoice(voice);
+    talk.speakPreview();
+}
+
+private void speakPreview() {
+    if (DontTalk) return;
+    try {
+        if (android.os.Build.VERSION.SDK_INT >= minandroid) {
+            engine.setAudioAttributes(mediaAudio);
+            engine.speak("This is a voice preview.", TextToSpeech.QUEUE_FLUSH, null, "voice_preview");
+            engine.setAudioAttributes(notification_audio);
+        } else {
+            engine.speak("This is a voice preview.", TextToSpeech.QUEUE_FLUSH, null);
+        }
+    } catch (Throwable th) {
+        Log.stack(LOG_ID, "speakPreview failed", th);
+    }
+}
+
+public static void stopPreview() {
+    var talk = SuperGattCallback.talker;
+    if (talk != null && talk.engine != null) {
+        talk.engine.stop();
+        talk.setvoice();
+    }
+    var cb = previewDoneCallback;
+    if (cb != null) Applic.RunOnUiThread(cb);
+}
+
 public static ArrayList<String> getVoiceNames() {
     ArrayList<String> names=new ArrayList<>();
     synchronized(voiceChoice) {
         for(var voice:voiceChoice) {
-            names.add(voice.getName());
+            names.add(getFriendlyVoiceName(voice));
             }
         }
     return names;
@@ -181,7 +248,7 @@ public static void ensureComposeTalker(Context context) {
         SuperGattCallback.newtalker(context);
     }
 
-public static void applyComposeSettings(Context context, boolean speakGlucose, boolean touchTalk, boolean speakMessages, boolean speakAlarms, boolean mediaSound, float speed, float pitch, int separationSeconds, int selectedVoice) {
+public static void applyComposeSettings(Context context, boolean speakGlucose, boolean touchTalk, boolean speakMessages, boolean speakAlarms, boolean mediaSound, boolean overrideSilent, float speed, float pitch, int separationSeconds, int selectedVoice) {
     if(DontTalk)
         return;
     curspeed=speed;
@@ -191,7 +258,10 @@ public static void applyComposeSettings(Context context, boolean speakGlucose, b
     if(selectedVoice>=0)
         voicepos=selectedVoice;
 
-    if(mediaSound) {
+    if(overrideSilent) {
+        Natives.setSoundType(AudioAttributes.USAGE_ALARM);
+        }
+    else if(mediaSound) {
         Natives.setSoundType(AudioAttributes.USAGE_MEDIA);
         }
     else {
@@ -231,22 +301,31 @@ public static void selectProfile(Context context,int profile) {
     notifyVoiceListeners();
     }
 
+static final AudioAttributes mediaAudio = new AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build();
+
 public static void testCurrentValue(Context context) {
     if(DontTalk)
         return;
     var current = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
-    var say=(current!=null&&current.getPrimaryStr()!=null)?current.getPrimaryStr():"8.7";
-    if(istalking()) {
-        var talk=SuperGattCallback.talker;
-        if(talk!=null) {
-            talk.setvalues();
-            talk.setvoice();
+    var say=(current!=null&&current.getPrimaryStr()!=null)?current.getPrimaryStr():context.getString(R.string.tts_missed_readings);
+    var talk=SuperGattCallback.talker;
+    if(talk!=null && talk.engineReady) {
+        talk.setvalues();
+        talk.setvoice();
+        // Use media stream so test is audible regardless of notification mute
+        if(android.os.Build.VERSION.SDK_INT >= minandroid)
+            talk.speak(say, mediaAudio);
+        else
             talk.speak(say);
-            return;
-            }
+        return;
         }
+    // Engine not ready yet — queue for after init
     playstring=say;
-    SuperGattCallback.newtalker(context);
+    if(talk==null)
+        SuperGattCallback.newtalker(context);
     }
 
 void setvalues() {
@@ -277,6 +356,7 @@ if(!DontTalk) {
     }
 void destruct() {
 if(!DontTalk) {
+    engineReady = false;
     if(engine!=null) {
         engine.shutdown();
         engine=null;
@@ -303,6 +383,7 @@ if(!DontTalk) {
             return;
             }
          if(status ==TextToSpeech.SUCCESS) {
+            engineReady = true;
             setvalues();
             if (android.os.Build.VERSION.SDK_INT >= minandroid) {
                 Set<Voice> voices=gine.getVoices();
@@ -311,25 +392,32 @@ if(!DontTalk) {
                     }
                 else {
                     var loc=getlocale();
-   //                    var lang=(context!=null)?context.getString(R.string.language):loc.getLanguage();
                     var lang=loc.getLanguage();
                     {if(doLog) {Log.i(LOG_ID,"lang="+lang);};};
 
+                    var filtered=new ArrayList<Voice>();
+                    for(var voice:voices) {
+                        if(!lang.equals(voice.getLocale().getLanguage())) continue;
+                        // Skip network-only voices — not reliably available offline
+                        if(voice.isNetworkConnectionRequired()) continue;
+                        // Skip voices that are listed but not actually installed
+                        if(voice.getFeatures().contains(android.speech.tts.TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)) continue;
+                        // Skip base locale placeholder — not a selectable voice
+                        if(voice.getName().endsWith("-language")) continue;
+                        filtered.add(voice);
+                        }
+                    filtered.sort(Comparator.comparing(Voice::getName));
                     synchronized(voiceChoice) {
                         voiceChoice.clear();
-                        for(var voice:voices) {
-                            if(lang.equals(voice.getLocale().getLanguage())) {
-                                voiceChoice.add(voice);
-                                }
-                            }
+                        voiceChoice.addAll(filtered);
                         }
                     var spin=spinner;
                     if(spin!=null) {
                         {if(doLog) {Log.i(LOG_ID,"Talker spinner!=null");};};
                           Applic.RunOnUiThread(() -> {
                             spin.setAdapter(new RangeAdapter<Voice>(voiceChoice, Applic.app, voice -> {
-                                    return voice.getName();
-                                    })); 
+                                    return getFriendlyVoiceName(voice);
+                                    }));
                             if(voicepos>=0&&voicepos<voiceChoice.size())
                                 spin.setSelection(voicepos);
                             });
@@ -361,6 +449,10 @@ if(!DontTalk) {
             if(doLog) {Log.i(LOG_ID,"onDone "+utteranceId);};
             if(!notifyfocus)
                 doTurnFocusoff();
+            if ("voice_preview".equals(utteranceId)) {
+                var cb = previewDoneCallback;
+                if (cb != null) Applic.RunOnUiThread(cb);
+            }
         }
 
         @Override
@@ -368,7 +460,10 @@ if(!DontTalk) {
             if(doLog) {Log.i(LOG_ID,"onError "+utteranceId);};
             if(!notifyfocus)
                 doTurnFocusoff();
-
+            if ("voice_preview".equals(utteranceId)) {
+                var cb = previewDoneCallback;
+                if (cb != null) Applic.RunOnUiThread(cb);
+            }
             }
         @Override
         public void onStart(String utteranceId) {
@@ -384,9 +479,37 @@ if(!DontTalk) {
         }
    }
 
+// Fraction of the stream's max volume that is the minimum allowed for TTS output.
+// Prevents silence when the user (or system) drives the stream to zero.
+private static final float MIN_TTS_VOLUME_FRACTION = 0.25f;
+
+private static int usageToStreamType(int usage) {
+    switch (usage) {
+        case AudioAttributes.USAGE_ALARM:  return AudioManager.STREAM_ALARM;
+        case AudioAttributes.USAGE_MEDIA:  return AudioManager.STREAM_MUSIC;
+        default:                           return AudioManager.STREAM_NOTIFICATION;
+    }
+}
+
+private static void ensureMinStreamVolume() {
+    try {
+        AudioManager am = (AudioManager) Applic.app.getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) return;
+        final int stream = usageToStreamType(Natives.getSoundType());
+        final int maxVol = am.getStreamMaxVolume(stream);
+        final int minVol = Math.max(1, Math.round(maxVol * MIN_TTS_VOLUME_FRACTION));
+        if (am.getStreamVolume(stream) < minVol) {
+            am.setStreamVolume(stream, minVol, 0);
+        }
+    } catch (Throwable th) {
+        Log.stack(LOG_ID, "ensureMinStreamVolume", th);
+    }
+}
+
 public void speak(String message) {
     if(!DontTalk) {
         try {
+            ensureMinStreamVolume();
             if(
                     ((android.os.Build.VERSION.SDK_INT >= 21)?
                     engine.speak(message, TextToSpeech.QUEUE_FLUSH, null,message):
@@ -428,8 +551,8 @@ if(!DontTalk) {
 static long nexttime=0L;
 void selspeak(String message) {
     if(!DontTalk) {
-        var now=System.currentTimeMillis();    
-        if(now>nexttime) {
+        var now=System.currentTimeMillis();
+        if(now>nexttime && SpeakSchedule.INSTANCE.isWithinSchedule(Applic.app)) {
             nexttime=now+cursep;
             speak(message);
             }
@@ -655,7 +778,7 @@ private static View makeConfigView(MainActivity context, boolean overlayMode, Ru
 
             } });
         spin.setAdapter(new RangeAdapter<Voice>(voiceChoice, context, voice -> {
-                return voice.getName();
+                return getFriendlyVoiceName(voice);
                 }));
         {if(doLog) {Log.i(LOG_ID,"voicepos="+voicepos);};};
         if(voicepos>=0&&voicepos<voiceChoice.size())
@@ -765,7 +888,7 @@ private static View makeConfigView(MainActivity context, boolean overlayMode, Ru
         });
     test.setOnClickListener(v->  {
         var current = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
-        var say=(current!=null&&current.getPrimaryStr()!=null)?current.getPrimaryStr():"8.7";
+        var say=(current!=null&&current.getPrimaryStr()!=null)?current.getPrimaryStr():context.getString(R.string.tts_missed_readings);
         getvalues.run();
         if(istalking()) {
             var talk=SuperGattCallback.talker;

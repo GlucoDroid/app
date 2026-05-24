@@ -157,12 +157,15 @@ public class Notify {
         private static final long SOUND_FADE_IN_MS = 1_200L;
         private static final int SOUND_FADE_STEPS = 8;
         private static final float SOUND_START_VOLUME = 0.12f;
+        // Hard floor: sound must never accidentally go silent even if profile logic has a bug
+        private static final float MIN_PLAY_VOLUME = 0.3f;
 
         private final Ringtone ringtone;
         private final MediaPlayer mediaPlayer;
         private final String title;
         private boolean released = false;
         private int playGeneration = 0;
+        private float maxVolume = 1.0f;
 
         AlertSoundHandle(Ringtone ringtone, MediaPlayer mediaPlayer, String title) {
             this.ringtone = ringtone;
@@ -176,6 +179,10 @@ public class Notify {
 
         String getTitle() {
             return (title != null && !title.isEmpty()) ? title : "alert sound";
+        }
+
+        synchronized void setMaxVolume(float vol) {
+            maxVolume = Math.max(MIN_PLAY_VOLUME, Math.min(1.0f, vol));
         }
 
         private synchronized void setVolume(float volume) {
@@ -206,7 +213,7 @@ public class Notify {
                         }
                     }
                     final float progress = (float) finalStep / (float) SOUND_FADE_STEPS;
-                    setVolume(SOUND_START_VOLUME + ((1.0f - SOUND_START_VOLUME) * progress));
+                    setVolume(SOUND_START_VOLUME + ((maxVolume - SOUND_START_VOLUME) * progress));
                 }, delayMs, TimeUnit.MILLISECONDS);
             }
         }
@@ -520,8 +527,7 @@ public class Notify {
         var ring = setring(uristr, defaults[kind]);
         if (android.os.Build.VERSION.SDK_INT >= 21) {
             try {
-                // Use ALARM stream only if disturb=true AND USEALARM is enabled
-                boolean useAlarmStream = (!AlertType.Companion.isLegacyOnlyId(kind) && getUSEALARM() && disturb);
+                boolean useAlarmStream = (!AlertType.Companion.isLegacyOnlyId(kind) && disturb);
                 ring.setAudioAttributes(useAlarmStream ? ScanNfcV.audioattributes : notification_audio);
             } catch (Throwable e) {
                 Log.stack(LOG_ID, "mkring", e);
@@ -1725,10 +1731,7 @@ public class Notify {
                 final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
                 if (current != null) {
                     SuperGattCallback.talker.speak(current.getPrimaryStr(),
-                            getUSEALARM() ? ScanNfcV.audioattributes : notification_audio);
-                    // Applic.scheduler.schedule( () -> SuperGattCallback.talker.speak(glu.value,
-                    // getUSEALARM()?ScanNfcV.audioattributes:notification_audio), 50,
-                    // TimeUnit.MILLISECONDS);
+                            disturb ? ScanNfcV.audioattributes : notification_audio);
                 }
             }
         }
@@ -1812,7 +1815,7 @@ public class Notify {
                         if (current != null) {
                             Applic.scheduler.schedule(
                                     () -> SuperGattCallback.talker.speak(current.getPrimaryStr(),
-                                            getUSEALARM() ? ScanNfcV.audioattributes : notification_audio),
+                                            disturb ? ScanNfcV.audioattributes : notification_audio),
                                     300, TimeUnit.MILLISECONDS);
                         } else
                             doTurnFocusoff();
@@ -1858,6 +1861,7 @@ public class Notify {
         if (sound) {
             if (doplaysound[0] && hasSoundHandle) {
                 if (soundHandle != null) {
+                    soundHandle.setMaxVolume(soundVolumeForProfile(resolvedHapticProfile));
                     soundHandle.play();
                 } else if (doLog) {
                     Log.w(LOG_ID, "playringhier: sound handle is null");
@@ -1938,6 +1942,17 @@ public class Notify {
         }
     }
 
+    // SOFT=0.4, STEADY=0.7, STRONG/ESCALATING=1.0 — matches the old dead getVolumeFromProfile() intent.
+    // Never returns below AlertSoundHandle.MIN_PLAY_VOLUME (enforced again in setMaxVolume as a safety net).
+    private static float soundVolumeForProfile(String profile) {
+        if (profile == null) return 1.0f;
+        switch (profile.toUpperCase()) {
+            case "SOFT":      case "LOW":      return 0.4f;
+            case "STEADY":    case "MEDIUM":   return 0.7f;
+            default:                           return 1.0f;
+        }
+    }
+
     void mksound(int kind) {
         String ringUri = null;
         try {
@@ -1970,8 +1985,7 @@ public class Notify {
         final boolean sound = p.getBoolean("alert_" + kind + "_sound", defSound);
         final boolean vibration = p.getBoolean("alert_" + kind + "_vibration", defVibrate);
 
-        final boolean dist = isWearable || getalarmdisturb(kind); // DND might need Prefs too, but keeping Natives for
-                                                                  // now
+        final boolean dist = isWearable || p.getBoolean("alert_" + kind + "_dnd", getalarmdisturb(kind));
         final boolean useAlarmStream = shouldUseAlarmAudioStream(kind, dist);
         final AlertSoundHandle soundHandle = sound ? buildAlertSoundHandle(ringUri, kind, useAlarmStream) : null;
 
