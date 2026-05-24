@@ -34,6 +34,7 @@ package tk.glucodata.drivers.anytime
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
@@ -71,6 +72,10 @@ class AnytimeBleManager(
         private const val SERVICE_DISCOVERY_HARD_RECOVERY_DELAY_MS = 5_000L
         private const val SERVICE_DISCOVERY_RETRY_DELAY_MS = 1_500L
         private const val MAX_SERVICE_DISCOVERY_RETRIES = 2
+        private const val SERVICE_DISCOVERY_BOND_RECOVERY_THRESHOLD = 2
+        private const val SERVICE_DISCOVERY_FORCE_SCAN_THRESHOLD = 3
+        private const val FORCE_SCAN_RECONNECT_WINDOW_MS = 2L * 60L * 1000L
+        private const val FORCE_SCAN_RETRY_MS = 30_000L
 
         /** No-data watchdog multiplier applied to readingIntervalMinutes. */
         private const val NO_DATA_WATCHDOG_MULTIPLIER = 4L
@@ -194,6 +199,10 @@ class AnytimeBleManager(
     @Volatile private var serviceDiscoveryHandled: Boolean = false
     @Volatile private var serviceDiscoveryRetryCount: Int = 0
     @Volatile private var serviceDiscoveryRequestInFlight: Boolean = false
+    @Volatile private var serviceDiscoveryFailureStreak: Int = 0
+    @Volatile private var forceScanReconnectUntilMs: Long = 0L
+    @Volatile private var forceScanResultAddress: String = ""
+    @Volatile private var forceScanResultAtMs: Long = 0L
     @Volatile private var pendingCccdGatt: BluetoothGatt? = null
     @Volatile private var lastConnectRequestAtMs: Long = 0L
     @Volatile private var pendingFingerstickMgdl: Int = -1
@@ -868,6 +877,7 @@ class AnytimeBleManager(
     private val serviceDiscoveryWatchdog = Runnable {
         if (stop || phase != Phase.DISCOVERING || serviceDiscoveryHandled) return@Runnable
         Log.w(TAG, "Service discovery wedged — resetting GATT before reconnect")
+        noteServiceDiscoveryFailure("service discovery timeout")
         recoverGattAndReconnect(
             reason = "service discovery timeout",
             delayMs = SERVICE_DISCOVERY_HARD_RECOVERY_DELAY_MS,
@@ -880,6 +890,16 @@ class AnytimeBleManager(
         if (serviceDiscoveryRetryCount >= MAX_SERVICE_DISCOVERY_RETRIES) return@Runnable
         val gatt = mBluetoothGatt ?: return@Runnable
         discoverServicesOrRetry(gatt, "retry")
+    }
+
+    private val forceScanReconnectRetryRunnable: Runnable = Runnable {
+        if (stop || !shouldForceScanReconnect(System.currentTimeMillis())) return@Runnable
+        if (mBluetoothGatt != null || phase == Phase.DISCOVERING || phase == Phase.HANDSHAKING || phase == Phase.STREAMING) {
+            return@Runnable
+        }
+        Log.i(TAG, "Forced scan-result reconnect still pending; restarting scanner")
+        phase = Phase.IDLE
+        connectDevice(0)
     }
 
     private fun discoverServicesOrRetry(gatt: BluetoothGatt, reason: String) {
@@ -899,6 +919,7 @@ class AnytimeBleManager(
             if (serviceDiscoveryRetryCount < MAX_SERVICE_DISCOVERY_RETRIES + 1) {
                 handler.postDelayed(serviceDiscoveryRetryRunnable, SERVICE_DISCOVERY_RETRY_DELAY_MS)
             } else {
+                noteServiceDiscoveryFailure("discoverServices returned false")
                 recoverGattAndReconnect(
                     reason = "discoverServices returned false",
                     delayMs = SERVICE_DISCOVERY_HARD_RECOVERY_DELAY_MS,
@@ -924,6 +945,7 @@ class AnytimeBleManager(
         handler.removeCallbacks(serviceDiscoveryWatchdog)
         handler.removeCallbacks(serviceDiscoveryRetryRunnable)
         handler.removeCallbacks(cccdWriteTimeoutRunnable)
+        handler.removeCallbacks(forceScanReconnectRetryRunnable)
         handler.removeCallbacks(noDataWatchdog)
         handler.removeCallbacks(pullFallbackRunnable)
         handler.removeCallbacks(telemetryCheckRunnable)
@@ -977,6 +999,82 @@ class AnytimeBleManager(
             Log.d(TAG, "BluetoothGatt.refresh($reason) unavailable: ${t.javaClass.simpleName}: ${t.message}")
         }
     }
+
+    private fun noteServiceDiscoveryFailure(reason: String) {
+        serviceDiscoveryFailureStreak++
+        val gatt = mBluetoothGatt
+        val device = gatt?.device ?: mActiveBluetoothDevice
+        val bondState = device?.bondState ?: BluetoothDevice.BOND_NONE
+        Log.w(
+            TAG,
+            "Service discovery failure #$serviceDiscoveryFailureStreak ($reason, bond=${bondStateName(bondState)})"
+        )
+        if (serviceDiscoveryFailureStreak >= SERVICE_DISCOVERY_BOND_RECOVERY_THRESHOLD) {
+            removeUnexpectedBondForDiscoveryRecovery(device, reason)
+        }
+        if (serviceDiscoveryFailureStreak >= SERVICE_DISCOVERY_FORCE_SCAN_THRESHOLD) {
+            forceScanReconnectUntilMs = System.currentTimeMillis() + FORCE_SCAN_RECONNECT_WINDOW_MS
+            forceScanResultAddress = ""
+            forceScanResultAtMs = 0L
+            mActiveBluetoothDevice = null
+            Log.w(
+                TAG,
+                "Forcing scan-result reconnect for ${FORCE_SCAN_RECONNECT_WINDOW_MS / 1000}s after $reason"
+            )
+        }
+    }
+
+    private fun noteServiceDiscoverySuccess() {
+        if (serviceDiscoveryFailureStreak > 0) {
+            Log.i(TAG, "Service discovery recovered after $serviceDiscoveryFailureStreak failure(s)")
+        }
+        serviceDiscoveryFailureStreak = 0
+        forceScanReconnectUntilMs = 0L
+        forceScanResultAddress = ""
+        forceScanResultAtMs = 0L
+        handler.removeCallbacks(forceScanReconnectRetryRunnable)
+    }
+
+    private fun shouldForceScanReconnect(now: Long): Boolean =
+        forceScanReconnectUntilMs > now
+
+    private fun hasForceScanResultForActiveDevice(now: Long): Boolean {
+        val address = mActiveDeviceAddress ?: return false
+        return forceScanResultAtMs > 0L &&
+                now - forceScanResultAtMs <= FORCE_SCAN_RECONNECT_WINDOW_MS &&
+                forceScanResultAddress.equals(address, ignoreCase = true)
+    }
+
+    private fun armForceScanReconnectRetry() {
+        handler.removeCallbacks(forceScanReconnectRetryRunnable)
+        handler.postDelayed(forceScanReconnectRetryRunnable, FORCE_SCAN_RETRY_MS)
+    }
+
+    private fun removeUnexpectedBondForDiscoveryRecovery(device: BluetoothDevice?, reason: String): Boolean {
+        if (device == null) return false
+        val bondState = device.bondState
+        if (bondState != BluetoothDevice.BOND_BONDED && bondState != BluetoothDevice.BOND_BONDING) return false
+        return runCatching {
+            val removeBond = device.javaClass.getMethod("removeBond")
+            val removed = removeBond.invoke(device) as? Boolean ?: false
+            Log.w(
+                TAG,
+                "Removed unexpected Android bond for ${device.address} after $reason " +
+                        "(state=${bondStateName(bondState)}, removed=$removed)"
+            )
+            removed
+        }.onFailure { t ->
+            Log.w(TAG, "Failed to remove unexpected Android bond after $reason: ${t.message}")
+        }.getOrDefault(false)
+    }
+
+    private fun bondStateName(state: Int): String =
+        when (state) {
+            BluetoothDevice.BOND_NONE -> "none"
+            BluetoothDevice.BOND_BONDING -> "bonding"
+            BluetoothDevice.BOND_BONDED -> "bonded"
+            else -> state.toString()
+        }
 
     private fun shouldForceStaleGattReconnect(now: Long): Boolean {
         if (phase == Phase.IDLE) return false
@@ -1165,10 +1263,17 @@ class AnytimeBleManager(
             }
             return false
         }
+        val forceScan = shouldForceScanReconnect(now)
+        if (forceScan && mActiveBluetoothDevice != null && !hasForceScanResultForActiveDevice(now)) {
+            Log.i(TAG, "Discarding cached BLE device; waiting for scan result before reconnecting to $SerialNumber")
+            mActiveBluetoothDevice = null
+        }
         resolveActiveDeviceFromStoredAddress()
-        if (phase == Phase.CONNECTING || phase == Phase.DISCOVERING ||
+        val forceScanConnectAttempt =
+            forceScan && phase == Phase.CONNECTING && mBluetoothGatt == null
+        if (!forceScanConnectAttempt && (phase == Phase.CONNECTING || phase == Phase.DISCOVERING ||
             phase == Phase.HANDSHAKING || phase == Phase.STREAMING
-        ) {
+        )) {
             if (shouldForceStaleGattReconnect(now)) {
                 recoverGattAndReconnect("stale $phase before connectDevice", 250L)
                 return true
@@ -1180,6 +1285,12 @@ class AnytimeBleManager(
         lastConnectRequestAtMs = now
         phase = Phase.CONNECTING
         val scheduled = super.connectDevice(delayMillis)
+        if (!scheduled && forceScan && phase == Phase.CONNECTING) {
+            Log.i(TAG, "Forced scan-result reconnect is waiting for scanner to rediscover $SerialNumber")
+            armForceScanReconnectRetry()
+            UiRefreshBus.requestStatusRefresh()
+            return true
+        }
         if (!scheduled && phase == Phase.CONNECTING) {
             phase = Phase.IDLE
             scheduleReconnect("connectDevice returned false", ACTIVE_SESSION_RECONNECT_DELAY_MS)
@@ -1189,6 +1300,10 @@ class AnytimeBleManager(
 
     private fun resolveActiveDeviceFromStoredAddress() {
         if (mActiveBluetoothDevice != null) return
+        if (shouldForceScanReconnect(System.currentTimeMillis())) {
+            Log.i(TAG, "Waiting for BLE scan result before reconnecting to $SerialNumber")
+            return
+        }
         val address = mActiveDeviceAddress
             ?.trim()
             ?.takeIf { BluetoothAdapter.checkBluetoothAddress(it) }
@@ -1198,6 +1313,16 @@ class AnytimeBleManager(
         if (mActiveBluetoothDevice != null) {
             Log.i(TAG, "Resolved active BLE device from stored address $address")
         }
+    }
+
+    override fun setDevice(device: BluetoothDevice?) {
+        val now = System.currentTimeMillis()
+        if (device != null && shouldForceScanReconnect(now)) {
+            forceScanResultAddress = device.address.orEmpty()
+            forceScanResultAtMs = now
+            Log.i(TAG, "Force-scan reconnect matched advertisement from ${device.address}")
+        }
+        super.setDevice(device)
     }
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
@@ -1290,6 +1415,7 @@ class AnytimeBleManager(
         handler.removeCallbacks(serviceDiscoveryRetryRunnable)
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "onServicesDiscovered failed status=$status")
+            noteServiceDiscoveryFailure("services discovery failed status=$status")
             recoverGattAndReconnect(
                 reason = "services discovery failed status=$status",
                 delayMs = SERVICE_DISCOVERY_HARD_RECOVERY_DELAY_MS,
@@ -1317,9 +1443,16 @@ class AnytimeBleManager(
         val write = charWrite
         if (svc == null || notify == null || write == null) {
             Log.e(TAG, "Required Anytime characteristics not found")
-            recoverGattAndReconnect("missing characteristics", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+            logDiscoveredServices(gatt)
+            noteServiceDiscoveryFailure("missing characteristics")
+            recoverGattAndReconnect(
+                reason = "missing characteristics",
+                delayMs = SERVICE_DISCOVERY_HARD_RECOVERY_DELAY_MS,
+                refreshGattCache = true,
+            )
             return
         }
+        noteServiceDiscoverySuccess()
         Log.i(
             TAG,
             "GATT service=${svc.uuid} notify=${notify.uuid} props=0x%02X write=${write.uuid} props=0x%02X".format(
@@ -1350,6 +1483,22 @@ class AnytimeBleManager(
             Log.w(TAG, "Notify characteristic has no CCCD descriptor")
             beginHandshake(gatt, "missing-cccd")
         }
+    }
+
+    private fun logDiscoveredServices(gatt: BluetoothGatt) {
+        val services = gatt.services.orEmpty()
+        if (services.isEmpty()) {
+            Log.w(TAG, "Discovered service list is empty")
+            return
+        }
+        val summary = services.take(8).joinToString(" | ") { service ->
+            val chars = service.characteristics.orEmpty().take(8).joinToString(",") { characteristic ->
+                "${characteristic.uuid}/0x%02X".format(characteristic.properties)
+            }
+            "${service.uuid}[$chars]"
+        }
+        val suffix = if (services.size > 8) " | ... +${services.size - 8} services" else ""
+        Log.w(TAG, "Discovered services without Anytime characteristics: $summary$suffix")
     }
 
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
