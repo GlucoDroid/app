@@ -2628,6 +2628,14 @@ public class Notify {
         }
     }
 
+    private static void setImageViewBitmapIfPresent(RemoteViews remoteViews, int viewId, Bitmap bitmap) {
+        // Android 17 beta crashes while reducing notification images if a
+        // RemoteViews image action carries a null bitmap/icon.
+        if (bitmap != null) {
+            remoteViews.setImageViewBitmap(viewId, bitmap);
+        }
+    }
+
     private void makeseparatenotification(float glvalue, String message, notGlucose glucose, String type,
             int alertTypeId) {
         makeseparatenotification(glvalue, message, glucose, type, alertTypeId, null, null);
@@ -3305,8 +3313,8 @@ public class Notify {
                     viewMode, showTargetRange, hasCalibration, false, activeSensorSerial);
         }
 
-        remoteViews.setImageViewBitmap(R.id.notification_chart, chartBitmapCollapsed);
         if (showChartCollapsed && chartBitmapCollapsed != null) {
+            setImageViewBitmapIfPresent(remoteViews, R.id.notification_chart, chartBitmapCollapsed);
             remoteViews.setViewVisibility(R.id.chart_container, View.VISIBLE);
             remoteViews.setViewVisibility(R.id.notification_chart, View.VISIBLE);
         } else {
@@ -3314,8 +3322,8 @@ public class Notify {
             remoteViews.setViewVisibility(R.id.notification_chart, View.GONE);
         }
 
-        remoteViewsExpanded.setImageViewBitmap(R.id.notification_chart, chartBitmapExpanded);
         if (showChart && chartBitmapExpanded != null) {
+            setImageViewBitmapIfPresent(remoteViewsExpanded, R.id.notification_chart, chartBitmapExpanded);
             remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.VISIBLE);
         } else {
             remoteViewsExpanded.setViewVisibility(R.id.notification_chart, View.GONE);
