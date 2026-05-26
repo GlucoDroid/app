@@ -725,7 +725,18 @@ class AnytimeBleManager(
         if (!restoredGlucoseState) {
             val startId = (lastGlucoseId + 1).coerceAtLeast(0)
             if (startId > 0 && nativeBackingExistedAtRestore) {
-                Log.i(TAG, "Existing native backing detected without AnytimeRegistry; post-init auto-backfill starts at id=$startId instead of replaying from zero")
+                if (nativeAlgorithmExpected()) {
+                    val firstMissing = firstMissingRawHistoryIdThrough(lastGlucoseId)
+                    if (firstMissing != null) {
+                        Log.i(
+                            TAG,
+                            "Existing native backing is missing raw post-init prefix from id=$firstMissing; " +
+                                    "replaying through current id=$lastGlucoseId"
+                        )
+                        return firstMissing
+                    }
+                }
+                Log.i(TAG, "Existing native backing has raw post-init prefix cached; auto-backfill starts at id=$startId")
                 return startId
             }
             return 0
