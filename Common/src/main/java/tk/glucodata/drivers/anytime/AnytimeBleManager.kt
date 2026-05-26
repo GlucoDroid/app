@@ -47,7 +47,6 @@ import java.security.SecureRandom
 import java.util.Locale
 import java.util.UUID
 import tk.glucodata.Applic
-import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.R
@@ -131,6 +130,9 @@ class AnytimeBleManager(
 
         /** Small pause between the quick recent tail and the older full-prefix fill. */
         private const val FRESH_OLDER_BACKFILL_DELAY_MS = 2_000L
+
+        /** Treat a live glucose id this far behind restored state as a new sensor session. */
+        private const val GLUCOSE_ID_ROLLBACK_RESET_THRESHOLD = 48
 
         /** Some CT4 units do not ACK init; do not wait for the next 3-minute push if we can resume from cache. */
         private const val INIT_NO_ACK_STREAMING_GRACE_MS = 650L
@@ -290,7 +292,7 @@ class AnytimeBleManager(
         }
         voltageFlag = AnytimeRegistry.loadVoltageFlag(context, id)
         transmitterVersion = AnytimeRegistry.loadTransmitterVersion(context, id)
-        lastGlucoseId = AnytimeRegistry.loadLastGlucoseId(context, id)
+        val persistedLastGlucoseId = AnytimeRegistry.loadLastGlucoseId(context, id)
         sensorStartAtMs = AnytimeRegistry.loadSensorStartAt(context, id)
         warmupStartedAtMs = AnytimeRegistry.loadWarmupStartedAt(context, id)
         bound = AnytimeRegistry.loadBound(context, id)
@@ -302,6 +304,19 @@ class AnytimeBleManager(
         ct5RandomB = AnytimeRegistry.loadCt5RandomB(context, id)
         ct5TempId = AnytimeRegistry.loadCt5TempId(context, id)
         val rawHistory = AnytimeRegistry.loadRawHistory(context, id)
+        val rawMaxId = rawHistory.maxOfOrNull { it.glucoseId } ?: -1
+        lastGlucoseId = sanitizeRestoredGlucoseId(
+            persistedLastId = persistedLastGlucoseId,
+            cachedRawMaxId = rawMaxId,
+            rollbackThreshold = GLUCOSE_ID_ROLLBACK_RESET_THRESHOLD,
+        )
+        if (lastGlucoseId != persistedLastGlucoseId) {
+            Log.w(
+                TAG,
+                "Restored Anytime cursor was ahead of cached raw history; using raw tail id=$lastGlucoseId " +
+                        "instead of persisted id=$persistedLastGlucoseId"
+            )
+        }
         synchronized(rawAlgorithmWindow) {
             rawAlgorithmWindow.clear()
             rawHistory.forEach { rawAlgorithmWindow[it.glucoseId] = it }
@@ -780,6 +795,55 @@ class AnytimeBleManager(
         val startedAfter = historyBackfillStartedAfterGlucoseId
         if (startedAfter < 0) return false
         return glucoseId > startedAfter && glucoseId <= lastGlucoseId
+    }
+
+    private fun maybeResetSessionForLiveId(liveId: Int) {
+        val cachedRawMaxId = synchronized(rawAlgorithmWindow) {
+            if (rawAlgorithmWindow.isEmpty()) -1 else rawAlgorithmWindow.lastKey()
+        }
+        val previousMaxId = maxOf(lastGlucoseId, cachedRawMaxId)
+        if (!liveIdLooksRolledBack(
+                liveId = liveId,
+                previousMaxId = previousMaxId,
+                rollbackThreshold = GLUCOSE_ID_ROLLBACK_RESET_THRESHOLD,
+            )
+        ) {
+            return
+        }
+
+        Log.w(
+            TAG,
+            "Detected Anytime glucose-id rollback liveId=$liveId previousLast=$lastGlucoseId " +
+                    "cachedRawMax=$cachedRawMaxId; clearing session runtime state"
+        )
+        stopHistoryBackfill()
+        interruptedBackfillReason = ""
+        interruptedBackfillFromId = -1
+        interruptedBackfillStopBeforeId = Int.MAX_VALUE
+        synchronized(rawAlgorithmWindow) { rawAlgorithmWindow.clear() }
+        synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.clear() }
+        historyRoomImportBuffer.clear()
+        historyCaughtUpCooldown.clear()
+        lastGlucoseId = -1
+        lastGlucoseAtMs = 0L
+        lastGlucoseMgdlTimes10 = 0
+        lastRawMgdl = Float.NaN
+        sensorStartAtMs = 0L
+        glucoseTimelineStartAtMs = 0L
+        warmupStartedAtMs = 0L
+        freshPostLiveBackfillStarted = false
+        freshOlderBackfillStarted = false
+        pendingFreshOlderBackfillStartId = -1
+        lastReferenceBgMgdlTimes10 = 0
+        lastReferenceBgGlucoseId = 0
+        lastReferenceAppliedGlucoseId = 0
+        referenceCalibrationRecords = emptyList()
+        calibrationStatusText = ""
+        calibrationStatusAtMs = 0L
+        calibrationStatusClearAfterGlucoseId = 0
+        lastAlgorithmCalibrationStatus = AnytimeCalibrationPolicy.CALIBRATION_STATUS_UNKNOWN
+        lastAlgorithmResult = null
+        persistAlgorithmState()
     }
 
     private fun hasContiguousRawHistoryThrough(targetId: Int): Boolean {
@@ -1647,6 +1711,13 @@ class AnytimeBleManager(
             AnytimeConstants.RX_PUSH_GLUCOSE -> handleGlucoseFrame(data, push = true)
             AnytimeConstants.RX_PULL_GLUCOSE -> handleGlucoseFrame(data, push = false)
             AnytimeConstants.RX_SERIES -> handleGlucoseFrame(data, push = false)
+            AnytimeConstants.RX_LEGACY_RAW_DUMP -> {
+                if (usesWideRawRecords()) {
+                    handleGlucoseFrame(data, push = false)
+                } else {
+                    Log.d(TAG, "Ignoring legacy raw dump for family=${familyEntry.family}")
+                }
+            }
             AnytimeConstants.RX_INPUT_BG_ACK -> handleInputBgAck(data)
             AnytimeConstants.RX_UNBIND_ACK -> handleUnbindAck()
             AnytimeConstants.RX_INPUT_KR_ACK -> handleInputKrAck()
@@ -2078,7 +2149,7 @@ class AnytimeBleManager(
     }
 
     private fun handleRawGlucose(data: ByteArray, push: Boolean) {
-        val records = if (!push && data.firstOrNull() == AnytimeConstants.RX_SERIES) {
+        val records = if (!push && isWideRawSeriesFrame(data)) {
             AnytimeFrames.parseWideRawSeriesRecords(data)
         } else {
             AnytimeFrames.parseRawRecords(data, usesWideRawRecords())
@@ -2118,6 +2189,9 @@ class AnytimeBleManager(
         val now = System.currentTimeMillis()
         val anchorId = records.maxOfOrNull { it.glucoseId } ?: -1
         val anchorMs = if (push && anchorId >= 0) now else 0L
+        if (push && anchorId >= 0) {
+            maybeResetSessionForLiveId(anchorId)
+        }
         if (anchorId >= 0) {
             clearCaughtUpCooldownIfNewerData(anchorId)
         }
@@ -2200,6 +2274,10 @@ class AnytimeBleManager(
         }
         UiRefreshBus.requestStatusRefresh()
     }
+
+    private fun isWideRawSeriesFrame(data: ByteArray): Boolean =
+        data.firstOrNull() == AnytimeConstants.RX_SERIES ||
+                data.firstOrNull() == AnytimeConstants.RX_LEGACY_RAW_DUMP
 
     private fun shouldSkipStartupRoomImport(
         result: AnytimeAlgorithm.Result,
@@ -2491,13 +2569,30 @@ class AnytimeBleManager(
         history: Boolean,
         skipHistoryImport: Boolean = false,
     ): Boolean {
+        val rawMgdl = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
+        if (shouldRejectNativeFallbackAuto(result)) {
+            Log.w(
+                TAG,
+                "Dropping LINEAR fallback id=%d while native Anytime algorithm is expected " +
+                        "(linear=%.1f mg/dL rawLinear=%.1f mg/dL Iw=%.2f Ib=%.2f T=%.1f)".format(
+                            result.glucoseId,
+                            result.mgdl,
+                            rawMgdl,
+                            result.iwNa,
+                            result.ibNa,
+                            result.temperatureC,
+                        )
+            )
+            return false
+        }
         if (result.errorCode != 0 || result.mgdlTimes10 < 170) {
             Log.w(
                 TAG,
-                "Dropping invalid BG id=%d source=%s mgdl=%.1f err=%d Iw=%.2f Ib=%.2f T=%.1f".format(
+                "Dropping invalid BG id=%d source=%s mgdl=%.1f rawLinear=%.1f err=%d Iw=%.2f Ib=%.2f T=%.1f".format(
                     result.glucoseId,
                     result.source,
                     result.mgdl,
+                    rawMgdl,
                     result.errorCode,
                     result.iwNa,
                     result.ibNa,
@@ -2513,7 +2608,7 @@ class AnytimeBleManager(
         if (newest) {
             lastGlucoseAtMs = sampleMs
             lastGlucoseMgdlTimes10 = result.mgdlTimes10
-            lastRawMgdl = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
+            lastRawMgdl = rawMgdl
             lastIwNa = result.iwNa
             lastIbNa = result.ibNa
             lastTemperatureC = result.temperatureC
@@ -2521,8 +2616,8 @@ class AnytimeBleManager(
         }
         Log.i(
             TAG,
-            "BG id=%d %s mmol=%.2f mgdl=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d cal=%s".format(
-                result.glucoseId, result.source, result.mmol, result.mgdl,
+            "BG id=%d %s mmol=%.2f mgdl=%.1f rawLinear=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d cal=%s".format(
+                result.glucoseId, result.source, result.mmol, result.mgdl, rawMgdl,
                 result.iwNa, result.ibNa, result.temperatureC, result.trend, result.errorCode,
                 AnytimeCalibrationPolicy.calibrationStatusName(result.calibrationStatus),
             )
@@ -2557,6 +2652,9 @@ class AnytimeBleManager(
         }
         return true
     }
+
+    private fun shouldRejectNativeFallbackAuto(result: AnytimeAlgorithm.Result): Boolean =
+        nativeAlgorithmExpected() && result.source == AnytimeAlgorithm.Source.LINEAR
 
     private fun ensureNativeSensorShell() {
         val canonical = SerialNumber ?: return

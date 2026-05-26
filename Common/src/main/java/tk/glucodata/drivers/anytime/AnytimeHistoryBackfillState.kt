@@ -19,9 +19,14 @@ internal class AnytimeHistoryCaughtUpCooldown(
     fun clearIfNewerData(glucoseId: Int) {
         val caughtUpNext = caughtUpNextRequestId
         if (caughtUpNext >= 0 && glucoseId >= caughtUpNext) {
-            caughtUpNextRequestId = -1
-            caughtUpAtMs = 0L
+            clear()
         }
+    }
+
+    @Synchronized
+    fun clear() {
+        caughtUpNextRequestId = -1
+        caughtUpAtMs = 0L
     }
 
     @Synchronized
@@ -41,6 +46,34 @@ internal class AnytimeHistoryCaughtUpCooldown(
     }
 }
 
+internal fun sanitizeRestoredGlucoseId(
+    persistedLastId: Int,
+    cachedRawMaxId: Int,
+    rollbackThreshold: Int,
+): Int {
+    if (persistedLastId < 0) return persistedLastId
+    if (cachedRawMaxId < 0) return persistedLastId
+    return if (liveIdLooksRolledBack(
+            liveId = cachedRawMaxId,
+            previousMaxId = persistedLastId,
+            rollbackThreshold = rollbackThreshold,
+        )
+    ) {
+        cachedRawMaxId
+    } else {
+        persistedLastId
+    }
+}
+
+internal fun liveIdLooksRolledBack(
+    liveId: Int,
+    previousMaxId: Int,
+    rollbackThreshold: Int,
+): Boolean =
+    liveId >= 0 &&
+            previousMaxId >= 0 &&
+            liveId + rollbackThreshold.coerceAtLeast(0) < previousMaxId
+
 internal data class AnytimePendingHistoryRoomImport(
     val glucoseId: Int,
     val source: AnytimeAlgorithm.Source,
@@ -56,13 +89,13 @@ internal class AnytimeHistoryRoomImportBuffer {
 
     @Synchronized
     fun queue(sampleMs: Long, result: AnytimeAlgorithm.Result): Boolean {
+        val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
         val priority = priority(result.source)
         val seenPriority = seenPriorities[result.glucoseId]
         val pendingPriority = pending[result.glucoseId]?.priority
         val bestKnownPriority = maxOf(seenPriority ?: 0, pendingPriority ?: 0)
         if (bestKnownPriority >= priority) return false
 
-        val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
         pending[result.glucoseId] = AnytimePendingHistoryRoomImport(
             glucoseId = result.glucoseId,
             source = result.source,
@@ -76,6 +109,12 @@ internal class AnytimeHistoryRoomImportBuffer {
             ),
         )
         return true
+    }
+
+    @Synchronized
+    fun clear() {
+        pending.clear()
+        seenPriorities.clear()
     }
 
     @Synchronized
