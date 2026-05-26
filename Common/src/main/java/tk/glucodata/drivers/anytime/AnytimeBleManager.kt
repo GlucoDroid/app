@@ -766,18 +766,27 @@ class AnytimeBleManager(
         if (restoredGlucoseState || freshOlderBackfillStarted) return
         val recentStartId = pendingFreshOlderBackfillStartId
         if (recentStartId <= 0) return
-        if (nativeBackingExistedAtRestore) {
+        val olderStartId = firstMissingRawHistoryIdThrough(recentStartId - 1)
+        if (olderStartId == null) {
             freshOlderBackfillStarted = true
-            Log.i(TAG, "Existing native backing detected without AnytimeRegistry; skipping automatic older history replay id=0..${recentStartId - 1}")
+            Log.i(TAG, "Recent tail loaded; raw prefix id=0..${recentStartId - 1} is already cached")
             return
         }
         freshOlderBackfillStarted = true
         handler.postDelayed({
             if (!stop && phase == Phase.STREAMING && !historyBackfillActive) {
-                Log.i(TAG, "Recent tail loaded; continuing automatic older history backfill id=0..${recentStartId - 1}")
+                if (nativeBackingExistedAtRestore) {
+                    Log.i(
+                        TAG,
+                        "Existing native backing is missing raw prefix from id=$olderStartId; " +
+                                "continuing older history backfill through id=${recentStartId - 1}"
+                    )
+                } else {
+                    Log.i(TAG, "Recent tail loaded; continuing automatic older history backfill id=$olderStartId..${recentStartId - 1}")
+                }
                 startHistoryBackfill(
                     reason = "post-live-anchor(older-background)",
-                    fromId = 0,
+                    fromId = olderStartId,
                     stopBeforeId = recentStartId,
                 )
             }
@@ -2661,6 +2670,17 @@ class AnytimeBleManager(
         }.onFailure { Log.stack(TAG, "ensureNativeSensorShell", it) }
     }
 
+    private fun resolveNativeSensorPtr(): Long {
+        if (dataptr != 0L) {
+            runCatching { Natives.getsensorptr(dataptr) }
+                .getOrDefault(0L)
+                .takeIf { it != 0L }
+                ?.let { return it }
+        }
+        val canonical = SerialNumber ?: return 0L
+        return runCatching { Natives.str2sensorptr(canonical) }.getOrDefault(0L)
+    }
+
     private fun queueHistoryReadingForRoom(sampleMs: Long, result: AnytimeAlgorithm.Result) {
         if (!historyRoomImportBuffer.queue(sampleMs, result)) {
             Log.d(
@@ -2975,18 +2995,19 @@ class AnytimeBleManager(
         clearGattCallbacks()
         val gatt = mBluetoothGatt
         phase = Phase.IDLE
+        val sensorPtr = resolveNativeSensorPtr()
         clearGattReferences()
         runCatching { gatt?.disconnect() }
             .onFailure { Log.stack(TAG, "terminateManagedSensor(disconnect)", it) }
         runCatching { gatt?.close() }
             .onFailure { Log.stack(TAG, "terminateManagedSensor(closeGatt)", it) }
+        if (sensorPtr != 0L) {
+            runCatching { Natives.finishfromSensorptr(sensorPtr) }
+                .onFailure { Log.stack(TAG, "terminateManagedSensor(finishfromSensorptr)", it) }
+        }
+        dataptr = 0L
         runCatching { close() }
             .onFailure { Log.stack(TAG, "terminateManagedSensor(close)", it) }
-        if (dataptr != 0L) {
-            runCatching { Natives.finishfromSensorptr(dataptr) }
-                .onFailure { Log.stack(TAG, "terminateManagedSensor(finishfromSensorptr)", it) }
-            dataptr = 0L
-        }
         if (wipeData) {
             Applic.app?.let { ctx ->
                 runCatching { AnytimeRegistry.removeSensor(ctx, SerialNumber) }
