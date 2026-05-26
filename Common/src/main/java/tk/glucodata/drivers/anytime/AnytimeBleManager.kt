@@ -797,7 +797,7 @@ class AnytimeBleManager(
         return glucoseId > startedAfter && glucoseId <= lastGlucoseId
     }
 
-    private fun maybeResetSessionForLiveId(liveId: Int) {
+    private fun clearStaleRuntimeStateBeforeLiveRecord(liveId: Int) {
         val cachedRawMaxId = synchronized(rawAlgorithmWindow) {
             if (rawAlgorithmWindow.isEmpty()) -1 else rawAlgorithmWindow.lastKey()
         }
@@ -2190,7 +2190,7 @@ class AnytimeBleManager(
         val anchorId = records.maxOfOrNull { it.glucoseId } ?: -1
         val anchorMs = if (push && anchorId >= 0) now else 0L
         if (push && anchorId >= 0) {
-            maybeResetSessionForLiveId(anchorId)
+            clearStaleRuntimeStateBeforeLiveRecord(anchorId)
         }
         if (anchorId >= 0) {
             clearCaughtUpCooldownIfNewerData(anchorId)
@@ -2570,25 +2570,12 @@ class AnytimeBleManager(
         skipHistoryImport: Boolean = false,
     ): Boolean {
         val rawMgdl = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
-        if (shouldRejectNativeFallbackAuto(result)) {
-            Log.w(
-                TAG,
-                "Dropping LINEAR fallback id=%d while native Anytime algorithm is expected " +
-                        "(linear=%.1f mg/dL rawLinear=%.1f mg/dL Iw=%.2f Ib=%.2f T=%.1f)".format(
-                            result.glucoseId,
-                            result.mgdl,
-                            rawMgdl,
-                            result.iwNa,
-                            result.ibNa,
-                            result.temperatureC,
-                        )
-            )
-            return false
-        }
         if (result.errorCode != 0 || result.mgdlTimes10 < 170) {
             Log.w(
                 TAG,
-                "Dropping invalid BG id=%d source=%s mgdl=%.1f rawLinear=%.1f err=%d Iw=%.2f Ib=%.2f T=%.1f".format(
+                String.format(
+                    Locale.US,
+                    "Dropping invalid BG id=%d source=%s mgdl=%.1f rawLinear=%.1f err=%d Iw=%.2f Ib=%.2f T=%.1f",
                     result.glucoseId,
                     result.source,
                     result.mgdl,
@@ -2616,9 +2603,19 @@ class AnytimeBleManager(
         }
         Log.i(
             TAG,
-            "BG id=%d %s mmol=%.2f mgdl=%.1f rawLinear=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d cal=%s".format(
-                result.glucoseId, result.source, result.mmol, result.mgdl, rawMgdl,
-                result.iwNa, result.ibNa, result.temperatureC, result.trend, result.errorCode,
+            String.format(
+                Locale.US,
+                "BG id=%d %s mmol=%.2f mgdl=%.1f rawLinear=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d cal=%s",
+                result.glucoseId,
+                result.source,
+                result.mmol,
+                result.mgdl,
+                rawMgdl,
+                result.iwNa,
+                result.ibNa,
+                result.temperatureC,
+                result.trend,
+                result.errorCode,
                 AnytimeCalibrationPolicy.calibrationStatusName(result.calibrationStatus),
             )
         )
@@ -2652,9 +2649,6 @@ class AnytimeBleManager(
         }
         return true
     }
-
-    private fun shouldRejectNativeFallbackAuto(result: AnytimeAlgorithm.Result): Boolean =
-        nativeAlgorithmExpected() && result.source == AnytimeAlgorithm.Source.LINEAR
 
     private fun ensureNativeSensorShell() {
         val canonical = SerialNumber ?: return
