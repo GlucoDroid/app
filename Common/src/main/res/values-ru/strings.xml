@@ -197,6 +197,7 @@
     <string name="pitch">Тональность</string>
     <string name="port">Порт</string>
     <string name="portrange">Порт должен находиться в диапазоне от 1024 до 65535</string>
+    <string name="mirror_portrange">Порты зеркалирования должны быть в диапазоне от 1 до 65535</string>
     <string name="privatekey">Приватный ключ</string>
     <string name="quantity">Порция</string>
     <string name="rapidinsulin">Быстрый инсулин</string>
@@ -1793,4 +1794,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_token">Токен Telegram-бота</string>
     <string name="api_source_telegram_chat_ids">Разрешённые chat ID</string>
     <string name="api_source_telegram_note">Telegram хранит обновления бота до 24 часов. Укажите один или несколько chat ID/имён пользователей, сообщения которых можно импортировать.</string>
+    <string name="status_waiting_for_data">Подключено, ожидание данных...</string>
+    <string name="status_raw_values_received">Подключено, получены сырые значения</string>
 </resources>

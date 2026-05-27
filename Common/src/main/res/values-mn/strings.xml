@@ -44,6 +44,7 @@
     <string name="specifyreceiveordata">Өөр төхөөрөмж рүү илгээх өгөгдлийг заана уу</string>
     <string name="specifyip">IP хаяг заах шаардлагатай</string>
     <string name="portrange">Сүлжээний порт 1024–65535 хооронд байх ёстой</string>
+    <string name="mirror_portrange">Толин тусгалын порт 1–65535 хооронд байх ёстой</string>
     <string name="start">Эхлэх</string>
     <string name="now">Одоо</string>
     <string name="dontchangeamounts">Mirror хэмжээний мэдээллийг илгээнэ</string>
@@ -813,8 +814,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_connection_failed">Connection failed</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnected">Disconnected</string>
-    <string name="status_waiting_for_data">Connected, waiting for data...</string>
-    <string name="status_raw_values_received">Connected, raw values received</string>
+    <string name="status_waiting_for_data">Холбогдсон, өгөгдөл хүлээж байна...</string>
+    <string name="status_raw_values_received">Холбогдсон, түүхий утгууд хүлээн авсан</string>
     <string name="select_sensor_type">Select sensor type</string>
     <string name="choose_theme">Choose theme</string>
     <string name="sibionics_sensor_picker_desc">QR скан</string>

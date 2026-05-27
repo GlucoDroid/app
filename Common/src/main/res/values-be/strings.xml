@@ -49,6 +49,7 @@
     <string name="specifyreceiveordata">Укажыце \'Атрымаць ад\' або дадзеныя для адпраўкі на іншую прыладу</string>
     <string name="specifyip">Вы павінны паказаць IP</string>
     <string name="portrange">Сеткавыя парты (port) павінны быць паміж 1024 і 65535</string>
+    <string name="mirror_portrange">Парты люстравання павінны быць паміж 1 і 65535</string>
     <string name="start">Пачаць</string>
     <string name="now">Зараз</string>
     <string name="dontchangeamounts">Сумы, атрыманыя ад люстэрка</string>

@@ -49,6 +49,7 @@
     <string name="specifyreceiveordata">Укажіть \'Отримати з\' або дані для надсилання на інший пристрій</string>
     <string name="specifyip">Ви повинні вказати IP</string>
     <string name="portrange">Мережеві порти мають бути між 1024 і 65535</string>
+    <string name="mirror_portrange">Порти дзеркалювання мають бути між 1 і 65535</string>
     <string name="start">Почніть</string>
     <string name="now">Зараз</string>
     <string name="dontchangeamounts">Клон надсилає суми</string>
