@@ -2606,6 +2606,9 @@ class AnytimeBleManager(
                     result.temperatureC,
                 )
             )
+            if (!skipHistoryImport) {
+                storeRawOnlyInvalidReading(sampleMs, result, live = live, history = history)
+            }
             return false
         }
         val newest = sampleMs >= lastGlucoseAtMs
@@ -2702,6 +2705,32 @@ class AnytimeBleManager(
         }
     }
 
+    private fun storeRawOnlyInvalidReading(
+        sampleMs: Long,
+        result: AnytimeAlgorithm.Result,
+        live: Boolean,
+        history: Boolean,
+    ) {
+        val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
+        if (!raw.isFinite() || raw <= 0f) return
+        if (history && !live) {
+            if (!historyRoomImportBuffer.queueRawOnly(sampleMs, result)) {
+                Log.d(TAG, "Skipping duplicate raw-only Anytime history import id=${result.glucoseId}")
+            }
+        } else {
+            mirrorRawOnlyIntoRoom(sampleMs, result)
+        }
+        persistTemperatureHistory(
+            listOf(
+                AnytimeRegistry.TemperatureRecord(
+                    glucoseId = result.glucoseId,
+                    timestampMs = sampleMs,
+                    temperatureC = result.temperatureC,
+                )
+            )
+        )
+    }
+
     private fun flushPendingHistoryRoomImports() {
         val name = SerialNumber ?: return
         val pending = historyRoomImportBuffer.drain()
@@ -2775,6 +2804,29 @@ class AnytimeBleManager(
             }
             imported > 0
         }.onFailure { Log.stack(TAG, "mirrorReadingIntoRoom", it) }.getOrDefault(false)
+    }
+
+    private fun mirrorRawOnlyIntoRoom(sampleMs: Long, result: AnytimeAlgorithm.Result): Boolean {
+        val name = SerialNumber ?: return false
+        val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
+        if (!raw.isFinite() || raw <= 0f) return false
+        return runCatching {
+            val imported = VirtualGlucoseSensorBridge.importHistory(
+                sensorSerial = name,
+                readings = listOf(
+                    VirtualGlucoseSensorBridge.Reading(
+                        timestampMs = sampleMs,
+                        glucoseMgdl = Float.NaN,
+                        rawMgdl = raw,
+                    )
+                ),
+                logLabel = "Anytime raw-only ${result.source}",
+            )
+            if (imported > 0) {
+                Log.i(TAG, "Imported $imported raw-only Anytime ${result.source} point into Room history (rawLinear=${"%.1f".format(raw)} mg/dL)")
+            }
+            imported > 0
+        }.onFailure { Log.stack(TAG, "mirrorRawOnlyIntoRoom", it) }.getOrDefault(false)
     }
 
     private fun emitGlucose(result: AnytimeAlgorithm.Result, sampleMs: Long) {

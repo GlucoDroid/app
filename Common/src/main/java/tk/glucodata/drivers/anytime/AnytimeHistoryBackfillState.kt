@@ -90,22 +90,57 @@ internal class AnytimeHistoryRoomImportBuffer {
     @Synchronized
     fun queue(sampleMs: Long, result: AnytimeAlgorithm.Result): Boolean {
         val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
-        val priority = priority(result.source)
-        val seenPriority = seenPriorities[result.glucoseId]
-        val pendingPriority = pending[result.glucoseId]?.priority
-        val bestKnownPriority = maxOf(seenPriority ?: 0, pendingPriority ?: 0)
-        if (bestKnownPriority >= priority) return false
-
-        pending[result.glucoseId] = AnytimePendingHistoryRoomImport(
+        val priority = sourcePriority(result.source)
+        return queueInternal(
+            sampleMs = sampleMs,
             glucoseId = result.glucoseId,
             source = result.source,
             priority = priority,
+            glucoseMgdl = result.mgdl,
             rawMgdl = raw,
             temperatureC = result.temperatureC,
+        )
+    }
+
+    @Synchronized
+    fun queueRawOnly(sampleMs: Long, result: AnytimeAlgorithm.Result): Boolean {
+        val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
+        if (!raw.isFinite() || raw <= 0f) return false
+        return queueInternal(
+            sampleMs = sampleMs,
+            glucoseId = result.glucoseId,
+            source = result.source,
+            priority = RAW_ONLY_PRIORITY,
+            glucoseMgdl = Float.NaN,
+            rawMgdl = raw,
+            temperatureC = result.temperatureC,
+        )
+    }
+
+    private fun queueInternal(
+        sampleMs: Long,
+        glucoseId: Int,
+        source: AnytimeAlgorithm.Source,
+        priority: Int,
+        glucoseMgdl: Float,
+        rawMgdl: Float,
+        temperatureC: Float,
+    ): Boolean {
+        val seenPriority = seenPriorities[glucoseId]
+        val pendingPriority = pending[glucoseId]?.priority
+        val bestKnownPriority = maxOf(seenPriority ?: NO_PRIORITY, pendingPriority ?: NO_PRIORITY)
+        if (bestKnownPriority >= priority) return false
+
+        pending[glucoseId] = AnytimePendingHistoryRoomImport(
+            glucoseId = glucoseId,
+            source = source,
+            priority = priority,
+            rawMgdl = rawMgdl,
+            temperatureC = temperatureC,
             reading = VirtualGlucoseSensorBridge.Reading(
                 timestampMs = sampleMs,
-                glucoseMgdl = result.mgdl,
-                rawMgdl = raw,
+                glucoseMgdl = glucoseMgdl,
+                rawMgdl = rawMgdl,
             ),
         )
         return true
@@ -135,8 +170,13 @@ internal class AnytimeHistoryRoomImportBuffer {
         }
     }
 
-    private fun priority(source: AnytimeAlgorithm.Source): Int = when (source) {
+    private fun sourcePriority(source: AnytimeAlgorithm.Source): Int = when (source) {
         AnytimeAlgorithm.Source.NATIVE -> 2
         AnytimeAlgorithm.Source.LINEAR -> 1
+    }
+
+    private companion object {
+        private const val NO_PRIORITY = -1
+        private const val RAW_ONLY_PRIORITY = 0
     }
 }

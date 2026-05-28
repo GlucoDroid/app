@@ -91,6 +91,36 @@ class AnytimeHistoryBackfillStateTests {
     }
 
     @Test
+    fun historyImportBufferKeepsRawOnlyInvalidRecordsUntilRealGlucoseArrives() {
+        val buffer = AnytimeHistoryRoomImportBuffer()
+        val invalidNative = result(
+            glucoseId = 21,
+            source = AnytimeAlgorithm.Source.NATIVE,
+            mgdlTimes10 = 0,
+            errorCode = 13,
+            rawMgdl = 74f,
+        )
+
+        assertTrue(buffer.queueRawOnly(sampleMs = 3_000L, result = invalidNative))
+        assertFalse(buffer.queueRawOnly(sampleMs = 3_000L, result = invalidNative))
+
+        val rawOnly = buffer.drain()
+        assertEquals(1, rawOnly.size)
+        assertTrue(rawOnly[0].reading.glucoseMgdl.isNaN())
+        assertEquals(74f, rawOnly[0].reading.rawMgdl, 0.001f)
+
+        buffer.markImported(rawOnly)
+
+        assertTrue(buffer.queue(sampleMs = 3_000L, result = result(21, AnytimeAlgorithm.Source.LINEAR)))
+        assertTrue(buffer.queue(sampleMs = 3_000L, result = result(21, AnytimeAlgorithm.Source.NATIVE)))
+
+        val replaced = buffer.drain()
+        assertEquals(1, replaced.size)
+        assertEquals(AnytimeAlgorithm.Source.NATIVE, replaced[0].source)
+        assertEquals(100f, replaced[0].reading.glucoseMgdl, 0.001f)
+    }
+
+    @Test
     fun restoredCursorFallsBackToCachedRawTailWhenPrefIsAhead() {
         assertEquals(
             687,
@@ -131,18 +161,21 @@ class AnytimeHistoryBackfillStateTests {
     private fun result(
         glucoseId: Int,
         source: AnytimeAlgorithm.Source,
+        mgdlTimes10: Int = 1_000,
+        errorCode: Int = 0,
+        rawMgdl: Float = 95f,
     ): AnytimeAlgorithm.Result =
         AnytimeAlgorithm.Result(
             glucoseId = glucoseId,
             mmol = 5.55f,
-            mgdlTimes10 = 1_000,
+            mgdlTimes10 = mgdlTimes10,
             ibNa = 1f,
             iwNa = 2f,
             temperatureC = 32f,
             trend = 0,
-            errorCode = 0,
+            errorCode = errorCode,
             warnCode = 0,
             source = source,
-            rawMgdl = 95f,
+            rawMgdl = rawMgdl,
         )
 }

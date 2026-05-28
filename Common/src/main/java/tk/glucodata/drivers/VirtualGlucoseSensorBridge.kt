@@ -44,7 +44,7 @@ object VirtualGlucoseSensorBridge {
     ): Int {
         if (sensorSerial.isBlank() || readings.isEmpty()) return 0
         val nowMs = System.currentTimeMillis()
-        val validReadings = readings.filter { isUsableReading(it, nowMs) }
+        val validReadings = readings.filter { isUsableHistoryReading(it, nowMs) }
         val skippedInvalid = readings.size - validReadings.size
         if (skippedInvalid > 0) {
             Log.w(TAG, "Skipped $skippedInvalid invalid $logLabel history points for $sensorSerial")
@@ -153,7 +153,7 @@ object VirtualGlucoseSensorBridge {
         logLabel: String = "virtual",
     ) {
         if (sensorSerial.isBlank()) return
-        if (!isUsableReading(reading, System.currentTimeMillis())) {
+        if (!isUsableCurrentReading(reading, System.currentTimeMillis())) {
             Log.w(TAG, "Ignored invalid $logLabel current for $sensorSerial at ${reading.timestampMs}")
             return
         }
@@ -195,10 +195,17 @@ object VirtualGlucoseSensorBridge {
         UiRefreshBus.requestDataRefresh()
     }
 
-    private fun isUsableReading(reading: Reading, nowMs: Long): Boolean =
+    private fun isUsableCurrentReading(reading: Reading, nowMs: Long): Boolean =
         isPlausibleTimestamp(reading.timestampMs, nowMs) &&
             reading.storageGlucoseMgdl.isFinite() &&
             reading.storageGlucoseMgdl > 0f
+
+    private fun isUsableHistoryReading(reading: Reading, nowMs: Long): Boolean =
+        isPlausibleTimestamp(reading.timestampMs, nowMs) &&
+            (
+                (reading.storageGlucoseMgdl.isFinite() && reading.storageGlucoseMgdl > 0f) ||
+                    (reading.rawMgdl.isFinite() && reading.rawMgdl > 0f)
+            )
 
     private fun isPlausibleTimestamp(timestampMs: Long, nowMs: Long): Boolean =
         timestampMs in MIN_REASONABLE_TIMESTAMP_MS..(nowMs + MAX_FUTURE_TIMESTAMP_DRIFT_MS)
