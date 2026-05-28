@@ -304,7 +304,7 @@
     <string name="notification_chart_desc">Afficher le graphique de glucose dans la barre d\'état</string>
     <string name="google_scan_desc">Utiliser les services Google Play pour le scan QR</string>
     <string name="mirror_desc">Partager/Recevoir via Internet/Réseau local</string>
-    <string name="nightscout_desc">Envoyer vers Nightscout</string>
+    <string name="nightscout_desc">Envoyer/Suivre</string>
     <string name="glucose_alerts_title">Alertes de glycémie</string>
     <string name="glucose_range_title">Plage de glucose</string>
     <string name="target_short_title">Cible</string>
@@ -1124,6 +1124,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_use_v3_api">Utiliser l\'API Nightscout v3</string>
     <string name="nightscout_follow_desc">Crée un capteur virtuel en lecture seule à partir de cette URL Nightscout.</string>
     <string name="nightscout_follow_url_required">Saisissez d\'abord une URL Nightscout</string>
+    <string name="nightscout_test_testing">Test...</string>
+    <string name="nightscout_test_error">Échec - %1$s</string>
+    <string name="nightscout_test_ok">Connecté - HTTP %1$d</string>
+    <string name="nightscout_test_connection">Tester la connexion</string>
+    <string name="nightscout_mode_follow">Suivre</string>
+    <string name="nightscout_mode_upload">Envoyer</string>
     <string name="no_active_sensor_selected">Aucun capteur actif sélectionné</string>
     <string name="no_calibrations_to_export">Aucun étalonnage à exporter</string>
     <string name="not_implemented_natively">Non implémenté nativement</string>

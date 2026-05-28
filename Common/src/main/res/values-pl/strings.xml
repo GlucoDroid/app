@@ -416,7 +416,7 @@
     <string name="notification_chart_desc">Wyświetl wykres glukozy w pasku stanu</string>
     <string name="google_scan_desc">Użyj usług Google Play do skanowania QR</string>
     <string name="mirror_desc">Udostępnij/Odbieraj dane przez Internet/Sieć domową</string>
-    <string name="nightscout_desc">Prześlij do Nightscout</string>
+    <string name="nightscout_desc">Przesyłanie/obserwacja</string>
     <string name="glucose_alerts_title">Alarmy stężenia glukozy</string>
     <string name="glucose_range_title">Zakres glukozy</string>
     <string name="target_short_title">Cel</string>
@@ -1153,6 +1153,12 @@
     <string name="nightscout_use_v3_api">Skorzystaj z API Nightscout v3</string>
     <string name="nightscout_follow_desc">Utwórz wirtualny czujnik tylko do odczytu z tego adresu URL Nightscout.</string>
     <string name="nightscout_follow_url_required">Najpierw wpisz adres URL Nightscout</string>
+    <string name="nightscout_test_testing">Testowanie...</string>
+    <string name="nightscout_test_error">Niepowodzenie - %1$s</string>
+    <string name="nightscout_test_ok">Połączono - HTTP %1$d</string>
+    <string name="nightscout_test_connection">Testuj połączenie</string>
+    <string name="nightscout_mode_follow">Obserwuj</string>
+    <string name="nightscout_mode_upload">Przesyłanie</string>
     <string name="no_active_sensor_selected">Nie wybrano aktywnego czujnika</string>
     <string name="no_calibrations_to_export">Brak kalibracji do eksportu</string>
     <string name="not_implemented_natively">Nie zaimplementowano natywnie</string>

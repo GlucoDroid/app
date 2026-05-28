@@ -347,7 +347,7 @@
 
     <string name="google_scan_desc">使用 Google Play 服务进行扫码</string>
     <string name="mirror_desc">通过互联网/家庭网络共享/接收数据</string>
-    <string name="nightscout_desc">上传到 Nightscout</string>
+    <string name="nightscout_desc">上传/跟随</string>
     <string name="glucose_alerts_title">血糖警报</string>
     <string name="glucose_range_title">血糖范围</string>
     <string name="target_short_title">目标</string>
@@ -1134,6 +1134,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_use_v3_api">使用 Nightscout v3 API</string>
     <string name="nightscout_follow_desc">从此 Nightscout URL 创建只读虚拟传感器。</string>
     <string name="nightscout_follow_url_required">请先输入 Nightscout URL</string>
+    <string name="nightscout_test_testing">正在测试...</string>
+    <string name="nightscout_test_error">失败 - %1$s</string>
+    <string name="nightscout_test_ok">已连接 - HTTP %1$d</string>
+    <string name="nightscout_test_connection">测试连接</string>
+    <string name="nightscout_mode_follow">跟随</string>
+    <string name="nightscout_mode_upload">上传</string>
     <string name="no_active_sensor_selected">未选择有源传感器</string>
     <string name="no_calibrations_to_export">无需导出校准</string>
     <string name="not_implemented_natively">未原生实现</string>

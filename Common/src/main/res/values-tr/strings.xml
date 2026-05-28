@@ -393,7 +393,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="notification_chart_desc">Durum çubuğunda glikoz grafiğini göster</string>
     <string name="google_scan_desc">QR tarama için Google Play Hizmetlerini kullan</string>
     <string name="mirror_desc">İnternet/Ev Ağı üzerinden veri paylaş/al</string>
-    <string name="nightscout_desc">Nightscout\'a yükle</string>
+    <string name="nightscout_desc">Yükle/Takip et</string>
     <string name="glucose_alerts_title">Kan Şekeri Uyarıları</string>
     <string name="glucose_range_title">Glukoz aralığı</string>
     <string name="target_short_title">Hedef</string>
@@ -1146,6 +1146,12 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="nightscout_use_v3_api">Nightscout v3 API\'sini kullanın</string>
     <string name="nightscout_follow_desc">Bu Nightscout URL\'sinden salt okunur sanal sensör oluşturur.</string>
     <string name="nightscout_follow_url_required">Önce bir Nightscout URL\'si girin</string>
+    <string name="nightscout_test_testing">Test ediliyor...</string>
+    <string name="nightscout_test_error">Başarısız - %1$s</string>
+    <string name="nightscout_test_ok">Bağlandı - HTTP %1$d</string>
+    <string name="nightscout_test_connection">Bağlantıyı test et</string>
+    <string name="nightscout_mode_follow">Takip et</string>
+    <string name="nightscout_mode_upload">Yükle</string>
     <string name="no_active_sensor_selected">Aktif sensör seçilmedi</string>
     <string name="no_calibrations_to_export">Dışa aktarılacak kalibrasyon yok</string>
     <string name="not_implemented_natively">Yerel olarak uygulanmadı</string>

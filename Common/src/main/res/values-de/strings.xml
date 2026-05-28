@@ -417,7 +417,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="notification_chart_desc">Glukosekurve in der Statusleiste anzeigen</string>
     <string name="google_scan_desc">Google Play Dienste für QR-Scan verwenden</string>
     <string name="mirror_desc">Daten über Internet/Heimnetz teilen/empfangen</string>
-    <string name="nightscout_desc">Zu Nightscout hochladen</string>
+    <string name="nightscout_desc">Hochladen/Folgen</string>
     <string name="glucose_alerts_title">Blutzucker-Warnungen</string>
     <string name="glucose_range_title">Glukosebereich</string>
     <string name="target_short_title">Ziel</string>
@@ -1156,6 +1156,12 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="nightscout_use_v3_api">Verwenden Sie die Nightscout v3-API</string>
     <string name="nightscout_follow_desc">Erstellt einen schreibgeschützten virtuellen Sensor aus dieser Nightscout-URL.</string>
     <string name="nightscout_follow_url_required">Zuerst eine Nightscout-URL eingeben</string>
+    <string name="nightscout_test_testing">Test läuft...</string>
+    <string name="nightscout_test_error">Fehlgeschlagen - %1$s</string>
+    <string name="nightscout_test_ok">Verbunden - HTTP %1$d</string>
+    <string name="nightscout_test_connection">Verbindung testen</string>
+    <string name="nightscout_mode_follow">Folgen</string>
+    <string name="nightscout_mode_upload">Hochladen</string>
     <string name="no_active_sensor_selected">Kein aktiver Sensor ausgewählt</string>
     <string name="no_calibrations_to_export">Keine Kalibrierungen zum Exportieren</string>
     <string name="not_implemented_natively">Nicht nativ implementiert</string>

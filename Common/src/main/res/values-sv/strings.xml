@@ -341,7 +341,7 @@
     <string name="notification_chart_desc">Visa glukosdiagram i statusfältet</string>
     <string name="google_scan_desc">Använd Google Play Services för QR-skanning</string>
     <string name="mirror_desc">Dela/Ta emot data via Internet/Hemnätverk</string>
-    <string name="nightscout_desc">Ladda upp till Nightscout</string>
+    <string name="nightscout_desc">Ladda upp/Följ</string>
     <string name="glucose_alerts_title">Blodsockervarningar</string>
     <string name="glucose_range_title">Glukosintervall</string>
     <string name="target_short_title">Mål</string>
@@ -1118,6 +1118,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_use_v3_api">Använd Nightscout v3 API</string>
     <string name="nightscout_follow_desc">Skapa en skrivskyddad virtuell sensor från denna Nightscout-URL.</string>
     <string name="nightscout_follow_url_required">Ange en Nightscout-URL först</string>
+    <string name="nightscout_test_testing">Testar...</string>
+    <string name="nightscout_test_error">Misslyckades - %1$s</string>
+    <string name="nightscout_test_ok">Ansluten - HTTP %1$d</string>
+    <string name="nightscout_test_connection">Testa anslutning</string>
+    <string name="nightscout_mode_follow">Följ</string>
+    <string name="nightscout_mode_upload">Ladda upp</string>
     <string name="no_active_sensor_selected">Ingen aktiv sensor vald</string>
     <string name="no_calibrations_to_export">Inga kalibreringar att exportera</string>
     <string name="not_implemented_natively">Inte implementerat inbyggt</string>
