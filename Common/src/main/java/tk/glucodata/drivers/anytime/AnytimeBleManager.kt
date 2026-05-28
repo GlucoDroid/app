@@ -222,6 +222,7 @@ class AnytimeBleManager(
     @Volatile private var ct5TempId: String = ""
     @Volatile private var ct5VoltagePayload: Boolean = false
     @Volatile private var ct5ReconnectDateAfterIdentity: Boolean = false
+    @Volatile private var ct5HistoryUnavailable: Boolean = false
     private val ct5Random = SecureRandom()
     // Native Yuwell algorithm inputs have no start-id field; the raw arrays must
     // represent glucose ids from 0..current. Keep the full session history.
@@ -585,6 +586,15 @@ class AnytimeBleManager(
         if (stop || !historyBackfillActive || !historyPullInFlight) return@Runnable
         val retryId = (historyLastPulledId + 1).coerceAtLeast(0)
         Log.w(TAG, "History pull timeout at id=$retryId series=$historyPullInFlightWasLegacySeries")
+        if (isCt5()) {
+            Log.w(TAG, "CT5 history pull timed out at id=$retryId; disabling CT5 history for this session")
+            ct5HistoryUnavailable = true
+            clearProtocolFrameTimeout()
+            flushPendingHistoryRoomImports()
+            stopHistoryBackfill()
+            UiRefreshBus.requestStatusRefresh()
+            return@Runnable
+        }
         if (historyPullInFlightWasLegacySeries && legacySeriesHistorySupported) {
             legacySeriesHistorySupported = false
             Log.w(TAG, "Disabling 0x22 batched history for this session; falling back to 0x08 single-record pulls")
@@ -626,10 +636,37 @@ class AnytimeBleManager(
             return@Runnable
         }
         if (phase != Phase.HANDSHAKING) return@Runnable
+        if (handleCt5ProtocolTimeout(tag)) {
+            return@Runnable
+        }
         if (familyEntry.family == AnytimeConstants.Family.CT4 && tryCt4HandshakeFallback()) {
             return@Runnable
         }
         recoverGattAndReconnect("protocol timeout after $tag", ACTIVE_SESSION_RECONNECT_DELAY_MS)
+    }
+
+    private fun handleCt5ProtocolTimeout(tag: String): Boolean {
+        if (!isCt5()) return false
+        val hasCipher = ct5CipherKey in 0..255
+        return when {
+            tag.startsWith("ct5-getDate(fresh") && !hasCipher -> {
+                Log.w(TAG, "CT5 fresh getDate timed out; keeping GATT alive for encrypted live push recovery")
+                clearProtocolFrameTimeout()
+                UiRefreshBus.requestStatusRefresh()
+                true
+            }
+            tag.startsWith("ct5-getDate") && hasCipher -> {
+                Log.w(TAG, "CT5 $tag timed out; using cached cipher and waiting for encrypted live push")
+                enterStreaming("CT5 date timeout with cached cipher")
+                true
+            }
+            (tag.startsWith("ct5-checkID") || tag.startsWith("ct5-init")) && hasCipher -> {
+                Log.w(TAG, "CT5 $tag timed out; using cached cipher and waiting for encrypted live push")
+                enterStreaming("CT5 identity/init timeout with cached cipher")
+                true
+            }
+            else -> false
+        }
     }
 
     private fun nextBackfillIdSkippingCached(fromId: Int): Int {
@@ -679,6 +716,10 @@ class AnytimeBleManager(
         stopBeforeId: Int = Int.MAX_VALUE,
     ) {
         if (phase != Phase.STREAMING) return
+        if (isCt5() && ct5HistoryUnavailable) {
+            Log.i(TAG, "Skipping CT5 history backfill ($reason); history pull is unavailable this session")
+            return
+        }
         if (historyBackfillActive) {
             Log.d(TAG, "Backfill already active; ignoring $reason from id=$fromId")
             return
@@ -1630,16 +1671,23 @@ class AnytimeBleManager(
                 if (randomB != null && randomB.size == 4 && ct5CipherKey in 0..255) {
                     Log.i(TAG, "CT5 bound session — sending identity check")
                     writeFrame(AnytimeFrames.Builders.ct5CheckId(randomB), "ct5-checkID")
+                } else if (ct5CipherKey in 0..255) {
+                    Log.i(TAG, "CT5 bound session has cached cipher only — waiting for encrypted live stream")
+                    enterStreaming("CT5 cached cipher restored")
                 } else {
-                    Log.w(TAG, "CT5 bound flag exists but identity material is missing; starting fresh bind")
-                    bound = false
-                    persistAlgorithmState()
+                    Log.w(TAG, "CT5 bound session is missing identity material; probing fresh date while keeping live-push recovery open")
                     writeFrame(setDateFrame(), "ct5-getDate(fresh)")
                 }
             }
             familyEntry.family == AnytimeConstants.Family.CT5 -> {
-                Log.i(TAG, "CT5 family — starting getDate/check/setID/querySSN handshake")
-                writeFrame(setDateFrame(), "ct5-getDate(fresh)")
+                if (ct5CipherKey in 0..255) {
+                    Log.i(TAG, "CT5 cached cipher found — waiting for encrypted live stream")
+                    bound = true
+                    enterStreaming("CT5 cached cipher available")
+                } else {
+                    Log.i(TAG, "CT5 family — starting getDate/check/setID/querySSN handshake")
+                    writeFrame(setDateFrame(), "ct5-getDate(fresh)")
+                }
             }
             bound -> {
                 Log.i(TAG, "Already bound — sending reset to confirm session")
@@ -2091,13 +2139,19 @@ class AnytimeBleManager(
             ct5ReconnectDateAfterIdentity = true
             writeFrame(setDateFrame(), "ct5-getDate(reconnect)")
         } else {
-            Log.w(TAG, "CT5 identity check failed; restarting fresh handshake")
-            bound = false
-            ct5CipherKey = -1
-            ct5RandomB = null
             ct5ReconnectDateAfterIdentity = false
-            persistAlgorithmState()
-            writeFrame(setDateFrame(), "ct5-getDate(fresh-after-checkID)")
+            if (ct5CipherKey in 0..255) {
+                Log.w(TAG, "CT5 identity check failed; keeping cached cipher and waiting for encrypted live stream")
+                bound = true
+                persistAlgorithmState()
+                enterStreaming("CT5 cached cipher after identity failure")
+            } else {
+                Log.w(TAG, "CT5 identity check failed without cached cipher; restarting fresh handshake")
+                bound = false
+                ct5RandomB = null
+                persistAlgorithmState()
+                writeFrame(setDateFrame(), "ct5-getDate(fresh-after-checkID)")
+            }
         }
     }
 
@@ -2419,13 +2473,31 @@ class AnytimeBleManager(
     private fun handleCt5CurrentGlucose(data: ByteArray) {
         writeFrame(AnytimeFrames.Builders.ct5PushAck(), "ct5-pushAck", expectResponse = false)
         val key = ct5CipherKey
-        if (key !in 0..255) {
-            Log.w(TAG, "CT5 live push before cipher key: ${data.joinToHex()}")
-            return
-        }
-        val rec = AnytimeFrames.parseCt5CurrentRecord(data, key) ?: run {
-            Log.w(TAG, "Bad CT5 live frame: ${data.joinToHex()}")
-            return
+        val record = if (key in 0..255) {
+            AnytimeFrames.parseCt5CurrentRecord(data, key) ?: run {
+                Log.w(TAG, "Bad CT5 live frame: ${data.joinToHex()}")
+                return
+            }
+        } else {
+            val maxGlucoseId = familyEntry.endNumber.takeIf { it > 0 } ?: Int.MAX_VALUE
+            val recovered = AnytimeFrames.inferCt5CipherFromCurrentRecord(data, maxGlucoseId) ?: run {
+                Log.w(TAG, "CT5 live push before cipher key and no safe key inference: ${data.joinToHex()}")
+                return
+            }
+            ct5CipherKey = recovered.cipherKey
+            bound = true
+            persistAlgorithmState()
+            Log.w(
+                TAG,
+                String.format(
+                    Locale.US,
+                    "Recovered CT5 cipher from live push key=0x%02X id=%d glucose=%d",
+                    recovered.cipherKey,
+                    recovered.record.glucoseId,
+                    recovered.record.gluMgdl,
+                ),
+            )
+            recovered.record
         }
         ct5VoltagePayload = data.size == 19
         if (phase == Phase.HANDSHAKING) {
@@ -2433,17 +2505,17 @@ class AnytimeBleManager(
         }
         val intervalMs = profile.readingIntervalMinutes * 60L * 1000L
         val now = System.currentTimeMillis()
-        updateTimelineFromLiveGlucoseId(rec.glucoseId, now, intervalMs)
-        clearCaughtUpCooldownIfNewerData(rec.glucoseId)
-        maybeStartFreshPostLiveBackfill(rec.glucoseId)
+        updateTimelineFromLiveGlucoseId(record.glucoseId, now, intervalMs)
+        clearCaughtUpCooldownIfNewerData(record.glucoseId)
+        maybeStartFreshPostLiveBackfill(record.glucoseId)
         val sampleMs = if (glucoseTimelineStartAtMs > 0L) {
-            glucoseTimelineStartAtMs + rec.glucoseId.toLong() * intervalMs
+            glucoseTimelineStartAtMs + record.glucoseId.toLong() * intervalMs
         } else {
             now
         }
-        val result = AnytimeAlgorithm.fromComputedRecord(rec, qr, familyEntry)
+        val result = AnytimeAlgorithm.fromComputedRecord(record, qr, familyEntry)
         commitReading(result, sampleMs, Applic.app, live = true, history = false)
-        if (rec.glucoseId > lastGlucoseId) lastGlucoseId = rec.glucoseId
+        if (record.glucoseId > lastGlucoseId) lastGlucoseId = record.glucoseId
         persistAlgorithmState()
         armNoDataWatchdog()
         armPullFallback()

@@ -46,6 +46,11 @@ data class AnytimeComputedRecord(
     val gluMgdl: Int get() = (gluMmol * 18.0f + 0.5f).toInt()
 }
 
+data class AnytimeCt5CipherCandidate(
+    val cipherKey: Int,
+    val record: AnytimeComputedRecord,
+)
+
 /** 0x05 check-response — battery, sensor age, IW. */
 data class AnytimeCheckStatus(
     val sensorAgeReadings: Int,
@@ -510,6 +515,32 @@ object AnytimeFrames {
 
     @JvmStatic
     @JvmOverloads
+    fun inferCt5CipherFromCurrentRecord(
+        bytes: ByteArray,
+        maxGlucoseId: Int = Int.MAX_VALUE,
+    ): AnytimeCt5CipherCandidate? {
+        val voltage = bytes.size == 19
+        val expected = if (voltage) 19 else 15
+        if (bytes.size != expected || bytes[0] != AnytimeConstants.RX_CT5_PUSH_GLUCOSE) return null
+        if (!verifySum(bytes)) return null
+
+        val candidates = ArrayList<AnytimeCt5CipherCandidate>()
+        for (key in 0..255) {
+            val record = parseCt5CurrentRecord(bytes, key) ?: continue
+            if (!looksLikeCt5LiveRecord(record, maxGlucoseId)) continue
+            candidates.add(AnytimeCt5CipherCandidate(key, record))
+        }
+        if (candidates.isEmpty()) return null
+
+        // The CT5 bit transform leaves one trailing payload bit ambiguous, so
+        // complementary keys can decode to identical clinical fields. Accept
+        // only one clinical interpretation, then persist either matching key.
+        val signatures = candidates.map { ct5RecordSignature(it.record) }.distinct()
+        return if (signatures.size == 1) candidates.first() else null
+    }
+
+    @JvmStatic
+    @JvmOverloads
     fun parseCt5SeriesRecords(bytes: ByteArray, cipherKey: Int, voltage: Boolean = false): List<AnytimeComputedRecord> {
         val chunkSize = if (voltage) AnytimeConstants.CT5_VOLTAGE_CHUNK_SIZE else AnytimeConstants.CT5_RAW_CHUNK_SIZE
         if (bytes.isEmpty() || bytes[0] != AnytimeConstants.RX_CT5_SERIES || cipherKey !in 0..255) return emptyList()
@@ -530,6 +561,24 @@ object AnytimeFrames {
         }
         return out
     }
+
+    private fun looksLikeCt5LiveRecord(record: AnytimeComputedRecord, maxGlucoseId: Int): Boolean =
+        record.glucoseId in 0..maxGlucoseId &&
+                record.errorCode == 0 &&
+                record.gluMgdl in 20..600 &&
+                record.temperatureC in 15f..45f &&
+                record.ibNa in 0f..100f &&
+                record.iwNa in 0f..100f &&
+                record.trend in 0..10
+
+    private fun ct5RecordSignature(record: AnytimeComputedRecord): String =
+        listOf(
+            record.glucoseId,
+            record.gluMgdl,
+            (record.temperatureC * 10f).roundToInt(),
+            record.trend,
+            record.errorCode,
+        ).joinToString(":")
 
     private fun decryptCt5PayloadFrame(bytes: ByteArray, cipherKey: Int): ByteArray {
         val payload = if (bytes.size > 4) bytes.copyOfRange(3, bytes.size - 1) else ByteArray(0)

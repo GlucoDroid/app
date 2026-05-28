@@ -291,4 +291,61 @@ class AnytimeFramesTests {
         assertEquals(5, rec.trend)
         assertEquals(0, rec.errorCode)
     }
+
+    @Test
+    fun inferCt5CipherFromObservedUsedSensorLivePush() {
+        val frame = byteArrayOf(
+            0x35,
+            0xE7.toByte(),
+            0x00,
+            0xD8.toByte(),
+            0xD8.toByte(),
+            0xD9.toByte(),
+            0xD6.toByte(),
+            0x1E,
+            0xC8.toByte(),
+            0xE7.toByte(),
+            0x14,
+            0x27,
+            0x25,
+            0x31,
+            0xD9.toByte(),
+        )
+
+        val candidate = AnytimeFrames.inferCt5CipherFromCurrentRecord(frame)
+
+        assertNotNull(candidate)
+        candidate!!
+        assertTrue(candidate.cipherKey in 0..255)
+        assertEquals(231, candidate.record.glucoseId)
+        assertEquals(0.0f, candidate.record.ibNa, 0.001f)
+        assertEquals(7.87f, candidate.record.iwNa, 0.001f)
+        assertEquals(34.48f, candidate.record.temperatureC, 0.001f)
+        assertEquals(85, candidate.record.gluMgdl)
+        assertEquals(4, candidate.record.trend)
+        assertEquals(0, candidate.record.errorCode)
+    }
+
+    @Test
+    fun inferCt5CipherRejectsBadChecksum() {
+        val frame = byteArrayOf(
+            0x35,
+            0xE7.toByte(),
+            0x00,
+            0xD8.toByte(),
+            0xD8.toByte(),
+            0xD9.toByte(),
+            0xD6.toByte(),
+            0x1E,
+            0xC8.toByte(),
+            0xE7.toByte(),
+            0x14,
+            0x27,
+            0x25,
+            0x31,
+            0x00,
+        )
+
+        assertNull(AnytimeFrames.inferCt5CipherFromCurrentRecord(frame))
+    }
 }
