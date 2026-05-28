@@ -50,6 +50,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.app.KeyguardManager;
+import android.app.AlarmManager;
 import android.view.View;
 import android.content.Context;
 import android.content.Intent;
@@ -98,6 +99,7 @@ public class Notify {
     static public final long glucosetimeout = 1000L * glucosetimeoutSEC;
     static private final int FOREGROUND_GLUCOSE_NOTIFICATION_KIND = -1;
     static private final long INTERACTIVE_NOTIFICATION_REFRESH_DELAY_MS = 750L;
+    static private final long LOCKED_ALARM_ACTIVITY_DELAY_MS = 250L;
     static private final Handler glucoseRefreshHandler = new Handler(Looper.getMainLooper());
 
     static final private String LOG_ID = "Notify";
@@ -373,8 +375,7 @@ public class Notify {
         if (AlertType.Companion.isLegacyOnlyId(kind)) {
             return false;
         }
-        final String deliveryMode = normalizeDeliveryMode(getDeliveryMode(kind));
-        return disturb || "SYSTEM_ALARM".equals(deliveryMode) || "BOTH".equals(deliveryMode);
+        return AlertDeliveryPolicy.shouldUseAlarmAudioStream(normalizeDeliveryMode(getDeliveryMode(kind)), disturb);
     }
 
     private AlertSoundHandle buildAlertSoundHandle(String uristr, int kind, boolean useAlarmStream) {
@@ -1882,34 +1883,24 @@ public class Notify {
     }
     private String getDeliveryMode(int kind) {
         if (AlertType.Companion.isLegacyOnlyId(kind)) {
-            return "NOTIFICATION_ONLY";
+            return AlertDeliveryPolicy.NOTIFICATION_ONLY;
         }
         try {
             android.content.SharedPreferences prefs = Applic.app.getSharedPreferences("tk.glucodata.alerts",
                     android.content.Context.MODE_PRIVATE);
             String key = "alert_" + kind + "_delivery";
-            String mode = prefs.getString(key, "SYSTEM_ALARM");
+            String mode = prefs.getString(key, AlertDeliveryPolicy.SYSTEM_ALARM);
             if (doLog) {
                 Log.d(LOG_ID, "getDeliveryMode kind=" + kind + " key=" + key + " val=" + mode);
             }
             return mode;
         } catch (Exception e) {
-            return "SYSTEM_ALARM";
+            return AlertDeliveryPolicy.SYSTEM_ALARM;
         }
     }
 
     private static String normalizeDeliveryMode(String deliveryMode) {
-        if (deliveryMode == null) {
-            return "NOTIFICATION_ONLY";
-        }
-        final String mode = deliveryMode.toUpperCase();
-        if (mode.equals("ALARM") || mode.equals("SYSTEM_ALARM")) {
-            return "SYSTEM_ALARM";
-        }
-        if (mode.equals("BOTH")) {
-            return "BOTH";
-        }
-        return "NOTIFICATION_ONLY";
+        return AlertDeliveryPolicy.normalize(deliveryMode);
     }
 
     private String getHapticProfile(int kind) {
@@ -2126,30 +2117,22 @@ public class Notify {
 
                 // Delivery Mode Logic
                 String mode = normalizeDeliveryMode(deliveryMode);
-                boolean isAlarmMode = mode.equals("SYSTEM_ALARM");
-                boolean isBothMode = mode.equals("BOTH");
+                boolean alarmWindowQueued = false;
 
-                boolean activityLaunched = false;
-
-                // Alarm mode should always try the full-screen activity first and only
-                // fall back to the notification surface if Android blocks the launch.
-                if ((isAlarmMode || isBothMode) && shouldTryDirectAlarmActivity()) {
-                    activityLaunched = showpopupalarm(glucoseStr.value, message, glucoseStr.rate, kind, customAlertId,
+                // When the phone is idle/locked, background activity starts are not a
+                // reliable contract. Queue the AlarmActivity through AlarmManager so
+                // Alarm mode still wakes into the alarm screen instead of degrading to a
+                // plain heads-up notification.
+                if (AlertDeliveryPolicy.shouldAttemptAlarmWindow(mode)) {
+                    alarmWindowQueued = launchOrQueueAlarmActivity(glucoseStr.value, message, glucoseStr.rate, kind,
+                            customAlertId,
                             mode);
-                    if (!activityLaunched && doLog) {
+                    if (!alarmWindowQueued && doLog) {
                         Log.i(LOG_ID, "Custom Alert: AlarmActivity launch failed, using notification fallback");
                     }
-                } else if ((isAlarmMode || isBothMode) && doLog) {
-                    Log.i(LOG_ID, "Custom Alert: using notification fullscreen path");
                 }
 
-                boolean skipBanner = false;
-                // Alarm-only mode should open the alarm window without posting a parallel
-                // heads-up alert notification. If direct launch failed, skipBanner remains
-                // false and the notification path below becomes the fallback.
-                if (activityLaunched && isAlarmMode && !isBothMode) {
-                    skipBanner = true;
-                }
+                boolean skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(mode, alarmWindowQueued);
 
                 // 2. Heads-Up Notification (Separate) - This is what standard alerts do!
                 // Only if we shouldn't skip the banner (Notification mode, Both mode, or Alarm
@@ -2176,7 +2159,7 @@ public class Notify {
                     Log.i(LOG_ID, "Custom Alert DND check: overrideDnd=" + overrideDnd + " isWearable=" + isWearable
                             + " disturb=" + disturb + " haptic=" + hapticProfile);
 
-                    final boolean useAlarmStream = disturb || isAlarmMode || isBothMode;
+                    final boolean useAlarmStream = AlertDeliveryPolicy.shouldUseAlarmAudioStream(mode, disturb);
                     AlertSoundHandle soundHandle = onenot.buildAlertSoundHandle(actualUri, kind, useAlarmStream);
                     final long effectDurationMs = estimateAlertEffectDurationMs(actualUri, kind, sound, flash,
                             vibrate, hapticProfile, finalDuration);
@@ -2197,31 +2180,6 @@ public class Notify {
                 onenot.updateForegroundGlucoseNotification(kind, glucoseValue, glucoseStr);
             }
         });
-    }
-
-    private boolean shouldLaunchAlarmActivity(int kind) {
-        try {
-            android.content.SharedPreferences prefs = Applic.app.getSharedPreferences("tk.glucodata_preferences",
-                    Context.MODE_PRIVATE);
-            String typeKey;
-            switch (kind) {
-                case 0:
-                    typeKey = "low";
-                    break;
-                case 1:
-                    typeKey = "high";
-                    break;
-                case 2:
-                    typeKey = "loss";
-                    break;
-                default:
-                    return true; // Default to system alarm for unknown types
-            }
-            // Default to true (legacy behavior) unless disabled
-            return prefs.getBoolean("alert_" + typeKey + "_use_system_alarm", true);
-        } catch (Exception e) {
-            return true;
-        }
     }
 
     private static void setmessage(String message, Boolean cancel) {
@@ -2263,7 +2221,65 @@ public class Notify {
                 deliveryMode);
         alarmIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        return PendingIntent.getActivity(Applic.app, 3, alarmIntent, PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
+        return PendingIntent.getActivity(Applic.app, alarmPendingRequestCode(100_000, alertTypeId, customAlertId),
+                alarmIntent, PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
+    }
+
+    private static int alarmPendingRequestCode(int base, int alertTypeId, String customAlertId) {
+        final int customHash = customAlertId == null ? 0 : customAlertId.hashCode();
+        return base + (alertTypeId * 257) + (customHash & 0x7FFF);
+    }
+
+    private static boolean queueAlarmActivityLaunch(String glucoseValue, String alarmMessage, float rate,
+            int alertTypeId, String customAlertId, String deliveryMode) {
+        try {
+            final AlarmManager alarmManager = (AlarmManager) Applic.app.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                return false;
+            }
+            final Intent alarmIntent = buildAlarmActivityIntent(glucoseValue, alarmMessage, rate, alertTypeId,
+                    customAlertId, deliveryMode);
+            final Intent launchIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmLaunchReceiver.class);
+            launchIntent.setAction(tk.glucodata.receivers.AlarmLaunchReceiver.ACTION_LAUNCH_ALARM_ACTIVITY);
+            launchIntent.putExtras(alarmIntent);
+            final PendingIntent pendingIntent = PendingIntent.getBroadcast(Applic.app,
+                    alarmPendingRequestCode(200_000, alertTypeId, customAlertId), launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
+            final long triggerAtMs = System.currentTimeMillis() + LOCKED_ALARM_ACTIVITY_DELAY_MS;
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent);
+                } else {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent);
+                }
+            } catch (SecurityException denied) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    final PendingIntent showIntent = mkAlarmPendingIntent(glucoseValue, alarmMessage, rate, alertTypeId,
+                            customAlertId, deliveryMode);
+                    alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAtMs, pendingIntent),
+                            showIntent);
+                } else {
+                    throw denied;
+                }
+            }
+            if (doLog) {
+                Log.i(LOG_ID, "Queued AlarmActivity launch kind=" + alertTypeId + " mode=" + deliveryMode);
+            }
+            return true;
+        } catch (Throwable e) {
+            if (doLog) {
+                Log.e(LOG_ID, "queueAlarmActivityLaunch failed: " + e.toString());
+            }
+            return false;
+        }
+    }
+
+    private static boolean launchOrQueueAlarmActivity(String glucoseValue, String alarmMessage, float rate,
+            int alertTypeId, String customAlertId, String deliveryMode) {
+        if (shouldTryDirectAlarmActivity()) {
+            return showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
+        }
+        return queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
     }
 
     private static boolean showpopupalarm(String glucoseValue, String alarmMessage, float rate, int alertTypeId) {
@@ -2345,37 +2361,31 @@ public class Notify {
     }
 
     private void deliverTriggeredAlert(int kind, float glvalue, String message, notGlucose strglucose, String type) {
-        boolean activityLaunched = false;
+        boolean alarmWindowQueued = false;
         boolean skipBanner = false;
 
         if (!AlertType.Companion.isLegacyOnlyId(kind)) {
             String deliveryMode = normalizeDeliveryMode(getDeliveryMode(kind));
 
-            boolean isSystem = "SYSTEM_ALARM".equals(deliveryMode);
-            boolean isBoth = "BOTH".equals(deliveryMode);
-            boolean forceLaunch = isSystem || isBoth;
+            boolean forceLaunch = AlertDeliveryPolicy.shouldAttemptAlarmWindow(deliveryMode);
 
             if (doLog) {
                 Log.i(LOG_ID, String.format("Alert Debug: kind=%d deliveryMode=%s forceLaunch=%b", kind,
                         deliveryMode, forceLaunch));
             }
 
-            if (forceLaunch && shouldTryDirectAlarmActivity()) {
+            if (forceLaunch) {
                 float rate = (strglucose != null) ? strglucose.rate : Float.NaN;
-                activityLaunched = showpopupalarm(strglucose != null ? strglucose.value : message, message,
+                alarmWindowQueued = launchOrQueueAlarmActivity(strglucose != null ? strglucose.value : message, message,
                         rate, kind, null, deliveryMode);
                 if (doLog)
-                    Log.i(LOG_ID, "Alert Debug: showpopupalarm returned " + activityLaunched);
-                if (!activityLaunched && doLog) {
+                    Log.i(LOG_ID, "Alert Debug: alarm window queued=" + alarmWindowQueued);
+                if (!alarmWindowQueued && doLog) {
                     Log.i(LOG_ID, "Alert Debug: AlarmActivity launch failed, using notification fallback");
                 }
-            } else if (forceLaunch && doLog) {
-                Log.i(LOG_ID, "Alert Debug: using notification fullscreen path");
             }
 
-            if (activityLaunched && isSystem && !isBoth) {
-                skipBanner = true;
-            }
+            skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(deliveryMode, alarmWindowQueued);
             if (doLog)
                 Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
         }
@@ -2394,12 +2404,12 @@ public class Notify {
         ;
         if (alarm) {
             if (!AlertType.Companion.isLegacyOnlyId(kind)) {
-                String deliveryMode = getDeliveryMode(kind);
-                boolean isSystem = "SYSTEM_ALARM".equals(deliveryMode);
-                boolean isBoth = "BOTH".equals(deliveryMode);
+                String deliveryMode = normalizeDeliveryMode(getDeliveryMode(kind));
+                boolean isSystem = AlertDeliveryPolicy.SYSTEM_ALARM.equals(deliveryMode);
+                boolean isBoth = AlertDeliveryPolicy.BOTH.equals(deliveryMode);
 
                 if (isSystem || isBoth) {
-                    showpopupalarm(message, message, Float.NaN, kind);
+                    showpopupalarm(message, message, Float.NaN, kind, null, deliveryMode);
                 }
             }
         } else {
@@ -2647,11 +2657,11 @@ public class Notify {
             if (alertseparate) {
                 String currentDeliveryMode = deliveryModeOverride != null
                         ? normalizeDeliveryMode(deliveryModeOverride)
-                        : getDeliveryMode(alertTypeId);
+                        : normalizeDeliveryMode(getDeliveryMode(alertTypeId));
                 // notificationManager.cancel(glucosealarmid); // Performance optimization:
                 // Don't cancel, just overwrite
                 PendingIntent intent;
-                if (!"NOTIFICATION_ONLY".equals(currentDeliveryMode)) {
+                if (AlertDeliveryPolicy.shouldAttemptAlarmWindow(currentDeliveryMode)) {
                     try {
                         intent = mkAlarmPendingIntent(glucose.value, message, glucose.rate, alertTypeId, customAlertId,
                                 currentDeliveryMode);
@@ -2696,9 +2706,9 @@ public class Notify {
                     GluNotBuilder.setCategory(Notification.CATEGORY_ALARM);
                 }
 
-                // UNIFIED LOGIC: Only attach Full Screen Intent if NOT in "Notification Only"
-                // mode.
-                if (!"NOTIFICATION_ONLY".equals(currentDeliveryMode)) {
+                // Fallback path for devices/OEM states where the queued alarm-window
+                // launch is denied. Notification-only mode deliberately never gets this.
+                if (AlertDeliveryPolicy.shouldAttachFullScreenIntent(currentDeliveryMode)) {
                     // Use Reflection for Intent creation to safe-guard against Missing Class on
                     // Wear
                     try {

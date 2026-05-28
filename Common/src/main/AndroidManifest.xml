@@ -151,6 +151,10 @@
             android:enabled="true"
             android:exported="false" />
         <receiver
+            android:name=".receivers.AlarmLaunchReceiver"
+            android:enabled="true"
+            android:exported="false" />
+        <receiver
             android:name=".drivers.aidex.AiDexScanReceiver"
             android:enabled="true"
             android:exported="false" />
