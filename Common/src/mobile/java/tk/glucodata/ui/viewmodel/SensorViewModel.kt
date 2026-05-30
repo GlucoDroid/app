@@ -364,11 +364,7 @@ class SensorViewModel : ViewModel() {
             // A non-active sensor can still be a valid dashboard/history target.
             val activeSensors = try { Natives.activeSensors() } catch (_: Exception) { null }
             val activeSensorSerial = try {
-                SensorIdentity.resolveAvailableMainSensor(
-                    selectedMain = SensorIdentity.resolveMainSensor(),
-                    preferredSensorId = null,
-                    activeSensors = activeSensors
-                )
+                SensorIdentity.resolveMainSensor()
             } catch (e: Exception) {
                 null
             }
