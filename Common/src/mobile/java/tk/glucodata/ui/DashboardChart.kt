@@ -171,6 +171,32 @@ internal fun coerceChartYToDrawableRange(
     }
 }
 
+internal fun previewCenterTimeForWindowEnd(windowEndTime: Long): Long {
+    return windowEndTime - PREVIEW_WINDOW_DURATION_MS / 2L
+}
+
+internal fun previewCenterTimeContainingViewport(
+    previewCenterTime: Long,
+    viewportCenterTime: Long,
+    visibleDuration: Long
+): Long {
+    if (visibleDuration >= PREVIEW_WINDOW_DURATION_MS) {
+        return viewportCenterTime
+    }
+
+    val previewHalfDuration = PREVIEW_WINDOW_DURATION_MS / 2L
+    val previewStart = previewCenterTime - previewHalfDuration
+    val previewEnd = previewCenterTime + previewHalfDuration
+    val viewportStart = viewportCenterTime - visibleDuration / 2L
+    val viewportEnd = viewportCenterTime + visibleDuration / 2L
+
+    return when {
+        viewportStart < previewStart -> viewportStart + previewHalfDuration
+        viewportEnd > previewEnd -> viewportEnd - previewHalfDuration
+        else -> previewCenterTime
+    }
+}
+
 private fun smoothChartSeries(
     points: List<GlucosePoint>,
     halfWindowMs: Long,
@@ -925,10 +951,16 @@ fun InteractiveGlucoseChart(
     fun liveCenterTimeFor(latestTimestamp: Long, durationMillis: Long): Long {
         return liveEndTimeFor(latestTimestamp, durationMillis) - (durationMillis / 2L)
     }
+
+    fun livePreviewCenterTimeFor(latestTimestamp: Long, durationMillis: Long): Long {
+        return previewCenterTimeForWindowEnd(liveEndTimeFor(latestTimestamp, durationMillis))
+    }
     
     var preZoomDuration by rememberSaveable { mutableLongStateOf(0L) } // For toggle zoom
     var centerTime by rememberSaveable { mutableLongStateOf(now - visibleDuration / 2) }
-    var previewCenterTime by rememberSaveable { mutableLongStateOf(now - PREVIEW_WINDOW_DURATION_MS / 2) }
+    var previewCenterTime by rememberSaveable {
+        mutableLongStateOf(livePreviewCenterTimeFor(latestDataTimestamp.takeIf { it > 0L } ?: now, visibleDuration))
+    }
 
     // Date picker state
     var showDatePicker by remember { mutableStateOf(false) }
@@ -974,7 +1006,7 @@ fun InteractiveGlucoseChart(
                         currentTime - visibleDuration / 2
                     }
                     centerTime = targetCenter
-                    previewCenterTime = targetCenter
+                    previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + visibleDuration / 2L)
                     lastAutoScrolledTimestamp = 0L
                 }
             }
@@ -1000,10 +1032,12 @@ fun InteractiveGlucoseChart(
             val target = selectedTimeRange.hours * 60 * 60 * 1000L
             if (visibleDuration != target) {
                 visibleDuration = target
-                // Snap to latest data when changing range for immediate feedback
-                if (latestDataTimestamp > 0) {
-                     centerTime = liveCenterTimeFor(latestDataTimestamp, target)
-                }
+            }
+            // Snap to latest data when changing range for immediate feedback.
+            if (latestDataTimestamp > 0) {
+                val targetCenter = liveCenterTimeFor(latestDataTimestamp, target)
+                centerTime = targetCenter
+                previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + target / 2L)
             }
         }
     }
@@ -1016,8 +1050,9 @@ fun InteractiveGlucoseChart(
         val switchedToOlderSeries = lastAutoScrolledTimestamp > 0L && latestDataTimestamp + 60_000L < lastAutoScrolledTimestamp
 
         if (lastAutoScrolledTimestamp == 0L || switchedToOlderSeries) {
-            centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
-            previewCenterTime = centerTime
+            val targetCenter = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
+            centerTime = targetCenter
+            previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + visibleDuration / 2L)
             lastAutoScrolledTimestamp = latestDataTimestamp
         }
     }
@@ -1028,25 +1063,27 @@ fun InteractiveGlucoseChart(
         }
         val currentEnd = centerTime + visibleDuration / 2
         if (abs(currentEnd - latestDataTimestamp) < 75L * 60L * 1000L) {
-            centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
-            previewCenterTime = centerTime
+            val targetCenter = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
+            centerTime = targetCenter
+            previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + visibleDuration / 2L)
         }
     }
 
-    LaunchedEffect(centerTime, visibleDuration, previewWindowMode) {
+    LaunchedEffect(centerTime, visibleDuration, previewWindowMode, latestDataTimestamp, predictionEndTimestamp, isUserInteracting) {
         if (previewWindowMode == PREVIEW_WINDOW_MODE_NEVER) return@LaunchedEffect
 
-        val previewHalfDuration = PREVIEW_WINDOW_DURATION_MS / 2
-        val previewStart = previewCenterTime - previewHalfDuration
-        val previewEnd = previewCenterTime + previewHalfDuration
-        val viewportStart = centerTime - visibleDuration / 2
-        val viewportEnd = centerTime + visibleDuration / 2
+        val viewportEnd = centerTime + visibleDuration / 2L
+        val liveEnd = liveEndTimeFor(latestDataTimestamp.takeIf { it > 0L } ?: System.currentTimeMillis(), visibleDuration)
+        val isLiveViewport = !isUserInteracting && abs(viewportEnd - liveEnd) <= 10L * 60L * 1000L
 
-        previewCenterTime = when {
-            visibleDuration >= PREVIEW_WINDOW_DURATION_MS -> centerTime
-            viewportStart < previewStart -> viewportStart + previewHalfDuration
-            viewportEnd > previewEnd -> viewportEnd - previewHalfDuration
-            else -> previewCenterTime
+        previewCenterTime = if (isLiveViewport) {
+            previewCenterTimeForWindowEnd(liveEnd)
+        } else {
+            previewCenterTimeContainingViewport(
+                previewCenterTime = previewCenterTime,
+                viewportCenterTime = centerTime,
+                visibleDuration = visibleDuration
+            )
         }
     }
 
@@ -1058,8 +1095,9 @@ fun InteractiveGlucoseChart(
 
             if (!isResumed) {
                 if (isMonitoring) {
-                    centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
-                    previewCenterTime = centerTime
+                    val targetCenter = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
+                    centerTime = targetCenter
+                    previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + visibleDuration / 2L)
                 }
                 lastAutoScrolledTimestamp = latestDataTimestamp
                 return@LaunchedEffect
@@ -1070,7 +1108,9 @@ fun InteractiveGlucoseChart(
 
             // Keep monitoring users on live data, but preserve viewport when they were browsing history.
             if (isMonitoring) {
-                centerTime = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
+                val targetCenter = liveCenterTimeFor(latestDataTimestamp, visibleDuration)
+                centerTime = targetCenter
+                previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + visibleDuration / 2L)
             }
             lastAutoScrolledTimestamp = latestDataTimestamp
         }
@@ -1098,7 +1138,7 @@ fun InteractiveGlucoseChart(
             // Only advance forward, never rewind (avoids fighting other effects).
             if (targetCenter > centerTime) {
                 centerTime = targetCenter
-                previewCenterTime = targetCenter
+                previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + visibleDuration / 2L)
             }
         }
     }
@@ -3726,10 +3766,12 @@ fun InteractiveGlucoseChart(
                                 } else {
                                     visibleDuration = rangeDur
                                     onTimeRangeSelected?.invoke(range)
-                                    centerTime = liveCenterTimeFor(
+                                    val targetCenter = liveCenterTimeFor(
                                         latestDataTimestamp.takeIf { it > 0L } ?: now,
                                         rangeDur
                                     )
+                                    centerTime = targetCenter
+                                    previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + rangeDur / 2L)
                                 }
                             },
                         contentAlignment = Alignment.Center
