@@ -99,7 +99,7 @@ public class Notify {
     static public final long glucosetimeout = 1000L * glucosetimeoutSEC;
     static private final int FOREGROUND_GLUCOSE_NOTIFICATION_KIND = -1;
     static private final long INTERACTIVE_NOTIFICATION_REFRESH_DELAY_MS = 750L;
-    static private final long LOCKED_ALARM_ACTIVITY_DELAY_MS = 250L;
+    static private final long LOCKED_ALARM_ACTIVITY_DELAY_MS = 0L;
     static private final Handler glucoseRefreshHandler = new Handler(Looper.getMainLooper());
 
     static final private String LOG_ID = "Notify";
@@ -2279,6 +2279,7 @@ public class Notify {
         if (shouldTryDirectAlarmActivity()) {
             return showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
         }
+        showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
         return queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
     }
 

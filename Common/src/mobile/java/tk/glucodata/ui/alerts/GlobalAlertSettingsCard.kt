@@ -67,9 +67,8 @@ fun GlobalAlertSettingsCard(
 
     var draftConfig by remember { mutableStateOf(seedConfig) }
     var appliedDraft by remember { mutableStateOf(seedConfig) }
-    val hasPendingChanges = remember(draftConfig, appliedDraft) {
-        !draftConfig.sameMasterDraft(appliedDraft)
-    }
+    val hasPendingChanges = !draftConfig.sameMasterDraft(appliedDraft)
+    val canApplyToAll = shouldEnableApplyToAll(draftConfig, appliedDraft, allConfigs)
 
     LaunchedEffect(seedConfig) {
         if (!hasPendingChanges) {
@@ -209,7 +208,7 @@ fun GlobalAlertSettingsCard(
                                 onApplyToAll(draftConfig)
                                 appliedDraft = draftConfig
                             },
-                            enabled = hasPendingChanges,
+                            enabled = canApplyToAll,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
@@ -244,7 +243,16 @@ fun GlobalAlertSettingsCard(
     }
 }
 
-private fun AlertConfig.sameMasterDraft(other: AlertConfig): Boolean {
+internal fun shouldEnableApplyToAll(
+    draftConfig: AlertConfig,
+    appliedDraft: AlertConfig,
+    allConfigs: Map<AlertType, AlertConfig>
+): Boolean {
+    return !draftConfig.sameMasterDraft(appliedDraft) ||
+        allConfigs.values.any { !it.sameMasterDraft(draftConfig) }
+}
+
+internal fun AlertConfig.sameMasterDraft(other: AlertConfig): Boolean {
     return soundEnabled == other.soundEnabled &&
         vibrationEnabled == other.vibrationEnabled &&
         flashEnabled == other.flashEnabled &&

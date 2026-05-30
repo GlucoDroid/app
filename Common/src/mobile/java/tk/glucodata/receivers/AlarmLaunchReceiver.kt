@@ -4,14 +4,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import tk.glucodata.Log
-import tk.glucodata.SuperGattCallback
 import tk.glucodata.ui.AlarmActivity
 
 class AlarmLaunchReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         try {
-            SuperGattCallback.initAlarmTalk()
-
             val alarmIntent = Intent(context.applicationContext, AlarmActivity::class.java).apply {
                 putExtras(intent)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or

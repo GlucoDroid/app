@@ -32,6 +32,7 @@ object AlertRuntimeManager {
     private var lastDisplaySnapshot: CurrentDisplaySource.Snapshot? = null
     private var persistentHighStartedAtMs: Long = 0L
     private val standardEpisodes = AlertEpisodeState<AlertType>()
+    private val sensorExpiryState = SensorExpiryAlertState()
 
     private val standardGlucoseAlertTypes = listOf(
         AlertType.VERY_LOW,
@@ -340,6 +341,7 @@ object AlertRuntimeManager {
         val type = AlertType.SENSOR_EXPIRY
         val config = AlertRepository.loadConfig(type)
         if (!config.enabled) {
+            sensorExpiryState.reset()
             clearRuntimeAlert(type, "sensor-expiry-disabled")
             return
         }
@@ -350,16 +352,27 @@ object AlertRuntimeManager {
             0L
         }
 
+        val activeNow = config.isActiveNow()
+        val snoozed = SnoozeManager.isSnoozed(type)
+        val shouldTrigger = sensorExpiryState.shouldTrigger(
+            enabled = true,
+            activeNow = activeNow,
+            snoozed = snoozed,
+            endTimeMs = endTimeMs,
+            nowMs = nowMs,
+            warningMs = SENSOR_EXPIRY_WARNING_MS
+        )
+
         if (endTimeMs <= 0L || endTimeMs - nowMs > SENSOR_EXPIRY_WARNING_MS) {
             clearRuntimeAlert(type, "sensor-expiry-not-due")
             return
         }
 
-        if (!config.isActiveNow()) {
+        if (!activeNow) {
             clearRuntimeAlert(type, "sensor-expiry-time-inactive")
             return
         }
-        if (SnoozeManager.isSnoozed(type)) {
+        if (snoozed || !shouldTrigger) {
             return
         }
 
