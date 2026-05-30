@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cmath>
 #include <ctime>
 #include <memory>
 #include <string>
@@ -358,14 +359,15 @@ int nightuploadTreatments3(const char *data,int len) {
 
 
 extern double     calibrateONEtest(const SensorGlucoseData *sens,const ScanData &value);
-//extern int Tdatestring(time_t tim,char *buf) ;
-#include "datestring.hpp"
 extern double getdelta(float change);
 extern std::string_view getdeltaname(float change);
 extern int mkv1streamid(char *outiter,const sensorname_t *name,int num);
+
 template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const sensorname_t *sensorname,const T &item,const bool includeId=false,const bool trailingComma=true) {
     const time_t tim=item.gettime();
-    const char *sensornameStr=sensorname->data();
+    const std::string_view sensornameView=fixedsensorview(sensorname);
+    char sensornameStr[64];
+    copyfixedsensorname(sensornameStr,sizeof(sensornameStr),sensorname);
     const int rawCurrent=sens->getRawForPoll(&item);
     int autoMgdl=item.getmgdL();
     if(double calibrated=calibrateONEtest(sens,item);!isnan(calibrated))
@@ -374,12 +376,26 @@ template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const sens
     if(mgdL<=0)
         mgdL=autoMgdl;
     float change= item.getchange();
-    const char * directionlabel=getdeltaname(change).data();
+    const std::string_view directionlabel=getdeltaname(change);
     double delta=getdelta(change);
-    char timestr[50];
-    Tdatestring(tim,timestr);
     char *out=buf;
-    out+=sprintf(out,R"({"type":"sgv","device":"%s","dateString":"%s","date":%lld,"sgv":%d,"delta":%.3f,"direction":"%s","noise":1,"filtered":%d,"unfiltered":%d,"rssi":100)",sensornameStr,timestr,tim*1000LL,mgdL,delta,directionlabel,mgdL*1000,mgdL*1000);
+    addar(out,R"({"type":"sgv","device":")");
+    addjsonescaped(out,sensornameView);
+    addar(out,R"(","dateString":")");
+    addNightscoutDateString(out,tim);
+    addar(out,R"(","date":)");
+    addjsonint(out,tim*1000LL);
+    addar(out,R"(,"sgv":)");
+    addjsonint(out,mgdL);
+    addar(out,R"(,"delta":)");
+    addjsonfixed3(out,delta);
+    addar(out,R"(,"direction":")");
+    addjsonescaped(out,directionlabel);
+    addar(out,R"(","noise":1,"filtered":)");
+    addjsonint(out,mgdL*1000LL);
+    addar(out,R"(,"unfiltered":)");
+    addjsonint(out,mgdL*1000LL);
+    addar(out,R"(,"rssi":100)");
     if(includeId) {
         addar(out,R"(,"_id":")");
         out+=mkv1streamid(out,sensorname,item.getid());
@@ -463,12 +479,14 @@ static bool uploadV1ChunkIndividually(const int sensorid,SensorGlucoseData *sens
 
 static const char *writeNightscoutV3UploadEntry(char *buf,SensorGlucoseData *sens,const sensorname_t *sensorname,const ScanData *el) {
 extern char * writev3entry(char *outin,const ScanData *val, const sensorname_t *sensorname,bool server=true);
+    char sensornameStr[64];
+    copyfixedsensorname(sensornameStr,sizeof(sensornameStr),sensorname);
     int autoMgdl=el->getmgdL();
     if(double calibrated=calibrateONEtest(sens,*el);!isnan(calibrated))
         autoMgdl=(int)round(calibrated);
     const int overrideValue=getNightscoutCalibrationOverrideForItem(
         sens,
-        sensorname->data(),
+        sensornameStr,
         autoMgdl,
         sens->getRawForPoll(el),
         el->gettime()*1000LL
@@ -596,7 +614,7 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
     if(!settings->data()->nightsensor)
         settings->data()->nightsensor=sensors->firstafter(mintime);
     int startsensor= settings->data()->nightsensor;
-    constexpr const int itemsize=420;
+    constexpr const int itemsize=512;
 /*
     constexpr const auto twoweeks=15*24*60*60;
     time_t old=nu-twoweeks; */

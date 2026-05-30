@@ -61,7 +61,9 @@ int resolveExportedMgdl(const SensorGlucoseData *sens, const ScanData *val,
             env->ExceptionClear();
         return autoMgdl;
         }
-    auto jsensor=env->NewStringUTF(sensorname->data());
+    char sensornameStr[64];
+    copyfixedsensorname(sensornameStr,sizeof(sensornameStr),sensorname);
+    auto jsensor=env->NewStringUTF(sensornameStr);
     const auto *info=sens->getinfo();
     const int viewMode=info?info->viewMode:0;
     const int rawCurrent=sens->getRawForPoll(val);

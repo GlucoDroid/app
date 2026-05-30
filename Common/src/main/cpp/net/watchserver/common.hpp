@@ -1,7 +1,12 @@
 #pragma once
 #include "SensorGlucoseData.hpp"
 #include "gltype.hpp"
+#include <algorithm>
+#include <charconv>
+#include <cmath>
+#include <cstring>
 #include <string_view>
+#include <time.h>
 template <typename T>
 inline void	addstrview(char *&uitptr,const T indata) {
 	memcpy(uitptr,indata.data(),indata.size());
@@ -34,7 +39,116 @@ inline std::string_view fixedsensorview(const sensorname_t *sensorname) {
 		if(len>=sensorname->size())
 			return {name,len};
 		}
-	return {name,sensorname->size()};
+	size_t len=0;
+	for(;len<sensorname->size();len++) {
+		const unsigned char ch=static_cast<unsigned char>(name[len]);
+		if(ch==0||ch<0x20||ch=='/'||ch=='\\'||ch=='"')
+			break;
+		}
+	return {name,len};
+	}
+
+inline void copyfixedsensorname(char *out,size_t outsize,const sensorname_t *sensorname) {
+	if(!outsize)
+		return;
+	const std::string_view name=fixedsensorview(sensorname);
+	const size_t len=std::min(name.size(),outsize-1);
+	memcpy(out,name.data(),len);
+	out[len]='\0';
+	}
+
+inline void addjsonuint(char *&out,unsigned long long value) {
+	char tmp[32];
+	if(auto [ptr,ec]=std::to_chars(tmp,tmp+sizeof(tmp),value);ec==std::errc()) {
+		const auto len=ptr-tmp;
+		memcpy(out,tmp,len);
+		out+=len;
+		}
+	}
+
+inline void addjsonint(char *&out,long long value) {
+	if(value<0) {
+		*out++='-';
+		addjsonuint(out,static_cast<unsigned long long>(-(value+1))+1ULL);
+		}
+	else {
+		addjsonuint(out,static_cast<unsigned long long>(value));
+		}
+	}
+
+inline void addjsonpadded2(char *&out,int value) {
+	if(value<10)
+		*out++='0';
+	addjsonuint(out,static_cast<unsigned>(value));
+	}
+
+inline void addjsonpadded3(char *&out,int value) {
+	if(value<100)
+		*out++='0';
+	if(value<10)
+		*out++='0';
+	addjsonuint(out,static_cast<unsigned>(value));
+	}
+
+inline void addjsonfixed3(char *&out,double value) {
+	if(!std::isfinite(value))
+		value=0.0;
+	long long scaled=std::llround(value*1000.0);
+	if(scaled<0) {
+		*out++='-';
+		scaled=-scaled;
+		}
+	addjsonint(out,scaled/1000);
+	*out++='.';
+	addjsonpadded3(out,static_cast<int>(scaled%1000));
+	}
+
+inline int addNightscoutDateString(char *&out,time_t tim) {
+	char *start=out;
+	struct tm tmbuf;
+	int seczone=timegm(localtime_r(&tim,&tmbuf))-tim;
+	int minutes=seczone/60;
+	const bool neg=minutes<0;
+	if(neg)
+		minutes=-minutes;
+	const int hours=minutes/60;
+	const int minleft=minutes%60;
+	addjsonint(out,tmbuf.tm_year+1900);
+	*out++='-';
+	addjsonpadded2(out,tmbuf.tm_mon+1);
+	*out++='-';
+	addjsonpadded2(out,tmbuf.tm_mday);
+	*out++='T';
+	addjsonpadded2(out,tmbuf.tm_hour);
+	*out++=':';
+	addjsonpadded2(out,tmbuf.tm_min);
+	*out++=':';
+	addjsonpadded2(out,tmbuf.tm_sec);
+	addar(out,R"(.000)");
+	*out++=neg?'-':'+';
+	addjsonpadded2(out,hours);
+	*out++=':';
+	addjsonpadded2(out,minleft);
+	return out-start;
+	}
+
+inline int addNightscoutDateStringGMT(char *&out,time_t tim) {
+	char *start=out;
+	struct tm tmbuf;
+	gmtime_r(&tim,&tmbuf);
+	addjsonint(out,tmbuf.tm_year+1900);
+	*out++='-';
+	addjsonpadded2(out,tmbuf.tm_mon+1);
+	*out++='-';
+	addjsonpadded2(out,tmbuf.tm_mday);
+	*out++='T';
+	addjsonpadded2(out,tmbuf.tm_hour);
+	*out++=':';
+	addjsonpadded2(out,tmbuf.tm_min);
+	*out++=':';
+	addjsonpadded2(out,tmbuf.tm_sec);
+	addar(out,R"(.000Z)");
+	return out-start;
 	}
 
 inline void addjsonescaped(char *&outptr,std::string_view value) {

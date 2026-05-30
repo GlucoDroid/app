@@ -2714,8 +2714,9 @@ class AnytimeBleManager(
                 AnytimeCalibrationPolicy.calibrationStatusName(result.calibrationStatus),
             )
         )
-        // Managed Anytime glucose history is written through Room only. A
-        // timestamped temperature side series is persisted separately for Stats.
+        // Keep Room and native stream history in sync: Nightscout upload and the
+        // built-in web server still read native polls, while dashboard/history
+        // screens read Room.
         if (!skipHistoryImport) {
             var importedImmediateRoomPoint = false
             if (history && !live) {
@@ -2734,6 +2735,7 @@ class AnytimeBleManager(
                     )
                 )
             }
+            mirrorReadingIntoNative(sampleMs, result)
         } else {
             Log.d(TAG, "Skipping startup provisional Room import id=${result.glucoseId} source=${result.source}")
         }
@@ -2743,6 +2745,32 @@ class AnytimeBleManager(
             Log.d(TAG, "Backfill stored newer Room point without live emit id=${result.glucoseId}")
         }
         return true
+    }
+
+    private fun mirrorReadingIntoNative(sampleMs: Long, result: AnytimeAlgorithm.Result) {
+        val name = SerialNumber ?: return
+        val sampleSec = sampleMs / 1000L
+        val glucoseMgdl = result.mgdl
+        if (sampleSec <= 0L || !glucoseMgdl.isFinite() || glucoseMgdl <= 0f) return
+        runCatching {
+            val startSec = when {
+                sensorStartAtMs > 0L -> sensorStartAtMs / 1000L
+                sampleSec > 3600L -> sampleSec - 3600L
+                else -> 1L
+            }.coerceAtLeast(1L)
+            Natives.ensureSensorShell(name, startSec)
+            val temperatureC = result.temperatureC
+                .takeIf { it.isFinite() && it > -20f && it < 80f }
+                ?: 0f
+            Natives.addGlucoseStreamWithTemp(sampleSec, glucoseMgdl / 10f, temperatureC, name)
+            val rawMgdl = if (result.rawMgdl.isNaN()) glucoseMgdl else result.rawMgdl
+            if (rawMgdl.isFinite() && rawMgdl > 0f) {
+                Natives.addRawGlucoseStream(sampleSec, rawMgdl, name)
+            }
+            if (dataptr == 0L) {
+                dataptr = runCatching { Natives.getdataptr(name) }.getOrDefault(0L)
+            }
+        }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
     }
 
     private fun ensureNativeSensorShell() {

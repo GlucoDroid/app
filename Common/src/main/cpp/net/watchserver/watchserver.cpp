@@ -898,13 +898,6 @@ char * writebucket(char *outiter,const int index,const ScanData *val,const senso
 //https://api/v1/entries/current
 
 extern int Tdatestring(time_t tim,char *buf) ;
-extern int TdatestringGMT(time_t tim,char *buf) ;
-
-static int oneTdatestringGMT(time_t tim,char *buf) {
-        struct tm tmbuf;
-   gmtime_r(&tim, &tmbuf);
-        return sprintf(buf,R"(%04d-%02d-%02dT%02d:%02d:%02d.000Z)",tmbuf.tm_year+1900,tmbuf.tm_mon+1,tmbuf.tm_mday, tmbuf.tm_hour, tmbuf.tm_min,tmbuf.tm_sec);
-        }
 
 //      return givetreatments(outdata);
 bool givenolist(recdata *outdata) {
@@ -2555,10 +2548,11 @@ char *Sgvinterpret::makedata(recdata *outdata ) const {
 char *Sgvinterpret::dontbrief(char *outiter,const sensorname_t *name,const ScanData *iter) const {
    addar(outiter,R"("_id":")");
    addjsonescaped(outiter,fixedsensorview(name));
-   outiter+=sprintf(outiter,R"(#%d","device":"Juggluco","dateString":")", iter->id);
+   *outiter++='#';
+   addjsonint(outiter,iter->id);
+   addar(outiter,R"(","device":"Juggluco","dateString":")");
    const char *startdate=outiter;
-   int len=(gmt?oneTdatestringGMT:Tdatestring)(iter->t,outiter);
-   outiter+=len;
+   int len=gmt?addNightscoutDateStringGMT(outiter,iter->t):addNightscoutDateString(outiter,iter->t);
    std::string_view st= R"(","sysTime":")";
    memcpy(outiter,st.data(),st.size());
    outiter+=st.size();
@@ -2590,7 +2584,23 @@ char *Sgvinterpret::firstdata(char *outiter,time_t starttime,uint32_t dattime) c
       int hourleft=backhour%24;
       struct tm tmtim;
        localtime_r(&starttime, &tmtim);
-       outiter+=sprintf(outiter,R"PRE(,"sensor_status":"%02d-%02d-%02d %02d:%02d (%dd %dh)")PRE",tmtim.tm_mday,tmtim.tm_mon+1,tmtim.tm_year-100,tmtim.tm_hour,mktmmin(&tmtim),days,hourleft);
+       addar(outiter,R"(,"sensor_status":")");
+       addjsonpadded2(outiter,tmtim.tm_mday);
+       *outiter++='-';
+       addjsonpadded2(outiter,tmtim.tm_mon+1);
+       *outiter++='-';
+       addjsonpadded2(outiter,tmtim.tm_year-100);
+       *outiter++=' ';
+       addjsonpadded2(outiter,tmtim.tm_hour);
+       *outiter++=':';
+       addjsonpadded2(outiter,mktmmin(&tmtim));
+       addar(outiter,R"( ()");
+       addjsonint(outiter,days);
+       addar(outiter,R"(d )");
+       addjsonint(outiter,hourleft);
+       *outiter++='h';
+       *outiter++=')';
+       *outiter++='"';
        }
    return outiter;
    }
@@ -2606,12 +2616,22 @@ char *Sgvinterpret::writeitem(char *outiter,int datit, const ScanData *iter,cons
       }
     double delta= getdelta(iter->ch);
     std::string_view name=getdeltaname(iter->ch);
-    outiter+=sprintf(outiter,R"("date":%d000,"sgv":%d,"delta":%.3f,"direction":")",iter->t,iter->getmgdL(),delta);
+    addar(outiter,R"("date":)");
+    addjsonint(outiter,static_cast<long long>(iter->t)*1000LL);
+    addar(outiter,R"(,"sgv":)");
+    addjsonint(outiter,iter->getmgdL());
+    addar(outiter,R"(,"delta":)");
+    addjsonfixed3(outiter,delta);
+    addar(outiter,R"(,"direction":")");
     addjsonescaped(outiter,name);
     addar(outiter,R"(","noise":1)");
        if (!briefmode) {
       longlongtype mgdL1000=iter->getmgdL()*1000;
-      outiter+=sprintf(outiter,R"(,"filtered":%lld,"unfiltered":%lld,"rssi":100,"type":"sgv")",mgdL1000,mgdL1000);
+      addar(outiter,R"(,"filtered":)");
+      addjsonint(outiter,mgdL1000);
+      addar(outiter,R"(,"unfiltered":)");
+      addjsonint(outiter,mgdL1000);
+      addar(outiter,R"(,"rssi":100,"type":"sgv")");
       }
       if(datit==0) {
       outiter=firstdata(outiter,starttime,iter->t);
