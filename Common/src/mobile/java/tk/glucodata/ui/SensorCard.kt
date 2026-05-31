@@ -269,6 +269,101 @@ fun InfoRow(label: String, value: String) {
     }
 }
 
+private fun formatSensorReadingAge(nowMillis: Long, readingMillis: Long): String {
+    val ageSeconds = ((nowMillis - readingMillis).coerceAtLeast(0L) / 1000L)
+    return if (ageSeconds < 60L) {
+        "${ageSeconds}s"
+    } else {
+        "${(ageSeconds / 60L).coerceAtLeast(1L)}m"
+    }
+}
+
+private fun nextSensorReadingAgeDelay(nowMillis: Long, readingMillis: Long): Long {
+    val ageSeconds = ((nowMillis - readingMillis).coerceAtLeast(0L) / 1000L)
+    return if (ageSeconds < 60L) {
+        1_000L
+    } else {
+        ((60L - (ageSeconds % 60L)) * 1_000L).coerceAtLeast(1_000L)
+    }
+}
+
+@Composable
+private fun SensorCurrentValueChip(
+    snapshot: CurrentDisplaySource.Snapshot,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    var nowMillis by remember(snapshot.timeMillis) { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(snapshot.timeMillis) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(nextSensorReadingAgeDelay(nowMillis, snapshot.timeMillis))
+        }
+    }
+    val ageText = remember(nowMillis, snapshot.timeMillis) {
+        formatSensorReadingAge(nowMillis, snapshot.timeMillis)
+    }
+
+    Surface(
+        modifier = modifier.widthIn(max = 220.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.72f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = snapshot.primaryStr,
+                style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            snapshot.secondaryStr?.let { secondary ->
+                Text(
+                    text = " · $secondary",
+                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccessTime,
+                    contentDescription = null,
+                    tint = accentColor.copy(alpha = 0.82f),
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(
+                    text = ageText,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+//            Spacer(modifier = Modifier.width(6.dp))
+//            Icon(
+//                imageVector = getTrendIcon(snapshot.rate),
+//                contentDescription = null,
+//                tint = accentColor,
+//                modifier = Modifier.size(16.dp)
+//            )
+        }
+    }
+}
+
 @Composable
 fun SensorCard(
     sensor: tk.glucodata.ui.viewmodel.SensorInfo,
@@ -1203,6 +1298,16 @@ fun SensorCard(
     }
 
     val isStreaming = sensor.streaming
+    val refreshRevision by UiRefreshBus.revision.collectAsState(initial = 0L)
+    val currentSnapshot = remember(refreshRevision, sensor.serial, sensor.viewMode) {
+        CurrentDisplaySource.resolveCurrent(
+            maxAgeMillis = Notify.glucosetimeout,
+            preferredSensorId = sensor.serial
+        )?.takeIf { snapshot ->
+            abs(System.currentTimeMillis() - snapshot.timeMillis) <= Notify.glucosetimeout &&
+                snapshot.primaryStr.isNotBlank()
+        }
+    }
     // Visual Feedback: Darken card when disconnected/paused
     val containerColor = if (isStreaming) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     val contentAlpha = if (isStreaming) 1f else 0.9f
@@ -1346,20 +1451,34 @@ fun SensorCard(
                             }
                             // Feature: Detailed Sensor Status
                             Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+//                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
 
-                    if (sensor.detailedStatus.isNotEmpty()) {
-                        Text(
-                            text = sensor.detailedStatus,
-                            style = MaterialTheme.typography.titleSmall, // Bigger than labelMedium
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    } else if (sensor.connectionStatus.isNotEmpty()) {
-                         Text(
-                            text = sensor.connectionStatus,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+
+                                val sensorStatusText = when {
+                                    sensor.detailedStatus.isNotEmpty() -> sensor.detailedStatus
+                                    sensor.connectionStatus.isNotEmpty() -> sensor.connectionStatus
+                                    else -> null
+                                }
+
+                                sensorStatusText?.let { status ->
+                                    Text(
+                                        text = status,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                                currentSnapshot?.let { snapshot ->
+                                    SensorCurrentValueChip(
+                                        snapshot = snapshot,
+                                        accentColor = sensor.color
+                                    )
+                                }
+                            }
                         }
 
                         // Logic: Show Pause if running, Play if stopped (to resume)
