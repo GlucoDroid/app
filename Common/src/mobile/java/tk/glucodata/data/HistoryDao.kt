@@ -152,13 +152,12 @@ interface HistoryDao {
     @Query("""
         DELETE FROM history_readings
         WHERE sensorSerial = :sensorSerial
-          AND (timestamp / :bucketDurationMs) IN (:bucketIds)
-          AND timestamp NOT IN (:protectedTimestamps)
+          AND timestamp >= :startTimeInclusive
+          AND timestamp < :endTimeExclusive
     """)
-    suspend fun deleteConflictingSensorRowsForBuckets(
+    suspend fun deleteSensorRowsInTimeRange(
         sensorSerial: String,
-        bucketDurationMs: Long,
-        bucketIds: List<Long>,
-        protectedTimestamps: List<Long>
+        startTimeInclusive: Long,
+        endTimeExclusive: Long
     ): Int
 }

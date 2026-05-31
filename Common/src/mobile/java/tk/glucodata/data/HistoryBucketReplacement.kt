@@ -3,9 +3,13 @@ package tk.glucodata.data
 import java.util.LinkedHashSet
 
 internal object HistoryBucketReplacement {
+    data class BucketRange(
+        val firstBucketId: Long,
+        val lastBucketId: Long,
+    )
+
     data class Plan(
-        val bucketIds: List<Long>,
-        val protectedTimestamps: List<Long>,
+        val bucketRanges: List<BucketRange>,
     )
 
     fun plan(
@@ -21,21 +25,46 @@ internal object HistoryBucketReplacement {
         bucketDurationMs: Long,
     ): Plan? {
         if (collapsedReadings.isEmpty() || bucketDurationMs <= 0L) return null
-        val protectedTimestamps = LinkedHashSet<Long>(collapsedReadings.size)
         val bucketIds = LinkedHashSet<Long>(collapsedReadings.size)
 
         for (reading in collapsedReadings) {
             val timestamp = reading.timestamp
-            protectedTimestamps.add(timestamp)
             bucketIds.add(timestamp / bucketDurationMs)
         }
 
-        if (protectedTimestamps.isEmpty() || bucketIds.isEmpty()) return null
+        if (bucketIds.isEmpty()) return null
 
         return Plan(
-            bucketIds = bucketIds.toList(),
-            protectedTimestamps = protectedTimestamps.toList(),
+            bucketRanges = coalesceBucketRanges(bucketIds.toList().sorted()),
         )
+    }
+
+    private fun coalesceBucketRanges(bucketIds: Iterable<Long>): List<BucketRange> {
+        val ranges = ArrayList<BucketRange>()
+        var firstBucket: Long? = null
+        var lastBucket: Long? = null
+
+        for (bucketId in bucketIds) {
+            val currentFirst = firstBucket
+            val currentLast = lastBucket
+            if (currentFirst == null || currentLast == null) {
+                firstBucket = bucketId
+                lastBucket = bucketId
+            } else if (bucketId == currentLast + 1L) {
+                lastBucket = bucketId
+            } else {
+                ranges.add(BucketRange(currentFirst, currentLast))
+                firstBucket = bucketId
+                lastBucket = bucketId
+            }
+        }
+
+        val currentFirst = firstBucket
+        val currentLast = lastBucket
+        if (currentFirst != null && currentLast != null) {
+            ranges.add(BucketRange(currentFirst, currentLast))
+        }
+        return ranges
     }
 
     fun collapseReadings(

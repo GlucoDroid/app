@@ -396,11 +396,15 @@ class HistoryRepository(context: Context = Applic.app) {
                     return@withContext
                 }
                 database.withTransaction {
-                    dao.deleteConflictingSensorRowsForBuckets(
+                    deleteSensorRowsInBucketRanges(
                         sensorSerial = serial,
                         bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
-                        bucketIds = listOf(timestamp / SENSOR_MINUTE_BUCKET_MS),
-                        protectedTimestamps = listOf(timestamp)
+                        bucketRanges = listOf(
+                            HistoryBucketReplacement.BucketRange(
+                                firstBucketId = timestamp / SENSOR_MINUTE_BUCKET_MS,
+                                lastBucketId = timestamp / SENSOR_MINUTE_BUCKET_MS
+                            )
+                        )
                     )
                     dao.insert(reading)
                 }
@@ -499,11 +503,10 @@ class HistoryRepository(context: Context = Applic.app) {
                     bucketDurationMs = bucketDurationMs,
                 ) ?: return@withContext false
                 database.withTransaction {
-                    dao.deleteConflictingSensorRowsForBuckets(
+                    deleteSensorRowsInBucketRanges(
                         sensorSerial = sensorSerial,
                         bucketDurationMs = bucketDurationMs,
-                        bucketIds = plan.bucketIds,
-                        protectedTimestamps = plan.protectedTimestamps
+                        bucketRanges = plan.bucketRanges
                     )
                     dao.insertAll(collapsedReadings)
                 }
@@ -518,6 +521,29 @@ class HistoryRepository(context: Context = Applic.app) {
                 false
             }
         }
+    }
+
+    private suspend fun deleteSensorRowsInBucketRanges(
+        sensorSerial: String,
+        bucketDurationMs: Long,
+        bucketRanges: List<HistoryBucketReplacement.BucketRange>
+    ): Int {
+        if (sensorSerial.isBlank() || bucketDurationMs <= 0L || bucketRanges.isEmpty()) return 0
+
+        var deleted = 0
+        for (range in bucketRanges) {
+            if (range.firstBucketId > range.lastBucketId) continue
+            val startTimeInclusive = range.firstBucketId * bucketDurationMs
+            val endTimeExclusive = (range.lastBucketId + 1L) * bucketDurationMs
+            if (endTimeExclusive <= startTimeInclusive) continue
+
+            deleted += dao.deleteSensorRowsInTimeRange(
+                sensorSerial = sensorSerial,
+                startTimeInclusive = startTimeInclusive,
+                endTimeExclusive = endTimeExclusive
+            )
+        }
+        return deleted
     }
 
     private suspend fun filterDeletedReadings(readings: List<HistoryReading>): List<HistoryReading> {

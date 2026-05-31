@@ -25,6 +25,19 @@ internal object HistoryDisplayMerge {
         }
     }
 
+    private class LogicalSensorResolver {
+        private val cache = HashMap<String, String?>()
+
+        fun resolve(sensorSerial: String?): String? {
+            val raw = sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            return cache.getOrPut(raw) {
+                SensorIdentity.resolveRoomStorageSensorId(raw)
+                    ?: SensorIdentity.resolveAppSensorId(raw)
+                    ?: raw
+            }
+        }
+    }
+
     fun mergeReadings(
         readings: List<HistoryReading>,
         preferredSerial: String?
@@ -32,14 +45,15 @@ internal object HistoryDisplayMerge {
         if (readings.isEmpty()) return emptyList()
 
         val resolver = PreferredMatchResolver(preferredSerial)
+        val logicalResolver = LogicalSensorResolver()
         if (hasSingleStoredSensor(readings)) {
             return collapseSingleLogicalSensorBuckets(readings, resolver)
         }
-        singleLogicalSensorId(readings)?.let {
+        singleLogicalSensorId(readings, logicalResolver)?.let {
             return collapseSingleLogicalSensorBuckets(readings, resolver)
         }
 
-        val coalesced = collapseLogicalSensorBuckets(readings, resolver)
+        val coalesced = collapseLogicalSensorBuckets(readings, resolver, logicalResolver)
         val filtered = applyPreferredOverlapDominance(coalesced, resolver)
         val merged = ArrayList<HistoryReading>(filtered.size)
         var currentTimestamp = Long.MIN_VALUE
@@ -68,10 +82,13 @@ internal object HistoryDisplayMerge {
         return true
     }
 
-    private fun singleLogicalSensorId(readings: List<HistoryReading>): String? {
+    private fun singleLogicalSensorId(
+        readings: List<HistoryReading>,
+        logicalResolver: LogicalSensorResolver
+    ): String? {
         var firstSensorId: String? = null
         for (reading in readings) {
-            val sensorId = logicalSensorId(reading.sensorSerial) ?: return null
+            val sensorId = logicalResolver.resolve(reading.sensorSerial) ?: return null
             if (firstSensorId == null) {
                 firstSensorId = sensorId
             } else if (sensorId != firstSensorId) {
@@ -121,12 +138,13 @@ internal object HistoryDisplayMerge {
 
     private fun collapseLogicalSensorBuckets(
         readings: List<HistoryReading>,
-        resolver: PreferredMatchResolver
+        resolver: PreferredMatchResolver,
+        logicalResolver: LogicalSensorResolver
     ): List<HistoryReading> {
         val byBucket = LinkedHashMap<LogicalSensorBucket, HistoryReading>(readings.size)
         for (reading in readings) {
             val sensorSerial = reading.sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: continue
-            val resolvedSensorId = logicalSensorId(sensorSerial) ?: continue
+            val resolvedSensorId = logicalResolver.resolve(sensorSerial) ?: continue
             val key = LogicalSensorBucket(
                 sensorId = resolvedSensorId,
                 bucket = reading.timestamp / SENSOR_MINUTE_BUCKET_MS
@@ -135,13 +153,6 @@ internal object HistoryDisplayMerge {
             byBucket[key] = if (existing == null) reading else choosePreferred(existing, reading, resolver)
         }
         return byBucket.values.sortedBy { it.timestamp }
-    }
-
-    private fun logicalSensorId(sensorSerial: String?): String? {
-        val raw = sensorSerial?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return SensorIdentity.resolveRoomStorageSensorId(raw)
-            ?: SensorIdentity.resolveAppSensorId(raw)
-            ?: raw
     }
 
     private fun applyPreferredOverlapDominance(

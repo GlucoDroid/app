@@ -20,8 +20,28 @@ class HistoryBucketReplacementTests {
         )
 
         requireNotNull(plan)
-        assertEquals(listOf(1L, 2L), plan.bucketIds)
-        assertEquals(listOf(119_999L, 120_000L), plan.protectedTimestamps)
+        assertEquals(listOf(HistoryBucketReplacement.BucketRange(1L, 2L)), plan.bucketRanges)
+    }
+
+    @Test
+    fun plan_keepsNonAdjacentBucketsAsSeparateRanges() {
+        val plan = HistoryBucketReplacement.plan(
+            readings = listOf(
+                HistoryReading(timestamp = 60_000L, sensorSerial = "sensor", value = 100f, rawValue = 100f, rate = null),
+                HistoryReading(timestamp = 180_000L, sensorSerial = "sensor", value = 101f, rawValue = 101f, rate = null),
+                HistoryReading(timestamp = 240_000L, sensorSerial = "sensor", value = 102f, rawValue = 102f, rate = null),
+            ),
+            bucketDurationMs = 60_000L,
+        )
+
+        requireNotNull(plan)
+        assertEquals(
+            listOf(
+                HistoryBucketReplacement.BucketRange(1L, 1L),
+                HistoryBucketReplacement.BucketRange(3L, 4L),
+            ),
+            plan.bucketRanges
+        )
     }
 
     @Test
