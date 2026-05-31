@@ -18,7 +18,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LegendToggle
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.LegendToggle
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Settings
@@ -99,7 +101,9 @@ private fun DashboardRoute(
 @Composable
 private fun HistoryRoute(
     dashboardViewModel: DashboardViewModel,
-    onBack: () -> Unit,
+    title: String,
+    browseMode: TimelineBrowseMode,
+    onBack: (() -> Unit)?,
     onTriggerCalibration: (CalibrationSheetState) -> Unit,
 //    initialShowReadingRows: Boolean = true
 ) {
@@ -151,8 +155,8 @@ private fun HistoryRoute(
         collapseSmoothedData = dataSmoothingCollapseChunks,
         previewWindowMode = previewWindowMode,
         calibrations = calibrations,
-        title = stringResource(R.string.historyname),
-        browseMode = TimelineBrowseMode.HISTORY,
+        title = title,
+        browseMode = browseMode,
 //        initialShowReadingRows = initialShowReadingRows,
         journalEnabled = journalEnabled,
         journalEntries = scopedJournalEntries,
@@ -347,6 +351,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     // Handle back button to exit app when on start destination
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
+    val journalEnabled by dashboardViewModel.journalEnabled.collectAsStateWithLifecycle()
+    val journalNavigationTabEnabled by dashboardViewModel.journalNavigationTabEnabled.collectAsStateWithLifecycle()
+    val showJournalNav = journalEnabled && journalNavigationTabEnabled
 
     fun collectionModeForRoute(route: String?): DashboardViewModel.CollectionMode = when (route) {
         "dashboard", "sensors", "settings" -> DashboardViewModel.CollectionMode.DASHBOARD
@@ -392,7 +399,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
         route == null -> null
         route.startsWith("settings/") -> "settings"
         route.startsWith("sensors/") -> "sensors"
-        route == "history" || route == "journal" -> "dashboard"
+        route == "history" -> "dashboard"
+        route == "journal" -> "journal"
         route == "calibrations" || route.startsWith("calibrations/") -> "dashboard"
         else -> null
     }
@@ -419,6 +427,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     val navItems = buildList {
         add(NavItem("stats", stringResource(R.string.statistics_title), Icons.Filled.BarChart, Icons.Outlined.BarChart))
         add(NavItem("dashboard", stringResource(R.string.dashboard), Icons.Filled.LegendToggle, Icons.Outlined.LegendToggle))
+        if (showJournalNav) {
+            add(NavItem("journal", stringResource(R.string.journal_title), Icons.Filled.EditNote, Icons.Outlined.EditNote))
+        }
         add(NavItem("sensors", stringResource(R.string.sensor), Icons.Filled.Sensors, Icons.Outlined.Sensors))
         add(NavItem("settings", stringResource(R.string.settings), Icons.Filled.Settings, Icons.Outlined.Settings))
     }
@@ -468,6 +479,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("history") {
                         HistoryRoute(
                             dashboardViewModel = dashboardViewModel,
+                            title = stringResource(R.string.historyname),
+                            browseMode = TimelineBrowseMode.HISTORY,
                             onBack = { navController.popBackStack() },
                             onTriggerCalibration = onTriggerCalibration
                         )
@@ -475,7 +488,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("journal") {
                         HistoryRoute(
                             dashboardViewModel = dashboardViewModel,
-                            onBack = { navController.popBackStack() },
+                            title = stringResource(R.string.journal_title),
+                            browseMode = TimelineBrowseMode.JOURNAL,
+                            onBack = null,
                             onTriggerCalibration = onTriggerCalibration,
 //                            initialShowReadingRows = false
                         )
@@ -602,6 +617,8 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("history") {
                     HistoryRoute(
                         dashboardViewModel = dashboardViewModel,
+                        title = stringResource(R.string.historyname),
+                        browseMode = TimelineBrowseMode.HISTORY,
                         onBack = { navController.popBackStack() },
                         onTriggerCalibration = onTriggerCalibration
                     )
@@ -609,7 +626,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("journal") {
                     HistoryRoute(
                         dashboardViewModel = dashboardViewModel,
-                        onBack = { navController.popBackStack() },
+                        title = stringResource(R.string.journal_title),
+                        browseMode = TimelineBrowseMode.JOURNAL,
+                        onBack = null,
                         onTriggerCalibration = onTriggerCalibration,
 //                        initialShowReadingRows = false
                     )

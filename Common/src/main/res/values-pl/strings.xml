@@ -944,6 +944,12 @@
     <string name="calibration_import_export_desc">Przenieś profile kalibracji dla bieżącego sensora. Zastąpienie najpierw usuwa istniejące punkty tego sensora.</string>
     <string name="calibration_model_summary_title">Stan modelu</string>
     <string name="calibration_model_selected_point">Wybrany punkt</string>
+    <string name="calibration_model_mid_offset">Środkowy offset</string>
+    <string name="calibration_model_legend_active_desc">Używane</string>
+    <string name="calibration_model_legend_disabled_desc">Wykluczone</string>
+    <string name="calibration_model_legend_fit_desc">Linia modelu</string>
+    <string name="calibration_model_legend_age">Wiek</string>
+    <string name="calibration_model_legend_age_desc">Mniejsze = starsze</string>
     <string name="calibration_weight_title">Ważenie kalibracji</string>
     <string name="calibration_weight_fresh">Nowe</string>
     <string name="calibration_weight_fresh_desc">Nowsze punkty szybciej przejmują wpływ.</string>
@@ -1546,6 +1552,14 @@
     <string name="journal_manage_title">Ustawienia dziennika</string>
     <string name="journal_manage_desc">Dostosuj typy insuliny i okna działania</string>
     <string name="journal_quick_actions">Szybki wpis</string>
+    <string name="journal_show_tab_title">Pokaż kartę dziennika</string>
+    <string name="journal_show_tab_desc">Dodaj Dziennik do głównej dolnej nawigacji, gdy narzędzia dziennika są włączone</string>
+    <string name="journal_events_today">%1$d zdarzeń dziś</string>
+    <string name="journal_metric_carbs_today">Węglowodany dziś</string>
+    <string name="journal_metric_insulin_today">Insulina dziś</string>
+    <string name="journal_metric_activity_today">Aktywność dziś</string>
+    <string name="journal_no_active_insulin">Brak aktywnej insuliny</string>
+    <string name="journal_active_now_percent">%1$d%% aktywne</string>
     <string name="journal_visible_events">Widoczne zdarzenia</string>
     <string name="journal_empty">Brak zdarzeń dziennika w tym oknie</string>
     <string name="journal_type_insulin">Insulina</string>

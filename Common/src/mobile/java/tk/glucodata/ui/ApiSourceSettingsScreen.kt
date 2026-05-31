@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -64,6 +63,7 @@ import androidx.navigation.NavController
 import tk.glucodata.R
 import tk.glucodata.drivers.api.ApiGlucoseSourceRegistry
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.CompactSheetDragHandle
 import tk.glucodata.ui.components.SectionLabel
 import tk.glucodata.ui.components.StyledSwitch
 import tk.glucodata.ui.components.cardShape
@@ -472,7 +472,7 @@ private fun SourcePresetPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() }
+        dragHandle = { CompactSheetDragHandle() }
     ) {
         Column(
             modifier = Modifier

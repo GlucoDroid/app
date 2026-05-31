@@ -937,6 +937,12 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="calibration_import_export_desc">Geçerli sensörün kalibrasyon profillerini taşıyın. Değiştir önce bu sensöre ait mevcut noktaları kaldırır.</string>
     <string name="calibration_model_summary_title">Model durumu</string>
     <string name="calibration_model_selected_point">Seçili nokta</string>
+    <string name="calibration_model_mid_offset">Orta ofset</string>
+    <string name="calibration_model_legend_active_desc">Kullanılır</string>
+    <string name="calibration_model_legend_disabled_desc">Hariç</string>
+    <string name="calibration_model_legend_fit_desc">Model çizgisi</string>
+    <string name="calibration_model_legend_age">Yaş</string>
+    <string name="calibration_model_legend_age_desc">Küçük = eski</string>
     <string name="calibration_weight_title">Kalibrasyon ağırlığı</string>
     <string name="calibration_weight_fresh">Yeni</string>
     <string name="calibration_weight_fresh_desc">Yeni noktalar daha hızlı baskın olur.</string>
@@ -1539,6 +1545,14 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="journal_manage_title">Günlük ayarları</string>
     <string name="journal_manage_desc">İnsülin türlerini ve etki aralıklarını düzenleyin</string>
     <string name="journal_quick_actions">Hızlı kayıt</string>
+    <string name="journal_show_tab_title">Günlük sekmesini göster</string>
+    <string name="journal_show_tab_desc">Günlük araçları etkin olduğunda Günlüğü ana alt gezinmeye ekler</string>
+    <string name="journal_events_today">Bugün %1$d olay</string>
+    <string name="journal_metric_carbs_today">Bugünkü karbonhidrat</string>
+    <string name="journal_metric_insulin_today">Bugünkü insülin</string>
+    <string name="journal_metric_activity_today">Bugünkü aktivite</string>
+    <string name="journal_no_active_insulin">Aktif insülin yok</string>
+    <string name="journal_active_now_percent">%1$d%% aktif</string>
     <string name="journal_visible_events">Görünür olaylar</string>
     <string name="journal_empty">Bu aralıkta henüz günlük olayı yok</string>
     <string name="journal_type_insulin">İnsülin</string>

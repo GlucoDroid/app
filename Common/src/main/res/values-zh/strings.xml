@@ -925,6 +925,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_desc">移动当前传感器的校准配置。替换会先移除此传感器的现有点。</string>
     <string name="calibration_model_summary_title">模型状态</string>
     <string name="calibration_model_selected_point">所选点</string>
+    <string name="calibration_model_mid_offset">中点偏移</string>
+    <string name="calibration_model_legend_active_desc">参与拟合</string>
+    <string name="calibration_model_legend_disabled_desc">已排除</string>
+    <string name="calibration_model_legend_fit_desc">模型线</string>
+    <string name="calibration_model_legend_age">时间</string>
+    <string name="calibration_model_legend_age_desc">越小越旧</string>
     <string name="calibration_weight_title">校准权重</string>
     <string name="calibration_weight_fresh">新点优先</string>
     <string name="calibration_weight_fresh_desc">较新的点会更快取得主导。</string>
@@ -1527,6 +1533,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_manage_title">日志设置</string>
     <string name="journal_manage_desc">调整胰岛素类型和作用区间</string>
     <string name="journal_quick_actions">快速记录</string>
+    <string name="journal_show_tab_title">显示日志标签</string>
+    <string name="journal_show_tab_desc">启用日志工具时，将日志加入主底部导航</string>
+    <string name="journal_events_today">今天 %1$d 个事件</string>
+    <string name="journal_metric_carbs_today">今日碳水</string>
+    <string name="journal_metric_insulin_today">今日胰岛素</string>
+    <string name="journal_metric_activity_today">今日活动</string>
+    <string name="journal_no_active_insulin">无活跃胰岛素</string>
+    <string name="journal_active_now_percent">%1$d%% 活跃</string>
     <string name="journal_visible_events">可见事件</string>
     <string name="journal_empty">此时间窗口内还没有日志事件</string>
     <string name="journal_type_insulin">胰岛素</string>

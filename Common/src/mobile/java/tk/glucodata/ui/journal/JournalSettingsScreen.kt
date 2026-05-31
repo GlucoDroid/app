@@ -44,7 +44,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Remove
@@ -126,6 +126,7 @@ import tk.glucodata.data.journal.normalizeJournalCurvePoints
 import tk.glucodata.data.journal.serializeJournalCurve
 import tk.glucodata.ui.alerts.AddCustomAlertButton
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.CompactSheetDragHandle
 import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SectionLabel
 import tk.glucodata.ui.components.SettingsItem
@@ -166,6 +167,7 @@ fun JournalSettingsScreen(
     viewModel: DashboardViewModel
 ) {
     val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val journalNavigationTabEnabled by viewModel.journalNavigationTabEnabled.collectAsState()
     val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
     val journalFoodMacrosEnabled by viewModel.journalFoodMacrosEnabled.collectAsState()
     val journalFoodLibraryEnabled by viewModel.journalFoodLibraryEnabled.collectAsState()
@@ -210,9 +212,16 @@ fun JournalSettingsScreen(
                 )
             }
 
-            item(key = "open_journal") {
-                JournalActionRow(
-                    onHistoryClick = { navController.navigate("history") }
+            item(key = "journal_nav_tab") {
+                SettingsSwitchItem(
+                    title = stringResource(R.string.journal_show_tab_title),
+                    subtitle = stringResource(R.string.journal_show_tab_desc),
+                    checked = journalNavigationTabEnabled,
+                    onCheckedChange = { viewModel.setJournalNavigationTabEnabled(it) },
+                    icon = Icons.Default.EditNote,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    position = CardPosition.SINGLE,
+                    enabled = journalEnabled
                 )
             }
 
@@ -296,65 +305,6 @@ fun JournalSettingsScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun JournalActionRow(
-    onHistoryClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        JournalActionButton(
-            text = stringResource(R.string.historyname),
-            icon = Icons.Default.History,
-            enabled = true,
-            prominent = true,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onHistoryClick
-        )
-    }
-}
-
-@Composable
-private fun JournalActionButton(
-    text: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    prominent: Boolean = false,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    FilledTonalButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(if (prominent) 68.dp else 52.dp),
-        shape = RoundedCornerShape(if (prominent) 26.dp else 22.dp),
-        colors = if (prominent) {
-            ButtonDefaults.filledTonalButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        } else {
-            ButtonDefaults.filledTonalButtonColors()
-        },
-        contentPadding = PaddingValues(horizontal = if (prominent) 18.dp else 14.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(if (prominent) 23.dp else 19.dp)
-        )
-        Spacer(modifier = Modifier.width(if (prominent) 10.dp else 8.dp))
-        Text(
-            text = text,
-            style = if (prominent) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelLarge,
-            fontWeight = if (prominent) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 
@@ -1243,15 +1193,7 @@ private fun JournalFoodSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        dragHandle = {
-            Surface(
-                modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(2.dp)
-            ) {
-                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
-            }
-        }
+        dragHandle = { CompactSheetDragHandle() }
     ) {
         LazyColumn(
             modifier = Modifier
@@ -1640,15 +1582,7 @@ private fun JournalInsulinPresetSheet(
     ModalBottomSheet(
         onDismissRequest = { dismissSheet() },
         sheetState = sheetState,
-        dragHandle = {
-            Surface(
-                modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(2.dp)
-            ) {
-                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
-            }
-        }
+        dragHandle = { CompactSheetDragHandle() }
     ) {
         LazyColumn(
             modifier = Modifier

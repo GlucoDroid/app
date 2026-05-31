@@ -1222,6 +1222,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_desc">Move calibration profiles for the current sensor. Replace removes existing points for that sensor first.</string>
     <string name="calibration_model_summary_title">Model health</string>
     <string name="calibration_model_selected_point">Selected point</string>
+    <string name="calibration_model_mid_offset">Mid offset</string>
+    <string name="calibration_model_legend_active_desc">Used in fit</string>
+    <string name="calibration_model_legend_disabled_desc">Excluded</string>
+    <string name="calibration_model_legend_fit_desc">Estimated line</string>
+    <string name="calibration_model_legend_age">Age</string>
+    <string name="calibration_model_legend_age_desc">Smaller is older</string>
     <string name="calibration_weight_title">Calibration weighting</string>
     <string name="calibration_weight_fresh">Fresh</string>
     <string name="calibration_weight_fresh_desc">Recent points take over faster.</string>
@@ -1714,6 +1720,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_import_health_activity">Import Health Connect activity</string>
     <string name="journal_settings_summary">%1$s · %2$d insulin types</string>
     <string name="journal_quick_actions">Quick log</string>
+    <string name="journal_show_tab_title">Show Journal tab</string>
+    <string name="journal_show_tab_desc">Add Journal to the main bottom navigation when journal tools are enabled</string>
+    <string name="journal_events_today">%1$d events today</string>
+    <string name="journal_metric_carbs_today">Carbs today</string>
+    <string name="journal_metric_insulin_today">Insulin today</string>
+    <string name="journal_metric_activity_today">Activity today</string>
+    <string name="journal_no_active_insulin">No active insulin</string>
+    <string name="journal_active_now_percent">%1$d%% active</string>
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>
     <string name="journal_type_insulin">Insulin</string>

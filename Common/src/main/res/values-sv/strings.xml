@@ -909,6 +909,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_desc">Flytta kalibreringsprofiler för den aktuella sensorn. Ersätt tar först bort befintliga punkter för den sensorn.</string>
     <string name="calibration_model_summary_title">Modellstatus</string>
     <string name="calibration_model_selected_point">Vald punkt</string>
+    <string name="calibration_model_mid_offset">Mittförskjutning</string>
+    <string name="calibration_model_legend_active_desc">Används</string>
+    <string name="calibration_model_legend_disabled_desc">Utesluten</string>
+    <string name="calibration_model_legend_fit_desc">Modellinje</string>
+    <string name="calibration_model_legend_age">Ålder</string>
+    <string name="calibration_model_legend_age_desc">Mindre = äldre</string>
     <string name="calibration_weight_title">Kalibreringsviktning</string>
     <string name="calibration_weight_fresh">Färsk</string>
     <string name="calibration_weight_fresh_desc">Nya punkter får genomslag snabbare.</string>
@@ -1511,6 +1517,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_manage_title">Journalinställningar</string>
     <string name="journal_manage_desc">Justera insulintyper och verkansfönster</string>
     <string name="journal_quick_actions">Snabblogg</string>
+    <string name="journal_show_tab_title">Visa journalflik</string>
+    <string name="journal_show_tab_desc">Lägg till Journal i den nedre huvudnavigeringen när journalverktyg är aktiverade</string>
+    <string name="journal_events_today">%1$d händelser idag</string>
+    <string name="journal_metric_carbs_today">Kolhydrater idag</string>
+    <string name="journal_metric_insulin_today">Insulin idag</string>
+    <string name="journal_metric_activity_today">Aktivitet idag</string>
+    <string name="journal_no_active_insulin">Inget aktivt insulin</string>
+    <string name="journal_active_now_percent">%1$d%% aktivt</string>
     <string name="journal_visible_events">Synliga händelser</string>
     <string name="journal_empty">Inga journalhändelser i det här fönstret ännu</string>
     <string name="journal_type_insulin">Insulin</string>

@@ -76,6 +76,7 @@ class DashboardViewModel(
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
+        const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
         const val JOURNAL_FOOD_MACROS_KEY = "dashboard_journal_food_macros_enabled"
         const val JOURNAL_FOOD_LIBRARY_KEY = "dashboard_journal_food_library_enabled"
         const val JOURNAL_HEALTH_CONNECT_ACTIVITY_KEY = "dashboard_journal_health_connect_activity_enabled"
@@ -228,6 +229,9 @@ class DashboardViewModel(
 
     private val _journalEnabled = MutableStateFlow(true)
     val journalEnabled = _journalEnabled.asStateFlow()
+
+    private val _journalNavigationTabEnabled = MutableStateFlow(true)
+    val journalNavigationTabEnabled = _journalNavigationTabEnabled.asStateFlow()
 
     private val _journalDoseCalculatorEnabled = MutableStateFlow(false)
     val journalDoseCalculatorEnabled = _journalDoseCalculatorEnabled.asStateFlow()
@@ -484,6 +488,7 @@ class DashboardViewModel(
         _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
         val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", true)
         _journalEnabled.value = journalEnabled
+        _journalNavigationTabEnabled.value = prefs.getBoolean(JOURNAL_NAVIGATION_TAB_KEY, true)
         _journalDoseCalculatorEnabled.value = prefs.getBoolean(JOURNAL_DOSE_CALCULATOR_KEY, false)
         _journalFoodMacrosEnabled.value = prefs.getBoolean(JOURNAL_FOOD_MACROS_KEY, false)
         _journalFoodLibraryEnabled.value = prefs.getBoolean(JOURNAL_FOOD_LIBRARY_KEY, true)
@@ -995,6 +1000,13 @@ class DashboardViewModel(
             stopJournalEntriesObservation()
         }
         refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setJournalNavigationTabEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(JOURNAL_NAVIGATION_TAB_KEY, enabled).apply()
+        _journalNavigationTabEnabled.value = enabled
     }
 
     fun setJournalDoseCalculatorEnabled(enabled: Boolean) {

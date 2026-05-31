@@ -952,6 +952,12 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="calibration_import_export_desc">Verplaats kalibratieprofielen voor de huidige sensor. Vervangen verwijdert eerst bestaande punten voor die sensor.</string>
     <string name="calibration_model_summary_title">Modelstatus</string>
     <string name="calibration_model_selected_point">Geselecteerd punt</string>
+    <string name="calibration_model_mid_offset">Middenoffset</string>
+    <string name="calibration_model_legend_active_desc">Gebruikt</string>
+    <string name="calibration_model_legend_disabled_desc">Uitgesloten</string>
+    <string name="calibration_model_legend_fit_desc">Modellijn</string>
+    <string name="calibration_model_legend_age">Leeftijd</string>
+    <string name="calibration_model_legend_age_desc">Kleiner = ouder</string>
     <string name="calibration_weight_title">Kalibratieweging</string>
     <string name="calibration_weight_fresh">Nieuw</string>
     <string name="calibration_weight_fresh_desc">Nieuwe punten krijgen sneller de overhand.</string>
@@ -1554,6 +1560,14 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="journal_manage_title">Dagboekinstellingen</string>
     <string name="journal_manage_desc">Insulinetypen en werkingsvensters aanpassen</string>
     <string name="journal_quick_actions">Snel loggen</string>
+    <string name="journal_show_tab_title">Tab Journal weergeven</string>
+    <string name="journal_show_tab_desc">Voeg Journal toe aan de onderste hoofdnavigatie wanneer journalhulpmiddelen zijn ingeschakeld</string>
+    <string name="journal_events_today">%1$d gebeurtenissen vandaag</string>
+    <string name="journal_metric_carbs_today">Koolhydraten vandaag</string>
+    <string name="journal_metric_insulin_today">Insuline vandaag</string>
+    <string name="journal_metric_activity_today">Activiteit vandaag</string>
+    <string name="journal_no_active_insulin">Geen actieve insuline</string>
+    <string name="journal_active_now_percent">%1$d%% actief</string>
     <string name="journal_visible_events">Zichtbare gebeurtenissen</string>
     <string name="journal_empty">Nog geen dagboekitems in dit venster</string>
     <string name="journal_type_insulin">Insuline</string>

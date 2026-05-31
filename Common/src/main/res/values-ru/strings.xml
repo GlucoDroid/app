@@ -950,6 +950,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_desc">Перенос профилей калибровки для текущего сенсора. Замена сначала удаляет существующие точки этого сенсора.</string>
     <string name="calibration_model_summary_title">Состояние модели</string>
     <string name="calibration_model_selected_point">Выбранная точка</string>
+    <string name="calibration_model_mid_offset">Среднее смещение</string>
+    <string name="calibration_model_legend_active_desc">Участвует</string>
+    <string name="calibration_model_legend_disabled_desc">Исключено</string>
+    <string name="calibration_model_legend_fit_desc">Линия модели</string>
+    <string name="calibration_model_legend_age">Возраст</string>
+    <string name="calibration_model_legend_age_desc">Меньше = старше</string>
     <string name="calibration_weight_title">Взвешивание калибровок</string>
     <string name="calibration_weight_fresh">Новые</string>
     <string name="calibration_weight_fresh_desc">Новые точки быстрее получают больший вес.</string>
@@ -1553,6 +1559,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_manage_title">Настройка журнала</string>
     <string name="journal_manage_desc">Настройте типы инсулина и диапазоны действия</string>
     <string name="journal_quick_actions">Быстрая запись</string>
+    <string name="journal_show_tab_title">Показывать вкладку журнала</string>
+    <string name="journal_show_tab_desc">Добавляет журнал в нижнюю навигацию, когда инструменты журнала включены</string>
+    <string name="journal_events_today">%1$d событий сегодня</string>
+    <string name="journal_metric_carbs_today">Углеводы сегодня</string>
+    <string name="journal_metric_insulin_today">Инсулин сегодня</string>
+    <string name="journal_metric_activity_today">Активность сегодня</string>
+    <string name="journal_no_active_insulin">Нет активного инсулина</string>
+    <string name="journal_active_now_percent">Активно %1$d%%</string>
     <string name="journal_visible_events">События в окне</string>
     <string name="journal_empty">В этом окне пока нет событий журнала</string>
     <string name="journal_type_insulin">Инсулин</string>

@@ -915,6 +915,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_desc">Déplacez les profils de calibration du capteur actuel. Remplacer supprime d\'abord les points existants de ce capteur.</string>
     <string name="calibration_model_summary_title">État du modèle</string>
     <string name="calibration_model_selected_point">Point sélectionné</string>
+    <string name="calibration_model_mid_offset">Décalage médian</string>
+    <string name="calibration_model_legend_active_desc">Utilisé</string>
+    <string name="calibration_model_legend_disabled_desc">Exclu</string>
+    <string name="calibration_model_legend_fit_desc">Ligne modèle</string>
+    <string name="calibration_model_legend_age">Âge</string>
+    <string name="calibration_model_legend_age_desc">Plus petit = ancien</string>
     <string name="calibration_weight_title">Pondération des calibrations</string>
     <string name="calibration_weight_fresh">Récent</string>
     <string name="calibration_weight_fresh_desc">Les points récents prennent le dessus plus vite.</string>
@@ -1517,6 +1523,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_manage_title">Configuration du journal</string>
     <string name="journal_manage_desc">Ajuster les types d\'insuline et les plages d\'action</string>
     <string name="journal_quick_actions">Enregistrement rapide</string>
+    <string name="journal_show_tab_title">Afficher l’onglet Journal</string>
+    <string name="journal_show_tab_desc">Ajouter Journal à la navigation principale du bas lorsque les outils du journal sont activés</string>
+    <string name="journal_events_today">%1$d événements aujourd’hui</string>
+    <string name="journal_metric_carbs_today">Glucides aujourd’hui</string>
+    <string name="journal_metric_insulin_today">Insuline aujourd’hui</string>
+    <string name="journal_metric_activity_today">Activité aujourd’hui</string>
+    <string name="journal_no_active_insulin">Aucune insuline active</string>
+    <string name="journal_active_now_percent">%1$d%% actif</string>
     <string name="journal_visible_events">Événements visibles</string>
     <string name="journal_empty">Aucun événement de journal dans cette fenêtre pour le moment</string>
     <string name="journal_type_insulin">Insuline</string>

@@ -130,6 +130,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.withStyle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import tk.glucodata.R
+import tk.glucodata.ui.components.CompactSheetDragHandle
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.util.GlucoseFormatter
 import java.text.SimpleDateFormat
@@ -410,7 +411,8 @@ fun StatsScreen(
         if (showShareSheet) {
             val parsedReportDays = reportDaysInput.toIntOrNull()?.coerceIn(1, 365)
             ModalBottomSheet(
-                onDismissRequest = { showShareSheet = false }
+                onDismissRequest = { showShareSheet = false },
+                dragHandle = { CompactSheetDragHandle() }
             ) {
                 Column(
                     modifier = Modifier

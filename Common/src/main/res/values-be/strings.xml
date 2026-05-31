@@ -908,6 +908,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_desc">Перанясіце профілі каліброўкі для бягучага датчыка. Замена спачатку выдаляе існыя пункты для гэтага датчыка.</string>
     <string name="calibration_model_summary_title">Стан мадэлі</string>
     <string name="calibration_model_selected_point">Выбраны пункт</string>
+    <string name="calibration_model_mid_offset">Сярэдняе зрушэнне</string>
+    <string name="calibration_model_legend_active_desc">Удзельнічае</string>
+    <string name="calibration_model_legend_disabled_desc">Выключаны</string>
+    <string name="calibration_model_legend_fit_desc">Лінія мадэлі</string>
+    <string name="calibration_model_legend_age">Узрост</string>
+    <string name="calibration_model_legend_age_desc">Менш = старэй</string>
     <string name="calibration_weight_title">Узважванне калібровак</string>
     <string name="calibration_weight_fresh">Новыя</string>
     <string name="calibration_weight_fresh_desc">Новыя пункты хутчэй атрымліваюць большую вагу.</string>
@@ -1579,6 +1585,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_manage_title">Налады журнала</string>
     <string name="journal_manage_desc">Наладзьце тыпы інсуліну і вокны дзеяння</string>
     <string name="journal_quick_actions">Хуткі запіс</string>
+    <string name="journal_show_tab_title">Паказваць укладку журнала</string>
+    <string name="journal_show_tab_desc">Дадае Журнал у галоўную ніжнюю навігацыю, калі інструменты журнала ўключаны</string>
+    <string name="journal_events_today">%1$d падзей сёння</string>
+    <string name="journal_metric_carbs_today">Вугляводы сёння</string>
+    <string name="journal_metric_insulin_today">Інсулін сёння</string>
+    <string name="journal_metric_activity_today">Актыўнасць сёння</string>
+    <string name="journal_no_active_insulin">Няма актыўнага інсуліну</string>
+    <string name="journal_active_now_percent">Актыўна %1$d%%</string>
     <string name="journal_visible_events">Бачныя падзеі</string>
     <string name="journal_empty">У гэтым акне пакуль няма падзей журнала</string>
     <string name="journal_type_insulin">Інсулін</string>

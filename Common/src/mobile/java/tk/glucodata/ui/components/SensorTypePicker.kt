@@ -120,6 +120,7 @@ fun SensorTypePicker(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        dragHandle = { CompactSheetDragHandle() },
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         LazyColumn(

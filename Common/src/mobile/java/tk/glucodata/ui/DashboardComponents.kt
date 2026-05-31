@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import tk.glucodata.ui.theme.displayLargeExpressive
 import tk.glucodata.ui.theme.labelSmallPrim
 import tk.glucodata.ui.theme.labelLargeExpressive
+import tk.glucodata.ui.components.CompactSheetDragHandle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
@@ -1861,7 +1862,7 @@ private fun DashboardClearOptionsBottomSheet(
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle() }
+        dragHandle = { CompactSheetDragHandle() }
     ) {
         Column(
             modifier = Modifier

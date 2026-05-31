@@ -65,6 +65,7 @@ import tk.glucodata.R
 import tk.glucodata.data.ExportPackageExporter
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistoryExporter
+import tk.glucodata.ui.components.CompactSheetDragHandle
 import java.io.File
 import java.util.ArrayList
 import java.util.concurrent.TimeUnit
@@ -151,6 +152,7 @@ fun HistoryExportSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        dragHandle = { CompactSheetDragHandle() },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Column(
@@ -543,6 +545,7 @@ fun ExportDataSettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        dragHandle = { CompactSheetDragHandle() },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Column(

@@ -65,6 +65,7 @@ import tk.glucodata.data.HistoryRepository
 import tk.glucodata.data.calibration.CalibrationEntity
 import tk.glucodata.data.calibration.CalibrationManager
 import tk.glucodata.logic.TrendEngine
+import tk.glucodata.ui.components.CompactSheetDragHandle
 import tk.glucodata.ui.theme.displayLargeExpressive
 import java.text.SimpleDateFormat
 import java.util.*
@@ -226,9 +227,9 @@ fun CalibrationBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
+        dragHandle = { CompactSheetDragHandle() },
         containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         // Fix for Keyboard Gap:
         // When IME (Keyboard) is visible, we don't need navigationBarsPadding because the IME

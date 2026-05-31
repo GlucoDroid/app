@@ -1562,7 +1562,7 @@ fun NotificationSettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
+        dragHandle = { CompactSheetDragHandle() },
     ) {
         Column(
             modifier = Modifier
@@ -1775,7 +1775,7 @@ fun AODSettingsSheet(onDismiss: () -> Unit, sheetState: SheetState, context: and
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
+        dragHandle = { CompactSheetDragHandle() },
     ) {
         Column(
             modifier = Modifier

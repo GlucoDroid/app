@@ -221,7 +221,9 @@ fun ReadingRow(
             val hasInlineJournalEntries = journalEntries.isNotEmpty() && onJournalEntryClick != null
             val useClassicLayout = !hasInlineJournalEntries
             val rowMinHeight = 48.dp
-            val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 112.dp else 132.dp
+            val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 104.dp else 124.dp
+            val leadingActionSlotWidth = 64.dp
+            val valueTrailingInset = if (showLeadingAction || hasInlineJournalEntries) 32.dp else 20.dp
             val timeStyle = MaterialTheme.typography.bodySmall
             val timeColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             val timeWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
@@ -330,8 +332,12 @@ fun ReadingRow(
                     )
 
                     if (showLeadingAction) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        JournalAddAffordance()
+                        Box(
+                            modifier = Modifier.width(leadingActionSlotWidth),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            JournalAddAffordance()
+                        }
                     }
 
                     Box(
@@ -340,7 +346,9 @@ fun ReadingRow(
                             .defaultMinSize(minWidth = valueMinWidth),
                         contentAlignment = Alignment.CenterEnd
                     ) {
-                        ReadingValueContent(modifier = Modifier.padding(start = 12.dp))
+                        ReadingValueContent(
+                            modifier = Modifier.padding(start = 12.dp, end = valueTrailingInset)
+                        )
                     }
                 }
             } else {
@@ -351,10 +359,7 @@ fun ReadingRow(
                         .padding(start = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = java.text.SimpleDateFormat(
                                 "HH:mm",
@@ -365,10 +370,17 @@ fun ReadingRow(
                             color = timeColor
                         )
 
-                        JournalAddAffordance()
+                        if (showLeadingAction) {
+                            Box(
+                                modifier = Modifier.width(leadingActionSlotWidth),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                JournalAddAffordance()
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(if (showLeadingAction) 10.dp else 12.dp))
+                    Spacer(modifier = Modifier.width(if (showLeadingAction) 16.dp else 12.dp))
 
                     if (hasInlineJournalEntries) {
                         Box(
@@ -402,7 +414,7 @@ fun ReadingRow(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             ReadingValueContent(
-                                modifier = Modifier.padding(start = 12.dp, end = 16.dp)
+                                modifier = Modifier.padding(start = 12.dp, end = valueTrailingInset)
                             )
                         }
                     }
@@ -414,7 +426,7 @@ fun ReadingRow(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             ReadingValueContent(
-                                modifier = Modifier.padding(start = 12.dp, end = 16.dp)
+                                modifier = Modifier.padding(start = 12.dp, end = valueTrailingInset)
                             )
                         }
                     }
@@ -497,24 +509,28 @@ fun JournalTimelineRow(
                 )
 
                 if (onAddJournalEntry != null) {
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Surface(
-                        onClick = onAddJournalEntry,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .alpha(0.42f),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.48f),
-                        tonalElevation = 0.dp,
-                        shadowElevation = 0.dp
+                    Box(
+                        modifier = Modifier.width(68.dp),
+                        contentAlignment = Alignment.CenterEnd
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
-                            )
+                        Surface(
+                            onClick = onAddJournalEntry,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .alpha(0.42f),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.48f),
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
+                                )
+                            }
                         }
                     }
                 }

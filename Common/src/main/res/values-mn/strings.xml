@@ -1122,6 +1122,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_desc">Одоогийн мэдрэгчийн калибровкийн профайлыг зөөх. Солих үед эхлээд энэ мэдрэгчийн одоо байгаа цэгүүдийг устгана.</string>
     <string name="calibration_model_summary_title">Загварын төлөв</string>
     <string name="calibration_model_selected_point">Сонгосон цэг</string>
+    <string name="calibration_model_mid_offset">Дунд офсет</string>
+    <string name="calibration_model_legend_active_desc">Ашиглана</string>
+    <string name="calibration_model_legend_disabled_desc">Хассан</string>
+    <string name="calibration_model_legend_fit_desc">Загварын шугам</string>
+    <string name="calibration_model_legend_age">Нас</string>
+    <string name="calibration_model_legend_age_desc">Жижиг нь хуучин</string>
     <string name="calibration_weight_title">Калибровкийн жин</string>
     <string name="calibration_weight_fresh">Шинэ</string>
     <string name="calibration_weight_fresh_desc">Шинэ цэгүүд илүү хурдан давамгайлна.</string>
@@ -1611,6 +1617,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_import_health_activity">Import Health Connect activity</string>
     <string name="journal_settings_summary">%1$s · %2$d insulin types</string>
     <string name="journal_quick_actions">Quick log</string>
+    <string name="journal_show_tab_title">Журнал табыг харуулах</string>
+    <string name="journal_show_tab_desc">Журналын хэрэгслүүд идэвхтэй үед Журналыг үндсэн доод цэсэнд нэмнэ</string>
+    <string name="journal_events_today">Өнөөдөр %1$d үйл явдал</string>
+    <string name="journal_metric_carbs_today">Өнөөдрийн нүүрс ус</string>
+    <string name="journal_metric_insulin_today">Өнөөдрийн инсулин</string>
+    <string name="journal_metric_activity_today">Өнөөдрийн идэвх</string>
+    <string name="journal_no_active_insulin">Идэвхтэй инсулин байхгүй</string>
+    <string name="journal_active_now_percent">%1$d%% идэвхтэй</string>
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>
     <string name="journal_type_insulin">Insulin</string>
