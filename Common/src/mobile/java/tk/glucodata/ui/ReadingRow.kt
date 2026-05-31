@@ -223,7 +223,7 @@ fun ReadingRow(
             val rowMinHeight = 48.dp
             val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 104.dp else 124.dp
             val leadingActionSlotWidth = 44.dp
-            val valueTrailingInset = if (showLeadingAction || hasInlineJournalEntries) 32.dp else 20.dp
+            val trendSlotWidth = 36.dp
             val timeStyle = MaterialTheme.typography.bodySmall
             val timeColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             val timeWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
@@ -275,13 +275,16 @@ fun ReadingRow(
                         style = valueStyle.copy(fontFeatureSettings = "tnum")
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    tk.glucodata.ui.components.TrendIndicator(
-                        trendResult = trendResult,
-                        color = tertiaryColor,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Box(
+                        modifier = Modifier.width(trendSlotWidth),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        tk.glucodata.ui.components.TrendIndicator(
+                            trendResult = trendResult,
+                            color = tertiaryColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
 

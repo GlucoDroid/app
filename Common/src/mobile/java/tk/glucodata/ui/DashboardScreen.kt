@@ -778,11 +778,7 @@ fun DashboardScreen(
             val dashboardListTopPadding = 16.dp
             val dashboardItemSpacing = 12.dp
             val readingsTopSpacing = 0.dp
-            val collapsedChartHorizontalPadding = when (adaptiveMetrics.layoutDensity) {
-                AdaptiveLayoutDensity.Compact -> 10.dp
-                AdaptiveLayoutDensity.Regular -> 12.dp
-                AdaptiveLayoutDensity.Comfortable -> 14.dp
-            }
+            val collapsedChartHorizontalPadding = 16.dp
             val defaultVisibleReadingRows = when (adaptiveMetrics.layoutDensity) {
                 AdaptiveLayoutDensity.Compact -> 3.0f
                 AdaptiveLayoutDensity.Regular -> 3.5f
