@@ -1089,5 +1089,7 @@ private val templateTokens = listOf(
     "{iob}",
     "{journal_iob}",
     "{cob}",
+    "{journal_cob}",
+    "{journal_events}",
     "{journal}"
 )

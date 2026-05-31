@@ -7,6 +7,7 @@ import androidx.annotation.Keep
 import androidx.work.Data
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -437,6 +438,7 @@ object OutboundApi {
             JournalSnapshot()
         }
         val effectiveIob = journal.iob.takeIf { it.isFinite() } ?: reading.iob
+        val journalEvents = journalEventsJsonArray(journal)
         return template
             .replace("{event_id}", reading.eventId)
             .replace("{recipient}", reading.recipient)
@@ -471,6 +473,8 @@ object OutboundApi {
             .replace("{iob}", if (effectiveIob.isFinite()) formatNumber(effectiveIob, 2) else "0")
             .replace("{journal_iob}", if (journal.iob.isFinite()) formatNumber(journal.iob, 2) else "0")
             .replace("{cob}", if (journal.cob.isFinite()) formatNumber(journal.cob, 1) else "0")
+            .replace("{journal_cob}", if (journal.cob.isFinite()) formatNumber(journal.cob, 1) else "0")
+            .replace("{journal_events}", journalEvents?.toString().orEmpty())
             .replace("{journal}", journal.json?.toString().orEmpty())
             .replace("{test}", reading.test.toString())
     }
@@ -513,6 +517,9 @@ object OutboundApi {
             )
         }.getOrDefault(JournalSnapshot())
     }
+
+    internal fun journalEventsJsonArray(journal: JournalSnapshot): JSONArray? =
+        journal.json?.optJSONArray("events") ?: journal.json?.optJSONArray("treatments")
 
     private fun trendArrow(trendName: String): String =
         when (trendName) {
@@ -744,6 +751,7 @@ class OutboundApiWorker(
             message: String
         ): JSONObject {
             val journal = reading.journal
+            val journalEvents = OutboundApi.journalEventsJsonArray(journal)
             return JSONObject()
                 .put("schema", "tk.glucodata.outbound.glucose.v1")
                 .put("type", "glucose")
@@ -784,6 +792,8 @@ class OutboundApiWorker(
                 .put("iob", reading.iob.takeIf { it.isFinite() })
                 .put("journal_iob", journal.iob.takeIf { it.isFinite() })
                 .put("cob", journal.cob.takeIf { it.isFinite() })
+                .put("journal_cob", journal.cob.takeIf { it.isFinite() })
+                .put("journal_events", journalEvents)
                 .put("journal", journal.json)
                 .put("message", message)
         }

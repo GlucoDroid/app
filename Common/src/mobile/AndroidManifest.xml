@@ -84,6 +84,7 @@
                 <action android:name="info.nightscout.client.NEW_TREATMENT" />
                 <action android:name="info.nightscout.client.CHANGED_TREATMENT" />
                 <action android:name="info.nightscout.client.REMOVED_TREATMENT" />
+                <action android:name="info.nightscout.client.NEW_FOOD" />
             </intent-filter>
         </receiver>
 

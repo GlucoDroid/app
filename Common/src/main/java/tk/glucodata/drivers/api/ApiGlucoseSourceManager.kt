@@ -464,6 +464,7 @@ class ApiGlucoseSourceManager(
     private fun parseOutboundJson(body: String): List<VirtualGlucoseSensorBridge.Reading> {
         val trimmed = body.trim()
         if (trimmed.isEmpty()) return emptyList()
+        importJournalPayload(trimmed)
         val objects = when {
             trimmed.startsWith("[") -> jsonArrayObjects(JSONArray(trimmed))
             else -> {
@@ -498,7 +499,6 @@ class ApiGlucoseSourceManager(
     }
 
     private fun parseJsonReading(entry: JSONObject): VirtualGlucoseSensorBridge.Reading? {
-        importJournal(entry)
         val primaryMgdl = firstFiniteField(
             entry,
             "glucose_mgdl",
@@ -741,19 +741,28 @@ class ApiGlucoseSourceManager(
     private fun inferCompactGlucoseMgdl(value: Double): Double =
         if (value in 1.0..40.0) value * MGDL_PER_MMOLL else value
 
-    private fun importJournal(entry: JSONObject) {
-        val journal = when {
-            entry.has("journal") -> entry.opt("journal")
-            entry.has("events") -> JSONObject().put("events", entry.optJSONArray("events"))
-            else -> null
-        } ?: return
-        runCatching {
+    private fun importJournalPayload(raw: String): Int {
+        if (raw.isBlank()) return 0
+        return runCatching {
             val type = Class.forName("tk.glucodata.OutboundApiJournalSnapshot")
-            val method = type.getMethod("importFromJson", String::class.java)
-            method.invoke(null, journal.toString())
+            val sourcePrefix = "api:$SerialNumber"
+            val method = runCatching {
+                type.getMethod("importFromJsonForSource", String::class.java, String::class.java)
+            }.getOrNull()
+            if (method != null) {
+                (method.invoke(null, raw, sourcePrefix) as? Int) ?: 0
+            } else {
+                val legacyMethod = type.getMethod("importFromJson", String::class.java)
+                (legacyMethod.invoke(null, raw) as? Int) ?: 0
+            }
+        }.onSuccess { imported ->
+            if (imported > 0) {
+                Log.i(TAG, "Imported $imported API journal entries")
+                UiRefreshBus.requestDataRefresh()
+            }
         }.onFailure {
             Log.w(TAG, "journal import ignored: ${it.message}")
-        }
+        }.getOrDefault(0)
     }
 
     private fun firstFinite(vararg values: Double): Double? =

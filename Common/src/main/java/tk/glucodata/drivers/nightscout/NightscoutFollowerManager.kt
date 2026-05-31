@@ -35,6 +35,7 @@ class NightscoutFollowerManager(
         private const val RETRY_INTERVAL_MS = 30_000L
         private const val PROBE_INTERVAL_MS = 59_000L
         private const val HISTORY_COUNT = 288
+        private const val TREATMENT_COUNT = 512
         private const val MMOL_TO_MGDL = 18.0182f
     }
 
@@ -208,6 +209,7 @@ class NightscoutFollowerManager(
         setStatus(Phase.SYNCING, localizedString(R.string.nightscout_follow_status_syncing, "Refreshing Nightscout"))
         try {
             val readings = fetchReadings()
+            importRemoteTreatments()
             if (readings.isEmpty()) {
                 setStatus(Phase.IDLE, localizedString(R.string.nightscout_follow_status_no_readings, "No Nightscout readings yet"))
                 scheduleRefresh(POLL_INTERVAL_MS)
@@ -294,6 +296,50 @@ class NightscoutFollowerManager(
         return readings
             .distinctBy { it.timestampMs }
             .sortedBy { it.timestampMs }
+    }
+
+    private fun importRemoteTreatments(): Int =
+        runCatching {
+            val body = fetchTreatmentsJson()
+            if (body.isBlank() || body == "[]") return@runCatching 0
+            val type = Class.forName("tk.glucodata.data.journal.NightscoutJournalFollowerImporter")
+            val method = type.getMethod("importTreatments", String::class.java, String::class.java)
+            val imported = method.invoke(null, SerialNumber, body) as? Int ?: 0
+            if (imported > 0) {
+                UiRefreshBus.requestDataRefresh()
+            }
+            imported
+        }.getOrElse { error ->
+            if (error !is ClassNotFoundException) {
+                Log.w(TAG, "Nightscout treatment import ignored: ${error.message}")
+            }
+            0
+        }
+
+    private fun fetchTreatmentsJson(): String {
+        val endpoint = "${NightscoutFollowerRegistry.normalizeUrl(url)}/api/v1/treatments.json?count=$TREATMENT_COUNT"
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 30_000
+            requestMethod = "GET"
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "JugglucoNG Nightscout follower")
+            NightscoutFollowerRegistry.applyAuth(this, secret)
+        }
+        try {
+            val code = connection.responseCode
+            val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+            if (code == 404) return "[]"
+            if (code !in 200..299) {
+                throw IllegalStateException("Nightscout treatments HTTP $code: ${body.take(160)}")
+            }
+            return body
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun parseEntry(entry: JSONObject?): VirtualGlucoseSensorBridge.Reading? {

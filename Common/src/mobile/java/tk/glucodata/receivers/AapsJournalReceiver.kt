@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.journal.AapsJournalImport
 
 class AapsJournalReceiver : BroadcastReceiver() {
@@ -24,6 +25,7 @@ class AapsJournalReceiver : BroadcastReceiver() {
                         "AAPS journal import: imported=${result.importedEntries} " +
                             "deleted=${result.deletedEntries} skipped=${result.skippedTreatments}"
                     )
+                    UiRefreshBus.requestDataRefresh()
                 }
             } catch (t: Throwable) {
                 Log.e(TAG, "AAPS journal import failed", t)
