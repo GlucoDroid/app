@@ -1427,6 +1427,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="journal_gate_desc">Grafik işaretleri, hızlı işlemler ve insülin etki aralıkları içeren pano odaklı günlüğü etkinleştir</string>
     <string name="predictive_simulation_title">Tahmine dayalı simülasyon</string>
     <string name="predictive_simulation_summary">Trendi, günlük karbonhidratlarını, insülin eğrilerini ve aktiviteyi kullanarak glukozu projekte et</string>
+    <string name="predictive_notification_chart">Bildirim/AOD grafiği</string>
+    <string name="predictive_notification_chart_summary">Tahmin çizgisini bildirim ve kilit ekranı grafiklerinde göster</string>
     <string name="predictive_trend_momentum">Trend momentumu</string>
     <string name="predictive_model_tuning">Model profili</string>
     <string name="predictive_carb_ratio">Karbonhidrat oranı</string>

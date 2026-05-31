@@ -474,6 +474,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/data-smoothing") {
                         DataSmoothingSettingsScreen(navController, dashboardViewModel)
                     }
+                    composable("settings/predictive-simulation") {
+                        PredictiveSimulationSettingsScreen(navController, dashboardViewModel)
+                    }
                     composable("settings/floating-display") {
                         FloatingGlucoseSettingsScreen(navController, dashboardViewModel)
                     }
@@ -590,6 +593,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 }
                 composable("settings/data-smoothing") {
                     DataSmoothingSettingsScreen(navController, dashboardViewModel)
+                }
+                composable("settings/predictive-simulation") {
+                    PredictiveSimulationSettingsScreen(navController, dashboardViewModel)
                 }
                 composable("settings/floating-display") {
                     FloatingGlucoseSettingsScreen(navController, dashboardViewModel)

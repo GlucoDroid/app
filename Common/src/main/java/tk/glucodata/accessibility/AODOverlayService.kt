@@ -508,7 +508,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             val renderWidth = (dm.widthPixels * 1.5f).toInt()
             val renderHeight = (baseChartHeightPx * 1.5f).toInt()
 
-            val chartBitmap = NotificationChartDrawer.drawChart(
+            val chartBitmap = NotificationChartDrawer.drawChartWithPrediction(
                 this,
                 overlayChartPoints,
                 renderWidth,

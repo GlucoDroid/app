@@ -3312,7 +3312,7 @@ public class Notify {
                 collapsedHeight = 48;
 
             // Use safeContext and explicit height
-            chartBitmapCollapsed = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, collapsedHeight,
+            chartBitmapCollapsed = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, collapsedHeight,
                     isMmol,
                     viewMode, showTargetRange, hasCalibration, true, activeSensorSerial);
         }
@@ -3320,7 +3320,7 @@ public class Notify {
         if (showChart) {
             // Expanded chart: Use safely resolved density context (default 0 ->
             // 256*density)
-            chartBitmapExpanded = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, 0, isMmol,
+            chartBitmapExpanded = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, 0, isMmol,
                     viewMode, showTargetRange, hasCalibration, false, activeSensorSerial);
         }
 
@@ -3487,12 +3487,12 @@ public class Notify {
                 collapsedHeight = 48;
 
             // Collapsed: Compact Mode = TRUE, Height 48dp
-            chartBitmapCollapsed = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, collapsedHeight,
+            chartBitmapCollapsed = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, collapsedHeight,
                     isMmol,
                     viewMode, true, false, true, activeSensorSerial);
 
             // Expanded: Compact Mode = FALSE, Height 256dp (via 0)
-            chartBitmapExpanded = NotificationChartDrawer.drawChart(safeContext, chartPoints, 0, 0, isMmol,
+            chartBitmapExpanded = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, 0, isMmol,
                     viewMode, true, false, false, activeSensorSerial);
         }
 

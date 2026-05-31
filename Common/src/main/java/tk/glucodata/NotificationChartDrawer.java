@@ -5,13 +5,19 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PointF;
+import android.graphics.Shader;
 import android.util.DisplayMetrics;
 import android.graphics.Matrix;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 
 public class NotificationChartDrawer {
@@ -127,6 +133,278 @@ public class NotificationChartDrawer {
             previousValue = currentValue;
             hasPrevious = true;
         }
+    }
+
+    private static long predictionLeadMillis(long durationMs) {
+        long lead = (long) (durationMs * 0.18f);
+        long minLead = 15L * 60L * 1000L;
+        long maxLead = 35L * 60L * 1000L;
+        return Math.max(minLead, Math.min(maxLead, lead));
+    }
+
+    private static int withAlpha(int color, float alpha) {
+        int resolvedAlpha = Math.max(0, Math.min(255, Math.round(alpha * 255f)));
+        return (color & 0x00FFFFFF) | (resolvedAlpha << 24);
+    }
+
+    private static float predictionUncertainty(NotificationPredictionPoint point, boolean isMmol) {
+        float confidence = Math.max(0f, Math.min(1f, point.confidence));
+        float uncertainty = 1f - confidence;
+        return isMmol
+                ? 0.18f + (uncertainty * 1.3f)
+                : 3.2f + (uncertainty * 24f);
+    }
+
+    private static boolean isPrimaryPrediction(NotificationPredictionSeries series, int viewMode) {
+        return series.kind == NotificationPredictionSeries.KIND_CALIBRATED
+                || (series.kind == NotificationPredictionSeries.KIND_RAW && (viewMode == 1 || viewMode == 3))
+                || (series.kind == NotificationPredictionSeries.KIND_AUTO && (viewMode == 0 || viewMode == 2));
+    }
+
+    private static int predictionTint(
+            NotificationPredictionSeries series,
+            int viewMode,
+            boolean hasCalibration,
+            int lineColor,
+            int lineColorSecondary,
+            int lineColorTertiary) {
+        if (series.kind == NotificationPredictionSeries.KIND_RAW) {
+            if (hasCalibration && viewMode == 2) {
+                return lineColorTertiary;
+            }
+            if (hasCalibration || viewMode == 2) {
+                return lineColorSecondary;
+            }
+            return lineColor;
+        }
+        if (series.kind == NotificationPredictionSeries.KIND_AUTO) {
+            if (hasCalibration && viewMode == 3) {
+                return lineColorTertiary;
+            }
+            if (hasCalibration || viewMode == 3) {
+                return lineColorSecondary;
+            }
+            return lineColor;
+        }
+        return lineColor;
+    }
+
+    private static void addSmoothedPredictionPoints(Path path, List<PointF> samples, boolean moveToFirst) {
+        if (samples.isEmpty()) {
+            return;
+        }
+        PointF first = samples.get(0);
+        if (moveToFirst) {
+            path.moveTo(first.x, first.y);
+        } else {
+            path.lineTo(first.x, first.y);
+        }
+        if (samples.size() == 1) {
+            return;
+        }
+        if (samples.size() == 2) {
+            PointF last = samples.get(1);
+            path.lineTo(last.x, last.y);
+            return;
+        }
+        for (int index = 1; index < samples.size() - 1; index++) {
+            PointF current = samples.get(index);
+            PointF next = samples.get(index + 1);
+            float midX = (current.x + next.x) * 0.5f;
+            float midY = (current.y + next.y) * 0.5f;
+            path.quadTo(current.x, current.y, midX, midY);
+        }
+        PointF last = samples.get(samples.size() - 1);
+        path.lineTo(last.x, last.y);
+    }
+
+    private static PointF predictionPointToOffset(
+            long timestamp,
+            float value,
+            long startTime,
+            long duration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange) {
+        float x = chartLeft + ((timestamp - startTime) / (float) duration) * chartWidth;
+        float y = chartBottom - ((value - minY) / yRange) * chartHeight;
+        if (!Float.isFinite(x) || !Float.isFinite(y)) {
+            return null;
+        }
+        return new PointF(x, y);
+    }
+
+    private static void drawPredictionSeries(
+            Canvas canvas,
+            Paint baseLinePaint,
+            DisplayMetrics dm,
+            NotificationPredictionSeries series,
+            boolean isMmol,
+            int viewMode,
+            boolean hasCalibration,
+            int lineColor,
+            int lineColorSecondary,
+            int lineColorTertiary,
+            long startTime,
+            long chartDuration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange) {
+        if (series == null || series.points == null || series.points.size() < 2 || yRange <= 0f) {
+            return;
+        }
+
+        boolean isPrimary = isPrimaryPrediction(series, viewMode);
+        int tint = predictionTint(series, viewMode, hasCalibration, lineColor, lineColorSecondary, lineColorTertiary);
+        ArrayList<PointF> lineSamples = new ArrayList<>(series.points.size());
+        ArrayList<PointF> upperSamples = new ArrayList<>(series.points.size());
+        ArrayList<PointF> lowerSamples = new ArrayList<>(series.points.size());
+
+        for (NotificationPredictionPoint point : series.points) {
+            if (point == null || !Float.isFinite(point.value) || point.value <= 0.1f) {
+                continue;
+            }
+            PointF lineSample = predictionPointToOffset(
+                    point.timestamp,
+                    point.value,
+                    startTime,
+                    chartDuration,
+                    chartLeft,
+                    chartBottom,
+                    chartWidth,
+                    chartHeight,
+                    minY,
+                    yRange);
+            if (lineSample == null) {
+                continue;
+            }
+            lineSamples.add(lineSample);
+
+            if (isPrimary) {
+                float uncertainty = predictionUncertainty(point, isMmol);
+                PointF upper = predictionPointToOffset(
+                        point.timestamp,
+                        point.value + uncertainty,
+                        startTime,
+                        chartDuration,
+                        chartLeft,
+                        chartBottom,
+                        chartWidth,
+                        chartHeight,
+                        minY,
+                        yRange);
+                PointF lower = predictionPointToOffset(
+                        point.timestamp,
+                        point.value - uncertainty,
+                        startTime,
+                        chartDuration,
+                        chartLeft,
+                        chartBottom,
+                        chartWidth,
+                        chartHeight,
+                        minY,
+                        yRange);
+                if (upper != null && lower != null) {
+                    upperSamples.add(upper);
+                    lowerSamples.add(0, lower);
+                }
+            }
+        }
+        if (lineSamples.size() < 2) {
+            return;
+        }
+
+        if (isPrimary && upperSamples.size() >= 2 && lowerSamples.size() >= 2) {
+            Path bandPath = new Path();
+            addSmoothedPredictionPoints(bandPath, upperSamples, true);
+            addSmoothedPredictionPoints(bandPath, lowerSamples, false);
+            bandPath.close();
+
+            Paint bandPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            bandPaint.setStyle(Paint.Style.FILL);
+            bandPaint.setColor(withAlpha(tint, 0.055f));
+            canvas.drawPath(bandPath, bandPaint);
+        }
+
+        Path predictionPath = new Path();
+        addSmoothedPredictionPoints(predictionPath, lineSamples, true);
+        float startX = lineSamples.get(0).x;
+        float endX = lineSamples.get(lineSamples.size() - 1).x;
+        if (Math.abs(endX - startX) <= 1f) {
+            endX = startX + 1f;
+        }
+        float startAlpha = isPrimary ? 0.58f : 0.34f;
+        float midAlpha = isPrimary ? 0.38f : 0.24f;
+
+        Paint predictionPaint = new Paint(baseLinePaint);
+        predictionPaint.setStyle(Paint.Style.STROKE);
+        predictionPaint.setStrokeCap(Paint.Cap.ROUND);
+        predictionPaint.setStrokeJoin(Paint.Join.ROUND);
+        predictionPaint.setStrokeWidth(isPrimary
+                ? baseLinePaint.getStrokeWidth()
+                : Math.max(1f, baseLinePaint.getStrokeWidth() * 0.72f));
+        predictionPaint.setPathEffect(new DashPathEffect(
+                new float[] { 5f * dm.density, 4f * dm.density },
+                0f));
+        predictionPaint.setShader(new LinearGradient(
+                startX,
+                0f,
+                endX,
+                0f,
+                new int[] {
+                        withAlpha(tint, startAlpha),
+                        withAlpha(tint, midAlpha),
+                        withAlpha(tint, 0.04f)
+                },
+                new float[] { 0f, 0.55f, 1f },
+                Shader.TileMode.CLAMP));
+        canvas.drawPath(predictionPath, predictionPaint);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<NotificationPredictionSeries> resolvePredictionOverlay(
+            Context context,
+            List<GlucosePoint> data,
+            boolean isMmol,
+            int viewMode,
+            boolean hasCalibration,
+            String calibrationSensorId,
+            float targetLow,
+            float targetHigh) {
+        try {
+            Class<?> helper = Class.forName("tk.glucodata.NotificationPredictionOverlay");
+            Method method = helper.getMethod(
+                    "buildPredictionSeries",
+                    Context.class,
+                    List.class,
+                    boolean.class,
+                    int.class,
+                    boolean.class,
+                    String.class,
+                    float.class,
+                    float.class);
+            Object result = method.invoke(
+                    null,
+                    context,
+                    data,
+                    isMmol,
+                    viewMode,
+                    hasCalibration,
+                    calibrationSensorId,
+                    targetLow,
+                    targetHigh);
+            if (result instanceof List<?>) {
+                return (List<NotificationPredictionSeries>) result;
+            }
+        } catch (Throwable ignored) {
+        }
+        return Collections.emptyList();
     }
 
     public static int getGlucoseColor(Context context, float value, boolean isMmol) {
@@ -454,14 +732,14 @@ public class NotificationChartDrawer {
             boolean isMmol, int viewMode, boolean showTargetRange) {
         boolean compactMode = (heightHint > 0 && heightHint < 150);
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange, false,
-                compactMode, null, DEFAULT_CHART_DURATION_MS);
+                compactMode, null, DEFAULT_CHART_DURATION_MS, false);
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration) {
         boolean compactMode = (heightHint > 0 && heightHint < 150);
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
-                hasCalibration, compactMode, null, DEFAULT_CHART_DURATION_MS);
+                hasCalibration, compactMode, null, DEFAULT_CHART_DURATION_MS, false);
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
@@ -469,32 +747,47 @@ public class NotificationChartDrawer {
             String calibrationSensorId) {
         boolean compactMode = (heightHint > 0 && heightHint < 150);
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
-                hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS);
+                hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS, false);
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode) {
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
-                hasCalibration, compactMode, null, DEFAULT_CHART_DURATION_MS);
+                hasCalibration, compactMode, null, DEFAULT_CHART_DURATION_MS, false);
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
             String calibrationSensorId) {
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
-                hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS);
+                hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS, false);
     }
 
     public static Bitmap drawChart(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
             String calibrationSensorId, long durationMs) {
         return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
-                hasCalibration, compactMode, calibrationSensorId, durationMs);
+                hasCalibration, compactMode, calibrationSensorId, durationMs, false);
+    }
+
+    public static Bitmap drawChartWithPrediction(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration,
+            String calibrationSensorId) {
+        boolean compactMode = (heightHint > 0 && heightHint < 150);
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
+                hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS, true);
+    }
+
+    public static Bitmap drawChartWithPrediction(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
+            String calibrationSensorId) {
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
+                hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS, true);
     }
 
     private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
-            String calibrationSensorId, long durationMs) {
+            String calibrationSensorId, long durationMs, boolean showPredictionOverlay) {
         // Get display metrics for proper sizing
         DisplayMetrics dm = context.getResources().getDisplayMetrics();
         int width = (widthHint > 0) ? widthHint : dm.widthPixels;
@@ -619,6 +912,71 @@ public class NotificationChartDrawer {
         } catch (Throwable t) {
         }
 
+        List<NotificationPredictionSeries> predictionSeries = showPredictionOverlay
+                ? resolvePredictionOverlay(
+                        context,
+                        data,
+                        isMmol,
+                        viewMode,
+                        hasCalibration,
+                        calibrationSensorId,
+                        targetLow,
+                        targetHigh)
+                : Collections.emptyList();
+        long chartEndTime = now;
+        long predictionEnd = 0L;
+        for (NotificationPredictionSeries series : predictionSeries) {
+            if (series == null || series.points == null || series.points.isEmpty()) {
+                continue;
+            }
+            NotificationPredictionPoint last = series.points.get(series.points.size() - 1);
+            if (last != null) {
+                predictionEnd = Math.max(predictionEnd, last.timestamp);
+            }
+        }
+        if (predictionEnd > now) {
+            chartEndTime = Math.min(predictionEnd, now + predictionLeadMillis(duration));
+        }
+        long chartDuration = duration + Math.max(0L, chartEndTime - now);
+        List<NotificationPredictionSeries> visiblePredictionSeries = new ArrayList<>();
+        for (NotificationPredictionSeries series : predictionSeries) {
+            if (series == null || series.points == null) {
+                continue;
+            }
+            ArrayList<NotificationPredictionPoint> validSeriesPoints = new ArrayList<>();
+            for (NotificationPredictionPoint point : series.points) {
+                if (point != null && point.timestamp > 0L) {
+                    validSeriesPoints.add(point);
+                }
+            }
+            if (validSeriesPoints.size() < 2) {
+                continue;
+            }
+            int firstVisibleIndex = -1;
+            int lastVisibleIndex = -1;
+            for (int index = 0; index < validSeriesPoints.size(); index++) {
+                long timestamp = validSeriesPoints.get(index).timestamp;
+                if (firstVisibleIndex < 0 && timestamp >= startTime) {
+                    firstVisibleIndex = index;
+                }
+                if (timestamp <= chartEndTime) {
+                    lastVisibleIndex = index;
+                }
+            }
+            if (firstVisibleIndex < 0 || lastVisibleIndex < 0) {
+                continue;
+            }
+            int predictionStartIndex = Math.max(0, firstVisibleIndex - 1);
+            int predictionEndIndex = Math.min(validSeriesPoints.size() - 1, lastVisibleIndex + 1);
+            ArrayList<NotificationPredictionPoint> visibleSeriesPoints = new ArrayList<>();
+            for (int index = predictionStartIndex; index <= predictionEndIndex; index++) {
+                visibleSeriesPoints.add(validSeriesPoints.get(index));
+            }
+            if (visibleSeriesPoints.size() >= 2) {
+                visiblePredictionSeries.add(new NotificationPredictionSeries(series.kind, visibleSeriesPoints));
+            }
+        }
+
         // Calculate Y range
         // Standard Strategy: Expand to fit Data, BUT ensure we cover Target Range +
         // Buffer to ensure target lines don't touch edges (User Request: "small gap")
@@ -636,6 +994,16 @@ public class NotificationChartDrawer {
             if (showRaw && p.rawValue > 0) {
                 minY = Math.min(minY, p.rawValue);
                 maxY = Math.max(maxY, p.rawValue);
+            }
+        }
+        for (NotificationPredictionSeries series : visiblePredictionSeries) {
+            boolean primaryPrediction = isPrimaryPrediction(series, viewMode);
+            for (NotificationPredictionPoint point : series.points) {
+                if (point.value > 0) {
+                    float uncertainty = primaryPrediction ? predictionUncertainty(point, isMmol) : 0f;
+                    minY = Math.min(minY, point.value - uncertainty);
+                    maxY = Math.max(maxY, point.value + uncertainty);
+                }
             }
         }
         if (hasCalibration) {
@@ -773,8 +1141,8 @@ public class NotificationChartDrawer {
         cal.add(Calendar.HOUR_OF_DAY, 1);
 
         textPaint.setTextAlign(Paint.Align.CENTER);
-        while (cal.getTimeInMillis() < now) {
-            float x = chartLeft + ((cal.getTimeInMillis() - startTime) / (float) duration) * chartWidth;
+        while (cal.getTimeInMillis() < chartEndTime) {
+            float x = chartLeft + ((cal.getTimeInMillis() - startTime) / (float) chartDuration) * chartWidth;
 
             // X label inside chart area (bottom)
             int hour = cal.get(Calendar.HOUR_OF_DAY);
@@ -851,7 +1219,7 @@ public class NotificationChartDrawer {
                     timestamps,
                     values,
                     startTime,
-                    duration,
+                    chartDuration,
                     chartLeft,
                     chartBottom,
                     chartWidth,
@@ -878,7 +1246,7 @@ public class NotificationChartDrawer {
                     timestamps,
                     values,
                     startTime,
-                    duration,
+                    chartDuration,
                     chartLeft,
                     chartBottom,
                     chartWidth,
@@ -917,7 +1285,7 @@ public class NotificationChartDrawer {
                     timestamps,
                     values,
                     startTime,
-                    duration,
+                    chartDuration,
                     chartLeft,
                     chartBottom,
                     chartWidth,
@@ -928,6 +1296,28 @@ public class NotificationChartDrawer {
                     targetHigh,
                     lineColor,
                     thresholdColorCalibrated);
+        }
+
+        for (NotificationPredictionSeries series : visiblePredictionSeries) {
+            drawPredictionSeries(
+                    canvas,
+                    linePaint,
+                    dm,
+                    series,
+                    isMmol,
+                    viewMode,
+                    hasCalibration,
+                    lineColor,
+                    lineColorSecondary,
+                    lineColorTertiary,
+                    startTime,
+                    chartDuration,
+                    chartLeft,
+                    chartBottom,
+                    chartWidth,
+                    chartHeight,
+                    minY,
+                    yRange);
         }
 
         return bitmap;

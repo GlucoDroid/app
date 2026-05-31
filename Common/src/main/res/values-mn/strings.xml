@@ -1498,6 +1498,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_gate_desc">Show journal actions in chart and reading rows</string>
     <string name="predictive_simulation_title">Predictive simulation</string>
     <string name="predictive_simulation_summary">Project glucose with trend, journal carbs, insulin curves, and activity</string>
+    <string name="predictive_notification_chart">Мэдэгдэл/AOD график</string>
+    <string name="predictive_notification_chart_summary">Мэдэгдэл болон түгжих дэлгэцийн графикт таамаглалын шугам харуулах</string>
     <string name="predictive_trend_momentum">Trend momentum</string>
     <string name="predictive_model_tuning">Model profile</string>
     <string name="predictive_carb_ratio">Carb ratio</string>

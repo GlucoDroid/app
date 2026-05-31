@@ -1434,6 +1434,8 @@
     <string name="journal_gate_desc">Włącz dziennik na pulpicie z markerami na wykresie, szybkimi akcjami i oknami działania insuliny</string>
     <string name="predictive_simulation_title">Symulacja predykcyjna</string>
     <string name="predictive_simulation_summary">Prognozuj glukozę na podstawie trendu, węglowodanów z dziennika, krzywych insuliny i aktywności</string>
+    <string name="predictive_notification_chart">Wykres powiadomienia/AOD</string>
+    <string name="predictive_notification_chart_summary">Pokazuj linię prognozy na wykresach powiadomienia i ekranu blokady</string>
     <string name="predictive_trend_momentum">Momentum trendu</string>
     <string name="predictive_model_tuning">Profil modelu</string>
     <string name="predictive_carb_ratio">Współczynnik węglowodanów</string>

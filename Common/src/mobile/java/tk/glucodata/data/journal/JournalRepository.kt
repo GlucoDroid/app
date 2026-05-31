@@ -128,6 +128,10 @@ class JournalRepository {
         return dao.getInsulinPresets().map(JournalInsulinPresetEntity::toModel)
     }
 
+    suspend fun getEntriesBetweenSnapshot(startMillis: Long, endMillis: Long): List<JournalEntry> {
+        return dao.getEntriesBetween(startMillis, endMillis).map(JournalEntryEntity::toModel)
+    }
+
     suspend fun ensureDefaultFoods() {
         if (prefs.getBoolean(DEFAULT_FOODS_SEEDED_KEY, false)) return
         database.withTransaction {

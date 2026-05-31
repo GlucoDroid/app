@@ -83,6 +83,7 @@ class DashboardViewModel(
         const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
         const val PREDICTION_CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
         const val PREDICTION_HORIZON_MINUTES_KEY = "dashboard_prediction_horizon_minutes"
+        const val PREDICTION_NOTIFICATION_CHART_KEY = "dashboard_prediction_notification_chart_enabled"
         const val PREDICTION_CARB_RATIO_DEFAULT = 10f
         const val PREDICTION_INSULIN_SENSITIVITY_DEFAULT = 54f
         const val PREDICTION_CARB_ABSORPTION_DEFAULT = 35f
@@ -239,6 +240,9 @@ class DashboardViewModel(
 
     private val _predictiveSimulationEnabled = MutableStateFlow(true)
     val predictiveSimulationEnabled = _predictiveSimulationEnabled.asStateFlow()
+
+    private val _predictiveSimulationNotificationChartEnabled = MutableStateFlow(true)
+    val predictiveSimulationNotificationChartEnabled = _predictiveSimulationNotificationChartEnabled.asStateFlow()
 
     private val _predictionTrendMomentumEnabled = MutableStateFlow(true)
     val predictionTrendMomentumEnabled = _predictionTrendMomentumEnabled.asStateFlow()
@@ -477,6 +481,7 @@ class DashboardViewModel(
         _journalHealthConnectActivityEnabled.value = prefs.getBoolean(JOURNAL_HEALTH_CONNECT_ACTIVITY_KEY, false)
         _aapsJournalImportEnabled.value = AapsJournalImport.isEnabled(context)
         _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", true)
+        _predictiveSimulationNotificationChartEnabled.value = prefs.getBoolean(PREDICTION_NOTIFICATION_CHART_KEY, true)
         _predictionTrendMomentumEnabled.value = prefs.getBoolean("dashboard_prediction_trend_momentum_enabled", true)
         _predictionCarbRatioGramsPerUnit.value = prefs
             .getFloat(PREDICTION_CARB_RATIO_KEY, PREDICTION_CARB_RATIO_DEFAULT)
@@ -977,6 +982,7 @@ class DashboardViewModel(
         } else {
             stopJournalEntriesObservation()
         }
+        refreshNotificationPredictionSurfaces(context)
     }
 
     fun setJournalDoseCalculatorEnabled(enabled: Boolean) {
@@ -991,6 +997,7 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean(JOURNAL_FOOD_MACROS_KEY, enabled).apply()
         _journalFoodMacrosEnabled.value = enabled
+        refreshNotificationPredictionSurfaces(context)
     }
 
     fun setJournalFoodLibraryEnabled(enabled: Boolean) {
@@ -1025,6 +1032,15 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("dashboard_predictive_simulation_enabled", enabled).apply()
         _predictiveSimulationEnabled.value = enabled
+        refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setPredictiveSimulationNotificationChartEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(PREDICTION_NOTIFICATION_CHART_KEY, enabled).apply()
+        _predictiveSimulationNotificationChartEnabled.value = enabled
+        refreshNotificationPredictionSurfaces(context)
     }
 
     fun setPredictionTrendMomentumEnabled(enabled: Boolean) {
@@ -1032,6 +1048,7 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("dashboard_prediction_trend_momentum_enabled", enabled).apply()
         _predictionTrendMomentumEnabled.value = enabled
+        refreshNotificationPredictionSurfaces(context)
     }
 
     fun setPredictionCarbRatioGramsPerUnit(value: Float) {
@@ -1040,6 +1057,7 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putFloat(PREDICTION_CARB_RATIO_KEY, normalized).apply()
         _predictionCarbRatioGramsPerUnit.value = normalized
+        refreshNotificationPredictionSurfaces(context)
     }
 
     fun setPredictionInsulinSensitivityMgDlPerUnit(value: Float) {
@@ -1048,6 +1066,7 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putFloat(PREDICTION_INSULIN_SENSITIVITY_KEY, normalized).apply()
         _predictionInsulinSensitivityMgDlPerUnit.value = normalized
+        refreshNotificationPredictionSurfaces(context)
     }
 
     fun setPredictionCarbAbsorptionGramsPerHour(value: Float) {
@@ -1056,6 +1075,7 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putFloat(PREDICTION_CARB_ABSORPTION_KEY, normalized).apply()
         _predictionCarbAbsorptionGramsPerHour.value = normalized
+        refreshNotificationPredictionSurfaces(context)
     }
 
     fun setPredictionHorizonMinutes(value: Int) {
@@ -1064,6 +1084,14 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putInt(PREDICTION_HORIZON_MINUTES_KEY, normalized).apply()
         _predictionHorizonMinutes.value = normalized
+        refreshNotificationPredictionSurfaces(context)
+    }
+
+    private fun refreshNotificationPredictionSurfaces(context: android.content.Context) {
+        tk.glucodata.Notify.showoldglucose()
+        context.sendBroadcast(
+            android.content.Intent(tk.glucodata.accessibility.AODOverlayService.ACTION_IMMEDIATE_REFRESH)
+        )
     }
 
     fun saveJournalEntry(input: JournalEntryInput) {

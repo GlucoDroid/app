@@ -1467,6 +1467,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_gate_desc">Уключыць журнал на панэлі з пазнакамі на графіку, хуткімі дзеяннямі і акном дзеяння інсуліну</string>
     <string name="predictive_simulation_title">Прагнознае мадэляванне</string>
     <string name="predictive_simulation_summary">Прагназаваць глюкозу па трэндзе, вугляводах, крывых інсуліну і актыўнасці</string>
+    <string name="predictive_notification_chart">Графік апавяшчэння/AOD</string>
+    <string name="predictive_notification_chart_summary">Паказваць лінію прагнозу на графіках апавяшчэння і экрана блакіроўкі</string>
     <string name="predictive_trend_momentum">Імпульс трэнду</string>
     <string name="predictive_model_tuning">Профіль мадэлі</string>
     <string name="predictive_carb_ratio">Вугляводны каэфіцыент</string>

@@ -1399,6 +1399,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_gate_desc">Aktivera en dashboard-baserad journal med diagrammarkörer, snabbåtgärder och insulinets verkansfönster</string>
     <string name="predictive_simulation_title">Prediktiv simulering</string>
     <string name="predictive_simulation_summary">Prognostisera glukos med trend, journalens kolhydrater, insulinkurvor och aktivitet</string>
+    <string name="predictive_notification_chart">Aviserings-/AOD-diagram</string>
+    <string name="predictive_notification_chart_summary">Visa prognoslinjen i aviseringens och låsskärmens diagram</string>
     <string name="predictive_trend_momentum">Trendmomentum</string>
     <string name="predictive_model_tuning">Modellprofil</string>
     <string name="predictive_carb_ratio">Kolhydratkvot</string>

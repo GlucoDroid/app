@@ -71,6 +71,13 @@
 
 -keep class tk.glucodata.CalibrationProfileAccess { *; }
 
+# Keep notification/AOD predictive chart bridge stable. NotificationChartDrawer
+# resolves the mobile-only helper by name so main/wear source sets do not take a
+# direct dependency on mobile prediction/journal classes.
+-keep class tk.glucodata.NotificationPredictionOverlay { *; }
+-keep class tk.glucodata.NotificationPredictionPoint { *; }
+-keep class tk.glucodata.NotificationPredictionSeries { *; }
+
 # Keep TrendEngine names and reflected members stable.
 # TrendAccess in src/main resolves these mobile-only methods by name for
 # notification/dashboard/AOD trend arrows in minified builds.

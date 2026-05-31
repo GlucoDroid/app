@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -111,11 +112,6 @@ fun ExpressiveSettingsScreen(
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
-    val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
-    val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
-    val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
-    val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
-    val predictionHorizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
     val alertsSummary by viewModel.alertsSummary.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
@@ -160,7 +156,6 @@ fun ExpressiveSettingsScreen(
     var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
     var pendingExportPackageImportUri by remember { mutableStateOf<Uri?>(null) }
     var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
-    var predictiveSimulationExpanded by rememberSaveable { mutableStateOf(false) }
 
 
 
@@ -282,23 +277,10 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE
                 )
 
-                PredictiveSimulationExpandableSettingsItem(
-                    journalEnabled = journalEnabled,
+                PredictiveSimulationSettingsItem(
                     predictiveSimulationEnabled = predictiveSimulationEnabled,
-                    trendMomentumEnabled = predictionTrendMomentumEnabled,
-                    carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
-                    insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
-                    carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour,
-                    horizonMinutes = predictionHorizonMinutes,
-                    isMmol = isMmol,
-                    expanded = predictiveSimulationExpanded,
-                    onExpandedChange = { predictiveSimulationExpanded = it },
-                    onToggleSimulation = { viewModel.setPredictiveSimulationEnabled(it) },
-                    onToggleTrendMomentum = { viewModel.setPredictionTrendMomentumEnabled(it) },
-                    onCarbRatioChange = { viewModel.setPredictionCarbRatioGramsPerUnit(it) },
-                    onInsulinSensitivityChange = { viewModel.setPredictionInsulinSensitivityMgDlPerUnit(it) },
-                    onCarbAbsorptionChange = { viewModel.setPredictionCarbAbsorptionGramsPerHour(it) },
-                    onHorizonChange = { viewModel.setPredictionHorizonMinutes(it) },
+                    onToggleEnabled = { viewModel.setPredictiveSimulationEnabled(it) },
+                    onOpenSettings = { navController.navigate("settings/predictive-simulation") },
                     iconTint = glucoseColor,
                     position = CardPosition.BOTTOM
                 )
@@ -1225,30 +1207,77 @@ private fun JournalSettingsItem(
 }
 
 @Composable
-private fun PredictiveSimulationExpandableSettingsItem(
-    journalEnabled: Boolean,
+private fun PredictiveSimulationSettingsItem(
     predictiveSimulationEnabled: Boolean,
-    trendMomentumEnabled: Boolean,
-    carbRatioGramsPerUnit: Float,
-    insulinSensitivityMgDlPerUnit: Float,
-    carbAbsorptionGramsPerHour: Float,
-    horizonMinutes: Int,
-    isMmol: Boolean,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onToggleSimulation: (Boolean) -> Unit,
-    onToggleTrendMomentum: (Boolean) -> Unit,
-    onCarbRatioChange: (Float) -> Unit,
-    onInsulinSensitivityChange: (Float) -> Unit,
-    onCarbAbsorptionChange: (Float) -> Unit,
-    onHorizonChange: (Int) -> Unit,
+    onToggleEnabled: (Boolean) -> Unit,
+    onOpenSettings: () -> Unit,
     iconTint: Color,
     position: CardPosition
 ) {
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        label = "predictiveSimulationChevron"
-    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpenSettings,
+        shape = cardShape(position),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SettingsLeadingIcon(icon = Icons.AutoMirrored.Filled.ShowChart, tint = iconTint)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.predictive_simulation_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = stringResource(if (predictiveSimulationEnabled) R.string.enabled_status else R.string.disabled_status),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                VerticalDivider(
+                    modifier = Modifier.height(30.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                StyledSwitch(
+                    checked = predictiveSimulationEnabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PredictiveSimulationSettingsScreen(
+    navController: NavController,
+    viewModel: DashboardViewModel
+) {
+    val unit by viewModel.unit.collectAsState()
+    val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
+    val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
+    val notificationChartPredictionEnabled by viewModel.predictiveSimulationNotificationChartEnabled.collectAsState()
+    val trendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
+    val carbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
+    val insulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val carbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
+    val horizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
     val insulinSensitivityDisplay = remember(insulinSensitivityMgDlPerUnit, isMmol) {
         tk.glucodata.ui.util.GlucoseFormatter.displayFromMgDl(insulinSensitivityMgDlPerUnit, isMmol)
     }
@@ -1259,89 +1288,92 @@ private fun PredictiveSimulationExpandableSettingsItem(
     }
     val sensitivityRange = if (isMmol) 0.6f..10f else 10f..180f
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = cardShape(position),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
-    ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onExpandedChange(!expanded) }
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SettingsLeadingIcon(icon = Icons.AutoMirrored.Filled.ShowChart, tint = iconTint)
-                Spacer(modifier = Modifier.width(12.dp))
+    Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.predictive_simulation_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.navigate_back)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item(key = "master") {
+                MasterSwitchCard(
+                    title = stringResource(R.string.predictive_simulation_title),
+                    subtitle = stringResource(R.string.predictive_simulation_summary),
+                    checked = predictiveSimulationEnabled,
+                    onCheckedChange = { viewModel.setPredictiveSimulationEnabled(it) },
+                    icon = Icons.AutoMirrored.Filled.ShowChart,
+                    iconTint = MaterialTheme.colorScheme.primary
+                )
+            }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.predictive_simulation_title),
-                        style = MaterialTheme.typography.titleMedium
+            item(key = "behavior") {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.predictive_trend_momentum),
+                        checked = trendMomentumEnabled,
+                        onCheckedChange = { viewModel.setPredictionTrendMomentumEnabled(it) },
+                        position = CardPosition.TOP,
+                        enabled = predictiveSimulationEnabled
                     )
-                    Text(
-                        modifier = Modifier.padding(top = 2.dp),
-                        text = stringResource(R.string.predictive_simulation_summary),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.ExpandMore,
-                        contentDescription = stringResource(
-                            if (expanded) R.string.collapse_action else R.string.expand_action
-                        ),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    VerticalDivider(
-                        modifier = Modifier.height(30.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    StyledSwitch(
-                        checked = predictiveSimulationEnabled,
-                        onCheckedChange = onToggleSimulation
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.predictive_notification_chart),
+                        subtitle = stringResource(R.string.predictive_notification_chart_summary),
+                        checked = notificationChartPredictionEnabled,
+                        onCheckedChange = { viewModel.setPredictiveSimulationNotificationChartEnabled(it) },
+                        position = CardPosition.BOTTOM,
+                        enabled = predictiveSimulationEnabled
                     )
                 }
             }
 
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    PredictiveSimulationSubToggleRow(
-                        title = stringResource(R.string.predictive_trend_momentum),
-                        checked = trendMomentumEnabled,
+            item(key = "horizon") {
+                PredictiveSimulationSettingsCard(enabled = predictiveSimulationEnabled) {
+                    PredictiveSimulationParameterRow(
+                        title = stringResource(R.string.predictive_forecast_horizon),
+                        valueLabel = stringResource(R.string.predictive_horizon_value, horizonMinutes),
+                        value = horizonMinutes.toFloat(),
+                        valueRange = 30f..360f,
                         enabled = predictiveSimulationEnabled,
-                        onCheckedChange = onToggleTrendMomentum,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        onValueChange = { viewModel.setPredictionHorizonMinutes(it.roundToInt()) }
                     )
-                    if (journalEnabled) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
-                        Text(
-                            text = stringResource(R.string.predictive_model_tuning),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 14.dp, bottom = 2.dp)
-                        )
+                }
+            }
+
+            if (journalEnabled) {
+                item(key = "model_label") {
+                    SectionLabel(
+                        stringResource(R.string.predictive_model_tuning),
+                        topPadding = 4.dp
+                    )
+                }
+                item(key = "model") {
+                    PredictiveSimulationSettingsCard(enabled = predictiveSimulationEnabled) {
                         PredictiveSimulationParameterRow(
                             title = stringResource(R.string.predictive_carb_ratio),
                             valueLabel = stringResource(R.string.predictive_carb_ratio_value, carbRatioGramsPerUnit),
                             value = carbRatioGramsPerUnit,
                             valueRange = 3f..30f,
                             enabled = predictiveSimulationEnabled,
-                            onValueChange = onCarbRatioChange
+                            onValueChange = { viewModel.setPredictionCarbRatioGramsPerUnit(it) }
                         )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
                         PredictiveSimulationParameterRow(
                             title = stringResource(R.string.predictive_insulin_sensitivity),
                             valueLabel = sensitivityValue,
@@ -1349,31 +1381,43 @@ private fun PredictiveSimulationExpandableSettingsItem(
                             valueRange = sensitivityRange,
                             enabled = predictiveSimulationEnabled,
                             onValueChange = { displayValue ->
-                                onInsulinSensitivityChange(
+                                viewModel.setPredictionInsulinSensitivityMgDlPerUnit(
                                     if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(displayValue) else displayValue
                                 )
                             }
                         )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
                         PredictiveSimulationParameterRow(
                             title = stringResource(R.string.predictive_carb_absorption),
                             valueLabel = stringResource(R.string.predictive_absorption_value, carbAbsorptionGramsPerHour),
                             value = carbAbsorptionGramsPerHour,
                             valueRange = 10f..90f,
                             enabled = predictiveSimulationEnabled,
-                            onValueChange = onCarbAbsorptionChange
+                            onValueChange = { viewModel.setPredictionCarbAbsorptionGramsPerHour(it) }
                         )
                     }
-                    PredictiveSimulationParameterRow(
-                        title = stringResource(R.string.predictive_forecast_horizon),
-                        valueLabel = stringResource(R.string.predictive_horizon_value, horizonMinutes),
-                        value = horizonMinutes.toFloat(),
-                        valueRange = 30f..360f,
-                        enabled = predictiveSimulationEnabled,
-                        onValueChange = { onHorizonChange(it.roundToInt()) }
-                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PredictiveSimulationSettingsCard(
+    enabled: Boolean,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.66f),
+        shape = cardShape(CardPosition.SINGLE),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            content = content
+        )
     }
 }
 
@@ -1411,35 +1455,6 @@ private fun PredictiveSimulationParameterRow(
             value = value.coerceIn(valueRange.start, valueRange.endInclusive),
             onValueChange = onValueChange,
             valueRange = valueRange,
-            enabled = enabled
-        )
-    }
-}
-
-@Composable
-private fun PredictiveSimulationSubToggleRow(
-    title: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.5f)
-            .clickable(enabled = enabled) { onCheckedChange(!checked) }
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.weight(1f)
-        )
-        StyledSwitch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
             enabled = enabled
         )
     }
@@ -1885,7 +1900,6 @@ fun AODSettingsSheet(onDismiss: () -> Unit, sheetState: SheetState, context: and
         }
     }
 }
-
 // Components moved to tk.glucodata.ui.components.SettingsComponents.kt
 
 // ============================================================================

@@ -1723,7 +1723,7 @@ fun SignalQualityIndicator(
         
         // Raw noise value (xDrip-style, 1 decimal)
         Text(
-            text = String.format(java.util.Locale.US, "%.1f", noiseLevel),
+            text = String.format(java.util.Locale.getDefault(), "%.1f", noiseLevel),
             style = MaterialTheme.typography.labelSmall,
             color = color.copy(alpha = 0.9f)
         )

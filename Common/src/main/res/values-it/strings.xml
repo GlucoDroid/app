@@ -1389,6 +1389,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_gate_desc">Attiva un diario nel dashboard con marcatori sul grafico, azioni rapide e finestre di attività dell\'insulina</string>
     <string name="predictive_simulation_title">Simulazione predittiva</string>
     <string name="predictive_simulation_summary">Proietta la glicemia con trend, carboidrati del diario, curve insuliniche e attività</string>
+    <string name="predictive_notification_chart">Grafico notifica/AOD</string>
+    <string name="predictive_notification_chart_summary">Mostra la linea di previsione nei grafici di notifica e schermata di blocco</string>
     <string name="predictive_trend_momentum">Momentum del trend</string>
     <string name="predictive_model_tuning">Profilo modello</string>
     <string name="predictive_carb_ratio">Rapporto carboidrati</string>

@@ -1405,6 +1405,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_gate_desc">Activer un journal centré sur le tableau de bord avec marqueurs de courbe, actions rapides et plages d\'action de l\'insuline</string>
     <string name="predictive_simulation_title">Simulation prédictive</string>
     <string name="predictive_simulation_summary">Projeter la glycémie avec la tendance, les glucides du journal, les courbes d\'insuline et l\'activité</string>
+    <string name="predictive_notification_chart">Graphique notification/AOD</string>
+    <string name="predictive_notification_chart_summary">Afficher la ligne de prévision dans les graphiques de notification et d\'écran verrouillé</string>
     <string name="predictive_trend_momentum">Momentum de tendance</string>
     <string name="predictive_model_tuning">Profil du modèle</string>
     <string name="predictive_carb_ratio">Ratio glucides</string>

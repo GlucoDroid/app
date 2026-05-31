@@ -1442,6 +1442,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="journal_gate_desc">Schakel een dashboard-gericht logboek in met grafiekmarkeringen, snelle acties en insuline-werkingsvensters</string>
     <string name="predictive_simulation_title">Voorspellende simulatie</string>
     <string name="predictive_simulation_summary">Glucose voorspellen met trend, dagboekkoolhydraten, insulinecurves en activiteit</string>
+    <string name="predictive_notification_chart">Meldings-/AOD-grafiek</string>
+    <string name="predictive_notification_chart_summary">Toon de voorspelde lijn in meldings- en vergrendelschermgrafieken</string>
     <string name="predictive_trend_momentum">Trendmomentum</string>
     <string name="predictive_model_tuning">Modelprofiel</string>
     <string name="predictive_carb_ratio">Koolhydraatratio</string>
