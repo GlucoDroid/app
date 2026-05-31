@@ -283,6 +283,9 @@ class DashboardViewModel(
     private val _alertsSummary = MutableStateFlow("")
     val alertsSummary = _alertsSummary.asStateFlow()
 
+    private val _alertsMasterEnabled = MutableStateFlow(false)
+    val alertsMasterEnabled = _alertsMasterEnabled.asStateFlow()
+
     private var collectionMode = CollectionMode.INACTIVE
     private var currentReadingJob: Job? = null
     private var historyJob: Job? = null
@@ -527,6 +530,7 @@ class DashboardViewModel(
 
         val anyActive = AlertRepository.loadAllConfigs().any { it.enabled }
             || CustomAlertRepository.getAll().any { it.enabled }
+        _alertsMasterEnabled.value = anyActive
         _alertsSummary.value = if (anyActive) {
             context.getString(tk.glucodata.R.string.global_active)
         } else {
@@ -1041,6 +1045,30 @@ class DashboardViewModel(
         prefs.edit().putBoolean("dashboard_predictive_simulation_enabled", enabled).apply()
         _predictiveSimulationEnabled.value = enabled
         refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setAlertsMasterEnabled(enabled: Boolean) {
+        val configs = AlertRepository.loadAllConfigs()
+        configs.forEach { config ->
+            if (config.enabled != enabled) {
+                AlertRepository.saveConfig(config.copy(enabled = enabled))
+            }
+        }
+
+        val customAlerts = CustomAlertRepository.getAll()
+        val updatedCustomAlerts = customAlerts.map { it.copy(enabled = enabled) }
+        if (updatedCustomAlerts != customAlerts) {
+            CustomAlertRepository.saveAll(updatedCustomAlerts)
+        }
+
+        _alertsMasterEnabled.value = enabled
+        val context = tk.glucodata.Applic.app
+        _alertsSummary.value = if (enabled) {
+            context.getString(tk.glucodata.R.string.global_active)
+        } else {
+            context.getString(tk.glucodata.R.string.global_all_alerts_disabled)
+        }
+        refreshData()
     }
 
     fun setPredictiveSimulationNotificationChartEnabled(enabled: Boolean) {

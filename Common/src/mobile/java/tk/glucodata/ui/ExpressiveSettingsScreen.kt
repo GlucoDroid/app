@@ -112,7 +112,7 @@ fun ExpressiveSettingsScreen(
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
-    val alertsSummary by viewModel.alertsSummary.collectAsState()
+    val alertsMasterEnabled by viewModel.alertsMasterEnabled.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
     val calibrationEnabledRaw by CalibrationManager.isEnabledForRaw.collectAsState()
@@ -294,14 +294,12 @@ fun ExpressiveSettingsScreen(
             // Theme: Secondary (Accent)
             val notifColor = MaterialTheme.colorScheme.secondary
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                SettingsItem(
-                    title = stringResource(R.string.glucose_alerts_title),
-                    subtitle = alertsSummary,
-                    icon = Icons.Default.AddAlert,
+                AlertsAndAlarmsSettingsItem(
+                    alertsEnabled = alertsMasterEnabled,
+                    onToggleEnabled = { viewModel.setAlertsMasterEnabled(it) },
+                    onOpenSettings = { navController.navigate("settings/alerts") },
                     iconTint = MaterialTheme.colorScheme.error,
-                    showArrow = true,
                     position = CardPosition.TOP,
-                    onClick = { navController.navigate("settings/alerts") }
                 )
 
                 SettingsItem(
@@ -1256,6 +1254,63 @@ private fun PredictiveSimulationSettingsItem(
                 Spacer(modifier = Modifier.width(8.dp))
                 StyledSwitch(
                     checked = predictiveSimulationEnabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlertsAndAlarmsSettingsItem(
+    alertsEnabled: Boolean,
+    onToggleEnabled: (Boolean) -> Unit,
+    onOpenSettings: () -> Unit,
+    iconTint: Color,
+    position: CardPosition
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpenSettings,
+        shape = cardShape(position),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SettingsLeadingIcon(icon = Icons.Default.AddAlert, tint = iconTint)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.glucose_alerts_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = stringResource(if (alertsEnabled) R.string.global_active else R.string.global_all_alerts_disabled),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                VerticalDivider(
+                    modifier = Modifier.height(30.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                StyledSwitch(
+                    checked = alertsEnabled,
                     onCheckedChange = onToggleEnabled
                 )
             }
