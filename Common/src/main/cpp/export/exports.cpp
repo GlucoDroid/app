@@ -205,31 +205,28 @@ bool currentheader(FILE* handle,int unit,bool calibrated=false) {
 
 
 
-extern double     calibrateONE(const SensorGlucoseData *sens,const ScanData &value);
+extern int resolveExportedMgdl(const SensorGlucoseData *sens,const ScanData *val,
+        const sensorname_t *sensorname);
 template <bool repeatids>
 bool fexportscans(myfilep handle, int unit,CurData   (SensorGlucoseData::*proc)(const uint32_t,const uint32_t) const,uint32_t starttime,uint32_t endtime,int maxcount=INT_MAX,bool isCalibrated=false) {
 	return sensorexports<ScanData>(handle,proc, [unit,isCalibrated](myfilep fp,const int index,const ScanData *scan,const int sensorindex,const ScanData *beg) {
 		if(repeatids||scan==beg||scan->id!=scan[-1].id) {
-			const char *sensorname=sensors->shortsensorname(sensorindex)->data();
+			const sensorname_t *sensorname=sensors->shortsensorname(sensorindex);
+			const char *sensornamestr=sensorname->data();
 			const uint32_t scantime=scan->gettime();
 			const auto [buf,zone]=	timedata(scantime);
             const auto mgdL=scan->getmgdL();
             const float rawconvert=gconvert(mgdL*10,unit); 
             if(isCalibrated) {
                const SensorGlucoseData *sensdata=sensors->getSensorData(sensorindex);
-               float calconvert;
-               if(double calibrated=calibrateONE(sensdata,*scan);!isnan(calibrated)) {
-                  calconvert=gconvert(10.0*calibrated,unit);
-                  }
-              else {
-                  calconvert=rawconvert;
-                 }
+               const int exportedMgdl=resolveExportedMgdl(sensdata,scan,sensorname);
+               const float calconvert=exportedMgdl>0?gconvert(exportedMgdl*10,unit):rawconvert;
               float diff=calconvert-rawconvert;
               const int dec= getgludecimal(unit);
-              fprintf(fp,"%s\t%d\t%u\t%s\t%g\t%d\t%.*f\t%.*f\t%.*f\t%+g\t%s\n",sensorname ,index,scantime,buf,zone,scan->id,dec,calconvert,dec,rawconvert,2,diff,scan->ch,GlucoseNow::trendString[scan->tr]); 
+              fprintf(fp,"%s\t%d\t%u\t%s\t%g\t%d\t%.*f\t%.*f\t%.*f\t%+g\t%s\n",sensornamestr ,index,scantime,buf,zone,scan->id,dec,calconvert,dec,rawconvert,2,diff,scan->ch,GlucoseNow::trendString[scan->tr]);
               return true;
                }
-			fprintf(fp,"%s\t%d\t%u\t%s\t%g\t%d\t%.*f\t%+g\t%s\n",sensorname ,index,scantime,buf,zone,scan->id,getgludecimal(unit),rawconvert,scan->ch,GlucoseNow::trendString[scan->tr]); 
+			fprintf(fp,"%s\t%d\t%u\t%s\t%g\t%d\t%.*f\t%+g\t%s\n",sensornamestr ,index,scantime,buf,zone,scan->id,getgludecimal(unit),rawconvert,scan->ch,GlucoseNow::trendString[scan->tr]);
 			return true;
 			}
 		return false;
