@@ -86,6 +86,7 @@ internal object HistoryDisplayMerge {
         resolver: PreferredMatchResolver
     ): List<HistoryReading> {
         if (readings.size < 2) return readings
+        if (!hasAdjacentMinuteBucketDuplicates(readings)) return readings
 
         val collapsed = ArrayList<HistoryReading>(readings.size)
         var currentBucket = Long.MIN_VALUE
@@ -104,6 +105,18 @@ internal object HistoryDisplayMerge {
 
         currentBest?.let(collapsed::add)
         return collapsed
+    }
+
+    private fun hasAdjacentMinuteBucketDuplicates(readings: List<HistoryReading>): Boolean {
+        var previousBucket = readings.first().timestamp / SENSOR_MINUTE_BUCKET_MS
+        for (index in 1 until readings.size) {
+            val bucket = readings[index].timestamp / SENSOR_MINUTE_BUCKET_MS
+            if (bucket == previousBucket) {
+                return true
+            }
+            previousBucket = bucket
+        }
+        return false
     }
 
     private fun collapseLogicalSensorBuckets(
