@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LegendToggle
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
@@ -32,6 +33,10 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,10 +45,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -112,7 +119,9 @@ private fun HistoryRoute(
     // readings (and any imported/older sensor data) remain visible on the
     // History screen across sensor swaps. The dashboard chart still uses the
     // narrower per-sensor [glucoseHistory] flow above.
-    val glucoseHistory by dashboardViewModel.historyScreenGlucoseHistory.collectAsStateWithLifecycle()
+    val mergedGlucoseHistory by dashboardViewModel.historyScreenGlucoseHistory.collectAsStateWithLifecycle()
+    val dashboardGlucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
+    val glucoseHistory = mergedGlucoseHistory.ifEmpty { dashboardGlucoseHistory }
     val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
     val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
     val sensorName by dashboardViewModel.sensorName.collectAsStateWithLifecycle()
@@ -243,9 +252,15 @@ private fun HistoryRoute(
 private fun JournalRoute(
     dashboardViewModel: DashboardViewModel,
     navController: androidx.navigation.NavController,
-    onTriggerCalibration: (CalibrationSheetState) -> Unit
+    onTriggerCalibration: (CalibrationSheetState) -> Unit,
+    modifier: Modifier = Modifier,
+    showTitle: Boolean = true,
+    useStatusBarsPadding: Boolean = true,
+    bottomContentPadding: Dp = 104.dp
 ) {
-    val glucoseHistory by dashboardViewModel.historyScreenGlucoseHistory.collectAsStateWithLifecycle()
+    val mergedGlucoseHistory by dashboardViewModel.historyScreenGlucoseHistory.collectAsStateWithLifecycle()
+    val dashboardGlucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
+    val glucoseHistory = mergedGlucoseHistory.ifEmpty { dashboardGlucoseHistory }
     val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
     val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
     val sensorName by dashboardViewModel.sensorName.collectAsStateWithLifecycle()
@@ -270,7 +285,12 @@ private fun JournalRoute(
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
 
-    fun openJournalEditor(timestamp: Long, suggestedType: JournalEntryType?, suggestedDisplayGlucose: Float?) {
+    fun openJournalEditor(
+        timestamp: Long,
+        suggestedType: JournalEntryType?,
+        suggestedDisplayGlucose: Float?,
+        suggestedAmountFraction: Float? = null
+    ) {
         val type = suggestedType ?: lastJournalType
         val suggestedGlucoseMgDl = suggestedDisplayGlucose?.let {
             if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
@@ -285,7 +305,8 @@ private fun JournalRoute(
             timestamp = timestamp,
             suggestedGlucoseMgDl = suggestedGlucoseMgDl,
             suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl
-                .takeIf { type == JournalEntryType.FINGERSTICK }
+                .takeIf { type == JournalEntryType.FINGERSTICK || suggestedAmountFraction != null },
+            suggestedAmountFraction = suggestedAmountFraction
         )
     }
 
@@ -311,10 +332,13 @@ private fun JournalRoute(
             lastJournalType = entry.type
             journalEditorRequest = JournalEditorRequest(entry.type, entry.timestamp, entry)
         },
-        onAddJournalEntry = ::openJournalEditor,
-        onOpenFoodLibrary = { navController.navigate("settings/journal/foods") },
-        onOpenInsulinLibrary = { navController.navigate("settings/journal/insulin") },
-        onOpenJournalSettings = { navController.navigate("settings/journal") }
+        onAddJournalEntry = { timestamp, suggestedType, suggestedDisplayGlucose, suggestedAmountFraction ->
+            openJournalEditor(timestamp, suggestedType, suggestedDisplayGlucose, suggestedAmountFraction)
+        },
+        modifier = modifier,
+        showTitle = showTitle,
+        useStatusBarsPadding = useStatusBarsPadding,
+        bottomContentPadding = bottomContentPadding
     )
 
     journalEditorRequest?.let { request ->
@@ -358,6 +382,41 @@ private fun JournalRoute(
                 journalEditorRequest = null
             },
             sensorSerialProvider = { sensorName.ifBlank { null } }
+        )
+    }
+}
+
+@Composable
+private fun JournalSettingsHistoryRoute(
+    dashboardViewModel: DashboardViewModel,
+    navController: androidx.navigation.NavController,
+    onTriggerCalibration: (CalibrationSheetState) -> Unit
+) {
+    Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.journal_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.navigate_back)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { padding ->
+        JournalRoute(
+            dashboardViewModel = dashboardViewModel,
+            navController = navController,
+            onTriggerCalibration = onTriggerCalibration,
+            modifier = Modifier.padding(padding),
+            showTitle = false,
+            useStatusBarsPadding = false,
+            bottomContentPadding = 28.dp
         )
     }
 }
@@ -484,6 +543,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
         "stats" -> DashboardViewModel.CollectionMode.INACTIVE
         "history",
         "journal",
+        "settings/journal/history",
         "calibrations",
         "settings/calibrations",
         "calibrations/model-table",
@@ -657,6 +717,13 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                     composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                     composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }
+                    composable("settings/journal/history") {
+                        JournalSettingsHistoryRoute(
+                            dashboardViewModel = dashboardViewModel,
+                            navController = navController,
+                            onTriggerCalibration = onTriggerCalibration
+                        )
+                    }
                     composable("settings/journal/foods") { JournalFoodLibraryScreen(navController, dashboardViewModel) }
                     composable("settings/journal/insulin") { JournalInsulinLibraryScreen(navController, dashboardViewModel) }
                     composable("settings/calibrations") {
@@ -792,6 +859,13 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                 composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                 composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }
+                composable("settings/journal/history") {
+                    JournalSettingsHistoryRoute(
+                        dashboardViewModel = dashboardViewModel,
+                        navController = navController,
+                        onTriggerCalibration = onTriggerCalibration
+                    )
+                }
                 composable("settings/journal/foods") { JournalFoodLibraryScreen(navController, dashboardViewModel) }
                 composable("settings/journal/insulin") { JournalInsulinLibraryScreen(navController, dashboardViewModel) }
                 composable("settings/calibrations") {

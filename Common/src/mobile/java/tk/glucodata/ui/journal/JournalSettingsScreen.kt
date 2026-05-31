@@ -228,7 +228,11 @@ fun JournalSettingsScreen(
             }
             item(key = "open_journal") {
                 JournalActionRow(
-                    onHistoryClick = { navController.navigate("journal") }
+                    onHistoryClick = {
+                        navController.navigate(
+                            if (journalNavigationTabEnabled) "journal" else "settings/journal/history"
+                        )
+                    }
                 )
             }
             item(key = "journal_intelligence") {

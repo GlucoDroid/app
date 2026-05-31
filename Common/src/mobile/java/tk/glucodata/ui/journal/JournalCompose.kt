@@ -272,11 +272,12 @@ fun JournalQuickDock(
     onEditEntry: (JournalEntry) -> Unit,
     onCalibrate: (() -> Unit)? = null
 ) {
-    val primaryActions = remember(onCalibrate) {
+    val topActions = remember(onCalibrate) {
         buildList {
             if (onCalibrate != null) add(JournalTrayAction.CALIBRATE)
-            add(JournalTrayAction.INSULIN)
-            add(JournalTrayAction.CARBS)
+            add(JournalTrayAction.FINGERSTICK)
+            add(JournalTrayAction.ACTIVITY)
+            add(JournalTrayAction.NOTE)
         }
     }
     Column(
@@ -284,27 +285,26 @@ fun JournalQuickDock(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         JournalActionRow(
-            actions = primaryActions,
+            actions = topActions,
             onAction = { action ->
                 when (action) {
                     JournalTrayAction.CALIBRATE -> onCalibrate?.invoke()
-                    JournalTrayAction.INSULIN -> onTypeSelected(JournalEntryType.INSULIN)
-                    JournalTrayAction.CARBS -> onTypeSelected(JournalEntryType.CARBS)
+                    JournalTrayAction.FINGERSTICK -> onTypeSelected(JournalEntryType.FINGERSTICK)
+                    JournalTrayAction.ACTIVITY -> onTypeSelected(JournalEntryType.ACTIVITY)
+                    JournalTrayAction.NOTE -> onTypeSelected(JournalEntryType.NOTE)
                     else -> Unit
                 }
             }
         )
         JournalActionRow(
             actions = listOf(
-                JournalTrayAction.FINGERSTICK,
-                JournalTrayAction.ACTIVITY,
-                JournalTrayAction.NOTE
+                JournalTrayAction.CARBS,
+                JournalTrayAction.INSULIN
             ),
             onAction = { action ->
                 when (action) {
-                    JournalTrayAction.FINGERSTICK -> onTypeSelected(JournalEntryType.FINGERSTICK)
-                    JournalTrayAction.ACTIVITY -> onTypeSelected(JournalEntryType.ACTIVITY)
-                    JournalTrayAction.NOTE -> onTypeSelected(JournalEntryType.NOTE)
+                    JournalTrayAction.CARBS -> onTypeSelected(JournalEntryType.CARBS)
+                    JournalTrayAction.INSULIN -> onTypeSelected(JournalEntryType.INSULIN)
                     else -> Unit
                 }
             }
@@ -2442,7 +2442,7 @@ private fun JournalActionRow(
                     text = when (action) {
                         JournalTrayAction.CALIBRATE -> stringResource(R.string.calibrate_action)
                         JournalTrayAction.INSULIN -> stringResource(R.string.journal_type_insulin)
-                        JournalTrayAction.CARBS -> stringResource(R.string.carbo)
+                        JournalTrayAction.CARBS -> stringResource(R.string.journal_type_food)
                         JournalTrayAction.FINGERSTICK -> stringResource(R.string.journal_type_bg_short)
                         JournalTrayAction.ACTIVITY -> stringResource(R.string.journal_type_activity)
                         JournalTrayAction.NOTE -> stringResource(R.string.journal_type_note)
@@ -2993,7 +2993,7 @@ private fun journalTypeIcon(type: JournalEntryType): ImageVector {
 private fun JournalEntryType.labelRes(): Int {
     return when (this) {
         JournalEntryType.INSULIN -> R.string.journal_type_insulin
-        JournalEntryType.CARBS -> R.string.carbo
+        JournalEntryType.CARBS -> R.string.journal_type_food
         JournalEntryType.FINGERSTICK -> R.string.journal_type_fingerstick
         JournalEntryType.ACTIVITY -> R.string.journal_type_activity
         JournalEntryType.NOTE -> R.string.journal_type_note

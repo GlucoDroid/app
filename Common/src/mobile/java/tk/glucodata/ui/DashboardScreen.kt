@@ -157,13 +157,11 @@ import tk.glucodata.data.prediction.PredictiveSimulationSettings
 import tk.glucodata.data.prediction.buildGlucosePrediction
 import tk.glucodata.ui.journal.JournalDoseProfile
 import tk.glucodata.ui.journal.JournalEntrySheet
+import tk.glucodata.ui.journal.JournalFloatingActionMenu
 import tk.glucodata.ui.journal.JournalInlineChip
 import tk.glucodata.ui.journal.JournalSettingsScreen
 import tk.glucodata.ui.journal.buildActiveInsulinSummary
 import tk.glucodata.ui.journal.buildJournalChartMarkers
-import tk.glucodata.ui.journal.journalTypeColor
-import tk.glucodata.ui.journal.journalTypeSelectedContainerColor
-import tk.glucodata.ui.journal.journalTypeSubtleContainerColor
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 import tk.glucodata.ui.theme.displayLargeExpressive
 import androidx.appcompat.app.AppCompatDelegate
@@ -1240,7 +1238,7 @@ fun DashboardScreen(
                                 )
                             }
                             journalActionTimestamp?.let { actionTimestamp ->
-                                DashboardJournalFloatingMenu(
+                                JournalFloatingActionMenu(
                                     visible = journalEnabled,
                                     selectedTimestamp = actionTimestamp,
                                     viewportSnapshot = dashboardChartViewport,
@@ -1402,7 +1400,7 @@ fun DashboardScreen(
                                 )
                             }
                             journalActionTimestamp?.let { actionTimestamp ->
-                                DashboardJournalFloatingMenu(
+                                JournalFloatingActionMenu(
                                     visible = journalEnabled,
                                     selectedTimestamp = actionTimestamp,
                                     viewportSnapshot = dashboardChartViewport,
@@ -1524,200 +1522,4 @@ fun DashboardScreen(
         }
     }
 
-}
-
-
-@Composable
-private fun DashboardJournalFloatingMenu(
-    visible: Boolean,
-    selectedTimestamp: Long,
-    viewportSnapshot: ChartViewportSnapshot?,
-    onTypeSelected: (JournalEntryType) -> Unit
-) {
-    val view = LocalView.current
-    val actionTypes = remember {
-        listOf(
-            JournalEntryType.INSULIN,
-            JournalEntryType.CARBS,
-            JournalEntryType.FINGERSTICK,
-            JournalEntryType.ACTIVITY,
-            JournalEntryType.NOTE
-        )
-    }
-    val anchorFraction = remember(selectedTimestamp, viewportSnapshot) {
-        viewportSnapshot
-            ?.takeIf { it.endMillis > it.startMillis }
-            ?.let { snapshot ->
-                ((selectedTimestamp - snapshot.startMillis).toFloat() /
-                    (snapshot.endMillis - snapshot.startMillis).toFloat()).coerceIn(0f, 1f)
-            }
-    }
-    val menuReveal = remember { Animatable(0f) }
-    LaunchedEffect(visible, selectedTimestamp, anchorFraction) {
-        if (visible && anchorFraction != null) {
-            menuReveal.snapTo(0f)
-            menuReveal.animateTo(
-                targetValue = 1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
-            )
-        } else {
-            menuReveal.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(durationMillis = 120)
-            )
-        }
-    }
-    val menuProgress = menuReveal.value
-    val menuScale = 0.82f + (0.18f * menuProgress)
-
-    if (anchorFraction != null && (visible || menuProgress > 0.01f)) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    alpha = menuProgress.coerceIn(0f, 1f)
-                }
-        ) {
-            val density = LocalDensity.current
-            val resolvedAnchorFraction = anchorFraction ?: return@BoxWithConstraints
-            val containerWidthPx = with(density) { maxWidth.toPx() }
-            val containerHeightPx = with(density) { maxHeight.toPx() }
-            val menuWidthPx = with(density) { 176.dp.toPx() }
-            val edgePaddingPx = with(density) { 12.dp.toPx() }
-            val anchorGapPx = with(density) { 14.dp.toPx() }
-            val menuTopPx = with(density) { 86.dp.toPx() }
-            val rowTravelPx = with(density) { 18.dp.toPx() }
-            val itemLiftPx = with(density) { 16.dp.toPx() }
-            val anchorX = containerWidthPx * resolvedAnchorFraction
-            val placeMenuLeft = resolvedAnchorFraction > 0.56f
-            val desiredX = if (placeMenuLeft) {
-                anchorX - menuWidthPx - anchorGapPx
-            } else {
-                anchorX + anchorGapPx
-            }
-            val clampedX = desiredX.coerceIn(
-                edgePaddingPx,
-                (containerWidthPx - menuWidthPx - edgePaddingPx).coerceAtLeast(edgePaddingPx)
-            )
-            val clampedY = menuTopPx.coerceIn(
-                edgePaddingPx,
-                (containerHeightPx - with(density) { 248.dp.toPx() }).coerceAtLeast(edgePaddingPx)
-            )
-
-            Column(
-                modifier = Modifier
-                    .offset {
-                        androidx.compose.ui.unit.IntOffset(
-                            x = clampedX.roundToInt(),
-                            y = clampedY.roundToInt()
-                        )
-                    }
-                    .graphicsLayer {
-                        alpha = menuProgress
-                        scaleX = menuScale
-                        scaleY = menuScale
-                        translationY = (12.dp.toPx() * (1f - menuProgress))
-                    }
-                    .width(176.dp),
-                horizontalAlignment = if (placeMenuLeft) Alignment.End else Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                actionTypes.forEachIndexed { index, actionType ->
-                    val itemProgress = ((menuProgress - (index * 0.08f)) / 0.92f).coerceIn(0f, 1f)
-                    val label = stringResource(actionType.dashboardLabelRes())
-                    val actionTint = journalTypeColor(actionType)
-                    val iconContainerColor = journalTypeSelectedContainerColor(actionType)
-                    val labelContainerColor = journalTypeSubtleContainerColor(actionType)
-                    Row(
-                        modifier = Modifier
-                            .wrapContentWidth(if (placeMenuLeft) Alignment.End else Alignment.Start)
-                            .graphicsLayer {
-                                alpha = itemProgress
-                                translationX = (if (placeMenuLeft) rowTravelPx else -rowTravelPx) * (1f - itemProgress)
-                                translationY = itemLiftPx * (1f - itemProgress)
-                                scaleX = 0.78f + (0.22f * itemProgress)
-                                scaleY = 0.78f + (0.22f * itemProgress)
-                                rotationZ = (if (placeMenuLeft) -7f else 7f) * (1f - itemProgress)
-                            },
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (!placeMenuLeft) {
-                            SmallFloatingActionButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    onTypeSelected(actionType)
-                                },
-                                shape = CircleShape,
-                                containerColor = iconContainerColor,
-                                contentColor = actionTint,
-                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp)
-                            ) {
-                                Icon(
-                                    imageVector = actionType.dashboardIcon(),
-                                    contentDescription = label,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        Surface(
-                            modifier = Modifier.clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                onTypeSelected(actionType)
-                            },
-                            shape = RoundedCornerShape(18.dp),
-                            color = labelContainerColor,
-                            tonalElevation = 0.dp,
-                            shadowElevation = 0.dp
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                            )
-                        }
-
-                        if (placeMenuLeft) {
-                            SmallFloatingActionButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    onTypeSelected(actionType)
-                                },
-                                shape = CircleShape,
-                                containerColor = iconContainerColor,
-                                contentColor = actionTint,
-                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp)
-                            ) {
-                                Icon(
-                                    imageVector = actionType.dashboardIcon(),
-                                    contentDescription = label,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun JournalEntryType.dashboardLabelRes(): Int = when (this) {
-    JournalEntryType.INSULIN -> R.string.journal_type_insulin
-    JournalEntryType.CARBS -> R.string.carbo
-    JournalEntryType.FINGERSTICK -> R.string.journal_type_bg_short
-    JournalEntryType.ACTIVITY -> R.string.journal_type_activity
-    JournalEntryType.NOTE -> R.string.journal_type_note
-}
-
-private fun JournalEntryType.dashboardIcon(): ImageVector = when (this) {
-    JournalEntryType.INSULIN -> Icons.Default.Vaccines
-    JournalEntryType.CARBS -> Icons.Default.Restaurant
-    JournalEntryType.FINGERSTICK -> Icons.Default.Bloodtype
-    JournalEntryType.ACTIVITY -> Icons.Default.DirectionsRun
-    JournalEntryType.NOTE -> Icons.Filled.Label
 }
