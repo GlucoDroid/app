@@ -1354,6 +1354,13 @@ fun InteractiveGlucoseChart(
     val currentHasPredictionOverlay by rememberUpdatedState(hasPredictionOverlay)
     val currentSafeExpandedProgress by rememberUpdatedState(safeExpandedProgress)
 
+    fun panViewportByPixels(deltaX: Float, widthPx: Float) {
+        if (!deltaX.isFinite() || widthPx <= 0f) return
+        val timePerPixel = visibleDuration.toFloat() / widthPx
+        val timeDelta = -(deltaX * timePerPixel).toLong()
+        centerTime = (centerTime + timeDelta).coerceAtMost(currentMaxAllowedTime)
+    }
+
     // --- DATA HELPER (Fixed Interpolation) ---
     fun getPointAt(timeAtTapRaw: Double): GlucosePoint? {
         val data = currentInteractionData
@@ -1787,11 +1794,7 @@ fun InteractiveGlucoseChart(
 
                                         if (abs(panX) > abs(panY)) {
                                             // Horizontal pan
-                                            val timePerPixel =
-                                                visibleDuration.toFloat() / usefulWidth
-                                            val timeDelta = -(panX * timePerPixel).toLong()
-                                            centerTime =
-                                                (centerTime + timeDelta).coerceAtMost(currentMaxAllowedTime)
+                                            panViewportByPixels(panX, usefulWidth)
                                         } else if (totalDragDistance > 30f) {
                                             // Vertical scale
                                             val liveYMin = yMin
@@ -3237,6 +3240,28 @@ fun InteractiveGlucoseChart(
                         .graphicsLayer { translationX = -size.width / 2f }
                         .widthIn(min = 48.dp)
                         .clip(cardShape) // Clip ripple to match rounded corners
+                        .pointerInput(overlayDataWidthPx, visibleDuration) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    cancelAutoScroll()
+                                    isUserInteracting = true
+                                    markProgrammaticViewportChange()
+                                },
+                                onDragEnd = {
+                                    isUserInteracting = false
+                                    lastInteractionTimestamp = System.currentTimeMillis()
+                                },
+                                onDragCancel = {
+                                    isUserInteracting = false
+                                    lastInteractionTimestamp = System.currentTimeMillis()
+                                }
+                            ) { change, dragAmount ->
+                                if (abs(dragAmount.x) >= abs(dragAmount.y)) {
+                                    change.consume()
+                                    panViewportByPixels(dragAmount.x, overlayDataWidthPx)
+                                }
+                            }
+                        }
                         .pointerInput(constraints.maxHeight) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = { isAdjustingScrubLabel = true },
@@ -3328,6 +3353,28 @@ fun InteractiveGlucoseChart(
                             )
                         }
                         .graphicsLayer { translationX = -size.width / 2f }
+                        .pointerInput(overlayDataWidthPx, visibleDuration) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    cancelAutoScroll()
+                                    isUserInteracting = true
+                                    markProgrammaticViewportChange()
+                                },
+                                onDragEnd = {
+                                    isUserInteracting = false
+                                    lastInteractionTimestamp = System.currentTimeMillis()
+                                },
+                                onDragCancel = {
+                                    isUserInteracting = false
+                                    lastInteractionTimestamp = System.currentTimeMillis()
+                                }
+                            ) { change, dragAmount ->
+                                if (abs(dragAmount.x) >= abs(dragAmount.y)) {
+                                    change.consume()
+                                    panViewportByPixels(dragAmount.x, overlayDataWidthPx)
+                                }
+                            }
+                        }
                         .pointerInput(constraints.maxHeight) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = { isAdjustingScrubLabel = true },
