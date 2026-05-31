@@ -173,6 +173,12 @@ class DashboardViewModel(
     private val _targetHigh = MutableStateFlow(180f)
     val targetHigh = _targetHigh.asStateFlow()
 
+    private val _veryLowThreshold = MutableStateFlow(54f)
+    val veryLowThreshold = _veryLowThreshold.asStateFlow()
+
+    private val _veryHighThreshold = MutableStateFlow(250f)
+    val veryHighThreshold = _veryHighThreshold.asStateFlow()
+
     private val _graphLow = MutableStateFlow(40f)
     val graphLow = _graphLow.asStateFlow()
 
@@ -505,6 +511,8 @@ class DashboardViewModel(
         _graphHigh.value = Natives.graphhigh()
         _targetLow.value = Natives.targetlow()
         _targetHigh.value = Natives.targethigh()
+        _veryLowThreshold.value = Natives.alarmverylow()
+        _veryHighThreshold.value = Natives.alarmveryhigh()
         _xDripBroadcastEnabled.value = Natives.getxbroadcast()
         _patchedLibreBroadcastEnabled.value = Natives.getlibrelinkused()
         _glucodataBroadcastEnabled.value = Natives.getJugglucobroadcast()

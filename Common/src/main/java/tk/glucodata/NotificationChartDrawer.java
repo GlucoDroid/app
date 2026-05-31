@@ -21,8 +21,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class NotificationChartDrawer {
-    private static final int DASHBOARD_LOW_COLOR = 0xFFE7C85A;
-    private static final int DASHBOARD_HIGH_COLOR = 0xFFC56F33;
+    private static final int DASHBOARD_LOW_COLOR = GlucoseRangeColors.LOW;
+    private static final int DASHBOARD_HIGH_COLOR = GlucoseRangeColors.HIGH;
     private static final long DEFAULT_CHART_DURATION_MS = 3 * 60 * 60 * 1000L;
 
     private static int resolveThresholdSegmentColor(float startValue, float endValue, float targetLow, float targetHigh,

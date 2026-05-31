@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.R
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.GlucoseFormatter
@@ -360,11 +361,11 @@ object StatsReportExporter {
                 )
             }
 
-            val colorTirVeryLow = mixColors(colorDanger, colorWarn, 0.35f)
-            val colorTirLow = mixColors(colorWarn, colorEmerald, 0.15f)
-            val colorTirInRange = colorEmerald
-            val colorTirHigh = mixColors(colorSecondary, colorWarn, 0.25f)
-            val colorTirVeryHigh = mixColors(colorSecondary, colorDanger, 0.38f)
+            val colorTirVeryLow = GlucoseRangeColors.VERY_LOW
+            val colorTirLow = GlucoseRangeColors.LOW
+            val colorTirInRange = GlucoseRangeColors.IN_RANGE
+            val colorTirHigh = GlucoseRangeColors.HIGH
+            val colorTirVeryHigh = GlucoseRangeColors.VERY_HIGH
 
             fun loadFontSafely(fontRes: Int): android.graphics.Typeface? =
                 runCatching { ResourcesCompat.getFont(context, fontRes) }

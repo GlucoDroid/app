@@ -144,13 +144,14 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.ui.theme.labelLargeExpressive
 
-private val TirVeryLowColor = Color(0xFFF0A24A)
-private val TirLowColor = Color(0xFFE7C85A)
-private val TirInRangeColor = Color(0xFF4E8A55)
-private val TirHighColor = Color(0xFFC56F33)
-private val TirVeryHighColor = Color(0xFFA44B2D)
+private val TirVeryLowColor = Color(GlucoseRangeColors.VERY_LOW)
+private val TirLowColor = Color(GlucoseRangeColors.LOW)
+private val TirInRangeColor = Color(GlucoseRangeColors.IN_RANGE)
+private val TirHighColor = Color(GlucoseRangeColors.HIGH)
+private val TirVeryHighColor = Color(GlucoseRangeColors.VERY_HIGH)
 private const val PrefKeyReportPdfStyle = "stats_report_pdf_style"
 
 private enum class TirBand {

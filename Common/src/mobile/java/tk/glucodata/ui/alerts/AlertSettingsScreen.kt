@@ -17,6 +17,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import tk.glucodata.Applic
+import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.alerts.*
@@ -598,8 +600,12 @@ fun CustomAlertCard(
 ) {
     // Determine icon/color based on type to match AlertCard style
     val icon = if (alert.type == CustomAlertType.HIGH) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown
-    // Standard High is usually Orange, Low is Red/Primary.
-    val accentColor = if (alert.type == CustomAlertType.HIGH) Color(0xFFFF9800) else Color(0xFFF44336) 
+    val isDark = isSystemInDarkTheme()
+    val accentColor = if (alert.type == CustomAlertType.HIGH) {
+        Color(GlucoseRangeColors.high(isDark))
+    } else {
+        Color(GlucoseRangeColors.low(isDark))
+    }
     var draftName by rememberSaveable(alert.id) { mutableStateOf(alert.name) }
     LaunchedEffect(alert.id, alert.name) {
         if (draftName != alert.name) {
@@ -904,7 +910,8 @@ private fun AlertCard(
     onConfigChange: (AlertConfig) -> Unit,
     onPickSound: () -> Unit
 ) {
-    val (icon, accentColor) = getAlertIconAndColor(config.type)
+    val isDark = isSystemInDarkTheme()
+    val (icon, accentColor) = getAlertIconAndColor(config.type, isDark)
 
 
     Surface(
@@ -1793,15 +1800,15 @@ internal fun RetrySettings(
 
 // ---- Helper functions ----
 
-private fun getAlertIconAndColor(type: AlertType): Pair<ImageVector, Color> {
+private fun getAlertIconAndColor(type: AlertType, isDark: Boolean): Pair<ImageVector, Color> {
     return when (type) {
-        AlertType.VERY_LOW -> Icons.Default.Warning to Color(0xFFE53935)
-        AlertType.LOW -> Icons.Default.ArrowDownward to Color(0xFFFF7043)
-        AlertType.HIGH -> Icons.Default.ArrowUpward to Color(0xFFFFB300)
-        AlertType.VERY_HIGH -> Icons.Default.Warning to Color(0xFFFF6F00)
-        AlertType.PRE_LOW -> Icons.AutoMirrored.Filled.TrendingDown to Color(0xFFFF8A65)
-        AlertType.PRE_HIGH -> Icons.AutoMirrored.Filled.TrendingUp to Color(0xFFFFCA28)
-        AlertType.PERSISTENT_HIGH -> Icons.Default.Timer to Color(0xFFFFA726)
+        AlertType.VERY_LOW -> Icons.Default.Warning to Color(GlucoseRangeColors.veryLow(isDark))
+        AlertType.LOW -> Icons.Default.ArrowDownward to Color(GlucoseRangeColors.low(isDark))
+        AlertType.HIGH -> Icons.Default.ArrowUpward to Color(GlucoseRangeColors.high(isDark))
+        AlertType.VERY_HIGH -> Icons.Default.Warning to Color(GlucoseRangeColors.veryHigh(isDark))
+        AlertType.PRE_LOW -> Icons.AutoMirrored.Filled.TrendingDown to Color(GlucoseRangeColors.low(isDark))
+        AlertType.PRE_HIGH -> Icons.AutoMirrored.Filled.TrendingUp to Color(GlucoseRangeColors.high(isDark))
+        AlertType.PERSISTENT_HIGH -> Icons.Default.Timer to Color(GlucoseRangeColors.veryHigh(isDark))
         AlertType.MISSED_READING -> Icons.Default.SignalWifiOff to Color(0xFF78909C)
         AlertType.LOSS -> Icons.Default.BluetoothDisabled to Color(0xFF90A4AE)
         AlertType.SENSOR_EXPIRY -> Icons.Default.Schedule to Color(0xFF7E57C2)

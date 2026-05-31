@@ -132,6 +132,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.R
 import tk.glucodata.DataSmoothing
@@ -763,11 +764,8 @@ fun InteractiveGlucoseChart(
         safeExpandedProgress
     )
 
-    // Using colors from StatsScreen.kt as requested
-    val TirVeryLowColor = Color(0xFFF0A24A)
-    val TirLowColor = Color(0xFFE7C85A)
-    val TirHighColor = Color(0xFFC56F33)
-    val TirVeryHighColor = Color(0xFFA44B2D)
+    val TirLowColor = Color(GlucoseRangeColors.low(isDark))
+    val TirHighColor = Color(GlucoseRangeColors.high(isDark))
 
     // Using the "High" color for the generic high tint base, and "Low" for low tint base
     // Adjusting alpha for visibility on graph background

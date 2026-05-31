@@ -294,6 +294,8 @@ fun DashboardScreen(
     val graphHigh by viewModel.graphHigh.collectAsState()
     val targetLow by viewModel.targetLow.collectAsState()
     val targetHigh by viewModel.targetHigh.collectAsState()
+    val veryLowThreshold by viewModel.veryLowThreshold.collectAsState()
+    val veryHighThreshold by viewModel.veryHighThreshold.collectAsState()
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsState()
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
@@ -1105,6 +1107,10 @@ fun DashboardScreen(
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
+                            targetLow = targetLow,
+                            targetHigh = targetHigh,
+                            veryLowThreshold = veryLowThreshold,
+                            veryHighThreshold = veryHighThreshold,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1292,6 +1298,10 @@ fun DashboardScreen(
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
+                            targetLow = targetLow,
+                            targetHigh = targetHigh,
+                            veryLowThreshold = veryLowThreshold,
+                            veryHighThreshold = veryHighThreshold,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal

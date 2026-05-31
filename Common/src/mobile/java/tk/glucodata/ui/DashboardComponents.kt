@@ -1,7 +1,9 @@
 package tk.glucodata.ui
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
@@ -43,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp as lerpColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.key
 import androidx.compose.ui.text.font.FontWeight
@@ -104,6 +107,7 @@ import tk.glucodata.R
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.DisplayDataState
+import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.Notify
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.logic.TrendEngine
@@ -118,8 +122,83 @@ private data class TrendCornerWeights(
     val bottomStart: Float
 )
 
+private enum class GlucoseRangeBand {
+    VERY_LOW,
+    LOW,
+    HIGH,
+    VERY_HIGH
+}
+
+private data class GlucoseHeroTone(
+    val tint: Color,
+    val blendFraction: Float
+)
+
 private fun lerpFloat(start: Float, end: Float, fraction: Float): Float =
     start + (end - start) * fraction.coerceIn(0f, 1f)
+
+private fun fallbackLowThreshold(isMmol: Boolean): Float = if (isMmol) 3.9f else 70f
+
+private fun fallbackHighThreshold(isMmol: Boolean): Float = if (isMmol) 10.0f else 180f
+
+private fun fallbackVeryLowThreshold(isMmol: Boolean): Float = if (isMmol) 3.0f else 54f
+
+private fun fallbackVeryHighThreshold(isMmol: Boolean): Float = if (isMmol) 13.9f else 250f
+
+private fun rangeColorForBand(band: GlucoseRangeBand, isDark: Boolean): Color =
+    Color(
+        when (band) {
+            GlucoseRangeBand.VERY_LOW -> GlucoseRangeColors.veryLow(isDark)
+            GlucoseRangeBand.LOW -> GlucoseRangeColors.low(isDark)
+            GlucoseRangeBand.HIGH -> GlucoseRangeColors.high(isDark)
+            GlucoseRangeBand.VERY_HIGH -> GlucoseRangeColors.veryHigh(isDark)
+        }
+    )
+
+private fun glucoseHeroTone(
+    value: Float?,
+    isFreshData: Boolean,
+    isDark: Boolean,
+    isMmol: Boolean,
+    targetLow: Float,
+    targetHigh: Float,
+    veryLowThreshold: Float,
+    veryHighThreshold: Float
+): GlucoseHeroTone? {
+    val currentValue = value?.takeIf { it.isFinite() && it > 0f } ?: return null
+    if (!isFreshData) return null
+
+    val low = targetLow.takeIf { it.isFinite() && it > 0f } ?: fallbackLowThreshold(isMmol)
+    val highCandidate = targetHigh.takeIf { it.isFinite() && it > low } ?: fallbackHighThreshold(isMmol)
+    val high = highCandidate.coerceAtLeast(low + 0.1f)
+    val veryLow = (veryLowThreshold.takeIf { it.isFinite() && it > 0f } ?: fallbackVeryLowThreshold(isMmol))
+        .coerceAtMost(low - 0.1f)
+    val veryHigh = (veryHighThreshold.takeIf { it.isFinite() && it > 0f } ?: fallbackVeryHighThreshold(isMmol))
+        .coerceAtLeast(high + 0.1f)
+
+    fun bandTone(band: GlucoseRangeBand, severity: Float): GlucoseHeroTone {
+        val safeSeverity = severity.coerceIn(0f, 1f)
+        val blend = lerpFloat(0.075f, if (isDark) 0.155f else 0.145f, safeSeverity)
+        return GlucoseHeroTone(
+            tint = rangeColorForBand(band, isDark),
+            blendFraction = blend
+        )
+    }
+
+    return when {
+        currentValue <= veryLow -> bandTone(GlucoseRangeBand.VERY_LOW, 1f)
+        currentValue < low -> {
+            val severity = ((low - currentValue) / (low - veryLow).coerceAtLeast(0.1f)).coerceIn(0f, 1f)
+            bandTone(GlucoseRangeBand.LOW, severity)
+        }
+        currentValue >= veryHigh -> bandTone(GlucoseRangeBand.VERY_HIGH, 1f)
+        currentValue > high -> {
+            val severity = ((currentValue - high) / (veryHigh - high).coerceAtLeast(0.1f)).coerceIn(0f, 1f)
+            bandTone(GlucoseRangeBand.HIGH, severity)
+        }
+        else -> null
+    }
+}
 
 private fun trendCornerWeightsFromVelocity(velocity: Float): TrendCornerWeights {
     val angleDeg = (-velocity * 25f).coerceIn(-90f, 90f)
@@ -186,11 +265,15 @@ fun DashboardCombinedHeader(
     currentSnapshot: CurrentDisplaySource.Snapshot? = null,
     dataState: DisplayDataState.Status? = null,
     isMmol: Boolean,
+    targetLow: Float = fallbackLowThreshold(isMmol),
+    targetHigh: Float = fallbackHighThreshold(isMmol),
+    veryLowThreshold: Float = fallbackVeryLowThreshold(isMmol),
+    veryHighThreshold: Float = fallbackVeryHighThreshold(isMmol),
     onHeroClick: () -> Unit = {}
 ) {
     // Determine Colors based on logic
-    // Glucose: Error if low/high, else Primary Container (Tonal)
-    val glucoseContainerColor = MaterialTheme.colorScheme.primaryContainer
+    // Glucose: primary tonal surface with a very light range tint when fresh data is out of range.
+    val glucoseBaseContainerColor = MaterialTheme.colorScheme.primaryContainer
     val glucoseContentColor = MaterialTheme.colorScheme.onPrimaryContainer
 
     // Sensor: Surface Variant (Tonal) vs Tertiary Container (Expiring)
@@ -306,6 +389,36 @@ fun DashboardCombinedHeader(
     val hasSecondary = secondaryText != null
     val hasTertiary = tertiaryText != null
     val hasThreeValues = hasSecondary && hasTertiary
+    val isDark = isSystemInDarkTheme()
+    val glucoseTone = remember(
+        dvs?.primaryValue,
+        isFreshData,
+        isDark,
+        isMmol,
+        targetLow,
+        targetHigh,
+        veryLowThreshold,
+        veryHighThreshold
+    ) {
+        glucoseHeroTone(
+            value = dvs?.primaryValue,
+            isFreshData = isFreshData,
+            isDark = isDark,
+            isMmol = isMmol,
+            targetLow = targetLow,
+            targetHigh = targetHigh,
+            veryLowThreshold = veryLowThreshold,
+            veryHighThreshold = veryHighThreshold
+        )
+    }
+    val targetGlucoseContainerColor = glucoseTone?.let { tone ->
+        lerpColor(glucoseBaseContainerColor, tone.tint, tone.blendFraction)
+    } ?: glucoseBaseContainerColor
+    val glucoseContainerColor by animateColorAsState(
+        targetValue = targetGlucoseContainerColor,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "HeroRangeContainerColor"
+    )
 
     val heroCardContent: @Composable () -> Unit = {
             var heroContentWidthPx by remember { mutableStateOf(0) }
