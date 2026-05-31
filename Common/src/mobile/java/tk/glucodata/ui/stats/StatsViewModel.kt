@@ -102,6 +102,7 @@ class StatsViewModel : ViewModel() {
     private var cachedTemperatureSerial: String? = null
     private var cachedTemperaturePoints: List<TemperaturePoint> = emptyList()
     private var lastTemperatureRefreshMs: Long = 0L
+    private var availableRangeJob: Job? = null
     @Volatile private var statsDisplayHistoryCacheKey: StatsDisplayHistoryCacheKey? = null
     @Volatile private var statsDisplayHistoryCacheValue: List<GlucosePoint> = emptyList()
     @Volatile private var statsRangeProjectionCacheKey: StatsRangeProjectionCacheKey? = null
@@ -253,28 +254,44 @@ class StatsViewModel : ViewModel() {
                 activeSerial = null
                 historyWindowStartMs = Long.MAX_VALUE
                 historyJob?.cancel()
+                availableRangeJob?.cancel()
                 return@launch
             }
 
             _hasSensor.value = true
             _viewMode.value = resolveViewModeForStats(serial)
-            subscribeToHistory(serial, resolveSubscriptionStartTime())
+            val requestedStartTime = resolveSubscriptionStartTime()
+            // Ordinary glucose updates arrive through the active Room flow.
+            val shouldSubscribe = serial != activeSerial ||
+                needsHistoryWindowExpansion(requestedStartTime) ||
+                historyJob?.isActive != true
+            if (shouldSubscribe) {
+                subscribeToHistory(serial, requestedStartTime)
+            } else {
+                refreshAvailableRangeAsync()
+            }
         }
     }
 
     private fun subscribeToHistory(serial: String, startTime: Long) {
         historyJob?.cancel()
-        _isLoading.value = true
+        val previousSerial = activeSerial
+        val previousWindowStart = historyWindowStartMs
+        _isLoading.value = _historyPoints.value.isEmpty() ||
+            previousSerial != serial ||
+            startTime < previousWindowStart
         activeSerial = serial
         historyWindowStartMs = startTime
 
         historyJob = viewModelScope.launch {
-            if (!isImportedHistoryOnlySerial(serial)) {
-                withContext(Dispatchers.IO) {
+            refreshAvailableRangeAsync()
+            // Native backfill can be slow on reopen; don't block already-persisted Room data.
+            launch(Dispatchers.IO) {
+                if (!isImportedHistoryOnlySerial(serial)) {
                     historyRepository.ensureBackfilled(serial, startTime)
                 }
+                _availableRange.value = loadAvailableRange()
             }
-            _availableRange.value = loadAvailableRange()
 
             historyRepository.getDisplayHistoryFlowForStats(serial, startTime)
                 .distinctUntilChangedBy(::historyEdgeSignature)
@@ -326,7 +343,7 @@ class StatsViewModel : ViewModel() {
 
             _hasSensor.value = true
             _viewMode.value = resolveViewModeForStats(serial)
-            _availableRange.value = loadAvailableRange()
+            refreshAvailableRangeAsync()
 
             if (serial != activeSerial || needsHistoryWindowExpansion(resolveSubscriptionStartTime())) {
                 subscribeToHistory(serial, resolveSubscriptionStartTime())
@@ -379,6 +396,13 @@ class StatsViewModel : ViewModel() {
         val requestedStartTime = resolveSubscriptionStartTime()
         if (serial != activeSerial || needsHistoryWindowExpansion(requestedStartTime)) {
             subscribeToHistory(serial, requestedStartTime)
+        }
+    }
+
+    private fun refreshAvailableRangeAsync() {
+        availableRangeJob?.cancel()
+        availableRangeJob = viewModelScope.launch(Dispatchers.IO) {
+            _availableRange.value = loadAvailableRange()
         }
     }
 
