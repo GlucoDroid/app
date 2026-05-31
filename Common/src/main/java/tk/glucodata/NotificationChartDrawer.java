@@ -21,26 +21,25 @@ import java.util.Collections;
 import java.util.List;
 
 public class NotificationChartDrawer {
-    private static final int DASHBOARD_LOW_COLOR = GlucoseRangeColors.LOW;
-    private static final int DASHBOARD_HIGH_COLOR = GlucoseRangeColors.HIGH;
     private static final long DEFAULT_CHART_DURATION_MS = 3 * 60 * 60 * 1000L;
 
-    private static int resolveThresholdSegmentColor(float startValue, float endValue, float targetLow, float targetHigh,
-            int inRangeColor) {
-        float probeValue = (startValue + endValue) * 0.5f;
-        if (!Float.isFinite(probeValue)) {
-            probeValue = endValue;
-        }
-        if (!Float.isFinite(probeValue)) {
-            return inRangeColor;
-        }
-        if (probeValue < targetLow) {
-            return DASHBOARD_LOW_COLOR;
-        }
-        if (probeValue > targetHigh) {
-            return DASHBOARD_HIGH_COLOR;
-        }
-        return inRangeColor;
+    private static int resolveThresholdPointColor(
+            float value,
+            float targetLow,
+            float targetHigh,
+            float veryLowThreshold,
+            float veryHighThreshold,
+            int inRangeColor,
+            boolean isMmol) {
+        return GlucoseRangeColors.colorForValue(
+                value,
+                targetLow,
+                targetHigh,
+                veryLowThreshold,
+                veryHighThreshold,
+                inRangeColor,
+                false,
+                isMmol);
     }
 
     private static void drawThresholdColoredSeries(
@@ -58,6 +57,9 @@ public class NotificationChartDrawer {
             float yRange,
             float targetLow,
             float targetHigh,
+            float veryLowThreshold,
+            float veryHighThreshold,
+            boolean isMmol,
             int inRangeColor) {
         drawSeries(
                 canvas,
@@ -74,6 +76,9 @@ public class NotificationChartDrawer {
                 yRange,
                 targetLow,
                 targetHigh,
+                veryLowThreshold,
+                veryHighThreshold,
+                isMmol,
                 inRangeColor,
                 true);
     }
@@ -93,6 +98,9 @@ public class NotificationChartDrawer {
             float yRange,
             float targetLow,
             float targetHigh,
+            float veryLowThreshold,
+            float veryHighThreshold,
+            boolean isMmol,
             int inRangeColor,
             boolean useThresholdColors) {
         int size = Math.min(timestamps.size(), values.size());
@@ -118,15 +126,42 @@ public class NotificationChartDrawer {
                 float startY = chartBottom - ((previousValue - minY) / yRange) * chartHeight;
                 float endX = chartLeft + ((currentTimestamp - startTime) / (float) duration) * chartWidth;
                 float endY = chartBottom - ((currentValue - minY) / yRange) * chartHeight;
-                linePaint.setColor(useThresholdColors
-                        ? resolveThresholdSegmentColor(
-                                previousValue,
-                                currentValue,
-                                targetLow,
-                                targetHigh,
-                                inRangeColor)
-                        : inRangeColor);
+                if (useThresholdColors) {
+                    int startColor = resolveThresholdPointColor(
+                            previousValue,
+                            targetLow,
+                            targetHigh,
+                            veryLowThreshold,
+                            veryHighThreshold,
+                            inRangeColor,
+                            isMmol);
+                    int endColor = resolveThresholdPointColor(
+                            currentValue,
+                            targetLow,
+                            targetHigh,
+                            veryLowThreshold,
+                            veryHighThreshold,
+                            inRangeColor,
+                            isMmol);
+                    if (startColor == endColor) {
+                        linePaint.setShader(null);
+                        linePaint.setColor(startColor);
+                    } else {
+                        linePaint.setShader(new LinearGradient(
+                                startX,
+                                startY,
+                                endX,
+                                endY,
+                                startColor,
+                                endColor,
+                                Shader.TileMode.CLAMP));
+                    }
+                } else {
+                    linePaint.setShader(null);
+                    linePaint.setColor(inRangeColor);
+                }
                 canvas.drawLine(startX, startY, endX, endY, linePaint);
+                linePaint.setShader(null);
             }
 
             previousTimestamp = currentTimestamp;
@@ -900,15 +935,23 @@ public class NotificationChartDrawer {
         boolean thresholdColorCalibrated = hasCalibration;
 
         // Target Range (Get from Natives or Defaults)
-        float targetLow = 70.0f;
-        float targetHigh = 180.0f;
+        float targetLow = GlucoseRangeColors.defaultLow(isMmol);
+        float targetHigh = GlucoseRangeColors.defaultHigh(isMmol);
+        float veryLowThreshold = GlucoseRangeColors.defaultVeryLow(isMmol);
+        float veryHighThreshold = GlucoseRangeColors.defaultVeryHigh(isMmol);
         try {
             float nLow = Natives.targetlow();
             float nHigh = Natives.targethigh();
+            float nVeryLow = Natives.alarmverylow();
+            float nVeryHigh = Natives.alarmveryhigh();
             if (nLow > 0)
                 targetLow = nLow;
             if (nHigh > 0)
                 targetHigh = nHigh;
+            if (nVeryLow > 0)
+                veryLowThreshold = nVeryLow;
+            if (nVeryHigh > 0)
+                veryHighThreshold = nVeryHigh;
         } catch (Throwable t) {
         }
 
@@ -1228,6 +1271,9 @@ public class NotificationChartDrawer {
                     yRange,
                     targetLow,
                     targetHigh,
+                    veryLowThreshold,
+                    veryHighThreshold,
+                    isMmol,
                     autoColor,
                     thresholdColorAuto);
         }
@@ -1255,6 +1301,9 @@ public class NotificationChartDrawer {
                     yRange,
                     targetLow,
                     targetHigh,
+                    veryLowThreshold,
+                    veryHighThreshold,
+                    isMmol,
                     rawColor,
                     thresholdColorRaw);
         }
@@ -1294,6 +1343,9 @@ public class NotificationChartDrawer {
                     yRange,
                     targetLow,
                     targetHigh,
+                    veryLowThreshold,
+                    veryHighThreshold,
+                    isMmol,
                     lineColor,
                     thresholdColorCalibrated);
         }

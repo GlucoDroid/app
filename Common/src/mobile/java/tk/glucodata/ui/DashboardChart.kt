@@ -143,6 +143,7 @@ import tk.glucodata.data.prediction.GlucosePredictionPoint
 import tk.glucodata.data.prediction.GlucosePredictionSeries
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
 import tk.glucodata.ui.getDisplayValues
+import tk.glucodata.ui.util.GlucoseFormatter
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.roundToInt
@@ -153,6 +154,35 @@ private const val PREVIEW_WINDOW_MODE_NEVER = 2
 private const val PREVIEW_WINDOW_DURATION_MS = 24L * 60L * 60L * 1000L
 private val PreviewWindowHeight = 58.dp
 private val PreviewWindowOuterPadding = 12.dp
+
+private data class ChartRangeThresholds(
+    val veryLow: Float,
+    val low: Float,
+    val high: Float,
+    val veryHigh: Float
+)
+
+private fun chartRangeThresholds(
+    isMmol: Boolean,
+    targetLow: Float,
+    targetHigh: Float,
+    veryLowThreshold: Float,
+    veryHighThreshold: Float
+): ChartRangeThresholds {
+    val low = targetLow.takeIf { it.isFinite() && it > 0f } ?: GlucoseRangeColors.defaultLow(isMmol)
+    val highCandidate = targetHigh.takeIf { it.isFinite() && it > low } ?: GlucoseRangeColors.defaultHigh(isMmol)
+    val high = highCandidate.coerceAtLeast(low + 0.1f)
+    val veryLow = (veryLowThreshold.takeIf { it.isFinite() && it > 0f } ?: GlucoseRangeColors.defaultVeryLow(isMmol))
+        .coerceAtMost(low - 0.1f)
+    val veryHigh = (veryHighThreshold.takeIf { it.isFinite() && it > 0f } ?: GlucoseRangeColors.defaultVeryHigh(isMmol))
+        .coerceAtLeast(high + 0.1f)
+    return ChartRangeThresholds(
+        veryLow = veryLow,
+        low = low,
+        high = high,
+        veryHigh = veryHigh
+    )
+}
 
 internal fun coerceChartYToDrawableRange(
     value: Float,
@@ -613,6 +643,8 @@ fun DashboardChartSection(
     targetLow: Float,
     targetHigh: Float,
     unit: String,
+    veryLowThreshold: Float = GlucoseRangeColors.defaultVeryLow(GlucoseFormatter.isMmol(unit)),
+    veryHighThreshold: Float = GlucoseRangeColors.defaultVeryHigh(GlucoseFormatter.isMmol(unit)),
     viewMode: Int,
     onTimeRangeSelected: (TimeRange) -> Unit,
     selectedTimeRange: TimeRange,
@@ -648,6 +680,8 @@ fun DashboardChartSection(
                         graphHigh = graphHigh,
                         targetLow = targetLow,
                         targetHigh = targetHigh,
+                        veryLowThreshold = veryLowThreshold,
+                        veryHighThreshold = veryHighThreshold,
                         unit = unit,
                         viewMode = viewMode,
                         calibrations = calibrations,
@@ -708,6 +742,8 @@ fun InteractiveGlucoseChart(
     targetLow: Float,
     targetHigh: Float,
     unit: String,
+    veryLowThreshold: Float = GlucoseRangeColors.defaultVeryLow(GlucoseFormatter.isMmol(unit)),
+    veryHighThreshold: Float = GlucoseRangeColors.defaultVeryHigh(GlucoseFormatter.isMmol(unit)),
     viewMode: Int = 0,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     onDateSelected: (Long) -> Unit = {},
@@ -1143,6 +1179,15 @@ fun InteractiveGlucoseChart(
 
     // --- Y-AXIS STATE (Manual Scaling) ---
     val isMmol = if (unit.isNotEmpty()) tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit) else tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
+    val rangeThresholds = remember(isMmol, targetLow, targetHigh, veryLowThreshold, veryHighThreshold) {
+        chartRangeThresholds(
+            isMmol = isMmol,
+            targetLow = targetLow,
+            targetHigh = targetHigh,
+            veryLowThreshold = veryLowThreshold,
+            veryHighThreshold = veryHighThreshold
+        )
+    }
     val fallbackMin = 0f
     val fallbackMax = if (isMmol) 13f else 234f
     val graphRangeDefaults = resolveGraphRangeDefaults(
@@ -1891,77 +1936,58 @@ fun InteractiveGlucoseChart(
             val heightPx = constraints.maxHeight.toFloat()
             val chartHeightPx = (heightPx - chartUnderlayBottomPx - previewWindowReservedPx - bottomAxisHeightPx - chartPlotBottomGapPx).coerceAtLeast(1f)
             
-            val limitYHigh = if (yMax - yMin > 0.001f) {
-                (chartHeightPx * (1f - (targetHigh - yMin) / (yMax - yMin))).coerceIn(-2000f, chartHeightPx + 2000f)
-            } else 0f
-            
-            val limitYLow = if (yMax - yMin > 0.001f) {
-                 (chartHeightPx * (1f - (targetLow - yMin) / (yMax - yMin))).coerceIn(-2000f, chartHeightPx + 2000f)
-            } else 0f
-
-            val gradientBrush = remember(limitYHigh, limitYLow, chartHeightPx, isDark, primaryColor) {
-                val highTintColor = if (isDark) highOutOfRangeTintBase.copy(alpha = 0.6f) else highOutOfRangeTintBase.copy(alpha = 0.9f)
-                val lowTintColor = lowOutOfRangeTintBase.copy(alpha = if (isDark) 0.6f else 0.9f)
-                val fadePx = 20f
-                
-                if (chartHeightPx > 0) {
-                     val stops = arrayOfNulls<Pair<Float, Color>>(5)
-                        var stopCount = 0
-                        
-                        // High Region (Red) - fades IN from Red to Primary above line
-                        // Pixels < limitYHigh are High.
-                        stops[stopCount++] = 0f to highTintColor
-                        if (limitYHigh > 0) {
-                            val fadeStart = (limitYHigh - fadePx).coerceAtLeast(0f)
-                            val stopHighStart = (fadeStart / chartHeightPx).coerceIn(0f, 1f)
-                            stops[stopCount++] = stopHighStart to highTintColor
-                            
-                            val stopHighEnd = (limitYHigh / chartHeightPx).coerceIn(stopHighStart, 1f)
-                            stops[stopCount++] = stopHighEnd to primaryColor
-                        } else {
-                            stops[stopCount++] = 0f to primaryColor
-                        }
-                        
-                        // Low Region (Yellow) - fades OUT from Primary to Yellow below line
-                        // Pixels > limitYLow are Low.
-                        if (limitYLow < chartHeightPx) {
-                            val stopLowStart = (limitYLow / chartHeightPx).coerceIn(0f, 1f)
-                            stops[stopCount++] = stopLowStart to primaryColor
-                            
-                            val fadeEnd = (limitYLow + fadePx).coerceAtMost(chartHeightPx)
-                            val stopLowEnd = (fadeEnd / chartHeightPx).coerceIn(stopLowStart, 1f)
-                            stops[stopCount++] = stopLowEnd to lowTintColor
-                        }
-                        
-                        // Ensure last stop is at 1f
-                        val lastStop = stops[stopCount - 1]?.first ?: 0f
-                        if (lastStop < 1f) {
-                             // Last color used was lowTintColor if we added low stops, or primary if not.
-                             // Actually better to just build with list for safety given complexity
-                             val safeStops = mutableListOf<Pair<Float, Color>>()
-                             for (i in 0 until stopCount) {
-                                 stops[i]?.let { safeStops.add(it) }
-                             }
-                             // Add final stop
-                             if (limitYLow < chartHeightPx) safeStops.add(1f to lowTintColor)
-                             else safeStops.add(1f to primaryColor)
-                             
-                             Brush.verticalGradient(
-                                *safeStops.toTypedArray(),
-                                startY = 0f,
-                                endY = chartHeightPx
-                             )
-                        } else {
-                             // Array copy for safety
-                             val safeStops = Array(stopCount) { i -> stops[i]!! }
-                             Brush.verticalGradient(
-                                *safeStops,
-                                startY = 0f,
-                                endY = chartHeightPx
-                             )
-                        }
+            val ySpanForGradient = yMax - yMin
+            fun thresholdY(value: Float): Float {
+                return if (ySpanForGradient > 0.001f) {
+                    (chartHeightPx * (1f - (value - yMin) / ySpanForGradient)).coerceIn(-2000f, chartHeightPx + 2000f)
                 } else {
-                     Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                    0f
+                }
+            }
+
+            val limitYVeryHigh = thresholdY(rangeThresholds.veryHigh)
+            val limitYHigh = thresholdY(rangeThresholds.high)
+            val limitYLow = thresholdY(rangeThresholds.low)
+            val limitYVeryLow = thresholdY(rangeThresholds.veryLow)
+
+            val gradientBrush = remember(
+                limitYVeryHigh,
+                limitYHigh,
+                limitYLow,
+                limitYVeryLow,
+                chartHeightPx,
+                primaryColor,
+                highOutOfRangeTintBase,
+                lowOutOfRangeTintBase
+            ) {
+                if (chartHeightPx <= 0f) {
+                    Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                } else {
+                    val veryHighTint = Color(GlucoseRangeColors.VERY_HIGH)
+                    val highTint = highOutOfRangeTintBase
+                    val lowTint = lowOutOfRangeTintBase
+                    val veryLowTint = Color(GlucoseRangeColors.VERY_LOW)
+                    val fadePx = 18f
+                    val stops = mutableListOf<Pair<Float, Color>>()
+
+                    fun addStop(y: Float, color: Color) {
+                        stops += (y / chartHeightPx).coerceIn(0f, 1f) to color
+                    }
+
+                    addStop(0f, veryHighTint)
+                    addStop(limitYVeryHigh, veryHighTint)
+                    addStop(limitYHigh, highTint)
+                    addStop(limitYHigh + fadePx, primaryColor)
+                    addStop(limitYLow - fadePx, primaryColor)
+                    addStop(limitYLow, lowTint)
+                    addStop(limitYVeryLow, veryLowTint)
+                    addStop(chartHeightPx, veryLowTint)
+
+                    Brush.verticalGradient(
+                        *stops.sortedBy { it.first }.toTypedArray(),
+                        startY = 0f,
+                        endY = chartHeightPx
+                    )
                 }
             }
 
@@ -2133,9 +2159,6 @@ fun InteractiveGlucoseChart(
                 // --- 3. DATA LINES (Unified & Optimized) ---
                 if (endIdx > startIdx) {
                     val gapThreshold = 900000L // 15 mins
-                    // Gradient Colors: High (Red) -> Normal (Primary) -> Low (Yellow)
-                    val highTintColor = highOutOfRangeTintBase.copy(alpha = if (isDark) 0.1f else 0.2f)
-                    val lowTintColor = lowOutOfRangeTintBase.copy(alpha = if (isDark) 0.1f else 0.2f) // Boosted for visibility
                     
                     val hideRawSource = hideInitialWhenCalibrated && isRawModeChart
                     val hideAutoSource = hideInitialWhenCalibrated && !isRawModeChart

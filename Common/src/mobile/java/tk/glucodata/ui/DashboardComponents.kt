@@ -137,13 +137,13 @@ private data class GlucoseHeroTone(
 private fun lerpFloat(start: Float, end: Float, fraction: Float): Float =
     start + (end - start) * fraction.coerceIn(0f, 1f)
 
-private fun fallbackLowThreshold(isMmol: Boolean): Float = if (isMmol) 3.9f else 70f
+private fun fallbackLowThreshold(isMmol: Boolean): Float = GlucoseRangeColors.defaultLow(isMmol)
 
-private fun fallbackHighThreshold(isMmol: Boolean): Float = if (isMmol) 10.0f else 180f
+private fun fallbackHighThreshold(isMmol: Boolean): Float = GlucoseRangeColors.defaultHigh(isMmol)
 
-private fun fallbackVeryLowThreshold(isMmol: Boolean): Float = if (isMmol) 3.0f else 54f
+private fun fallbackVeryLowThreshold(isMmol: Boolean): Float = GlucoseRangeColors.defaultVeryLow(isMmol)
 
-private fun fallbackVeryHighThreshold(isMmol: Boolean): Float = if (isMmol) 13.9f else 250f
+private fun fallbackVeryHighThreshold(isMmol: Boolean): Float = GlucoseRangeColors.defaultVeryHigh(isMmol)
 
 private fun rangeColorForBand(band: GlucoseRangeBand, isDark: Boolean): Color =
     Color(
@@ -178,7 +178,7 @@ private fun glucoseHeroTone(
 
     fun bandTone(band: GlucoseRangeBand, severity: Float): GlucoseHeroTone {
         val safeSeverity = severity.coerceIn(0f, 1f)
-        val blend = lerpFloat(0.075f, if (isDark) 0.155f else 0.145f, safeSeverity)
+        val blend = lerpFloat(0.12f, if (isDark) 0.24f else 0.22f, safeSeverity)
         return GlucoseHeroTone(
             tint = rangeColorForBand(band, isDark),
             blendFraction = blend
