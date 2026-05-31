@@ -37,9 +37,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WaterDrop
@@ -100,7 +100,8 @@ fun CalibrationListScreen(
     isMmol: Boolean,
     viewMode: Int = 0, // Default to 0 (Auto)
     onAdd: () -> Unit,
-    onEdit: (CalibrationEntity) -> Unit
+    onEdit: (CalibrationEntity) -> Unit,
+    onOpenModelTable: () -> Unit
 ) {
     val isRawMode = viewMode == 1 || viewMode == 3
     val modeTitle = if (isRawMode) stringResource(R.string.raw) else stringResource(R.string.auto)
@@ -151,7 +152,7 @@ fun CalibrationListScreen(
         historyRepository.rewriteSensorValuesWithCalibration(currentSensor, isRawMode)
     }
 
-    var showOverflowMenu by remember { mutableStateOf(false) }
+    var showImportExportSheet by rememberSaveable { mutableStateOf(false) }
     var pendingExportPayload by remember { mutableStateOf<String?>(null) }
     var replaceExistingOnImport by remember { mutableStateOf(false) }
 
@@ -206,6 +207,31 @@ fun CalibrationListScreen(
                 )
             }
         }
+    }
+
+    fun exportCurrentSensorProfile() {
+        if (currentSensor.isBlank()) {
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.no_active_sensor_selected))
+            }
+            return
+        }
+
+        val payload = CalibrationManager.exportProfileForSensorAsJson(currentSensor)
+        if (payload.isNullOrBlank()) {
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.no_calibrations_to_export))
+            }
+            return
+        }
+
+        pendingExportPayload = payload
+        exportProfileLauncher.launch("calibration_profile_$currentSensor.json")
+    }
+
+    fun importCurrentSensorProfile(replaceExisting: Boolean) {
+        replaceExistingOnImport = replaceExisting
+        importProfileLauncher.launch(arrayOf("application/json", "text/*"))
     }
     
     // Multi-select state
@@ -272,59 +298,17 @@ fun CalibrationListScreen(
                         }
                     },
                     actions = {
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = null)
-                            }
-
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.export_profile)) },
-                                    leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        if (currentSensor.isBlank()) {
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar(context.getString(R.string.no_active_sensor_selected))
-                                            }
-                                        } else {
-                                            val payload = CalibrationManager.exportProfileForSensorAsJson(currentSensor)
-                                            if (payload.isNullOrBlank()) {
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar(context.getString(R.string.no_calibrations_to_export))
-                                                }
-                                            } else {
-                                                pendingExportPayload = payload
-                                                val modeSuffix = if (isRawMode) "raw" else "auto"
-                                                exportProfileLauncher.launch("calibration_profile_${currentSensor}_$modeSuffix.json")
-                                            }
-                                        }
-                                    }
-                                )
-
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.import_profile_merge)) },
-                                    leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        replaceExistingOnImport = false
-                                        importProfileLauncher.launch(arrayOf("application/json", "text/*"))
-                                    }
-                                )
-
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.import_profile_replace)) },
-                                    leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        replaceExistingOnImport = true
-                                        importProfileLauncher.launch(arrayOf("application/json", "text/*"))
-                                    }
-                                )
-                            }
+                        IconButton(onClick = onOpenModelTable) {
+                            Icon(
+                                imageVector = Icons.Default.Analytics,
+                                contentDescription = stringResource(R.string.calibration_model_table_action)
+                            )
+                        }
+                        IconButton(onClick = { showImportExportSheet = true }) {
+                            Icon(
+                                imageVector = Icons.Default.FileDownload,
+                                contentDescription = stringResource(R.string.calibration_import_export_action)
+                            )
                         }
                     }
                 )
@@ -628,6 +612,24 @@ fun CalibrationListScreen(
             },
             disabledCount = calibrations.count { !it.isEnabled },
             totalCount = calibrations.size
+        )
+    }
+
+    if (showImportExportSheet) {
+        CalibrationImportExportBottomSheet(
+            onDismiss = { showImportExportSheet = false },
+            onExport = {
+                showImportExportSheet = false
+                exportCurrentSensorProfile()
+            },
+            onImportMerge = {
+                showImportExportSheet = false
+                importCurrentSensorProfile(replaceExisting = false)
+            },
+            onImportReplace = {
+                showImportExportSheet = false
+                importCurrentSensorProfile(replaceExisting = true)
+            }
         )
     }
     
@@ -1490,6 +1492,146 @@ private fun SelectionModeToolbar(
                 Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(stringResource(R.string.delete), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CalibrationImportExportBottomSheet(
+    onDismiss: () -> Unit,
+    onExport: () -> Unit,
+    onImportMerge: () -> Unit,
+    onImportReplace: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.calibration_import_export_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = stringResource(R.string.calibration_import_export_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            CalibrationTransferAction(
+                title = stringResource(R.string.export_profile),
+                subtitle = stringResource(R.string.calibration_export_profile_desc),
+                icon = Icons.Default.FileDownload,
+                onClick = onExport
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            CalibrationTransferAction(
+                title = stringResource(R.string.import_profile_merge),
+                subtitle = stringResource(R.string.calibration_import_merge_desc),
+                icon = Icons.Default.FileUpload,
+                onClick = onImportMerge
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            CalibrationTransferAction(
+                title = stringResource(R.string.import_profile_replace),
+                subtitle = stringResource(R.string.calibration_import_replace_desc),
+                icon = Icons.Default.FileUpload,
+                onClick = onImportReplace,
+                isDestructive = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalibrationTransferAction(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    isDestructive: Boolean = false
+) {
+    val contentColor = if (isDestructive) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val containerColor = if (isDestructive) {
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.32f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = contentColor.copy(alpha = 0.14f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isDestructive) contentColor else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

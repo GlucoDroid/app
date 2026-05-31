@@ -259,6 +259,34 @@ private fun CalibrationListRoute(
         },
         onEdit = { entity ->
             onTriggerCalibration(CalibrationSheetState.Edit(entity))
+        },
+        onOpenModelTable = {
+            val current = navController.currentDestination?.route
+            val route = if (current?.startsWith("settings/") == true) {
+                "settings/calibrations/model-table"
+            } else {
+                "calibrations/model-table"
+            }
+            navController.navigate(route)
+        }
+    )
+}
+
+@Composable
+private fun CalibrationModelTableRoute(
+    dashboardViewModel: DashboardViewModel,
+    navController: androidx.navigation.NavController,
+    onTriggerCalibration: (CalibrationSheetState) -> Unit
+) {
+    val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
+    val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
+
+    tk.glucodata.ui.calibration.CalibrationModelTableScreen(
+        navController = navController,
+        isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
+        viewMode = viewMode,
+        onEdit = { entity ->
+            onTriggerCalibration(CalibrationSheetState.Edit(entity))
         }
     )
 }
@@ -323,7 +351,12 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     fun collectionModeForRoute(route: String?): DashboardViewModel.CollectionMode = when (route) {
         "dashboard", "sensors", "settings" -> DashboardViewModel.CollectionMode.DASHBOARD
         "stats" -> DashboardViewModel.CollectionMode.INACTIVE
-        "history", "journal", "calibrations", "settings/calibrations" -> DashboardViewModel.CollectionMode.FULL_HISTORY
+        "history",
+        "journal",
+        "calibrations",
+        "settings/calibrations",
+        "calibrations/model-table",
+        "settings/calibrations/model-table" -> DashboardViewModel.CollectionMode.FULL_HISTORY
         else -> when {
             route?.startsWith("sensors/") == true -> DashboardViewModel.CollectionMode.DASHBOARD
             route?.startsWith("settings/") == true -> DashboardViewModel.CollectionMode.DASHBOARD
@@ -360,7 +393,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
         route.startsWith("settings/") -> "settings"
         route.startsWith("sensors/") -> "sensors"
         route == "history" || route == "journal" -> "dashboard"
-        route == "calibrations" -> "dashboard"  // calibrations is a dashboard subpage
+        route == "calibrations" || route.startsWith("calibrations/") -> "dashboard"
         else -> null
     }
 
@@ -497,8 +530,22 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                             onTriggerCalibration = onTriggerCalibration
                         )
                     }
+                    composable("settings/calibrations/model-table") {
+                        CalibrationModelTableRoute(
+                            dashboardViewModel = dashboardViewModel,
+                            navController = navController,
+                            onTriggerCalibration = onTriggerCalibration
+                        )
+                    }
                     composable("calibrations") {
                         CalibrationListRoute(
+                            dashboardViewModel = dashboardViewModel,
+                            navController = navController,
+                            onTriggerCalibration = onTriggerCalibration
+                        )
+                    }
+                    composable("calibrations/model-table") {
+                        CalibrationModelTableRoute(
                             dashboardViewModel = dashboardViewModel,
                             navController = navController,
                             onTriggerCalibration = onTriggerCalibration
@@ -617,8 +664,22 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                         onTriggerCalibration = onTriggerCalibration
                     )
                 }
+                composable("settings/calibrations/model-table") {
+                    CalibrationModelTableRoute(
+                        dashboardViewModel = dashboardViewModel,
+                        navController = navController,
+                        onTriggerCalibration = onTriggerCalibration
+                    )
+                }
                 composable("calibrations") {
                     CalibrationListRoute(
+                        dashboardViewModel = dashboardViewModel,
+                        navController = navController,
+                        onTriggerCalibration = onTriggerCalibration
+                    )
+                }
+                composable("calibrations/model-table") {
+                    CalibrationModelTableRoute(
                         dashboardViewModel = dashboardViewModel,
                         navController = navController,
                         onTriggerCalibration = onTriggerCalibration
