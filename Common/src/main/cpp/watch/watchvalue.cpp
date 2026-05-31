@@ -170,7 +170,7 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclas
         LOGGERTAG("FindClass(%s) failed\n",glucoseclass);
         return nullptr;
         }
-    const char glsig[]= "(JLjava/lang/String;Ljava/lang/String;FII)V";
+    const char glsig[]= "(JLjava/lang/String;Ljava/lang/String;FIII)V";
     static jmethodID iconstruct = env->GetMethodID(item,"<init>",glsig);
     if(!iconstruct) {
         LOGGERTAG("GetMethodID(item,<init>,%s) failed\n", glsig);
@@ -180,9 +180,9 @@ extern "C" JNIEXPORT jobject  JNICALL   fromjava(lastglucose)(JNIEnv *env, jclas
     const char *sensorid=hist->othershortsensorname().data();
     const int sensorgen2=hist->getSensorgen2();
  
-    LOGGERTAG("strGlucose(%lld,%s,%s,%.1f,%d,%d)\n",(long long)tim,buf,sensorid,poll->ch,index,sensorgen2);
+    LOGGERTAG("strGlucose(%lld,%s,%s,%.1f,%d,%d,%d)\n",(long long)tim,buf,sensorid,poll->ch,index,sensorgen2,poll->tr);
     const float rateofchange=( nonconvert<glucoselowest||nonconvert>hist->getmaxmgdL())?NAN:threshold(poll->ch);
-    return env->NewObject(item,iconstruct,tim,env->NewStringUTF(buf),env->NewStringUTF(sensorid),rateofchange,index,sensorgen2);
+    return env->NewObject(item,iconstruct,tim,env->NewStringUTF(buf),env->NewStringUTF(sensorid),rateofchange,index,sensorgen2,poll->tr);
        }
 
 
@@ -243,4 +243,3 @@ extern "C" JNIEXPORT jbyteArray JNICALL   fromjava(glucose2bytearray)(JNIEnv *en
 */
 //    jbyteArray uit = envin->NewByteArray(uitlen);
  //   envin->SetByteArrayRegion(uit, 0, uitlen, key->data());
-

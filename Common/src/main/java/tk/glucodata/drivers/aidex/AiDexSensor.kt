@@ -25,6 +25,7 @@ import android.os.PowerManager
 // import android.util.Log
 import tk.glucodata.Log
 import tk.glucodata.Applic
+import tk.glucodata.ExchangeTrend
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.Natives
 import tk.glucodata.drivers.ManagedSensorViewModeStore
@@ -3793,7 +3794,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                             now,
                             "vendor-auto",
                             fromVendor = true,
-                            vendorRawMgDl = entity.rawMgDl
+                            vendorRawMgDl = entity.rawMgDl,
+                            trend = entity.trend
                         )
                         if (didStore) {
                             Log.i(TAG, "Vendor AUTO_UPDATE: glucose=${entity.glucoseMgDl} offset=${entity.timeOffsetMinutes}min trend=${entity.trend} — stored")
@@ -3865,7 +3867,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                             now,
                             "vendor-gatt",
                             fromVendor = true,
-                            vendorRawMgDl = result.rawMgDl
+                            vendorRawMgDl = result.rawMgDl,
+                            trend = result.trend
                         )
                         // Edit 77: Only set vendorGotGlucoseThisCycle and transition to slow poll
                         // when glucose was actually stored. During warmup, storeAutoFromSource
@@ -4327,7 +4330,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             now,
             source,
             fromVendor = true,
-            vendorRawMgDl = entity.rawMgDl
+            vendorRawMgDl = entity.rawMgDl,
+            trend = entity.trend
         )
     }
 
@@ -4340,7 +4344,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             now,
             source,
             fromVendor = true,
-            vendorRawMgDl = entity.rawMgDl
+            vendorRawMgDl = entity.rawMgDl,
+            trend = entity.trend
         )
     }
 
@@ -7049,7 +7054,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
                     now,
                     "vendor-broadcast",
                     fromVendor = true,
-                    vendorRawMgDl = vendor.rawMgDl
+                    vendorRawMgDl = vendor.rawMgDl,
+                    trend = vendor.trend
                 )
                 if (didStore && detectVendorHistoryGap(vendor.timeOffsetMinutes, "vendor-broadcast")) {
                     requestHistoryBackfill("post-broadcast-gap")
@@ -7101,12 +7107,12 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             constatstatusstr = "Receiving"
         }
 
-        storeBroadcastIfNeeded(lastBroadcastGlucose, offsetMinutes, now)
+        storeBroadcastIfNeeded(lastBroadcastGlucose, offsetMinutes, now, trend)
         storeRawFromBroadcastIfNeeded(lastBroadcastGlucose, offsetMinutes, now)
         return true
     }
 
-    private fun storeBroadcastIfNeeded(glucoseMgDl: Float, offsetMinutes: Long, timeMs: Long) {
+    private fun storeBroadcastIfNeeded(glucoseMgDl: Float, offsetMinutes: Long, timeMs: Long, trend: Int = Int.MIN_VALUE) {
         if (!broadcastEnabled) return
         // Mode 4 (Broadcast Only) stores broadcast data as Auto readings since that's its only source
         if (!wantsAuto() && !isBroadcastOnlyMode()) return
@@ -7124,7 +7130,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             offsetMinutes.toInt(),
             timeMs,
             "broadcast",
-            fromVendor = false
+            fromVendor = false,
+            trend = trend
         )
         if (stored) {
             lastBroadcastStoredOffsetMinutes = offsetMinutes
@@ -7857,7 +7864,8 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         now: Long,
         source: String,
         fromVendor: Boolean,
-        vendorRawMgDl: Float = 0f
+        vendorRawMgDl: Float = 0f,
+        trend: Int = Int.MIN_VALUE
     ): Boolean {
         // Mode 4 (Broadcast Only) uses this path to store readings since it has no other source.
         if (!wantsAuto() && !wantsRaw() && !isBroadcastOnlyMode()) return false
@@ -7958,6 +7966,9 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         }
 
         Log.i(TAG, ">>> SUCCESS AIDEX: Auto($source)=$compensatedGlucose mg/dL${if (compensationFactor != 1.0f) " (raw=$glucoseMgDl, factor=$compensationFactor)" else ""}")
+        if (trend != Int.MIN_VALUE) {
+            ExchangeTrend.cacheAiDexTrend(SerialNumber, now, trend)
+        }
         storeAidexReading(byteArrayOf(0), now, compensatedGlucose, rawForStore)
         if (rawForStore > 0f) {
             lastRawMgDl = rawForStore

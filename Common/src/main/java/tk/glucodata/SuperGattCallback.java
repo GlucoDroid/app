@@ -574,6 +574,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     exchangePayload.getAutoValue(),
                     exchangePayload.getAutoMgdl(),
                     exchangePayload.getRawValue(),
+                    exchangePayload.getTrendIndex(),
+                    exchangePayload.getTrendName(),
+                    exchangePayload.getTrendRate(),
                     alarm);
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
@@ -585,7 +588,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 if (Natives.getlibrelinkused() && shouldEmitExchangeUpdate)
                     XInfuus.sendGlucoseBroadcast(exchangePayload.getSensorId(), exchangePayload.getPrimaryMgdl(), exchangePayload.getRate(), exchangePayload.getTimeMillis(), sensorstartmsec);
                 if (Natives.geteverSensebroadcast() && shouldEmitExchangeUpdate)
-                    EverSense.broadcastglucose(exchangePayload.getPrimaryMgdl(), exchangePayload.getRate(), exchangePayload.getTimeMillis());
+                    EverSense.broadcastglucose(exchangePayload);
                 // SendNSClient.broadcastglucose(mgdl, rate, timmsec);
             }
             if (Natives.getxbroadcast() && shouldEmitExchangeUpdate)

@@ -110,12 +110,16 @@ static void missingalarm(long timmsec)  {
         }
 
 static Intent mksendglucoseintent(Settings settings,double mgdl,float rate, int alarm, long timmsec)  {
+    return mksendglucoseintent(settings, mgdl, rate, getxDripTrendName(rate), alarm, timmsec);
+}
+
+private static Intent mksendglucoseintent(Settings settings,double mgdl,float rate, String trendName, int alarm, long timmsec)  {
         Intent intent = new Intent(ACTION_WATCH_COMMUNICATION_SENDER);
     Bundle bundle=new Bundle();
 //    bundle.putInt("phoneBattery",getBatteryLevel()); //Who needs that?
         bundle.putDouble("bg.valueMgdl", mgdl);
         bundle.putDouble("bg.deltaValueMgdl", (double)rate*5.0);
-        bundle.putString("bg.deltaName",getxDripTrendName(rate));
+        bundle.putString("bg.deltaName",trendName);
         bundle.putLong("bg.timeStamp", timmsec);
     final var now=System.currentTimeMillis();
         bundle.putBoolean("bg.isStale", (now-timmsec)>oldvalue);
@@ -134,7 +138,7 @@ static Intent mksendglucoseintent(Settings settings,double mgdl,float rate, int 
 //    bundle.putLong("treatment.timeStamp",timmsec);
         if(settings.isDisplayGraph()) addgraph(settings,bundle,now);
     intent.putExtras(bundle);
-        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+    intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
     return intent;
     }
 private static final int FUZZER = 30000;
@@ -301,6 +305,11 @@ static void sendglucose(int mgdl,float rate, int alarm, long timmsec)  {
     }
 
 static void sendglucose(ExchangeGlucosePayload payload, int alarm)  {
-    sendglucose(payload.primaryMgdl, payload.rate, alarm, payload.timeMillis);
+    for(final var el:mapsettings.entrySet()) {
+        var intent=mksendglucoseintent(el.getValue(),payload.primaryMgdl,payload.trendRate,payload.trendName,alarm, payload.timeMillis);
+        intent.putExtra( "FUNCTION","update_bg");
+        intent.setPackage(el.getKey());
+        Applic.app.sendBroadcast(intent);
+        };
 }
 }

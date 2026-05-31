@@ -46,6 +46,10 @@ static final private float[] speeds= {2, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103,
 static void sendglucose(String glstr,int mgdl,float gl,float rate,long timmsec)  {
    WeatherSpec weatherSpec = new WeatherSpec();
    final int code=librecode(rate);
+   sendglucose(weatherSpec, glstr, gl, rate, timmsec, code);
+        }
+
+private static void sendglucose(WeatherSpec weatherSpec,String glstr,float gl,float rate,long timmsec,int code)  {
    weatherSpec.location             = minhourstr(timmsec)+librearrows[code]+glstr;
    weatherSpec.timestamp            = (int) (timmsec/1000L);
    weatherSpec.currentCondition=weatherSpec.location;
@@ -83,13 +87,8 @@ static void sendglucose(String glstr,int mgdl,float gl,float rate,long timmsec) 
         }
 
 static void sendglucose(ExchangeGlucosePayload payload) {
-    sendglucose(
-        payload.primaryText,
-        payload.primaryMgdl,
-        (float)payload.primaryDisplayValue,
-        payload.rate,
-        payload.timeMillis
-    );
+    sendglucose(new WeatherSpec(), payload.primaryText, (float)payload.primaryDisplayValue,
+        payload.trendRate, payload.timeMillis, librecode(payload.trendIndex));
 }
 
 private static final int Undetermined=0;
@@ -116,6 +115,25 @@ private static     int librecode(float rate) {
             return Undetermined;
         }
         return Rising_Quickly;
+    }
+
+private static int librecode(int trendIndex) {
+        switch(trendIndex) {
+            case ExchangeTrend.DOUBLE_DOWN:
+            case ExchangeTrend.SINGLE_DOWN:
+                return Falling_Quickly;
+            case ExchangeTrend.FORTY_FIVE_DOWN:
+                return Falling;
+            case ExchangeTrend.FLAT:
+                return Steady;
+            case ExchangeTrend.FORTY_FIVE_UP:
+                return Rising;
+            case ExchangeTrend.SINGLE_UP:
+            case ExchangeTrend.DOUBLE_UP:
+                return Rising_Quickly;
+            default:
+                return Undetermined;
+        }
     }
 //private static final String[] librenames={"Undetermined","Falling_Quickly","Falling","Steady","Rising","Rising_Quickly"};
 private static final String[] librearrows={" ","\u2193", "\u2198","\u2192", "\u2197", "\u2191"};
@@ -145,4 +163,3 @@ static     String librelabel(float rate) {
 */
 
 }
-

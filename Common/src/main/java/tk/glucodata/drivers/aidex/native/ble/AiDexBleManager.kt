@@ -33,6 +33,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import tk.glucodata.Applic
 import tk.glucodata.BatteryTrace
+import tk.glucodata.ExchangeTrend
 import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
@@ -5896,6 +5897,7 @@ class AiDexBleManager(
         lastOffsetMinutes = sample.offsetMinutes
         ensureSensorStartTime(now, sample.offsetMinutes)
         val sampleTimestampMs = resolveBroadcastSampleTimestampMs(now, sample.offsetMinutes)
+        ExchangeTrend.cacheAiDexTrend(SerialNumber, sampleTimestampMs, sample.trend)
 
         val fallbackActive = AiDexRuntimePolicy.shouldAcceptBroadcastFallback(
             broadcastOnlyMode = reconnect.isBroadcastOnlyMode,

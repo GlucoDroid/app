@@ -26,7 +26,6 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import static tk.glucodata.Log.doLog;
-import static tk.glucodata.Natives.getxDripTrendName;
 
 public class JugglucoSend   {
     public static final String ACTION = "glucodata.Minute";
@@ -34,6 +33,8 @@ public class JugglucoSend   {
     private static final String MGDL = "glucodata.Minute.mgdl";
 	private static final String GLUCOSECUSTOM = "glucodata.Minute.glucose";
 	private static final String RATE = "glucodata.Minute.Rate";
+	private static final String TREND = "glucodata.Minute.Trend";
+	private static final String TREND_NAME = "glucodata.Minute.TrendName";
     private static final String ALARM = "glucodata.Minute.Alarm";
     private static final String TIME = "glucodata.Minute.Time";
 private static final String LOG_ID="JugglucoSend";
@@ -44,6 +45,8 @@ private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayloa
 	extras.putInt(MGDL,payload.primaryMgdl);
 	extras.putFloat(GLUCOSECUSTOM,(float)payload.primaryDisplayValue);
         extras.putFloat(RATE,payload.rate);
+        extras.putInt(TREND,payload.trendIndex);
+        extras.putString(TREND_NAME,payload.trendName);
         extras.putInt(ALARM,alarm);
         extras.putLong(TIME,payload.timeMillis);
 	return extras;

@@ -53,13 +53,18 @@ public static  void setreceivers() {
 public static final String glucoseaction="com.eveningoutpost.dexdrip.NS_EMULATOR";
 @Keep
 static void broadcastglucose(int mgdl, float rate, long timmsec) {
+    broadcastglucose(mgdl, tk.glucodata.Natives.getxDripTrendName(rate), timmsec);
+}
+
+@Keep
+static void broadcastglucose(int mgdl, String trendName, long timmsec) {
     try {
         final JSONArray sgv_array = new JSONArray();
         final JSONObject sgv_object = new JSONObject();
         sgv_object.put("type", "sgv");
         sgv_object.put("date", timmsec);
         sgv_object.put("sgv", mgdl);
-        sgv_object.put("direction", tk.glucodata.Natives.getxDripTrendName(rate));
+        sgv_object.put("direction", trendName);
         sgv_array.put(sgv_object);
 
         final var bundle = new Bundle();
@@ -77,7 +82,7 @@ static void broadcastglucose(int mgdl, float rate, long timmsec) {
 
 @Keep
 static void broadcastglucose(ExchangeGlucosePayload payload) {
-    broadcastglucose(payload.primaryMgdl, payload.rate, payload.timeMillis);
+    broadcastglucose(payload.primaryMgdl, payload.trendName, payload.timeMillis);
 }
 
 }

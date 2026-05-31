@@ -28,7 +28,6 @@ import android.os.BatteryManager;
 import android.os.Bundle;
 
 import static tk.glucodata.Log.doLog;
-import static tk.glucodata.Natives.getxDripTrendName;
 
 public class SendLikexDrip   {
     public static final String ACTION = "com.eveningoutpost.dexdrip.BgEstimate";
@@ -63,9 +62,9 @@ private static int getBatteryLevel() {
 private static Bundle mkGlucosebundle(ExchangeGlucosePayload payload,long sensorStartmsec) {
     Bundle extras = new Bundle();
     extras.putDouble(EXTRA_BG_ESTIMATE,payload.primaryMgdl);
-    extras.putString(EXTRA_BG_SLOPE_NAME,getxDripTrendName(payload.rate));
+    extras.putString(EXTRA_BG_SLOPE_NAME,payload.trendName);
 
-    extras.putDouble(EXTRA_BG_SLOPE,(double)payload.rate/60000.0);
+    extras.putDouble(EXTRA_BG_SLOPE,(double)payload.trendRate/60000.0);
     extras.putLong(EXTRA_TIMESTAMP,payload.timeMillis);
     extras.putLong(EXTRA_SENSOR_STARTED_AT,sensorStartmsec);
     extras.putString(EXTRA_DATA_SOURCE_INFO, SensorSourceResolver.resolveXdripSourceInfo(payload.sensorId, payload.sensorGen));

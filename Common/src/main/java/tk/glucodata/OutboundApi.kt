@@ -54,6 +54,9 @@ object OutboundApi {
     private const val IN_AUTO_MGDL = "auto_mgdl"
     private const val IN_RAW_VALUE = "raw_value"
     private const val IN_RATE = "rate"
+    private const val IN_TREND_INDEX = "trend_index"
+    private const val IN_TREND_NAME = "trend_name"
+    private const val IN_TREND_RATE = "trend_rate"
     private const val IN_TIME_MILLIS = "time_millis"
     private const val IN_SENSOR_GEN = "sensor_gen"
     private const val IN_ALARM = "alarm"
@@ -126,6 +129,42 @@ object OutboundApi {
         rawValue: Float,
         alarm: Int
     ) {
+        val trend = ExchangeTrend.resolve(sensorId, timeMillis, rate)
+        enqueueGlucose(
+            sensorId = sensorId,
+            primaryText = primaryText,
+            primaryDisplayValue = primaryDisplayValue,
+            primaryMgdl = primaryMgdl,
+            rate = rate,
+            timeMillis = timeMillis,
+            sensorGen = sensorGen,
+            autoValue = autoValue,
+            autoMgdl = autoMgdl,
+            rawValue = rawValue,
+            trendIndex = trend.index,
+            trendName = trend.name,
+            trendRate = trend.rateMgdlPerMinute,
+            alarm = alarm
+        )
+    }
+
+    @JvmStatic
+    fun enqueueGlucose(
+        sensorId: String?,
+        primaryText: String?,
+        primaryDisplayValue: Double,
+        primaryMgdl: Int,
+        rate: Float,
+        timeMillis: Long,
+        sensorGen: Int,
+        autoValue: Float,
+        autoMgdl: Int,
+        rawValue: Float,
+        trendIndex: Int,
+        trendName: String?,
+        trendRate: Float,
+        alarm: Int
+    ) {
         enqueueGlucoseInternal(
             context = Applic.app,
             sensorId = sensorId,
@@ -138,6 +177,9 @@ object OutboundApi {
             sensorGen = sensorGen,
             autoValue = autoValue,
             autoMgdl = autoMgdl,
+            trendIndex = trendIndex,
+            trendName = trendName,
+            trendRate = trendRate,
             alarm = alarm,
             test = false,
             destinationId = null
@@ -153,6 +195,7 @@ object OutboundApi {
             return TEST_NOT_CONFIGURED
         }
         val current = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout) ?: return TEST_NO_CURRENT_READING
+        val trend = ExchangeTrend.resolve(current.sensorId, current.timeMillis, current.rate)
         enqueueGlucoseInternal(
             context = context,
             sensorId = current.sensorId,
@@ -165,6 +208,9 @@ object OutboundApi {
             sensorGen = current.sensorGen,
             autoValue = current.autoValue,
             autoMgdl = displayToMgdl(current.autoValue),
+            trendIndex = trend.index,
+            trendName = trend.name,
+            trendRate = trend.rateMgdlPerMinute,
             alarm = 0,
             test = true,
             destinationId = destinationId
@@ -184,6 +230,9 @@ object OutboundApi {
         sensorGen: Int,
         autoValue: Float,
         autoMgdl: Int,
+        trendIndex: Int,
+        trendName: String?,
+        trendRate: Float,
         alarm: Int,
         test: Boolean,
         destinationId: String?
@@ -222,6 +271,9 @@ object OutboundApi {
                 sensorGen = sensorGen,
                 autoValue = autoValue,
                 autoMgdl = autoMgdl,
+                trendIndex = trendIndex,
+                trendName = trendName,
+                trendRate = trendRate,
                 alarm = alarm,
                 test = test
             )
@@ -252,6 +304,9 @@ object OutboundApi {
         sensorGen: Int,
         autoValue: Float,
         autoMgdl: Int,
+        trendIndex: Int,
+        trendName: String?,
+        trendRate: Float,
         alarm: Int,
         test: Boolean
     ) {
@@ -274,6 +329,9 @@ object OutboundApi {
                 .putInt(IN_AUTO_MGDL, autoMgdl)
                 .putFloat(IN_RAW_VALUE, rawValue)
                 .putFloat(IN_RATE, rate)
+                .putInt(IN_TREND_INDEX, trendIndex)
+                .putString(IN_TREND_NAME, trendName.orEmpty())
+                .putFloat(IN_TREND_RATE, trendRate)
                 .putLong(IN_TIME_MILLIS, timeMillis)
                 .putInt(IN_SENSOR_GEN, sensorGen)
                 .putInt(IN_ALARM, alarm)
@@ -359,6 +417,9 @@ object OutboundApi {
             autoMgdl = input.getInt(IN_AUTO_MGDL, 0),
             rawValue = input.getFloat(IN_RAW_VALUE, Float.NaN),
             rateMgdlPerMinute = input.getFloat(IN_RATE, Float.NaN),
+            trendIndex = input.getInt(IN_TREND_INDEX, 0),
+            trendNameFromInput = input.getString(IN_TREND_NAME).orEmpty(),
+            trendRateMgdlPerMinute = input.getFloat(IN_TREND_RATE, Float.NaN),
             timeMillis = timeMillis,
             sensorGen = input.getInt(IN_SENSOR_GEN, 0),
             alarm = input.getInt(IN_ALARM, 0),
@@ -377,6 +438,9 @@ object OutboundApi {
         val autoMgdl: Int,
         val rawValue: Float,
         val rateMgdlPerMinute: Float,
+        val trendIndex: Int,
+        val trendNameFromInput: String,
+        val trendRateMgdlPerMinute: Float,
         val timeMillis: Long,
         val sensorGen: Int,
         val alarm: Int,
@@ -391,7 +455,12 @@ object OutboundApi {
                 ?: Float.NaN
         val rawGlucoseMmol: Float get() = rawGlucoseMgdl / MGDL_PER_MMOLL
         val rateMmolPerMinute: Float get() = rateMgdlPerMinute / MGDL_PER_MMOLL
-        val trendName: String get() = Natives.getxDripTrendName(rateMgdlPerMinute) ?: ""
+        val trendRateMmolPerMinute: Float get() = trendRateMgdlPerMinute / MGDL_PER_MMOLL
+        val trendName: String get() = trendNameFromInput.ifBlank {
+            ExchangeTrend.nameForIndex(trendIndex).ifBlank {
+                Natives.getxDripTrendName(rateMgdlPerMinute) ?: ""
+            }
+        }
         val trendArrow: String get() = trendArrow(trendName)
         val iob: Float get() = runCatching { Natives.getIOBvalue(timeMillis) }.getOrDefault(Float.NaN)
         val journal: JournalSnapshot get() = loadJournalSnapshot(timeMillis)
@@ -788,6 +857,9 @@ class OutboundApiWorker(
                 .put("rate_mmol_per_min", reading.rateMmolPerMinute.takeIf { it.isFinite() })
                 .put("trend", reading.trendName)
                 .put("trend_arrow", reading.trendArrow)
+                .put("trend_index", reading.trendIndex.takeIf { it > 0 })
+                .put("trend_rate_mgdl_per_min", reading.trendRateMgdlPerMinute.takeIf { it.isFinite() })
+                .put("trend_rate_mmol_per_min", reading.trendRateMmolPerMinute.takeIf { it.isFinite() })
                 .put("alarm", reading.alarm)
                 .put("iob", reading.iob.takeIf { it.isFinite() })
                 .put("journal_iob", journal.iob.takeIf { it.isFinite() })

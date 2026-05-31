@@ -13,6 +13,10 @@ final class ExchangeGlucosePayload {
     final int autoMgdl;
     final float rawValue;
     final float rate;
+    final int trendIndex;
+    final String trendName;
+    final String trendArrow;
+    final float trendRate;
     final long timeMillis;
     final int sensorGen;
 
@@ -25,6 +29,7 @@ final class ExchangeGlucosePayload {
             int autoMgdl,
             float rawValue,
             float rate,
+            ExchangeTrend trend,
             long timeMillis,
             int sensorGen) {
         this.sensorId = sensorId;
@@ -35,6 +40,10 @@ final class ExchangeGlucosePayload {
         this.autoMgdl = autoMgdl;
         this.rawValue = rawValue;
         this.rate = rate;
+        this.trendIndex = trend.index;
+        this.trendName = trend.name;
+        this.trendArrow = trend.arrow;
+        this.trendRate = trend.rateMgdlPerMinute;
         this.timeMillis = timeMillis;
         this.sensorGen = sensorGen;
     }
@@ -69,6 +78,22 @@ final class ExchangeGlucosePayload {
 
     float getRate() {
         return rate;
+    }
+
+    int getTrendIndex() {
+        return trendIndex;
+    }
+
+    String getTrendName() {
+        return trendName;
+    }
+
+    String getTrendArrow() {
+        return trendArrow;
+    }
+
+    float getTrendRate() {
+        return trendRate;
     }
 
     long getTimeMillis() {
@@ -113,6 +138,7 @@ final class ExchangeGlucosePayload {
             final float autoValue = current.getAutoValue();
             final int autoMgdl = toMgdl(autoValue);
             final float rawValue = current.getRawValue();
+            final ExchangeTrend trend = ExchangeTrend.resolve(sensorId, timeMillis, rate);
             return new ExchangeGlucosePayload(
                     sensorId,
                     primaryText,
@@ -122,6 +148,7 @@ final class ExchangeGlucosePayload {
                     autoMgdl,
                     rawValue,
                     rate,
+                    trend,
                     timeMillis,
                     sensorGen);
         }
@@ -139,6 +166,7 @@ final class ExchangeGlucosePayload {
                 0,
                 Float.NaN,
                 fallbackRate,
+                ExchangeTrend.resolve(fallbackSensorId, fallbackTimeMillis, fallbackRate),
                 fallbackTimeMillis,
                 fallbackSensorGen);
     }

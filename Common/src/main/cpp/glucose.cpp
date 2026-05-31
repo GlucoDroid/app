@@ -569,7 +569,7 @@ int getdeltaindex(float rate) {
     return 4;
   if (rate > -2.0f)
     return 5;
-  if (rate > DOUBLETHRESHOLD)
+  if (rate > -DOUBLETHRESHOLD)
     return 6;
   if (isnan(rate))
     return 0;
