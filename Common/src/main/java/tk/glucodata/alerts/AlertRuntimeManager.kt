@@ -43,6 +43,16 @@ object AlertRuntimeManager {
         AlertType.PRE_HIGH
     )
 
+    fun onAlertSnoozed(type: AlertType) {
+        if (type !in standardGlucoseAlertTypes) {
+            return
+        }
+        synchronized(lock) {
+            // Keep an already-active threshold episode eligible to re-fire when snooze expires.
+            standardEpisodes.markPendingAfterSnooze(type)
+        }
+    }
+
     fun ensureMonitoring() {
         synchronized(lock) {
             bootstrapLastReadingLocked()
