@@ -898,7 +898,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">数据表</string>
     <string name="calibration_model_table_desc">点按一行即可编辑该校准点。</string>
     <string name="calibration_model_chart_title">模型拟合</string>
-    <string name="calibration_model_chart_subtitle">%1$s 来源到指尖血，%2$s</string>
+    <string name="calibration_model_chart_subtitle">%1$s 来源到指尖血</string>
     <string name="calibration_model_fit">拟合</string>
     <string name="calibration_model_fit_range">拟合线仅绘制在有效校准来源值范围内。</string>
     <string name="calibration_model_disabled_desc">已显示保存的点，但未应用校准模型。</string>
@@ -923,6 +923,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">导入/导出</string>
     <string name="calibration_import_export_title">导入 / 导出</string>
     <string name="calibration_import_export_desc">移动当前传感器的校准配置。替换会先移除此传感器的现有点。</string>
+    <string name="calibration_model_summary_title">模型状态</string>
+    <string name="calibration_model_selected_point">所选点</string>
+    <string name="calibration_weight_title">校准权重</string>
+    <string name="calibration_weight_fresh">新点优先</string>
+    <string name="calibration_weight_fresh_desc">较新的点会更快取得主导。</string>
+    <string name="calibration_weight_balanced">平衡</string>
+    <string name="calibration_weight_balanced_desc">使用算法当前的时间权重。</string>
+    <string name="calibration_weight_stable">稳定</string>
+    <string name="calibration_weight_stable_desc">较旧的点衰减更慢。</string>
+    <string name="calibration_keep_disabled_history_title">在历史中保留已禁用点</string>
+    <string name="calibration_keep_disabled_history_subtitle">已禁用点不再影响之后的读数，但会保留在较早的锁定历史中。</string>
     <string name="calibration_export_profile_desc">将校准点和行为保存为 JSON。</string>
     <string name="calibration_import_merge_desc">添加配置点而不删除现有匹配项。</string>
     <string name="calibration_import_replace_desc">替换此传感器的校准配置。</string>

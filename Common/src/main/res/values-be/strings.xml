@@ -881,7 +881,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">Табліца даных</string>
     <string name="calibration_model_table_desc">Націсніце радок, каб змяніць гэты пункт каліброўкі.</string>
     <string name="calibration_model_chart_title">Падбор мадэлі</string>
-    <string name="calibration_model_chart_subtitle">Крыніца %1$s да кантрольнага вымярэння, %2$s</string>
+    <string name="calibration_model_chart_subtitle">Крыніца %1$s да кантрольнага вымярэння</string>
     <string name="calibration_model_fit">Падбор</string>
     <string name="calibration_model_fit_range">Падбор паказваецца толькі ў межах актыўных зыходных значэнняў каліброўкі.</string>
     <string name="calibration_model_disabled_desc">Захаваныя пункты паказваюцца, але мадэль каліброўкі не ўжываецца.</string>
@@ -906,6 +906,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">Імпарт/экспарт</string>
     <string name="calibration_import_export_title">Імпарт / экспарт</string>
     <string name="calibration_import_export_desc">Перанясіце профілі каліброўкі для бягучага датчыка. Замена спачатку выдаляе існыя пункты для гэтага датчыка.</string>
+    <string name="calibration_model_summary_title">Стан мадэлі</string>
+    <string name="calibration_model_selected_point">Выбраны пункт</string>
+    <string name="calibration_weight_title">Узважванне калібровак</string>
+    <string name="calibration_weight_fresh">Новыя</string>
+    <string name="calibration_weight_fresh_desc">Новыя пункты хутчэй атрымліваюць большую вагу.</string>
+    <string name="calibration_weight_balanced">Збалансавана</string>
+    <string name="calibration_weight_balanced_desc">Бягучыя часавыя вагі алгарытму.</string>
+    <string name="calibration_weight_stable">Стабільна</string>
+    <string name="calibration_weight_stable_desc">Старыя пункты слабнуць павольней.</string>
+    <string name="calibration_keep_disabled_history_title">Пакідаць адключаныя ў гісторыі</string>
+    <string name="calibration_keep_disabled_history_subtitle">Адключаныя пункты не ўплываюць на пазнейшыя паказанні, але застаюцца для старой зафіксаванай гісторыі.</string>
     <string name="calibration_export_profile_desc">Захаваць пункты і паводзіны каліброўкі як JSON.</string>
     <string name="calibration_import_merge_desc">Дадаць пункты профілю без выдалення існых супадзенняў.</string>
     <string name="calibration_import_replace_desc">Замяніць профіль каліброўкі гэтага датчыка.</string>

@@ -910,7 +910,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="calibration_model_table_section">Veri tablosu</string>
     <string name="calibration_model_table_desc">Bu kalibrasyon noktasını düzenlemek için satıra dokunun.</string>
     <string name="calibration_model_chart_title">Model uyumu</string>
-    <string name="calibration_model_chart_subtitle">%1$s kaynağından parmak ölçümüne, %2$s</string>
+    <string name="calibration_model_chart_subtitle">%1$s kaynağından parmak ölçümüne</string>
     <string name="calibration_model_fit">Uyum</string>
     <string name="calibration_model_fit_range">Uyum yalnızca etkin kalibrasyon kaynak değerleri boyunca çizilir.</string>
     <string name="calibration_model_disabled_desc">Kayıtlı noktalar gösterilir, ancak kalibrasyon modeli uygulanmaz.</string>
@@ -935,6 +935,17 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="calibration_import_export_action">İçe/dışa aktar</string>
     <string name="calibration_import_export_title">İçe / dışa aktar</string>
     <string name="calibration_import_export_desc">Geçerli sensörün kalibrasyon profillerini taşıyın. Değiştir önce bu sensöre ait mevcut noktaları kaldırır.</string>
+    <string name="calibration_model_summary_title">Model durumu</string>
+    <string name="calibration_model_selected_point">Seçili nokta</string>
+    <string name="calibration_weight_title">Kalibrasyon ağırlığı</string>
+    <string name="calibration_weight_fresh">Yeni</string>
+    <string name="calibration_weight_fresh_desc">Yeni noktalar daha hızlı baskın olur.</string>
+    <string name="calibration_weight_balanced">Dengeli</string>
+    <string name="calibration_weight_balanced_desc">Algoritmanın mevcut zaman ağırlığı.</string>
+    <string name="calibration_weight_stable">Kararlı</string>
+    <string name="calibration_weight_stable_desc">Eski noktalar daha yavaş azalır.</string>
+    <string name="calibration_keep_disabled_history_title">Devre dışıları geçmişte tut</string>
+    <string name="calibration_keep_disabled_history_subtitle">Devre dışı noktalar sonraki ölçümleri etkilemez, ancak eski kilitli geçmişte kalır.</string>
     <string name="calibration_export_profile_desc">Kalibrasyon noktalarını ve davranışını JSON olarak kaydet.</string>
     <string name="calibration_import_merge_desc">Mevcut eşleşmeleri silmeden profil noktaları ekle.</string>
     <string name="calibration_import_replace_desc">Bu sensörün kalibrasyon profilini değiştir.</string>

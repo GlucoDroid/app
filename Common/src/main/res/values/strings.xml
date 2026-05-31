@@ -1195,7 +1195,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">Data table</string>
     <string name="calibration_model_table_desc">Tap a row to edit that calibration point.</string>
     <string name="calibration_model_chart_title">Model fit</string>
-    <string name="calibration_model_chart_subtitle">%1$s source to finger-stick, %2$s</string>
+    <string name="calibration_model_chart_subtitle">%1$s source to finger-stick</string>
     <string name="calibration_model_fit">Fit</string>
     <string name="calibration_model_fit_range">Fit is drawn only across active calibration source values.</string>
     <string name="calibration_model_disabled_desc">Stored points are shown, but no calibration model is applied.</string>
@@ -1220,6 +1220,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">Import/export</string>
     <string name="calibration_import_export_title">Import / export</string>
     <string name="calibration_import_export_desc">Move calibration profiles for the current sensor. Replace removes existing points for that sensor first.</string>
+    <string name="calibration_model_summary_title">Model health</string>
+    <string name="calibration_model_selected_point">Selected point</string>
+    <string name="calibration_weight_title">Calibration weighting</string>
+    <string name="calibration_weight_fresh">Fresh</string>
+    <string name="calibration_weight_fresh_desc">Recent points take over faster.</string>
+    <string name="calibration_weight_balanced">Balanced</string>
+    <string name="calibration_weight_balanced_desc">Current algorithm timing.</string>
+    <string name="calibration_weight_stable">Stable</string>
+    <string name="calibration_weight_stable_desc">Older points fade more slowly.</string>
+    <string name="calibration_keep_disabled_history_title">Keep disabled in history</string>
+    <string name="calibration_keep_disabled_history_subtitle">Disabled points stop affecting later readings, but remain for older locked history.</string>
     <string name="calibration_export_profile_desc">Save calibration points and behavior as JSON.</string>
     <string name="calibration_import_merge_desc">Add profile points without deleting existing matches.</string>
     <string name="calibration_import_replace_desc">Replace this sensor calibration profile.</string>

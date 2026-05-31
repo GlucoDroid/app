@@ -888,7 +888,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">Tableau des données</string>
     <string name="calibration_model_table_desc">Touchez une ligne pour modifier ce point de calibration.</string>
     <string name="calibration_model_chart_title">Ajustement du modèle</string>
-    <string name="calibration_model_chart_subtitle">Source %1$s vers glycémie capillaire, %2$s</string>
+    <string name="calibration_model_chart_subtitle">Source %1$s vers glycémie capillaire</string>
     <string name="calibration_model_fit">Ajustement</string>
     <string name="calibration_model_fit_range">L\'ajustement est tracé uniquement sur les valeurs source actives.</string>
     <string name="calibration_model_disabled_desc">Les points enregistrés sont affichés, mais aucun modèle de calibration n\'est appliqué.</string>
@@ -913,6 +913,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">Importer/exporter</string>
     <string name="calibration_import_export_title">Import / export</string>
     <string name="calibration_import_export_desc">Déplacez les profils de calibration du capteur actuel. Remplacer supprime d\'abord les points existants de ce capteur.</string>
+    <string name="calibration_model_summary_title">État du modèle</string>
+    <string name="calibration_model_selected_point">Point sélectionné</string>
+    <string name="calibration_weight_title">Pondération des calibrations</string>
+    <string name="calibration_weight_fresh">Récent</string>
+    <string name="calibration_weight_fresh_desc">Les points récents prennent le dessus plus vite.</string>
+    <string name="calibration_weight_balanced">Équilibré</string>
+    <string name="calibration_weight_balanced_desc">Pondération temporelle actuelle de l’algorithme.</string>
+    <string name="calibration_weight_stable">Stable</string>
+    <string name="calibration_weight_stable_desc">Les anciens points diminuent plus lentement.</string>
+    <string name="calibration_keep_disabled_history_title">Garder les désactivés dans l’historique</string>
+    <string name="calibration_keep_disabled_history_subtitle">Les points désactivés n’influencent plus les mesures ultérieures, mais restent pour l’historique verrouillé plus ancien.</string>
     <string name="calibration_export_profile_desc">Enregistrer les points et le comportement de calibration en JSON.</string>
     <string name="calibration_import_merge_desc">Ajouter les points du profil sans supprimer les correspondances existantes.</string>
     <string name="calibration_import_replace_desc">Remplacer le profil de calibration de ce capteur.</string>

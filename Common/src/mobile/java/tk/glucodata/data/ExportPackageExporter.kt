@@ -323,8 +323,10 @@ object ExportPackageExporter {
             .put("hideInitialWhenCalibrated", CalibrationManager.hideInitialWhenCalibrated.value)
             .put("applyToPast", CalibrationManager.applyToPast.value)
             .put("lockPastHistory", CalibrationManager.lockPastHistory.value)
+            .put("keepDisabledHistory", CalibrationManager.keepDisabledHistory.value)
             .put("overwriteSensorValues", CalibrationManager.overwriteSensorValues.value)
             .put("visualContinuity", CalibrationManager.visualContinuity.value)
+            .put("weightMode", CalibrationManager.getWeightMode().storageValue)
             .put("rawAlgorithm", CalibrationManager.getAlgorithmForMode(isRawMode = true).storageValue)
             .put("autoAlgorithm", CalibrationManager.getAlgorithmForMode(isRawMode = false).storageValue)
             .put(
@@ -396,11 +398,19 @@ object ExportPackageExporter {
         CalibrationManager.setLockPastHistory(
             calibrations.optBoolean("lockPastHistory", CalibrationManager.lockPastHistory.value)
         )
+        CalibrationManager.setKeepDisabledHistory(
+            calibrations.optBoolean("keepDisabledHistory", CalibrationManager.keepDisabledHistory.value)
+        )
         CalibrationManager.setOverwriteSensorValues(
             calibrations.optBoolean("overwriteSensorValues", CalibrationManager.overwriteSensorValues.value)
         )
         CalibrationManager.setVisualContinuity(
             calibrations.optBoolean("visualContinuity", CalibrationManager.visualContinuity.value)
+        )
+        CalibrationManager.setWeightMode(
+            CalibrationManager.CalibrationWeightMode.fromStorage(
+                calibrations.optString("weightMode", "")
+            )
         )
         CalibrationManager.setAlgorithmForMode(
             isRawMode = true,

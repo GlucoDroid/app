@@ -923,7 +923,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">Таблица данных</string>
     <string name="calibration_model_table_desc">Нажмите строку, чтобы изменить эту точку калибровки.</string>
     <string name="calibration_model_chart_title">Подгонка модели</string>
-    <string name="calibration_model_chart_subtitle">Источник %1$s к измерению из пальца, %2$s</string>
+    <string name="calibration_model_chart_subtitle">Источник %1$s к измерению из пальца</string>
     <string name="calibration_model_fit">Подгонка</string>
     <string name="calibration_model_fit_range">Подгонка показана только в диапазоне активных исходных значений калибровки.</string>
     <string name="calibration_model_disabled_desc">Сохраненные точки показаны, но модель калибровки не применяется.</string>
@@ -948,6 +948,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">Импорт/экспорт</string>
     <string name="calibration_import_export_title">Импорт / экспорт</string>
     <string name="calibration_import_export_desc">Перенос профилей калибровки для текущего сенсора. Замена сначала удаляет существующие точки этого сенсора.</string>
+    <string name="calibration_model_summary_title">Состояние модели</string>
+    <string name="calibration_model_selected_point">Выбранная точка</string>
+    <string name="calibration_weight_title">Взвешивание калибровок</string>
+    <string name="calibration_weight_fresh">Новые</string>
+    <string name="calibration_weight_fresh_desc">Новые точки быстрее получают больший вес.</string>
+    <string name="calibration_weight_balanced">Сбалансировано</string>
+    <string name="calibration_weight_balanced_desc">Текущие временные веса алгоритма.</string>
+    <string name="calibration_weight_stable">Стабильно</string>
+    <string name="calibration_weight_stable_desc">Старые точки ослабевают медленнее.</string>
+    <string name="calibration_keep_disabled_history_title">Оставлять отключённые в истории</string>
+    <string name="calibration_keep_disabled_history_subtitle">Отключённые точки не влияют на более поздние показания, но остаются для старой зафиксированной истории.</string>
     <string name="calibration_export_profile_desc">Сохранить точки и поведение калибровки как JSON.</string>
     <string name="calibration_import_merge_desc">Добавить точки профиля без удаления существующих совпадений.</string>
     <string name="calibration_import_replace_desc">Заменить профиль калибровки этого сенсора.</string>

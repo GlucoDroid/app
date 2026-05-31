@@ -883,7 +883,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">Tabela de dados</string>
     <string name="calibration_model_table_desc">Toque numa linha para editar esse ponto de calibração.</string>
     <string name="calibration_model_chart_title">Ajuste do modelo</string>
-    <string name="calibration_model_chart_subtitle">Fonte %1$s para ponta do dedo, %2$s</string>
+    <string name="calibration_model_chart_subtitle">Fonte %1$s para ponta do dedo</string>
     <string name="calibration_model_fit">Ajuste</string>
     <string name="calibration_model_fit_range">O ajuste é desenhado apenas no intervalo dos valores fonte ativos.</string>
     <string name="calibration_model_disabled_desc">Os pontos guardados são mostrados, mas nenhum modelo de calibração é aplicado.</string>
@@ -908,6 +908,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">Importar/exportar</string>
     <string name="calibration_import_export_title">Importar / exportar</string>
     <string name="calibration_import_export_desc">Mova perfis de calibração para o sensor atual. Substituir remove primeiro os pontos existentes desse sensor.</string>
+    <string name="calibration_model_summary_title">Estado do modelo</string>
+    <string name="calibration_model_selected_point">Ponto selecionado</string>
+    <string name="calibration_weight_title">Peso da calibração</string>
+    <string name="calibration_weight_fresh">Recente</string>
+    <string name="calibration_weight_fresh_desc">Pontos recentes ganham peso mais rápido.</string>
+    <string name="calibration_weight_balanced">Equilibrado</string>
+    <string name="calibration_weight_balanced_desc">Pesos temporais atuais do algoritmo.</string>
+    <string name="calibration_weight_stable">Estável</string>
+    <string name="calibration_weight_stable_desc">Pontos antigos perdem força mais devagar.</string>
+    <string name="calibration_keep_disabled_history_title">Manter desativados no histórico</string>
+    <string name="calibration_keep_disabled_history_subtitle">Pontos desativados deixam de afetar leituras posteriores, mas permanecem no histórico bloqueado mais antigo.</string>
     <string name="calibration_export_profile_desc">Guardar pontos e comportamento da calibração como JSON.</string>
     <string name="calibration_import_merge_desc">Adicionar pontos do perfil sem eliminar correspondências existentes.</string>
     <string name="calibration_import_replace_desc">Substituir o perfil de calibração deste sensor.</string>

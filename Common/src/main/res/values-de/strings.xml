@@ -920,7 +920,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="calibration_model_table_section">Datentabelle</string>
     <string name="calibration_model_table_desc">Tippen Sie auf eine Zeile, um diesen Kalibrierpunkt zu bearbeiten.</string>
     <string name="calibration_model_chart_title">Modellanpassung</string>
-    <string name="calibration_model_chart_subtitle">%1$s-Quelle zu Fingerstick, %2$s</string>
+    <string name="calibration_model_chart_subtitle">%1$s-Quelle zu Fingerstick</string>
     <string name="calibration_model_fit">Anpassung</string>
     <string name="calibration_model_fit_range">Die Anpassung wird nur über aktive Kalibrier-Quellwerte gezeichnet.</string>
     <string name="calibration_model_disabled_desc">Gespeicherte Punkte werden angezeigt, aber kein Kalibriermodell wird angewendet.</string>
@@ -945,6 +945,17 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="calibration_import_export_action">Import/Export</string>
     <string name="calibration_import_export_title">Import / Export</string>
     <string name="calibration_import_export_desc">Verschieben Sie Kalibrierprofile für den aktuellen Sensor. Ersetzen entfernt zuerst vorhandene Punkte für diesen Sensor.</string>
+    <string name="calibration_model_summary_title">Modellzustand</string>
+    <string name="calibration_model_selected_point">Ausgewählter Punkt</string>
+    <string name="calibration_weight_title">Kalibriergewichtung</string>
+    <string name="calibration_weight_fresh">Frisch</string>
+    <string name="calibration_weight_fresh_desc">Neue Punkte setzen sich schneller durch.</string>
+    <string name="calibration_weight_balanced">Ausgewogen</string>
+    <string name="calibration_weight_balanced_desc">Aktuelle Zeitgewichtung des Algorithmus.</string>
+    <string name="calibration_weight_stable">Stabil</string>
+    <string name="calibration_weight_stable_desc">Ältere Punkte klingen langsamer ab.</string>
+    <string name="calibration_keep_disabled_history_title">Deaktivierte in Historie behalten</string>
+    <string name="calibration_keep_disabled_history_subtitle">Deaktivierte Punkte beeinflussen spätere Werte nicht mehr, bleiben aber für ältere gesperrte Historie erhalten.</string>
     <string name="calibration_export_profile_desc">Kalibrierpunkte und Verhalten als JSON speichern.</string>
     <string name="calibration_import_merge_desc">Profilpunkte hinzufügen, ohne vorhandene Treffer zu löschen.</string>
     <string name="calibration_import_replace_desc">Kalibrierprofil dieses Sensors ersetzen.</string>

@@ -882,7 +882,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">Datatabell</string>
     <string name="calibration_model_table_desc">Tryck på en rad för att redigera den kalibreringspunkten.</string>
     <string name="calibration_model_chart_title">Modellanpassning</string>
-    <string name="calibration_model_chart_subtitle">%1$s-källa till fingerstick, %2$s</string>
+    <string name="calibration_model_chart_subtitle">%1$s-källa till fingerstick</string>
     <string name="calibration_model_fit">Anpassning</string>
     <string name="calibration_model_fit_range">Anpassningen ritas bara över aktiva kalibreringskällvärden.</string>
     <string name="calibration_model_disabled_desc">Sparade punkter visas, men ingen kalibreringsmodell används.</string>
@@ -907,6 +907,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">Import/export</string>
     <string name="calibration_import_export_title">Import / export</string>
     <string name="calibration_import_export_desc">Flytta kalibreringsprofiler för den aktuella sensorn. Ersätt tar först bort befintliga punkter för den sensorn.</string>
+    <string name="calibration_model_summary_title">Modellstatus</string>
+    <string name="calibration_model_selected_point">Vald punkt</string>
+    <string name="calibration_weight_title">Kalibreringsviktning</string>
+    <string name="calibration_weight_fresh">Färsk</string>
+    <string name="calibration_weight_fresh_desc">Nya punkter får genomslag snabbare.</string>
+    <string name="calibration_weight_balanced">Balanserad</string>
+    <string name="calibration_weight_balanced_desc">Nuvarande tidsviktning i algoritmen.</string>
+    <string name="calibration_weight_stable">Stabil</string>
+    <string name="calibration_weight_stable_desc">Äldre punkter avtar långsammare.</string>
+    <string name="calibration_keep_disabled_history_title">Behåll inaktiverade i historik</string>
+    <string name="calibration_keep_disabled_history_subtitle">Inaktiverade punkter påverkar inte senare värden, men finns kvar för äldre låst historik.</string>
     <string name="calibration_export_profile_desc">Spara kalibreringspunkter och beteende som JSON.</string>
     <string name="calibration_import_merge_desc">Lägg till profilpunkter utan att ta bort befintliga matchningar.</string>
     <string name="calibration_import_replace_desc">Ersätt kalibreringsprofilen för den här sensorn.</string>

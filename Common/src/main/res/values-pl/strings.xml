@@ -917,7 +917,7 @@
     <string name="calibration_model_table_section">Tabela danych</string>
     <string name="calibration_model_table_desc">Dotknij wiersza, aby edytować ten punkt kalibracji.</string>
     <string name="calibration_model_chart_title">Dopasowanie modelu</string>
-    <string name="calibration_model_chart_subtitle">Źródło %1$s do pomiaru z palca, %2$s</string>
+    <string name="calibration_model_chart_subtitle">Źródło %1$s do pomiaru z palca</string>
     <string name="calibration_model_fit">Dopasowanie</string>
     <string name="calibration_model_fit_range">Dopasowanie jest rysowane tylko w zakresie aktywnych wartości źródłowych kalibracji.</string>
     <string name="calibration_model_disabled_desc">Zapisane punkty są pokazane, ale model kalibracji nie jest stosowany.</string>
@@ -942,6 +942,17 @@
     <string name="calibration_import_export_action">Import/eksport</string>
     <string name="calibration_import_export_title">Import / eksport</string>
     <string name="calibration_import_export_desc">Przenieś profile kalibracji dla bieżącego sensora. Zastąpienie najpierw usuwa istniejące punkty tego sensora.</string>
+    <string name="calibration_model_summary_title">Stan modelu</string>
+    <string name="calibration_model_selected_point">Wybrany punkt</string>
+    <string name="calibration_weight_title">Ważenie kalibracji</string>
+    <string name="calibration_weight_fresh">Nowe</string>
+    <string name="calibration_weight_fresh_desc">Nowsze punkty szybciej przejmują wpływ.</string>
+    <string name="calibration_weight_balanced">Zrównoważone</string>
+    <string name="calibration_weight_balanced_desc">Bieżące ważenie czasowe algorytmu.</string>
+    <string name="calibration_weight_stable">Stabilne</string>
+    <string name="calibration_weight_stable_desc">Starsze punkty słabną wolniej.</string>
+    <string name="calibration_keep_disabled_history_title">Zachowaj wyłączone w historii</string>
+    <string name="calibration_keep_disabled_history_subtitle">Wyłączone punkty nie wpływają na późniejsze odczyty, ale pozostają dla starszej zablokowanej historii.</string>
     <string name="calibration_export_profile_desc">Zapisz punkty i zachowanie kalibracji jako JSON.</string>
     <string name="calibration_import_merge_desc">Dodaj punkty profilu bez usuwania istniejących dopasowań.</string>
     <string name="calibration_import_replace_desc">Zastąp profil kalibracji tego sensora.</string>

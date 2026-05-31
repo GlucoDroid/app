@@ -31,6 +31,8 @@ object CalibrationManager {
     private const val KEY_LOCK_PAST_HISTORY = "calibration_lock_past_history"
     private const val KEY_OVERWRITE_SENSOR_VALUES = "calibration_overwrite_sensor_values"
     private const val KEY_VISUAL_CONTINUITY = "calibration_visual_continuity"
+    private const val KEY_KEEP_DISABLED_HISTORY = "calibration_keep_disabled_history"
+    private const val KEY_WEIGHT_MODE = "calibration_weight_mode"
     private const val HOUR_MS = 3_600_000.0
     private const val PAST_BLEND_WINDOW_MS = 30L * 60L * 1000L
 
@@ -72,10 +74,25 @@ object CalibrationManager {
         }
     }
 
+    enum class CalibrationWeightMode(
+        val storageValue: String
+    ) {
+        FRESH("fresh"),
+        BALANCED("balanced"),
+        STABLE("stable");
+
+        companion object {
+            fun fromStorage(value: String?): CalibrationWeightMode {
+                return values().firstOrNull { it.storageValue == value } ?: FRESH
+            }
+        }
+    }
+
     private data class CalPoint(
         val x: Double,
         val y: Double,
-        val timestamp: Long
+        val timestamp: Long,
+        val isEnabled: Boolean = true
     )
 
     private data class LinearModel(
@@ -163,11 +180,17 @@ object CalibrationManager {
     private val _lockPastHistory = MutableStateFlow(false)
     val lockPastHistory: StateFlow<Boolean> = _lockPastHistory
 
+    private val _keepDisabledHistory = MutableStateFlow(false)
+    val keepDisabledHistory: StateFlow<Boolean> = _keepDisabledHistory
+
     private val _overwriteSensorValues = MutableStateFlow(false)
     val overwriteSensorValues: StateFlow<Boolean> = _overwriteSensorValues
 
     private val _visualContinuity = MutableStateFlow(false)
     val visualContinuity: StateFlow<Boolean> = _visualContinuity
+
+    private val _weightMode = MutableStateFlow(CalibrationWeightMode.FRESH)
+    val weightMode: StateFlow<CalibrationWeightMode> = _weightMode
 
     // Per-mode algorithm selection
     private val _algorithmForRaw = MutableStateFlow(CalibrationAlgorithm.ADAPTIVE_ENSEMBLE)
@@ -215,8 +238,12 @@ object CalibrationManager {
         _hideInitialWhenCalibrated.value = prefs.getBoolean(KEY_HIDE_INITIAL_WHEN_CALIBRATED, false)
         _applyToPast.value = prefs.getBoolean(KEY_APPLY_TO_PAST, false)
         _lockPastHistory.value = prefs.getBoolean(KEY_LOCK_PAST_HISTORY, false)
+        _keepDisabledHistory.value = prefs.getBoolean(KEY_KEEP_DISABLED_HISTORY, false)
         _overwriteSensorValues.value = prefs.getBoolean(KEY_OVERWRITE_SENSOR_VALUES, false)
         _visualContinuity.value = prefs.getBoolean(KEY_VISUAL_CONTINUITY, false)
+        _weightMode.value = CalibrationWeightMode.fromStorage(
+            prefs.getString(KEY_WEIGHT_MODE, CalibrationWeightMode.FRESH.storageValue)
+        )
         runCatching { Natives.setCalibratePast(_applyToPast.value) }
         _algorithmForRaw.value = CalibrationAlgorithm.fromStorage(
             prefs.getString(KEY_ALGORITHM_RAW, CalibrationAlgorithm.ADAPTIVE_ENSEMBLE.storageValue)
@@ -348,7 +375,8 @@ object CalibrationManager {
                 CalPoint(
                     x = (if (isRawMode) p.sensorValueRaw else p.sensorValue).toDouble(),
                     y = p.userValue.toDouble(),
-                    timestamp = p.timestamp
+                    timestamp = p.timestamp,
+                    isEnabled = true
                 )
             }
             .toList()
@@ -361,6 +389,28 @@ object CalibrationManager {
     private fun getValidPointsForSensor(isRawMode: Boolean, sensorIdOverride: String?): List<CalPoint> {
         val sensorId = normalizeSensorId(sensorIdOverride ?: Natives.lastsensorname())
         return getValidPoints(isRawMode = isRawMode, sensorId = sensorId)
+    }
+
+    private fun getHistoryAwarePointsForSensor(isRawMode: Boolean, sensorId: String): List<CalPoint> {
+        if (!_lockPastHistory.value || !_keepDisabledHistory.value) {
+            return getValidPoints(isRawMode = isRawMode, sensorId = sensorId)
+        }
+
+        ensureCalibrationStateLoaded()
+        val normalizedSensorId = normalizeSensorId(sensorId)
+        return _calibrations.value
+            .asSequence()
+            .filter { it.isRawMode == isRawMode && sensorMatches(it.sensorId, normalizedSensorId) }
+            .map { p ->
+                CalPoint(
+                    x = (if (isRawMode) p.sensorValueRaw else p.sensorValue).toDouble(),
+                    y = p.userValue.toDouble(),
+                    timestamp = p.timestamp,
+                    isEnabled = p.isEnabled
+                )
+            }
+            .filter { it.x.isFinite() && it.x > 0.0 && it.y.isFinite() && it.y > 0.0 }
+            .toList()
     }
     
     fun setEnabledForMode(isRawMode: Boolean, enabled: Boolean) {
@@ -439,6 +489,23 @@ object CalibrationManager {
         return _lockPastHistory.value
     }
 
+    fun setKeepDisabledHistory(enabled: Boolean) {
+        if (_keepDisabledHistory.value == enabled) return
+        _keepDisabledHistory.value = enabled
+        if (::prefs.isInitialized) {
+            prefs.edit().putBoolean(KEY_KEEP_DISABLED_HISTORY, enabled).apply()
+        }
+        invalidateComputationCache("setKeepDisabledHistory")
+        requestUiRefreshAfterCalibrationChange()
+        requestMirrorCalibrationSyncForCurrentOrKnownSensors()
+        Log.i(TAG, "Keep disabled calibrations for locked history: $enabled")
+    }
+
+    fun shouldKeepDisabledHistory(): Boolean {
+        ensureInitialized()
+        return _keepDisabledHistory.value
+    }
+
     fun setOverwriteSensorValues(enabled: Boolean) {
         if (_overwriteSensorValues.value == enabled) return
         _overwriteSensorValues.value = enabled
@@ -469,6 +536,25 @@ object CalibrationManager {
     fun shouldVisualContinuity(): Boolean {
         ensureInitialized()
         return _visualContinuity.value
+    }
+
+    fun setWeightMode(mode: CalibrationWeightMode) {
+        if (_weightMode.value == mode) return
+        _weightMode.value = mode
+        if (::prefs.isInitialized) {
+            prefs.edit().putString(KEY_WEIGHT_MODE, mode.storageValue).apply()
+        }
+        invalidateComputationCache("setWeightMode")
+        refreshDiagnosticsPreview(isRawMode = true, force = true)
+        refreshDiagnosticsPreview(isRawMode = false, force = true)
+        requestUiRefreshAfterCalibrationChange()
+        requestMirrorCalibrationSyncForCurrentOrKnownSensors()
+        Log.i(TAG, "Calibration weight mode: ${mode.storageValue}")
+    }
+
+    fun getWeightMode(): CalibrationWeightMode {
+        ensureInitialized()
+        return _weightMode.value
     }
 
     fun setAlgorithmForMode(isRawMode: Boolean, algorithm: CalibrationAlgorithm) {
@@ -521,8 +607,10 @@ object CalibrationManager {
         root.put("hideInitialWhenCalibrated", _hideInitialWhenCalibrated.value)
         root.put("applyToPast", _applyToPast.value)
         root.put("lockPastHistory", _lockPastHistory.value)
+        root.put("keepDisabledHistory", _keepDisabledHistory.value)
         root.put("overwriteSensorValues", _overwriteSensorValues.value)
         root.put("visualContinuity", _visualContinuity.value)
+        root.put("weightMode", _weightMode.value.storageValue)
         root.put("rawAlgorithm", _algorithmForRaw.value.storageValue)
         root.put("autoAlgorithm", _algorithmForAuto.value.storageValue)
 
@@ -569,11 +657,16 @@ object CalibrationManager {
         )
         val applyToPast = root.optBoolean("applyToPast", _applyToPast.value)
         val lockPastHistory = root.optBoolean("lockPastHistory", _lockPastHistory.value)
+        val keepDisabledHistory = root.optBoolean(
+            "keepDisabledHistory",
+            _keepDisabledHistory.value
+        )
         val overwriteSensorValues = root.optBoolean(
             "overwriteSensorValues",
             _overwriteSensorValues.value
         )
         val visualContinuity = root.optBoolean("visualContinuity", _visualContinuity.value)
+        val weightMode = CalibrationWeightMode.fromStorage(root.optString("weightMode", ""))
         val rawAlgorithm = CalibrationAlgorithm.fromStorage(root.optString("rawAlgorithm", ""))
         val autoAlgorithm = CalibrationAlgorithm.fromStorage(root.optString("autoAlgorithm", ""))
 
@@ -634,8 +727,10 @@ object CalibrationManager {
         setHideInitialWhenCalibrated(hideInitialWhenCalibrated)
         setApplyToPast(applyToPast)
         setLockPastHistory(lockPastHistory)
+        setKeepDisabledHistory(keepDisabledHistory)
         setOverwriteSensorValues(overwriteSensorValues)
         setVisualContinuity(visualContinuity)
+        setWeightMode(weightMode)
         setAlgorithmForMode(isRawMode = true, algorithm = rawAlgorithm)
         setAlgorithmForMode(isRawMode = false, algorithm = autoAlgorithm)
 
@@ -822,7 +917,7 @@ object CalibrationManager {
 
         val results = FloatArray(samples.size)
         if (!_lockPastHistory.value) {
-            val points = context.allPoints
+            val points = context.allPoints.filter { it.isEnabled }
             samples.forEachIndexed { index, sample ->
                 results[index] = if (points.isEmpty()) {
                     sample.value
@@ -840,20 +935,15 @@ object CalibrationManager {
             return results
         }
 
-        val sortedPoints = context.allPoints.sortedBy { it.timestamp }
         val indexedSamples = samples.withIndex().sortedBy { it.value.timestamp }
-        var pointCount = 0
 
         indexedSamples.forEachIndexed { sortedIndex, indexedSample ->
             val sample = indexedSample.value
-            while (pointCount < sortedPoints.size && sortedPoints[pointCount].timestamp <= sample.timestamp) {
-                pointCount++
-            }
-            val points = when {
-                pointCount > 0 -> sortedPoints.subList(0, pointCount)
-                _applyToPast.value && context.earliestPoint != null -> listOf(context.earliestPoint)
-                else -> emptyList()
-            }
+            val points = resolvePointsForTimestamp(
+                allPoints = context.allPoints,
+                targetTimestamp = sample.timestamp,
+                earliestPoint = context.earliestPoint
+            )
             results[indexedSample.index] = if (points.isEmpty()) {
                 sample.value
             } else {
@@ -879,15 +969,16 @@ object CalibrationManager {
             return null
         }
         val currentSensor = normalizeSensorId(sensorIdOverride ?: Natives.lastsensorname())
-        val allPoints = getValidPointsForSensor(isRawMode = isRawMode, sensorIdOverride = currentSensor)
-        if (allPoints.isEmpty()) {
+        val allPoints = getHistoryAwarePointsForSensor(isRawMode = isRawMode, sensorId = currentSensor)
+        val activePoints = allPoints.filter { it.isEnabled }
+        if (activePoints.isEmpty()) {
             return null
         }
         return CalibrationContext(
             sensorId = currentSensor,
             algorithm = getAlgorithmForMode(isRawMode),
             allPoints = allPoints,
-            earliestPoint = allPoints.minByOrNull { it.timestamp }
+            earliestPoint = activePoints.minByOrNull { it.timestamp }
         )
     }
 
@@ -897,16 +988,33 @@ object CalibrationManager {
         earliestPoint: CalPoint?
     ): List<CalPoint> {
         if (!_lockPastHistory.value) {
-            return allPoints
+            return allPoints.filter { it.isEnabled }
         }
-        return allPoints
-            .filter { it.timestamp <= targetTimestamp }
-            .ifEmpty {
-                if (_applyToPast.value && earliestPoint != null) {
-                    listOf(earliestPoint)
+
+        val historicalCandidates = allPoints.filter { it.timestamp <= targetTimestamp }
+        val activeAtTimestamp = historicalCandidates.filter { it.isEnabled }
+        val allActivePoints = allPoints.filter { it.isEnabled }
+        val retiredAtTimestamp = if (_keepDisabledHistory.value) {
+            historicalCandidates.filter { retired ->
+                if (retired.isEnabled) {
+                    false
                 } else {
-                    emptyList()
+                    val nextActiveTimestamp = allActivePoints
+                        .asSequence()
+                        .filter { active -> active.timestamp > retired.timestamp }
+                        .map { active -> active.timestamp }
+                        .minOrNull()
+                    nextActiveTimestamp != null && targetTimestamp < nextActiveTimestamp
                 }
+            }
+        } else {
+            emptyList()
+        }
+
+        return (activeAtTimestamp + retiredAtTimestamp)
+            .sortedBy { it.timestamp }
+            .ifEmpty {
+                if (_applyToPast.value && earliestPoint != null) listOf(earliestPoint) else emptyList()
             }
     }
 
@@ -1129,7 +1237,13 @@ object CalibrationManager {
     ): Double {
         val deltaHours = (targetTimestamp - pointTimestamp) / HOUR_MS
         val ageHours = abs(deltaHours)
-        val halfLife = if (deltaHours >= 0.0) pastHalfLifeHours else futureHalfLifeHours
+        val baseHalfLife = if (deltaHours >= 0.0) pastHalfLifeHours else futureHalfLifeHours
+        val halfLifeScale = when (_weightMode.value) {
+            CalibrationWeightMode.FRESH -> if (deltaHours >= 0.0) 0.55 else 0.75
+            CalibrationWeightMode.BALANCED -> 1.0
+            CalibrationWeightMode.STABLE -> if (deltaHours >= 0.0) 1.75 else 1.25
+        }
+        val halfLife = baseHalfLife * halfLifeScale
         return 0.5.pow(ageHours / halfLife.coerceAtLeast(0.1))
     }
 

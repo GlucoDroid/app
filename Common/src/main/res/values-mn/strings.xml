@@ -1095,7 +1095,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_model_table_section">Өгөгдлийн хүснэгт</string>
     <string name="calibration_model_table_desc">Энэ калибровкийн цэгийг засахын тулд мөрийг товшино.</string>
     <string name="calibration_model_chart_title">Загварын тааруулалт</string>
-    <string name="calibration_model_chart_subtitle">%1$s эх үүсвэрээс хурууны хэмжилт рүү, %2$s</string>
+    <string name="calibration_model_chart_subtitle">%1$s эх утгаас хурууны хэмжилт рүү</string>
     <string name="calibration_model_fit">Тааруулалт</string>
     <string name="calibration_model_fit_range">Тааруулалтыг зөвхөн идэвхтэй калибровкийн эх утгын хүрээнд зурна.</string>
     <string name="calibration_model_disabled_desc">Хадгалсан цэгүүдийг харуулна, гэхдээ калибровкийн загвар хэрэглэхгүй.</string>
@@ -1120,6 +1120,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_import_export_action">Импорт/экспорт</string>
     <string name="calibration_import_export_title">Импорт / экспорт</string>
     <string name="calibration_import_export_desc">Одоогийн мэдрэгчийн калибровкийн профайлыг зөөх. Солих үед эхлээд энэ мэдрэгчийн одоо байгаа цэгүүдийг устгана.</string>
+    <string name="calibration_model_summary_title">Загварын төлөв</string>
+    <string name="calibration_model_selected_point">Сонгосон цэг</string>
+    <string name="calibration_weight_title">Калибровкийн жин</string>
+    <string name="calibration_weight_fresh">Шинэ</string>
+    <string name="calibration_weight_fresh_desc">Шинэ цэгүүд илүү хурдан давамгайлна.</string>
+    <string name="calibration_weight_balanced">Тэнцвэртэй</string>
+    <string name="calibration_weight_balanced_desc">Алгоритмын одоогийн цагийн жин.</string>
+    <string name="calibration_weight_stable">Тогтвортой</string>
+    <string name="calibration_weight_stable_desc">Хуучин цэгүүдийн нөлөө удаан буурна.</string>
+    <string name="calibration_keep_disabled_history_title">Идэвхгүйг түүхэнд хадгалах</string>
+    <string name="calibration_keep_disabled_history_subtitle">Идэвхгүй цэгүүд дараах уншилтад нөлөөлөхгүй, харин өмнөх түгжсэн түүхэнд үлдэнэ.</string>
     <string name="calibration_export_profile_desc">Калибровкийн цэгүүд болон тохиргоог JSON болгон хадгалах.</string>
     <string name="calibration_import_merge_desc">Одоо байгаа давхцлыг устгахгүйгээр профайлын цэг нэмэх.</string>
     <string name="calibration_import_replace_desc">Энэ мэдрэгчийн калибровкийн профайлыг солих.</string>
