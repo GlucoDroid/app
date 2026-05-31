@@ -105,6 +105,9 @@ private fun HistoryRoute(
     browseMode: TimelineBrowseMode,
     onBack: (() -> Unit)?,
     onTriggerCalibration: (CalibrationSheetState) -> Unit,
+    onOpenJournalSettings: (() -> Unit)? = null,
+    onOpenFoodLibrary: (() -> Unit)? = null,
+    onOpenInsulinLibrary: (() -> Unit)? = null,
 //    initialShowReadingRows: Boolean = true
 ) {
     // Use the merged multi-sensor flow so the previous sensor's calibrated
@@ -190,7 +193,10 @@ private fun HistoryRoute(
                 suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl
                     .takeIf { type == JournalEntryType.FINGERSTICK }
             )
-        }
+        },
+        onOpenJournalSettings = onOpenJournalSettings,
+        onOpenFoodLibrary = onOpenFoodLibrary,
+        onOpenInsulinLibrary = onOpenInsulinLibrary
     )
 
     journalEditorRequest?.let { request ->
@@ -492,6 +498,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                             browseMode = TimelineBrowseMode.JOURNAL,
                             onBack = null,
                             onTriggerCalibration = onTriggerCalibration,
+                            onOpenJournalSettings = { navController.navigate("settings/journal") },
+                            onOpenFoodLibrary = { navController.navigate("settings/journal/foods") },
+                            onOpenInsulinLibrary = { navController.navigate("settings/journal/insulin") },
 //                            initialShowReadingRows = false
                         )
                     }
@@ -630,6 +639,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                         browseMode = TimelineBrowseMode.JOURNAL,
                         onBack = null,
                         onTriggerCalibration = onTriggerCalibration,
+                        onOpenJournalSettings = { navController.navigate("settings/journal") },
+                        onOpenFoodLibrary = { navController.navigate("settings/journal/foods") },
+                        onOpenInsulinLibrary = { navController.navigate("settings/journal/insulin") },
 //                        initialShowReadingRows = false
                     )
                 }
