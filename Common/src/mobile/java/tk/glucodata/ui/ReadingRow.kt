@@ -222,7 +222,7 @@ fun ReadingRow(
             val useClassicLayout = !hasInlineJournalEntries
             val rowMinHeight = 48.dp
             val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 104.dp else 124.dp
-            val leadingActionSlotWidth = 64.dp
+            val leadingActionSlotWidth = 44.dp
             val valueTrailingInset = if (showLeadingAction || hasInlineJournalEntries) 32.dp else 20.dp
             val timeStyle = MaterialTheme.typography.bodySmall
             val timeColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -347,7 +347,7 @@ fun ReadingRow(
                         contentAlignment = Alignment.CenterEnd
                     ) {
                         ReadingValueContent(
-                            modifier = Modifier.padding(start = 12.dp, end = valueTrailingInset)
+                            modifier = Modifier.padding(start = 12.dp)
                         )
                     }
                 }
@@ -414,7 +414,7 @@ fun ReadingRow(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             ReadingValueContent(
-                                modifier = Modifier.padding(start = 12.dp, end = valueTrailingInset)
+                                modifier = Modifier.padding(start = 12.dp, end = 16.dp)
                             )
                         }
                     }
@@ -426,7 +426,7 @@ fun ReadingRow(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             ReadingValueContent(
-                                modifier = Modifier.padding(start = 12.dp, end = valueTrailingInset)
+                                modifier = Modifier.padding(start = 12.dp, end = 16.dp)
                             )
                         }
                     }
@@ -510,7 +510,7 @@ fun JournalTimelineRow(
 
                 if (onAddJournalEntry != null) {
                     Box(
-                        modifier = Modifier.width(68.dp),
+                        modifier = Modifier.width(44.dp),
                         contentAlignment = Alignment.CenterEnd
                     ) {
                         Surface(
