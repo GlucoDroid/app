@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -595,20 +597,7 @@ fun HistoryBrowseScreen(
                 }
             }
 
-            if (browseMode == TimelineBrowseMode.JOURNAL && journalEnabled) {
-                item(key = "journal-overview") {
-                    JournalOverviewPanel(
-                        entries = activeJournalEntries,
-                        presetsById = journalPresetsById,
-                        selectedTimestamp = viewportSnapshot?.selectedPoint?.timestamp
-                            ?: viewportEnd
-                            ?: System.currentTimeMillis(),
-                        selectedDisplayGlucose = viewportSnapshot?.selectedPoint?.value,
-                        onAddJournalEntry = onAddJournalEntry,
-                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)
-                    )
-                }
-            }
+
 
             if (activeHistory.isNotEmpty()) {
                 item(key = "history-chart") {
@@ -642,6 +631,20 @@ fun HistoryBrowseScreen(
                             onViewportSnapshotChanged = { viewportSnapshot = it }
                         )
                     }
+                }
+            }
+            if (browseMode == TimelineBrowseMode.JOURNAL && journalEnabled) {
+                item(key = "journal-overview") {
+                    JournalOverviewPanel(
+                        entries = activeJournalEntries,
+                        presetsById = journalPresetsById,
+                        selectedTimestamp = viewportSnapshot?.selectedPoint?.timestamp
+                            ?: viewportEnd
+                            ?: System.currentTimeMillis(),
+                        selectedDisplayGlucose = viewportSnapshot?.selectedPoint?.value,
+                        onAddJournalEntry = onAddJournalEntry,
+                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)
+                    )
                 }
             }
             if (journalEnabled) {
@@ -945,11 +948,11 @@ private fun JournalOverviewPanel(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+//        shape = RoundedCornerShape(24.dp),
+//        color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+//            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -957,22 +960,30 @@ private fun JournalOverviewPanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.journal_quick_actions),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = stringResource(R.string.journal_events_today, todaysEntries.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+//                    Text(
+//                        text = stringResource(R.string.journal_quick_actions),
+//                        style = MaterialTheme.typography.titleMedium,
+//                        fontWeight = FontWeight.SemiBold,
+//                        maxLines = 1,
+//                        overflow = TextOverflow.Ellipsis
+//                    )
+//                    Text(
+//                        text = stringResource(R.string.journal_events_today, todaysEntries.size),
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        maxLines = 1,
+//                        overflow = TextOverflow.Ellipsis
+//                    )
                 }
             }
+            if (onAddJournalEntry != null) {
+                JournalQuickLogRow(
+                    selectedTimestamp = selectedTimestamp,
+                    selectedDisplayGlucose = selectedDisplayGlucose,
+                    onAddJournalEntry = onAddJournalEntry
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 JournalMetricTile(
@@ -1013,14 +1024,8 @@ private fun JournalOverviewPanel(
                     modifier = Modifier.weight(1f)
                 )
             }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-            if (onAddJournalEntry != null) {
-                JournalQuickLogRow(
-                    selectedTimestamp = selectedTimestamp,
-                    selectedDisplayGlucose = selectedDisplayGlucose,
-                    onAddJournalEntry = onAddJournalEntry
-                )
-            }
         }
     }
 }

@@ -52,6 +52,8 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Vaccines
+import androidx.compose.material.icons.filled.History
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -224,7 +226,11 @@ fun JournalSettingsScreen(
                     enabled = journalEnabled
                 )
             }
-
+            item(key = "open_journal") {
+                JournalActionRow(
+                    onHistoryClick = { navController.navigate("journal") }
+                )
+            }
             item(key = "journal_intelligence") {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     SettingsSwitchItem(
@@ -308,6 +314,64 @@ fun JournalSettingsScreen(
     }
 }
 
+@Composable
+private fun JournalActionRow(
+    onHistoryClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        JournalActionButton(
+            text = stringResource(R.string.historyname),
+            icon = Icons.Default.History,
+            enabled = true,
+            prominent = true,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onHistoryClick
+        )
+    }
+}
+
+@Composable
+private fun JournalActionButton(
+    text: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    prominent: Boolean = false,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(if (prominent) 48.dp else 36.dp),
+        shape = RoundedCornerShape(if (prominent) 24.dp else 20.dp),
+        colors = if (prominent) {
+            ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        } else {
+            ButtonDefaults.filledTonalButtonColors()
+        },
+        contentPadding = PaddingValues(horizontal = if (prominent) 18.dp else 14.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(if (prominent) 20.dp else 16.dp)
+        )
+        Spacer(modifier = Modifier.width(if (prominent) 10.dp else 8.dp))
+        Text(
+            text = text,
+            style = if (prominent) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelLarge,
+            fontWeight = if (prominent) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
 @Composable
 private fun JournalIntelligenceCard(
     journalEnabled: Boolean,
