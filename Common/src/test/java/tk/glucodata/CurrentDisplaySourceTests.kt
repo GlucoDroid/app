@@ -38,6 +38,31 @@ class CurrentDisplaySourceTests {
     }
 
     @Test
+    fun resolveFromLive_prefersExactHistoryPointOverDifferentLiveFallbackInAutoRaw() {
+        val timestamp = 1_700_000_000_000L
+        val recentPoints = listOf(GlucosePoint(timestamp, 3.3f, 0.6f))
+
+        val snapshot = CurrentDisplaySource.resolveFromLive(
+            liveValueText = null,
+            liveNumericValue = 1.7f,
+            rate = 0f,
+            targetTimeMillis = timestamp,
+            sensorId = "anytime-test",
+            sensorGen = 0,
+            index = 0,
+            source = "callback",
+            recentPoints = recentPoints,
+            viewMode = 2,
+            isMmol = true
+        )
+
+        requireNotNull(snapshot)
+        assertEquals(3.3f, snapshot.primaryValue, 0.001f)
+        assertEquals(0.6f, snapshot.rawValue, 0.001f)
+        requireNotNull(snapshot.secondaryStr)
+    }
+
+    @Test
     fun resolveFromLive_usesMatchedHistoryRawInRawPrimaryMode() {
         val timestamp = 1_700_000_000_000L
         val recentPoints = listOf(GlucosePoint(timestamp, 75f, 31f))

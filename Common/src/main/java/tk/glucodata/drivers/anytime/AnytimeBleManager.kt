@@ -47,8 +47,10 @@ import java.security.SecureRandom
 import java.util.Locale
 import java.util.UUID
 import tk.glucodata.Applic
+import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.Log
 import tk.glucodata.Natives
+import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SuperGattCallback
@@ -2683,7 +2685,10 @@ class AnytimeBleManager(
                 )
             }
             if (!skipHistoryImport) {
-                storeRawOnlyInvalidReading(sampleMs, result, live = live, history = history)
+                val importedRawOnly = storeRawOnlyInvalidReading(sampleMs, result, live = live, history = history)
+                if (live && importedRawOnly) {
+                    emitGlucose(result, sampleMs, allowDirectFallback = false)
+                }
             }
             return false
         }
@@ -2741,14 +2746,17 @@ class AnytimeBleManager(
                     )
                 )
             }
+            // Publish live after Room import, before native mirror refreshes.
+            // Otherwise AlertRuntime can resolve the just-imported managed point
+            // and emit the same sample under the alias before this callback.
+            if (live) {
+                emitGlucose(result, sampleMs, allowDirectFallback = true)
+            }
             if (shouldMirrorReadingIntoNative(live = live, history = history)) {
                 mirrorReadingIntoNative(sampleMs, result)
             }
         } else {
             Log.d(TAG, "Skipping startup provisional Room import id=${result.glucoseId} source=${result.source}")
-        }
-        if (live) {
-            emitGlucose(result, sampleMs)
         }
         return true
     }
@@ -2771,11 +2779,10 @@ class AnytimeBleManager(
             val temperatureC = result.temperatureC
                 .takeIf { it.isFinite() && it > -20f && it < 80f }
                 ?: 0f
-            Natives.addGlucoseStreamWithTemp(sampleSec, glucoseMgdl / 10f, temperatureC, name)
             val rawMgdl = if (result.rawMgdl.isNaN()) glucoseMgdl else result.rawMgdl
-            if (rawMgdl.isFinite() && rawMgdl > 0f) {
-                Natives.addRawGlucoseStream(sampleSec, rawMgdl, name)
-            }
+                .takeIf { it.isFinite() && it > 0f }
+                ?: glucoseMgdl
+            Natives.addGlucoseStreamWithRawTemp(sampleSec, glucoseMgdl / 10f, rawMgdl, temperatureC, name)
             if (dataptr == 0L) {
                 dataptr = runCatching { Natives.getdataptr(name) }.getOrDefault(0L)
             }
@@ -2819,16 +2826,20 @@ class AnytimeBleManager(
         result: AnytimeAlgorithm.Result,
         live: Boolean,
         history: Boolean,
-    ) {
+    ): Boolean {
         val raw = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
-        if (!raw.isFinite() || raw <= 0f) return
-        if (history && !live) {
+        if (!raw.isFinite() || raw <= 0f) return false
+        val imported = if (history && !live) {
             if (!historyRoomImportBuffer.queueRawOnly(sampleMs, result)) {
                 Log.d(TAG, "Skipping duplicate raw-only Anytime history import id=${result.glucoseId}")
+                false
+            } else {
+                true
             }
         } else {
             mirrorRawOnlyIntoRoom(sampleMs, result)
         }
+        if (!imported) return false
         persistTemperatureHistory(
             listOf(
                 AnytimeRegistry.TemperatureRecord(
@@ -2838,6 +2849,7 @@ class AnytimeBleManager(
                 )
             )
         )
+        return true
     }
 
     private fun flushPendingHistoryRoomImports() {
@@ -2938,9 +2950,26 @@ class AnytimeBleManager(
         }.onFailure { Log.stack(TAG, "mirrorRawOnlyIntoRoom", it) }.getOrDefault(false)
     }
 
-    private fun emitGlucose(result: AnytimeAlgorithm.Result, sampleMs: Long) {
+    private fun emitGlucose(
+        result: AnytimeAlgorithm.Result,
+        sampleMs: Long,
+        allowDirectFallback: Boolean,
+    ) {
         try {
-            val displayValue = if (Applic.unit == 1) result.mmol else result.mgdl
+            val fallbackDisplayValue = displayFallbackValue(result)
+            if (!fallbackDisplayValue.isFinite() || fallbackDisplayValue <= 0f) return
+            if (!allowDirectFallback && !hasStoredDisplayPoint(sampleMs)) return
+            val displayValue = CurrentDisplaySource.resolveIncomingReading(
+                liveNumericValue = fallbackDisplayValue,
+                rate = 0f,
+                targetTimeMillis = sampleMs,
+                preferredSensorId = SerialNumber,
+                sensorGen = SENSOR_GEN,
+                source = "callback",
+            )?.primaryValue
+                ?.takeIf { it.isFinite() && it > 0f }
+                ?: fallbackDisplayValue.takeIf { allowDirectFallback }
+                ?: return
             SuperGattCallback.processExternalCurrentReading(
                 SerialNumber,
                 displayValue,
@@ -2951,6 +2980,28 @@ class AnytimeBleManager(
         } catch (t: Throwable) {
             Log.stack(TAG, "emitGlucose", t)
         }
+    }
+
+    private fun hasStoredDisplayPoint(sampleMs: Long): Boolean {
+        val startMs = (sampleMs - 5_000L).coerceAtLeast(0L)
+        val isMmol = Applic.unit == 1
+        return runCatching {
+            NotificationHistorySource.getDisplayHistory(startMs, isMmol, SerialNumber)
+                .any { point ->
+                    kotlin.math.abs(point.timestamp - sampleMs) <= 5_000L &&
+                        ((point.value.isFinite() && point.value > 0f) ||
+                            (point.rawValue.isFinite() && point.rawValue > 0f))
+                }
+        }.getOrDefault(false)
+    }
+
+    private fun displayFallbackValue(result: AnytimeAlgorithm.Result): Float {
+        val mgdl = when {
+            result.errorCode == 0 && result.mgdlTimes10 >= 170 -> result.mgdl
+            result.rawMgdl.isFinite() && result.rawMgdl > 0f -> result.rawMgdl
+            else -> Float.NaN
+        }
+        return if (Applic.unit == 1) mgdl / 18.0182f else mgdl
     }
 
     private fun algorithmTransmitterName(context: Context?): String {

@@ -1340,8 +1340,16 @@ static void seedDirectStreamStateIfMissing(SensorGlucoseData *hist,
   }
 }
 
+static int compactRawMgdl(jfloat rawGlucose) {
+  if (rawGlucose <= 0.0f)
+    return 0;
+  constexpr float mgdlToMmol = 1.0f / 18.0182f;
+  return (int)roundf(rawGlucose * mgdlToMmol * 10.0f);
+}
+
 static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucose,
-                                     jfloat temperatureC, jstring sensorId,
+                                     jfloat rawGlucose, jfloat temperatureC,
+                                     jstring sensorId, bool overwriteRaw,
                                      bool overwriteTemp) {
   if (!sensors || !sensorId)
     return;
@@ -1388,6 +1396,9 @@ static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
           }
           preservedTemp = hist->getTempForPoll(lifeCount);
         }
+        if (overwriteRaw && rawGlucose > 0.0f) {
+          preservedRaw = compactRawMgdl(rawGlucose);
+        }
         if (overwriteTemp && temperatureC > 0.0f) {
           preservedTemp = static_cast<uint16_t>(temperatureC * 10.0f);
         }
@@ -1409,14 +1420,22 @@ static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
 
 extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStream)(
     JNIEnv *env, jclass cl, jlong timestamp, jfloat glucose, jstring sensorId) {
-  addGlucoseStreamInternal(env, timestamp, glucose, 0.0f, sensorId, false);
+  addGlucoseStreamInternal(env, timestamp, glucose, 0.0f, 0.0f, sensorId, false,
+                           false);
 }
 
 extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStreamWithTemp)(
     JNIEnv *env, jclass cl, jlong timestamp, jfloat glucose, jfloat temperatureC,
     jstring sensorId) {
-  addGlucoseStreamInternal(env, timestamp, glucose, temperatureC, sensorId,
-                           true);
+  addGlucoseStreamInternal(env, timestamp, glucose, 0.0f, temperatureC,
+                           sensorId, false, true);
+}
+
+extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStreamWithRawTemp)(
+    JNIEnv *env, jclass cl, jlong timestamp, jfloat glucose, jfloat rawGlucose,
+    jfloat temperatureC, jstring sensorId) {
+  addGlucoseStreamInternal(env, timestamp, glucose, rawGlucose, temperatureC,
+                           sensorId, true, true);
 }
 
 extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
@@ -1516,8 +1535,7 @@ fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
         uint16_t preservedTemp = hist->getTempForPoll(lifeCount);
         int rawVal = 0;
         if (rawGlucose > 0) {
-          constexpr float mgdlToMmol = 1.0f / 18.0182f;
-          rawVal = (int)roundf(rawGlucose * mgdlToMmol * 10.0f);
+          rawVal = compactRawMgdl(rawGlucose);
         } else {
           const RawData *rawbuf = hist->getRawPollsData();
           if (rawbuf) {

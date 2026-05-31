@@ -13,7 +13,7 @@ object AnytimeManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
 
     private val STABLE_HEX_SENSOR_ID = Regex("^[0-9A-F]{12,16}$", RegexOption.IGNORE_CASE)
     private val STABLE_MAC_SENSOR_ID = Regex("^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$", RegexOption.IGNORE_CASE)
-    private val NATIVE_SHORT_HEX_ALIAS = Regex("^[0-9A-F]{4,16}$", RegexOption.IGNORE_CASE)
+    private val NATIVE_SHORT_HEX_ALIAS = Regex("^[0-9A-F]{7,16}$", RegexOption.IGNORE_CASE)
 
     override fun matchesCallbackId(callbackId: String?, sensorId: String): Boolean {
         val normalized = callbackId?.trim().takeIf { !it.isNullOrEmpty() } ?: return false

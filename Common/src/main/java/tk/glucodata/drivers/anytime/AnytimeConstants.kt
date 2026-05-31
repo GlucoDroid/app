@@ -417,10 +417,18 @@ object AnytimeConstants {
 
     @JvmStatic
     fun matchesCanonicalOrKnownNativeAlias(a: String?, b: String?): Boolean {
-        val ca = canonicalSensorId(a)
-        val cb = canonicalSensorId(b)
+        val ca = canonicalSensorId(a).uppercase(Locale.US)
+        val cb = canonicalSensorId(b).uppercase(Locale.US)
         if (ca.isEmpty() || cb.isEmpty()) return false
-        return ca.equals(cb, ignoreCase = true)
+        if (ca == cb) return true
+        if (!ca.all { it in '0'..'9' || it in 'A'..'F' } ||
+            !cb.all { it in '0'..'9' || it in 'A'..'F' }
+        ) {
+            return false
+        }
+        val shorter = if (ca.length < cb.length) ca else cb
+        val longer = if (ca.length < cb.length) cb else ca
+        return shorter.length >= 7 && longer.endsWith(shorter)
     }
 
     @JvmStatic
