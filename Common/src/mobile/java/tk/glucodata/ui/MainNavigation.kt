@@ -61,6 +61,7 @@ import tk.glucodata.ui.journal.JournalDoseProfile
 import tk.glucodata.ui.journal.JournalEntrySheet
 import tk.glucodata.ui.journal.JournalFoodLibraryScreen
 import tk.glucodata.ui.journal.JournalInsulinLibraryScreen
+import tk.glucodata.ui.journal.JournalScreen
 import tk.glucodata.ui.journal.JournalSettingsScreen
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 
@@ -105,9 +106,6 @@ private fun HistoryRoute(
     browseMode: TimelineBrowseMode,
     onBack: (() -> Unit)?,
     onTriggerCalibration: (CalibrationSheetState) -> Unit,
-    onOpenJournalSettings: (() -> Unit)? = null,
-    onOpenFoodLibrary: (() -> Unit)? = null,
-    onOpenInsulinLibrary: (() -> Unit)? = null,
 //    initialShowReadingRows: Boolean = true
 ) {
     // Use the merged multi-sensor flow so the previous sensor's calibrated
@@ -193,10 +191,7 @@ private fun HistoryRoute(
                 suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl
                     .takeIf { type == JournalEntryType.FINGERSTICK }
             )
-        },
-        onOpenJournalSettings = onOpenJournalSettings,
-        onOpenFoodLibrary = onOpenFoodLibrary,
-        onOpenInsulinLibrary = onOpenInsulinLibrary
+        }
     )
 
     journalEditorRequest?.let { request ->
@@ -210,6 +205,129 @@ private fun HistoryRoute(
             foods = journalFoods,
             foodMacrosEnabled = journalFoodMacrosEnabled,
             doseJournalEntries = scopedJournalEntries,
+            doseProfile = JournalDoseProfile(
+                enabled = journalEnabled && journalDoseCalculatorEnabled,
+                carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
+                insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
+                foodMacrosEnabled = journalFoodMacrosEnabled,
+                targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
+                } else {
+                    targetHigh
+                }
+            ),
+            initialType = request.type,
+            existingEntry = request.existingEntry,
+            onDismiss = { journalEditorRequest = null },
+            onSave = { input ->
+                dashboardViewModel.saveJournalEntry(input)
+                lastJournalType = input.type
+                journalEditorRequest = null
+            },
+            onSaveEntries = { inputs ->
+                inputs.forEach(dashboardViewModel::saveJournalEntry)
+                inputs.firstOrNull()?.let { lastJournalType = it.type }
+                journalEditorRequest = null
+            },
+            onSaveFood = dashboardViewModel::saveJournalFood,
+            onDelete = { entryId ->
+                dashboardViewModel.deleteJournalEntry(entryId)
+                journalEditorRequest = null
+            },
+            sensorSerialProvider = { sensorName.ifBlank { null } }
+        )
+    }
+}
+
+@Composable
+private fun JournalRoute(
+    dashboardViewModel: DashboardViewModel,
+    navController: androidx.navigation.NavController,
+    onTriggerCalibration: (CalibrationSheetState) -> Unit
+) {
+    val glucoseHistory by dashboardViewModel.historyScreenGlucoseHistory.collectAsStateWithLifecycle()
+    val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
+    val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
+    val sensorName by dashboardViewModel.sensorName.collectAsStateWithLifecycle()
+    val graphLow by dashboardViewModel.graphLow.collectAsStateWithLifecycle()
+    val graphHigh by dashboardViewModel.graphHigh.collectAsStateWithLifecycle()
+    val targetLow by dashboardViewModel.targetLow.collectAsStateWithLifecycle()
+    val targetHigh by dashboardViewModel.targetHigh.collectAsStateWithLifecycle()
+    val chartSmoothingMinutes by dashboardViewModel.chartSmoothingMinutes.collectAsStateWithLifecycle()
+    val dataSmoothingCollapseChunks by dashboardViewModel.dataSmoothingCollapseChunks.collectAsStateWithLifecycle()
+    val dataSmoothingExchangeOnly by dashboardViewModel.dataSmoothingExchangeOnly.collectAsStateWithLifecycle()
+    val visualSmoothingMinutes = if (dataSmoothingExchangeOnly) 0 else chartSmoothingMinutes
+    val previewWindowMode by dashboardViewModel.previewWindowMode.collectAsStateWithLifecycle()
+    val journalEnabled by dashboardViewModel.journalEnabled.collectAsStateWithLifecycle()
+    val journalDoseCalculatorEnabled by dashboardViewModel.journalDoseCalculatorEnabled.collectAsStateWithLifecycle()
+    val journalFoodMacrosEnabled by dashboardViewModel.journalFoodMacrosEnabled.collectAsStateWithLifecycle()
+    val journalEntries by dashboardViewModel.journalEntries.collectAsStateWithLifecycle()
+    val journalInsulinPresets by dashboardViewModel.journalInsulinPresets.collectAsStateWithLifecycle()
+    val journalFoods by dashboardViewModel.journalFoods.collectAsStateWithLifecycle()
+    val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
+    val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
+    val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
+    var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
+    var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
+
+    fun openJournalEditor(timestamp: Long, suggestedType: JournalEntryType?, suggestedDisplayGlucose: Float?) {
+        val type = suggestedType ?: lastJournalType
+        val suggestedGlucoseMgDl = suggestedDisplayGlucose?.let {
+            if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(it)
+            } else {
+                it
+            }
+        }
+        lastJournalType = type
+        journalEditorRequest = JournalEditorRequest(
+            type = type,
+            timestamp = timestamp,
+            suggestedGlucoseMgDl = suggestedGlucoseMgDl,
+            suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl
+                .takeIf { type == JournalEntryType.FINGERSTICK }
+        )
+    }
+
+    JournalScreen(
+        glucoseHistory = glucoseHistory,
+        unit = unit,
+        viewMode = viewMode,
+        graphLow = graphLow,
+        graphHigh = graphHigh,
+        targetLow = targetLow,
+        targetHigh = targetHigh,
+        graphSmoothingMinutes = visualSmoothingMinutes,
+        collapseSmoothedData = dataSmoothingCollapseChunks,
+        previewWindowMode = previewWindowMode,
+        calibrations = calibrations,
+        journalEntries = journalEntries,
+        journalInsulinPresets = journalInsulinPresets,
+        journalFoods = journalFoods,
+        onPointClick = { point ->
+            onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+        },
+        onJournalEntryClick = { entry ->
+            lastJournalType = entry.type
+            journalEditorRequest = JournalEditorRequest(entry.type, entry.timestamp, entry)
+        },
+        onAddJournalEntry = ::openJournalEditor,
+        onOpenFoodLibrary = { navController.navigate("settings/journal/foods") },
+        onOpenInsulinLibrary = { navController.navigate("settings/journal/insulin") },
+        onOpenJournalSettings = { navController.navigate("settings/journal") }
+    )
+
+    journalEditorRequest?.let { request ->
+        JournalEntrySheet(
+            unit = unit,
+            selectedTimestamp = request.timestamp,
+            suggestedGlucoseMgDl = request.suggestedGlucoseMgDl,
+            suggestedChartAnchorGlucoseMgDl = request.suggestedChartAnchorGlucoseMgDl,
+            suggestedAmountFraction = request.suggestedAmountFraction,
+            insulinPresets = journalInsulinPresets,
+            foods = journalFoods,
+            foodMacrosEnabled = journalFoodMacrosEnabled,
+            doseJournalEntries = journalEntries,
             doseProfile = JournalDoseProfile(
                 enabled = journalEnabled && journalDoseCalculatorEnabled,
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
@@ -492,16 +610,10 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                         )
                     }
                     composable("journal") {
-                        HistoryRoute(
+                        JournalRoute(
                             dashboardViewModel = dashboardViewModel,
-                            title = stringResource(R.string.journal_title),
-                            browseMode = TimelineBrowseMode.JOURNAL,
-                            onBack = null,
+                            navController = navController,
                             onTriggerCalibration = onTriggerCalibration,
-                            onOpenJournalSettings = { navController.navigate("settings/journal") },
-                            onOpenFoodLibrary = { navController.navigate("settings/journal/foods") },
-                            onOpenInsulinLibrary = { navController.navigate("settings/journal/insulin") },
-//                            initialShowReadingRows = false
                         )
                     }
                     composable("stats") { tk.glucodata.ui.stats.StatsScreen() }
@@ -633,16 +745,10 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     )
                 }
                 composable("journal") {
-                    HistoryRoute(
+                    JournalRoute(
                         dashboardViewModel = dashboardViewModel,
-                        title = stringResource(R.string.journal_title),
-                        browseMode = TimelineBrowseMode.JOURNAL,
-                        onBack = null,
+                        navController = navController,
                         onTriggerCalibration = onTriggerCalibration,
-                        onOpenJournalSettings = { navController.navigate("settings/journal") },
-                        onOpenFoodLibrary = { navController.navigate("settings/journal/foods") },
-                        onOpenInsulinLibrary = { navController.navigate("settings/journal/insulin") },
-//                        initialShowReadingRows = false
                     )
                 }
                 composable("stats") { tk.glucodata.ui.stats.StatsScreen() }
