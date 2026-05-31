@@ -2,6 +2,7 @@ package tk.glucodata
 
 import java.util.LinkedHashSet
 import java.util.concurrent.ConcurrentHashMap
+import tk.glucodata.drivers.ManagedBluetoothSensorDriver
 import tk.glucodata.drivers.ManagedSensorIdentityRegistry
 
 object SensorIdentity {
@@ -141,10 +142,28 @@ object SensorIdentity {
     @JvmStatic
     fun shouldUseNativeHistorySync(sensorId: String?): Boolean {
         val raw = normalized(sensorId) ?: return true
+        managedDriverHistorySync(raw)?.let { return it }
         val canonical = canonicalOrRaw(raw) ?: raw
+        if (!canonical.equals(raw, ignoreCase = true)) {
+            managedDriverHistorySync(canonical)?.let { return it }
+        }
         return ManagedSensorIdentityRegistry.shouldUseNativeHistorySync(canonical)
             ?: ManagedSensorIdentityRegistry.shouldUseNativeHistorySync(raw)
             ?: true
+    }
+
+    private fun managedDriverHistorySync(sensorId: String?): Boolean? {
+        val raw = normalized(sensorId) ?: return null
+        return runCatching {
+            SensorBluetooth.mygatts()
+                .asSequence()
+                .mapNotNull { it as? ManagedBluetoothSensorDriver }
+                .mapNotNull { driver ->
+                    val matches = runCatching { driver.matchesManagedSensorId(raw) }.getOrDefault(false)
+                    if (matches) runCatching { driver.shouldUseNativeHistorySync() }.getOrNull() else null
+                }
+                .firstOrNull()
+        }.getOrNull()
     }
 
     @JvmStatic

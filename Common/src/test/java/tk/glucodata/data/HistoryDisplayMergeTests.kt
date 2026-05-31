@@ -111,6 +111,27 @@ class HistoryDisplayMergeTests {
     }
 
     @Test
+    fun mergeReadings_collapsesSameSensorRowsInSameMinute() {
+        val merged = HistoryDisplayMerge.mergeReadings(
+            readings = listOf(
+                reading(id = 1, timestamp = 8 * HOUR_MS + 39 * MINUTE_MS + 1_000L, sensorSerial = "F0FD4509C7C2", value = 63f, rawValue = 13f),
+                reading(id = 2, timestamp = 8 * HOUR_MS + 39 * MINUTE_MS + 34_000L, sensorSerial = "F0FD4509C7C2", value = 64f, rawValue = 13f),
+                reading(id = 3, timestamp = 8 * HOUR_MS + 42 * MINUTE_MS + 34_000L, sensorSerial = "F0FD4509C7C2", value = 65f, rawValue = 14f)
+            ),
+            preferredSerial = "F0FD4509C7C2"
+        )
+
+        assertEquals(
+            listOf(
+                8 * HOUR_MS + 39 * MINUTE_MS + 34_000L,
+                8 * HOUR_MS + 42 * MINUTE_MS + 34_000L
+            ),
+            merged.map { it.timestamp }
+        )
+        assertEquals(listOf(64f, 65f), merged.map { it.value })
+    }
+
+    @Test
     fun mergeReadings_keepsImportedRowsAndPrefersLiveSensorOnOverlap() {
         val merged = HistoryDisplayMerge.mergeReadings(
             readings = listOf(

@@ -30,9 +30,11 @@ internal object HistoryDisplayMerge {
         preferredSerial: String?
     ): List<HistoryReading> {
         if (readings.isEmpty()) return emptyList()
-        if (hasSingleStoredSensor(readings)) return readings
 
         val resolver = PreferredMatchResolver(preferredSerial)
+        if (hasSingleStoredSensor(readings)) {
+            return collapseSingleLogicalSensorBuckets(readings, resolver)
+        }
         singleLogicalSensorId(readings)?.let {
             return collapseSingleLogicalSensorBuckets(readings, resolver)
         }

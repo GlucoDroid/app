@@ -339,9 +339,6 @@ fun NightscoutSettingsScreen(navController: NavController) {
             // URL + secret are shared by upload and follow.
             item("nightscout_connection_card") {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .alpha(if (isActive) 1f else 0.6f),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                     shape = cardShape(CardPosition.SINGLE),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -358,7 +355,6 @@ fun NightscoutSettingsScreen(navController: NavController) {
                                 url = newUrl
                                 testState = TestState.Idle
                             },
-                            enabled = isActive,
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             label = { Text(stringResource(R.string.nightscout_url_label)) },
@@ -369,7 +365,6 @@ fun NightscoutSettingsScreen(navController: NavController) {
                         OutlinedTextField(
                             value = secret,
                             onValueChange = { secret = it; testState = TestState.Idle },
-                            enabled = isActive,
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             label = { Text(stringResource(R.string.api_secret_label)) },
@@ -432,7 +427,9 @@ fun NightscoutSettingsScreen(navController: NavController) {
             if (mode == NightscoutMode.UPLOAD) {
                 item("nightscout_status_card") {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(if (isActive) 1f else 0.6f),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                         shape = cardShape(CardPosition.SINGLE),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)

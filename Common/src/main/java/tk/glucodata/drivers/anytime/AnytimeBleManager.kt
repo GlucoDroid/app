@@ -2313,8 +2313,9 @@ class AnytimeBleManager(
                 lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
                 sessionPacketsSinceInit = packetsSinceInit,
-                recentRecords = rawRecordsForAlgorithm(rec.glucoseId),
+                recentRecordsProvider = { rawRecordsForAlgorithm(rec.glucoseId) },
                 sensorStartTimeMs = glucoseTimelineStartAtMs.takeIf { it > 0L } ?: sensorStartAtMs,
+                logNativeFallbackWarnings = push,
             )
             val skipHistoryImport = shouldSkipStartupRoomImport(result, push = push, history = !push)
             val committed = commitReading(
@@ -2427,8 +2428,9 @@ class AnytimeBleManager(
                 lastReferenceBgMgdlTimes10 = lastReferenceBgMgdlTimes10,
                 lastReferenceBgGlucoseId = lastReferenceBgGlucoseId,
                 sessionPacketsSinceInit = packetsSinceInit,
-                recentRecords = rawRecordsForAlgorithm(rec.glucoseId),
+                recentRecordsProvider = { rawRecordsForAlgorithm(rec.glucoseId) },
                 sensorStartTimeMs = glucoseTimelineStartAtMs.takeIf { it > 0L } ?: sensorStartAtMs,
+                logNativeFallbackWarnings = false,
             )
             if (result.source != AnytimeAlgorithm.Source.NATIVE || result.errorCode != 0) {
                 // Future records do not change the input prefix used for this id;
@@ -2663,21 +2665,23 @@ class AnytimeBleManager(
     ): Boolean {
         val rawMgdl = if (result.rawMgdl.isNaN()) result.mgdl else result.rawMgdl
         if (result.errorCode != 0 || result.mgdlTimes10 < 170) {
-            Log.w(
-                TAG,
-                String.format(
-                    Locale.US,
-                    "Dropping invalid BG id=%d source=%s mgdl=%.1f rawLinear=%.1f err=%d Iw=%.2f Ib=%.2f T=%.1f",
-                    result.glucoseId,
-                    result.source,
-                    result.mgdl,
-                    rawMgdl,
-                    result.errorCode,
-                    result.iwNa,
-                    result.ibNa,
-                    result.temperatureC,
+            if (live || !history) {
+                Log.w(
+                    TAG,
+                    String.format(
+                        Locale.US,
+                        "Dropping invalid BG id=%d source=%s mgdl=%.1f rawLinear=%.1f err=%d Iw=%.2f Ib=%.2f T=%.1f",
+                        result.glucoseId,
+                        result.source,
+                        result.mgdl,
+                        rawMgdl,
+                        result.errorCode,
+                        result.iwNa,
+                        result.ibNa,
+                        result.temperatureC,
+                    )
                 )
-            )
+            }
             if (!skipHistoryImport) {
                 storeRawOnlyInvalidReading(sampleMs, result, live = live, history = history)
             }
@@ -2696,27 +2700,29 @@ class AnytimeBleManager(
             lastTemperatureC = result.temperatureC
             lastAlgorithmResult = result
         }
-        Log.i(
-            TAG,
-            String.format(
-                Locale.US,
-                "BG id=%d %s mmol=%.2f mgdl=%.1f rawLinear=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d cal=%s",
-                result.glucoseId,
-                result.source,
-                result.mmol,
-                result.mgdl,
-                rawMgdl,
-                result.iwNa,
-                result.ibNa,
-                result.temperatureC,
-                result.trend,
-                result.errorCode,
-                AnytimeCalibrationPolicy.calibrationStatusName(result.calibrationStatus),
+        if (live || !history) {
+            Log.i(
+                TAG,
+                String.format(
+                    Locale.US,
+                    "BG id=%d %s mmol=%.2f mgdl=%.1f rawLinear=%.1f Iw=%.2fnA Ib=%.2fnA T=%.1fC trend=%d err=%d cal=%s",
+                    result.glucoseId,
+                    result.source,
+                    result.mmol,
+                    result.mgdl,
+                    rawMgdl,
+                    result.iwNa,
+                    result.ibNa,
+                    result.temperatureC,
+                    result.trend,
+                    result.errorCode,
+                    AnytimeCalibrationPolicy.calibrationStatusName(result.calibrationStatus),
+                )
             )
-        )
-        // Keep Room and native stream history in sync: Nightscout upload and the
-        // built-in web server still read native polls, while dashboard/history
-        // screens read Room.
+        }
+        // Native polls are the current/live lane used by Nightscout and the web
+        // server. Bulk backfill stays in Room; mirroring every historical point
+        // into native storage makes reconnect recovery quadratic and floods logs.
         if (!skipHistoryImport) {
             var importedImmediateRoomPoint = false
             if (history && !live) {
@@ -2735,17 +2741,20 @@ class AnytimeBleManager(
                     )
                 )
             }
-            mirrorReadingIntoNative(sampleMs, result)
+            if (shouldMirrorReadingIntoNative(live = live, history = history)) {
+                mirrorReadingIntoNative(sampleMs, result)
+            }
         } else {
             Log.d(TAG, "Skipping startup provisional Room import id=${result.glucoseId} source=${result.source}")
         }
         if (live) {
             emitGlucose(result, sampleMs)
-        } else if (history && newest) {
-            Log.d(TAG, "Backfill stored newer Room point without live emit id=${result.glucoseId}")
         }
         return true
     }
+
+    private fun shouldMirrorReadingIntoNative(live: Boolean, history: Boolean): Boolean =
+        live || !history
 
     private fun mirrorReadingIntoNative(sampleMs: Long, result: AnytimeAlgorithm.Result) {
         val name = SerialNumber ?: return

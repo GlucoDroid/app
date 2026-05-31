@@ -376,17 +376,25 @@ object HistorySync {
                 )
                 parsedCount++
                 if (readings.size >= NATIVE_SYNC_INSERT_CHUNK) {
-                    historyRepository.storeReadings(readings)
+                    val stored = historyRepository.storeReadingsReplacingSensorBuckets(
+                        sensorSerial = roomSerial,
+                        readings = readings,
+                        bucketDurationMs = RECENT_SYNC_BUCKET_MS,
+                    )
                     readings.clear()
-                    storedAny = true
+                    storedAny = storedAny || stored
                 }
             }
         }
 
         if (readings.isNotEmpty()) {
-            historyRepository.storeReadings(readings)
+            val stored = historyRepository.storeReadingsReplacingSensorBuckets(
+                sensorSerial = roomSerial,
+                readings = readings,
+                bucketDurationMs = RECENT_SYNC_BUCKET_MS,
+            )
             readings.clear()
-            storedAny = true
+            storedAny = storedAny || stored
         }
         if (storedAny) {
             UiRefreshBus.requestDataRefresh()

@@ -395,7 +395,15 @@ class HistoryRepository(context: Context = Applic.app) {
                     Log.d(TAG, "Skipped tombstoned reading for $serial at $timestamp")
                     return@withContext
                 }
-                dao.insert(reading)
+                database.withTransaction {
+                    dao.deleteConflictingSensorRowsForBuckets(
+                        sensorSerial = serial,
+                        bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
+                        bucketIds = listOf(timestamp / SENSOR_MINUTE_BUCKET_MS),
+                        protectedTimestamps = listOf(timestamp)
+                    )
+                    dao.insert(reading)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error storing reading", e)
             }
@@ -481,8 +489,13 @@ class HistoryRepository(context: Context = Applic.app) {
                     Log.d(TAG, "Skipped bucket replace for $sensorSerial — all readings were tombstoned")
                     return@withContext false
                 }
-                val plan = HistoryBucketReplacement.plan(
+                val collapsedReadings = HistoryBucketReplacement.collapseReadings(
                     readings = filteredReadings,
+                    bucketDurationMs = bucketDurationMs,
+                )
+                if (collapsedReadings.isEmpty()) return@withContext false
+                val plan = HistoryBucketReplacement.planForCollapsedReadings(
+                    collapsedReadings = collapsedReadings,
                     bucketDurationMs = bucketDurationMs,
                 ) ?: return@withContext false
                 database.withTransaction {
@@ -492,12 +505,12 @@ class HistoryRepository(context: Context = Applic.app) {
                         bucketIds = plan.bucketIds,
                         protectedTimestamps = plan.protectedTimestamps
                     )
-                    dao.insertAll(filteredReadings)
+                    dao.insertAll(collapsedReadings)
                 }
                 BatteryTrace.bump(
                     "room.history.replace_bucket_batch",
                     logEvery = 20L,
-                    detail = "serial=$sensorSerial size=${filteredReadings.size} bucket=${bucketDurationMs}"
+                    detail = "serial=$sensorSerial size=${collapsedReadings.size} bucket=${bucketDurationMs}"
                 )
                 true
             } catch (e: Exception) {
@@ -1040,8 +1053,17 @@ class HistoryRepository(context: Context = Applic.app) {
         if (readings.isEmpty()) return 0
         val filteredReadings = filterDeletedReadings(readings)
         if (filteredReadings.isEmpty()) return 0
-        dao.insertAll(filteredReadings)
-        return filteredReadings.size
+        val roomSerial = filteredReadings.firstOrNull()?.sensorSerial
+            ?: SensorIdentity.resolveRoomStorageSensorId(serial)
+            ?: serial
+        val collapsedCount = HistoryBucketReplacement
+            .collapseReadings(filteredReadings, SENSOR_MINUTE_BUCKET_MS)
+            .size
+        return if (storeReadingsReplacingSensorBuckets(roomSerial, filteredReadings, SENSOR_MINUTE_BUCKET_MS)) {
+            collapsedCount
+        } else {
+            0
+        }
     }
 
     private suspend fun resolveNativeBackfillStartSec(serial: String, requestedStartTimeMs: Long): Long {

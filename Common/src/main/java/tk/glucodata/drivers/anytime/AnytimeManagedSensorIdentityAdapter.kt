@@ -13,6 +13,7 @@ object AnytimeManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
 
     private val STABLE_HEX_SENSOR_ID = Regex("^[0-9A-F]{12,16}$", RegexOption.IGNORE_CASE)
     private val STABLE_MAC_SENSOR_ID = Regex("^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$", RegexOption.IGNORE_CASE)
+    private val NATIVE_SHORT_HEX_ALIAS = Regex("^[0-9A-F]{4,16}$", RegexOption.IGNORE_CASE)
 
     override fun matchesCallbackId(callbackId: String?, sensorId: String): Boolean {
         val normalized = callbackId?.trim().takeIf { !it.isNullOrEmpty() } ?: return false
@@ -21,10 +22,30 @@ object AnytimeManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
         ) {
             return true
         }
+        if (mayBeAnytimeAlias(normalized) || mayBeAnytimeAlias(sensorId)) {
+            val normalizedCanonical = resolveCanonicalSensorId(normalized)
+                ?: AnytimeConstants.canonicalSensorId(normalized)
+            val sensorCanonical = resolveCanonicalSensorId(sensorId)
+                ?: AnytimeConstants.canonicalSensorId(sensorId)
+            if (normalizedCanonical.isNotBlank() &&
+                sensorCanonical.isNotBlank() &&
+                normalizedCanonical.equals(sensorCanonical, ignoreCase = true)
+            ) {
+                return true
+            }
+        }
         return SensorBluetooth.mygatts().any { callback ->
             val driver = callback as? AnytimeDriver ?: return@any false
             driver.matchesManagedSensorId(normalized) && driver.matchesManagedSensorId(sensorId)
         }
+    }
+
+    private fun mayBeAnytimeAlias(sensorId: String?): Boolean {
+        val raw = sensorId?.trim().takeIf { !it.isNullOrBlank() } ?: return false
+        return AnytimeConstants.isProvisionalSensorId(raw) ||
+            AnytimeConstants.isLikelyPersistedSensorName(raw) ||
+            AnytimeConstants.resolveFamily(raw).family != AnytimeConstants.Family.UNKNOWN ||
+            NATIVE_SHORT_HEX_ALIAS.matches(raw)
     }
 
     override fun resolveCanonicalSensorId(sensorId: String?): String? {

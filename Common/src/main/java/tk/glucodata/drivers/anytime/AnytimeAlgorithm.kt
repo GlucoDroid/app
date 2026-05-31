@@ -113,7 +113,9 @@ object AnytimeAlgorithm {
         lastReferenceBgGlucoseId: Int = 0,
         sessionPacketsSinceInit: Int = 0,
         recentRecords: List<AnytimeRawRecord> = listOf(record),
+        recentRecordsProvider: (() -> List<AnytimeRawRecord>)? = null,
         sensorStartTimeMs: Long = 0L,
+        logNativeFallbackWarnings: Boolean = true,
     ): Result {
         val k = qr?.k ?: 0f
         val r = qr?.r ?: 0f
@@ -122,12 +124,16 @@ object AnytimeAlgorithm {
         val calibration = qr?.takeIf { it.isFactoryCalibration }
         if (isNativeAvailable && calibration != null) {
             var nativeFailure: Result? = null
-            val window = recentRecords
-                .filter { it.glucoseId <= record.glucoseId }
-                .distinctBy { it.glucoseId }
-                .sortedBy { it.glucoseId }
-                .ifEmpty { listOf(record) }
-            val contiguousHistory = contiguousHistoryThrough(record, window)
+            val window by lazy(LazyThreadSafetyMode.NONE) {
+                (recentRecordsProvider?.invoke() ?: recentRecords)
+                    .filter { it.glucoseId <= record.glucoseId }
+                    .distinctBy { it.glucoseId }
+                    .sortedBy { it.glucoseId }
+                    .ifEmpty { listOf(record) }
+            }
+            val contiguousHistory by lazy(LazyThreadSafetyMode.NONE) {
+                contiguousHistoryThrough(record, window)
+            }
             tryOfficialLatest(
                 record = record,
                 calibration = calibration,
@@ -140,12 +146,14 @@ object AnytimeAlgorithm {
             )?.let { mapped ->
                 if (isNativeResultUsable(mapped)) return mapped
                 nativeFailure = mapped
-                Log.w(
-                    TAG,
-                    "official latest algorithm returned invalid result: id=${mapped.glucoseId} " +
-                            "mmol=${mapped.mmol} mgdl=${mapped.mgdl} trend=${mapped.trend} " +
-                            "err=${mapped.errorCode}; trying history algorithm"
-                )
+                if (logNativeFallbackWarnings) {
+                    Log.w(
+                        TAG,
+                        "official latest algorithm returned invalid result: id=${mapped.glucoseId} " +
+                                "mmol=${mapped.mmol} mgdl=${mapped.mgdl} trend=${mapped.trend} " +
+                                "err=${mapped.errorCode}; trying history algorithm"
+                    )
+                }
             }
             tryOfficialHistory(
                 record = record,
@@ -161,12 +169,14 @@ object AnytimeAlgorithm {
             )?.let { mapped ->
                 if (isNativeResultUsable(mapped)) return mapped
                 nativeFailure = mapped
-                Log.w(
-                    TAG,
-                    "official history algorithm returned invalid result: id=${mapped.glucoseId} " +
-                            "mmol=${mapped.mmol} mgdl=${mapped.mgdl} trend=${mapped.trend} " +
-                            "err=${mapped.errorCode}; keeping native failure"
-                )
+                if (logNativeFallbackWarnings) {
+                    Log.w(
+                        TAG,
+                        "official history algorithm returned invalid result: id=${mapped.glucoseId} " +
+                                "mmol=${mapped.mmol} mgdl=${mapped.mgdl} trend=${mapped.trend} " +
+                                "err=${mapped.errorCode}; keeping native failure"
+                    )
+                }
             }
             tryLegacyNative(
                 record = record,
@@ -185,7 +195,7 @@ object AnytimeAlgorithm {
                 val msg = "legacy native algorithm returned invalid result: id=${mapped.glucoseId} " +
                         "mmol=${mapped.mmol} mgdl=${mapped.mgdl} trend=${mapped.trend} " +
                         "err=${mapped.errorCode}; keeping native failure"
-                if (mapped.glucoseId >= LEGACY_WARMUP_RECORDS) {
+                if (logNativeFallbackWarnings && mapped.glucoseId >= LEGACY_WARMUP_RECORDS) {
                     Log.w(TAG, msg)
                 }
             }

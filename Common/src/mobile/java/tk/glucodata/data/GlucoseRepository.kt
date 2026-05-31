@@ -39,11 +39,7 @@ class GlucoseRepository {
      * re-subscribe when the main sensor changes.
      */
     private val _currentSerial = MutableStateFlow(
-        SensorIdentity.resolveAvailableMainSensor(
-            selectedMain = SensorIdentity.resolveMainSensor(),
-            preferredSensorId = null,
-            activeSensors = Natives.activeSensors()
-        ) ?: ""
+        SensorIdentity.resolveMainSensor() ?: ""
     )
     val currentSerial = _currentSerial.asStateFlow()
     
@@ -57,11 +53,6 @@ class GlucoseRepository {
             ?.takeIf { it.isNotBlank() }
         val resolved = preferredSerial?.takeIf { it.isNotBlank() }
             ?: nativeCurrent
-            ?: SensorIdentity.resolveAvailableMainSensor(
-                selectedMain = nativeCurrent,
-                preferredSensorId = current.takeIf { it.isNotBlank() },
-                activeSensors = Natives.activeSensors()
-            )
             ?: current.takeIf { it.isNotBlank() }
             ?: ""
 
@@ -191,11 +182,7 @@ class GlucoseRepository {
         if (!preferred.isNullOrBlank()) {
             return preferred
         }
-        return SensorIdentity.resolveAvailableMainSensor(
-            selectedMain = SensorIdentity.resolveMainSensor(),
-            preferredSensorId = null,
-            activeSensors = Natives.activeSensors()
-        )
+        return SensorIdentity.resolveMainSensor()
     }
 
     private suspend fun loadDisplayHistory(

@@ -48,8 +48,11 @@ object AnytimeRegistry {
         val address: String,
         val displayName: String,
     ) {
-        fun matchesId(id: String?): Boolean =
-            AnytimeConstants.matchesCanonicalOrKnownNativeAlias(sensorId, id)
+        fun matchesId(id: String?): Boolean {
+            val candidate = id?.trim().takeIf { !it.isNullOrBlank() } ?: return false
+            return listOf(sensorId, address, displayName)
+                .any { AnytimeConstants.matchesCanonicalOrKnownNativeAlias(it, candidate) }
+        }
     }
 
     private fun prefs(context: Context): SharedPreferences =
@@ -100,7 +103,10 @@ object AnytimeRegistry {
     fun findRecord(context: Context?, sensorId: String?): SensorRecord? {
         val ctx = context ?: return null
         val id = sensorId?.trim().takeIf { !it.isNullOrBlank() } ?: return null
-        return persistedRecords(ctx).firstOrNull { it.matchesId(id) }
+        return persistedRecords(ctx).firstOrNull { record ->
+            record.matchesId(id) ||
+                AnytimeConstants.matchesCanonicalOrKnownNativeAlias(loadDeviceName(ctx, record.sensorId), id)
+        }
     }
 
     @JvmStatic
