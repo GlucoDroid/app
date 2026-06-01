@@ -222,9 +222,8 @@ fun ReadingRow(
         Column(modifier = Modifier.fillMaxWidth()) {
             val hasInlineJournalEntries = journalEntries.isNotEmpty() && onJournalEntryClick != null
             val useClassicLayout = !hasInlineJournalEntries
-            val rowMinHeight = 58.dp
-            val timeSlotWidth = 58.dp
-            val valueMinWidth = if (hasInlineJournalEntries) 112.dp else 124.dp
+            val rowMinHeight = 48.dp
+            val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 104.dp else 124.dp
             val leadingActionSlotWidth = 44.dp
             val trendSlotWidth = 36.dp
             val timeStyle = MaterialTheme.typography.bodySmall
@@ -324,8 +323,7 @@ fun ReadingRow(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = rowMinHeight)
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -335,8 +333,7 @@ fun ReadingRow(
                         ).format(java.util.Date(point.timestamp)),
                         style = timeStyle,
                         fontWeight = timeWeight,
-                        color = timeColor,
-                        modifier = Modifier.width(timeSlotWidth)
+                        color = timeColor
                     )
 
                     if (showLeadingAction) {
@@ -375,8 +372,7 @@ fun ReadingRow(
                             ).format(java.util.Date(point.timestamp)),
                             style = timeStyle,
                             fontWeight = timeWeight,
-                            color = timeColor,
-                            modifier = Modifier.width(timeSlotWidth)
+                            color = timeColor
                         )
 
                         if (showLeadingAction) {
@@ -396,7 +392,7 @@ fun ReadingRow(
                             modifier = Modifier
                                 .weight(1f)
                                 .defaultMinSize(minHeight = rowMinHeight)
-                                .padding(top = 8.dp, end = 12.dp, bottom = 8.dp),
+                                .padding(end = 12.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             FlowRow(
