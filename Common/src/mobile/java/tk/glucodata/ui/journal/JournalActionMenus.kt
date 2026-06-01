@@ -123,7 +123,7 @@ fun JournalFloatingActionMenu(
             val menuWidthPx = with(density) { 176.dp.toPx() }
             val edgePaddingPx = with(density) { 12.dp.toPx() }
             val anchorGapPx = with(density) { 14.dp.toPx() }
-            val menuTopPx = with(density) { 86.dp.toPx() }
+            val menuTopPx = with(density) { 56.dp.toPx() }
             val menuHeightPx = with(density) { 292.dp.toPx() }
             val rowTravelPx = with(density) { 18.dp.toPx() }
             val itemLiftPx = with(density) { 16.dp.toPx() }
