@@ -388,7 +388,7 @@ private fun JournalHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
+            .padding(bottom = 22.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

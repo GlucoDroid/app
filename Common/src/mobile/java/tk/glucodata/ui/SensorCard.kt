@@ -1452,11 +1452,10 @@ fun SensorCard(
                             // Feature: Detailed Sensor Status
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-//                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-
-
                                 val sensorStatusText = when {
                                     sensor.detailedStatus.isNotEmpty() -> sensor.detailedStatus
                                     sensor.connectionStatus.isNotEmpty() -> sensor.connectionStatus
@@ -1469,7 +1468,8 @@ fun SensorCard(
                                         style = MaterialTheme.typography.titleSmall,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
                                 }
                                 currentSnapshot?.let { snapshot ->
