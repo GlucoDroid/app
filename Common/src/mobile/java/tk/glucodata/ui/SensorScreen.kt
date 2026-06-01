@@ -264,7 +264,7 @@ fun SensorScreen(
     val panelBottomPadding = if (compactLayout) 88.dp else 100.dp
     val titleStyle = if (compactLayout) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall
     val titleBottomPadding = if (compactLayout) 16.dp else 24.dp
-    val fabPadding = if (compactLayout) 12.dp else 16.dp
+    val fabPadding = 20.dp
     
     // Start/stop real-time polling based on screen visibility
     DisposableEffect(Unit) {
@@ -509,6 +509,7 @@ fun SensorScreen(
                 onClick = { showSensorPicker = true },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shape = RoundedCornerShape(20.dp),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(fabPadding)

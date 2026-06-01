@@ -245,6 +245,7 @@ fun JournalExpandableFab(
             },
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            shape = RoundedCornerShape(20.dp),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
             modifier = Modifier.graphicsLayer {
                 scaleX = 1f + (0.04f * menuProgress)
