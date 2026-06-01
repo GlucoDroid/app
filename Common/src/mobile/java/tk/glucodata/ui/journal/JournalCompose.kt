@@ -2547,7 +2547,7 @@ fun JournalInlineChip(
         ?: journalTypeColor(entry.type)
     val chipContent = journalInlineChipContent(entry, insulinPreset, food, unit, expanded)
     Surface(
-        modifier = modifier.widthIn(max = if (expanded) 260.dp else 180.dp),
+        modifier = modifier.widthIn(max = if (expanded) 320.dp else 180.dp),
         onClick = onClick,
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.94f),
         shape = RoundedCornerShape(if (expanded) 18.dp else 14.dp)
@@ -2569,29 +2569,41 @@ fun JournalInlineChip(
                     .size(if (expanded) 18.dp else 14.dp)
             )
             if (expanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     Text(
-                        text = chipContent.title,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        softWrap = true,
+                        text = chipContent.primary,
+                        style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    chipContent.detail?.let { detail ->
+                    chipContent.secondary?.let { secondary ->
                         Text(
-                            text = detail,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = secondary,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 2,
                             softWrap = true,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    chipContent.tertiary?.let { tertiary ->
+                        Text(
+                            text = tertiary,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             } else {
                 Text(
-                    text = chipContent.title,
+                    text = chipContent.primary,
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -2602,8 +2614,9 @@ fun JournalInlineChip(
 }
 
 private data class JournalInlineChipContent(
-    val title: String,
-    val detail: String? = null
+    val primary: String,
+    val secondary: String? = null,
+    val tertiary: String? = null
 )
 
 private fun journalInlineChipContent(
@@ -2620,17 +2633,22 @@ private fun journalInlineChipContent(
     }
     return when (entry.type) {
         JournalEntryType.INSULIN -> {
-            val amount = entry.amount?.let(::formatFloatForEditor).orEmpty()
+            val amount = entry.amount?.let { "${formatFloatForEditor(it)} U" }
+            val label = insulinPreset?.displayName.cleanJournalChipText()
+                ?: entry.title.cleanJournalChipText()
+                ?: journalMarkerDetail(entry, insulinPreset, unit)
             JournalInlineChipContent(
-                title = insulinPreset?.displayName?.takeIf { it.isNotBlank() }
-                    ?: entry.title.takeIf { it.isNotBlank() }
-                    ?: journalMarkerDetail(entry, insulinPreset, unit),
-                detail = "$amount U".takeIf { amount.isNotBlank() }
+                primary = amount ?: label,
+                secondary = label.takeIf { amount != null && it != amount }
             )
         }
 
         JournalEntryType.CARBS -> {
-            val amount = entry.amount?.let(::formatFloatForEditor).orEmpty()
+            val amount = entry.amount?.let { "${formatFloatForEditor(it)} g" }
+            val label = food?.displayName.cleanJournalChipText()
+                ?: entry.title.cleanJournalChipText()
+                    ?.takeUnless(::isGenericCarbsChipTitle)
+                ?: Applic.app.getString(R.string.journal_type_food)
             val macros = listOfNotNull(
                 entry.proteinGrams?.takeIf { it > 0f }?.let {
                     Applic.app.getString(R.string.journal_food_protein_short, formatFloatForEditor(it))
@@ -2640,46 +2658,60 @@ private fun journalInlineChipContent(
                 }
             ).joinToString(" · ").takeIf { it.isNotBlank() }
             JournalInlineChipContent(
-                title = food?.displayName?.takeIf { it.isNotBlank() }
-                    ?: entry.title.takeIf { it.isNotBlank() }
-                    ?: journalMarkerDetail(entry, insulinPreset, unit),
-                detail = listOfNotNull(
-                    "$amount g".takeIf { amount.isNotBlank() },
-                    macros
-                ).joinToString(" · ").takeIf { it.isNotBlank() }
+                primary = amount ?: label,
+                secondary = label.takeIf { amount != null && it != amount },
+                tertiary = macros
             )
         }
 
         JournalEntryType.FINGERSTICK -> {
+            val glucose = entry.glucoseValueMgDl?.let { formatGlucoseForEditor(it, unit) }
+            val label = entry.title.cleanJournalChipText()
+            val note = entry.note.cleanJournalChipText()
             JournalInlineChipContent(
-                title = entry.glucoseValueMgDl?.let { formatGlucoseForEditor(it, unit) }
-                    ?: entry.title.takeIf { it.isNotBlank() }
+                primary = glucose
+                    ?: label
                     ?: journalMarkerDetail(entry, insulinPreset, unit),
-                detail = entry.note?.takeIf { it.isNotBlank() }
+                secondary = note?.takeUnless { it == glucose || it == label }
+                    ?: label?.takeIf { glucose != null && it != glucose }
             )
         }
 
         JournalEntryType.ACTIVITY -> {
+            val duration = entry.durationMinutes?.let { Applic.app.getString(R.string.minutes_short_format, it) }
+            val label = entry.title.cleanJournalChipText()
+                ?: Applic.app.getString(R.string.journal_type_activity)
+            val intensity = entry.intensity?.let { Applic.app.getString(it.labelRes()) }
             JournalInlineChipContent(
-                title = entry.title.takeIf { it.isNotBlank() }
-                    ?: journalMarkerDetail(entry, insulinPreset, unit),
-                detail = listOfNotNull(
-                    entry.durationMinutes?.let { Applic.app.getString(R.string.minutes_short_format, it) },
-                    entry.intensity?.let { Applic.app.getString(it.labelRes()) }
-                ).joinToString(" · ").takeIf { it.isNotBlank() }
+                primary = duration ?: intensity ?: label,
+                secondary = label.takeIf { it != duration && it != intensity },
+                tertiary = intensity.takeIf { duration != null }
             )
         }
 
         JournalEntryType.NOTE -> {
+            val label = entry.title.cleanJournalChipText()
+                ?: entry.note.cleanJournalChipText()
+                ?: journalMarkerDetail(entry, insulinPreset, unit)
             JournalInlineChipContent(
-                title = entry.title.takeIf { it.isNotBlank() }
-                    ?: entry.note?.takeIf { it.isNotBlank() }
-                    ?: journalMarkerDetail(entry, insulinPreset, unit),
-                detail = entry.note?.takeIf { it.isNotBlank() }
-                    ?.takeUnless { it == entry.title }
+                primary = label,
+                secondary = entry.note.cleanJournalChipText()
+                    ?.takeUnless { it == label }
             )
         }
     }
+}
+
+private fun String?.cleanJournalChipText(): String? =
+    this?.trim()?.takeIf { it.isNotBlank() }
+
+private fun isGenericCarbsChipTitle(value: String): Boolean {
+    val normalized = value.trim().lowercase(Locale.ROOT)
+    return normalized == "carbohydrate" ||
+        normalized == "carbohydrates" ||
+        normalized == "carb" ||
+        normalized == "carbs" ||
+        normalized == "food"
 }
 
 @Composable

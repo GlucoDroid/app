@@ -26,7 +26,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Vaccines
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -238,33 +238,26 @@ fun JournalExpandableFab(
                 }
             }
         }
-        ExtendedFloatingActionButton(
+        FloatingActionButton(
             onClick = {
                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 onExpandedChange(!expanded)
             },
-            text = {
-                Text(
-                    text = if (expanded) stringResource(R.string.close) else stringResource(R.string.additem),
-                    style = MaterialTheme.typography.titleMedium
-                )
-            },
-            icon = {
-                Icon(
-                    imageVector = if (expanded) Icons.Default.Close else Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
-            },
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(20.dp),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
             modifier = Modifier.graphicsLayer {
                 scaleX = 1f + (0.04f * menuProgress)
                 scaleY = 1f + (0.04f * menuProgress)
             }
-        )
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Default.Close else Icons.Default.Add,
+                contentDescription = stringResource(if (expanded) R.string.close else R.string.additem),
+                modifier = Modifier.size(26.dp)
+            )
+        }
     }
 }
 
