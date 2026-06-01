@@ -245,7 +245,6 @@ fun JournalExpandableFab(
             },
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            shape = RoundedCornerShape(20.dp),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
             modifier = Modifier.graphicsLayer {
                 scaleX = 1f + (0.04f * menuProgress)
@@ -255,7 +254,7 @@ fun JournalExpandableFab(
             Icon(
                 imageVector = if (expanded) Icons.Default.Close else Icons.Default.Add,
                 contentDescription = stringResource(if (expanded) R.string.close else R.string.additem),
-                modifier = Modifier.size(26.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
     }
@@ -328,7 +327,7 @@ private fun JournalActionFab(
         Icon(
             imageVector = actionType.journalActionIcon(),
             contentDescription = label,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(22.dp)
         )
     }
 }
