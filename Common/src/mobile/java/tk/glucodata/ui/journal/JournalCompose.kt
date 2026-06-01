@@ -479,7 +479,7 @@ fun JournalEntrySheet(
                             text = stringResource(
                                 when (draft.type) {
                                     JournalEntryType.FINGERSTICK -> R.string.journal_type_bg_short
-                                    JournalEntryType.CARBS -> if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo
+                                    JournalEntryType.CARBS -> R.string.journal_type_food
                                     else -> draft.type.labelRes()
                                 }
                             ),
@@ -632,7 +632,7 @@ fun JournalEntrySheet(
                             onStep = { delta ->
                                 draft = draft.copy(amountText = adjustDecimalDraft(draft.amountText, delta, step = 5f))
                             },
-                            label = stringResource(if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo),
+                            label = stringResource(R.string.journal_type_food),
                             suffix = "g",
                             prominent = true
                         )
@@ -1103,7 +1103,7 @@ private fun JournalEntryDraft.toInput(
             val grams = amountText.parseFloatOrNull() ?: return null
             val absorptionMinutes = durationText.parseIntOrNull()?.coerceIn(15, 480)
             val titleValue = title.trim().takeIf { it.isNotBlank() }
-                ?: Applic.app.getString(if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo)
+                ?: Applic.app.getString(R.string.journal_type_food)
             JournalEntryInput(
                 id = entryId,
                 timestamp = timestamp,
@@ -1198,7 +1198,7 @@ private fun JournalEntryDraft.toInputs(
                 timestamp = timestamp,
                 sensorSerial = sensorSerial,
                 type = JournalEntryType.CARBS,
-                title = Applic.app.getString(if (foodMacrosEnabled) R.string.journal_type_food else R.string.carbo),
+                title = Applic.app.getString(R.string.journal_type_food),
                 amount = grams,
                 glucoseValueMgDl = chartAnchorGlucoseMgDl,
                 durationMinutes = durationText.parseIntOrNull()?.coerceIn(15, 480),
@@ -1426,7 +1426,7 @@ private fun JournalDoseAssistCard(
                     label = if (draft.type == JournalEntryType.CARBS) {
                         stringResource(R.string.journal_type_insulin)
                     } else {
-                        stringResource(R.string.carbo)
+                        stringResource(R.string.journal_type_food)
                     },
                     suffix = if (draft.type == JournalEntryType.CARBS) "U" else "g"
                 )
