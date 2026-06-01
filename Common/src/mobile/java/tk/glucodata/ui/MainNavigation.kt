@@ -325,6 +325,7 @@ private fun JournalRoute(
         journalEntries = journalEntries,
         journalInsulinPresets = journalInsulinPresets,
         journalFoods = journalFoods,
+        sensorId = sensorName,
         onPointClick = { point ->
             onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
         },
@@ -335,6 +336,8 @@ private fun JournalRoute(
         onAddJournalEntry = { timestamp, suggestedType, suggestedDisplayGlucose, suggestedAmountFraction ->
             openJournalEditor(timestamp, suggestedType, suggestedDisplayGlucose, suggestedAmountFraction)
         },
+        onOpenFoodLibrary = { navController.navigate("settings/journal/foods") },
+        onOpenInsulinLibrary = { navController.navigate("settings/journal/insulin") },
         modifier = modifier,
         showTitle = showTitle,
         useStatusBarsPadding = useStatusBarsPadding,

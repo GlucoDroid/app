@@ -1136,6 +1136,7 @@ fun DashboardScreen(
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
                                 journalPresetsById = journalPresetsById,
+                                journalFoodsById = journalFoodsById,
                                 journalChipExpanded = false,
                                 onJournalEntryClick = { entry ->
                                     lastJournalType = entry.type
@@ -1447,6 +1448,7 @@ fun DashboardScreen(
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
                                 journalPresetsById = journalPresetsById,
+                                journalFoodsById = journalFoodsById,
                                 journalChipExpanded = false,
                                 onJournalEntryClick = { entry ->
                                     lastJournalType = entry.type

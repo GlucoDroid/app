@@ -756,6 +756,7 @@ fun HistoryBrowseScreen(
                                 highlightLeadRow = false,
                                 journalEntries = item.journalEntries,
                                 journalPresetsById = journalPresetsById,
+                                journalFoodsById = journalFoodsById,
                                 journalChipExpanded = true,
                                 onJournalEntryClick = onJournalEntryClick,
                                 showLeadingAction = journalEnabled && onAddJournalEntry != null,
@@ -786,6 +787,7 @@ fun HistoryBrowseScreen(
                                 unit = unit,
                                 journalEntries = item.journalEntries,
                                 journalPresetsById = journalPresetsById,
+                                journalFoodsById = journalFoodsById,
                                 onJournalEntryClick = onJournalEntryClick,
                                 onAddJournalEntry = if (journalEnabled && onAddJournalEntry != null) {
                                     {

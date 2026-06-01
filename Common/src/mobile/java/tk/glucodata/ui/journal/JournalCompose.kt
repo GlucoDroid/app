@@ -2537,12 +2537,15 @@ fun JournalInlineChip(
     entry: JournalEntry,
     unit: String,
     insulinPreset: JournalInsulinPreset?,
+    food: JournalFood? = null,
     expanded: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val tint = insulinPreset?.let { Color(it.accentColor) } ?: journalTypeColor(entry.type)
-    val inlineLabel = journalMarkerDetail(entry, insulinPreset, unit).ifBlank { entry.title }
+    val tint = food?.let { Color(it.accentColor) }
+        ?: insulinPreset?.let { Color(it.accentColor) }
+        ?: journalTypeColor(entry.type)
+    val inlineLabel = journalInlineLabel(entry, insulinPreset, food, unit, expanded)
     Surface(
         modifier = modifier,
         onClick = onClick,
@@ -2570,6 +2573,65 @@ fun JournalInlineChip(
                 overflow = TextOverflow.Ellipsis
             )
         }
+    }
+}
+
+private fun journalInlineLabel(
+    entry: JournalEntry,
+    insulinPreset: JournalInsulinPreset?,
+    food: JournalFood?,
+    unit: String,
+    expanded: Boolean
+): String {
+    if (!expanded) {
+        return journalMarkerDetail(entry, insulinPreset, unit).ifBlank { entry.title }
+    }
+    return when (entry.type) {
+        JournalEntryType.INSULIN -> {
+            val amount = entry.amount?.let(::formatFloatForEditor).orEmpty()
+            listOfNotNull(
+                insulinPreset?.displayName?.takeIf { it.isNotBlank() } ?: entry.title.takeIf { it.isNotBlank() },
+                "$amount U".takeIf { amount.isNotBlank() }
+            ).joinToString(" · ")
+        }
+
+        JournalEntryType.CARBS -> {
+            val amount = entry.amount?.let(::formatFloatForEditor).orEmpty()
+            val macros = listOfNotNull(
+                entry.proteinGrams?.takeIf { it > 0f }?.let {
+                    Applic.app.getString(R.string.journal_food_protein_short, formatFloatForEditor(it))
+                },
+                entry.fatGrams?.takeIf { it > 0f }?.let {
+                    Applic.app.getString(R.string.journal_food_fat_short, formatFloatForEditor(it))
+                }
+            ).joinToString(" · ").takeIf { it.isNotBlank() }
+            listOfNotNull(
+                food?.displayName?.takeIf { it.isNotBlank() } ?: entry.title.takeIf { it.isNotBlank() },
+                "$amount g".takeIf { amount.isNotBlank() },
+                macros
+            ).joinToString(" · ")
+        }
+
+        JournalEntryType.FINGERSTICK -> {
+            listOfNotNull(
+                entry.glucoseValueMgDl?.let { formatGlucoseForEditor(it, unit) },
+                entry.note?.takeIf { it.isNotBlank() }
+            ).joinToString(" · ").ifBlank { entry.title }
+        }
+
+        JournalEntryType.ACTIVITY -> {
+            listOfNotNull(
+                entry.title.takeIf { it.isNotBlank() },
+                entry.durationMinutes?.let { Applic.app.getString(R.string.minutes_short_format, it) },
+                entry.intensity?.let { Applic.app.getString(it.labelRes()) }
+            ).joinToString(" · ")
+        }
+
+        JournalEntryType.NOTE -> {
+            entry.note?.takeIf { it.isNotBlank() } ?: entry.title
+        }
+    }.ifBlank {
+        journalMarkerDetail(entry, insulinPreset, unit).ifBlank { entry.title }
     }
 }
 

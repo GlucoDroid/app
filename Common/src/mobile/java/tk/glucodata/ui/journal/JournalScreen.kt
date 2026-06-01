@@ -6,15 +6,29 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Vaccines
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +54,7 @@ import tk.glucodata.ui.ChartViewportSnapshot
 import tk.glucodata.ui.DashboardChartSection
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.JournalTimelineRow
+import tk.glucodata.ui.ReadingRow
 import tk.glucodata.ui.TimeRange
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import java.text.SimpleDateFormat
@@ -50,7 +66,8 @@ import java.util.Locale
 
 private data class JournalLedgerItem(
     val timestamp: Long,
-    val entries: List<JournalEntry>
+    val entries: List<JournalEntry>,
+    val point: GlucosePoint?
 )
 
 private data class JournalDateSection(
@@ -75,9 +92,12 @@ fun JournalScreen(
     journalEntries: List<JournalEntry>,
     journalInsulinPresets: List<JournalInsulinPreset>,
     journalFoods: List<JournalFood>,
+    sensorId: String?,
     onPointClick: ((GlucosePoint) -> Unit)?,
     onJournalEntryClick: ((JournalEntry) -> Unit)?,
     onAddJournalEntry: (Long, JournalEntryType?, Float?, Float?) -> Unit,
+    onOpenFoodLibrary: () -> Unit,
+    onOpenInsulinLibrary: () -> Unit,
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
     useStatusBarsPadding: Boolean = true,
@@ -105,7 +125,7 @@ fun JournalScreen(
     val filteredEntries = remember(journalEntries, selectedTypes) {
         journalEntries.filter { it.type in selectedTypes }
     }
-    val sections = remember(filteredEntries) { buildJournalSections(filteredEntries) }
+    val sections = remember(filteredEntries, sortedHistory) { buildJournalSections(filteredEntries, sortedHistory) }
     val markers = remember(filteredEntries, presetsById, foodsById, unit, sortedHistory) {
         buildJournalChartMarkers(filteredEntries, presetsById, unit, sortedHistory, foodsById)
     }
@@ -135,21 +155,31 @@ fun JournalScreen(
                 end = 16.dp,
                 top = if (showTitle) 16.dp else 8.dp,
                 bottom = bottomContentPadding
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            )
         ) {
             if (showTitle) {
                 item(key = "journal-title") {
-                    JournalTitle()
+                    JournalHeader(
+                        onOpenFoodLibrary = onOpenFoodLibrary,
+                        onOpenInsulinLibrary = onOpenInsulinLibrary
+                    )
                 }
+            }
+
+            item(key = "journal-metrics") {
+                JournalMetricsPanel(
+                    entries = journalEntries,
+                    presetsById = presetsById
+                )
             }
 
             if (sortedHistory.isNotEmpty()) {
                 item(key = "journal-chart") {
+                    Spacer(modifier = Modifier.height(12.dp))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (showTitle) 430.dp else 400.dp)
+                            .height(if (showTitle) 260.dp else 320.dp)
                     ) {
                         DashboardChartSection(
                             modifier = Modifier.matchParentSize(),
@@ -221,6 +251,7 @@ fun JournalScreen(
             }
 
             item(key = "journal-filter") {
+                Spacer(modifier = Modifier.height(12.dp))
                 JournalTypeFilter(
                     selectedTypes = selectedTypes,
                     onToggle = { type ->
@@ -256,8 +287,8 @@ fun JournalScreen(
                             text = section.label,
                             modifier = Modifier.padding(
                                 start = 16.dp,
-                                top = if (sectionIndex == 0) 2.dp else 14.dp,
-                                bottom = 2.dp
+                                top = if (sectionIndex == 0) 12.dp else 18.dp,
+                                bottom = 8.dp
                             ),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
@@ -270,20 +301,55 @@ fun JournalScreen(
                             "${item.timestamp}-${item.entries.joinToString(",") { it.id.toString() }}-$index"
                         }
                     ) { index, item ->
-                        JournalTimelineRow(
-                            timestamp = item.timestamp,
-                            unit = unit,
-                            journalEntries = item.entries,
-                            journalPresetsById = presetsById,
-                            onJournalEntryClick = onJournalEntryClick,
-                            onAddJournalEntry = {
-                                onAddJournalEntry(item.timestamp, selectedTypes.singleOrNull(), null, null)
-                            },
-                            index = index,
-                            totalCount = section.items.size,
-                            dividerHorizontalInset = 0.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        val point = item.point
+                        if (point != null) {
+                            val sectionPoints = section.items.mapNotNull(JournalLedgerItem::point)
+                            val pointIndex = sectionPoints.indexOfFirst { it.timestamp == point.timestamp }
+                                .takeIf { it >= 0 }
+                                ?: index
+                            ReadingRow(
+                                point = point,
+                                unit = unit,
+                                viewMode = viewMode,
+                                index = pointIndex,
+                                totalCount = section.items.size,
+                                history = sectionPoints,
+                                sensorId = sensorId,
+                                calibrations = calibrations,
+                                journalEntries = item.entries,
+                                journalPresetsById = presetsById,
+                                journalFoodsById = foodsById,
+                                journalChipExpanded = true,
+                                onJournalEntryClick = onJournalEntryClick,
+                                highlightLeadRow = false,
+                                showLeadingAction = true,
+                                leadingActionEmphasis = 0.42f,
+                                onLeadingActionClick = {
+                                    onAddJournalEntry(item.timestamp, selectedTypes.singleOrNull(), point.value, null)
+                                },
+                                isGroupStart = index == 0,
+                                isGroupEnd = index == section.items.lastIndex,
+                                dividerHorizontalInset = 0.dp,
+                                onValueClick = { onPointClick?.invoke(point) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            JournalTimelineRow(
+                                timestamp = item.timestamp,
+                                unit = unit,
+                                journalEntries = item.entries,
+                                journalPresetsById = presetsById,
+                                journalFoodsById = foodsById,
+                                onJournalEntryClick = onJournalEntryClick,
+                                onAddJournalEntry = {
+                                    onAddJournalEntry(item.timestamp, selectedTypes.singleOrNull(), null, null)
+                                },
+                                index = index,
+                                totalCount = section.items.size,
+                                dividerHorizontalInset = 0.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -311,14 +377,190 @@ fun JournalScreen(
 }
 
 @Composable
-private fun JournalTitle() {
-    Text(
-        text = stringResource(R.string.journal_title),
-        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
-        style = MaterialTheme.typography.displaySmall,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-    )
+private fun JournalHeader(
+    onOpenFoodLibrary: () -> Unit,
+    onOpenInsulinLibrary: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.journal_title),
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp),
+            style = MaterialTheme.typography.displaySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onOpenFoodLibrary, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Restaurant,
+                    contentDescription = stringResource(R.string.journal_food_library),
+                    tint = journalTypeColor(JournalEntryType.CARBS)
+                )
+            }
+            IconButton(onClick = onOpenInsulinLibrary, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Vaccines,
+                    contentDescription = stringResource(R.string.journal_insulin_library),
+                    tint = journalTypeColor(JournalEntryType.INSULIN)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun JournalMetricsPanel(
+    entries: List<JournalEntry>,
+    presetsById: Map<Long, JournalInsulinPreset>
+) {
+    val nowMillis = remember(entries) { System.currentTimeMillis() }
+    val zone = remember { ZoneId.systemDefault() }
+    val startOfDayMillis = remember(nowMillis, zone) {
+        LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+    }
+    val todaysEntries = remember(entries, startOfDayMillis, nowMillis) {
+        entries.filter { it.timestamp in startOfDayMillis..nowMillis }
+    }
+    val activeInsulin = remember(entries, presetsById, nowMillis) {
+        buildActiveInsulinSummary(entries, presetsById, nowMillis)
+    }
+    val activeInsulinUnits = activeInsulin
+        ?.let { it.totalUnits * (it.weightedActivityPercent / 100f) }
+        ?.coerceAtLeast(0f)
+        ?: 0f
+    val activeUntilFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val activeInsulinDetail = activeInsulin?.nextEndingAt?.let { endingAt ->
+        stringResource(R.string.journal_active_insulin_until, activeUntilFormatter.format(Date(endingAt)))
+    } ?: activeInsulin?.let {
+        stringResource(R.string.journal_active_now_percent, it.weightedActivityPercent)
+    } ?: stringResource(R.string.journal_no_active_insulin)
+    val foodToday = todaysEntries
+        .filter { it.type == JournalEntryType.CARBS }
+        .sumOf { (it.amount ?: 0f).toDouble() }
+        .toFloat()
+    val insulinToday = todaysEntries
+        .filter { it.type == JournalEntryType.INSULIN }
+        .sumOf { (it.amount ?: 0f).toDouble() }
+        .toFloat()
+    val activityMinutesToday = todaysEntries
+        .filter { it.type == JournalEntryType.ACTIVITY }
+        .sumOf { (it.durationMinutes ?: 0).toInt() }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            JournalMetricCard(
+                title = stringResource(R.string.journal_active_insulin),
+                value = "${formatJournalMetric(activeInsulinUnits)} U",
+                detail = activeInsulinDetail,
+                icon = Icons.Default.Vaccines,
+                type = JournalEntryType.INSULIN,
+                modifier = Modifier.weight(1f)
+            )
+            JournalMetricCard(
+                title = stringResource(R.string.journal_type_food),
+                value = "${formatJournalMetric(foodToday, wholeNumber = true)} g",
+                detail = stringResource(
+                    R.string.journal_events_today,
+                    todaysEntries.count { it.type == JournalEntryType.CARBS }
+                ),
+                icon = Icons.Default.Restaurant,
+                type = JournalEntryType.CARBS,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            JournalMetricCard(
+                title = stringResource(R.string.journal_metric_insulin_today),
+                value = "${formatJournalMetric(insulinToday)} U",
+                detail = stringResource(R.string.journal_type_insulin),
+                icon = Icons.Default.Vaccines,
+                type = JournalEntryType.INSULIN,
+                modifier = Modifier.weight(1f)
+            )
+            JournalMetricCard(
+                title = stringResource(R.string.journal_metric_activity_today),
+                value = stringResource(R.string.minutes_short_format, activityMinutesToday),
+                detail = stringResource(R.string.journal_type_activity),
+                icon = Icons.Default.DirectionsRun,
+                type = JournalEntryType.ACTIVITY,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun JournalMetricCard(
+    title: String,
+    value: String,
+    detail: String,
+    icon: ImageVector,
+    type: JournalEntryType,
+    modifier: Modifier = Modifier
+) {
+    val tint = journalTypeColor(type)
+    Surface(
+        modifier = modifier.heightIn(min = 74.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = journalTypeSelectedContainerColor(
+            type,
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        ).copy(alpha = 0.68f),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(34.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = tint.copy(alpha = 0.18f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -351,7 +593,10 @@ private fun JournalTypeFilter(
     )
 }
 
-private fun buildJournalSections(entries: List<JournalEntry>): List<JournalDateSection> {
+private fun buildJournalSections(
+    entries: List<JournalEntry>,
+    points: List<GlucosePoint>
+): List<JournalDateSection> {
     if (entries.isEmpty()) return emptyList()
     val formatter = SimpleDateFormat("MMM d", Locale.getDefault())
     val zone = ZoneId.systemDefault()
@@ -360,7 +605,8 @@ private fun buildJournalSections(entries: List<JournalEntry>): List<JournalDateS
         .map { (timestamp, groupedEntries) ->
             JournalLedgerItem(
                 timestamp = timestamp,
-                entries = groupedEntries.sortedByDescending { it.timestamp }
+                entries = groupedEntries.sortedByDescending { it.timestamp },
+                point = findClosestPoint(points, timestamp)
             )
         }
         .sortedByDescending { it.timestamp }
@@ -381,6 +627,37 @@ private fun buildJournalSections(entries: List<JournalEntry>): List<JournalDateS
                 items = builder.items.toList()
             )
         }
+}
+
+private fun findClosestPoint(
+    points: List<GlucosePoint>,
+    timestamp: Long,
+    maxDistanceMillis: Long = 20L * 60L * 1000L
+): GlucosePoint? {
+    if (points.isEmpty()) return null
+    val insertionIndex = points.binarySearchBy(timestamp) { it.timestamp }
+        .let { if (it >= 0) it else (-it - 1) }
+        .coerceIn(0, points.lastIndex)
+    var closestPoint: GlucosePoint? = null
+    var closestDistance = Long.MAX_VALUE
+    for (candidateIndex in maxOf(0, insertionIndex - 1)..minOf(points.lastIndex, insertionIndex + 1)) {
+        val candidate = points[candidateIndex]
+        val distance = kotlin.math.abs(candidate.timestamp - timestamp)
+        if (distance < closestDistance) {
+            closestPoint = candidate
+            closestDistance = distance
+        }
+    }
+    return closestPoint.takeIf { closestDistance <= maxDistanceMillis }
+}
+
+private fun formatJournalMetric(value: Float, wholeNumber: Boolean = false): String {
+    val pattern = when {
+        wholeNumber -> "%.0f"
+        kotlin.math.abs(value) >= 10f -> "%.0f"
+        else -> "%.1f"
+    }
+    return String.format(Locale.getDefault(), pattern, value)
 }
 
 private class JournalDateSectionBuilder(

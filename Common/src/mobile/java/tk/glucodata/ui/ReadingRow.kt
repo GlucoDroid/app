@@ -54,6 +54,7 @@ import androidx.core.graphics.ColorUtils
 import kotlinx.coroutines.delay
 import tk.glucodata.R
 import tk.glucodata.data.journal.JournalEntry
+import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.ui.journal.JournalInlineChip
 
@@ -69,6 +70,7 @@ fun ReadingRow(
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     journalEntries: List<JournalEntry> = emptyList(),
     journalPresetsById: Map<Long, JournalInsulinPreset> = emptyMap(),
+    journalFoodsById: Map<Long, JournalFood> = emptyMap(),
     journalChipExpanded: Boolean = false,
     onJournalEntryClick: ((JournalEntry) -> Unit)? = null,
     highlightLeadRow: Boolean = true,
@@ -403,6 +405,7 @@ fun ReadingRow(
                                         entry = entry,
                                         unit = unit,
                                         insulinPreset = entry.insulinPresetId?.let(journalPresetsById::get),
+                                        food = entry.foodId?.let(journalFoodsById::get),
                                         expanded = journalChipExpanded,
                                         onClick = { onJournalEntryClick?.invoke(entry) }
                                     )
@@ -476,6 +479,7 @@ fun JournalTimelineRow(
     unit: String,
     journalEntries: List<JournalEntry>,
     journalPresetsById: Map<Long, JournalInsulinPreset> = emptyMap(),
+    journalFoodsById: Map<Long, JournalFood> = emptyMap(),
     onJournalEntryClick: ((JournalEntry) -> Unit)? = null,
     onAddJournalEntry: (() -> Unit)? = null,
     index: Int = 0,
@@ -554,6 +558,7 @@ fun JournalTimelineRow(
                                 entry = entry,
                                 unit = unit,
                                 insulinPreset = entry.insulinPresetId?.let(journalPresetsById::get),
+                                food = entry.foodId?.let(journalFoodsById::get),
                                 expanded = true,
                                 onClick = { onJournalEntryClick?.invoke(entry) }
                             )
