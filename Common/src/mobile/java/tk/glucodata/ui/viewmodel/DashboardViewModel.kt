@@ -227,7 +227,7 @@ class DashboardViewModel(
     private val _previewWindowMode = MutableStateFlow(0)
     val previewWindowMode = _previewWindowMode.asStateFlow()
 
-    private val _journalEnabled = MutableStateFlow(true)
+    private val _journalEnabled = MutableStateFlow(false)
     val journalEnabled = _journalEnabled.asStateFlow()
 
     private val _journalNavigationTabEnabled = MutableStateFlow(true)
@@ -349,7 +349,7 @@ class DashboardViewModel(
     private fun readJournalEnabledPreference(): Boolean {
         val context = tk.glucodata.Applic.app
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
-        return prefs.getBoolean("dashboard_journal_enabled", true)
+        return prefs.getBoolean("dashboard_journal_enabled", false)
     }
     
     /**
@@ -486,7 +486,7 @@ class DashboardViewModel(
         _dataSmoothingCollapseChunks.value = DataSmoothing.collapseChunks(context)
         _dataSmoothingExchangeOnly.value = DataSmoothing.smoothOnlyExchangeOutputs(context)
         _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
-        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", true)
+        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", false)
         _journalEnabled.value = journalEnabled
         _journalNavigationTabEnabled.value = prefs.getBoolean(JOURNAL_NAVIGATION_TAB_KEY, true)
         _journalDoseCalculatorEnabled.value = prefs.getBoolean(JOURNAL_DOSE_CALCULATOR_KEY, false)
