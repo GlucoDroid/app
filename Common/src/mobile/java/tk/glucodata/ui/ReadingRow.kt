@@ -222,7 +222,7 @@ fun ReadingRow(
         Column(modifier = Modifier.fillMaxWidth()) {
             val hasInlineJournalEntries = journalEntries.isNotEmpty() && onJournalEntryClick != null
             val useClassicLayout = !hasInlineJournalEntries
-            val rowMinHeight = 48.dp
+            val rowMinHeight = if (journalChipExpanded && hasInlineJournalEntries) 64.dp else 48.dp
             val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 104.dp else 124.dp
             val leadingActionSlotWidth = 44.dp
             val trendSlotWidth = 36.dp
@@ -392,7 +392,11 @@ fun ReadingRow(
                             modifier = Modifier
                                 .weight(1f)
                                 .defaultMinSize(minHeight = rowMinHeight)
-                                .padding(end = 12.dp),
+                                .padding(
+                                    top = if (journalChipExpanded) 8.dp else 0.dp,
+                                    end = 12.dp,
+                                    bottom = if (journalChipExpanded) 8.dp else 0.dp
+                                ),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             FlowRow(

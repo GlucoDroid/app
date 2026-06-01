@@ -2545,57 +2545,88 @@ fun JournalInlineChip(
     val tint = food?.let { Color(it.accentColor) }
         ?: insulinPreset?.let { Color(it.accentColor) }
         ?: journalTypeColor(entry.type)
-    val inlineLabel = journalInlineLabel(entry, insulinPreset, food, unit, expanded)
+    val chipContent = journalInlineChipContent(entry, insulinPreset, food, unit, expanded)
     Surface(
-        modifier = modifier.widthIn(max = if (expanded) 320.dp else 180.dp),
+        modifier = modifier.widthIn(max = if (expanded) 260.dp else 180.dp),
         onClick = onClick,
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.94f),
-        shape = RoundedCornerShape(if (expanded) 16.dp else 14.dp)
+        shape = RoundedCornerShape(if (expanded) 18.dp else 14.dp)
     ) {
         Row(
             modifier = Modifier.padding(
-                horizontal = if (expanded) 12.dp else 10.dp,
-                vertical = if (expanded) 8.dp else 7.dp
+                horizontal = if (expanded) 11.dp else 10.dp,
+                vertical = if (expanded) 9.dp else 7.dp
             ),
             verticalAlignment = if (expanded) Alignment.Top else Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (expanded) 10.dp else 8.dp)
         ) {
             Icon(
                 imageVector = journalTypeIcon(entry.type),
                 contentDescription = null,
                 tint = tint,
                 modifier = Modifier
-                    .padding(top = if (expanded) 1.dp else 0.dp)
-                    .size(if (expanded) 16.dp else 14.dp)
+                    .padding(top = if (expanded) 2.dp else 0.dp)
+                    .size(if (expanded) 18.dp else 14.dp)
             )
-            Text(
-                text = inlineLabel,
-                style = if (expanded) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
-                maxLines = if (expanded) 4 else 1,
-                softWrap = expanded,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = chipContent.title,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        softWrap = true,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    chipContent.detail?.let { detail ->
+                        Text(
+                            text = detail,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            softWrap = true,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = chipContent.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
 
-private fun journalInlineLabel(
+private data class JournalInlineChipContent(
+    val title: String,
+    val detail: String? = null
+)
+
+private fun journalInlineChipContent(
     entry: JournalEntry,
     insulinPreset: JournalInsulinPreset?,
     food: JournalFood?,
     unit: String,
     expanded: Boolean
-): String {
+): JournalInlineChipContent {
     if (!expanded) {
-        return journalMarkerDetail(entry, insulinPreset, unit).ifBlank { entry.title }
+        return JournalInlineChipContent(
+            journalMarkerDetail(entry, insulinPreset, unit).ifBlank { entry.title }
+        )
     }
     return when (entry.type) {
         JournalEntryType.INSULIN -> {
             val amount = entry.amount?.let(::formatFloatForEditor).orEmpty()
-            listOfNotNull(
-                insulinPreset?.displayName?.takeIf { it.isNotBlank() } ?: entry.title.takeIf { it.isNotBlank() },
-                "$amount U".takeIf { amount.isNotBlank() }
-            ).joinToString(" · ")
+            JournalInlineChipContent(
+                title = insulinPreset?.displayName?.takeIf { it.isNotBlank() }
+                    ?: entry.title.takeIf { it.isNotBlank() }
+                    ?: journalMarkerDetail(entry, insulinPreset, unit),
+                detail = "$amount U".takeIf { amount.isNotBlank() }
+            )
         }
 
         JournalEntryType.CARBS -> {
@@ -2608,33 +2639,46 @@ private fun journalInlineLabel(
                     Applic.app.getString(R.string.journal_food_fat_short, formatFloatForEditor(it))
                 }
             ).joinToString(" · ").takeIf { it.isNotBlank() }
-            listOfNotNull(
-                food?.displayName?.takeIf { it.isNotBlank() } ?: entry.title.takeIf { it.isNotBlank() },
-                "$amount g".takeIf { amount.isNotBlank() },
-                macros
-            ).joinToString(" · ")
+            JournalInlineChipContent(
+                title = food?.displayName?.takeIf { it.isNotBlank() }
+                    ?: entry.title.takeIf { it.isNotBlank() }
+                    ?: journalMarkerDetail(entry, insulinPreset, unit),
+                detail = listOfNotNull(
+                    "$amount g".takeIf { amount.isNotBlank() },
+                    macros
+                ).joinToString(" · ").takeIf { it.isNotBlank() }
+            )
         }
 
         JournalEntryType.FINGERSTICK -> {
-            listOfNotNull(
-                entry.glucoseValueMgDl?.let { formatGlucoseForEditor(it, unit) },
-                entry.note?.takeIf { it.isNotBlank() }
-            ).joinToString(" · ").ifBlank { entry.title }
+            JournalInlineChipContent(
+                title = entry.glucoseValueMgDl?.let { formatGlucoseForEditor(it, unit) }
+                    ?: entry.title.takeIf { it.isNotBlank() }
+                    ?: journalMarkerDetail(entry, insulinPreset, unit),
+                detail = entry.note?.takeIf { it.isNotBlank() }
+            )
         }
 
         JournalEntryType.ACTIVITY -> {
-            listOfNotNull(
-                entry.title.takeIf { it.isNotBlank() },
-                entry.durationMinutes?.let { Applic.app.getString(R.string.minutes_short_format, it) },
-                entry.intensity?.let { Applic.app.getString(it.labelRes()) }
-            ).joinToString(" · ")
+            JournalInlineChipContent(
+                title = entry.title.takeIf { it.isNotBlank() }
+                    ?: journalMarkerDetail(entry, insulinPreset, unit),
+                detail = listOfNotNull(
+                    entry.durationMinutes?.let { Applic.app.getString(R.string.minutes_short_format, it) },
+                    entry.intensity?.let { Applic.app.getString(it.labelRes()) }
+                ).joinToString(" · ").takeIf { it.isNotBlank() }
+            )
         }
 
         JournalEntryType.NOTE -> {
-            entry.note?.takeIf { it.isNotBlank() } ?: entry.title
+            JournalInlineChipContent(
+                title = entry.title.takeIf { it.isNotBlank() }
+                    ?: entry.note?.takeIf { it.isNotBlank() }
+                    ?: journalMarkerDetail(entry, insulinPreset, unit),
+                detail = entry.note?.takeIf { it.isNotBlank() }
+                    ?.takeUnless { it == entry.title }
+            )
         }
-    }.ifBlank {
-        journalMarkerDetail(entry, insulinPreset, unit).ifBlank { entry.title }
     }
 }
 

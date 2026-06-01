@@ -9,10 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -46,7 +43,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
 import tk.glucodata.data.journal.JournalEntryType
@@ -192,13 +188,15 @@ fun JournalExpandableFab(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
-    val panelReveal = remember { Animatable(0f) }
+    val density = LocalDensity.current
+    val actionTypes = remember { journalReachActionTypes() }
+    val menuReveal = remember { Animatable(0f) }
     LaunchedEffect(expanded) {
-        panelReveal.animateTo(
+        menuReveal.animateTo(
             targetValue = if (expanded) 1f else 0f,
             animationSpec = if (expanded) {
                 spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    dampingRatio = Spring.DampingRatioLowBouncy,
                     stiffness = Spring.StiffnessLow
                 )
             } else {
@@ -206,21 +204,39 @@ fun JournalExpandableFab(
             }
         )
     }
-    val panelProgress = panelReveal.value
+    val menuProgress = menuReveal.value
+    val rowTravelPx = with(density) { 18.dp.toPx() }
+    val itemLiftPx = with(density) { 18.dp.toPx() }
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        if (expanded || panelProgress > 0.01f) {
-            JournalFabActionPanel(
-                progress = panelProgress,
-                onTypeSelected = { actionType ->
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onTypeSelected(actionType)
-                    onExpandedChange(false)
+        if (expanded || menuProgress > 0.01f) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.graphicsLayer {
+                    alpha = menuProgress.coerceIn(0f, 1f)
+                    translationY = 8.dp.toPx() * (1f - menuProgress)
                 }
-            )
+            ) {
+                actionTypes.forEachIndexed { index, actionType ->
+                    val itemProgress = ((menuProgress - (index * 0.07f)) / 0.72f).coerceIn(0f, 1f)
+                    JournalActionMenuRow(
+                        actionType = actionType,
+                        placeIconAfterLabel = true,
+                        itemProgress = itemProgress,
+                        rowTravelPx = rowTravelPx,
+                        itemLiftPx = itemLiftPx,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            onTypeSelected(actionType)
+                            onExpandedChange(false)
+                        }
+                    )
+                }
+            }
         }
         ExtendedFloatingActionButton(
             onClick = {
@@ -245,109 +261,10 @@ fun JournalExpandableFab(
             shape = RoundedCornerShape(24.dp),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
             modifier = Modifier.graphicsLayer {
-                scaleX = 1f + (0.04f * panelProgress)
-                scaleY = 1f + (0.04f * panelProgress)
+                scaleX = 1f + (0.04f * menuProgress)
+                scaleY = 1f + (0.04f * menuProgress)
             }
         )
-    }
-}
-
-@Composable
-private fun JournalFabActionPanel(
-    progress: Float,
-    onTypeSelected: (JournalEntryType) -> Unit
-) {
-    val actionRows = remember {
-        listOf(
-            listOf(JournalEntryType.NOTE, JournalEntryType.FINGERSTICK, JournalEntryType.ACTIVITY),
-            listOf(JournalEntryType.INSULIN, JournalEntryType.CARBS)
-        )
-    }
-    Surface(
-        modifier = Modifier
-            .width(304.dp)
-            .graphicsLayer {
-                alpha = progress.coerceIn(0f, 1f)
-                scaleX = 0.88f + (0.12f * progress)
-                scaleY = 0.88f + (0.12f * progress)
-                translationY = 18.dp.toPx() * (1f - progress)
-            },
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 3.dp,
-        shadowElevation = 0.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.additem),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 6.dp, top = 2.dp, end = 6.dp)
-            )
-            actionRows.forEachIndexed { rowIndex, row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    row.forEachIndexed { actionIndex, actionType ->
-                        val order = (rowIndex * 3) + actionIndex
-                        val itemProgress = ((progress - (order * 0.06f)) / 0.76f).coerceIn(0f, 1f)
-                        JournalFabActionCell(
-                            actionType = actionType,
-                            itemProgress = itemProgress,
-                            onClick = { onTypeSelected(actionType) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.JournalFabActionCell(
-    actionType: JournalEntryType,
-    itemProgress: Float,
-    onClick: () -> Unit
-) {
-    val actionTint = journalTypeColor(actionType)
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .weight(1f)
-            .heightIn(min = 58.dp)
-            .graphicsLayer {
-                alpha = itemProgress
-                scaleX = 0.82f + (0.18f * itemProgress)
-                scaleY = 0.82f + (0.18f * itemProgress)
-                translationY = 10.dp.toPx() * (1f - itemProgress)
-            },
-        shape = RoundedCornerShape(20.dp),
-        color = journalTypeSubtleContainerColor(actionType),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            Icon(
-                imageVector = actionType.journalActionIcon(),
-                contentDescription = null,
-                tint = actionTint,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = actionType.journalActionLabel(),
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
     }
 }
 

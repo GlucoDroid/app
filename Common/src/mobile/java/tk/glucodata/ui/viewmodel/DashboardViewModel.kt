@@ -227,10 +227,10 @@ class DashboardViewModel(
     private val _previewWindowMode = MutableStateFlow(0)
     val previewWindowMode = _previewWindowMode.asStateFlow()
 
-    private val _journalEnabled = MutableStateFlow(false)
+    private val _journalEnabled = MutableStateFlow(true)
     val journalEnabled = _journalEnabled.asStateFlow()
 
-    private val _journalNavigationTabEnabled = MutableStateFlow(true)
+    private val _journalNavigationTabEnabled = MutableStateFlow(false)
     val journalNavigationTabEnabled = _journalNavigationTabEnabled.asStateFlow()
 
     private val _journalDoseCalculatorEnabled = MutableStateFlow(false)
@@ -349,7 +349,7 @@ class DashboardViewModel(
     private fun readJournalEnabledPreference(): Boolean {
         val context = tk.glucodata.Applic.app
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
-        return prefs.getBoolean("dashboard_journal_enabled", false)
+        return prefs.getBoolean("dashboard_journal_enabled", true)
     }
     
     /**
@@ -486,9 +486,9 @@ class DashboardViewModel(
         _dataSmoothingCollapseChunks.value = DataSmoothing.collapseChunks(context)
         _dataSmoothingExchangeOnly.value = DataSmoothing.smoothOnlyExchangeOutputs(context)
         _previewWindowMode.value = prefs.getInt("dashboard_chart_preview_window_mode", 0)
-        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", false)
+        val journalEnabled = prefs.getBoolean("dashboard_journal_enabled", true)
         _journalEnabled.value = journalEnabled
-        _journalNavigationTabEnabled.value = prefs.getBoolean(JOURNAL_NAVIGATION_TAB_KEY, true)
+        _journalNavigationTabEnabled.value = prefs.getBoolean(JOURNAL_NAVIGATION_TAB_KEY, false)
         _journalDoseCalculatorEnabled.value = prefs.getBoolean(JOURNAL_DOSE_CALCULATOR_KEY, false)
         _journalFoodMacrosEnabled.value = prefs.getBoolean(JOURNAL_FOOD_MACROS_KEY, false)
         _journalFoodLibraryEnabled.value = prefs.getBoolean(JOURNAL_FOOD_LIBRARY_KEY, true)
