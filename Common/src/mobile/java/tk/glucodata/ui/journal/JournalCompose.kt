@@ -2547,7 +2547,7 @@ fun JournalInlineChip(
         ?: journalTypeColor(entry.type)
     val inlineLabel = journalInlineLabel(entry, insulinPreset, food, unit, expanded)
     Surface(
-        modifier = modifier,
+        modifier = modifier.widthIn(max = if (expanded) 320.dp else 180.dp),
         onClick = onClick,
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.94f),
         shape = RoundedCornerShape(if (expanded) 16.dp else 14.dp)
@@ -2557,19 +2557,22 @@ fun JournalInlineChip(
                 horizontal = if (expanded) 12.dp else 10.dp,
                 vertical = if (expanded) 8.dp else 7.dp
             ),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = if (expanded) Alignment.Top else Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 imageVector = journalTypeIcon(entry.type),
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(if (expanded) 16.dp else 14.dp)
+                modifier = Modifier
+                    .padding(top = if (expanded) 1.dp else 0.dp)
+                    .size(if (expanded) 16.dp else 14.dp)
             )
             Text(
                 text = inlineLabel,
                 style = if (expanded) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
-                maxLines = 1,
+                maxLines = if (expanded) 4 else 1,
+                softWrap = expanded,
                 overflow = TextOverflow.Ellipsis
             )
         }

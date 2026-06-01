@@ -222,8 +222,9 @@ fun ReadingRow(
         Column(modifier = Modifier.fillMaxWidth()) {
             val hasInlineJournalEntries = journalEntries.isNotEmpty() && onJournalEntryClick != null
             val useClassicLayout = !hasInlineJournalEntries
-            val rowMinHeight = 48.dp
-            val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 104.dp else 124.dp
+            val rowMinHeight = 58.dp
+            val timeSlotWidth = 58.dp
+            val valueMinWidth = if (hasInlineJournalEntries) 112.dp else 124.dp
             val leadingActionSlotWidth = 44.dp
             val trendSlotWidth = 36.dp
             val timeStyle = MaterialTheme.typography.bodySmall
@@ -323,7 +324,8 @@ fun ReadingRow(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .heightIn(min = rowMinHeight)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -333,7 +335,8 @@ fun ReadingRow(
                         ).format(java.util.Date(point.timestamp)),
                         style = timeStyle,
                         fontWeight = timeWeight,
-                        color = timeColor
+                        color = timeColor,
+                        modifier = Modifier.width(timeSlotWidth)
                     )
 
                     if (showLeadingAction) {
@@ -372,7 +375,8 @@ fun ReadingRow(
                             ).format(java.util.Date(point.timestamp)),
                             style = timeStyle,
                             fontWeight = timeWeight,
-                            color = timeColor
+                            color = timeColor,
+                            modifier = Modifier.width(timeSlotWidth)
                         )
 
                         if (showLeadingAction) {
@@ -392,7 +396,7 @@ fun ReadingRow(
                             modifier = Modifier
                                 .weight(1f)
                                 .defaultMinSize(minHeight = rowMinHeight)
-                                .padding(end = 12.dp),
+                                .padding(top = 8.dp, end = 12.dp, bottom = 8.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             FlowRow(
@@ -487,6 +491,10 @@ fun JournalTimelineRow(
     dividerHorizontalInset: Dp = 16.dp,
     modifier: Modifier = Modifier
 ) {
+    val view = LocalView.current
+    val rowMinHeight = 58.dp
+    val timeSlotWidth = 58.dp
+    val valueSlotWidth = 112.dp
     val shape = when {
         totalCount <= 1 -> RoundedCornerShape(16.dp)
         index == 0 -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
@@ -495,7 +503,18 @@ fun JournalTimelineRow(
     }
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (onAddJournalEntry != null) {
+                    Modifier.clickable {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onAddJournalEntry()
+                    }
+                } else {
+                    Modifier
+                }
+            ),
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 0.dp,
@@ -505,47 +524,25 @@ fun JournalTimelineRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .heightIn(min = rowMinHeight)
+                    .padding(start = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
                         .format(java.util.Date(timestamp)),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(timeSlotWidth)
                 )
-
-                if (onAddJournalEntry != null) {
-                    Box(
-                        modifier = Modifier.width(44.dp),
-                        contentAlignment = Alignment.CenterEnd
-                    ) {
-                        Surface(
-                            onClick = onAddJournalEntry,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .alpha(0.42f),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.48f),
-                            tonalElevation = 0.dp,
-                            shadowElevation = 0.dp
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
-                                )
-                            }
-                        }
-                    }
-                }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Box(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minHeight = rowMinHeight)
+                        .padding(top = 8.dp, end = 12.dp, bottom = 8.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     FlowRow(
@@ -565,6 +562,8 @@ fun JournalTimelineRow(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.width(valueSlotWidth))
             }
 
             if (index < totalCount - 1) {

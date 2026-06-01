@@ -179,7 +179,7 @@ fun JournalScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (showTitle) 260.dp else 320.dp)
+                            .height(if (showTitle) 324.dp else 348.dp)
                     ) {
                         DashboardChartSection(
                             modifier = Modifier.matchParentSize(),
@@ -322,15 +322,16 @@ fun JournalScreen(
                                 journalChipExpanded = true,
                                 onJournalEntryClick = onJournalEntryClick,
                                 highlightLeadRow = false,
-                                showLeadingAction = true,
-                                leadingActionEmphasis = 0.42f,
+                                showLeadingAction = false,
                                 onLeadingActionClick = {
                                     onAddJournalEntry(item.timestamp, selectedTypes.singleOrNull(), point.value, null)
                                 },
                                 isGroupStart = index == 0,
                                 isGroupEnd = index == section.items.lastIndex,
                                 dividerHorizontalInset = 0.dp,
-                                onValueClick = { onPointClick?.invoke(point) },
+                                onValueClick = {
+                                    onAddJournalEntry(item.timestamp, selectedTypes.singleOrNull(), point.value, null)
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {

@@ -759,8 +759,7 @@ fun HistoryBrowseScreen(
                                 journalFoodsById = journalFoodsById,
                                 journalChipExpanded = true,
                                 onJournalEntryClick = onJournalEntryClick,
-                                showLeadingAction = journalEnabled && onAddJournalEntry != null,
-                                leadingActionEmphasis = 0.42f,
+                                showLeadingAction = false,
                                 onLeadingActionClick = if (journalEnabled && onAddJournalEntry != null) {
                                     {
                                         onAddJournalEntry(
@@ -775,7 +774,17 @@ fun HistoryBrowseScreen(
                                 isGroupStart = index == 0,
                                 isGroupEnd = index == section.items.lastIndex,
                                 dividerHorizontalInset = 0.dp,
-                                onValueClick = { onPointClick?.invoke(readingPoint) },
+                                onValueClick = if (journalEnabled && onAddJournalEntry != null) {
+                                    {
+                                        onAddJournalEntry(
+                                            readingPoint.timestamp,
+                                            selectedJournalTypes.singleOrNull(),
+                                            readingPoint.value
+                                        )
+                                    }
+                                } else {
+                                    { onPointClick?.invoke(readingPoint) }
+                                },
                                 onDeleteReading = onDeleteReading,
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)

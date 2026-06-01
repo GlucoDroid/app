@@ -1143,8 +1143,7 @@ fun DashboardScreen(
                                     clearJournalAction()
                                     journalEditorRequest = JournalEditorRequest(entry.type, entry.timestamp, entry)
                                 },
-                                showLeadingAction = journalEnabled,
-                                leadingActionEmphasis = if (index == 0) 1f else 0.38f,
+                                showLeadingAction = false,
                                 onLeadingActionClick = if (journalEnabled) {
                                     {
                                         clearJournalAction()
@@ -1166,9 +1165,24 @@ fun DashboardScreen(
                                 },
                                 onValueClick = {
                                     clearJournalAction()
-                                    triggerCalibrationIfEnabled(
-                                        CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
-                                    )
+                                    if (journalEnabled) {
+                                        val rowGlucoseMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                                            tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(item.value)
+                                        } else {
+                                            item.value
+                                        }
+                                        journalEditorRequest = JournalEditorRequest(
+                                            type = lastJournalType,
+                                            timestamp = item.timestamp,
+                                            suggestedGlucoseMgDl = rowGlucoseMgDl,
+                                            suggestedChartAnchorGlucoseMgDl = rowGlucoseMgDl
+                                                .takeIf { lastJournalType == JournalEntryType.FINGERSTICK }
+                                        )
+                                    } else {
+                                        triggerCalibrationIfEnabled(
+                                            CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
+                                        )
+                                    }
                                 },
                                 onDeleteReading = { point ->
                                     viewModel.deleteHistoryReading(point, sensorName)
@@ -1455,8 +1469,7 @@ fun DashboardScreen(
                                     clearJournalAction()
                                     journalEditorRequest = JournalEditorRequest(entry.type, entry.timestamp, entry)
                                 },
-                                showLeadingAction = journalEnabled,
-                                leadingActionEmphasis = if (index == 0) 1f else 0.38f,
+                                showLeadingAction = false,
                                 onLeadingActionClick = if (journalEnabled) {
                                     {
                                         clearJournalAction()
@@ -1478,9 +1491,24 @@ fun DashboardScreen(
                                 },
                                 onValueClick = {
                                     clearJournalAction()
-                                    triggerCalibrationIfEnabled(
-                                        CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
-                                    )
+                                    if (journalEnabled) {
+                                        val rowGlucoseMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                                            tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(item.value)
+                                        } else {
+                                            item.value
+                                        }
+                                        journalEditorRequest = JournalEditorRequest(
+                                            type = lastJournalType,
+                                            timestamp = item.timestamp,
+                                            suggestedGlucoseMgDl = rowGlucoseMgDl,
+                                            suggestedChartAnchorGlucoseMgDl = rowGlucoseMgDl
+                                                .takeIf { lastJournalType == JournalEntryType.FINGERSTICK }
+                                        )
+                                    } else {
+                                        triggerCalibrationIfEnabled(
+                                            CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
+                                        )
+                                    }
                                 },
                                 onDeleteReading = { point ->
                                     viewModel.deleteHistoryReading(point, sensorName)
