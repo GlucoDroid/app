@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
 import tk.glucodata.data.journal.JournalEntryType
@@ -80,6 +81,9 @@ fun JournalFloatingActionMenu(
     selectedTimestamp: Long,
     viewportSnapshot: ChartViewportSnapshot?,
     onTypeSelected: (JournalEntryType) -> Unit,
+    menuTopOffset: Dp = 86.dp,
+    menuItemSpacing: Dp = 10.dp,
+    menuYOffset: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -123,8 +127,9 @@ fun JournalFloatingActionMenu(
             val menuWidthPx = with(density) { 176.dp.toPx() }
             val edgePaddingPx = with(density) { 12.dp.toPx() }
             val anchorGapPx = with(density) { 14.dp.toPx() }
-            val menuTopPx = with(density) { 56.dp.toPx() }
-            val menuHeightPx = with(density) { 292.dp.toPx() }
+            val menuTopPx = with(density) { menuTopOffset.toPx() }
+            val menuHeightPx = with(density) { (252.dp + (menuItemSpacing * 4)).toPx() }
+            val menuYOffsetPx = with(density) { menuYOffset.toPx() }
             val rowTravelPx = with(density) { 18.dp.toPx() }
             val itemLiftPx = with(density) { 16.dp.toPx() }
             val anchorX = containerWidthPx * resolvedAnchorFraction
@@ -155,11 +160,11 @@ fun JournalFloatingActionMenu(
                         alpha = menuProgress
                         scaleX = menuScale
                         scaleY = menuScale
-                        translationY = (12.dp.toPx() * (1f - menuProgress))
+                        translationY = menuYOffsetPx + (12.dp.toPx() * (1f - menuProgress))
                     }
                     .width(176.dp),
                 horizontalAlignment = if (placeMenuLeft) Alignment.End else Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(menuItemSpacing)
             ) {
                 actionTypes.forEachIndexed { index, actionType ->
                     val itemProgress = ((menuProgress - (index * 0.08f)) / 0.92f).coerceIn(0f, 1f)

@@ -107,7 +107,7 @@ fun JournalScreen(
     val sortedHistory = remember(glucoseHistory) { glucoseHistory.sortedBy { it.timestamp } }
     val presetsById = remember(journalInsulinPresets) { journalInsulinPresets.associateBy { it.id } }
     val foodsById = remember(journalFoods) { journalFoods.associateBy { it.id } }
-    var selectedChartRange by rememberSaveable { mutableStateOf(TimeRange.D3) }
+    var selectedChartRange by rememberSaveable { mutableStateOf(TimeRange.H3) }
     var viewportSnapshot by remember { mutableStateOf<ChartViewportSnapshot?>(null) }
     var selectedTypeFilters by rememberSaveable {
         mutableStateOf(JournalEntryType.entries.map { it.name })
@@ -233,6 +233,9 @@ fun JournalScreen(
                                 visible = true,
                                 selectedTimestamp = actionTimestamp,
                                 viewportSnapshot = viewportSnapshot,
+                                menuTopOffset = 40.dp,
+                                menuItemSpacing = 6.dp,
+                                menuYOffset = (-36).dp,
                                 modifier = Modifier.matchParentSize(),
                                 onTypeSelected = { type ->
                                     onAddJournalEntry(
