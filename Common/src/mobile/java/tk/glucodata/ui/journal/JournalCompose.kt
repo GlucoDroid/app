@@ -2574,26 +2574,31 @@ fun JournalInlineChip(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
-                        text = chipContent.primary,
-                        style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+                        text = chipContent.label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (chipContent.value == null) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontWeight = if (chipContent.value == null) FontWeight.SemiBold else FontWeight.Medium,
+                        maxLines = 2,
+                        softWrap = true,
                         overflow = TextOverflow.Ellipsis
                     )
-                    chipContent.secondary?.let { secondary ->
+                    chipContent.value?.let { value ->
                         Text(
-                            text = secondary,
-                            style = MaterialTheme.typography.labelLarge,
+                            text = value,
+                            style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            softWrap = true,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    chipContent.tertiary?.let { tertiary ->
+                    chipContent.detail?.let { detail ->
                         Text(
-                            text = tertiary,
+                            text = detail,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -2603,7 +2608,7 @@ fun JournalInlineChip(
                 }
             } else {
                 Text(
-                    text = chipContent.primary,
+                    text = chipContent.label,
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -2614,9 +2619,9 @@ fun JournalInlineChip(
 }
 
 private data class JournalInlineChipContent(
-    val primary: String,
-    val secondary: String? = null,
-    val tertiary: String? = null
+    val label: String,
+    val value: String? = null,
+    val detail: String? = null
 )
 
 private fun journalInlineChipContent(
@@ -2638,8 +2643,8 @@ private fun journalInlineChipContent(
                 ?: entry.title.cleanJournalChipText()
                 ?: journalMarkerDetail(entry, insulinPreset, unit)
             JournalInlineChipContent(
-                primary = amount ?: label,
-                secondary = label.takeIf { amount != null && it != amount }
+                label = label,
+                value = amount?.takeUnless { it == label }
             )
         }
 
@@ -2658,22 +2663,21 @@ private fun journalInlineChipContent(
                 }
             ).joinToString(" · ").takeIf { it.isNotBlank() }
             JournalInlineChipContent(
-                primary = amount ?: label,
-                secondary = label.takeIf { amount != null && it != amount },
-                tertiary = macros
+                label = label,
+                value = amount?.takeUnless { it == label },
+                detail = macros
             )
         }
 
         JournalEntryType.FINGERSTICK -> {
             val glucose = entry.glucoseValueMgDl?.let { formatGlucoseForEditor(it, unit) }
             val label = entry.title.cleanJournalChipText()
-            val note = entry.note.cleanJournalChipText()
+                ?: entry.note.cleanJournalChipText()
+                ?: Applic.app.getString(R.string.journal_type_bg_short)
             JournalInlineChipContent(
-                primary = glucose
-                    ?: label
-                    ?: journalMarkerDetail(entry, insulinPreset, unit),
-                secondary = note?.takeUnless { it == glucose || it == label }
-                    ?: label?.takeIf { glucose != null && it != glucose }
+                label = label,
+                value = glucose?.takeUnless { it == label },
+                detail = entry.note.cleanJournalChipText()?.takeUnless { it == label }
             )
         }
 
@@ -2683,9 +2687,9 @@ private fun journalInlineChipContent(
                 ?: Applic.app.getString(R.string.journal_type_activity)
             val intensity = entry.intensity?.let { Applic.app.getString(it.labelRes()) }
             JournalInlineChipContent(
-                primary = duration ?: intensity ?: label,
-                secondary = label.takeIf { it != duration && it != intensity },
-                tertiary = intensity.takeIf { duration != null }
+                label = label,
+                value = duration?.takeUnless { it == label },
+                detail = intensity.takeIf { it != null && it != label }
             )
         }
 
@@ -2694,8 +2698,8 @@ private fun journalInlineChipContent(
                 ?: entry.note.cleanJournalChipText()
                 ?: journalMarkerDetail(entry, insulinPreset, unit)
             JournalInlineChipContent(
-                primary = label,
-                secondary = entry.note.cleanJournalChipText()
+                label = label,
+                detail = entry.note.cleanJournalChipText()
                     ?.takeUnless { it == label }
             )
         }
