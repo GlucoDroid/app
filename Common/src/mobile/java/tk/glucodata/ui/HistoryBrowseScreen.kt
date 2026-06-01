@@ -754,7 +754,18 @@ fun HistoryBrowseScreen(
                                 sensorId = sensorId,
                                 calibrations = calibrations,
                                 highlightLeadRow = false,
-                                showLeadingAction = false,
+                                showLeadingAction = journalEnabled && onAddJournalEntry != null,
+                                onLeadingActionClick = if (journalEnabled && onAddJournalEntry != null) {
+                                    {
+                                        onAddJournalEntry(
+                                            readingPoint.timestamp,
+                                            selectedJournalTypes.singleOrNull(),
+                                            readingPoint.value
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                                 isGroupStart = index == 0,
                                 isGroupEnd = index == section.items.lastIndex,
                                 dividerHorizontalInset = 0.dp,
