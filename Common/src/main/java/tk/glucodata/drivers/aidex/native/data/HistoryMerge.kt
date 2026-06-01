@@ -57,7 +57,7 @@ object HistoryMerge {
     const val MAX_PLAUSIBLE_RAW_MGDL = MAX_PLAUSIBLE_RAW_MMOL * MGDL_PER_MMOL
     const val MAX_OFFSET_DAYS = 30
     const val WARMUP_DURATION_MS = 7L * 60_000L  // 7 minutes
-    private const val CONTROL_VALUE_DEVIATION_THRESHOLD = 50
+    private const val CONTROL_VALUE_DEVIATION_THRESHOLD_MGDL = 20
 
     /**
      * Raw AiDex values can spike briefly after physical sensor disturbance.
@@ -74,8 +74,11 @@ object HistoryMerge {
     /**
      * Cache 0x23 calibrated history entries, skipping sentinels and control values.
      *
-     * The last entry of a full page (>=120 entries) is a control/calibration value
-     * embedded by the sensor. Skip it if it deviates >50 mg/dL from its neighbor.
+     * The last entry of a full page (>=120 entries) can be a control/calibration value
+     * embedded by the sensor. Skip it if it makes an implausible one-minute jump from
+     * its neighbor. Field logs showed a page-tail 70 -> 97 mg/dL row overwriting the
+     * matching direct F003 value; falling back to the previous history glucose is safer
+     * than preserving an isolated page-boundary spike.
      *
      * @param entries Parsed 0x23 history entries
      * @param cache Mutable map to populate (offset -> glucose mg/dL)
@@ -95,7 +98,7 @@ object HistoryMerge {
             if (idx == lastIdx && entries.size >= 120) {
                 val prevGlucose = if (idx > 0) entries[idx - 1].glucoseMgDl else entry.glucoseMgDl
                 val deviation = kotlin.math.abs(entry.glucoseMgDl - prevGlucose)
-                if (deviation > CONTROL_VALUE_DEVIATION_THRESHOLD) {
+                if (deviation > CONTROL_VALUE_DEVIATION_THRESHOLD_MGDL) {
                     skipped++
                     continue
                 }
