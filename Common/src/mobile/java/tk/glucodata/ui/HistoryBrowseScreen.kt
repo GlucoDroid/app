@@ -754,37 +754,11 @@ fun HistoryBrowseScreen(
                                 sensorId = sensorId,
                                 calibrations = calibrations,
                                 highlightLeadRow = false,
-                                journalEntries = item.journalEntries,
-                                journalPresetsById = journalPresetsById,
-                                journalFoodsById = journalFoodsById,
-                                journalChipExpanded = true,
-                                onJournalEntryClick = onJournalEntryClick,
                                 showLeadingAction = false,
-                                onLeadingActionClick = if (journalEnabled && onAddJournalEntry != null) {
-                                    {
-                                        onAddJournalEntry(
-                                            readingPoint.timestamp,
-                                            selectedJournalTypes.singleOrNull(),
-                                            readingPoint.value
-                                        )
-                                    }
-                                } else {
-                                    null
-                                },
                                 isGroupStart = index == 0,
                                 isGroupEnd = index == section.items.lastIndex,
                                 dividerHorizontalInset = 0.dp,
-                                onValueClick = if (journalEnabled && onAddJournalEntry != null) {
-                                    {
-                                        onAddJournalEntry(
-                                            readingPoint.timestamp,
-                                            selectedJournalTypes.singleOrNull(),
-                                            readingPoint.value
-                                        )
-                                    }
-                                } else {
-                                    { onPointClick?.invoke(readingPoint) }
-                                },
+                                onValueClick = { onPointClick?.invoke(readingPoint) },
                                 onDeleteReading = onDeleteReading,
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
