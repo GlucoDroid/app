@@ -472,6 +472,11 @@ public class NotificationChartDrawer {
     }
 
     public static Bitmap drawArrow(Context context, float rate, boolean isMmol, int color, float arrowScale) {
+        return drawArrow(context, rate, isMmol, color, arrowScale, false);
+    }
+
+    public static Bitmap drawArrow(Context context, float rate, boolean isMmol, int color, float arrowScale,
+            boolean outline) {
         float density = context.getResources().getDisplayMetrics().density;
         // Arrow size: 20dp * scale (slightly smaller than 24dp for notifications)
         int size = (int) (20 * density * arrowScale);
@@ -491,7 +496,15 @@ public class NotificationChartDrawer {
         // TrendIndicator.kt Logic:
         // strokeWidth = size.width * 0.12f
         float drawSize = bitmapSize;
-        paint.setStrokeWidth(drawSize * 0.1f);
+        float strokeWidth = drawSize * 0.1f;
+        paint.setStrokeWidth(strokeWidth);
+
+        Paint outlinePaint = null;
+        if (outline) {
+            outlinePaint = new Paint(paint);
+            outlinePaint.setColor(isLightColor(color) ? 0xB0000000 : 0xC8FFFFFF);
+            outlinePaint.setStrokeWidth(strokeWidth * 2.2f);
+        }
 
         // Rotation Formula: Rate -> Degrees
         // 2.0 -> 50 deg? No, TrendIndicator uses:
@@ -550,6 +563,9 @@ public class NotificationChartDrawer {
         pArrow.lineTo(arrowTipX, cy);
         pArrow.lineTo(arrowWingX, cy + headSpan / 2.0f);
 
+        if (outlinePaint != null) {
+            canvas.drawPath(pArrow, outlinePaint);
+        }
         canvas.drawPath(pArrow, paint);
 
         if (showDouble) {
@@ -562,11 +578,21 @@ public class NotificationChartDrawer {
             pSecond.lineTo(secondTipX, cy);
             pSecond.lineTo(secondWingX, cy + headSpan / 2.0f);
 
+            if (outlinePaint != null) {
+                canvas.drawPath(pSecond, outlinePaint);
+            }
             canvas.drawPath(pSecond, paint);
         }
 
         canvas.restore();
         return bitmap;
+    }
+
+    private static boolean isLightColor(int color) {
+        double luminance = (0.299 * Color.red(color)) +
+                (0.587 * Color.green(color)) +
+                (0.114 * Color.blue(color));
+        return luminance >= 150.0;
     }
 
     public static Bitmap drawGlucoseText(Context context, String text, int color) {

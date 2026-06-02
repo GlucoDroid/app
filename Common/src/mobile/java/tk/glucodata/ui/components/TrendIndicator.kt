@@ -20,7 +20,8 @@ import tk.glucodata.logic.TrendEngine
 fun TrendIndicator(
     trendResult: TrendEngine.TrendResult,
     modifier: Modifier = Modifier,
-    color: Color = Color.Black
+    color: Color = Color.Black,
+    outlineColor: Color? = null
 ) {
     // "Optically Correct Arrow" Engine
     // 1. Visual: 90-degree Head, Round Caps/Joins, Optical Centering.
@@ -106,6 +107,11 @@ fun TrendIndicator(
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round
             )
+            val outlineStyle = Stroke(
+                width = strokeWidth * 2.2f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
 
             // Centering Logic
             // We want the center of "totalVisualLen" to be at cx
@@ -126,6 +132,7 @@ fun TrendIndicator(
                 lineTo(arrowTipX, cy)
                 lineTo(arrowWingX, cy + headSpan/2)
             }
+            outlineColor?.let { drawPath(path = pArrow, color = it, style = outlineStyle) }
             drawPath(path = pArrow, color = color, style = arrStyle)
             
             if (showDouble) {
@@ -139,6 +146,7 @@ fun TrendIndicator(
                     lineTo(secondTipX, cy)
                     lineTo(secondWingX, cy + headSpan/2)
                 }
+                outlineColor?.let { drawPath(path = pSecond, color = it, style = outlineStyle) }
                 drawPath(path = pSecond, color = color, style = arrStyle)
             }
         }

@@ -65,6 +65,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private var xOffset = 0
     private var yOffset = 0
     private var currentOverlayPosition = "TOP"
+    private var currentChartAnchorFraction = 0.5f
 
     private val broadcastFollowUpRunnable = Runnable {
         if (overlayView?.visibility == View.VISIBLE) {
@@ -336,6 +337,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         // Default to TOP if empty or missing
         // Alignment logic
         val alignment = prefs.getString("aod_alignment", "CENTER") ?: "CENTER"
+        val showChart = prefs.getBoolean("aod_show_chart", true)
         
         // Apply Opacity (combined with light sensor)
         updateAlpha()
@@ -358,7 +360,16 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val rootLayout = view.findViewById<android.widget.LinearLayout>(R.id.aod_root)
         val textContainer = view.findViewById<android.widget.LinearLayout>(R.id.aod_text_container)
         var alignGravity = Gravity.CENTER_HORIZONTAL
-        when(alignment) {
+        val effectiveAlignment = if (showChart && alignment == "CENTER") {
+            when {
+                currentChartAnchorFraction < 0.38f -> "LEFT"
+                currentChartAnchorFraction > 0.62f -> "RIGHT"
+                else -> "CENTER"
+            }
+        } else {
+            alignment
+        }
+        when(effectiveAlignment) {
             "LEFT" -> alignGravity = Gravity.START
             "CENTER" -> alignGravity = Gravity.CENTER_HORIZONTAL
             "RIGHT" -> alignGravity = Gravity.END
@@ -448,6 +459,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             viewMode = resolvedDisplay.viewMode
         }
         val overlayChartPoints = DisplayTrendSource.augmentHistory(chartPoints, resolvedDisplay, activeSensorSerial, startT)
+        currentChartAnchorFraction = estimateChartAnchorFraction(overlayChartPoints, startT, endT)
         val hasCalibration = tk.glucodata.NightscoutCalibration.hasCalibrationForViewMode(activeSensorSerial, viewMode)
 
         if (resolvedDisplay != null) {
@@ -489,7 +501,8 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                 displayRate,
                 isMmol,
                 glucoseColor,
-                textScale * arrowScale
+                textScale * arrowScale,
+                true
             )
             arrowImg?.setImageBitmap(arrowBitmap)
             arrowImg?.visibility = View.VISIBLE
@@ -542,6 +555,15 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                 statusView.visibility = View.GONE
             }
         }
+        applyBurnInProtection()
+    }
+
+    private fun estimateChartAnchorFraction(points: List<GlucosePoint>, startT: Long, endT: Long): Float {
+        if (points.isEmpty() || endT <= startT) {
+            return 0.5f
+        }
+        val latestTimestamp = points.maxOf { it.timestamp }
+        return ((latestTimestamp - startT).toFloat() / (endT - startT).toFloat()).coerceIn(0f, 1f)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
