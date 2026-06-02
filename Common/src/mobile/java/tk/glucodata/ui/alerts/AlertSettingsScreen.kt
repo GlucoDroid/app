@@ -14,6 +14,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -271,9 +272,7 @@ fun AlertSettingsScreen(
                             updateDraft(draft.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    },
-                    notificationDismissAction = notificationDismissAction,
-                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
+                    }
                 )
             }
 
@@ -307,9 +306,7 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    },
-                    notificationDismissAction = notificationDismissAction,
-                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
+                    }
                 )
             }
 
@@ -342,9 +339,7 @@ fun AlertSettingsScreen(
                                 upsertCustomAlert(updated)
                                 soundPickerRequest = null
                             }
-                        },
-                        notificationDismissAction = notificationDismissAction,
-                        onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
+                        }
                     )
                 }
             }
@@ -388,9 +383,7 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    },
-                    notificationDismissAction = notificationDismissAction,
-                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
+                    }
                 )
             }
 
@@ -423,9 +416,7 @@ fun AlertSettingsScreen(
                                 upsertCustomAlert(updated)
                                 soundPickerRequest = null
                             }
-                        },
-                        notificationDismissAction = notificationDismissAction,
-                        onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
+                        }
                     )
                 }
             }
@@ -466,9 +457,7 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    },
-                    notificationDismissAction = notificationDismissAction,
-                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
+                    }
                 )
             }
 
@@ -500,9 +489,7 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    },
-                    notificationDismissAction = notificationDismissAction,
-                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
+                    }
                 )
             }
 
@@ -510,6 +497,14 @@ fun AlertSettingsScreen(
             item(key = "preemptive-snooze") {
                 Spacer(Modifier.height(24.dp))
                 PreemptiveSnoozeCard()
+            }
+
+            item(key = "notification-dismiss-action") {
+                Spacer(Modifier.height(8.dp))
+                NotificationDismissActionPreference(
+                    action = notificationDismissAction,
+                    onActionChange = { persistNotificationDismissAction(it) }
+                )
             }
 
             item(key = "talker-settings") {
@@ -581,9 +576,7 @@ fun CustomAlertCard(
     onExpand: () -> Unit,
     onUpdate: (CustomAlertConfig) -> Unit,
     onDelete: () -> Unit,
-    onPickSound: (CustomAlertConfig) -> Unit,
-    notificationDismissAction: AlertNotificationDismissAction,
-    onNotificationDismissActionChange: (AlertNotificationDismissAction) -> Unit
+    onPickSound: (CustomAlertConfig) -> Unit
 ) {
     // Determine icon/color based on type to match AlertCard style
     val icon = if (alert.type == CustomAlertType.HIGH) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown
@@ -795,8 +788,6 @@ fun CustomAlertCard(
                                 alert.name
                             )
                         },
-                        notificationDismissAction = notificationDismissAction,
-                        onNotificationDismissActionChange = onNotificationDismissActionChange,
                         headerContent = {
                             // Name Field
                             OutlinedTextField(
@@ -904,9 +895,7 @@ private fun AlertCard(
     onToggle: (Boolean) -> Unit,
     onExpand: () -> Unit,
     onConfigChange: (AlertConfig) -> Unit,
-    onPickSound: () -> Unit,
-    notificationDismissAction: AlertNotificationDismissAction,
-    onNotificationDismissActionChange: (AlertNotificationDismissAction) -> Unit
+    onPickSound: () -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val (icon, accentColor) = getAlertIconAndColor(config.type, isDark)
@@ -1027,9 +1016,7 @@ private fun AlertCard(
                             // Use Notify.testTrigger to simulate real alarm flow
                             Notify.testTrigger(config.type.id)
                         },
-                        onPickSound = onPickSound,
-                        notificationDismissAction = notificationDismissAction,
-                        onNotificationDismissActionChange = onNotificationDismissActionChange
+                        onPickSound = onPickSound
                     )
                 }
             }
@@ -1047,9 +1034,7 @@ private fun AlertSettingsExpanded(
     isMmol: Boolean,
     onConfigChange: (AlertConfig) -> Unit,
     onTest: () -> Unit,
-    onPickSound: () -> Unit,
-    notificationDismissAction: AlertNotificationDismissAction,
-    onNotificationDismissActionChange: (AlertNotificationDismissAction) -> Unit
+    onPickSound: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1062,8 +1047,6 @@ private fun AlertSettingsExpanded(
             onConfigChange = onConfigChange,
             onPickSound = { onPickSound() },
             onTest = onTest,
-            notificationDismissAction = notificationDismissAction,
-            onNotificationDismissActionChange = onNotificationDismissActionChange,
             headerContent = {
                  // === Threshold Section (If applicable) ===
                 if (config.threshold != null) {
@@ -1354,6 +1337,84 @@ private fun PreemptiveSnoozeCard() {
         PreemptiveSnoozeDialog(
             onDismiss = { showDialog = false }
         )
+    }
+}
+
+@Composable
+private fun NotificationDismissActionPreference(
+    action: AlertNotificationDismissAction,
+    onActionChange: (AlertNotificationDismissAction) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.NotificationsOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.notification_dismiss_action_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(R.string.notification_dismiss_action_summary),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            val actionLabels = AlertNotificationDismissAction.entries.associateWith { it.localizedName() }
+            ConnectedButtonGroup(
+                options = AlertNotificationDismissAction.entries,
+                selectedOption = action,
+                onOptionSelected = onActionChange,
+                labelText = { actionLabels[it] ?: it.name },
+                label = {
+                    Text(
+                        text = actionLabels[it] ?: it.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                },
+                icon = { option ->
+                    if (option == action) Icons.Default.Check else null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                itemHeight = 40.dp,
+                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.74f),
+                selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.56f),
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

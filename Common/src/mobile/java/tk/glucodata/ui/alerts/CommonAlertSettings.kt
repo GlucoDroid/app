@@ -13,12 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
 import tk.glucodata.alerts.AlertConfig
 import tk.glucodata.alerts.AlertDeliveryMode
-import tk.glucodata.alerts.AlertNotificationDismissAction
 import tk.glucodata.alerts.MAX_ALERT_DURATION_SECONDS
 import tk.glucodata.alerts.MIN_ALERT_DURATION_SECONDS
 import tk.glucodata.alerts.HapticProfile
@@ -47,8 +45,6 @@ fun CommonAlertSettings(
     onPickSound: (AlertConfig) -> Unit,
     onTest: () -> Unit,
     showTestButton: Boolean = true,
-    notificationDismissAction: AlertNotificationDismissAction? = null,
-    onNotificationDismissActionChange: ((AlertNotificationDismissAction) -> Unit)? = null,
     // Optional Header Content (e.g., Thresholds)
     headerContent: (@Composable () -> Unit)? = null
 ) {
@@ -186,17 +182,6 @@ fun CommonAlertSettings(
                 unselectedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
                 unselectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
-
-            AnimatedVisibility(
-                visible = config.deliveryMode != AlertDeliveryMode.SYSTEM_ALARM &&
-                    notificationDismissAction != null &&
-                    onNotificationDismissActionChange != null
-            ) {
-                NotificationDismissActionInline(
-                    action = notificationDismissAction ?: AlertNotificationDismissAction.DISMISS,
-                    onActionChange = onNotificationDismissActionChange ?: {}
-                )
-            }
         }
 
         // === Duration ===
@@ -293,51 +278,6 @@ fun CommonAlertSettings(
             stepSize = 5,
             onValueChange = { onConfigChange(config.copy(defaultSnoozeMinutes = it)) },
             modifier = Modifier.padding(horizontal = sectionHorizontalPadding)
-        )
-    }
-}
-
-@Composable
-private fun NotificationDismissActionInline(
-    action: AlertNotificationDismissAction,
-    onActionChange: (AlertNotificationDismissAction) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = stringResource(R.string.notification_dismiss_action_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = stringResource(R.string.notification_dismiss_action_summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        val actionLabels = AlertNotificationDismissAction.entries.associateWith { it.localizedName() }
-        ConnectedButtonGroup(
-            options = AlertNotificationDismissAction.entries,
-            selectedOption = action,
-            onOptionSelected = onActionChange,
-            labelText = { actionLabels[it] ?: it.name },
-            label = {
-                Text(
-                    text = actionLabels[it] ?: it.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium
-                )
-            },
-            icon = { option ->
-                if (option == action) Icons.Default.Check else null
-            },
-            modifier = Modifier.fillMaxWidth(),
-            itemHeight = 36.dp,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f),
-            selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            unselectedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.24f),
-            unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
