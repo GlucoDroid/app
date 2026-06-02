@@ -133,20 +133,26 @@ fun FloatingGlucoseOverlay(
     val isDarkTheme = isSystemInDarkTheme()
     val finalBgColor = if (isTransparent) Color.Transparent else Color.Black.copy(alpha = opacity)
     val finalShape = RoundedCornerShape(cornerRadius.dp)
-    val finalTextColor = Color.White
+    val finalTextColor = if (isTransparent && !isDarkTheme) {
+        Color(0xFF27231F)
+    } else {
+        Color.White
+    }
     val textOutlineColor = when {
-        isTransparent -> Color.Black.copy(alpha = if (isDarkTheme) 0.58f else 0.64f)
+        isTransparent && !isDarkTheme -> Color.White.copy(alpha = 0.88f)
+        isTransparent -> Color.Black.copy(alpha = 0.58f)
         else -> Color.Black.copy(alpha = 0.28f)
     }
     val textShadow = Shadow(
         color = when {
-            isTransparent -> Color.Black.copy(alpha = if (isDarkTheme) 0.62f else 0.72f)
+            isTransparent && !isDarkTheme -> Color.White.copy(alpha = 0.9f)
+            isTransparent -> Color.Black.copy(alpha = 0.62f)
             else -> Color.Black.copy(alpha = 0.42f)
         },
-        offset = Offset(0f, if (isTransparent) 1.2f else 1.5f),
-        blurRadius = if (isTransparent) 4.5f else 5f
+        offset = Offset(0f, if (isTransparent && !isDarkTheme) 0f else if (isTransparent) 1.2f else 1.5f),
+        blurRadius = if (isTransparent && !isDarkTheme) 5.5f else if (isTransparent) 4.5f else 5f
     )
-    val arrowOutlineColor = if (isTransparent) textOutlineColor else null
+    val arrowOutlineColor = if (isTransparent && useSubtleOutline) textOutlineColor else null
     val overlayInteractionSource = remember { MutableInteractionSource() }
     val overlayIndication = ripple(
         bounded = true,
