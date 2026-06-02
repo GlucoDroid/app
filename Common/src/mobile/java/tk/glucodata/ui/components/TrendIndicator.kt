@@ -109,12 +109,17 @@ fun TrendIndicator(
                 join = StrokeJoin.Round
             )
             val outlineStyle = Stroke(
-                width = strokeWidth * 1.55f,
+                width = strokeWidth * 1.85f,
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round
             )
-            val shadowStyle = Stroke(
-                width = strokeWidth * 1.65f,
+            val outerHaloStyle = Stroke(
+                width = strokeWidth * 2.15f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+            val innerHaloStyle = Stroke(
+                width = strokeWidth * 1.55f,
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round
             )
@@ -139,7 +144,10 @@ fun TrendIndicator(
                 lineTo(arrowWingX, cy + headSpan/2)
             }
             if (outlineColor == null) {
-                shadowColor?.let { drawPath(path = pArrow, color = it, style = shadowStyle) }
+                shadowColor?.let {
+                    drawPath(path = pArrow, color = it.copy(alpha = it.alpha * 0.24f), style = outerHaloStyle)
+                    drawPath(path = pArrow, color = it.copy(alpha = it.alpha * 0.42f), style = innerHaloStyle)
+                }
             }
             outlineColor?.let { drawPath(path = pArrow, color = it, style = outlineStyle) }
             drawPath(path = pArrow, color = color, style = arrStyle)
@@ -156,7 +164,10 @@ fun TrendIndicator(
                     lineTo(secondWingX, cy + headSpan/2)
                 }
                 if (outlineColor == null) {
-                    shadowColor?.let { drawPath(path = pSecond, color = it, style = shadowStyle) }
+                    shadowColor?.let {
+                        drawPath(path = pSecond, color = it.copy(alpha = it.alpha * 0.24f), style = outerHaloStyle)
+                        drawPath(path = pSecond, color = it.copy(alpha = it.alpha * 0.42f), style = innerHaloStyle)
+                    }
                 }
                 outlineColor?.let { drawPath(path = pSecond, color = it, style = outlineStyle) }
                 drawPath(path = pSecond, color = color, style = arrStyle)

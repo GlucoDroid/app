@@ -145,12 +145,12 @@ fun FloatingGlucoseOverlay(
     }
     val textShadow = Shadow(
         color = when {
-            isTransparent && !isDarkTheme -> Color.White.copy(alpha = 0.9f)
+            isTransparent && !isDarkTheme -> Color.White.copy(alpha = 1.0f)
             isTransparent -> Color.Black.copy(alpha = 0.62f)
             else -> Color.Black.copy(alpha = 0.42f)
         },
         offset = Offset(0f, if (isTransparent && !isDarkTheme) 0f else if (isTransparent) 1.2f else 1.5f),
-        blurRadius = if (isTransparent && !isDarkTheme) 5.5f else if (isTransparent) 4.5f else 5f
+        blurRadius = if (isTransparent && !isDarkTheme) 7f else if (isTransparent) 4.5f else 5f
     )
     val arrowOutlineColor = if (isTransparent && useSubtleOutline) textOutlineColor else null
     val arrowShadowColor = if (isTransparent && !useSubtleOutline) textShadow.color else null
