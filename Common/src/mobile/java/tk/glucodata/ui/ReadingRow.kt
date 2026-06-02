@@ -225,7 +225,7 @@ fun ReadingRow(
             val rowMinHeight = if (journalChipExpanded && hasInlineJournalEntries) 64.dp else 48.dp
             val valueMinWidth = if (showLeadingAction || hasInlineJournalEntries) 104.dp else 124.dp
             val leadingActionSlotWidth = 44.dp
-            val trendSlotWidth = 36.dp
+            val trendSlotWidth = 30.dp
             val timeStyle = MaterialTheme.typography.bodySmall
             val timeColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             val timeWeight = if (isActive) FontWeight.Bold else FontWeight.Normal

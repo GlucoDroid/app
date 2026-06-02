@@ -307,7 +307,7 @@ private fun SensorCurrentValueChip(
     Surface(
         modifier = modifier.widthIn(max = 220.dp),
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.72f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 1.dp
     ) {
@@ -1462,6 +1462,12 @@ fun SensorCard(
                                     else -> null
                                 }
 
+                                currentSnapshot?.let { snapshot ->
+                                    SensorCurrentValueChip(
+                                        snapshot = snapshot,
+                                        accentColor = sensor.color
+                                    )
+                                }
                                 sensorStatusText?.let { status ->
                                     Text(
                                         text = status,
@@ -1470,12 +1476,6 @@ fun SensorCard(
                                         maxLines = 1,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f, fill = false)
-                                    )
-                                }
-                                currentSnapshot?.let { snapshot ->
-                                    SensorCurrentValueChip(
-                                        snapshot = snapshot,
-                                        accentColor = sensor.color
                                     )
                                 }
                             }
