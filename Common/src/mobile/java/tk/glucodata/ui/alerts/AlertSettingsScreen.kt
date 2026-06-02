@@ -181,6 +181,10 @@ fun AlertSettingsScreen(
     var notificationDismissAction by remember {
         mutableStateOf(AlertRepository.loadNotificationDismissAction())
     }
+    fun persistNotificationDismissAction(action: AlertNotificationDismissAction) {
+        notificationDismissAction = action
+        AlertRepository.saveNotificationDismissAction(action)
+    }
 
     Scaffold(
         topBar = {
@@ -269,10 +273,7 @@ fun AlertSettingsScreen(
                         }
                     },
                     notificationDismissAction = notificationDismissAction,
-                    onNotificationDismissActionChange = { action ->
-                        notificationDismissAction = action
-                        AlertRepository.saveNotificationDismissAction(action)
-                    }
+                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
                 )
             }
 
@@ -306,7 +307,9 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    }
+                    },
+                    notificationDismissAction = notificationDismissAction,
+                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
                 )
             }
 
@@ -339,7 +342,9 @@ fun AlertSettingsScreen(
                                 upsertCustomAlert(updated)
                                 soundPickerRequest = null
                             }
-                        }
+                        },
+                        notificationDismissAction = notificationDismissAction,
+                        onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
                     )
                 }
             }
@@ -383,7 +388,9 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    }
+                    },
+                    notificationDismissAction = notificationDismissAction,
+                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
                 )
             }
 
@@ -416,7 +423,9 @@ fun AlertSettingsScreen(
                                 upsertCustomAlert(updated)
                                 soundPickerRequest = null
                             }
-                        }
+                        },
+                        notificationDismissAction = notificationDismissAction,
+                        onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
                     )
                 }
             }
@@ -457,7 +466,9 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    }
+                    },
+                    notificationDismissAction = notificationDismissAction,
+                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
                 )
             }
 
@@ -489,7 +500,9 @@ fun AlertSettingsScreen(
                             persistConfigIfChanged(config.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    }
+                    },
+                    notificationDismissAction = notificationDismissAction,
+                    onNotificationDismissActionChange = { persistNotificationDismissAction(it) }
                 )
             }
 
@@ -568,7 +581,9 @@ fun CustomAlertCard(
     onExpand: () -> Unit,
     onUpdate: (CustomAlertConfig) -> Unit,
     onDelete: () -> Unit,
-    onPickSound: (CustomAlertConfig) -> Unit
+    onPickSound: (CustomAlertConfig) -> Unit,
+    notificationDismissAction: AlertNotificationDismissAction,
+    onNotificationDismissActionChange: (AlertNotificationDismissAction) -> Unit
 ) {
     // Determine icon/color based on type to match AlertCard style
     val icon = if (alert.type == CustomAlertType.HIGH) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown
@@ -780,6 +795,8 @@ fun CustomAlertCard(
                                 alert.name
                             )
                         },
+                        notificationDismissAction = notificationDismissAction,
+                        onNotificationDismissActionChange = onNotificationDismissActionChange,
                         headerContent = {
                             // Name Field
                             OutlinedTextField(
@@ -887,7 +904,9 @@ private fun AlertCard(
     onToggle: (Boolean) -> Unit,
     onExpand: () -> Unit,
     onConfigChange: (AlertConfig) -> Unit,
-    onPickSound: () -> Unit
+    onPickSound: () -> Unit,
+    notificationDismissAction: AlertNotificationDismissAction,
+    onNotificationDismissActionChange: (AlertNotificationDismissAction) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val (icon, accentColor) = getAlertIconAndColor(config.type, isDark)
@@ -1008,7 +1027,9 @@ private fun AlertCard(
                             // Use Notify.testTrigger to simulate real alarm flow
                             Notify.testTrigger(config.type.id)
                         },
-                        onPickSound = onPickSound
+                        onPickSound = onPickSound,
+                        notificationDismissAction = notificationDismissAction,
+                        onNotificationDismissActionChange = onNotificationDismissActionChange
                     )
                 }
             }
@@ -1026,7 +1047,9 @@ private fun AlertSettingsExpanded(
     isMmol: Boolean,
     onConfigChange: (AlertConfig) -> Unit,
     onTest: () -> Unit,
-    onPickSound: () -> Unit
+    onPickSound: () -> Unit,
+    notificationDismissAction: AlertNotificationDismissAction,
+    onNotificationDismissActionChange: (AlertNotificationDismissAction) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1039,6 +1062,8 @@ private fun AlertSettingsExpanded(
             onConfigChange = onConfigChange,
             onPickSound = { onPickSound() },
             onTest = onTest,
+            notificationDismissAction = notificationDismissAction,
+            onNotificationDismissActionChange = onNotificationDismissActionChange,
             headerContent = {
                  // === Threshold Section (If applicable) ===
                 if (config.threshold != null) {
