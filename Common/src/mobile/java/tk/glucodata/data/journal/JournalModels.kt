@@ -80,7 +80,8 @@ data class JournalEntryInput(
     val proteinGrams: Float? = null,
     val fatGrams: Float? = null,
     val source: JournalEntrySource = JournalEntrySource.MANUAL,
-    val sourceRecordId: String? = null
+    val sourceRecordId: String? = null,
+    val nsRemoteId: String? = null
 )
 
 data class JournalFood(

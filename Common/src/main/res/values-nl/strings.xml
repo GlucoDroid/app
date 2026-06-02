@@ -1210,6 +1210,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="nightnumhelp">Nachtelijke hulp</string>
     <string name="nightscout_enable_upload">Schakel Nightscout-upload in</string>
     <string name="nightscout_send_amounts_desc">Upload insuline/koolhydraten (behandelingen)</string>
+    <string name="nightscout_receive_amounts">Hoeveelheden ontvangen</string>
+    <string name="nightscout_receive_amounts_desc">Nightscout-insuline/koolhydraten in het dagboek importeren</string>
     <string name="nightscout_settings_title">Nightscout-instellingen</string>
     <string name="nightscout_url_label">Nightscout-URL</string>
     <string name="nightscout_url_placeholder">https://my-nightscout.herokuapp.com</string>

@@ -69,7 +69,7 @@ class JournalRepository {
             proteinGrams = input.proteinGrams?.coerceAtLeast(0f),
             fatGrams = input.fatGrams?.coerceAtLeast(0f),
             nsUploadedAt = existing?.nsUploadedAt,
-            nsRemoteId = existing?.nsRemoteId
+            nsRemoteId = input.nsRemoteId?.takeIf { it.isNotBlank() } ?: existing?.nsRemoteId
         )
         return dao.upsertEntry(entity)
     }
@@ -87,7 +87,7 @@ class JournalRepository {
     suspend fun deleteEntry(entryId: Long) {
         database.withTransaction {
             val existing = dao.getEntryById(entryId)
-            val remoteId = existing?.nsRemoteId
+            val remoteId = existing?.nightscoutDeleteRemoteId()
             if (remoteId != null) {
                 dao.enqueuePendingNightscoutDelete(
                     JournalPendingDeleteEntity(
@@ -382,6 +382,15 @@ class JournalRepository {
             food(R.string.journal_food_protein_snack, 10f, 25f, 8f, 180, 0xFF6F6650.toInt(), 11)
         )
     }
+}
+
+private fun JournalEntryEntity.nightscoutDeleteRemoteId(): String? {
+    nsRemoteId?.takeIf { it.isNotBlank() }?.let { return it }
+    if (source != JournalEntrySource.NIGHTSCOUT.storageValue) return null
+    val parts = sourceRecordId?.split(":") ?: return null
+    if (parts.size != 4 || parts[0] != "nightscout") return null
+    val baseId = parts[2].takeIf { it.isNotBlank() } ?: return null
+    return baseId.takeUnless { it.startsWith("hash", ignoreCase = true) }
 }
 
 private fun JournalEntryEntity.toModel(): JournalEntry {

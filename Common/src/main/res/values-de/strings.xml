@@ -1205,6 +1205,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="nightnumhelp">Nightnum-Hilfe</string>
     <string name="nightscout_enable_upload">Aktivieren Sie den Nightscout-Upload</string>
     <string name="nightscout_send_amounts_desc">Insulin/Kohlenhydrate hochladen (Behandlungen)</string>
+    <string name="nightscout_receive_amounts">Mengen empfangen</string>
+    <string name="nightscout_receive_amounts_desc">Nightscout-Insulin/Kohlenhydrate ins Journal importieren</string>
     <string name="nightscout_settings_title">Nightscout-Einstellungen</string>
     <string name="nightscout_url_label">Nightscout-URL</string>
     <string name="nightscout_url_placeholder">https://my-nightscout.herokuapp.com</string>

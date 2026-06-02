@@ -21,6 +21,7 @@ object JournalTreatmentTransfer {
     private const val SOURCE_KIND_NOTE = "note"
     private const val MIN_VALID_EPOCH_MS = 946_684_800_000L
     private const val MGDL_PER_MMOLL = 18.0182f
+    private const val JUGGLUCO_REMOTE_ID_PREFIX = "jng-j-"
 
     private val allKinds = listOf(
         SOURCE_KIND_CARBS,
@@ -42,13 +43,12 @@ object JournalTreatmentTransfer {
         remoteId: String,
         preset: JournalInsulinPresetEntity?,
         food: JournalFoodEntity?,
-        useV3: Boolean
+        useV3: Boolean,
+        includeRemoteId: Boolean = true
     ): JSONObject? {
         val type = JournalEntryType.fromStorage(entry.entryType)
         val timestamp = entry.timestamp.takeIf { it > 0L } ?: return null
         val json = JSONObject()
-            .put("_id", remoteId)
-            .put("identifier", remoteId)
             .put("date", timestamp)
             .put("created_at", formatIso8601(timestamp))
             .put("utcOffset", 0)
@@ -113,6 +113,10 @@ object JournalTreatmentTransfer {
             }
         }
 
+        if (includeRemoteId) {
+            json.put("_id", remoteId)
+                .put("identifier", remoteId)
+        }
         if (!useV3) {
             json.remove("identifier")
         }
@@ -168,7 +172,8 @@ object JournalTreatmentTransfer {
                     proteinGrams = treatment.optPositiveFloat("protein", "proteinGrams"),
                     fatGrams = treatment.optPositiveFloat("fat", "fatGrams"),
                     source = source,
-                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_CARBS)
+                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_CARBS),
+                    nsRemoteId = remoteId.takeIf { source == JournalEntrySource.NIGHTSCOUT }
                 )
             )
         }
@@ -189,7 +194,8 @@ object JournalTreatmentTransfer {
                     amount = insulin,
                     insulinPresetId = preset?.id,
                     source = source,
-                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_INSULIN)
+                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_INSULIN),
+                    nsRemoteId = remoteId.takeIf { source == JournalEntrySource.NIGHTSCOUT }
                 )
             )
         }
@@ -209,7 +215,8 @@ object JournalTreatmentTransfer {
                     note = note,
                     glucoseValueMgDl = glucoseMgdl,
                     source = source,
-                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_FINGERSTICK)
+                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_FINGERSTICK),
+                    nsRemoteId = remoteId.takeIf { source == JournalEntrySource.NIGHTSCOUT }
                 )
             )
         }
@@ -224,7 +231,8 @@ object JournalTreatmentTransfer {
                     durationMinutes = treatment.optDurationMinutes(),
                     intensity = treatment.optJournalIntensity(),
                     source = source,
-                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_ACTIVITY)
+                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_ACTIVITY),
+                    nsRemoteId = remoteId.takeIf { source == JournalEntrySource.NIGHTSCOUT }
                 )
             )
         }
@@ -239,7 +247,8 @@ object JournalTreatmentTransfer {
                     title = titleSuffix ?: context.getString(R.string.journal_type_note),
                     note = note ?: eventType,
                     source = source,
-                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_NOTE)
+                    sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_NOTE),
+                    nsRemoteId = remoteId.takeIf { source == JournalEntrySource.NIGHTSCOUT }
                 )
             )
         }
@@ -250,6 +259,21 @@ object JournalTreatmentTransfer {
             candidateSourceRecordIds = candidateIds,
             remoteId = remoteId
         )
+    }
+
+    fun isJugglucoUpload(treatment: JSONObject): Boolean {
+        val remoteId = treatment.optRemoteId()
+        if (remoteId?.startsWith(JUGGLUCO_REMOTE_ID_PREFIX, ignoreCase = true) == true) {
+            return true
+        }
+        val app = treatment.optNonBlankString("app", "enteredBy", "device") ?: return false
+        return app.equals("JugglucoNG", ignoreCase = true) ||
+            app.equals("Juggluco", ignoreCase = true)
+    }
+
+    fun hasAnyRemoteIdentifier(treatment: JSONObject, remoteIds: Set<String>): Boolean {
+        if (remoteIds.isEmpty()) return false
+        return treatment.remoteIdentifiers().any { id -> id in remoteIds }
     }
 
     fun sourceRecordIdsForTreatment(treatment: JSONObject, sourcePrefix: String): List<String> {
@@ -285,7 +309,16 @@ object JournalTreatmentTransfer {
     }
 
     private fun JSONObject.optRemoteId(): String? =
-        optNonBlankString("identifier", "_id", "id", "NSCLIENT_ID", "pumpId")
+        remoteIdentifiers().firstOrNull()
+
+    private fun JSONObject.remoteIdentifiers(): List<String> =
+        listOfNotNull(
+            optNonBlankString("identifier"),
+            optNonBlankString("_id"),
+            optNonBlankString("id"),
+            optNonBlankString("NSCLIENT_ID"),
+            optNonBlankString("pumpId")
+        ).distinct()
 
     private fun JSONObject.sourceBaseId(timestamp: Long?): String? {
         optRemoteId()?.let { return it }

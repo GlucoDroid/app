@@ -1173,6 +1173,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightnumhelp">Aide Nightnum</string>
     <string name="nightscout_enable_upload">Activer le téléchargement Nightscout</string>
     <string name="nightscout_send_amounts_desc">Télécharger de l\'insuline/des glucides (traitements)</string>
+    <string name="nightscout_receive_amounts">Recevoir les quantités</string>
+    <string name="nightscout_receive_amounts_desc">Importer l\'insuline/les glucides Nightscout dans le journal</string>
     <string name="nightscout_settings_title">Paramètres de Nightscout</string>
     <string name="nightscout_url_label">URL de Nightscout</string>
     <string name="nightscout_url_placeholder">https://my-nightscout.herokuapp.com</string>

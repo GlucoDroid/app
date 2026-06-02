@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import tk.glucodata.Applic
 import tk.glucodata.Log
+import tk.glucodata.data.HistoryDatabase
 
 @Keep
 object NightscoutJournalFollowerImporter {
@@ -31,6 +32,11 @@ object NightscoutJournalFollowerImporter {
         val repository = JournalRepository()
         repository.ensureDefaultInsulinPresets()
         val presets = repository.getInsulinPresetsSnapshot()
+        val pendingDeleteRemoteIds = HistoryDatabase.getInstance(Applic.app)
+            .journalDao()
+            .getPendingNightscoutDeletes()
+            .mapNotNull { it.nsRemoteId.trim().takeIf(String::isNotBlank) }
+            .toSet()
         val sourcePrefix = "nightscout:${sensorId.trim().ifBlank { "unknown" }}"
         var imported = 0
         var deleted = 0
@@ -38,6 +44,8 @@ object NightscoutJournalFollowerImporter {
 
         for (index in 0 until array.length()) {
             val treatment = array.optJSONObject(index) ?: continue
+            if (JournalTreatmentTransfer.isJugglucoUpload(treatment)) continue
+            if (JournalTreatmentTransfer.hasAnyRemoteIdentifier(treatment, pendingDeleteRemoteIds)) continue
             val parsed = JournalTreatmentTransfer.parseTreatment(
                 context = context,
                 treatment = treatment,

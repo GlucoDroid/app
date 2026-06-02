@@ -1202,6 +1202,8 @@
     <string name="nightnumhelp">Pomoc Nightnum</string>
     <string name="nightscout_enable_upload">Włącz przesyłanie Nightscout</string>
     <string name="nightscout_send_amounts_desc">Prześlij insulinę/węglowodany (leczenia)</string>
+    <string name="nightscout_receive_amounts">Odbieraj wartości</string>
+    <string name="nightscout_receive_amounts_desc">Importuj insulinę/węglowodany z Nightscout do dziennika</string>
     <string name="nightscout_settings_title">Ustawienia Nightscouta</string>
     <string name="nightscout_url_label">Adres URL Nightscouta</string>
     <string name="nightscout_url_placeholder">https://my-nightscout.herokuapp.com</string>

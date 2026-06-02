@@ -1167,6 +1167,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightnumhelp">Nightnum Hjälp</string>
     <string name="nightscout_enable_upload">Aktivera uppladdning av Nightscout</string>
     <string name="nightscout_send_amounts_desc">Ladda upp insulin/kolhydrater (behandlingar)</string>
+    <string name="nightscout_receive_amounts">Ta emot mängder</string>
+    <string name="nightscout_receive_amounts_desc">Importera Nightscout-insulin/kolhydrater till journalen</string>
     <string name="nightscout_settings_title">Nightscout-inställningar</string>
     <string name="nightscout_url_label">Nightscout URL</string>
     <string name="nightscout_url_placeholder">https://my-nightscout.herokuapp.com</string>

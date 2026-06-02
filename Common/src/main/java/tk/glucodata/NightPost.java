@@ -152,7 +152,7 @@ static public boolean deleteUrl(String urlstring,String secret) {
 
         final int code=urlConnection.getResponseCode();
         String res=getstring(urlConnection);
-        if(code==HTTP_OK) {
+        if(code==HTTP_OK || code==HttpURLConnection.HTTP_NO_CONTENT) {
             {if(doLog) {Log.i(LOG_ID,"deleteUrl success "+res);};};
             uploadstatus=success;
             return true;
@@ -242,11 +242,14 @@ private static long uploadtime=System.currentTimeMillis();
  */
 @Keep
 static public boolean uploadJournalTreatments(boolean useV3) {
-    if(!Natives.getpostTreatments()) {
-        return true;
-        }
     try {
         Class<?> uploader = Class.forName("tk.glucodata.data.journal.JournalTreatmentUploader");
+        if(!Natives.getpostTreatments()) {
+            java.lang.reflect.Method receiveMethod = uploader.getMethod("getReceiveTreatments");
+            if(!Boolean.TRUE.equals(receiveMethod.invoke(null))) {
+                return true;
+                }
+            }
         java.lang.reflect.Method method = uploader.getMethod("uploadAll", boolean.class);
         Object result = method.invoke(null, useV3);
         return Boolean.TRUE.equals(result);

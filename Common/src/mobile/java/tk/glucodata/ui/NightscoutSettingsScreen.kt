@@ -69,6 +69,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tk.glucodata.Natives
 import tk.glucodata.R
+import tk.glucodata.data.journal.JournalTreatmentUploader
 import tk.glucodata.drivers.nightscout.NightscoutFollowerRegistry
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.MasterSwitchCard
@@ -136,6 +137,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
     val followerConfig = remember { NightscoutFollowerRegistry.loadConfig(context) }
     var isActive by rememberSaveable { mutableStateOf(initialUploaderActive || followerConfig.enabled) }
     var sendTreatments by rememberSaveable { mutableStateOf(Natives.getpostTreatments()) }
+    var receiveTreatments by rememberSaveable { mutableStateOf(JournalTreatmentUploader.getReceiveTreatments()) }
     var isV3 by rememberSaveable { mutableStateOf(Natives.getnightscoutV3()) }
     var showSecret by rememberSaveable { mutableStateOf(false) }
     var lastResponseCode by rememberSaveable { mutableStateOf(0) }
@@ -162,6 +164,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
 
         Natives.setNightUploader(url.trim(), secret.trim(), uploadActive, isV3)
         Natives.setpostTreatments(sendTreatments)
+        JournalTreatmentUploader.setReceiveTreatments(receiveTreatments)
         if (followActive) {
             if (normalizedUrl.isBlank()) {
                 NightscoutFollowerRegistry.saveConfig(context, enabled = true, url = normalizedUrl, secret = secret)
@@ -466,11 +469,27 @@ fun NightscoutSettingsScreen(navController: NavController) {
                             title = stringResource(R.string.sendamounts),
                             subtitle = stringResource(R.string.nightscout_send_amounts_desc),
                             checked = sendTreatments,
-                            onCheckedChange = { sendTreatments = it },
+                            onCheckedChange = {
+                                sendTreatments = it
+                                Natives.setpostTreatments(it)
+                            },
                             icon = Icons.Default.Medication,
                             iconTint = MaterialTheme.colorScheme.primary,
                             enabled = isActive,
                             position = CardPosition.TOP
+                        )
+                        SettingsSwitchItem(
+                            title = stringResource(R.string.nightscout_receive_amounts),
+                            subtitle = stringResource(R.string.nightscout_receive_amounts_desc),
+                            checked = receiveTreatments,
+                            onCheckedChange = {
+                                receiveTreatments = it
+                                JournalTreatmentUploader.setReceiveTreatments(it)
+                            },
+                            icon = Icons.Default.Link,
+                            iconTint = MaterialTheme.colorScheme.secondary,
+                            enabled = isActive,
+                            position = CardPosition.MIDDLE
                         )
                         SettingsSwitchItem(
                             title = stringResource(R.string.nightscout_use_v3_api),

@@ -1195,6 +1195,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="nightnumhelp">Nightnum Yardımı</string>
     <string name="nightscout_enable_upload">Nightscout yüklemesini etkinleştir</string>
     <string name="nightscout_send_amounts_desc">İnsülin/Karbonhidrat Yükle (Tedaviler)</string>
+    <string name="nightscout_receive_amounts">Miktarları al</string>
+    <string name="nightscout_receive_amounts_desc">Nightscout insülin/karbonhidrat kayıtlarını günlüğe içe aktar</string>
     <string name="nightscout_settings_title">Gece İzci Ayarları</string>
     <string name="nightscout_url_label">Gece İzci URL\'si</string>
     <string name="nightscout_url_placeholder">https://my-nightscout.herokuapp.com</string>
