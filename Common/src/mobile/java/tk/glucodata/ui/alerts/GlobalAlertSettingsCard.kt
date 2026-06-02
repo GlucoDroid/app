@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
 import tk.glucodata.alerts.AlertConfig
+import tk.glucodata.alerts.AlertNotificationDismissAction
 import tk.glucodata.alerts.AlertType
 import tk.glucodata.ui.components.StyledSwitch
 
@@ -57,7 +58,9 @@ fun GlobalAlertSettingsCard(
     hasCustomAlertsEnabled: Boolean,
     onMasterToggle: (Boolean) -> Unit,
     onApplyToAll: (AlertConfig) -> Unit,
-    onPickSound: (AlertConfig, (AlertConfig) -> Unit) -> Unit
+    onPickSound: (AlertConfig, (AlertConfig) -> Unit) -> Unit,
+    notificationDismissAction: AlertNotificationDismissAction,
+    onNotificationDismissActionChange: (AlertNotificationDismissAction) -> Unit
 ) {
     var isExpanded by rememberSaveable { mutableStateOf(false) }
     val isMasterEnabled = allConfigs.values.any { it.enabled } || hasCustomAlertsEnabled
@@ -233,7 +236,9 @@ fun GlobalAlertSettingsCard(
                                 }
                             },
                             onTest = {},
-                            showTestButton = false
+                            showTestButton = false,
+                            notificationDismissAction = notificationDismissAction,
+                            onNotificationDismissActionChange = onNotificationDismissActionChange
                         )
                     }
                     }

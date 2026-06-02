@@ -267,14 +267,9 @@ fun AlertSettingsScreen(
                             updateDraft(draft.copy(customSoundUri = uri))
                             soundPickerRequest = null
                         }
-                    }
-                )
-            }
-
-            item(key = "notification-dismiss-action") {
-                NotificationDismissActionCard(
-                    action = notificationDismissAction,
-                    onActionChange = { action ->
+                    },
+                    notificationDismissAction = notificationDismissAction,
+                    onNotificationDismissActionChange = { action ->
                         notificationDismissAction = action
                         AlertRepository.saveNotificationDismissAction(action)
                     }
@@ -560,76 +555,6 @@ fun AddCustomAlertButton(text: String, onClick: () -> Unit) {
         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(text)
-    }
-}
-
-@Composable
-private fun NotificationDismissActionCard(
-    action: AlertNotificationDismissAction,
-    onActionChange: (AlertNotificationDismissAction) -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.NotificationsOff,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.notification_dismiss_action_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = stringResource(R.string.notification_dismiss_action_summary),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AlertNotificationDismissAction.entries.forEach { option ->
-                    FilterChip(
-                        selected = action == option,
-                        onClick = { onActionChange(option) },
-                        label = { Text(option.localizedName()) },
-                        leadingIcon = if (action == option) {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        } else {
-                            null
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
     }
 }
 

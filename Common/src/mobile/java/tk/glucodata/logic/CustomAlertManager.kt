@@ -52,8 +52,7 @@ object CustomAlertManager {
             rate = rate,
             targetTimeMillis = timestamp,
             preferredSensorId = sensorId,
-            sensorGen = sensorGen,
-            requireConfiguredPrimaryLane = true
+            sensorGen = sensorGen
         ) ?: return
         @Suppress("NAME_SHADOWING") val glucose = snapshot.primaryValue
         @Suppress("NAME_SHADOWING") val rate = snapshot.rate
