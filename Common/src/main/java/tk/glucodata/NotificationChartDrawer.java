@@ -22,6 +22,8 @@ import java.util.List;
 
 public class NotificationChartDrawer {
     private static final long DEFAULT_CHART_DURATION_MS = 3 * 60 * 60 * 1000L;
+    private static final String AOD_OVERLAY_SERVICE_NAME =
+            "tk.glucodata.accessibility.AODOverlayService";
 
     private static int resolveThresholdPointColor(
             float value,
@@ -460,10 +462,17 @@ public class NotificationChartDrawer {
         }
 
         // Standard Text Color (User requested removal of Red/Orange)
+        boolean isDark = useLightOnTransparentPalette(context);
+        return isDark ? Color.WHITE : Color.BLACK;
+    }
+
+    private static boolean useLightOnTransparentPalette(Context context) {
+        if (context != null && AOD_OVERLAY_SERVICE_NAME.equals(context.getClass().getName())) {
+            return true;
+        }
         int uiMode = context.getResources().getConfiguration().uiMode
                 & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-        boolean isDark = uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        return isDark ? Color.WHITE : Color.BLACK;
+        return uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
     }
 
     public static Bitmap drawArrow(Context context, float rate, boolean isMmol, int color) {
@@ -740,9 +749,7 @@ public class NotificationChartDrawer {
         float textSize = 11f * density;
 
         // Theme detection
-        int uiMode = context.getResources().getConfiguration().uiMode
-                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-        boolean isDark = uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        boolean isDark = useLightOnTransparentPalette(context);
         int textColor = isDark ? 0xAAFFFFFF : 0xAA000000; // Info-style gray
 
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -855,9 +862,7 @@ public class NotificationChartDrawer {
         int height = (heightHint > 0) ? heightHint : (int) (256 * dm.density);
 
         // Theme detection
-        int uiMode = context.getResources().getConfiguration().uiMode
-                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-        boolean isDark = uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        boolean isDark = useLightOnTransparentPalette(context);
 
         int lineColor = isDark ? Color.WHITE : Color.BLACK;
         int lineColorSecondary = isDark ? 0xFF9E9E9E : 0xFF757575;

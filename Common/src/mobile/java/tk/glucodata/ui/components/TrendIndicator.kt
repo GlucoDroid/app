@@ -21,7 +21,8 @@ fun TrendIndicator(
     trendResult: TrendEngine.TrendResult,
     modifier: Modifier = Modifier,
     color: Color = Color.Black,
-    outlineColor: Color? = null
+    outlineColor: Color? = null,
+    shadowColor: Color? = null
 ) {
     // "Optically Correct Arrow" Engine
     // 1. Visual: 90-degree Head, Round Caps/Joins, Optical Centering.
@@ -108,7 +109,12 @@ fun TrendIndicator(
                 join = StrokeJoin.Round
             )
             val outlineStyle = Stroke(
-                width = strokeWidth * 2.2f,
+                width = strokeWidth * 1.55f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+            val shadowStyle = Stroke(
+                width = strokeWidth * 1.65f,
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round
             )
@@ -132,6 +138,9 @@ fun TrendIndicator(
                 lineTo(arrowTipX, cy)
                 lineTo(arrowWingX, cy + headSpan/2)
             }
+            if (outlineColor == null) {
+                shadowColor?.let { drawPath(path = pArrow, color = it, style = shadowStyle) }
+            }
             outlineColor?.let { drawPath(path = pArrow, color = it, style = outlineStyle) }
             drawPath(path = pArrow, color = color, style = arrStyle)
             
@@ -145,6 +154,9 @@ fun TrendIndicator(
                     moveTo(secondWingX, cy - headSpan/2)
                     lineTo(secondTipX, cy)
                     lineTo(secondWingX, cy + headSpan/2)
+                }
+                if (outlineColor == null) {
+                    shadowColor?.let { drawPath(path = pSecond, color = it, style = shadowStyle) }
                 }
                 outlineColor?.let { drawPath(path = pSecond, color = it, style = outlineStyle) }
                 drawPath(path = pSecond, color = color, style = arrStyle)

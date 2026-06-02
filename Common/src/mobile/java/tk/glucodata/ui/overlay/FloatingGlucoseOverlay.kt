@@ -153,6 +153,7 @@ fun FloatingGlucoseOverlay(
         blurRadius = if (isTransparent && !isDarkTheme) 5.5f else if (isTransparent) 4.5f else 5f
     )
     val arrowOutlineColor = if (isTransparent && useSubtleOutline) textOutlineColor else null
+    val arrowShadowColor = if (isTransparent && !useSubtleOutline) textShadow.color else null
     val overlayInteractionSource = remember { MutableInteractionSource() }
     val overlayIndication = ripple(
         bounded = true,
@@ -331,7 +332,8 @@ fun FloatingGlucoseOverlay(
                 trendResult = trendResult,
                 modifier = Modifier.size(if (isDynamicIsland && isVerticalIsland) sideIslandArrowSize else arrowSize),
                 color = finalTextColor,
-                outlineColor = arrowOutlineColor
+                outlineColor = arrowOutlineColor,
+                shadowColor = arrowShadowColor
             )
         } else {
             Spacer(Modifier.size(1.dp))
@@ -446,7 +448,8 @@ fun FloatingGlucoseOverlay(
                         trendResult,
                         Modifier.size(arrowSize),
                         finalTextColor,
-                        outlineColor = arrowOutlineColor
+                        outlineColor = arrowOutlineColor,
+                        shadowColor = arrowShadowColor
                     )
                 }
             }
