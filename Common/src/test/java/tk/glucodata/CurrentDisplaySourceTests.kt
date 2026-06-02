@@ -1,6 +1,8 @@
 package tk.glucodata
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Locale
 
@@ -85,6 +87,50 @@ class CurrentDisplaySourceTests {
         assertEquals(31f, snapshot.rawValue)
         assertEquals(31f, snapshot.primaryValue)
         assertEquals(75f, snapshot.autoValue)
+    }
+
+    @Test
+    fun hasConfiguredPrimaryLane_rejectsAutoFallbackInRawPrimaryMode() {
+        val timestamp = 1_700_000_000_000L
+        val snapshot = CurrentDisplaySource.resolveFromLive(
+            liveValueText = null,
+            liveNumericValue = 151f,
+            rate = 0f,
+            targetTimeMillis = timestamp,
+            sensorId = "aidex-raw-missing",
+            sensorGen = 0,
+            index = 0,
+            source = "test",
+            recentPoints = listOf(GlucosePoint(timestamp, 151f, 0f)),
+            viewMode = 1,
+            isMmol = false
+        )
+
+        requireNotNull(snapshot)
+        assertEquals(151f, snapshot.primaryValue, 0.001f)
+        assertFalse(CurrentDisplaySource.hasConfiguredPrimaryLane(snapshot))
+    }
+
+    @Test
+    fun hasConfiguredPrimaryLane_acceptsRawPrimaryWhenRawLaneExists() {
+        val timestamp = 1_700_000_000_000L
+        val snapshot = CurrentDisplaySource.resolveFromLive(
+            liveValueText = null,
+            liveNumericValue = 151f,
+            rate = 0f,
+            targetTimeMillis = timestamp,
+            sensorId = "aidex-raw-present",
+            sensorGen = 0,
+            index = 0,
+            source = "test",
+            recentPoints = listOf(GlucosePoint(timestamp, 151f, 123f)),
+            viewMode = 1,
+            isMmol = false
+        )
+
+        requireNotNull(snapshot)
+        assertEquals(123f, snapshot.primaryValue, 0.001f)
+        assertTrue(CurrentDisplaySource.hasConfiguredPrimaryLane(snapshot))
     }
 
     @Test

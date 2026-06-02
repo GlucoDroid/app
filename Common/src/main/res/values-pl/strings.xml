@@ -679,6 +679,10 @@
     <string name="predictive_alerts">Alarmy predykcyjne</string>
     <string name="preemptive_snooze">Wstepne odlozenie</string>
     <string name="preemptive_snooze_desc">Odkładaj alarmy zanim sie uruchomia</string>
+    <string name="notification_dismiss_action_title">Akcja po odrzuceniu powiadomienia</string>
+    <string name="notification_dismiss_action_summary">Przesuniecie lub zamkniecie powiadomien</string>
+    <string name="notification_dismiss_action_dismiss">Odrzuc</string>
+    <string name="notification_dismiss_action_snooze">Odloz</string>
     <string name="realert_if_not_dismissed">Ponow alarm, jesli nie odrzucono</string>
     <string name="retry_every">Ponow co</string>
     <string name="retry_if_no_reaction">Ponow przy braku reakcji</string>

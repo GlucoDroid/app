@@ -146,7 +146,8 @@ object CurrentDisplaySource {
         sensorGen: Int = 0,
         index: Int = 0,
         source: String = "incoming",
-        historyWindowMs: Long = DEFAULT_HISTORY_WINDOW_MS
+        historyWindowMs: Long = DEFAULT_HISTORY_WINDOW_MS,
+        requireConfiguredPrimaryLane: Boolean = false
     ): Snapshot? {
         if (!liveNumericValue.isFinite() || liveNumericValue <= 0.1f || targetTimeMillis <= 0L) {
             return null
@@ -203,6 +204,9 @@ object CurrentDisplaySource {
             viewMode = viewMode,
             isMmol = isMmol
         ) ?: return null
+        if (requireConfiguredPrimaryLane && !hasConfiguredPrimaryLane(initialSnapshot)) {
+            return null
+        }
         val trendPoints = DisplayTrendSource.augmentHistory(
             historyPoints = processedPoints,
             current = initialSnapshot,
@@ -587,6 +591,24 @@ object CurrentDisplaySource {
     }
 
     private fun isRawPrimary(viewMode: Int): Boolean = viewMode == 1 || viewMode == 3
+
+    @JvmStatic
+    fun hasConfiguredPrimaryLane(snapshot: Snapshot): Boolean {
+        return hasConfiguredPrimaryLane(
+            viewMode = snapshot.viewMode,
+            autoValue = snapshot.autoValue,
+            rawValue = snapshot.rawValue
+        )
+    }
+
+    private fun hasConfiguredPrimaryLane(viewMode: Int, autoValue: Float, rawValue: Float): Boolean {
+        val autoValid = autoValue.isFinite() && autoValue > 0.1f
+        val rawValid = rawValue.isFinite() && rawValue > 0.1f
+        return when (viewMode) {
+            1, 3 -> rawValid
+            else -> autoValid
+        }
+    }
 
     private fun matchesSensor(candidate: String?, expected: String?): Boolean {
         if (expected.isNullOrBlank()) {

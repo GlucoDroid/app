@@ -18,9 +18,41 @@ object CustomAlertAccess {
             )
         }.getOrNull()
     }
+    private val checkAndTriggerWithSensorMethod by lazy {
+        runCatching {
+            holder?.getMethod(
+                "checkAndTrigger",
+                Context::class.java,
+                Float::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType,
+                Long::class.javaPrimitiveType,
+                String::class.java,
+                Int::class.javaPrimitiveType
+            )
+        }.getOrNull()
+    }
 
     @JvmStatic
     fun checkAndTrigger(context: Context, glucose: Float, rate: Float, timestampMillis: Long) {
         runCatching { checkAndTriggerMethod?.invoke(instance, context, glucose, rate, timestampMillis) }
+    }
+
+    @JvmStatic
+    fun checkAndTrigger(
+        context: Context,
+        glucose: Float,
+        rate: Float,
+        timestampMillis: Long,
+        sensorId: String?,
+        sensorGen: Int
+    ) {
+        runCatching {
+            val method = checkAndTriggerWithSensorMethod
+            if (method != null) {
+                method.invoke(instance, context, glucose, rate, timestampMillis, sensorId, sensorGen)
+            } else {
+                checkAndTriggerMethod?.invoke(instance, context, glucose, rate, timestampMillis)
+            }
+        }
     }
 }

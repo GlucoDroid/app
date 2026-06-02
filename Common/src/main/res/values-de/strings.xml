@@ -679,6 +679,10 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="predictive_alerts">Vorhersagealarme</string>
     <string name="preemptive_snooze">Vorbeugendes Schlummern</string>
     <string name="preemptive_snooze_desc">Alarme vor dem Auslosen schlummern</string>
+    <string name="notification_dismiss_action_title">Aktion beim Schließen der Benachrichtigung</string>
+    <string name="notification_dismiss_action_summary">Benachrichtigungen wegwischen oder schließen</string>
+    <string name="notification_dismiss_action_dismiss">Verwerfen</string>
+    <string name="notification_dismiss_action_snooze">Schlummern</string>
     <string name="realert_if_not_dismissed">Erneut alarmieren, wenn nicht verworfen</string>
     <string name="retry_every">Wiederholen alle</string>
     <string name="retry_if_no_reaction">Wiederholen bei keiner Reaktion</string>

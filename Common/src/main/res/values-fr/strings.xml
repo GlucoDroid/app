@@ -550,6 +550,10 @@
     <string name="predictive_alerts">Alertes predictives</string>
     <string name="preemptive_snooze">Snooze preventif</string>
     <string name="preemptive_snooze_desc">Mettre en snooze les alertes avant leur declenchement</string>
+    <string name="notification_dismiss_action_title">Action à la fermeture de notification</string>
+    <string name="notification_dismiss_action_summary">Balayage ou fermeture des notifications</string>
+    <string name="notification_dismiss_action_dismiss">Ignorer</string>
+    <string name="notification_dismiss_action_snooze">Répéter</string>
     <string name="realert_if_not_dismissed">Realerter si non ignoree</string>
     <string name="retry_every">Reessayer toutes les</string>
     <string name="retry_if_no_reaction">Reessayer si aucune reaction</string>

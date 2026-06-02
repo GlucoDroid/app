@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import tk.glucodata.R
 import tk.glucodata.alerts.AlertDeliveryMode
+import tk.glucodata.alerts.AlertNotificationDismissAction
 import tk.glucodata.alerts.HapticProfile
 
 @Composable
@@ -22,5 +23,13 @@ internal fun HapticProfile.localizedName(): String = stringResource(
         HapticProfile.STEADY -> R.string.haptic_profile_steady
         HapticProfile.STRONG -> R.string.haptic_profile_strong
         HapticProfile.ESCALATING -> R.string.haptic_profile_escalating
+    }
+)
+
+@Composable
+internal fun AlertNotificationDismissAction.localizedName(): String = stringResource(
+    when (this) {
+        AlertNotificationDismissAction.DISMISS -> R.string.notification_dismiss_action_dismiss
+        AlertNotificationDismissAction.SNOOZE -> R.string.notification_dismiss_action_snooze
     }
 )

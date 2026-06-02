@@ -83,6 +83,7 @@ import java.util.concurrent.TimeUnit;
 import tk.glucodata.alerts.AlertType;
 import tk.glucodata.alerts.SnoozeManager;
 import tk.glucodata.alerts.AlertConfig;
+import tk.glucodata.alerts.AlertNotificationDismissAction;
 import tk.glucodata.alerts.AlertRepository;
 import tk.glucodata.alerts.AlertStateTracker;
 import tk.glucodata.drivers.ManagedSensorRuntime;
@@ -2677,10 +2678,13 @@ public class Notify {
                 }
                 var GluNotBuilder = mkbuilderintent(type, intent, false);
                 // Wearables and companion apps often map "dismiss" to the notification's
-                // delete intent. Keep that aligned with the alarm screen's primary Stop
-                // action, which ends the current alert episode rather than snoozing it.
+                // delete intent. The explicit notification buttons keep their fixed
+                // behavior; this preference only controls generic swipe/close events.
                 Intent swipeDismissIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmActionReceiver.class);
-                swipeDismissIntent.setAction(tk.glucodata.receivers.AlarmActionReceiver.ACTION_DISMISS);
+                AlertNotificationDismissAction deleteAction = AlertRepository.INSTANCE.loadNotificationDismissAction();
+                swipeDismissIntent.setAction(deleteAction == AlertNotificationDismissAction.SNOOZE
+                        ? tk.glucodata.receivers.AlarmActionReceiver.ACTION_SNOOZE
+                        : tk.glucodata.receivers.AlarmActionReceiver.ACTION_DISMISS);
                 swipeDismissIntent.putExtra("alert_type_id", alertTypeId);
                 if (customAlertId != null && !customAlertId.isEmpty()) {
                     swipeDismissIntent.putExtra(EXTRA_CUSTOM_ALERT_ID, customAlertId);

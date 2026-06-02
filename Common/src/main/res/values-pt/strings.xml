@@ -503,6 +503,10 @@
     <string name="predictive_alerts">Alertas preditivos</string>
     <string name="preemptive_snooze">Soneca preventiva</string>
     <string name="preemptive_snooze_desc">Adiar alertas antes de dispararem</string>
+    <string name="notification_dismiss_action_title">Ação ao dispensar notificação</string>
+    <string name="notification_dismiss_action_summary">Deslizar ou fechar notificações</string>
+    <string name="notification_dismiss_action_dismiss">Dispensar</string>
+    <string name="notification_dismiss_action_snooze">Adiar</string>
     <string name="realert_if_not_dismissed">Alertar novamente se nao descartado</string>
     <string name="retry_every">Repetir a cada</string>
     <string name="retry_if_no_reaction">Repetir se nao houver reacao</string>

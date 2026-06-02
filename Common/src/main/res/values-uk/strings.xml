@@ -615,6 +615,10 @@
     <string name="predictive_alerts">Прогнозні сповіщення</string>
     <string name="preemptive_snooze">Превентивне відкладання</string>
     <string name="preemptive_snooze_desc">Відкладати сповіщення до їх спрацювання</string>
+    <string name="notification_dismiss_action_title">Дія під час закриття сповіщення</string>
+    <string name="notification_dismiss_action_summary">Змахування або закриття сповіщень</string>
+    <string name="notification_dismiss_action_dismiss">Закрити</string>
+    <string name="notification_dismiss_action_snooze">Відкласти</string>
     <string name="realert_if_not_dismissed">Повторювати, якщо не відхилено</string>
     <string name="retry_every">Повторювати кожні</string>
     <string name="retry_if_no_reaction">Повторювати, якщо немає реакції</string>

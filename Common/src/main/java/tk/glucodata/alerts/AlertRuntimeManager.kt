@@ -79,7 +79,8 @@ object AlertRuntimeManager {
                 rate = rate,
                 targetTimeMillis = readingTimeMs,
                 preferredSensorId = sensorId,
-                sensorGen = sensorGen
+                sensorGen = sensorGen,
+                requireConfiguredPrimaryLane = true
             )
         } catch (t: Throwable) {
             Log.stack(LOG_ID, "resolveIncomingReading", t)
@@ -139,6 +140,15 @@ object AlertRuntimeManager {
         } ?: return
 
         if (latest.timeMillis <= 0L || !latest.primaryValue.isFinite()) {
+            return
+        }
+        if (!CurrentDisplaySource.hasConfiguredPrimaryLane(latest)) {
+            if (latest.timeMillis >= lastReadingTimeMs) {
+                lastReadingTimeMs = latest.timeMillis
+                lastGlucoseValue = Float.NaN
+                lastRate = Float.NaN
+                lastDisplaySnapshot = null
+            }
             return
         }
 
@@ -427,6 +437,12 @@ object AlertRuntimeManager {
         }
         if (lastDeliveredReadingTimeMs <= 0L) {
             lastDeliveredReadingTimeMs = latest.timeMillis
+        }
+        if (!CurrentDisplaySource.hasConfiguredPrimaryLane(latest)) {
+            lastGlucoseValue = Float.NaN
+            lastRate = Float.NaN
+            lastDisplaySnapshot = null
+            return
         }
         if (!lastGlucoseValue.isFinite()) {
             lastGlucoseValue = latest.primaryValue

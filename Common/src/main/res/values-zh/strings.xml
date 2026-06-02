@@ -615,6 +615,10 @@
     <string name="predictive_alerts">预测警报</string>
     <string name="preemptive_snooze">预先稍后提醒</string>
     <string name="preemptive_snooze_desc">在触发前先暂停警报</string>
+    <string name="notification_dismiss_action_title">通知关闭操作</string>
+    <string name="notification_dismiss_action_summary">滑动或关闭通知</string>
+    <string name="notification_dismiss_action_dismiss">关闭</string>
+    <string name="notification_dismiss_action_snooze">稍后提醒</string>
     <string name="realert_if_not_dismissed">未关闭则再次提醒</string>
     <string name="retry_every">重试间隔</string>
     <string name="retry_if_no_reaction">无响应时重试</string>

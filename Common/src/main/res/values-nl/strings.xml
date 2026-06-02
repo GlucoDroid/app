@@ -681,6 +681,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="predictive_alerts">Voorspellende waarschuwingen</string>
     <string name="preemptive_snooze">Preventieve snooze</string>
     <string name="preemptive_snooze_desc">Waarschuwingen uitstellen voordat ze afgaan</string>
+    <string name="notification_dismiss_action_title">Actie bij sluiten melding</string>
+    <string name="notification_dismiss_action_summary">Meldingen wegvegen of sluiten</string>
+    <string name="notification_dismiss_action_dismiss">Sluiten</string>
+    <string name="notification_dismiss_action_snooze">Snoozen</string>
     <string name="realert_if_not_dismissed">Opnieuw waarschuwen als niet weggeveegd</string>
     <string name="retry_every">Herhalen elke</string>
     <string name="retry_if_no_reaction">Herhalen bij geen reactie</string>

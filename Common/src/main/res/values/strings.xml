@@ -1118,6 +1118,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_alerts">Predictive Alerts</string>
     <string name="preemptive_snooze">Preemptive Snooze</string>
     <string name="preemptive_snooze_desc">Snooze alerts before they trigger</string>
+    <string name="notification_dismiss_action_title">Notification dismiss action</string>
+    <string name="notification_dismiss_action_summary">Swipe or close alert notifications</string>
+    <string name="notification_dismiss_action_dismiss">Dismiss</string>
+    <string name="notification_dismiss_action_snooze">Snooze</string>
     <string name="realert_if_not_dismissed">Re-alert if not dismissed</string>
     <string name="retry_constantly">Constantly</string>
     <string name="retry_every">Retry every</string>

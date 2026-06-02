@@ -520,7 +520,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         } catch (Throwable e) {
             Log.stack(LOG_ID, SerialNumber, e);
         }
-        CustomAlertAccess.checkAndTrigger(Applic.app, gl, rate, timmsec);
+        CustomAlertAccess.checkAndTrigger(Applic.app, gl, rate, timmsec, SerialNumber, sensorgen);
         {
             if (doLog) {
                 Log.v(LOG_ID, SerialNumber + " " + tim + " glucose=" + gl + " " + rate);

@@ -17,6 +17,7 @@ object AlertRepository {
     
     private const val PREFS_NAME = "tk.glucodata.alerts"
     private const val DEFAULT_THRESHOLD_MIGRATION_KEY = "alert_threshold_defaults_v3"
+    private const val KEY_NOTIFICATION_DISMISS_ACTION = "notification_dismiss_action"
     @Volatile
     private var hiddenLegacyAlertCleanupDone = false
     @Volatile
@@ -65,6 +66,19 @@ object AlertRepository {
             fallback
         }
         return sanitizeAlertDurationSeconds(value)
+    }
+
+    fun loadNotificationDismissAction(): AlertNotificationDismissAction {
+        return parseEnumPref(
+            prefs.getString(KEY_NOTIFICATION_DISMISS_ACTION, null),
+            AlertNotificationDismissAction.DISMISS
+        )
+    }
+
+    fun saveNotificationDismissAction(action: AlertNotificationDismissAction) {
+        prefs.edit {
+            putString(KEY_NOTIFICATION_DISMISS_ACTION, action.name)
+        }
     }
     
     /**

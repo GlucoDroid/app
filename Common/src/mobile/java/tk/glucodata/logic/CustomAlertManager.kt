@@ -36,10 +36,24 @@ object CustomAlertManager {
     private var activeSession: ActiveSession? = null
 
     fun checkAndTrigger(context: Context, glucose: Float, rate: Float, timestamp: Long) {
+        checkAndTrigger(context, glucose, rate, timestamp, null, 0)
+    }
+
+    fun checkAndTrigger(
+        context: Context,
+        glucose: Float,
+        rate: Float,
+        timestamp: Long,
+        sensorId: String?,
+        sensorGen: Int
+    ) {
         val snapshot = CurrentDisplaySource.resolveIncomingReading(
             liveNumericValue = glucose,
             rate = rate,
-            targetTimeMillis = timestamp
+            targetTimeMillis = timestamp,
+            preferredSensorId = sensorId,
+            sensorGen = sensorGen,
+            requireConfiguredPrimaryLane = true
         ) ?: return
         @Suppress("NAME_SHADOWING") val glucose = snapshot.primaryValue
         @Suppress("NAME_SHADOWING") val rate = snapshot.rate

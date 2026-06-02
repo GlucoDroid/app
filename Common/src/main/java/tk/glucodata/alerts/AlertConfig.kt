@@ -67,6 +67,11 @@ enum class AlertDeliveryMode(val displayName: String) {
     BOTH("Both")                               // Both Notification and System Alarm
 }
 
+enum class AlertNotificationDismissAction(val displayName: String) {
+    DISMISS("Dismiss"),
+    SNOOZE("Snooze")
+}
+
 /**
  * Configuration for a single alert type.
  */
