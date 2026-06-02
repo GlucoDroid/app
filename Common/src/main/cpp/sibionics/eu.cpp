@@ -319,7 +319,9 @@ static THREADLOCAL int recordsprint = -1;
 #define VISIBLE __attribute__((__visibility__("default")))
 static int recordAndFormatSprintf(char *s, int flag, size_t slen,
                                   const char *format, va_list args) {
-  if (recordsprint >= 0) {
+  const bool recording = recordsprint >= 0;
+  if (recording &&
+      recordsprint < (int)(sizeof(sprintargs) / sizeof(sprintargs[0]))) {
     va_list newargs;
     va_copy(newargs, args);
     jlong val = va_arg(newargs, jlong);
@@ -328,13 +330,17 @@ static int recordAndFormatSprintf(char *s, int flag, size_t slen,
   }
   va_list formatArgs;
   va_copy(formatArgs, args);
-  constexpr size_t unknownDestFallbackSize = 26;
+  // Calling vsprintf here resolves back into this exported fortify shim on
+  // Bionic, so use a large explicit bound for unknown-size sprintf callers.
+  constexpr size_t unknownDestFallbackSize = 4096;
   const size_t formatSize =
       slen == static_cast<size_t>(-1) ? unknownDestFallbackSize : slen;
-  int res = std::vsnprintf(s, formatSize, format, formatArgs);
+  const int res = std::vsnprintf(s, formatSize, format, formatArgs);
   va_end(formatArgs);
-  LOGGER(" __vsprintf_chk(%s (%p),%d,%zu,%s,va_list)=%d\n", s, s, flag, slen,
-         format, res);
+  if (recording) {
+    LOGGER(" __vsprintf_chk(%s (%p),%d,%zu,%s,va_list)=%d\n", s, s, flag,
+           slen, format, res);
+  }
   return res;
 }
 extern "C" int VISIBLE __vSprintf_chk(char *s, int flag, size_t slen,
