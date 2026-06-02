@@ -287,6 +287,8 @@ fun DashboardScreen(
     val sensorName by viewModel.sensorName.collectAsState()
     val daysRemaining by viewModel.daysRemaining.collectAsState()
     val glucoseHistory by viewModel.glucoseHistory.collectAsState()
+    val multiSensorHistory by viewModel.multiSensorHistory.collectAsState()
+    val selectedSensorIds by viewModel.selectedSensorIds.collectAsState()
     val unit by viewModel.unit.collectAsState()
     val graphLow by viewModel.graphLow.collectAsState()
     val graphHigh by viewModel.graphHigh.collectAsState()
@@ -998,6 +1000,13 @@ fun DashboardScreen(
             val recentReadings = remember(consumerHistory) {
                 buildDisplayReadings(consumerHistory, limit = 10)
             }
+            val recentReadingGroups = remember(recentReadings, multiSensorHistory, sensorName) {
+                MultiSensorDisplay.buildReadingGroups(
+                    primaryReadings = recentReadings,
+                    peerHistory = multiSensorHistory,
+                    preferredSerial = sensorName.ifBlank { null }
+                )
+            }
             val recentReadingJournalEntries = remember(recentReadings, scopedJournalEntries) {
                 groupJournalEntriesByReading(recentReadings, scopedJournalEntries)
             }
@@ -1132,6 +1141,7 @@ fun DashboardScreen(
                                 index = index,
                                 totalCount = recentReadings.size,
                                 history = recentReadings,
+                                peerReadings = recentReadingGroups.getOrNull(index)?.peers.orEmpty(),
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
@@ -1190,6 +1200,9 @@ fun DashboardScreen(
                                 DashboardChartSection(
                                     modifier = Modifier.fillMaxSize(),
                                     glucoseHistory = glucoseHistory,
+                                    multiSensorHistory = multiSensorHistory,
+                                    selectedSensorIds = selectedSensorIds,
+                                    primarySensorId = sensorName.ifBlank { null },
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
                                     predictionSeries = predictionSeries,
@@ -1351,6 +1364,9 @@ fun DashboardScreen(
                                         .fillMaxSize()
                                         .padding(bottom = 0.dp),
                                     glucoseHistory = glucoseHistory,
+                                    multiSensorHistory = multiSensorHistory,
+                                    selectedSensorIds = selectedSensorIds,
+                                    primarySensorId = sensorName.ifBlank { null },
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
                                     predictionSeries = predictionSeries,
@@ -1443,6 +1459,7 @@ fun DashboardScreen(
                                 index = index,
                                 totalCount = recentReadings.size,
                                 history = recentReadings,
+                                peerReadings = recentReadingGroups.getOrNull(index)?.peers.orEmpty(),
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),

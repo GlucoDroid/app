@@ -1826,4 +1826,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram sparar botuppdateringar i upp till 24 timmar. Ange ett eller flera chatt-ID:n eller användarnamn vars botmeddelanden får importeras.</string>
     <string name="status_waiting_for_data">Ansluten, väntar på data...</string>
     <string name="status_raw_values_received">Ansluten, råvärden mottagna</string>
+    <string name="sensor_display_select">Välj sensor för visning</string>
+    <string name="sensor_display_selected">Sensor vald för visning</string>
 </resources>

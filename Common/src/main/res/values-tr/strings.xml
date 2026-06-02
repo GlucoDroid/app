@@ -1854,4 +1854,6 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="api_source_telegram_note">Telegram bot güncellemelerini 24 saate kadar saklar. Bot mesajları içe aktarılabilecek bir veya daha fazla sohbet kimliği/kullanıcı adı girin.</string>
     <string name="status_waiting_for_data">Bağlandı, veri bekleniyor...</string>
     <string name="status_raw_values_received">Bağlandı, ham değerler alındı</string>
+    <string name="sensor_display_select">Görüntülenecek sensörü seç</string>
+    <string name="sensor_display_selected">Görüntülenecek sensör seçildi</string>
 </resources>

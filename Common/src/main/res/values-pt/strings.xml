@@ -1827,4 +1827,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">O Telegram mantém atualizações do bot por até 24 horas. Introduza um ou mais IDs de chat/nomes de utilizador cujas mensagens do bot podem ser importadas.</string>
     <string name="status_waiting_for_data">Conectado, aguardando dados...</string>
     <string name="status_raw_values_received">Conectado, valores brutos recebidos</string>
+    <string name="sensor_display_select">Selecionar sensor para exibição</string>
+    <string name="sensor_display_selected">Sensor selecionado para exibição</string>
 </resources>

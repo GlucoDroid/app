@@ -1869,4 +1869,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram хранит обновления бота до 24 часов. Укажите один или несколько chat ID/имён пользователей, сообщения которых можно импортировать.</string>
     <string name="status_waiting_for_data">Подключено, ожидание данных...</string>
     <string name="status_raw_values_received">Подключено, получены сырые значения</string>
+    <string name="sensor_display_select">Выбрать датчик для отображения</string>
+    <string name="sensor_display_selected">Датчик выбран для отображения</string>
 </resources>

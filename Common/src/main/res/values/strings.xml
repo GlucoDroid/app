@@ -2044,4 +2044,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="voice_schedule_desc">Only speak readings during this time window</string>
     <string name="voice_schedule_from">From</string>
     <string name="voice_schedule_until">Until</string>
+    <string name="sensor_display_select">Select display sensor</string>
+    <string name="sensor_display_selected">Display sensor selected</string>
 </resources>

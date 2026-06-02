@@ -133,6 +133,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import tk.glucodata.GlucoseRangeColors
+import tk.glucodata.SensorIdentity
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.R
 import tk.glucodata.DataSmoothing
@@ -144,6 +145,7 @@ import tk.glucodata.data.prediction.GlucosePredictionSeries
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
 import tk.glucodata.ui.getDisplayValues
 import tk.glucodata.ui.util.GlucoseFormatter
+import tk.glucodata.ui.viewmodel.SensorColors
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.roundToInt
@@ -160,6 +162,12 @@ private data class ChartRangeThresholds(
     val low: Float,
     val high: Float,
     val veryHigh: Float
+)
+
+private data class PeerSensorChartSeries(
+    val sensorId: String,
+    val color: Color,
+    val points: List<GlucosePoint>
 )
 
 private fun chartRangeThresholds(
@@ -631,6 +639,9 @@ private fun List<GlucosePoint>.sliceByTimestampRange(startMillis: Long, endMilli
 fun DashboardChartSection(
     modifier: Modifier,
     glucoseHistory: List<GlucosePoint>,
+    multiSensorHistory: List<GlucosePoint> = emptyList(),
+    selectedSensorIds: List<String> = emptyList(),
+    primarySensorId: String? = null,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -669,6 +680,9 @@ fun DashboardChartSection(
                 if (glucoseHistory.isNotEmpty()) {
                     InteractiveGlucoseChart(
                         fullData = glucoseHistory,
+                        multiSensorHistory = multiSensorHistory,
+                        selectedSensorIds = selectedSensorIds,
+                        primarySensorId = primarySensorId,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
                         predictionPoints = predictionPoints,
@@ -730,6 +744,9 @@ fun DashboardChartSection(
 @Composable
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
+    multiSensorHistory: List<GlucosePoint> = emptyList(),
+    selectedSensorIds: List<String> = emptyList(),
+    primarySensorId: String? = null,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -882,6 +899,37 @@ fun InteractiveGlucoseChart(
     }
     val renderData = remember(safeData, graphSmoothingMinutes, collapseSmoothedData) {
         buildSmoothedChartData(safeData, graphSmoothingMinutes, collapseSmoothedData)
+    }
+    val peerChartSeries = remember(
+        multiSensorHistory,
+        selectedSensorIds,
+        primarySensorId,
+        fullData,
+        graphSmoothingMinutes,
+        collapseSmoothedData
+    ) {
+        val primary = primarySensorId ?: fullData.lastOrNull()?.sensorSerial
+        val peerOrder = selectedSensorIds
+            .filterNot { SensorIdentity.matches(it, primary) }
+        val grouped = LinkedHashMap<String, MutableList<GlucosePoint>>()
+        multiSensorHistory.forEach { point ->
+            val serial = point.sensorSerial?.takeIf { it.isNotBlank() } ?: return@forEach
+            if (SensorIdentity.matches(serial, primary)) return@forEach
+            val selected = peerOrder.firstOrNull { SensorIdentity.matches(serial, it) }
+                ?: return@forEach
+            grouped.getOrPut(selected) { ArrayList() }.add(point)
+        }
+        peerOrder.mapNotNull { sensorId ->
+            val points = grouped[sensorId]
+                ?.sortedBy { it.timestamp }
+                ?.takeIf { it.size >= 2 }
+                ?: return@mapNotNull null
+            PeerSensorChartSeries(
+                sensorId = sensorId,
+                color = SensorColors.getColor(sensorId),
+                points = buildSmoothedChartData(points, graphSmoothingMinutes, collapseSmoothedData)
+            )
+        }
     }
     val interactionData = remember(safeData, renderData, graphSmoothingMinutes) {
         if (graphSmoothingMinutes > 0) renderData else safeData
@@ -2159,6 +2207,59 @@ fun InteractiveGlucoseChart(
                 val hideInitialWhenCalibrated = hasCalibration &&
                     tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
 
+                if (peerChartSeries.isNotEmpty()) {
+                    val peerGapThreshold = 900000L // 15 mins
+                    val peerStroke = 2.6.dp.toPx()
+                    peerChartSeries.forEach { series ->
+                        val points = series.points
+                        if (points.size < 2) return@forEach
+                        val peerStartIdx = points.binarySearchBy(searchStart) { it.timestamp }
+                            .let { if (it < 0) -it - 2 else it }
+                            .coerceIn(0, points.size)
+                        val peerEndIdx = points.binarySearchBy(searchEnd) { it.timestamp }
+                            .let { if (it < 0) -it else it + 1 }
+                            .coerceIn(peerStartIdx, points.size)
+                        if (peerEndIdx <= peerStartIdx) return@forEach
+
+                        val path = Path()
+                        var first = true
+                        var lastTimestamp = 0L
+                        for (i in peerStartIdx until peerEndIdx) {
+                            val point = points[i]
+                            val value = if (isRawModeChart) point.rawValue else point.value
+                            if (!value.isFinite() || value <= 0.1f) {
+                                first = true
+                                continue
+                            }
+                            val px = timeToDataX(point.timestamp)
+                            val py = valToY(value)
+                            if (!px.isFinite() || !py.isFinite()) {
+                                first = true
+                                continue
+                            }
+                            if (!first && point.timestamp - lastTimestamp > peerGapThreshold) {
+                                first = true
+                            }
+                            if (first) {
+                                path.moveTo(px, py)
+                                first = false
+                            } else {
+                                path.lineTo(px, py)
+                            }
+                            lastTimestamp = point.timestamp
+                        }
+                        drawPath(
+                            path = path,
+                            color = series.color.copy(alpha = 0.86f),
+                            style = Stroke(
+                                width = peerStroke,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                        )
+                    }
+                }
+
                 // --- 3. DATA LINES (Unified & Optimized) ---
                 if (endIdx > startIdx) {
                     val gapThreshold = 900000L // 15 mins
@@ -2848,6 +2949,24 @@ fun InteractiveGlucoseChart(
                                  if (py.isFinite()) drawCircle(primaryColor, dotRadius, Offset(cursorX, py))
                              }
                          }
+
+                         MultiSensorDisplay.pointsAtTimestamp(
+                             points = multiSensorHistory,
+                             timestamp = p.timestamp,
+                             preferredSerial = primarySensorId ?: p.sensorSerial
+                         ).forEach { peer ->
+                             val value = if (isRawModeDot) peer.rawValue else peer.value
+                             if (value.isFinite() && value > 0.1f) {
+                                 val py = valToY(value)
+                                 if (py.isFinite()) {
+                                     drawCircle(
+                                         color = SensorColors.getColor(peer.sensorSerial.orEmpty()),
+                                         radius = dotRadius,
+                                         center = Offset(cursorX, py)
+                                     )
+                                 }
+                             }
+                         }
                     }
                 }
             }
@@ -3222,6 +3341,13 @@ fun InteractiveGlucoseChart(
                     calibratedValueResolver.valueForPoint(point, isRawModeTT).takeIf { it > 0.1f }
                 } else null
                 val dvs = getDisplayValues(point, viewMode, unit, calibratedValueTT)
+                val tooltipPeerPoints = MultiSensorDisplay.pointsAtTimestamp(
+                    points = multiSensorHistory,
+                    timestamp = point.timestamp,
+                    preferredSerial = primarySensorId ?: point.sensorSerial
+                ).filterNot { peer ->
+                    SensorIdentity.matches(peer.sensorSerial, point.sensorSerial ?: primarySensorId)
+                }
 
                 // --- 1. INFO CARD (Top) ---
                 // "Current Status Card styling" -> primaryContainer
@@ -3337,6 +3463,35 @@ fun InteractiveGlucoseChart(
                             text = styledText,
                             style = MaterialTheme.typography.titleMedium
                         )
+                        tooltipPeerPoints.forEach { peer ->
+                            val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
+                            val peerDvs = getDisplayValues(peer, viewMode, unit, calibratedValue = null)
+                            Row(
+                                modifier = Modifier.padding(top = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(6.dp),
+                                    shape = CircleShape,
+                                    color = peerColor,
+                                    tonalElevation = 0.dp,
+                                    shadowElevation = 0.dp
+                                ) {}
+                                Text(
+                                    text = buildGlucoseString(
+                                        peerDvs,
+                                        peerColor,
+                                        statusContentColor.copy(alpha = 0.72f),
+                                        statusContentColor.copy(alpha = 0.52f),
+                                        false,
+                                        "",
+                                        statusContentColor.copy(alpha = 0.42f)
+                                    ),
+                                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum")
+                                )
+                            }
+                        }
                     }
                 }
 

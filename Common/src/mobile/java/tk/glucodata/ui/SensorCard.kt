@@ -1397,21 +1397,29 @@ fun SensorCard(
                                 // Toggle Main Sensor Badge
                                 Spacer(modifier = Modifier.width(8.dp))
                                 val isMain = sensor.isActive
+                                val isSelectedForDisplay = sensor.isSelectedForDisplay
 
-                                val badgeColor = if(isMain) sensor.color else sensor.color.copy(alpha=0.6f)
-                                val badgeBg = if(isMain) sensor.color.copy(alpha = 0.15f) else Color.Transparent
-                                val badgeBorder = if(isMain) null else androidx.compose.foundation.BorderStroke(1.dp, sensor.color.copy(alpha=0.3f))
+                                val badgeColor = if (isSelectedForDisplay) sensor.color else sensor.color.copy(alpha = 0.6f)
+                                val badgeBg = when {
+                                    isMain -> sensor.color.copy(alpha = 0.16f)
+                                    isSelectedForDisplay -> sensor.color.copy(alpha = 0.10f)
+                                    else -> Color.Transparent
+                                }
+                                val badgeBorder = if (isSelectedForDisplay) {
+                                    null
+                                } else {
+                                    androidx.compose.foundation.BorderStroke(1.dp, sensor.color.copy(alpha = 0.3f))
+                                }
 
                                 if (sensorCount > 1) {
+                                    val selectedDescription = stringResource(R.string.sensor_display_selected)
+                                    val selectDescription = stringResource(R.string.sensor_display_select)
                                     // Multi-sensor: interactive badge with Surface background
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
                                         modifier = Modifier
                                             .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .then(
-                                                if (!isMain) Modifier.clickable { viewModel.setMain(sensor.serial) }
-                                                else Modifier
-                                            )
+                                            .clickable { viewModel.toggleDisplaySelection(sensor.serial) }
                                             .defaultMinSize(minWidth = 26.dp, minHeight = 26.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -1421,8 +1429,8 @@ fun SensorCard(
                                             border = badgeBorder
                                         ) {
                                             Icon(
-                                                imageVector = if (isMain) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                                                contentDescription = if (isMain) "Active" else "Set Main",
+                                                imageVector = if (isSelectedForDisplay) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                                                contentDescription = if (isSelectedForDisplay) selectedDescription else selectDescription,
                                                 tint = badgeColor,
                                                 modifier = Modifier
                                                     .padding(horizontal = 8.dp, vertical = 8.dp)

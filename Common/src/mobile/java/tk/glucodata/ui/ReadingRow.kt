@@ -57,6 +57,7 @@ import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.ui.journal.JournalInlineChip
+import tk.glucodata.ui.viewmodel.SensorColors
 
 @Composable
 fun ReadingRow(
@@ -66,6 +67,7 @@ fun ReadingRow(
     index: Int = 0,
     totalCount: Int = 1,
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
+    peerReadings: List<GlucosePoint> = emptyList(),
     sensorId: String? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     journalEntries: List<JournalEntry> = emptyList(),
@@ -291,6 +293,62 @@ fun ReadingRow(
             }
 
             @Composable
+            fun PeerReadingValueChip(peer: GlucosePoint) {
+                val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
+                val peerDvs = getDisplayValues(peer, viewMode, unit, calibratedValue = null)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = peerColor.copy(alpha = if (isActive) 0.16f else 0.10f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(6.dp),
+                            shape = CircleShape,
+                            color = peerColor,
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp
+                        ) {}
+                        Text(
+                            text = buildGlucoseString(
+                                peerDvs,
+                                peerColor,
+                                secondaryColor,
+                                unitColor,
+                                false,
+                                "",
+                                tertiaryColor
+                            ),
+                            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum")
+                        )
+                    }
+                }
+            }
+
+            @Composable
+            fun MultiSensorValueContent(modifier: Modifier = Modifier) {
+                if (peerReadings.isEmpty()) {
+                    ReadingValueContent(modifier)
+                    return
+                }
+                FlowRow(
+                    modifier = modifier,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    ReadingValueContent()
+                    peerReadings.forEach { peer ->
+                        PeerReadingValueChip(peer)
+                    }
+                }
+            }
+
+            @Composable
             fun JournalAddAffordance(modifier: Modifier = Modifier) {
                 if (showLeadingAction && onLeadingActionClick != null) {
                     Surface(
@@ -351,7 +409,7 @@ fun ReadingRow(
                             .defaultMinSize(minWidth = valueMinWidth),
                         contentAlignment = Alignment.CenterEnd
                     ) {
-                        ReadingValueContent(
+                        MultiSensorValueContent(
                             modifier = Modifier.padding(start = 12.dp)
                         )
                     }
@@ -423,7 +481,7 @@ fun ReadingRow(
                                 .defaultMinSize(minHeight = rowMinHeight),
                             contentAlignment = Alignment.CenterEnd
                         ) {
-                            ReadingValueContent(
+                            MultiSensorValueContent(
                                 modifier = Modifier.padding(start = 12.dp, end = 16.dp)
                             )
                         }
@@ -435,7 +493,7 @@ fun ReadingRow(
                                 .defaultMinSize(minWidth = valueMinWidth, minHeight = rowMinHeight),
                             contentAlignment = Alignment.CenterEnd
                         ) {
-                            ReadingValueContent(
+                            MultiSensorValueContent(
                                 modifier = Modifier.padding(start = 12.dp, end = 16.dp)
                             )
                         }
