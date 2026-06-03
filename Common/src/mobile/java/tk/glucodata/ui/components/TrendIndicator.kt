@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -109,17 +110,12 @@ fun TrendIndicator(
                 join = StrokeJoin.Round
             )
             val outlineStyle = Stroke(
-                width = strokeWidth * 1.85f,
+                width = strokeWidth * 1.35f,
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round
             )
-            val outerHaloStyle = Stroke(
-                width = strokeWidth * 2.15f,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round
-            )
-            val innerHaloStyle = Stroke(
-                width = strokeWidth * 1.55f,
+            val shadowStyle = Stroke(
+                width = strokeWidth,
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round
             )
@@ -145,8 +141,9 @@ fun TrendIndicator(
             }
             if (outlineColor == null) {
                 shadowColor?.let {
-                    drawPath(path = pArrow, color = it.copy(alpha = it.alpha * 0.24f), style = outerHaloStyle)
-                    drawPath(path = pArrow, color = it.copy(alpha = it.alpha * 0.42f), style = innerHaloStyle)
+                    translate(top = strokeWidth * 0.38f) {
+                        drawPath(path = pArrow, color = it.copy(alpha = it.alpha * 0.58f), style = shadowStyle)
+                    }
                 }
             }
             outlineColor?.let { drawPath(path = pArrow, color = it, style = outlineStyle) }
@@ -165,8 +162,9 @@ fun TrendIndicator(
                 }
                 if (outlineColor == null) {
                     shadowColor?.let {
-                        drawPath(path = pSecond, color = it.copy(alpha = it.alpha * 0.24f), style = outerHaloStyle)
-                        drawPath(path = pSecond, color = it.copy(alpha = it.alpha * 0.42f), style = innerHaloStyle)
+                        translate(top = strokeWidth * 0.38f) {
+                            drawPath(path = pSecond, color = it.copy(alpha = it.alpha * 0.58f), style = shadowStyle)
+                        }
                     }
                 }
                 outlineColor?.let { drawPath(path = pSecond, color = it, style = outlineStyle) }
