@@ -501,8 +501,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                 displayRate,
                 isMmol,
                 glucoseColor,
-                textScale * arrowScale,
-                true
+                textScale * arrowScale
             )
             arrowImg?.setImageBitmap(arrowBitmap)
             arrowImg?.visibility = View.VISIBLE
