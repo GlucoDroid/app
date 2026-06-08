@@ -82,21 +82,25 @@ object TelegramStaleCheckWork {
             if (messageId <= 0L) continue
 
             val text = renderStaleText(status, now)
-            val ok = postEdit(destination, recipient, messageId, text)
-            if (ok) {
-                OutboundApiSettings.recordStaleAt(context, destinationId, recipient, now)
-                if (status == OutboundApiSettings.TUNNEL_STATUS_STALE) {
-                    val remaining = (lastSentMs + missedThresholdMs) - now
-                    if (remaining > 0) earliestMissedRemainingMs = minOf(earliestMissedRemainingMs, remaining)
+            val result = postEdit(destination, recipient, messageId, text)
+            when (result) {
+                true -> {
+                    OutboundApiSettings.recordStaleAt(context, destinationId, recipient, now)
+                    if (status == OutboundApiSettings.TUNNEL_STATUS_STALE) {
+                        val remaining = (lastSentMs + missedThresholdMs) - now
+                        if (remaining > 0) earliestMissedRemainingMs = minOf(earliestMissedRemainingMs, remaining)
+                    }
                 }
-            } else {
-                // Bubble gone (deleted by user) — clear state so next reading
-                // starts a fresh bubble.
-                OutboundApiSettings.clearRecipientState(
-                    context = context,
-                    destinationId = destinationId,
-                    recipient = recipient
-                )
+                false -> {
+                    // Definitive Telegram rejection (bubble deleted) — clear state
+                    // so next reading starts a fresh bubble.
+                    OutboundApiSettings.clearRecipientState(
+                        context = context,
+                        destinationId = destinationId,
+                        recipient = recipient
+                    )
+                }
+                null -> { /* transient network error — leave state intact to retry next cycle */ }
             }
         }
         if (earliestMissedRemainingMs < Long.MAX_VALUE) {
@@ -117,12 +121,16 @@ object TelegramStaleCheckWork {
         return "$emoji $label ($time)"
     }
 
+    /**
+     * Returns true on 2xx, false on a definitive API rejection (4xx),
+     * null on transient network failure (caller should leave state intact).
+     */
     private fun postEdit(
         destination: OutboundApiSettings.Destination,
         recipient: String,
         messageId: Long,
         text: String
-    ): Boolean {
+    ): Boolean? {
         val editUrl = destination.resolvedUrl()
             .replace(Regex("/sendMessage$"), "/editMessageText")
         val body = JSONObject()
@@ -149,9 +157,9 @@ object TelegramStaleCheckWork {
             connection.outputStream.use { it.write(body) }
             val code = connection.responseCode
             connection.disconnect()
-            code in 200..299
+            if (code in 200..299) true else false
         } catch (_: Throwable) {
-            false
+            null
         }
     }
 }
