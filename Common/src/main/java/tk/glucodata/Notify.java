@@ -100,6 +100,7 @@ public class Notify {
     static public final long glucosetimeout = 1000L * glucosetimeoutSEC;
     static private final int FOREGROUND_GLUCOSE_NOTIFICATION_KIND = -1;
     static private final long INTERACTIVE_NOTIFICATION_REFRESH_DELAY_MS = 750L;
+    static private final long DATA_CHANGED_NOTIFICATION_REFRESH_DELAY_MS = 1000L;
     static private final long LOCKED_ALARM_ACTIVITY_DELAY_MS = 0L;
     static private final Handler glucoseRefreshHandler = new Handler(Looper.getMainLooper());
 
@@ -816,6 +817,9 @@ public class Notify {
     }
 
     boolean hasvalue = false;
+    private long lastForegroundGlucoseTimeMs = 0L;
+    private float lastForegroundGlucoseValue = Float.NaN;
+    private float lastForegroundGlucoseRate = Float.NaN;
 
     void showglucose(notGlucose strgl, float gl) {
         var message = format(usedlocale, glucoseformat, gl);
@@ -1043,6 +1047,61 @@ public class Notify {
         }
     };
 
+    private final Runnable dataChangedGlucoseRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (!shouldKeepForegroundGlucoseNotification()) {
+                    return;
+                }
+                final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+                if (current == null || current.getPrimaryValue() < 2.0f) {
+                    return;
+                }
+                if (isSameForegroundGlucose(current)) {
+                    return;
+                }
+                BatteryTrace.bump("notify.glucose.data_changed", 20L, "source=" + current.getSource());
+                postForegroundGlucoseNotification(
+                        FOREGROUND_GLUCOSE_NOTIFICATION_KIND,
+                        current.getPrimaryValue(),
+                        format(usedlocale, glucoseformat, current.getPrimaryValue()),
+                        toLegacyGlucose(current));
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "dataChangedGlucoseRefreshRunnable", th);
+            }
+        }
+    };
+
+    private boolean shouldKeepForegroundGlucoseNotification() {
+        return !isWearable && (showalways || alertwatch || hasvalue || keeprunning.started);
+    }
+
+    private boolean isSameForegroundGlucose(CurrentDisplaySource.Snapshot current) {
+        if (current == null || current.getTimeMillis() <= 0L) {
+            return false;
+        }
+        return lastForegroundGlucoseTimeMs == current.getTimeMillis()
+                && Float.compare(lastForegroundGlucoseValue, current.getPrimaryValue()) == 0
+                && Float.compare(lastForegroundGlucoseRate, current.getRate()) == 0;
+    }
+
+    public static void scheduleDataChangedRefresh() {
+        final Notify noti = onenot;
+        if (noti == null) {
+            return;
+        }
+        noti.scheduleDataChangedNotificationRefresh();
+    }
+
+    private void scheduleDataChangedNotificationRefresh() {
+        if (!shouldKeepForegroundGlucoseNotification()) {
+            return;
+        }
+        glucoseRefreshHandler.removeCallbacks(dataChangedGlucoseRefreshRunnable);
+        glucoseRefreshHandler.postDelayed(dataChangedGlucoseRefreshRunnable, DATA_CHANGED_NOTIFICATION_REFRESH_DELAY_MS);
+    }
+
     private void scheduleInteractiveNotificationRefresh() {
         if (!isScreenInteractive()) {
             return;
@@ -1054,6 +1113,14 @@ public class Notify {
     private void postForegroundGlucoseNotification(int kind, float glvalue, String message, notGlucose glucose) {
         hasvalue = true;
         glucoseRefreshHandler.removeCallbacks(glucoseRefreshRunnable);
+        if (glucose != null && glucose.time > 0L) {
+            lastForegroundGlucoseTimeMs = glucose.time;
+            lastForegroundGlucoseRate = glucose.rate;
+        } else {
+            lastForegroundGlucoseTimeMs = 0L;
+            lastForegroundGlucoseRate = Float.NaN;
+        }
+        lastForegroundGlucoseValue = glvalue;
         fornotify(makearrownotification(kind, glvalue, message, glucose, GLUCOSENOTIFICATION, true));
     }
 

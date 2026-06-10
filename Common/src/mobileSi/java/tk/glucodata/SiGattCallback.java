@@ -528,6 +528,8 @@ public class SiGattCallback extends SuperGattCallback {
          return;
        }
       if (res == 11L) {
+         charcha[0] = timmsec;
+         SensorBluetooth.othersworking(this, timmsec);
          if (constatstatusstr != null &&
              constatstatusstr.equals(Applic.app.getString(R.string.status_waiting_for_data))) {
             constatstatusstr = Applic.app.getString(R.string.status_raw_values_received);
