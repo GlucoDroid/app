@@ -48,10 +48,24 @@ object OutboundApiSettings {
     const val TRIGGER_OUTSIDE_RANGE = "outside_range"
     const val DEFAULT_TRIGGER_LOW_MGDL = 70
     const val DEFAULT_TRIGGER_HIGH_MGDL = 180
+    const val DEFAULT_REFRESH_IN_PLACE_ENABLED = true
+    const val DEFAULT_REFRESH_WINDOW_MINUTES = 15
+    const val DEFAULT_SUPPRESS_DELTA_BELOW_MGDL = 1
+    const val DEFAULT_STALE_ENABLED = true
+    const val DEFAULT_STALE_THRESHOLD_MINUTES = 10
+    const val DEFAULT_MISSED_THRESHOLD_MINUTES = 15
+    const val STALE_CHECK_SLACK_MS = 10_000L
+    const val TUNNEL_STATUS_IN_RANGE = "in_range"
+    const val TUNNEL_STATUS_HIGH = "high"
+    const val TUNNEL_STATUS_LOW = "low"
+    const val TUNNEL_STATUS_STALE = "stale"
+    const val TUNNEL_STATUS_MISSED = "missed"
     const val DEFAULT_CUSTOM_TEMPLATE =
         "{value} {unit} {trend_arrow} RAW:{raw} ({rate_mgdl} mg/dL/min) IOB:{iob} COB:{cob} {time}"
     const val DEFAULT_CHAT_TEMPLATE =
-        "{value} {unit} {trend_arrow} {time}"
+        "{status_emoji} {value} {unit} {trend_arrow} {time}"
+    // Old default before status tokens were added — used to migrate stored templates on load.
+    private const val LEGACY_CHAT_TEMPLATE = "{value} {unit} {trend_arrow} {time}"
     const val DEFAULT_GLUCO_WATCH_TEMPLATE =
         "GV:{mmol}|RAW:{raw}|TR:{trend_arrow}|AL:{alarm}|RT:{rate_mmol}|IOB:{iob}|COB:{cob}|TS:{timestamp}"
 
@@ -89,7 +103,17 @@ object OutboundApiSettings {
         val lastAttemptAtMs: Long,
         val lastSuccessAtMs: Long,
         val lastResponseCode: Int,
-        val lastError: String?
+        val lastError: String?,
+        val refreshInPlaceEnabled: Boolean = DEFAULT_REFRESH_IN_PLACE_ENABLED,
+        val refreshWindowMinutes: Int = DEFAULT_REFRESH_WINDOW_MINUTES,
+        val suppressDeltaBelowMgdl: Int = DEFAULT_SUPPRESS_DELTA_BELOW_MGDL,
+        val staleEnabled: Boolean = DEFAULT_STALE_ENABLED,
+        val staleThresholdMinutes: Int = DEFAULT_STALE_THRESHOLD_MINUTES,
+        val missedThresholdMinutes: Int = DEFAULT_MISSED_THRESHOLD_MINUTES,
+        val lastMessageIdByRecipient: Map<String, Long> = emptyMap(),
+        val lastSentAtMsByRecipient: Map<String, Long> = emptyMap(),
+        val lastSentMgdlByRecipient: Map<String, Int> = emptyMap(),
+        val lastStaleAtMsByRecipient: Map<String, Long> = emptyMap()
     ) {
         fun normalizedPreset(): String = normalizePreset(preset)
 
@@ -151,6 +175,17 @@ object OutboundApiSettings {
                 TRIGGER_AT_OR_ABOVE -> mgdl >= high
                 TRIGGER_OUTSIDE_RANGE -> mgdl <= low || mgdl >= high
                 else -> true
+            }
+        }
+
+        fun rangeStatus(mgdl: Int): String {
+            if (mgdl <= 0) return TUNNEL_STATUS_IN_RANGE
+            val low = triggerLowMgdl.coerceIn(1, 600)
+            val high = triggerHighMgdl.coerceIn(1, 600)
+            return when {
+                mgdl < low -> TUNNEL_STATUS_LOW
+                mgdl > high -> TUNNEL_STATUS_HIGH
+                else -> TUNNEL_STATUS_IN_RANGE
             }
         }
 
@@ -242,7 +277,17 @@ object OutboundApiSettings {
             lastAttemptAtMs = 0L,
             lastSuccessAtMs = 0L,
             lastResponseCode = 0,
-            lastError = null
+            lastError = null,
+            refreshInPlaceEnabled = DEFAULT_REFRESH_IN_PLACE_ENABLED,
+            refreshWindowMinutes = DEFAULT_REFRESH_WINDOW_MINUTES,
+            suppressDeltaBelowMgdl = DEFAULT_SUPPRESS_DELTA_BELOW_MGDL,
+            staleEnabled = DEFAULT_STALE_ENABLED,
+            staleThresholdMinutes = DEFAULT_STALE_THRESHOLD_MINUTES,
+            missedThresholdMinutes = DEFAULT_MISSED_THRESHOLD_MINUTES,
+            lastMessageIdByRecipient = emptyMap(),
+            lastSentAtMsByRecipient = emptyMap(),
+            lastSentMgdlByRecipient = emptyMap(),
+            lastStaleAtMsByRecipient = emptyMap()
         )
     }
 
@@ -306,6 +351,72 @@ object OutboundApiSettings {
                 lastSuccessAtMs = now,
                 lastResponseCode = responseCode,
                 lastError = null
+            )
+        }
+    }
+
+    fun recordReadingArrived(
+        context: Context,
+        destinationId: String,
+        recipient: String,
+        arrivedAtMs: Long
+    ) {
+        updateDestination(context, destinationId) { dest ->
+            // Only update the timestamp; leave messageId and lastSentMgdl unchanged
+            // so suppression delta is still computed from the last-sent value.
+            dest.copy(
+                lastSentAtMsByRecipient = dest.lastSentAtMsByRecipient + (recipient to arrivedAtMs)
+            )
+        }
+    }
+
+    fun recordBubbleSent(
+        context: Context,
+        destinationId: String,
+        recipient: String,
+        messageId: Long?,
+        sentAtMs: Long,
+        mgdl: Int
+    ) {
+        if (messageId == null || messageId <= 0L) return
+        updateDestination(context, destinationId) { dest ->
+            dest.copy(
+                lastMessageIdByRecipient = dest.lastMessageIdByRecipient +
+                    (recipient to messageId),
+                lastSentAtMsByRecipient = dest.lastSentAtMsByRecipient +
+                    (recipient to sentAtMs),
+                lastSentMgdlByRecipient = dest.lastSentMgdlByRecipient +
+                    (recipient to mgdl),
+                lastStaleAtMsByRecipient = dest.lastStaleAtMsByRecipient - recipient
+            )
+        }
+    }
+
+    fun recordStaleAt(
+        context: Context,
+        destinationId: String,
+        recipient: String,
+        staleAtMs: Long
+    ) {
+        updateDestination(context, destinationId) { dest ->
+            dest.copy(
+                lastStaleAtMsByRecipient = dest.lastStaleAtMsByRecipient +
+                    (recipient to staleAtMs)
+            )
+        }
+    }
+
+    fun clearRecipientState(
+        context: Context,
+        destinationId: String,
+        recipient: String
+    ) {
+        updateDestination(context, destinationId) { dest ->
+            dest.copy(
+                lastMessageIdByRecipient = dest.lastMessageIdByRecipient - recipient,
+                lastSentAtMsByRecipient = dest.lastSentAtMsByRecipient - recipient,
+                lastSentMgdlByRecipient = dest.lastSentMgdlByRecipient - recipient,
+                lastStaleAtMsByRecipient = dest.lastStaleAtMsByRecipient - recipient
             )
         }
     }
@@ -425,6 +536,28 @@ object OutboundApiSettings {
                         .put("lastSuccessAtMs", destination.lastSuccessAtMs)
                         .put("lastResponseCode", destination.lastResponseCode)
                         .put("lastError", destination.lastError)
+                        .put("refreshInPlaceEnabled", destination.refreshInPlaceEnabled)
+                        .put("refreshWindowMinutes", destination.refreshWindowMinutes)
+                        .put("suppressDeltaBelowMgdl", destination.suppressDeltaBelowMgdl)
+                        .put("staleEnabled", destination.staleEnabled)
+                        .put("staleThresholdMinutes", destination.staleThresholdMinutes)
+                        .put("missedThresholdMinutes", destination.missedThresholdMinutes)
+                        .put(
+                            "lastMessageIdByRecipient",
+                            encodeLongMap(destination.lastMessageIdByRecipient)
+                        )
+                        .put(
+                            "lastSentAtMsByRecipient",
+                            encodeLongMap(destination.lastSentAtMsByRecipient)
+                        )
+                        .put(
+                            "lastSentMgdlByRecipient",
+                            encodeIntMap(destination.lastSentMgdlByRecipient)
+                        )
+                        .put(
+                            "lastStaleAtMsByRecipient",
+                            encodeLongMap(destination.lastStaleAtMsByRecipient)
+                        )
                 )
             }
         }
@@ -446,7 +579,13 @@ object OutboundApiSettings {
                 apiVersion = item.optString("apiVersion", DEFAULT_VK_API_VERSION)
                     .ifBlank { DEFAULT_VK_API_VERSION },
                 headers = item.optString("headers", ""),
-                messageTemplate = item.optString("messageTemplate", defaultTemplate(preset)),
+                messageTemplate = run {
+                    val stored = item.optString("messageTemplate", defaultTemplate(preset))
+                    // Migrate the old Telegram default (pre-status-emoji) to the current default.
+                    if (stored == LEGACY_CHAT_TEMPLATE &&
+                        preset == PRESET_TELEGRAM_BOT
+                    ) DEFAULT_CHAT_TEMPLATE else stored
+                },
                 minIntervalMinutes = item.optInt(
                     "minIntervalMinutes",
                     DEFAULT_MIN_INTERVAL_MINUTES
@@ -459,10 +598,74 @@ object OutboundApiSettings {
                 lastAttemptAtMs = item.optLong("lastAttemptAtMs", 0L),
                 lastSuccessAtMs = item.optLong("lastSuccessAtMs", 0L),
                 lastResponseCode = item.optInt("lastResponseCode", 0),
-                lastError = item.optString("lastError", "").ifBlank { null }
+                lastError = item.optString("lastError", "").ifBlank { null },
+                refreshInPlaceEnabled = item.optBoolean(
+                    "refreshInPlaceEnabled",
+                    DEFAULT_REFRESH_IN_PLACE_ENABLED
+                ),
+                refreshWindowMinutes = item.optInt(
+                    "refreshWindowMinutes",
+                    DEFAULT_REFRESH_WINDOW_MINUTES
+                ).let { stored ->
+                    // Migrate the old 5-minute default: too tight for a 5-min CGM interval.
+                    if (stored == 5) DEFAULT_REFRESH_WINDOW_MINUTES else stored
+                }.coerceIn(1, 60),
+                suppressDeltaBelowMgdl = item.optInt(
+                    "suppressDeltaBelowMgdl",
+                    DEFAULT_SUPPRESS_DELTA_BELOW_MGDL
+                ).coerceIn(0, 100),
+                staleEnabled = item.optBoolean("staleEnabled", DEFAULT_STALE_ENABLED),
+                staleThresholdMinutes = item.optInt(
+                    "staleThresholdMinutes",
+                    DEFAULT_STALE_THRESHOLD_MINUTES
+                ).coerceIn(1, 120),
+                missedThresholdMinutes = item.optInt(
+                    "missedThresholdMinutes",
+                    DEFAULT_MISSED_THRESHOLD_MINUTES
+                ).coerceIn(
+                    item.optInt("staleThresholdMinutes", DEFAULT_STALE_THRESHOLD_MINUTES)
+                        .coerceIn(1, 120) + 1,
+                    240
+                ),
+                lastMessageIdByRecipient = decodeLongMap(item.optJSONObject("lastMessageIdByRecipient")),
+                lastSentAtMsByRecipient = decodeLongMap(item.optJSONObject("lastSentAtMsByRecipient")),
+                lastSentMgdlByRecipient = decodeIntMap(item.optJSONObject("lastSentMgdlByRecipient")),
+                lastStaleAtMsByRecipient = decodeLongMap(item.optJSONObject("lastStaleAtMsByRecipient"))
             )
         }
         return destinations.distinctBy { it.id.lowercase(Locale.US) }
+    }
+
+    private fun encodeLongMap(values: Map<String, Long>): JSONObject =
+        JSONObject().also { obj ->
+            values.forEach { (key, value) -> obj.put(key, value) }
+        }
+
+    private fun encodeIntMap(values: Map<String, Int>): JSONObject =
+        JSONObject().also { obj ->
+            values.forEach { (key, value) -> obj.put(key, value) }
+        }
+
+    private fun decodeLongMap(obj: JSONObject?): Map<String, Long> {
+        if (obj == null) return emptyMap()
+        val out = LinkedHashMap<String, Long>(obj.length())
+        val keys = obj.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            out[key] = obj.optLong(key, 0L)
+        }
+        return out
+    }
+
+    private fun decodeIntMap(obj: JSONObject?): Map<String, Int> {
+        if (obj == null) return emptyMap()
+        val out = LinkedHashMap<String, Int>(obj.length())
+        val keys = obj.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            out[key] = obj.optInt(key, 0)
+        }
+        return out
     }
 
     private fun prefs(context: Context) =

@@ -146,8 +146,17 @@ object NightscoutFollowerRegistry {
         }
         connection.setRequestProperty(
             "api-secret",
-            if (trimmed.matches(Regex("^[0-9a-fA-F]{40}$"))) trimmed else sha1(trimmed)
+            if (isSha1Hex(trimmed)) trimmed else sha1(trimmed)
         )
+    }
+
+    // Replaces Regex("^[0-9a-fA-F]{40}$") to avoid repeated ICU JNI allocation on
+    // the NightscoutFollower HandlerThread.  On Samsung Android 15 with Scudo+MTE the
+    // ReleaseIntArrayElements call inside MatcherNative_matchesImpl corrupts the chunk
+    // header after many poll cycles, resulting in a fatal SIGABRT.
+    private fun isSha1Hex(s: String): Boolean {
+        if (s.length != 40) return false
+        return s.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
     }
 
     private fun sha1(value: String): String =

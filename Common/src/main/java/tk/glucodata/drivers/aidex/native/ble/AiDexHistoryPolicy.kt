@@ -2,6 +2,7 @@ package tk.glucodata.drivers.aidex.native.ble
 
 internal object AiDexHistoryPolicy {
     private const val OFFSET_TIMESTAMP_FUTURE_SLACK_MS = 5L * 60_000L
+    private const val POST_RESET_HISTORY_RESIDUE_GRACE_MINUTES = 30
 
     enum class InitialAction {
         COMPLETE_EMPTY,
@@ -100,6 +101,17 @@ internal object AiDexHistoryPolicy {
         // were not yet emitted as direct F003, so skipping >= cutoff drops
         // real backfill rows. Only skip the exact live-backed offset.
         return entryOffsetMinutes == liveOffsetCutoff
+    }
+
+    fun shouldQuarantinePostResetHistoryRange(
+        newestOffsetMinutes: Int,
+        resetRequestedAtMs: Long,
+        nowMs: Long,
+        graceMinutes: Int = POST_RESET_HISTORY_RESIDUE_GRACE_MINUTES,
+    ): Boolean {
+        if (newestOffsetMinutes <= 0 || resetRequestedAtMs <= 0L || nowMs <= 0L) return false
+        val elapsedMinutes = ((nowMs - resetRequestedAtMs).coerceAtLeast(0L) / 60_000L).toInt()
+        return newestOffsetMinutes > elapsedMinutes + graceMinutes.coerceAtLeast(0)
     }
 
     fun resolveOffsetBackedTimestampMs(

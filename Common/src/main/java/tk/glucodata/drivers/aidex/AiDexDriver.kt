@@ -221,7 +221,7 @@ interface AiDexDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
 
     // ── Sensor Commands ─────────────────────────────────────────────────
 
-    /** Send a hardware reset (0xF0) to the sensor. Returns true on success. */
+    /** Restart the sensor lifecycle using CLEAR_STORAGE (0xF3). Returns true on success. */
     override fun resetSensor(): Boolean
 
     /** Activate a new sensor (SET_NEW_SENSOR 0x20). Returns true on success. */
