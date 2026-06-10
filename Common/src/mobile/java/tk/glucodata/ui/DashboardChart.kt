@@ -166,6 +166,7 @@ private data class ChartRangeThresholds(
 
 private data class PeerSensorChartSeries(
     val sensorId: String,
+    val viewMode: Int,
     val color: Color,
     val points: List<GlucosePoint>
 )
@@ -641,6 +642,7 @@ fun DashboardChartSection(
     glucoseHistory: List<GlucosePoint>,
     multiSensorHistory: List<GlucosePoint> = emptyList(),
     selectedSensorIds: List<String> = emptyList(),
+    sensorViewModes: Map<String, Int> = emptyMap(),
     primarySensorId: String? = null,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
@@ -682,6 +684,7 @@ fun DashboardChartSection(
                         fullData = glucoseHistory,
                         multiSensorHistory = multiSensorHistory,
                         selectedSensorIds = selectedSensorIds,
+                        sensorViewModes = sensorViewModes,
                         primarySensorId = primarySensorId,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
@@ -746,6 +749,7 @@ fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
     multiSensorHistory: List<GlucosePoint> = emptyList(),
     selectedSensorIds: List<String> = emptyList(),
+    sensorViewModes: Map<String, Int> = emptyMap(),
     primarySensorId: String? = null,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
@@ -903,8 +907,10 @@ fun InteractiveGlucoseChart(
     val peerChartSeries = remember(
         multiSensorHistory,
         selectedSensorIds,
+        sensorViewModes,
         primarySensorId,
         fullData,
+        viewMode,
         graphSmoothingMinutes,
         collapseSmoothedData
     ) {
@@ -926,10 +932,16 @@ fun InteractiveGlucoseChart(
                 ?: return@mapNotNull null
             PeerSensorChartSeries(
                 sensorId = sensorId,
+                viewMode = sensorViewModes.entries.firstOrNull { (candidateId, _) ->
+                    SensorIdentity.matches(candidateId, sensorId)
+                }?.value ?: viewMode,
                 color = SensorColors.getColor(sensorId),
                 points = buildSmoothedChartData(points, graphSmoothingMinutes, collapseSmoothedData)
             )
         }
+    }
+    val peerPointsByBucket = remember(multiSensorHistory, primarySensorId) {
+        MultiSensorDisplay.buildBucketLookup(multiSensorHistory, primarySensorId)
     }
     val interactionData = remember(safeData, renderData, graphSmoothingMinutes) {
         if (graphSmoothingMinutes > 0) renderData else safeData
@@ -946,6 +958,7 @@ fun InteractiveGlucoseChart(
 
     // Reusable objects to avoid allocation on every frame
     val reusablePath = remember { Path() }
+    val reusablePeerPath = remember { Path() }
     val reusableRawPath = remember { Path() }
     val reusableAutoPath = remember { Path() }
     val reusableDate = remember { java.util.Date() }
@@ -2041,6 +2054,52 @@ fun InteractiveGlucoseChart(
                     )
                 }
             }
+            val peerBrushes = remember(
+                peerChartSeries,
+                limitYVeryHigh,
+                limitYHigh,
+                limitYLow,
+                limitYVeryLow,
+                chartHeightPx,
+                highOutOfRangeTintBase,
+                lowOutOfRangeTintBase
+            ) {
+                if (chartHeightPx <= 0f) {
+                    emptyMap()
+                } else {
+                    val veryHighTint = Color(GlucoseRangeColors.VERY_HIGH)
+                    val veryLowTint = Color(GlucoseRangeColors.VERY_LOW)
+                    val fadePx = 18f
+                    peerChartSeries.associate { series ->
+                        val base = series.color
+                        val normal = base.copy(alpha = 0.38f)
+                        val high = androidx.compose.ui.graphics.lerp(base, highOutOfRangeTintBase, 0.48f).copy(alpha = 0.44f)
+                        val veryHigh = androidx.compose.ui.graphics.lerp(base, veryHighTint, 0.58f).copy(alpha = 0.48f)
+                        val low = androidx.compose.ui.graphics.lerp(base, lowOutOfRangeTintBase, 0.48f).copy(alpha = 0.44f)
+                        val veryLow = androidx.compose.ui.graphics.lerp(base, veryLowTint, 0.58f).copy(alpha = 0.48f)
+                        val stops = mutableListOf<Pair<Float, Color>>()
+
+                        fun addStop(y: Float, color: Color) {
+                            stops += (y / chartHeightPx).coerceIn(0f, 1f) to color
+                        }
+
+                        addStop(0f, veryHigh)
+                        addStop(limitYVeryHigh, veryHigh)
+                        addStop(limitYHigh, high)
+                        addStop(limitYHigh + fadePx, normal)
+                        addStop(limitYLow - fadePx, normal)
+                        addStop(limitYLow, low)
+                        addStop(limitYVeryLow, veryLow)
+                        addStop(chartHeightPx, veryLow)
+
+                        series.sensorId to Brush.verticalGradient(
+                            *stops.sortedBy { it.first }.toTypedArray(),
+                            startY = 0f,
+                            endY = chartHeightPx
+                        )
+                    }
+                }
+            }
 
             Canvas(
                 modifier = Modifier
@@ -2209,24 +2268,30 @@ fun InteractiveGlucoseChart(
 
                 if (peerChartSeries.isNotEmpty()) {
                     val peerGapThreshold = 900000L // 15 mins
-                    val peerStroke = 2.6.dp.toPx()
-                    peerChartSeries.forEach { series ->
+                    val peerStroke = 1.7.dp.toPx()
+                    fun drawPeerSeriesLine(
+                        series: PeerSensorChartSeries,
+                        useRaw: Boolean,
+                        alpha: Float,
+                        strokeWidth: Float
+                    ) {
                         val points = series.points
-                        if (points.size < 2) return@forEach
+                        if (points.size < 2) return
                         val peerStartIdx = points.binarySearchBy(searchStart) { it.timestamp }
                             .let { if (it < 0) -it - 2 else it }
                             .coerceIn(0, points.size)
                         val peerEndIdx = points.binarySearchBy(searchEnd) { it.timestamp }
                             .let { if (it < 0) -it else it + 1 }
                             .coerceIn(peerStartIdx, points.size)
-                        if (peerEndIdx <= peerStartIdx) return@forEach
+                        if (peerEndIdx <= peerStartIdx) return
 
-                        val path = Path()
+                        reusablePeerPath.rewind()
                         var first = true
+                        var hasPath = false
                         var lastTimestamp = 0L
                         for (i in peerStartIdx until peerEndIdx) {
                             val point = points[i]
-                            val value = if (isRawModeChart) point.rawValue else point.value
+                            val value = if (useRaw) point.rawValue else point.value
                             if (!value.isFinite() || value <= 0.1f) {
                                 first = true
                                 continue
@@ -2241,22 +2306,50 @@ fun InteractiveGlucoseChart(
                                 first = true
                             }
                             if (first) {
-                                path.moveTo(px, py)
+                                reusablePeerPath.moveTo(px, py)
                                 first = false
                             } else {
-                                path.lineTo(px, py)
+                                reusablePeerPath.lineTo(px, py)
                             }
+                            hasPath = true
                             lastTimestamp = point.timestamp
                         }
-                        drawPath(
-                            path = path,
-                            color = series.color.copy(alpha = 0.86f),
-                            style = Stroke(
-                                width = peerStroke,
-                                cap = StrokeCap.Round,
-                                join = StrokeJoin.Round
+                        if (!hasPath) return
+                        val brush = peerBrushes[series.sensorId]
+                        if (brush != null) {
+                            drawPath(
+                                path = reusablePeerPath,
+                                brush = brush,
+                                alpha = alpha,
+                                style = Stroke(
+                                    width = strokeWidth,
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round
+                                )
                             )
-                        )
+                        } else {
+                            drawPath(
+                                path = reusablePeerPath,
+                                color = series.color.copy(alpha = 0.32f * alpha),
+                                style = Stroke(
+                                    width = strokeWidth,
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round
+                                )
+                            )
+                        }
+                    }
+                    peerChartSeries.forEach { series ->
+                        val drawRawPeer = series.viewMode == 1 || series.viewMode == 2 || series.viewMode == 3
+                        val drawAutoPeer = series.viewMode == 0 || series.viewMode == 2 || series.viewMode == 3
+                        when {
+                            drawRawPeer && drawAutoPeer -> {
+                                drawPeerSeriesLine(series, useRaw = true, alpha = 0.52f, strokeWidth = peerStroke * 0.84f)
+                                drawPeerSeriesLine(series, useRaw = false, alpha = 0.72f, strokeWidth = peerStroke)
+                            }
+                            drawRawPeer -> drawPeerSeriesLine(series, useRaw = true, alpha = 0.82f, strokeWidth = peerStroke)
+                            drawAutoPeer -> drawPeerSeriesLine(series, useRaw = false, alpha = 0.82f, strokeWidth = peerStroke)
+                        }
                     }
                 }
 
@@ -2950,23 +3043,39 @@ fun InteractiveGlucoseChart(
                              }
                          }
 
-                         MultiSensorDisplay.pointsAtTimestamp(
-                             points = multiSensorHistory,
-                             timestamp = p.timestamp,
-                             preferredSerial = primarySensorId ?: p.sensorSerial
-                         ).forEach { peer ->
-                             val value = if (isRawModeDot) peer.rawValue else peer.value
-                             if (value.isFinite() && value > 0.1f) {
-                                 val py = valToY(value)
-                                 if (py.isFinite()) {
-                                     drawCircle(
-                                         color = SensorColors.getColor(peer.sensorSerial.orEmpty()),
-                                         radius = dotRadius,
-                                         center = Offset(cursorX, py)
-                                     )
+                         peerPointsByBucket[MultiSensorDisplay.bucketKeyForTimestamp(p.timestamp)]
+                             .orEmpty()
+                             .forEach { peer ->
+                                 if (SensorIdentity.matches(peer.sensorSerial, p.sensorSerial ?: primarySensorId)) {
+                                     return@forEach
+                                 }
+                                 val peerMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+                                     SensorIdentity.matches(sensorId, peer.sensorSerial)
+                                 }?.value ?: viewMode
+                                 val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
+                                 val drawPeerRaw = peerMode == 1 || peerMode == 2 || peerMode == 3
+                                 val drawPeerAuto = peerMode == 0 || peerMode == 2 || peerMode == 3
+                                 if (drawPeerRaw && peer.rawValue.isFinite() && peer.rawValue > 0.1f) {
+                                     val py = valToY(peer.rawValue)
+                                     if (py.isFinite()) {
+                                         drawCircle(
+                                             color = peerColor.copy(alpha = if (drawPeerAuto) 0.32f else 0.46f),
+                                             radius = dotRadius * 0.7f,
+                                             center = Offset(cursorX, py)
+                                         )
+                                     }
+                                 }
+                                 if (drawPeerAuto && peer.value.isFinite() && peer.value > 0.1f) {
+                                     val py = valToY(peer.value)
+                                     if (py.isFinite()) {
+                                         drawCircle(
+                                             color = peerColor.copy(alpha = 0.46f),
+                                             radius = dotRadius * 0.75f,
+                                             center = Offset(cursorX, py)
+                                         )
+                                     }
                                  }
                              }
-                         }
                     }
                 }
             }
@@ -3341,13 +3450,11 @@ fun InteractiveGlucoseChart(
                     calibratedValueResolver.valueForPoint(point, isRawModeTT).takeIf { it > 0.1f }
                 } else null
                 val dvs = getDisplayValues(point, viewMode, unit, calibratedValueTT)
-                val tooltipPeerPoints = MultiSensorDisplay.pointsAtTimestamp(
-                    points = multiSensorHistory,
-                    timestamp = point.timestamp,
-                    preferredSerial = primarySensorId ?: point.sensorSerial
-                ).filterNot { peer ->
-                    SensorIdentity.matches(peer.sensorSerial, point.sensorSerial ?: primarySensorId)
-                }
+                val tooltipPeerPoints = peerPointsByBucket[MultiSensorDisplay.bucketKeyForTimestamp(point.timestamp)]
+                    .orEmpty()
+                    .filterNot { peer ->
+                        SensorIdentity.matches(peer.sensorSerial, point.sensorSerial ?: primarySensorId)
+                    }
 
                 // --- 1. INFO CARD (Top) ---
                 // "Current Status Card styling" -> primaryContainer
@@ -3465,32 +3572,24 @@ fun InteractiveGlucoseChart(
                         )
                         tooltipPeerPoints.forEach { peer ->
                             val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
-                            val peerDvs = getDisplayValues(peer, viewMode, unit, calibratedValue = null)
-                            Row(
-                                modifier = Modifier.padding(top = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Surface(
-                                    modifier = Modifier.size(6.dp),
-                                    shape = CircleShape,
-                                    color = peerColor,
-                                    tonalElevation = 0.dp,
-                                    shadowElevation = 0.dp
-                                ) {}
-                                Text(
-                                    text = buildGlucoseString(
-                                        peerDvs,
-                                        peerColor,
-                                        statusContentColor.copy(alpha = 0.72f),
-                                        statusContentColor.copy(alpha = 0.52f),
-                                        false,
-                                        "",
-                                        statusContentColor.copy(alpha = 0.42f)
-                                    ),
-                                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum")
-                                )
-                            }
+                            val peerMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+                                SensorIdentity.matches(sensorId, peer.sensorSerial)
+                            }?.value ?: viewMode
+                            val peerTextColor = androidx.compose.ui.graphics.lerp(statusContentColor, peerColor, 0.46f)
+                            val peerDvs = getDisplayValues(peer, peerMode, unit, calibratedValue = null)
+                            Text(
+                                modifier = Modifier.padding(top = 3.dp),
+                                text = buildGlucoseString(
+                                    peerDvs,
+                                    peerTextColor,
+                                    statusContentColor.copy(alpha = 0.68f),
+                                    statusContentColor.copy(alpha = 0.48f),
+                                    false,
+                                    "",
+                                    statusContentColor.copy(alpha = 0.38f)
+                                ),
+                                style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum")
+                            )
                         }
                     }
                 }

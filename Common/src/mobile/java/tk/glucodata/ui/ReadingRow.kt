@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import kotlinx.coroutines.delay
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
@@ -68,6 +69,8 @@ fun ReadingRow(
     totalCount: Int = 1,
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
     peerReadings: List<GlucosePoint> = emptyList(),
+    peerHistories: Map<String, List<GlucosePoint>> = emptyMap(),
+    sensorViewModes: Map<String, Int> = emptyMap(),
     sensorId: String? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     journalEntries: List<JournalEntry> = emptyList(),
@@ -80,6 +83,7 @@ fun ReadingRow(
     leadingActionEmphasis: Float = 1f,
     onLeadingActionClick: (() -> Unit)? = null,
     onValueClick: (() -> Unit)? = null,
+    onSensorValueClick: ((GlucosePoint) -> Unit)? = null,
     onDeleteReading: ((GlucosePoint) -> Unit)? = null,
     isGroupStart: Boolean = index == 0,
     isGroupEnd: Boolean = index == totalCount - 1,
@@ -99,6 +103,14 @@ fun ReadingRow(
         if (onDeleteReading != null) {
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             showDeleteDialog = true
+        }
+    }
+    val hasValueClick = onValueClick != null || onSensorValueClick != null
+    val handlePrimaryValueClick: () -> Unit = {
+        if (onSensorValueClick != null) {
+            onSensorValueClick(point)
+        } else {
+            onValueClick?.invoke()
         }
     }
 
@@ -203,15 +215,15 @@ fun ReadingRow(
             .fillMaxWidth()
             .then(
                 when {
-                    onDeleteReading != null && onValueClick != null -> Modifier.combinedClickable(
-                        onClick = onValueClick,
+                    onDeleteReading != null && hasValueClick -> Modifier.combinedClickable(
+                        onClick = handlePrimaryValueClick,
                         onLongClick = { openDeleteDialog() },
                         hapticFeedbackEnabled = false
                     )
                     onDeleteReading != null -> Modifier.pointerInput(point.timestamp, point.sensorSerial) {
                         detectTapGestures(onLongPress = { openDeleteDialog() })
                     }
-                    onValueClick != null -> Modifier.clickable(onClick = onValueClick)
+                    hasValueClick -> Modifier.clickable(onClick = handlePrimaryValueClick)
                     else -> Modifier
                 }
             ),
@@ -257,6 +269,7 @@ fun ReadingRow(
             val unitColor = secondaryColor.copy(alpha = 0.6f)
             val tertiaryColor = if (isActive) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             val valueStyle = MaterialTheme.typography.titleMedium
+            val peerValueStyle = MaterialTheme.typography.titleSmall
 
             @Composable
             fun ReadingValueContent(modifier: Modifier = Modifier) {
@@ -292,39 +305,101 @@ fun ReadingRow(
                 }
             }
 
+            fun viewModeForSensor(serial: String?): Int =
+                sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+                    SensorIdentity.matches(sensorId, serial)
+                }?.value ?: viewMode
+
+            fun historyForSensor(serial: String?): List<GlucosePoint> =
+                peerHistories.entries.firstOrNull { (sensorId, _) ->
+                    SensorIdentity.matches(sensorId, serial)
+                }?.value.orEmpty()
+
             @Composable
-            fun PeerReadingValueChip(peer: GlucosePoint) {
+            fun PeerReadingValue(peer: GlucosePoint) {
                 val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
-                val peerDvs = getDisplayValues(peer, viewMode, unit, calibratedValue = null)
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = peerColor.copy(alpha = if (isActive) 0.16f else 0.10f),
-                    tonalElevation = 0.dp,
-                    shadowElevation = 0.dp
+                val peerMode = viewModeForSensor(peer.sensorSerial)
+                val isRawModePeer = peerMode == 1 || peerMode == 3
+                val peerSensorId = peer.sensorSerial?.takeIf { it.isNotBlank() }
+                val peerCalibrationValue = remember(
+                    peer.value,
+                    peer.rawValue,
+                    peer.timestamp,
+                    peerSensorId,
+                    peerMode,
+                    calibrations
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    if (!tk.glucodata.data.calibration.CalibrationManager.shouldOverwriteSensorValues() &&
+                        tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModePeer, peerSensorId)
                     ) {
-                        Surface(
-                            modifier = Modifier.size(6.dp),
-                            shape = CircleShape,
-                            color = peerColor,
-                            tonalElevation = 0.dp,
-                            shadowElevation = 0.dp
-                        ) {}
-                        Text(
-                            text = buildGlucoseString(
-                                peerDvs,
-                                peerColor,
-                                secondaryColor,
-                                unitColor,
-                                false,
-                                "",
-                                tertiaryColor
-                            ),
-                            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum")
+                        val baseValue = if (isRawModePeer) peer.rawValue else peer.value
+                        if (baseValue.isFinite() && baseValue > 0.1f) {
+                            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                                baseValue,
+                                peer.timestamp,
+                                isRawModePeer,
+                                sensorIdOverride = peerSensorId
+                            )
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }
+                val peerHistory = historyForSensor(peer.sensorSerial)
+                val peerTrendResult = remember(peer.timestamp, peer.sensorSerial, peerHistory, peerMode, unit) {
+                    val nativeList = peerHistory
+                        .asSequence()
+                        .filter { it.timestamp <= peer.timestamp }
+                        .take(24)
+                        .map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }
+                        .toList()
+                        .ifEmpty { listOf(tk.glucodata.GlucosePoint(peer.timestamp, peer.value, peer.rawValue)) }
+                    tk.glucodata.logic.TrendEngine.calculateTrend(
+                        nativeList,
+                        useRaw = isRawModePeer,
+                        isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
+                    )
+                }
+                val peerDvs = getDisplayValues(peer, peerMode, unit, calibratedValue = peerCalibrationValue)
+                val peerPrimaryColor = androidx.compose.ui.graphics.lerp(
+                    MaterialTheme.colorScheme.onSurface,
+                    peerColor,
+                    if (isActive) 0.34f else 0.28f
+                ).copy(alpha = if (isActive) 0.92f else 0.78f)
+                val peerSecondaryColor = secondaryColor.copy(alpha = if (isActive) 0.72f else 0.62f)
+                val peerUnitColor = unitColor.copy(alpha = 0.68f)
+                Row(
+                    modifier = Modifier.then(
+                        if (onSensorValueClick != null) {
+                            Modifier.clickable { onSensorValueClick(peer) }
+                        } else {
+                            Modifier
+                        }
+                    ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = buildGlucoseString(
+                            peerDvs,
+                            peerPrimaryColor,
+                            peerSecondaryColor,
+                            peerUnitColor,
+                            false,
+                            "",
+                            tertiaryColor.copy(alpha = 0.58f)
+                        ),
+                        style = peerValueStyle.copy(fontFeatureSettings = "tnum")
+                    )
+                    Box(
+                        modifier = Modifier.width(18.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        tk.glucodata.ui.components.TrendIndicator(
+                            trendResult = peerTrendResult,
+                            color = peerPrimaryColor.copy(alpha = 0.62f),
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
@@ -338,12 +413,12 @@ fun ReadingRow(
                 }
                 FlowRow(
                     modifier = modifier,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     ReadingValueContent()
                     peerReadings.forEach { peer ->
-                        PeerReadingValueChip(peer)
+                        PeerReadingValue(peer)
                     }
                 }
             }

@@ -3166,6 +3166,8 @@ public class Notify {
 
         CharSequence valueText = buildFormattedGlucoseText(fallbackDisplay, glvalue);
         final float displayGlucoseValue = fallbackDisplay != null ? fallbackDisplay.getPrimaryValue() : glvalue;
+        final java.util.List<NotificationChartDrawer.ValueItem> peerValueItems =
+                NotificationMultiSensorSource.peerValueItems(glucosetimeout, activeSensorSerial);
 
         // Semantic Color
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, displayGlucoseValue, isMmol);
@@ -3242,8 +3244,8 @@ public class Notify {
         // Glucose Value - Render as Bitmap to support IBM Plex Font & Locale
         // consistency
         // Collapsed: Base size 24sp (scale 1.0 * fontSize)
-        Bitmap valueBitmap = NotificationChartDrawer.drawGlucoseText(Applic.app, valueText.toString(), glucoseColor,
-                fontSize, fontWeight, useSystemFont);
+        Bitmap valueBitmap = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(), glucoseColor,
+                peerValueItems, fontSize, fontWeight, useSystemFont);
         remoteViews.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViews.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);
         remoteViews.setImageViewBitmap(R.id.notification_glucose_image, valueBitmap);
@@ -3268,8 +3270,8 @@ public class Notify {
                 R.layout.notification_material_regular_expanded);
 
         // Glucose Value - Expanded: Size 28sp (scale ~1.17 * fontSize)
-        Bitmap valueBitmapExpanded = NotificationChartDrawer.drawGlucoseText(Applic.app, valueText.toString(),
-                glucoseColor, fontSize * 1.166f, fontWeight, useSystemFont);
+        Bitmap valueBitmapExpanded = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(),
+                glucoseColor, peerValueItems, fontSize * 1.166f, fontWeight, useSystemFont);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);
         remoteViewsExpanded.setImageViewBitmap(R.id.notification_glucose_image, valueBitmapExpanded);
@@ -3307,6 +3309,10 @@ public class Notify {
                 // fallback to app context if creation fails
             }
         }
+        final java.util.List<NotificationChartDrawer.PeerSeries> peerChartSeries =
+                (showChartCollapsed || showChart)
+                        ? NotificationMultiSensorSource.peerSeries(startT, isMmol, activeSensorSerial)
+                        : java.util.Collections.emptyList();
 
         if (showChartCollapsed) {
             // Collapsed chart: Limit height to 48dp based on SYSTEM density
@@ -3318,14 +3324,14 @@ public class Notify {
             // Use safeContext and explicit height
             chartBitmapCollapsed = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, collapsedHeight,
                     isMmol,
-                    viewMode, showTargetRange, hasCalibration, true, activeSensorSerial);
+                    viewMode, showTargetRange, hasCalibration, true, activeSensorSerial, peerChartSeries);
         }
 
         if (showChart) {
             // Expanded chart: Use safely resolved density context (default 0 ->
             // 256*density)
             chartBitmapExpanded = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, 0, isMmol,
-                    viewMode, showTargetRange, hasCalibration, false, activeSensorSerial);
+                    viewMode, showTargetRange, hasCalibration, false, activeSensorSerial, peerChartSeries);
         }
 
         if (showChartCollapsed && chartBitmapCollapsed != null) {

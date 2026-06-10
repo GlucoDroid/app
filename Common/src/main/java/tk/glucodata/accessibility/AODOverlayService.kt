@@ -33,6 +33,7 @@ import tk.glucodata.GlucosePoint
 import tk.glucodata.Natives
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.NotificationChartDrawer
+import tk.glucodata.NotificationMultiSensorSource
 import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
@@ -476,6 +477,10 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val displayRate = DisplayTrendSource.resolveArrowRate(overlayChartPoints, resolvedDisplay, viewMode, isMmol)
 
         val glucoseColor = NotificationChartDrawer.getGlucoseColor(this, glvalue, isMmol)
+        val peerValueItems = NotificationMultiSensorSource.peerValueItems(
+            tk.glucodata.Notify.glucosetimeout,
+            activeSensorSerial
+        )
 
         // Draw Components
         val fontSource = prefs.getString("aod_font_source", "APP") ?: "APP"
@@ -489,7 +494,15 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val arrowScale = prefs.getFloat("aod_arrow_scale", 2.0f)
 
         // Use textScale here for high-res bitmap generation
-        val textBitmap = NotificationChartDrawer.drawGlucoseText(this, valStr, glucoseColor, textScale, fontWeight, useSystemFont)
+        val textBitmap = NotificationChartDrawer.drawMultiGlucoseText(
+            this,
+            valStr,
+            glucoseColor,
+            peerValueItems,
+            textScale,
+            fontWeight,
+            useSystemFont
+        )
         val textImg = view.findViewById<ImageView>(R.id.notification_glucose)
         textImg?.setImageBitmap(textBitmap)
 
@@ -519,6 +532,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             val baseChartHeightPx = (200 * dm.density).toInt()
             val renderWidth = (dm.widthPixels * 1.5f).toInt()
             val renderHeight = (baseChartHeightPx * 1.5f).toInt()
+            val peerChartSeries = NotificationMultiSensorSource.peerSeries(startT, isMmol, activeSensorSerial)
 
             val chartBitmap = NotificationChartDrawer.drawChartWithPrediction(
                 this,
@@ -529,7 +543,9 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                 viewMode,
                 true,
                 hasCalibration,
-                activeSensorSerial
+                false,
+                activeSensorSerial,
+                peerChartSeries
             )
             if (chartImg != null) {
                 chartImg.layoutParams = chartImg.layoutParams?.also { params ->

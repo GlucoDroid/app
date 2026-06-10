@@ -7,10 +7,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.withContext
 import tk.glucodata.Natives
@@ -71,12 +73,20 @@ class DashboardViewModel(
         val unit: String
     )
 
+    private data class MultiSensorHistoryQueryConfig(
+        val unit: String,
+        val primarySensorId: String?,
+        val selectedSensorIds: List<String>,
+        val sensorViewModes: Map<String, Int>
+    )
+
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val DASHBOARD_HISTORY_COALESCE_MS = 300L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
+        const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val DASHBOARD_PEER_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
@@ -163,6 +173,9 @@ class DashboardViewModel(
 
     private val _selectedSensorIds = MutableStateFlow<List<String>>(emptyList())
     val selectedSensorIds = _selectedSensorIds.asStateFlow()
+
+    private val _sensorViewModes = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val sensorViewModes = _sensorViewModes.asStateFlow()
 
     /**
      * Cross-sensor merged history for the History browse screen. Includes
@@ -576,6 +589,7 @@ class DashboardViewModel(
         )
         _selectedSensorIds.value = selectedDisplaySensors
         _activeSensorList.value = selectedDisplaySensors
+        _sensorViewModes.value = resolveSelectedSensorViewModes(selectedDisplaySensors)
 
         if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
             glucoseRepository.refreshSensorSerial(sName)
@@ -679,6 +693,23 @@ class DashboardViewModel(
         return SensorIdentity.distinctLogicalSensorIds(candidates)
     }
 
+    private fun resolveSelectedSensorViewModes(sensorIds: List<String>): Map<String, Int> {
+        if (sensorIds.isEmpty()) return emptyMap()
+        val callbacks = runCatching { SensorBluetooth.mygatts()?.toList().orEmpty() }
+            .getOrElse { emptyList() }
+        return sensorIds.associateWith { sensorId ->
+            val managedMode = ManagedSensorRuntime.resolveUiSnapshot(sensorId, sensorId)?.viewMode
+            val nativeMode = callbacks
+                .firstOrNull { callback -> SensorIdentity.matches(callback.SerialNumber, sensorId) }
+                ?.dataptr
+                ?.takeIf { it != 0L }
+                ?.let { dataptr -> runCatching { Natives.getViewMode(dataptr) }.getOrNull() }
+            managedMode
+                ?: nativeMode
+                ?: if (SensorIdentity.matches(sensorId, _sensorName.value)) _viewMode.value else 0
+        }
+    }
+
     private fun refreshCurrentDisplaySnapshot() {
         refreshCurrentDisplayAfterSmoothingChange()
     }
@@ -686,12 +717,12 @@ class DashboardViewModel(
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD,
+            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD,
+            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
             CollectionMode.FULL_HISTORY -> 0L
         }
         activeHistoryStartTimeMs = recoveryStartTimeMs
@@ -777,40 +808,51 @@ class DashboardViewModel(
         }
         if (multiSensorHistoryJob?.isActive == true) return
 
-        val startTimeMs = System.currentTimeMillis() - DASHBOARD_PEER_HISTORY_WINDOW_MS
         multiSensorHistoryJob = viewModelScope.launch {
             combine(
                 _unit,
                 _sensorName,
-                MultiSensorSelection.revision,
-                historyRepository.getHistoryFlow(startTimeMs)
-                    .distinctUntilChangedBy(::historyEdgeSignature)
-            ) { unitStr, primarySensor, _, rawHistory ->
-                Triple(unitStr, primarySensor, rawHistory)
-            }.collectLatest { (unitStr, primarySensor, rawHistory) ->
+                MultiSensorSelection.revision
+            ) { unitStr, primarySensor, _ ->
                 val activeSensors = runCatching { Natives.activeSensors() }.getOrNull()
                 val availableSensors = availableDisplaySensorIds(activeSensors, primarySensor)
                 val selectedSensors = MultiSensorSelection.selectedAvailable(
                     availableSensorIds = availableSensors,
                     primarySensorId = primarySensor
                 )
-                _selectedSensorIds.value = selectedSensors
-                _activeSensorList.value = selectedSensors
+                MultiSensorHistoryQueryConfig(
+                    unit = unitStr,
+                    primarySensorId = primarySensor,
+                    selectedSensorIds = selectedSensors,
+                    sensorViewModes = resolveSelectedSensorViewModes(selectedSensors)
+                )
+            }.distinctUntilChanged()
+                .collectLatest { config ->
+                _selectedSensorIds.value = config.selectedSensorIds
+                _activeSensorList.value = config.selectedSensorIds
+                _sensorViewModes.value = config.sensorViewModes
 
-                val peerSensors = selectedSensors.drop(1)
+                val peerSensors = config.selectedSensorIds.drop(1)
                 if (peerSensors.isEmpty()) {
                     _multiSensorHistory.value = emptyList()
                     return@collectLatest
                 }
 
-                _multiSensorHistory.value = withContext(Dispatchers.Default) {
-                    rawHistory
-                        .filter { point ->
-                            peerSensors.any { peer -> SensorIdentity.matches(point.sensorSerial, peer) }
+                var hasSeenPeerEmission = false
+                val startTimeMs = System.currentTimeMillis() - DASHBOARD_PEER_HISTORY_WINDOW_MS
+                historyRepository.getHistoryFlowForDisplaySensors(peerSensors, startTimeMs)
+                    .conflate()
+                    .distinctUntilChangedBy(::historyEdgeSignature)
+                    .collectLatest { rawHistory ->
+                        if (hasSeenPeerEmission) {
+                            delay(DASHBOARD_HISTORY_COALESCE_MS)
                         }
-                        .inDisplayUnit(unitStr)
+                        hasSeenPeerEmission = true
+                        _multiSensorHistory.value = withContext(Dispatchers.Default) {
+                            rawHistory.inDisplayUnit(config.unit)
+                        }
+                    }
                 }
-            }
         }
     }
 

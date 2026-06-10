@@ -82,6 +82,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.RectangleShape
+import tk.glucodata.SensorIdentity
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.util.AdaptiveLayoutDensity
 import tk.glucodata.ui.util.findActivity
@@ -289,6 +290,7 @@ fun DashboardScreen(
     val glucoseHistory by viewModel.glucoseHistory.collectAsState()
     val multiSensorHistory by viewModel.multiSensorHistory.collectAsState()
     val selectedSensorIds by viewModel.selectedSensorIds.collectAsState()
+    val sensorViewModes by viewModel.sensorViewModes.collectAsState()
     val unit by viewModel.unit.collectAsState()
     val graphLow by viewModel.graphLow.collectAsState()
     val graphHigh by viewModel.graphHigh.collectAsState()
@@ -1007,6 +1009,9 @@ fun DashboardScreen(
                     preferredSerial = sensorName.ifBlank { null }
                 )
             }
+            val peerHistoriesBySensor = remember(multiSensorHistory) {
+                MultiSensorDisplay.groupHistoryBySensor(multiSensorHistory)
+            }
             val recentReadingJournalEntries = remember(recentReadings, scopedJournalEntries) {
                 groupJournalEntriesByReading(recentReadings, scopedJournalEntries)
             }
@@ -1142,6 +1147,8 @@ fun DashboardScreen(
                                 totalCount = recentReadings.size,
                                 history = recentReadings,
                                 peerReadings = recentReadingGroups.getOrNull(index)?.peers.orEmpty(),
+                                peerHistories = peerHistoriesBySensor,
+                                sensorViewModes = sensorViewModes,
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
@@ -1179,6 +1186,22 @@ fun DashboardScreen(
                                         CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
                                     )
                                 },
+                                onSensorValueClick = { reading ->
+                                    clearJournalAction()
+                                    val readingSensorId = reading.sensorSerial?.takeIf { it.isNotBlank() }
+                                    val readingViewMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+                                        SensorIdentity.matches(sensorId, readingSensorId)
+                                    }?.value ?: viewMode
+                                    triggerCalibrationIfEnabled(
+                                        CalibrationSheetState.New(
+                                            auto = reading.value,
+                                            raw = reading.rawValue,
+                                            timestamp = reading.timestamp,
+                                            sensorId = readingSensorId,
+                                            viewModeOverride = readingViewMode
+                                        )
+                                    )
+                                },
                                 onDeleteReading = { point ->
                                     viewModel.deleteHistoryReading(point, sensorName)
                                 },
@@ -1202,6 +1225,7 @@ fun DashboardScreen(
                                     glucoseHistory = glucoseHistory,
                                     multiSensorHistory = multiSensorHistory,
                                     selectedSensorIds = selectedSensorIds,
+                                    sensorViewModes = sensorViewModes,
                                     primarySensorId = sensorName.ifBlank { null },
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
@@ -1366,6 +1390,7 @@ fun DashboardScreen(
                                     glucoseHistory = glucoseHistory,
                                     multiSensorHistory = multiSensorHistory,
                                     selectedSensorIds = selectedSensorIds,
+                                    sensorViewModes = sensorViewModes,
                                     primarySensorId = sensorName.ifBlank { null },
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
@@ -1460,6 +1485,8 @@ fun DashboardScreen(
                                 totalCount = recentReadings.size,
                                 history = recentReadings,
                                 peerReadings = recentReadingGroups.getOrNull(index)?.peers.orEmpty(),
+                                peerHistories = peerHistoriesBySensor,
+                                sensorViewModes = sensorViewModes,
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
@@ -1495,6 +1522,22 @@ fun DashboardScreen(
                                     clearJournalAction()
                                     triggerCalibrationIfEnabled(
                                         CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
+                                    )
+                                },
+                                onSensorValueClick = { reading ->
+                                    clearJournalAction()
+                                    val readingSensorId = reading.sensorSerial?.takeIf { it.isNotBlank() }
+                                    val readingViewMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+                                        SensorIdentity.matches(sensorId, readingSensorId)
+                                    }?.value ?: viewMode
+                                    triggerCalibrationIfEnabled(
+                                        CalibrationSheetState.New(
+                                            auto = reading.value,
+                                            raw = reading.rawValue,
+                                            timestamp = reading.timestamp,
+                                            sensorId = readingSensorId,
+                                            viewModeOverride = readingViewMode
+                                        )
                                     )
                                 },
                                 onDeleteReading = { point ->

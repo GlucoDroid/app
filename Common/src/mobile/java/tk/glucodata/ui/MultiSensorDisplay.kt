@@ -67,12 +67,46 @@ internal object MultiSensorDisplay {
         return result
     }
 
+    fun buildBucketLookup(
+        points: List<GlucosePoint>,
+        preferredSerial: String?
+    ): Map<Long, List<GlucosePoint>> {
+        if (points.isEmpty()) return emptyMap()
+        val latestByBucketSensor = LinkedHashMap<Long, LinkedHashMap<String, GlucosePoint>>()
+        points.forEach { point ->
+            val serial = point.sensorSerial?.takeIf { it.isNotBlank() } ?: return@forEach
+            val bucket = bucketKey(point.timestamp)
+            val sensorKey = SensorIdentity.resolveAppSensorId(serial) ?: serial
+            val bucketPoints = latestByBucketSensor.getOrPut(bucket) { LinkedHashMap() }
+            val existing = bucketPoints[sensorKey]
+            if (existing == null || point.timestamp >= existing.timestamp) {
+                bucketPoints[sensorKey] = point
+            }
+        }
+        return latestByBucketSensor.mapValues { (_, bucketPoints) ->
+            sortPoints(bucketPoints.values.toList(), preferredSerial)
+        }
+    }
+
+    fun groupHistoryBySensor(points: List<GlucosePoint>): Map<String, List<GlucosePoint>> {
+        if (points.isEmpty()) return emptyMap()
+        val grouped = LinkedHashMap<String, MutableList<GlucosePoint>>()
+        points.forEach { point ->
+            val serial = point.sensorSerial?.takeIf { it.isNotBlank() } ?: return@forEach
+            val key = SensorIdentity.resolveAppSensorId(serial) ?: serial
+            grouped.getOrPut(key) { ArrayList() }.add(point)
+        }
+        return grouped.mapValues { (_, sensorPoints) -> sensorPoints.sortedByDescending { it.timestamp } }
+    }
+
     fun pointsAtTimestamp(
         points: List<GlucosePoint>,
         timestamp: Long,
         preferredSerial: String?
     ): List<GlucosePoint> =
         buildPeerLookup(points, listOf(timestamp), preferredSerial)[timestamp].orEmpty()
+
+    fun bucketKeyForTimestamp(timestamp: Long): Long = bucketKey(timestamp)
 
     private fun sortPoints(points: List<GlucosePoint>, preferredSerial: String?): List<GlucosePoint> =
         points.sortedWith(

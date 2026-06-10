@@ -61,6 +61,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tk.glucodata.GlucosePoint
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.data.HistoryRepository
 import tk.glucodata.data.calibration.CalibrationEntity
 import tk.glucodata.data.calibration.CalibrationManager
@@ -81,6 +82,7 @@ fun CalibrationBottomSheet(
     glucoseHistory: List<GlucosePoint>,
     isMmol: Boolean = true,
     viewMode: Int = 0,
+    sensorIdOverride: String? = null,
     onNavigateToHistory: () -> Unit
 ) {
     val view = LocalView.current
@@ -94,7 +96,9 @@ fun CalibrationBottomSheet(
 
     // State
     var editingEntity by remember { mutableStateOf<CalibrationEntity?>(null) }
-    val currentSensor = tk.glucodata.Natives.lastsensorname() ?: ""
+    val currentSensor = sensorIdOverride?.takeIf { it.isNotBlank() }
+        ?: tk.glucodata.Natives.lastsensorname()
+        ?: ""
     var selectedTimestamp by remember { mutableLongStateOf(initialTimestamp) }
 
     val nearestHistoryPoint = remember(selectedTimestamp, glucoseHistory) {
@@ -177,7 +181,7 @@ fun CalibrationBottomSheet(
         ?: remember { mutableStateOf(emptyList()) }
     val calibrations = allCalibrations
         .filter { it.isRawMode == isRawMode }
-        .filter { it.sensorId == currentSensor || it.sensorId.isEmpty() }
+        .filter { it.sensorId.isEmpty() || SensorIdentity.matches(it.sensorId, currentSensor) }
         .sortedByDescending { it.timestamp }
 
     // --- SMART MODE SWITCHING LOGIC ---
@@ -524,6 +528,7 @@ fun CalibrationBottomSheet(
                                     sensorValue = selectedAutoValue,
                                     sensorValueRaw = selectedRawValue,
                                     userValue = userValue,
+                                    sensorId = currentSensor,
                                     isRawMode = isRawMode
                                 )
                                 onDismiss()
