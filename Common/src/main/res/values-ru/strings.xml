@@ -1816,6 +1816,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">На уровне %1$s %2$s или ниже</string>
     <string name="outbound_api_trigger_summary_high">На уровне %1$s %2$s или выше</string>
     <string name="outbound_api_trigger_summary_range">На уровне %1$s или ниже, либо на уровне %2$s %3$s или выше</string>
+    <string name="outbound_api_bubble_title">Пузырь Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Обновлять на месте</string>
+    <string name="outbound_api_bubble_refresh_desc">В течение окна обновления редактировать то же сообщение, а не отправлять новое.</string>
+    <string name="outbound_api_bubble_refresh_window">Окно обновления (минуты)</string>
+    <string name="outbound_api_bubble_suppress_title">Пропускать, если значение не изменилось</string>
+    <string name="outbound_api_bubble_suppress_desc">Не редактировать сообщение, если новое показание отличается от последнего менее чем на 1 mg/dL.</string>
+    <string name="outbound_api_bubble_stale_title">Показывать "Пропущено показание." при тишине</string>
+    <string name="outbound_api_bubble_stale_desc">Отправлять сообщение об устаревшем или пропущенном показании, если новое показание не пришло вовремя.</string>
+    <string name="outbound_api_bubble_stale_threshold">Порог устаревания (минуты)</string>
+    <string name="outbound_api_bubble_missed_threshold">Порог пропуска (минуты)</string>
     <string name="outbound_api_send_test">Отправить тестовое сообщение</string>
     <string name="outbound_api_test_queued">Тестовое сообщение поставлено в очередь</string>
     <string name="outbound_api_no_current_reading">Нет доступного текущего показания</string>

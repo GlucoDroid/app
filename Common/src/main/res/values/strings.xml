@@ -1996,7 +1996,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_bubble_suppress_title">Skip if value unchanged</string>
     <string name="outbound_api_bubble_suppress_desc">Don\'t edit the bubble if the new reading is within 1 mg/dL of the last.</string>
     <string name="outbound_api_bubble_stale_title">Show "Missed reading." when silent</string>
-    <string name="outbound_api_bubble_stale_desc">Edit the bubble to a stale or missed state if no new reading arrives in time.</string>
+    <string name="outbound_api_bubble_stale_desc">Post a stale or missed message if no new reading arrives in time.</string>
     <string name="outbound_api_bubble_stale_threshold">Stale threshold (minutes)</string>
     <string name="outbound_api_bubble_missed_threshold">Missed threshold (minutes)</string>
     <string name="outbound_api_send_test">Send test message</string>

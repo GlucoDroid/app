@@ -1847,6 +1847,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">На рівні %1$s %2$s або нижче</string>
     <string name="outbound_api_trigger_summary_high">На рівні %1$s %2$s або вище</string>
     <string name="outbound_api_trigger_summary_range">На рівні %1$s або нижче, або на рівні %2$s %3$s чи вище</string>
+    <string name="outbound_api_bubble_title">Бульбашка Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Оновлювати на місці</string>
+    <string name="outbound_api_bubble_refresh_desc">У межах вікна оновлення редагувати ту саму бульбашку замість надсилання нової.</string>
+    <string name="outbound_api_bubble_refresh_window">Вікно оновлення (хвилини)</string>
+    <string name="outbound_api_bubble_suppress_title">Пропускати, якщо значення не змінилося</string>
+    <string name="outbound_api_bubble_suppress_desc">Не редагувати бульбашку, якщо нове показання відрізняється від останнього менш ніж на 1 mg/dL.</string>
+    <string name="outbound_api_bubble_stale_title">Показувати "Показання пропущено." під час тиші</string>
+    <string name="outbound_api_bubble_stale_desc">Надсилати повідомлення про застаріле або пропущене показання, якщо нове показання не надійшло вчасно.</string>
+    <string name="outbound_api_bubble_stale_threshold">Поріг застарівання (хвилини)</string>
+    <string name="outbound_api_bubble_missed_threshold">Поріг пропуску (хвилини)</string>
     <string name="outbound_api_send_test">Надіслати тестове повідомлення</string>
     <string name="outbound_api_test_queued">Тестове повідомлення поставлено в чергу</string>
     <string name="outbound_api_no_current_reading">Немає доступного поточного показання</string>

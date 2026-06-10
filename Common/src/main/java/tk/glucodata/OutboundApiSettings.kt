@@ -606,10 +606,7 @@ object OutboundApiSettings {
                 refreshWindowMinutes = item.optInt(
                     "refreshWindowMinutes",
                     DEFAULT_REFRESH_WINDOW_MINUTES
-                ).let { stored ->
-                    // Migrate the old 5-minute default: too tight for a 5-min CGM interval.
-                    if (stored == 5) DEFAULT_REFRESH_WINDOW_MINUTES else stored
-                }.coerceIn(1, 60),
+                ).coerceIn(1, 60),
                 suppressDeltaBelowMgdl = item.optInt(
                     "suppressDeltaBelowMgdl",
                     DEFAULT_SUPPRESS_DELTA_BELOW_MGDL

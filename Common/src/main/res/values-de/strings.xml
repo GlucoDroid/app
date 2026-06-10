@@ -1811,6 +1811,16 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="outbound_api_trigger_summary_low">Bei oder unter %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_high">Bei oder über %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_range">Bei oder unter %1$s oder bei oder über %2$s %3$s</string>
+    <string name="outbound_api_bubble_title">Telegram-Blase</string>
+    <string name="outbound_api_bubble_refresh_title">An Ort und Stelle aktualisieren</string>
+    <string name="outbound_api_bubble_refresh_desc">Innerhalb des Aktualisierungsfensters dieselbe Blase bearbeiten, statt eine neue Nachricht zu senden.</string>
+    <string name="outbound_api_bubble_refresh_window">Aktualisierungsfenster (Minuten)</string>
+    <string name="outbound_api_bubble_suppress_title">Überspringen, wenn Wert unverändert ist</string>
+    <string name="outbound_api_bubble_suppress_desc">Die Blase nicht bearbeiten, wenn der neue Wert höchstens 1 mg/dL vom letzten abweicht.</string>
+    <string name="outbound_api_bubble_stale_title">Bei Stille "Messung verpasst." anzeigen</string>
+    <string name="outbound_api_bubble_stale_desc">Sendet eine Stale- oder Verpasst-Meldung, wenn rechtzeitig kein neuer Wert eintrifft.</string>
+    <string name="outbound_api_bubble_stale_threshold">Stale-Schwelle (Minuten)</string>
+    <string name="outbound_api_bubble_missed_threshold">Verpasst-Schwelle (Minuten)</string>
     <string name="outbound_api_send_test">Testnachricht senden</string>
     <string name="outbound_api_test_queued">Testnachricht eingereiht</string>
     <string name="outbound_api_no_current_reading">Kein aktueller Wert verfügbar</string>

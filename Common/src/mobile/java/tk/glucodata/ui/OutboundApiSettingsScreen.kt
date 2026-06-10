@@ -39,6 +39,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -240,6 +241,19 @@ fun OutboundApiSettingsScreen(navController: NavController) {
                 }
             }
 
+            item("outbound_add") {
+                FilledTonalButton(
+                    onClick = { showAddSheet = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Text(
+                        text = stringResource(R.string.outbound_api_add_destination),
+                        modifier = Modifier.padding(start = 10.dp)
+                    )
+                }
+            }
             item("api_source_entry") {
                 SectionLabel(stringResource(R.string.api_source_title), topPadding = 12.dp)
                 SettingsItem(
