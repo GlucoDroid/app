@@ -154,6 +154,9 @@ class AnytimeBleManager(
 
         /** Values exposed through AnytimeCurrentSnapshot are mmol/L, while native history uses mg/dL. */
         private const val MGDL_TO_MMOLL = 1f / 18f
+
+        private const val CT5_END_CYCLE_DISCONNECT_DELAY_MS = 750L
+        private const val CT5_END_CYCLE_RESTART_DELAY_MS = 15_000L
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, HANDSHAKING, STREAMING }
@@ -225,6 +228,9 @@ class AnytimeBleManager(
     @Volatile private var ct5VoltagePayload: Boolean = false
     @Volatile private var ct5ReconnectDateAfterIdentity: Boolean = false
     @Volatile private var ct5HistoryUnavailable: Boolean = false
+    @Volatile private var ct5EndCycleRestartPending: Boolean = false
+    @Volatile private var ct5EndCycleInternalDisconnect: Boolean = false
+    @Volatile private var ct5EndCycleInternalReconnect: Boolean = false
     private val ct5Random = SecureRandom()
     // Native Yuwell algorithm inputs have no start-id field; the raw arrays must
     // represent glucose ids from 0..current. Keep the full session history.
@@ -489,6 +495,43 @@ class AnytimeBleManager(
         if (stop) return@Runnable
         Log.i(TAG, "Reconnect requested: $reconnectReason")
         connectDevice(0)
+    }
+
+    private val ct5EndCycleDisconnectRunnable = Runnable {
+        if (!ct5EndCycleRestartPending) return@Runnable
+        Log.i(
+            TAG,
+            "CT5 end-cycle command sent; disconnecting before " +
+                    "${CT5_END_CYCLE_RESTART_DELAY_MS}ms restart delay"
+        )
+        ct5EndCycleInternalDisconnect = true
+        try {
+            softDisconnect()
+        } finally {
+            ct5EndCycleInternalDisconnect = false
+        }
+        handler.postDelayed(ct5EndCycleReconnectRunnable, CT5_END_CYCLE_RESTART_DELAY_MS)
+    }
+
+    private val ct5EndCycleReconnectRunnable = Runnable {
+        if (!ct5EndCycleRestartPending) return@Runnable
+        Log.i(TAG, "CT5 end-cycle restart delay elapsed; reconnecting")
+        ct5EndCycleRestartPending = false
+        ct5EndCycleInternalReconnect = true
+        try {
+            softReconnect()
+        } finally {
+            ct5EndCycleInternalReconnect = false
+        }
+    }
+
+    private fun cancelCt5EndCycleRestart(reason: String) {
+        if (ct5EndCycleRestartPending) {
+            Log.i(TAG, "Cancelling pending CT5 end-cycle restart: $reason")
+        }
+        ct5EndCycleRestartPending = false
+        handler.removeCallbacks(ct5EndCycleDisconnectRunnable)
+        handler.removeCallbacks(ct5EndCycleReconnectRunnable)
     }
 
     private val noDataWatchdog = Runnable {
@@ -906,6 +949,46 @@ class AnytimeBleManager(
         calibrationStatusClearAfterGlucoseId = 0
         lastAlgorithmCalibrationStatus = AnytimeCalibrationPolicy.CALIBRATION_STATUS_UNKNOWN
         lastAlgorithmResult = null
+        persistAlgorithmState()
+    }
+
+    private fun clearRuntimeStateForCt5EndCycle() {
+        stopHistoryBackfill()
+        interruptedBackfillReason = ""
+        interruptedBackfillFromId = -1
+        interruptedBackfillStopBeforeId = Int.MAX_VALUE
+        synchronized(rawAlgorithmWindow) { rawAlgorithmWindow.clear() }
+        synchronized(pendingNativeRecomputeIds) { pendingNativeRecomputeIds.clear() }
+        historyRoomImportBuffer.clear()
+        historyCaughtUpCooldown.clear()
+        bound = false
+        lastGlucoseId = -1
+        lastGlucoseAtMs = 0L
+        lastGlucoseMgdlTimes10 = 0
+        lastRawMgdl = Float.NaN
+        sensorStartAtMs = 0L
+        glucoseTimelineStartAtMs = 0L
+        warmupStartedAtMs = 0L
+        freshPostLiveBackfillStarted = false
+        freshOlderBackfillStarted = false
+        pendingFreshOlderBackfillStartId = -1
+        lastReferenceBgMgdlTimes10 = 0
+        lastReferenceBgGlucoseId = 0
+        lastReferenceAppliedGlucoseId = 0
+        referenceCalibrationRecords = emptyList()
+        calibrationStatusText = ""
+        calibrationStatusAtMs = 0L
+        calibrationStatusClearAfterGlucoseId = 0
+        lastAlgorithmCalibrationStatus = AnytimeCalibrationPolicy.CALIBRATION_STATUS_UNKNOWN
+        lastAlgorithmResult = null
+        ct5CipherKey = -1
+        ct5RandomA = null
+        ct5RandomB = null
+        ct5TempId = ""
+        ct5VoltagePayload = false
+        ct5ReconnectDateAfterIdentity = false
+        ct5HistoryUnavailable = false
+        clearProtocolFrameTimeout()
         persistAlgorithmState()
     }
 
@@ -1518,7 +1601,19 @@ class AnytimeBleManager(
                 clearGattCallbacks()
                 runCatching { gatt.close() }
                 clearGattReferences()
-                if (!stop) scheduleReconnect("GATT disconnect status=$status")
+                if (ct5EndCycleRestartPending) {
+                    cancelReconnect()
+                    handler.removeCallbacks(ct5EndCycleDisconnectRunnable)
+                    handler.removeCallbacks(ct5EndCycleReconnectRunnable)
+                    Log.i(
+                        TAG,
+                        "CT5 end-cycle disconnect observed; delaying reconnect for " +
+                                "${CT5_END_CYCLE_RESTART_DELAY_MS}ms"
+                    )
+                    handler.postDelayed(ct5EndCycleReconnectRunnable, CT5_END_CYCLE_RESTART_DELAY_MS)
+                } else if (!stop) {
+                    scheduleReconnect("GATT disconnect status=$status")
+                }
                 UiRefreshBus.requestStatusRefresh()
             }
             else -> if (phase == Phase.CONNECTING && status != BluetoothGatt.GATT_SUCCESS) {
@@ -3172,6 +3267,9 @@ class AnytimeBleManager(
 
     override fun softDisconnect() {
         Log.i(TAG, "softDisconnect requested")
+        if (!ct5EndCycleInternalDisconnect) {
+            cancelCt5EndCycleRestart("softDisconnect")
+        }
         setPause(true)
         cancelReconnect()
         clearGattCallbacks()
@@ -3189,6 +3287,9 @@ class AnytimeBleManager(
 
     override fun softReconnect() {
         Log.i(TAG, "softReconnect requested")
+        if (!ct5EndCycleInternalReconnect) {
+            cancelCt5EndCycleRestart("softReconnect")
+        }
         setPause(false)
         cancelReconnect()
         clearGattCallbacks()
@@ -3213,6 +3314,7 @@ class AnytimeBleManager(
 
     override fun terminateManagedSensor(wipeData: Boolean) {
         Log.i(TAG, "terminateManagedSensor requested wipeData=$wipeData")
+        cancelCt5EndCycleRestart("terminateManagedSensor")
         setPause(true)
         cancelReconnect()
         clearGattCallbacks()
@@ -3243,6 +3345,35 @@ class AnytimeBleManager(
     override fun requestTransmitterReset(): Boolean {
         if (phase != Phase.STREAMING && phase != Phase.HANDSHAKING) return false
         writeFrame(resetFrame(), "reset(user)")
+        return true
+    }
+
+    override fun supportsResetAction(): Boolean = isCt5()
+
+    override fun resetSensor(): Boolean {
+        if (!isCt5()) return requestTransmitterReset()
+        if (phase != Phase.STREAMING && phase != Phase.HANDSHAKING) {
+            Log.w(TAG, "CT5 end-cycle request ignored — phase=$phase")
+            return false
+        }
+        val frame = unbindFrame()
+        cancelCt5EndCycleRestart("new CT5 end-cycle request")
+        ct5EndCycleRestartPending = true
+        constatstatusstr = "Ending cycle"
+        UiRefreshBus.requestStatusRefresh()
+        val written = writeFrame(frame, "ct5-endCycle(user)", expectResponse = true)
+        if (!written) {
+            ct5EndCycleRestartPending = false
+            UiRefreshBus.requestStatusRefresh()
+            return false
+        }
+        clearRuntimeStateForCt5EndCycle()
+        handler.postDelayed(ct5EndCycleDisconnectRunnable, CT5_END_CYCLE_DISCONNECT_DELAY_MS)
+        Log.i(
+            TAG,
+            "CT5 end-cycle command accepted locally; restart scheduled after " +
+                    "${CT5_END_CYCLE_RESTART_DELAY_MS}ms"
+        )
         return true
     }
 

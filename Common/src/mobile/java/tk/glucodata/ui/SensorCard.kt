@@ -2369,7 +2369,7 @@ fun SensorCard(
                 }
             }
 
-            if (!sensor.isAidex && !sensor.isSibionics2 && !sensor.isAnytime && sensor.supportsHardwareReset) {
+            if (!sensor.isAidex && !sensor.isSibionics2 && sensor.supportsHardwareReset) {
                 FilledTonalButton(
                     onClick = { showResetDialog = true },
                     enabled = sensor.isVendorConnected,
