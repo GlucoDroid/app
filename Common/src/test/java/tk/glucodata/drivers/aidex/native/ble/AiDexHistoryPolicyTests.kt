@@ -108,6 +108,28 @@ class AiDexHistoryPolicyTests {
     }
 
     @Test
+    fun shouldQuarantinePostResetHistoryRange_detectsOldResidueAfterFreshReset() {
+        assertTrue(
+            AiDexHistoryPolicy.shouldQuarantinePostResetHistoryRange(
+                newestOffsetMinutes = 21_256,
+                resetRequestedAtMs = 1_000_000L,
+                nowMs = 1_060_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldQuarantinePostResetHistoryRange_allowsPlausibleNewSessionOffsets() {
+        assertFalse(
+            AiDexHistoryPolicy.shouldQuarantinePostResetHistoryRange(
+                newestOffsetMinutes = 12,
+                resetRequestedAtMs = 1_000_000L,
+                nowMs = 1_060_000L,
+            )
+        )
+    }
+
+    @Test
     fun resolveOffsetBackedTimestampMs_prefersAlignedTimestampWhenStartAndOffsetAreKnown() {
         val resolved = AiDexHistoryPolicy.resolveOffsetBackedTimestampMs(
             observedAtMs = 1_000_000L,
