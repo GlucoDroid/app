@@ -245,6 +245,14 @@ class AnytimeFramesTests {
     }
 
     @Test
+    fun ct5UnbindBuildsOfficialEndCycleFrame() {
+        assertEquals(
+            listOf(0x0A, 0x31, 0x32, 0x33, 0x34, 0xD4),
+            AnytimeFrames.Builders.ct5Unbind("1234").map { it.toInt() and 0xFF },
+        )
+    }
+
+    @Test
     fun ct5EncodeDecodeRoundTripMatchesOfficialInversePair() {
         val plain = byteArrayOf(0x01, 0x09, 0x01, 0x00, 0x03, 0x53, 0x55, 0x00, 0x31, 0x32, 0x33, 0x34)
         val key = 0x5A
