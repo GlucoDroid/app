@@ -1842,6 +1842,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">На ўзроўні %1$s %2$s або ніжэй</string>
     <string name="outbound_api_trigger_summary_high">На ўзроўні %1$s %2$s або вышэй</string>
     <string name="outbound_api_trigger_summary_range">На ўзроўні %1$s або ніжэй, ці на ўзроўні %2$s %3$s або вышэй</string>
+    <string name="outbound_api_bubble_title">Бурбалка Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Абнаўляць на месцы</string>
+    <string name="outbound_api_bubble_refresh_desc">У межах акна абнаўлення рэдагаваць тую ж бурбалку замест адпраўкі новай.</string>
+    <string name="outbound_api_bubble_refresh_window">Акно абнаўлення (хвіліны)</string>
+    <string name="outbound_api_bubble_suppress_title">Прапускаць, калі значэнне не змянілася</string>
+    <string name="outbound_api_bubble_suppress_desc">Не рэдагаваць бурбалку, калі новае паказанне адрозніваецца ад апошняга менш чым на 1 mg/dL.</string>
+    <string name="outbound_api_bubble_stale_title">Паказваць "Паказанне прапушчана." пры цішыні</string>
+    <string name="outbound_api_bubble_stale_desc">Адпраўляць паведамленне пра састарэлае або прапушчанае паказанне, калі новае паказанне не прыйшло своечасова.</string>
+    <string name="outbound_api_bubble_stale_threshold">Парог састарэння (хвіліны)</string>
+    <string name="outbound_api_bubble_missed_threshold">Парог пропуску (хвіліны)</string>
     <string name="outbound_api_send_test">Адправіць тэставае паведамленне</string>
     <string name="outbound_api_test_queued">Тэставае паведамленне пастаўлена ў чаргу</string>
     <string name="outbound_api_no_current_reading">Няма даступнага бягучага паказання</string>

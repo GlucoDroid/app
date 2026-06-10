@@ -1789,6 +1789,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">达到或低于 %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_high">达到或高于 %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_range">达到或低于 %1$s，或达到或高于 %2$s %3$s</string>
+    <string name="outbound_api_bubble_title">Telegram 气泡</string>
+    <string name="outbound_api_bubble_refresh_title">就地刷新</string>
+    <string name="outbound_api_bubble_refresh_desc">在刷新窗口内编辑同一个气泡，而不是发布新消息。</string>
+    <string name="outbound_api_bubble_refresh_window">刷新窗口（分钟）</string>
+    <string name="outbound_api_bubble_suppress_title">数值未变化时跳过</string>
+    <string name="outbound_api_bubble_suppress_desc">如果新读数与上次相差不超过 1 mg/dL，则不编辑气泡。</string>
+    <string name="outbound_api_bubble_stale_title">静默时显示“错过读数。”</string>
+    <string name="outbound_api_bubble_stale_desc">如果新读数未及时到达，则发布过期或错过读数消息。</string>
+    <string name="outbound_api_bubble_stale_threshold">过期阈值（分钟）</string>
+    <string name="outbound_api_bubble_missed_threshold">错过阈值（分钟）</string>
     <string name="outbound_api_send_test">发送测试消息</string>
     <string name="outbound_api_test_queued">测试消息已排队</string>
     <string name="outbound_api_no_current_reading">没有可用的当前读数</string>

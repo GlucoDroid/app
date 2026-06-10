@@ -1779,6 +1779,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">À %1$s %2$s ou en dessous</string>
     <string name="outbound_api_trigger_summary_high">À %1$s %2$s ou au-dessus</string>
     <string name="outbound_api_trigger_summary_range">À %1$s ou en dessous, ou à %2$s %3$s ou au-dessus</string>
+    <string name="outbound_api_bubble_title">Bulle Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Actualiser sur place</string>
+    <string name="outbound_api_bubble_refresh_desc">Pendant la fenêtre d’actualisation, modifie la même bulle au lieu de publier un nouveau message.</string>
+    <string name="outbound_api_bubble_refresh_window">Fenêtre d’actualisation (minutes)</string>
+    <string name="outbound_api_bubble_suppress_title">Ignorer si la valeur est inchangée</string>
+    <string name="outbound_api_bubble_suppress_desc">Ne modifie pas la bulle si la nouvelle lecture diffère de moins de 1 mg/dL de la précédente.</string>
+    <string name="outbound_api_bubble_stale_title">Afficher "Lecture manquée." en cas de silence</string>
+    <string name="outbound_api_bubble_stale_desc">Publie un message périmé ou manqué si aucune nouvelle lecture n’arrive à temps.</string>
+    <string name="outbound_api_bubble_stale_threshold">Seuil périmé (minutes)</string>
+    <string name="outbound_api_bubble_missed_threshold">Seuil manqué (minutes)</string>
     <string name="outbound_api_send_test">Envoyer un message de test</string>
     <string name="outbound_api_test_queued">Message de test mis en file</string>
     <string name="outbound_api_no_current_reading">Aucune valeur actuelle disponible</string>

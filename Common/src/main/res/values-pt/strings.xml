@@ -1774,6 +1774,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">Em %1$s %2$s ou abaixo</string>
     <string name="outbound_api_trigger_summary_high">Em %1$s %2$s ou acima</string>
     <string name="outbound_api_trigger_summary_range">Em %1$s ou abaixo, ou em %2$s %3$s ou acima</string>
+    <string name="outbound_api_bubble_title">Bolha do Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Atualizar no mesmo lugar</string>
+    <string name="outbound_api_bubble_refresh_desc">Dentro da janela de atualização, edita a mesma bolha em vez de publicar uma nova.</string>
+    <string name="outbound_api_bubble_refresh_window">Janela de atualização (minutos)</string>
+    <string name="outbound_api_bubble_suppress_title">Ignorar se o valor não mudou</string>
+    <string name="outbound_api_bubble_suppress_desc">Não edite a bolha se a nova leitura estiver a até 1 mg/dL da anterior.</string>
+    <string name="outbound_api_bubble_stale_title">Mostrar "Leitura perdida." quando silencioso</string>
+    <string name="outbound_api_bubble_stale_desc">Publica uma mensagem desatualizada ou perdida se nenhuma nova leitura chegar a tempo.</string>
+    <string name="outbound_api_bubble_stale_threshold">Limite de leitura desatualizada (minutos)</string>
+    <string name="outbound_api_bubble_missed_threshold">Limite de leitura perdida (minutos)</string>
     <string name="outbound_api_send_test">Enviar mensagem de teste</string>
     <string name="outbound_api_test_queued">Mensagem de teste na fila</string>
     <string name="outbound_api_no_current_reading">Nenhuma leitura atual disponível</string>
