@@ -1768,11 +1768,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_bubble_refresh_desc">Durante la finestra di aggiornamento, modifica la stessa bolla invece di pubblicarne una nuova.</string>
     <string name="outbound_api_bubble_refresh_window">Finestra di aggiornamento (minuti)</string>
     <string name="outbound_api_bubble_suppress_title">Salta se il valore non cambia</string>
-    <string name="outbound_api_bubble_suppress_desc">Non modificare la bolla se la nuova lettura è entro 1 mg/dL dall’ultima.</string>
-    <string name="outbound_api_bubble_stale_title">Mostra "Lettura mancata." quando non arrivano dati</string>
+    <string name="outbound_api_bubble_suppress_desc">Evita di modificare la bolla quando l’ultima lettura coincide con il valore inviato più recente.</string>
+    <string name="outbound_api_bubble_stale_title">Mostra un messaggio di lettura mancata quando non arrivano dati</string>
     <string name="outbound_api_bubble_stale_desc">Pubblica un messaggio obsoleto o mancato se non arriva una nuova lettura in tempo.</string>
     <string name="outbound_api_bubble_stale_threshold">Soglia obsoleto (minuti)</string>
     <string name="outbound_api_bubble_missed_threshold">Soglia lettura mancata (minuti)</string>
+    <string name="outbound_api_decrease_value">Diminuisci valore</string>
+    <string name="outbound_api_increase_value">Aumenta valore</string>
     <string name="outbound_api_send_test">Invia messaggio di test</string>
     <string name="outbound_api_test_queued">Messaggio di test in coda</string>
     <string name="outbound_api_no_current_reading">Nessuna lettura attuale disponibile</string>

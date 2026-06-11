@@ -1806,11 +1806,13 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="outbound_api_bubble_refresh_desc">Yenileme penceresi içinde yeni mesaj göndermek yerine aynı balonu düzenle.</string>
     <string name="outbound_api_bubble_refresh_window">Yenileme penceresi (dakika)</string>
     <string name="outbound_api_bubble_suppress_title">Değer değişmediyse atla</string>
-    <string name="outbound_api_bubble_suppress_desc">Yeni okuma son okumadan en fazla 1 mg/dL farklıysa balonu düzenleme.</string>
-    <string name="outbound_api_bubble_stale_title">Sessiz kalınca "Okuma kaçırıldı." göster</string>
+    <string name="outbound_api_bubble_suppress_desc">Son okuma son gönderilen değerle eşleşirse balonu düzenleme.</string>
+    <string name="outbound_api_bubble_stale_title">Sessiz kalınca kaçırılmış okuma mesajı göster</string>
     <string name="outbound_api_bubble_stale_desc">Yeni okuma zamanında gelmezse bayat veya kaçırılmış okuma mesajı gönderir.</string>
     <string name="outbound_api_bubble_stale_threshold">Bayat eşiği (dakika)</string>
     <string name="outbound_api_bubble_missed_threshold">Kaçırılmış okuma eşiği (dakika)</string>
+    <string name="outbound_api_decrease_value">Değeri azalt</string>
+    <string name="outbound_api_increase_value">Değeri artır</string>
     <string name="outbound_api_send_test">Test mesajı gönder</string>
     <string name="outbound_api_test_queued">Test mesajı kuyruğa alındı</string>
     <string name="outbound_api_no_current_reading">Mevcut ölçüm yok</string>
