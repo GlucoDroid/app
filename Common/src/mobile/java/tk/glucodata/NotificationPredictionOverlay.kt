@@ -1,6 +1,7 @@
 package tk.glucodata
 
 import android.content.Context
+import android.os.Looper
 import androidx.annotation.Keep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -147,6 +148,10 @@ object NotificationPredictionOverlay {
                 return snapshot
             }
         }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            BatteryTrace.bump("notify.prediction.main_thread_journal_skip", 20L)
+            return emptyJournalSnapshot(now, start, end)
+        }
 
         return runCatching {
             runBlocking(Dispatchers.IO) {
@@ -162,16 +167,20 @@ object NotificationPredictionOverlay {
                 )
             }
         }.getOrElse {
-            JournalSnapshot(
-                loadedAt = now,
-                startMillis = start,
-                endMillis = end,
-                entries = emptyList(),
-                presetsById = emptyMap()
-            )
+            emptyJournalSnapshot(now, start, end)
         }.also { snapshot ->
             cachedJournalSnapshot = snapshot
         }
+    }
+
+    private fun emptyJournalSnapshot(now: Long, start: Long, end: Long): JournalSnapshot {
+        return JournalSnapshot(
+            loadedAt = now,
+            startMillis = start,
+            endMillis = end,
+            entries = emptyList(),
+            presetsById = emptyMap()
+        )
     }
 
     private fun timeLabel(timestamp: Long): String {
