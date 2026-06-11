@@ -2819,7 +2819,7 @@ public:
   }
 
   bool sensorerror = false;
-  uint32_t sensorErrorTime;
+  uint32_t sensorErrorTime = 0;
   bool hasSensorError(uint32_t nu) const {
     return sensorerror &&
            ((nu - sensorErrorTime) < (60 * (isDexcom() ? 15 : 10)));

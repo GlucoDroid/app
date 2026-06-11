@@ -67,8 +67,10 @@ import android.os.VibratorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.util.DisplayMetrics;
@@ -102,10 +104,16 @@ public class Notify {
     static private final long INTERACTIVE_NOTIFICATION_REFRESH_DELAY_MS = 750L;
     static private final long DATA_CHANGED_NOTIFICATION_REFRESH_DELAY_MS = 1000L;
     static private final long LOCKED_ALARM_ACTIVITY_DELAY_MS = 0L;
-    static private final Handler glucoseRefreshHandler = new Handler(Looper.getMainLooper());
+    static private final Handler glucoseRefreshHandler = makeGlucoseRefreshHandler();
 
     static final private String LOG_ID = "Notify";
     static Notify onenot = null;
+
+    private static Handler makeGlucoseRefreshHandler() {
+        HandlerThread thread = new HandlerThread("JugglucoNotifyRefresh", Process.THREAD_PRIORITY_BACKGROUND);
+        thread.start();
+        return new Handler(thread.getLooper());
+    }
 
     static void init(Context cont) {
         if (onenot == null) {
