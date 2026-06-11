@@ -600,9 +600,19 @@ static bool getDatahandle() {
 #endif
 #ifdef NOTCHINESE
 bool siInit2() {
-  static bool init =
-      getNativefunctions2() && getJNIfunctions2() && getDatahandle();
-  return init;
+  static bool nativeReady = false;
+  static bool jniReady = false;
+  static bool datahandleReady = false;
+  if (!nativeReady) {
+    nativeReady = getNativefunctions2();
+  }
+  if (!jniReady) {
+    jniReady = getJNIfunctions2();
+  }
+  if (!datahandleReady) {
+    datahandleReady = getDatahandle();
+  }
+  return nativeReady && jniReady && datahandleReady;
 }
 #endif
 bool siInit3() {
@@ -689,7 +699,9 @@ void SiContext::setNotchinese(SensorGlucoseData *sens) {
   sens->setNotchinese();
 #ifdef NOTCHINESE
   release();
-  auto res = siInit2();
+  if (!siInit2()) {
+    LOGAR("SiContext::setNotchinese siInit2 failed");
+  }
   algcontext = initAlgorithm2(sens, binState);
 #endif
   notchinese = true;
@@ -860,6 +872,8 @@ void SiContext::resetAll(SensorGlucoseData *sens) {
 
   // FULL RESET: Wipe history counters
   info->starttime = time(nullptr);
+  if (sensors)
+    sensors->setSensorStarttime(sens->sensorIndex, info->starttime);
   info->scancount = 0;
   info->pollcount = 0;
   info->starthistory = 0;
@@ -898,6 +912,8 @@ void SiContext::wipeDataOnly(SensorGlucoseData *sens) {
 
   // FULL RESET: Wipe history counters
   info->starttime = time(nullptr);
+  if (sensors)
+    sensors->setSensorStarttime(sens->sensorIndex, info->starttime);
   info->scancount = 0;
   info->pollcount = 0;
   info->starthistory = 0;

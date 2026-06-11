@@ -97,6 +97,8 @@ static bool saveRawOnlyPoll(SensorGlucoseData *sens, time_t eventTime,
     return false;
   }
   sens->savestream(eventTime, streamIndex, 0, 0, 0.0f, rawCurrent, rawTemp);
+  sens->sensorerror = false;
+  sens->sensorErrorTime = 0;
   LOGGER("SIprocess raw-only: index=%d raw=%d temp=%u itime=%ld\n",
          streamIndex, rawCurrent, rawTemp, (long)eventTime);
   if (backup) {
@@ -172,12 +174,18 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
              offtime, addtime, index, temp, value, numOfUnreceived);
       eventTime = nowsecs;
     } else {
-      if (maxid < 10) {
+      if (maxid < 10 || !sensor->starttime) {
         auto starttime = makestarttime(index, eventTime);
-        sens->getinfo()->starttime = starttime;
-        sensor->starttime = starttime;
-        sensors->setindices();
-        backup->resendResetDevices(&updateone::sendstream);
+        if (Sensoren::validSensorStarttime(starttime)) {
+          auto *info = sens->getinfo();
+          if (info && (maxid < 10 ||
+                       !Sensoren::validSensorStarttime(info->starttime))) {
+            info->starttime = starttime;
+          }
+          sensor->starttime = starttime;
+          sensors->setindices();
+          backup->resendResetDevices(&updateone::sendstream);
+        }
       }
     }
     // Original Juggluco logic - process3 result goes directly into newvalue

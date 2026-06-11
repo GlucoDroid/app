@@ -1891,11 +1891,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_bubble_refresh_desc">Шинэчлэх цонхны хугацаанд шинэ мессеж илгээхийн оронд ижил бөмбөлгийг засна.</string>
     <string name="outbound_api_bubble_refresh_window">Шинэчлэх цонх (минут)</string>
     <string name="outbound_api_bubble_suppress_title">Утга өөрчлөгдөөгүй бол алгасах</string>
-    <string name="outbound_api_bubble_suppress_desc">Шинэ уншилт сүүлийнхээс 1 mg/dL дотор байвал бөмбөлгийг засахгүй.</string>
-    <string name="outbound_api_bubble_stale_title">Чимээгүй үед "Уншилт алдагдсан." харуулах</string>
+    <string name="outbound_api_bubble_suppress_desc">Хамгийн сүүлийн уншилт хамгийн сүүлд илгээсэн утгатай таарвал бөмбөлгийг засахгүй.</string>
+    <string name="outbound_api_bubble_stale_title">Чимээгүй үед уншилт алдагдсан тухай мессеж харуулах</string>
     <string name="outbound_api_bubble_stale_desc">Шинэ уншилт хугацаандаа ирэхгүй бол хуучирсан эсвэл алдагдсан тухай мессеж илгээнэ.</string>
     <string name="outbound_api_bubble_stale_threshold">Хуучирсан босго (минут)</string>
     <string name="outbound_api_bubble_missed_threshold">Алдагдсан босго (минут)</string>
+    <string name="outbound_api_decrease_value">Утгыг багасгах</string>
+    <string name="outbound_api_increase_value">Утгыг нэмэх</string>
     <string name="outbound_api_send_test">Туршилтын мессеж илгээх</string>
     <string name="outbound_api_test_queued">Туршилтын мессеж дараалалд орлоо</string>
     <string name="outbound_api_no_current_reading">Одоогийн уншилт байхгүй</string>

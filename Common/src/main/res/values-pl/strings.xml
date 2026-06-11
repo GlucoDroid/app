@@ -1813,11 +1813,13 @@
     <string name="outbound_api_bubble_refresh_desc">W oknie odświeżania edytuje ten sam dymek zamiast publikować nowy.</string>
     <string name="outbound_api_bubble_refresh_window">Okno odświeżania (minuty)</string>
     <string name="outbound_api_bubble_suppress_title">Pomiń, jeśli wartość bez zmian</string>
-    <string name="outbound_api_bubble_suppress_desc">Nie edytuj dymku, jeśli nowy odczyt różni się od ostatniego o mniej niż 1 mg/dL.</string>
-    <string name="outbound_api_bubble_stale_title">Pokazuj "Brak odczytu." przy ciszy</string>
+    <string name="outbound_api_bubble_suppress_desc">Nie edytuj dymku, gdy najnowszy odczyt jest taki sam jak ostatnio wysłana wartość.</string>
+    <string name="outbound_api_bubble_stale_title">Pokazuj komunikat o braku odczytu przy ciszy</string>
     <string name="outbound_api_bubble_stale_desc">Publikuje komunikat nieaktualny lub o braku odczytu, jeśli nowy odczyt nie nadejdzie na czas.</string>
     <string name="outbound_api_bubble_stale_threshold">Próg nieaktualności (minuty)</string>
     <string name="outbound_api_bubble_missed_threshold">Próg braku odczytu (minuty)</string>
+    <string name="outbound_api_decrease_value">Zmniejsz wartość</string>
+    <string name="outbound_api_increase_value">Zwiększ wartość</string>
     <string name="outbound_api_send_test">Wyślij wiadomość testową</string>
     <string name="outbound_api_test_queued">Wiadomość testowa dodana do kolejki</string>
     <string name="outbound_api_no_current_reading">Brak dostępnego bieżącego odczytu</string>

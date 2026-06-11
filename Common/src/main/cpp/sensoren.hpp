@@ -1129,14 +1129,72 @@ public:
     return 0;
   }
 
+  static bool validSensorStarttime(uint32_t tim) {
+    return tim > 1598911200u && tim < 2145909600u;
+  }
+
+  bool setSensorStarttime(int ind, uint32_t starttime, bool reorder = true) {
+    if (ind < 0 || ind > last() || !validSensorStarttime(starttime))
+      return false;
+    sensor &sens = sensorlist()[ind];
+    if (sens.starttime == starttime)
+      return true;
+    sens.starttime = starttime;
+    sens.present = 1;
+    if (reorder)
+      setindices();
+    return true;
+  }
+
+  bool repairMissingStarttime(int ind, sensor &sens, SensorGlucoseData *hist,
+                              bool reorder = true) {
+    if (sens.starttime)
+      return true;
+    if (!hist)
+      hist = getSensorData(ind);
+    if (!hist) {
+      LOGGER("sensor %d has no starttime and no readable history; marking inactive\n",
+             ind);
+      sens.present = 0;
+      sens.finished = 1;
+      return false;
+    }
+
+    uint32_t start = hist->getstarttime();
+    if (!validSensorStarttime(start)) {
+      uint32_t anchor = hist->getfirsttime();
+      if (!validSensorStarttime(anchor))
+        anchor = hist->lastused();
+      if (validSensorStarttime(anchor)) {
+        start = anchor > 3600u ? anchor - 3600u : anchor;
+        if (auto *info = hist->getinfo())
+          info->starttime = start;
+      }
+    }
+
+    if (!validSensorStarttime(start)) {
+      if (!hist->pollcount() && !hist->scancount()) {
+        LOGGER("sensor %d has no starttime and no data; marking inactive\n", ind);
+        sens.present = 0;
+        sens.finished = 1;
+      }
+      return false;
+    }
+
+    LOGGER("repaired sensor %d %s missing starttime=%u\n", ind,
+           sens.showsensorname(), start);
+    return setSensorStarttime(ind, start, reorder);
+  }
+
   vector<int> bluetoothactive(uint32_t tim, uint32_t nu) {
     vector<int> out;
     const uint32_t oldsecs = nu - maxSIhours * 60 * 60;
     const uint32_t newsecs = nu - youngsensorsecs;
+    bool repairedOrder = false;
     int i = getendindex();
     if (i >= 0) {
       for (int prev; i != LISTEND; i = prev) {
-        const auto &sensor = sensorlist()[i];
+        auto &sensor = sensorlist()[i];
         if (sensor.next == 0 && sensor.prev == 0)
           setindices();
         prev = sensor.prev;
@@ -1144,15 +1202,21 @@ public:
           continue;
         }
         if (sensor.endtime < newsecs) {
-          if (!sensor.starttime) {
-            LOGGER("%d no starttime\n", i);
+          SensorGlucoseData *hist = getSensorData(i);
+          if (!hist) {
+            if (!sensor.starttime) {
+              sensor.present = 0;
+              sensor.finished = 1;
+            } else {
+              LOGSTRING("hist==null\n");
+            }
             continue;
           }
-
-          const SensorGlucoseData *hist = getSensorData(i);
-          if (!hist) {
-            LOGSTRING("hist==null\n");
-            continue;
+          if (!sensor.starttime) {
+            if (!repairMissingStarttime(i, sensor, hist, false)) {
+              continue;
+            }
+            repairedOrder = true;
           }
 
           if (hist->isSibionics() && hist->hasSensorError(nu)) {
@@ -1173,10 +1237,16 @@ public:
             continue;
           }
         } else {
-          const SensorGlucoseData *hist = getSensorData(i);
+          SensorGlucoseData *hist = getSensorData(i);
           if (!hist) {
             LOGSTRING("hist==null\n");
             continue;
+          }
+          if (!sensor.starttime) {
+            if (!repairMissingStarttime(i, sensor, hist, false)) {
+              continue;
+            }
+            repairedOrder = true;
           }
           if (!hist->canusestreaming())
             continue;
@@ -1184,6 +1254,8 @@ public:
         out.push_back(i);
       }
     }
+    if (repairedOrder)
+      setindices();
     setlibre3nums();
     return out;
   }

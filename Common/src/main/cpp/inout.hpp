@@ -104,41 +104,51 @@ template<typename T,typename ...Ts> char *	nconcat(int len,  T &&one,  Ts &&... 
 	return ptr;
 	}
 
-pathconcat():name(nullptr),namelen(0) {}
+	pathconcat():name(nullptr),namelen(0) {}
 
-template <typename ...Ts>
-pathconcat(  Ts &&... args) {
+	template <typename ...Ts>
+	pathconcat(  Ts &&... args) {
 	name=nconcat(0,args ...);
 	}
-pathconcat(pathconcat &&in)  noexcept :name(in.name),namelen(in.namelen) { 
-	in.name=nullptr;
-	in.namelen=0;
-	LOGGER("pathconcat( pathconcat &&in=%s)\n",name);
-}
+	pathconcat(pathconcat &&in)  noexcept :name(in.name),namelen(in.namelen) {
+		in.name=nullptr;
+		in.namelen=0;
+		LOGGER("pathconcat( pathconcat &&in=%s)\n",name?name:"(null)");
+	}
 
-pathconcat(const pathconcat &&in)    noexcept    :pathconcat(std::move(const_cast<pathconcat &&>(in))) { 
+	pathconcat(const pathconcat &in):name(in.namelen?new char[in.namelen+1]:nullptr),namelen(in.namelen) {
+		if(name)
+			memcpy(name,in.name,in.namelen+1);
+		LOGGER("pathconcat( const pathconcat &in=%s)\n",name?name:"(null)");
+		}
+	pathconcat(const pathconcat &&in):pathconcat(static_cast<const pathconcat &>(in)) {
+		}
+	pathconcat( pathconcat &in):pathconcat(static_cast<const pathconcat &>(in)) {
 	}
-pathconcat( pathconcat &in):name(new char[in.namelen+1]),namelen(in.namelen) { 
-	memcpy(name,in.name,in.namelen+1);
-	LOGGER("pathconcat( pathconcat &in=%s)\n",name);
-}
-pathconcat &operator=( pathconcat &&in)   noexcept {
-	LOGGER("pathconcat &operator=(pathconcat &&in %s) {\n",in.name);
-	std::swap(name,in.name);
-	std::swap(namelen,in.namelen);
-	return *this;
-	}
-pathconcat &operator=(const pathconcat &&in)   noexcept {
-	return operator=(std::move(const_cast<pathconcat &&>(in))) ;
-	}
-pathconcat &operator=(pathconcat &in) {
-	LOGGER("pathconcat &operator=(pathconcat &in %s) {\n",in.name);
-	delete[] name;
-	name=new char[in.namelen+1];
-	namelen=in.namelen;
-	memcpy(name,in.name,namelen+1);
-	return *this;
-	}
+	pathconcat &operator=( pathconcat &&in)   noexcept {
+		LOGGER("pathconcat &operator=(pathconcat &&in %s) {\n",in.name?in.name:"(null)");
+		std::swap(name,in.name);
+		std::swap(namelen,in.namelen);
+		return *this;
+		}
+	pathconcat &operator=(const pathconcat &&in) {
+		return operator=(static_cast<const pathconcat &>(in));
+		}
+	pathconcat &operator=(const pathconcat &in) {
+		LOGGER("pathconcat &operator=(const pathconcat &in %s) {\n",in.name?in.name:"(null)");
+		if(this==&in)
+			return *this;
+		char *newname=in.namelen?new char[in.namelen+1]:nullptr;
+		if(newname)
+			memcpy(newname,in.name,in.namelen+1);
+		delete[] name;
+		name=newname;
+		namelen=in.namelen;
+		return *this;
+		}
+	pathconcat &operator=(pathconcat &in) {
+		return operator=(static_cast<const pathconcat &>(in));
+		}
 ~pathconcat() {
 	delete[] name;
 	}

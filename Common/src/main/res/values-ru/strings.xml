@@ -1821,11 +1821,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_bubble_refresh_desc">В течение окна обновления редактировать то же сообщение, а не отправлять новое.</string>
     <string name="outbound_api_bubble_refresh_window">Окно обновления (минуты)</string>
     <string name="outbound_api_bubble_suppress_title">Пропускать, если значение не изменилось</string>
-    <string name="outbound_api_bubble_suppress_desc">Не редактировать сообщение, если новое показание отличается от последнего менее чем на 1 mg/dL.</string>
-    <string name="outbound_api_bubble_stale_title">Показывать "Пропущено показание." при тишине</string>
+    <string name="outbound_api_bubble_suppress_desc">Не редактировать сообщение, если последнее показание совпадает с последним отправленным значением.</string>
+    <string name="outbound_api_bubble_stale_title">Показывать сообщение о пропущенном показании при тишине</string>
     <string name="outbound_api_bubble_stale_desc">Отправлять сообщение об устаревшем или пропущенном показании, если новое показание не пришло вовремя.</string>
     <string name="outbound_api_bubble_stale_threshold">Порог устаревания (минуты)</string>
     <string name="outbound_api_bubble_missed_threshold">Порог пропуска (минуты)</string>
+    <string name="outbound_api_decrease_value">Уменьшить значение</string>
+    <string name="outbound_api_increase_value">Увеличить значение</string>
     <string name="outbound_api_send_test">Отправить тестовое сообщение</string>
     <string name="outbound_api_test_queued">Тестовое сообщение поставлено в очередь</string>
     <string name="outbound_api_no_current_reading">Нет доступного текущего показания</string>

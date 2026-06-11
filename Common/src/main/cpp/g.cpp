@@ -626,6 +626,7 @@ static SensorGlucoseData *ensureDirectStreamShellForId(const char *sensorId,
                                                        uint32_t startTimeSec);
 static void seedDirectStreamStateIfMissing(SensorGlucoseData *hist,
                                            time_t timestamp);
+static void syncListStarttime(SensorGlucoseData *hist, uint32_t start);
 static bool isManagedDirectStreamSensorId(JNIEnv *env, const char *sensorId);
 extern "C" JNIEXPORT jlong JNICALL fromjava(getdataptr)(JNIEnv *env, jclass cl,
                                                         jstring jsensor) {
@@ -1241,6 +1242,7 @@ extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseInjection)(
         if (!start && timestamp > 3600) {
           start = timestamp - 3600;
           info->starttime = start;
+          syncListStarttime(hist, start);
         }
 
         int lifeCount = 0;
@@ -1340,6 +1342,12 @@ static void seedDirectStreamStateIfMissing(SensorGlucoseData *hist,
   }
 }
 
+static void syncListStarttime(SensorGlucoseData *hist, uint32_t start) {
+  if (!hist || !sensors || !Sensoren::validSensorStarttime(start))
+    return;
+  sensors->setSensorStarttime(hist->sensorIndex, start);
+}
+
 static int compactRawMgdl(jfloat rawGlucose) {
   if (rawGlucose <= 0.0f)
     return 0;
@@ -1374,6 +1382,7 @@ static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
       if (!start && timestamp > 3600) {
         start = timestamp - 3600;
         info->starttime = start;
+        syncListStarttime(hist, start);
       }
 
       int lifeCount = 0;
@@ -1469,6 +1478,7 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
         (info->starttime == 0 ||
          static_cast<uint32_t>(startTimeSec) < info->starttime)) {
       info->starttime = static_cast<uint32_t>(startTimeSec);
+      syncListStarttime(hist, static_cast<uint32_t>(startTimeSec));
     }
   }
 
@@ -1521,6 +1531,7 @@ fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
       if (!start && timestamp > 3600) {
         start = timestamp - 3600;
         info->starttime = start;
+        syncListStarttime(hist, start);
       }
 
       int lifeCount = 0;

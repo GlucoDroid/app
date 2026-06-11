@@ -1821,11 +1821,13 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="outbound_api_bubble_refresh_desc">Bewerk binnen het verversingsvenster dezelfde ballon in plaats van een nieuwe te plaatsen.</string>
     <string name="outbound_api_bubble_refresh_window">Verversingsvenster (minuten)</string>
     <string name="outbound_api_bubble_suppress_title">Overslaan als waarde ongewijzigd is</string>
-    <string name="outbound_api_bubble_suppress_desc">Bewerk de ballon niet als de nieuwe meting binnen 1 mg/dL van de vorige ligt.</string>
-    <string name="outbound_api_bubble_stale_title">"Gemiste meting." tonen bij stilte</string>
+    <string name="outbound_api_bubble_suppress_desc">Bewerk de ballon niet wanneer de nieuwste meting gelijk is aan de laatst verzonden waarde.</string>
+    <string name="outbound_api_bubble_stale_title">Gemiste-metingbericht tonen bij stilte</string>
     <string name="outbound_api_bubble_stale_desc">Plaats een verouderd of gemist bericht als er niet op tijd een nieuwe meting komt.</string>
     <string name="outbound_api_bubble_stale_threshold">Drempel voor verouderd (minuten)</string>
     <string name="outbound_api_bubble_missed_threshold">Drempel voor gemist (minuten)</string>
+    <string name="outbound_api_decrease_value">Waarde verlagen</string>
+    <string name="outbound_api_increase_value">Waarde verhogen</string>
     <string name="outbound_api_send_test">Testbericht sturen</string>
     <string name="outbound_api_test_queued">Testbericht in wachtrij geplaatst</string>
     <string name="outbound_api_no_current_reading">Geen actuele meting beschikbaar</string>

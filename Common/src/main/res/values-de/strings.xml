@@ -1816,11 +1816,13 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="outbound_api_bubble_refresh_desc">Innerhalb des Aktualisierungsfensters dieselbe Blase bearbeiten, statt eine neue Nachricht zu senden.</string>
     <string name="outbound_api_bubble_refresh_window">Aktualisierungsfenster (Minuten)</string>
     <string name="outbound_api_bubble_suppress_title">Überspringen, wenn Wert unverändert ist</string>
-    <string name="outbound_api_bubble_suppress_desc">Die Blase nicht bearbeiten, wenn der neue Wert höchstens 1 mg/dL vom letzten abweicht.</string>
-    <string name="outbound_api_bubble_stale_title">Bei Stille "Messung verpasst." anzeigen</string>
+    <string name="outbound_api_bubble_suppress_desc">Die Blase nicht bearbeiten, wenn die neueste Messung dem zuletzt gesendeten Wert entspricht.</string>
+    <string name="outbound_api_bubble_stale_title">Bei Stille Meldung zu verpasster Messung anzeigen</string>
     <string name="outbound_api_bubble_stale_desc">Sendet eine Stale- oder Verpasst-Meldung, wenn rechtzeitig kein neuer Wert eintrifft.</string>
     <string name="outbound_api_bubble_stale_threshold">Stale-Schwelle (Minuten)</string>
     <string name="outbound_api_bubble_missed_threshold">Verpasst-Schwelle (Minuten)</string>
+    <string name="outbound_api_decrease_value">Wert verringern</string>
+    <string name="outbound_api_increase_value">Wert erhöhen</string>
     <string name="outbound_api_send_test">Testnachricht senden</string>
     <string name="outbound_api_test_queued">Testnachricht eingereiht</string>
     <string name="outbound_api_no_current_reading">Kein aktueller Wert verfügbar</string>

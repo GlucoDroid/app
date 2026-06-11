@@ -1778,11 +1778,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_bubble_refresh_desc">Inom uppdateringsfönstret redigeras samma bubbla i stället för att skicka en ny.</string>
     <string name="outbound_api_bubble_refresh_window">Uppdateringsfönster (minuter)</string>
     <string name="outbound_api_bubble_suppress_title">Hoppa över om värdet är oförändrat</string>
-    <string name="outbound_api_bubble_suppress_desc">Redigera inte bubblan om den nya avläsningen ligger inom 1 mg/dL från den senaste.</string>
-    <string name="outbound_api_bubble_stale_title">Visa "Missad avläsning." vid tystnad</string>
+    <string name="outbound_api_bubble_suppress_desc">Redigera inte bubblan när den senaste avläsningen matchar det senast skickade värdet.</string>
+    <string name="outbound_api_bubble_stale_title">Visa meddelande om missad avläsning vid tystnad</string>
     <string name="outbound_api_bubble_stale_desc">Skicka ett inaktuellt eller missat meddelande om ingen ny avläsning kommer i tid.</string>
     <string name="outbound_api_bubble_stale_threshold">Tröskel för inaktuell (minuter)</string>
     <string name="outbound_api_bubble_missed_threshold">Tröskel för missad (minuter)</string>
+    <string name="outbound_api_decrease_value">Minska värdet</string>
+    <string name="outbound_api_increase_value">Öka värdet</string>
     <string name="outbound_api_send_test">Skicka testmeddelande</string>
     <string name="outbound_api_test_queued">Testmeddelande köat</string>
     <string name="outbound_api_no_current_reading">Inget aktuellt värde tillgängligt</string>

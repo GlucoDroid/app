@@ -75,33 +75,48 @@ template<typename T,typename ...Ts> char *	nconcat(int len,  T &&one,  Ts &&... 
 	return ptr;
 	}
 
-template <typename ...Ts>
-pathconcat(  Ts &&... args) {
+	template <typename ...Ts>
+	pathconcat(  Ts &&... args) {
 	name=nconcat(0,args ...);
+		}
+	pathconcat( pathconcat &&in):name(in.name),namelen(in.namelen) {
+		in.name=nullptr;
+		in.namelen=0;
+		fprintf(stderr,"pathconcat( pathconcat &&in=%s)\n",name?name:"(null)");
 	}
-pathconcat( pathconcat &&in):name(in.name),namelen(in.namelen) { 
-	in.name=nullptr;
-	in.namelen=0;
-	fprintf(stderr,"pathconcat( pathconcat &&in=%s)\n",name);
-}
-pathconcat( pathconcat &in):name(new char[in.namelen]),namelen(in.namelen) { 
-	memcpy(name,in.name,in.namelen);
-	fprintf(stderr,"pathconcat( pathconcat &in=%s)\n",name);
-}
-pathconcat &operator=(pathconcat &&in) {
-	fprintf(stderr,"pathconcat &operator=(pathconcat &&in %s) {\n",in.name);
-	std::swap(name,in.name);
-	std::swap(namelen,in.namelen);
-	return *this;
+	pathconcat( const pathconcat &in):name(in.namelen?new char[in.namelen]:nullptr),namelen(in.namelen) {
+		if(name)
+			memcpy(name,in.name,in.namelen);
+		fprintf(stderr,"pathconcat( const pathconcat &in=%s)\n",name?name:"(null)");
 	}
-pathconcat &operator=(pathconcat &in) {
-	fprintf(stderr,"pathconcat &operator=(pathconcat &in %s) {\n",in.name);
-	delete[] name;
-	name=new char[in.namelen];
-	namelen=in.namelen;
-	memcpy(name,in.name,namelen);
-	return *this;
+	pathconcat( const pathconcat &&in):pathconcat(static_cast<const pathconcat &>(in)) {
 	}
+	pathconcat( pathconcat &in):pathconcat(static_cast<const pathconcat &>(in)) {
+	}
+	pathconcat &operator=(pathconcat &&in) {
+		fprintf(stderr,"pathconcat &operator=(pathconcat &&in %s) {\n",in.name?in.name:"(null)");
+		std::swap(name,in.name);
+		std::swap(namelen,in.namelen);
+		return *this;
+		}
+	pathconcat &operator=(const pathconcat &&in) {
+		return operator=(static_cast<const pathconcat &>(in));
+		}
+	pathconcat &operator=(const pathconcat &in) {
+		fprintf(stderr,"pathconcat &operator=(const pathconcat &in %s) {\n",in.name?in.name:"(null)");
+		if(this==&in)
+			return *this;
+		char *newname=in.namelen?new char[in.namelen]:nullptr;
+		if(newname)
+			memcpy(newname,in.name,in.namelen);
+		delete[] name;
+		name=newname;
+		namelen=in.namelen;
+		return *this;
+		}
+	pathconcat &operator=(pathconcat &in) {
+		return operator=(static_cast<const pathconcat &>(in));
+		}
 ~pathconcat() {
 	delete[] name;
 	}
