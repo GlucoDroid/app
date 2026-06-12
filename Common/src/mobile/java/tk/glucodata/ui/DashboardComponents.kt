@@ -92,7 +92,9 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.draw.rotate as modifierRotate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -270,6 +272,8 @@ fun DashboardCombinedHeader(
     targetHigh: Float = fallbackHighThreshold(isMmol),
     veryLowThreshold: Float = fallbackVeryLowThreshold(isMmol),
     veryHighThreshold: Float = fallbackVeryHighThreshold(isMmol),
+    peerReadings: List<tk.glucodata.ui.viewmodel.DashboardViewModel.PeerCurrentReading> = emptyList(),
+    onPeerReadingClick: (String) -> Unit = {},
     onHeroClick: () -> Unit = {}
 ) {
     // Determine Colors based on logic
@@ -619,9 +623,18 @@ fun DashboardCombinedHeader(
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
+
+                        if (peerReadings.isNotEmpty()) {
+                            DashboardHeroPeerStrip(
+                                peerReadings = peerReadings,
+                                contentColor = glucoseContentColor,
+                                onPeerClick = onPeerReadingClick,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                        }
                     }
                 } else {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(
@@ -630,28 +643,42 @@ fun DashboardCombinedHeader(
                                 top = resolvedVerticalPadding,
                                 bottom = resolvedVerticalPadding
                             ),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        DashboardHeroValueCluster(
-                            modifier = Modifier.weight(1f),
-                            primaryText = primaryText,
-                            secondaryText = secondaryText,
-                            tertiaryText = tertiaryText,
-                            primaryStyle = primaryValueStyle,
-                            secondaryInlineStyle = secondaryInlineStyle,
-                            separatorStyle = slashStyle,
-                            secondaryStackStyle = secondaryThreeValueStyle,
-                            tertiaryStackStyle = tertiaryThreeValueStyle,
-                            contentColor = glucoseContentColor
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DashboardHeroValueCluster(
+                                modifier = Modifier.weight(1f),
+                                primaryText = primaryText,
+                                secondaryText = secondaryText,
+                                tertiaryText = tertiaryText,
+                                primaryStyle = primaryValueStyle,
+                                secondaryInlineStyle = secondaryInlineStyle,
+                                separatorStyle = slashStyle,
+                                secondaryStackStyle = secondaryThreeValueStyle,
+                                tertiaryStackStyle = tertiaryThreeValueStyle,
+                                contentColor = glucoseContentColor
+                            )
 
-                        Spacer(modifier = Modifier.width(resolvedClusterGap))
+                            Spacer(modifier = Modifier.width(resolvedClusterGap))
 
-                        tk.glucodata.ui.components.TrendIndicator(
-                            trendResult = trendResult,
-                            modifier = Modifier.size(resolvedTrendIconSize),
-                            color = glucoseContentColor
-                        )
+                            tk.glucodata.ui.components.TrendIndicator(
+                                trendResult = trendResult,
+                                modifier = Modifier.size(resolvedTrendIconSize),
+                                color = glucoseContentColor
+                            )
+                        }
+
+                        if (peerReadings.isNotEmpty()) {
+                            DashboardHeroPeerStrip(
+                                peerReadings = peerReadings,
+                                contentColor = glucoseContentColor,
+                                onPeerClick = onPeerReadingClick,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -877,6 +904,77 @@ private fun DashboardHeroPrimaryText(
             maxLines = 1,
             modifier = modifier
         )
+    }
+}
+
+/**
+ * Compact per-peer value chips inside the hero card. Each chip shows the
+ * peer sensor's current value (and secondary lane when present) with its
+ * subtle identity tint plus a small trend arrow; tapping promotes the peer
+ * to the primary display sensor.
+ */
+@Composable
+private fun DashboardHeroPeerStrip(
+    peerReadings: List<tk.glucodata.ui.viewmodel.DashboardViewModel.PeerCurrentReading>,
+    contentColor: Color,
+    onPeerClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        peerReadings.forEach { peer ->
+            val identityColor = tk.glucodata.ui.viewmodel.SensorColors.getColor(peer.sensorId)
+            val textColor = lerpColor(contentColor, identityColor, tk.glucodata.SensorVisuals.PEER_TEXT_BLEND)
+            val velocity = if (peer.rate.isFinite()) peer.rate else 0f
+            val peerTrend = remember(peer.sensorId, velocity) {
+                tk.glucodata.logic.TrendEngine.TrendResult(
+                    state = tk.glucodata.logic.TrendEngine.TrendState.Unknown,
+                    velocity = velocity,
+                    acceleration = 0f,
+                    confidence = 1f
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(identityColor.copy(alpha = 0.12f))
+                    .clickable { onPeerClick(peer.sensorId) }
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(identityColor.copy(alpha = 0.9f), CircleShape)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = peer.primaryStr,
+                    style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+                    color = textColor,
+                    softWrap = false,
+                    maxLines = 1
+                )
+                peer.secondaryStr?.let { secondary ->
+                    Text(
+                        text = " · $secondary",
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                        color = textColor.copy(alpha = 0.72f),
+                        softWrap = false,
+                        maxLines = 1
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                tk.glucodata.ui.components.TrendIndicator(
+                    trendResult = peerTrend,
+                    color = textColor,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
     }
 }
 

@@ -9,6 +9,18 @@ import kotlin.math.abs
  * reuse the exact same color assignment.
  */
 object SensorVisuals {
+    /**
+     * Blend fraction of the identity color mixed into the surface text color
+     * for the dominant (primary) sensor's values on multi-sensor surfaces.
+     */
+    const val PRIMARY_TEXT_BLEND = 0.30f
+
+    /**
+     * Blend fraction for peer sensor values. Stronger than the primary so
+     * peers are identifiable, still far from the raw palette color.
+     */
+    const val PEER_TEXT_BLEND = 0.45f
+
     private val palette = intArrayOf(
         0xFF6750A4.toInt(), // Primary purple
         0xFF00796B.toInt(), // Teal
@@ -28,5 +40,26 @@ object SensorVisuals {
         val normalized = sensorId?.trim().orEmpty()
         if (normalized.isEmpty()) return 0
         return abs(normalized.hashCode()) % palette.size
+    }
+
+    /**
+     * Subtle identity tint for a peer sensor's value text: the base text color
+     * (e.g. white on dark notification background) nudged toward the sensor's
+     * identity color. Alpha of [baseTextColorArgb] is preserved.
+     */
+    @JvmStatic
+    fun subtlePeerTextColor(baseTextColorArgb: Int, sensorId: String?): Int =
+        blendArgb(baseTextColorArgb, colorArgb(sensorId), PEER_TEXT_BLEND)
+
+    @JvmStatic
+    fun blendArgb(base: Int, tint: Int, fraction: Float): Int {
+        val f = fraction.coerceIn(0f, 1f)
+        fun channel(shift: Int): Int {
+            val b = (base shr shift) and 0xFF
+            val t = (tint shr shift) and 0xFF
+            return (b + ((t - b) * f)).toInt().coerceIn(0, 255)
+        }
+        val alpha = (base shr 24) and 0xFF
+        return (alpha shl 24) or (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
     }
 }

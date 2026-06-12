@@ -69,8 +69,7 @@ fun ReadingRow(
     totalCount: Int = 1,
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
     peerReadings: List<GlucosePoint> = emptyList(),
-    peerHistories: Map<String, List<GlucosePoint>> = emptyMap(),
-    sensorViewModes: Map<String, Int> = emptyMap(),
+    peerSeries: Map<String, PeerSensorSeries> = emptyMap(),
     sensorId: String? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     journalEntries: List<JournalEntry> = emptyList(),
@@ -264,7 +263,19 @@ fun ReadingRow(
                 }
             } else null
             val dvs = getDisplayValues(point, viewMode, unit, calibratedValueRR)
-            val primaryColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            val primaryBaseColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            // Multi-sensor: every sensor's value carries a subtle identity tint
+            // (the primary a touch weaker than peers) so values pair with chart traces.
+            val primaryColor = if (peerReadings.isNotEmpty()) {
+                val primarySerial = point.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorId
+                androidx.compose.ui.graphics.lerp(
+                    primaryBaseColor,
+                    SensorColors.getColor(SensorIdentity.resolveAppSensorId(primarySerial) ?: primarySerial.orEmpty()),
+                    tk.glucodata.SensorVisuals.PRIMARY_TEXT_BLEND
+                )
+            } else {
+                primaryBaseColor
+            }
             val secondaryColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             val unitColor = secondaryColor.copy(alpha = 0.6f)
             val tertiaryColor = if (isActive) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -305,20 +316,16 @@ fun ReadingRow(
                 }
             }
 
-            fun viewModeForSensor(serial: String?): Int =
-                sensorViewModes.entries.firstOrNull { (sensorId, _) ->
-                    SensorIdentity.matches(sensorId, serial)
-                }?.value ?: viewMode
-
-            fun historyForSensor(serial: String?): List<GlucosePoint> =
-                peerHistories.entries.firstOrNull { (sensorId, _) ->
-                    SensorIdentity.matches(sensorId, serial)
-                }?.value.orEmpty()
+            // Peer serials are normalized to their logical sensor id by
+            // MultiSensorDisplay.buildDisplayData -> direct map hits.
+            fun seriesForSensor(serial: String?): PeerSensorSeries? =
+                serial?.let { peerSeries[it] }
 
             @Composable
             fun PeerReadingValue(peer: GlucosePoint) {
+                val peerSensorSeries = seriesForSensor(peer.sensorSerial)
                 val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
-                val peerMode = viewModeForSensor(peer.sensorSerial)
+                val peerMode = peerSensorSeries?.viewMode ?: viewMode
                 val isRawModePeer = peerMode == 1 || peerMode == 3
                 val peerSensorId = peer.sensorSerial?.takeIf { it.isNotBlank() }
                 val peerCalibrationValue = remember(
@@ -347,14 +354,13 @@ fun ReadingRow(
                         null
                     }
                 }
-                val peerHistory = historyForSensor(peer.sensorSerial)
-                val peerTrendResult = remember(peer.timestamp, peer.sensorSerial, peerHistory, peerMode, unit) {
-                    val nativeList = peerHistory
-                        .asSequence()
-                        .filter { it.timestamp <= peer.timestamp }
-                        .take(24)
+                val peerTrendResult = remember(peer.timestamp, peer.sensorSerial, peerSensorSeries, peerMode, unit) {
+                    val nativeList = MultiSensorDisplay.recentWindow(
+                        pointsAscending = peerSensorSeries?.points.orEmpty(),
+                        untilTimestamp = peer.timestamp,
+                        count = 24
+                    )
                         .map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }
-                        .toList()
                         .ifEmpty { listOf(tk.glucodata.GlucosePoint(peer.timestamp, peer.value, peer.rawValue)) }
                     tk.glucodata.logic.TrendEngine.calculateTrend(
                         nativeList,
@@ -366,8 +372,8 @@ fun ReadingRow(
                 val peerPrimaryColor = androidx.compose.ui.graphics.lerp(
                     MaterialTheme.colorScheme.onSurface,
                     peerColor,
-                    if (isActive) 0.34f else 0.28f
-                ).copy(alpha = if (isActive) 0.92f else 0.78f)
+                    tk.glucodata.SensorVisuals.PEER_TEXT_BLEND
+                ).copy(alpha = if (isActive) 0.95f else 0.85f)
                 val peerSecondaryColor = secondaryColor.copy(alpha = if (isActive) 0.72f else 0.62f)
                 val peerUnitColor = unitColor.copy(alpha = 0.68f)
                 Row(

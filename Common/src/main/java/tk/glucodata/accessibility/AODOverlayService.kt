@@ -477,10 +477,11 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val displayRate = DisplayTrendSource.resolveArrowRate(overlayChartPoints, resolvedDisplay, viewMode, isMmol)
 
         val glucoseColor = NotificationChartDrawer.getGlucoseColor(this, glvalue, isMmol)
-        val peerValueItems = NotificationMultiSensorSource.peerValueItems(
+        val peerCurrents = NotificationMultiSensorSource.peerCurrents(
             tk.glucodata.Notify.glucosetimeout,
             activeSensorSerial
         )
+        val peerValueItems = NotificationMultiSensorSource.valueItems(peerCurrents)
 
         // Draw Components
         val fontSource = prefs.getString("aod_font_source", "APP") ?: "APP"
@@ -492,6 +493,9 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         // Arrow Settings
         val showArrow = prefs.getBoolean("aod_show_arrow", true)
         val arrowScale = prefs.getFloat("aod_arrow_scale", 2.0f)
+        // Multi-sensor: arrows render inline next to each value; the external
+        // arrow view would visually attach to the last peer value otherwise.
+        val inlineMultiArrows = showArrow && peerValueItems.isNotEmpty()
 
         // Use textScale here for high-res bitmap generation
         val textBitmap = NotificationChartDrawer.drawMultiGlucoseText(
@@ -501,14 +505,17 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             peerValueItems,
             textScale,
             fontWeight,
-            useSystemFont
+            useSystemFont,
+            if (inlineMultiArrows) displayRate else Float.NaN,
+            isMmol,
+            1.0f
         )
         val textImg = view.findViewById<ImageView>(R.id.notification_glucose)
         textImg?.setImageBitmap(textBitmap)
 
         // Pass combined scale to arrow
         val arrowImg = view.findViewById<ImageView>(R.id.notification_arrow)
-        if (showArrow) {
+        if (showArrow && !inlineMultiArrows) {
             val arrowBitmap = NotificationChartDrawer.drawArrow(
                 this,
                 displayRate,
@@ -532,7 +539,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             val baseChartHeightPx = (200 * dm.density).toInt()
             val renderWidth = (dm.widthPixels * 1.5f).toInt()
             val renderHeight = (baseChartHeightPx * 1.5f).toInt()
-            val peerChartSeries = NotificationMultiSensorSource.peerSeries(startT, isMmol, activeSensorSerial)
+            val peerChartSeries = NotificationMultiSensorSource.peerSeries(peerCurrents, startT, isMmol)
 
             val chartBitmap = NotificationChartDrawer.drawChartWithPrediction(
                 this,

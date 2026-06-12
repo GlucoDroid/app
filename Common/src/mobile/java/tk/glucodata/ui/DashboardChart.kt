@@ -640,10 +640,7 @@ private fun List<GlucosePoint>.sliceByTimestampRange(startMillis: Long, endMilli
 fun DashboardChartSection(
     modifier: Modifier,
     glucoseHistory: List<GlucosePoint>,
-    multiSensorHistory: List<GlucosePoint> = emptyList(),
-    selectedSensorIds: List<String> = emptyList(),
-    sensorViewModes: Map<String, Int> = emptyMap(),
-    primarySensorId: String? = null,
+    multiSensorDisplay: MultiSensorDisplayData = MultiSensorDisplayData.EMPTY,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -682,10 +679,7 @@ fun DashboardChartSection(
                 if (glucoseHistory.isNotEmpty()) {
                     InteractiveGlucoseChart(
                         fullData = glucoseHistory,
-                        multiSensorHistory = multiSensorHistory,
-                        selectedSensorIds = selectedSensorIds,
-                        sensorViewModes = sensorViewModes,
-                        primarySensorId = primarySensorId,
+                        multiSensorDisplay = multiSensorDisplay,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
                         predictionPoints = predictionPoints,
@@ -747,10 +741,7 @@ fun DashboardChartSection(
 @Composable
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
-    multiSensorHistory: List<GlucosePoint> = emptyList(),
-    selectedSensorIds: List<String> = emptyList(),
-    sensorViewModes: Map<String, Int> = emptyMap(),
-    primarySensorId: String? = null,
+    multiSensorDisplay: MultiSensorDisplayData = MultiSensorDisplayData.EMPTY,
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -905,43 +896,32 @@ fun InteractiveGlucoseChart(
         buildSmoothedChartData(safeData, graphSmoothingMinutes, collapseSmoothedData)
     }
     val peerChartSeries = remember(
-        multiSensorHistory,
-        selectedSensorIds,
-        sensorViewModes,
-        primarySensorId,
-        fullData,
-        viewMode,
+        multiSensorDisplay,
         graphSmoothingMinutes,
         collapseSmoothedData
     ) {
-        val primary = primarySensorId ?: fullData.lastOrNull()?.sensorSerial
-        val peerOrder = selectedSensorIds
-            .filterNot { SensorIdentity.matches(it, primary) }
-        val grouped = LinkedHashMap<String, MutableList<GlucosePoint>>()
-        multiSensorHistory.forEach { point ->
-            val serial = point.sensorSerial?.takeIf { it.isNotBlank() } ?: return@forEach
-            if (SensorIdentity.matches(serial, primary)) return@forEach
-            val selected = peerOrder.firstOrNull { SensorIdentity.matches(serial, it) }
-                ?: return@forEach
-            grouped.getOrPut(selected) { ArrayList() }.add(point)
-        }
-        peerOrder.mapNotNull { sensorId ->
-            val points = grouped[sensorId]
-                ?.sortedBy { it.timestamp }
-                ?.takeIf { it.size >= 2 }
-                ?: return@mapNotNull null
+        multiSensorDisplay.series.mapNotNull { series ->
+            if (series.points.size < 2) return@mapNotNull null
             PeerSensorChartSeries(
-                sensorId = sensorId,
-                viewMode = sensorViewModes.entries.firstOrNull { (candidateId, _) ->
-                    SensorIdentity.matches(candidateId, sensorId)
-                }?.value ?: viewMode,
-                color = SensorColors.getColor(sensorId),
-                points = buildSmoothedChartData(points, graphSmoothingMinutes, collapseSmoothedData)
+                sensorId = series.sensorId,
+                viewMode = series.viewMode,
+                color = SensorColors.getColor(series.sensorId),
+                points = buildSmoothedChartData(series.points, graphSmoothingMinutes, collapseSmoothedData)
             )
         }
     }
-    val peerPointsByBucket = remember(multiSensorHistory, primarySensorId) {
-        MultiSensorDisplay.buildBucketLookup(multiSensorHistory, primarySensorId)
+    val peerPointsByBucket = multiSensorDisplay.bucketLookup
+    // serial (normalized to logical id) -> draw attributes; O(1) lookups in the
+    // cursor/tooltip hot paths instead of SensorIdentity.matches per frame.
+    val peerDrawAttrs = remember(multiSensorDisplay) {
+        multiSensorDisplay.series.associate { series ->
+            series.sensorId to (SensorColors.getColor(series.sensorId) to series.viewMode)
+        }
+    }
+    val primarySerial = fullData.lastOrNull()?.sensorSerial
+    val primaryIdentityColor = remember(primarySerial) {
+        val logical = SensorIdentity.resolveAppSensorId(primarySerial) ?: primarySerial
+        SensorColors.getColor(logical.orEmpty())
     }
     val interactionData = remember(safeData, renderData, graphSmoothingMinutes) {
         if (graphSmoothingMinutes > 0) renderData else safeData
@@ -3046,13 +3026,9 @@ fun InteractiveGlucoseChart(
                          peerPointsByBucket[MultiSensorDisplay.bucketKeyForTimestamp(p.timestamp)]
                              .orEmpty()
                              .forEach { peer ->
-                                 if (SensorIdentity.matches(peer.sensorSerial, p.sensorSerial ?: primarySensorId)) {
-                                     return@forEach
-                                 }
-                                 val peerMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
-                                     SensorIdentity.matches(sensorId, peer.sensorSerial)
-                                 }?.value ?: viewMode
-                                 val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
+                                 val attrs = peerDrawAttrs[peer.sensorSerial]
+                                 val peerMode = attrs?.second ?: viewMode
+                                 val peerColor = attrs?.first ?: SensorColors.getColor(peer.sensorSerial.orEmpty())
                                  val drawPeerRaw = peerMode == 1 || peerMode == 2 || peerMode == 3
                                  val drawPeerAuto = peerMode == 0 || peerMode == 2 || peerMode == 3
                                  if (drawPeerRaw && peer.rawValue.isFinite() && peer.rawValue > 0.1f) {
@@ -3452,9 +3428,6 @@ fun InteractiveGlucoseChart(
                 val dvs = getDisplayValues(point, viewMode, unit, calibratedValueTT)
                 val tooltipPeerPoints = peerPointsByBucket[MultiSensorDisplay.bucketKeyForTimestamp(point.timestamp)]
                     .orEmpty()
-                    .filterNot { peer ->
-                        SensorIdentity.matches(peer.sensorSerial, point.sensorSerial ?: primarySensorId)
-                    }
 
                 // --- 1. INFO CARD (Top) ---
                 // "Current Status Card styling" -> primaryContainer
@@ -3539,9 +3512,20 @@ fun InteractiveGlucoseChart(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Colored Text Logic (Keep matching graph lines for values)
+                        // Multi-sensor: tint the primary value subtly with its
+                        // sensor identity color so it pairs with peer rows below.
+                        val primaryTooltipColor = if (tooltipPeerPoints.isNotEmpty()) {
+                            androidx.compose.ui.graphics.lerp(
+                                statusContentColor,
+                                primaryIdentityColor,
+                                tk.glucodata.SensorVisuals.PRIMARY_TEXT_BLEND
+                            )
+                        } else {
+                            statusContentColor
+                        }
                         val styledText = androidx.compose.ui.text.buildAnnotatedString {
                             // Primary Value
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                            withStyle(SpanStyle(color = primaryTooltipColor, fontWeight = FontWeight.Bold)) {
                                 append(dvs.primaryStr)
                             }
 
@@ -3571,11 +3555,14 @@ fun InteractiveGlucoseChart(
                             style = MaterialTheme.typography.titleMedium
                         )
                         tooltipPeerPoints.forEach { peer ->
-                            val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
-                            val peerMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
-                                SensorIdentity.matches(sensorId, peer.sensorSerial)
-                            }?.value ?: viewMode
-                            val peerTextColor = androidx.compose.ui.graphics.lerp(statusContentColor, peerColor, 0.46f)
+                            val attrs = peerDrawAttrs[peer.sensorSerial]
+                            val peerColor = attrs?.first ?: SensorColors.getColor(peer.sensorSerial.orEmpty())
+                            val peerMode = attrs?.second ?: viewMode
+                            val peerTextColor = androidx.compose.ui.graphics.lerp(
+                                statusContentColor,
+                                peerColor,
+                                tk.glucodata.SensorVisuals.PEER_TEXT_BLEND
+                            )
                             val peerDvs = getDisplayValues(peer, peerMode, unit, calibratedValue = null)
                             Text(
                                 modifier = Modifier.padding(top = 3.dp),

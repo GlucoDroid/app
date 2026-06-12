@@ -42,10 +42,17 @@ public class NotificationChartDrawer {
     public static class ValueItem {
         public final String text;
         public final int color;
+        /** Trend rate for the inline arrow; NaN when unknown. */
+        public final float rate;
 
         public ValueItem(String text, int color) {
+            this(text, color, Float.NaN);
+        }
+
+        public ValueItem(String text, int color, float rate) {
             this.text = text != null ? text : "";
             this.color = color;
+            this.rate = rate;
         }
     }
 
@@ -884,37 +891,94 @@ public class NotificationChartDrawer {
             float fontSizeScale,
             int fontWeight,
             boolean useSystemFont) {
+        return drawMultiGlucoseText(context, primaryText, primaryColor, peerValues, fontSizeScale, fontWeight,
+                useSystemFont, Float.NaN, true, 1.0f);
+    }
+
+    /**
+     * Renders "primary value [arrow] peer value [arrow] ..." into one bitmap.
+     *
+     * When peers exist every value carries its own inline trend arrow (the
+     * external arrow view must then be hidden by the caller); peer values use
+     * the shared subtle identity tint from {@link SensorVisuals} instead of the
+     * raw palette color so they read as secondary to the primary value.
+     *
+     * @param primaryArrowRate rate for the primary value's inline arrow; pass
+     *                         NaN to omit inline arrows for the primary value.
+     * @param arrowSizeFactor  user arrow size preference multiplier.
+     */
+    public static Bitmap drawMultiGlucoseText(
+            Context context,
+            String primaryText,
+            int primaryColor,
+            List<ValueItem> peerValues,
+            float fontSizeScale,
+            int fontWeight,
+            boolean useSystemFont,
+            float primaryArrowRate,
+            boolean isMmol,
+            float arrowSizeFactor) {
         if (peerValues == null || peerValues.isEmpty()) {
             return drawGlucoseText(context, primaryText, primaryColor, fontSizeScale, fontWeight, useSystemFont);
         }
 
+        float density = context.getResources().getDisplayMetrics().density;
+        boolean isDark = useLightOnTransparentPalette(context);
+        int baseTextColor = isDark ? Color.WHITE : Color.BLACK;
+        boolean drawArrows = !Float.isNaN(primaryArrowRate);
+        float safeArrowFactor = arrowSizeFactor > 0f ? arrowSizeFactor : 1.0f;
+
         ArrayList<Bitmap> bitmaps = new ArrayList<>();
-        bitmaps.add(drawGlucoseText(context, primaryText, primaryColor, fontSizeScale, fontWeight, useSystemFont));
+        ArrayList<Boolean> isArrow = new ArrayList<>();
+
+        Bitmap primaryBitmap = drawGlucoseText(context, primaryText, primaryColor, fontSizeScale, fontWeight,
+                useSystemFont);
+        bitmaps.add(primaryBitmap);
+        isArrow.add(false);
+        if (drawArrows) {
+            // drawArrow renders at 20dp * scale; size the arrow relative to the
+            // value bitmap (text renders at 2x density internally).
+            float arrowScale = (primaryBitmap.getHeight() * 0.56f * safeArrowFactor) / (20f * density);
+            bitmaps.add(drawArrow(context, primaryArrowRate, isMmol, primaryColor, arrowScale));
+            isArrow.add(true);
+        }
+
         for (ValueItem item : peerValues) {
             if (item == null || item.text == null || item.text.isEmpty()) {
                 continue;
             }
-            bitmaps.add(drawGlucoseText(
+            // ValueItem.color carries the identity color; blend it here where the
+            // light/dark base is known so all surfaces share the same treatment.
+            int subtleColor = SensorVisuals.blendArgb(baseTextColor, item.color, SensorVisuals.PEER_TEXT_BLEND);
+            Bitmap peerBitmap = drawGlucoseText(
                     context,
                     item.text,
-                    withAlpha(item.color, 0.86f),
+                    subtleColor,
                     fontSizeScale * 0.72f,
                     fontWeight,
-                    useSystemFont));
+                    useSystemFont);
+            bitmaps.add(peerBitmap);
+            isArrow.add(false);
+            if (drawArrows && !Float.isNaN(item.rate)) {
+                float arrowScale = (peerBitmap.getHeight() * 0.56f * safeArrowFactor) / (20f * density);
+                bitmaps.add(drawArrow(context, item.rate, isMmol, subtleColor, arrowScale));
+                isArrow.add(true);
+            }
         }
         if (bitmaps.size() <= 1) {
             return bitmaps.get(0);
         }
 
-        float density = context.getResources().getDisplayMetrics().density * 2.0f;
-        int gap = Math.max(1, (int) (8f * density * fontSizeScale));
+        float layoutDensity = density * 2.0f;
+        int gap = Math.max(1, (int) (8f * layoutDensity * fontSizeScale));
+        int arrowGap = Math.max(1, (int) (2.5f * layoutDensity * fontSizeScale));
         int totalWidth = 0;
         int maxHeight = 1;
         for (int i = 0; i < bitmaps.size(); i++) {
             Bitmap bitmap = bitmaps.get(i);
             totalWidth += bitmap.getWidth();
             if (i > 0) {
-                totalWidth += gap;
+                totalWidth += isArrow.get(i) ? arrowGap : gap;
             }
             maxHeight = Math.max(maxHeight, bitmap.getHeight());
         }
@@ -924,7 +988,7 @@ public class NotificationChartDrawer {
         for (int i = 0; i < bitmaps.size(); i++) {
             Bitmap bitmap = bitmaps.get(i);
             if (i > 0) {
-                x += gap;
+                x += isArrow.get(i) ? arrowGap : gap;
             }
             float y = (maxHeight - bitmap.getHeight()) / 2.0f;
             canvas.drawBitmap(bitmap, x, y, null);

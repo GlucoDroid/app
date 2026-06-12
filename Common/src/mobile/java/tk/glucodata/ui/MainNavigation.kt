@@ -498,7 +498,7 @@ private fun CalibrationSheetHost(
     if (sheetState is CalibrationSheetState.Hidden) return
 
     val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
-    val multiSensorHistory by dashboardViewModel.multiSensorHistory.collectAsStateWithLifecycle()
+    val multiSensorDisplay by dashboardViewModel.multiSensorDisplay.collectAsStateWithLifecycle()
     val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
     val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
     val sensorViewModes by dashboardViewModel.sensorViewModes.collectAsStateWithLifecycle()
@@ -529,7 +529,7 @@ private fun CalibrationSheetHost(
         CalibrationSheetState.Hidden -> SheetInit(0f, 0f, 0L, null, viewMode)
     }
 
-    val sheetHistory = remember(glucoseHistory, multiSensorHistory, init.sensorId) {
+    val sheetHistory = remember(glucoseHistory, multiSensorDisplay, init.sensorId) {
         val sensorId = init.sensorId
         val source = if (sensorId.isNullOrBlank()) {
             glucoseHistory
@@ -538,7 +538,7 @@ private fun CalibrationSheetHost(
             if (SensorIdentity.matches(sensorId, primarySerial)) {
                 glucoseHistory
             } else {
-                multiSensorHistory.filter { point -> SensorIdentity.matches(point.sensorSerial, sensorId) }
+                multiSensorDisplay.seriesFor(sensorId)?.points.orEmpty()
             }
         }
         source.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }

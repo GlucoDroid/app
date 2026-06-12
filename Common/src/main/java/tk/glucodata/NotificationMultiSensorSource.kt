@@ -3,6 +3,16 @@ package tk.glucodata
 import tk.glucodata.drivers.ManagedSensorRuntime
 
 object NotificationMultiSensorSource {
+    /**
+     * One selected peer (non-primary) sensor with its current snapshot.
+     * [snapshot] is null when the peer has no fresh reading; such peers are
+     * skipped for value items but still chart their history.
+     */
+    class PeerCurrent(
+        @JvmField val sensorId: String,
+        @JvmField val snapshot: CurrentDisplaySource.Snapshot?
+    )
+
     @JvmStatic
     fun selectedSensorIds(primarySensorId: String?): List<String> {
         val candidates = ArrayList<String?>()
@@ -16,51 +26,59 @@ object NotificationMultiSensorSource {
         return MultiSensorSelection.selectedAvailable(candidates, primarySensorId)
     }
 
+    /**
+     * Resolves every selected peer once per notification/AOD update. The result
+     * feeds both [valueItems] and [peerSeries] so each update performs a single
+     * snapshot resolution (and history query) per peer.
+     */
     @JvmStatic
-    fun peerSeries(
-        startTimeMs: Long,
-        isMmol: Boolean,
-        primarySensorId: String?
-    ): List<NotificationChartDrawer.PeerSeries> {
+    fun peerCurrents(maxAgeMillis: Long, primarySensorId: String?): List<PeerCurrent> {
         val selected = selectedSensorIds(primarySensorId)
         if (selected.size <= 1) return emptyList()
-        return selected.drop(1).mapNotNull { sensorId ->
-            val current = CurrentDisplaySource.resolveCurrent(
-                Notify.glucosetimeout,
-                sensorId,
-                DisplayTrendSource.TREND_WINDOW_MS
-            )
-            val history = runCatching {
-                NotificationHistorySource.getDisplayHistory(startTimeMs, isMmol, sensorId)
-            }.getOrDefault(emptyList())
-                .let { DisplayTrendSource.augmentHistory(it, current, sensorId, startTimeMs) }
-            if (history.size < 2) {
-                null
-            } else {
-                NotificationChartDrawer.PeerSeries(
+        return selected.drop(1).map { sensorId ->
+            val snapshot = runCatching {
+                CurrentDisplaySource.resolveCurrent(
+                    maxAgeMillis,
                     sensorId,
-                    resolveViewMode(sensorId),
-                    SensorVisuals.colorArgb(sensorId),
-                    history
+                    DisplayTrendSource.TREND_WINDOW_MS
                 )
-            }
+            }.getOrNull()
+            PeerCurrent(sensorId, snapshot)
         }
     }
 
     @JvmStatic
-    fun peerValueItems(maxAgeMillis: Long, primarySensorId: String?): List<NotificationChartDrawer.ValueItem> {
-        val selected = selectedSensorIds(primarySensorId)
-        if (selected.size <= 1) return emptyList()
-        return selected.drop(1).mapNotNull { sensorId ->
-            val snapshot = CurrentDisplaySource.resolveCurrent(
-                maxAgeMillis,
-                sensorId,
-                DisplayTrendSource.TREND_WINDOW_MS
-            ) ?: return@mapNotNull null
+    fun valueItems(peerCurrents: List<PeerCurrent>): List<NotificationChartDrawer.ValueItem> =
+        peerCurrents.mapNotNull { peer ->
+            val snapshot = peer.snapshot ?: return@mapNotNull null
             NotificationChartDrawer.ValueItem(
                 snapshot.fullFormatted,
-                SensorVisuals.colorArgb(sensorId)
+                SensorVisuals.colorArgb(peer.sensorId),
+                snapshot.rate
             )
+        }
+
+    @JvmStatic
+    fun peerSeries(
+        peerCurrents: List<PeerCurrent>,
+        startTimeMs: Long,
+        isMmol: Boolean
+    ): List<NotificationChartDrawer.PeerSeries> {
+        return peerCurrents.mapNotNull { peer ->
+            val history = runCatching {
+                NotificationHistorySource.getDisplayHistory(startTimeMs, isMmol, peer.sensorId)
+            }.getOrDefault(emptyList())
+                .let { DisplayTrendSource.augmentHistory(it, peer.snapshot, peer.sensorId, startTimeMs) }
+            if (history.size < 2) {
+                null
+            } else {
+                NotificationChartDrawer.PeerSeries(
+                    peer.sensorId,
+                    peer.snapshot?.viewMode ?: resolveViewMode(peer.sensorId),
+                    SensorVisuals.colorArgb(peer.sensorId),
+                    history
+                )
+            }
         }
     }
 

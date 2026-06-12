@@ -80,6 +80,15 @@ class DashboardViewModel(
         val sensorViewModes: Map<String, Int>
     )
 
+    /** Latest displayable reading of a peer (non-primary) selected sensor. */
+    data class PeerCurrentReading(
+        val sensorId: String,
+        val primaryStr: String,
+        val secondaryStr: String?,
+        val rate: Float,
+        val timeMillis: Long
+    )
+
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
@@ -168,8 +177,12 @@ class DashboardViewModel(
     private val _glucoseHistory = MutableStateFlow<List<tk.glucodata.ui.GlucosePoint>>(emptyList())
     val glucoseHistory = _glucoseHistory.asStateFlow()
 
-    private val _multiSensorHistory = MutableStateFlow<List<tk.glucodata.ui.GlucosePoint>>(emptyList())
-    val multiSensorHistory = _multiSensorHistory.asStateFlow()
+    private val _multiSensorDisplay =
+        MutableStateFlow(tk.glucodata.ui.MultiSensorDisplayData.EMPTY)
+    val multiSensorDisplay = _multiSensorDisplay.asStateFlow()
+
+    private val _peerCurrentReadings = MutableStateFlow<List<PeerCurrentReading>>(emptyList())
+    val peerCurrentReadings = _peerCurrentReadings.asStateFlow()
 
     private val _selectedSensorIds = MutableStateFlow<List<String>>(emptyList())
     val selectedSensorIds = _selectedSensorIds.asStateFlow()
@@ -590,6 +603,7 @@ class DashboardViewModel(
         _selectedSensorIds.value = selectedDisplaySensors
         _activeSensorList.value = selectedDisplaySensors
         _sensorViewModes.value = resolveSelectedSensorViewModes(selectedDisplaySensors)
+        schedulePeerCurrentRefresh(selectedDisplaySensors.drop(1))
 
         if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
             glucoseRepository.refreshSensorSerial(sName)
@@ -803,7 +817,8 @@ class DashboardViewModel(
         if (mode != CollectionMode.DASHBOARD) {
             multiSensorHistoryJob?.cancel()
             multiSensorHistoryJob = null
-            _multiSensorHistory.value = emptyList()
+            _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+            _peerCurrentReadings.value = emptyList()
             return
         }
         if (multiSensorHistoryJob?.isActive == true) return
@@ -834,7 +849,8 @@ class DashboardViewModel(
 
                 val peerSensors = config.selectedSensorIds.drop(1)
                 if (peerSensors.isEmpty()) {
-                    _multiSensorHistory.value = emptyList()
+                    _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+                    _peerCurrentReadings.value = emptyList()
                     return@collectLatest
                 }
 
@@ -848,11 +864,75 @@ class DashboardViewModel(
                             delay(DASHBOARD_HISTORY_COALESCE_MS)
                         }
                         hasSeenPeerEmission = true
-                        _multiSensorHistory.value = withContext(Dispatchers.Default) {
-                            rawHistory.inDisplayUnit(config.unit)
+                        _multiSensorDisplay.value = withContext(Dispatchers.Default) {
+                            tk.glucodata.ui.MultiSensorDisplay.buildDisplayData(
+                                points = rawHistory.inDisplayUnit(config.unit),
+                                selectedPeerIds = peerSensors,
+                                sensorViewModes = config.sensorViewModes
+                            )
                         }
+                        refreshPeerCurrentReadings(peerSensors)
                     }
                 }
+        }
+    }
+
+    private var peerCurrentRefreshJob: Job? = null
+
+    /** Coalesced hero peer chip refresh; piggybacks on the regular data refresh. */
+    private fun schedulePeerCurrentRefresh(peerSensors: List<String>) {
+        if (peerSensors.isEmpty()) {
+            if (_peerCurrentReadings.value.isNotEmpty()) {
+                _peerCurrentReadings.value = emptyList()
+            }
+            return
+        }
+        if (peerCurrentRefreshJob?.isActive == true) return
+        peerCurrentRefreshJob = viewModelScope.launch {
+            refreshPeerCurrentReadings(peerSensors)
+        }
+    }
+
+    private suspend fun refreshPeerCurrentReadings(peerSensors: List<String>) {
+        if (peerSensors.isEmpty()) {
+            _peerCurrentReadings.value = emptyList()
+            return
+        }
+        _peerCurrentReadings.value = withContext(Dispatchers.IO) {
+            peerSensors.mapNotNull { sensorId ->
+                runCatching {
+                    CurrentDisplaySource.resolveCurrent(
+                        Notify.glucosetimeout,
+                        sensorId,
+                        tk.glucodata.DisplayTrendSource.TREND_WINDOW_MS
+                    )
+                }.getOrNull()?.let { snapshot ->
+                    PeerCurrentReading(
+                        sensorId = sensorId,
+                        primaryStr = snapshot.primaryStr,
+                        secondaryStr = snapshot.secondaryStr,
+                        rate = snapshot.rate,
+                        timeMillis = snapshot.timeMillis
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Makes [sensorId] the primary display sensor (front of the multi-sensor
+     * selection + native current sensor), mirroring SensorViewModel.setMain.
+     */
+    fun promoteSensorToPrimary(sensorId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                MultiSensorSelection.moveToFront(sensorId)
+                SensorBluetooth.setCurrentSensorSelection(sensorId)
+                tk.glucodata.data.HistorySync.mergeFullSyncForSensor(sensorId)
+                UiRefreshBus.requestDataRefresh()
+            }.onFailure {
+                android.util.Log.e("DashboardVM", "promoteSensorToPrimary failed: ${it.message}")
+            }
         }
     }
 
@@ -928,7 +1008,8 @@ class DashboardViewModel(
         uiRefreshJob = null
         activeHistoryMode = null
         activeHistoryStartTimeMs = null
-        _multiSensorHistory.value = emptyList()
+        _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+        _peerCurrentReadings.value = emptyList()
     }
 
     fun setLowAlarm(enabled: Boolean, threshold: Float) {
