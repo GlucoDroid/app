@@ -1,7 +1,5 @@
 package tk.glucodata
 
-import tk.glucodata.drivers.ManagedSensorRuntime
-
 object NotificationMultiSensorSource {
     /**
      * One selected peer (non-primary) sensor with its current snapshot.
@@ -83,16 +81,6 @@ object NotificationMultiSensorSource {
     }
 
     @JvmStatic
-    fun resolveViewMode(sensorId: String?): Int {
-        if (sensorId.isNullOrBlank()) return 0
-        ManagedSensorRuntime.resolveUiSnapshot(sensorId, sensorId)?.viewMode?.let { return it }
-        runCatching {
-            SensorBluetooth.mygatts()?.forEach { callback ->
-                if (SensorIdentity.matches(callback.SerialNumber, sensorId) && callback.dataptr != 0L) {
-                    return Natives.getViewMode(callback.dataptr)
-                }
-            }
-        }
-        return 0
-    }
+    fun resolveViewMode(sensorId: String?): Int =
+        CurrentDisplaySource.resolveViewModeForSensor(sensorId)
 }

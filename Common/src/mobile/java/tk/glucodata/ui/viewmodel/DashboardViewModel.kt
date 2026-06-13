@@ -709,18 +709,12 @@ class DashboardViewModel(
 
     private fun resolveSelectedSensorViewModes(sensorIds: List<String>): Map<String, Int> {
         if (sensorIds.isEmpty()) return emptyMap()
-        val callbacks = runCatching { SensorBluetooth.mygatts()?.toList().orEmpty() }
-            .getOrElse { emptyList() }
+        // Use the same canonical resolution as CurrentDisplaySource.resolveCurrent
+        // (managed runtime, then the native per-sensor UI snapshot). The old
+        // gatt-dataptr path disagreed with it and made peer rows/chart ignore
+        // the per-sensor auto/raw display switch.
         return sensorIds.associateWith { sensorId ->
-            val managedMode = ManagedSensorRuntime.resolveUiSnapshot(sensorId, sensorId)?.viewMode
-            val nativeMode = callbacks
-                .firstOrNull { callback -> SensorIdentity.matches(callback.SerialNumber, sensorId) }
-                ?.dataptr
-                ?.takeIf { it != 0L }
-                ?.let { dataptr -> runCatching { Natives.getViewMode(dataptr) }.getOrNull() }
-            managedMode
-                ?: nativeMode
-                ?: if (SensorIdentity.matches(sensorId, _sensorName.value)) _viewMode.value else 0
+            runCatching { CurrentDisplaySource.resolveViewModeForSensor(sensorId) }.getOrDefault(0)
         }
     }
 

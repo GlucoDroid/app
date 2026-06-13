@@ -1994,6 +1994,9 @@ fun InteractiveGlucoseChart(
             val limitYLow = thresholdY(rangeThresholds.low)
             val limitYVeryLow = thresholdY(rangeThresholds.veryLow)
 
+            // Multi-sensor: the primary trace carries a subtle identity tint so
+            // it pairs with its (tinted) values, like the peer traces do.
+            val primaryLineTintFraction = if (peerChartSeries.isNotEmpty()) 0.22f else 0f
             val gradientBrush = remember(
                 limitYVeryHigh,
                 limitYHigh,
@@ -2002,15 +2005,25 @@ fun InteractiveGlucoseChart(
                 chartHeightPx,
                 primaryColor,
                 highOutOfRangeTintBase,
-                lowOutOfRangeTintBase
+                lowOutOfRangeTintBase,
+                primaryLineTintFraction,
+                primaryIdentityColor
             ) {
                 if (chartHeightPx <= 0f) {
                     Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
                 } else {
-                    val veryHighTint = Color(GlucoseRangeColors.VERY_HIGH)
-                    val highTint = highOutOfRangeTintBase
-                    val lowTint = lowOutOfRangeTintBase
-                    val veryLowTint = Color(GlucoseRangeColors.VERY_LOW)
+                    fun identityTinted(color: Color): Color =
+                        if (primaryLineTintFraction > 0f) {
+                            androidx.compose.ui.graphics.lerp(color, primaryIdentityColor, primaryLineTintFraction)
+                        } else {
+                            color
+                        }
+
+                    val veryHighTint = identityTinted(Color(GlucoseRangeColors.VERY_HIGH))
+                    val highTint = identityTinted(highOutOfRangeTintBase)
+                    val lowTint = identityTinted(lowOutOfRangeTintBase)
+                    val veryLowTint = identityTinted(Color(GlucoseRangeColors.VERY_LOW))
+                    val inRangeTint = identityTinted(primaryColor)
                     val fadePx = 18f
                     val stops = mutableListOf<Pair<Float, Color>>()
 
@@ -2021,8 +2034,8 @@ fun InteractiveGlucoseChart(
                     addStop(0f, veryHighTint)
                     addStop(limitYVeryHigh, veryHighTint)
                     addStop(limitYHigh, highTint)
-                    addStop(limitYHigh + fadePx, primaryColor)
-                    addStop(limitYLow - fadePx, primaryColor)
+                    addStop(limitYHigh + fadePx, inRangeTint)
+                    addStop(limitYLow - fadePx, inRangeTint)
                     addStop(limitYLow, lowTint)
                     addStop(limitYVeryLow, veryLowTint)
                     addStop(chartHeightPx, veryLowTint)
@@ -2051,12 +2064,14 @@ fun InteractiveGlucoseChart(
                     val veryLowTint = Color(GlucoseRangeColors.VERY_LOW)
                     val fadePx = 18f
                     peerChartSeries.associate { series ->
-                        val base = series.color
-                        val normal = base.copy(alpha = 0.38f)
-                        val high = androidx.compose.ui.graphics.lerp(base, highOutOfRangeTintBase, 0.48f).copy(alpha = 0.44f)
-                        val veryHigh = androidx.compose.ui.graphics.lerp(base, veryHighTint, 0.58f).copy(alpha = 0.48f)
-                        val low = androidx.compose.ui.graphics.lerp(base, lowOutOfRangeTintBase, 0.48f).copy(alpha = 0.44f)
-                        val veryLow = androidx.compose.ui.graphics.lerp(base, veryLowTint, 0.58f).copy(alpha = 0.48f)
+                        // Desaturate the identity color a touch and keep the
+                        // trace lighter than the primary line.
+                        val base = androidx.compose.ui.graphics.lerp(series.color, Color(0xFFB8BCC0), 0.22f)
+                        val normal = base.copy(alpha = 0.30f)
+                        val high = androidx.compose.ui.graphics.lerp(base, highOutOfRangeTintBase, 0.48f).copy(alpha = 0.36f)
+                        val veryHigh = androidx.compose.ui.graphics.lerp(base, veryHighTint, 0.58f).copy(alpha = 0.40f)
+                        val low = androidx.compose.ui.graphics.lerp(base, lowOutOfRangeTintBase, 0.48f).copy(alpha = 0.36f)
+                        val veryLow = androidx.compose.ui.graphics.lerp(base, veryLowTint, 0.58f).copy(alpha = 0.40f)
                         val stops = mutableListOf<Pair<Float, Color>>()
 
                         fun addStop(y: Float, color: Color) {
@@ -2310,7 +2325,7 @@ fun InteractiveGlucoseChart(
                         } else {
                             drawPath(
                                 path = reusablePeerPath,
-                                color = series.color.copy(alpha = 0.32f * alpha),
+                                color = series.color.copy(alpha = 0.26f * alpha),
                                 style = Stroke(
                                     width = strokeWidth,
                                     cap = StrokeCap.Round,
@@ -2324,11 +2339,11 @@ fun InteractiveGlucoseChart(
                         val drawAutoPeer = series.viewMode == 0 || series.viewMode == 2 || series.viewMode == 3
                         when {
                             drawRawPeer && drawAutoPeer -> {
-                                drawPeerSeriesLine(series, useRaw = true, alpha = 0.52f, strokeWidth = peerStroke * 0.84f)
-                                drawPeerSeriesLine(series, useRaw = false, alpha = 0.72f, strokeWidth = peerStroke)
+                                drawPeerSeriesLine(series, useRaw = true, alpha = 0.44f, strokeWidth = peerStroke * 0.84f)
+                                drawPeerSeriesLine(series, useRaw = false, alpha = 0.62f, strokeWidth = peerStroke)
                             }
-                            drawRawPeer -> drawPeerSeriesLine(series, useRaw = true, alpha = 0.82f, strokeWidth = peerStroke)
-                            drawAutoPeer -> drawPeerSeriesLine(series, useRaw = false, alpha = 0.82f, strokeWidth = peerStroke)
+                            drawRawPeer -> drawPeerSeriesLine(series, useRaw = true, alpha = 0.70f, strokeWidth = peerStroke)
+                            drawAutoPeer -> drawPeerSeriesLine(series, useRaw = false, alpha = 0.70f, strokeWidth = peerStroke)
                         }
                     }
                 }
