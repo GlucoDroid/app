@@ -451,27 +451,49 @@ fun DashboardCombinedHeader(
                     else -> 28.dp
                 }
                 val resolvedEndPadding = if (heroWidthClass == AdaptiveContentWidthClass.Compact) 12.dp else 16.dp
-                val resolvedVerticalPadding = if (heroWidthClass == AdaptiveContentWidthClass.Compact) 10.dp else 12.dp
-                val resolvedTrendIconSize = when (heroWidthClass) {
-                    AdaptiveContentWidthClass.Compact -> 30.dp
-                    AdaptiveContentWidthClass.Medium -> 38.dp
-                    AdaptiveContentWidthClass.Expanded -> 42.dp
-                }
-                val resolvedClusterGap = if (heroWidthClass == AdaptiveContentWidthClass.Compact) 8.dp else 12.dp
-                val primaryValueStyle = (
+                // Multi-sensor mode: the value + chip are scaled down (so they
+                // read as a balanced cluster), and the hero CARD is pinned to the
+                // single-sensor content height (heroContentMinHeight below) so it
+                // never grows or shrinks — the scaled cluster just centers inside it.
+                val isMultiHero = peerReadings.isNotEmpty()
+                val heroMultiSensorScale = if (isMultiHero) 0.74f else 1f
+                // Single-sensor padding defines the target card height. Multi mode
+                // uses a smaller inner padding so the scaled value + chip cluster
+                // fills the SAME pinned height (heroContentMinHeight) below.
+                val singleVerticalPadding = if (heroWidthClass == AdaptiveContentWidthClass.Compact) 10.dp else 12.dp
+                val resolvedVerticalPadding = if (isMultiHero) 4.dp else singleVerticalPadding
+                // Full (single-sensor) value style. The card height is pinned to
+                // the MEASURED height of this style (incl. font padding) + padding,
+                // so multi-sensor mode renders at the exact same card height — not
+                // the lineHeight estimate, which understated it and made multi smaller.
+                val fullPrimaryStyle = (
                     if (heroWidthClass == AdaptiveContentWidthClass.Compact) MaterialTheme.typography.displayMedium
                     else MaterialTheme.typography.displayLargeExpressive
                 ).copy(fontFeatureSettings = "tnum")
+                val heroTextMeasurer = rememberTextMeasurer()
+                val heroContentMinHeight = remember(fullPrimaryStyle, density, singleVerticalPadding) {
+                    with(density) {
+                        heroTextMeasurer.measure("0,0", style = fullPrimaryStyle, maxLines = 1)
+                            .size.height.toDp()
+                    } + singleVerticalPadding * 2
+                }
+                val resolvedTrendIconSize = (when (heroWidthClass) {
+                    AdaptiveContentWidthClass.Compact -> 30.dp
+                    AdaptiveContentWidthClass.Medium -> 38.dp
+                    AdaptiveContentWidthClass.Expanded -> 42.dp
+                } * heroMultiSensorScale)
+                val resolvedClusterGap = if (heroWidthClass == AdaptiveContentWidthClass.Compact) 8.dp else 12.dp
+                val primaryValueStyle = fullPrimaryStyle.scaleForHero(heroMultiSensorScale)
                 val secondaryInlineStyle = when (heroWidthClass) {
                     AdaptiveContentWidthClass.Compact -> MaterialTheme.typography.headlineSmall
                     AdaptiveContentWidthClass.Medium -> MaterialTheme.typography.headlineMedium
                     AdaptiveContentWidthClass.Expanded -> MaterialTheme.typography.headlineLarge
-                }.copy(fontFeatureSettings = "tnum")
+                }.copy(fontFeatureSettings = "tnum").scaleForHero(heroMultiSensorScale)
                 val slashStyle = when (heroWidthClass) {
                     AdaptiveContentWidthClass.Compact -> MaterialTheme.typography.headlineSmall
                     AdaptiveContentWidthClass.Medium -> MaterialTheme.typography.headlineMedium
                     AdaptiveContentWidthClass.Expanded -> MaterialTheme.typography.headlineLarge
-                }.copy(fontFeatureSettings = "tnum")
+                }.copy(fontFeatureSettings = "tnum").scaleForHero(heroMultiSensorScale)
                 val secondaryThreeValueStyle = (
                     when (heroWidthClass) {
                         AdaptiveContentWidthClass.Compact -> MaterialTheme.typography.titleLarge.copy(
@@ -487,7 +509,7 @@ fun DashboardCombinedHeader(
                             lineHeight = 40.sp
                         )
                     }
-                ).copy(fontFeatureSettings = "tnum")
+                ).copy(fontFeatureSettings = "tnum").scaleForHero(heroMultiSensorScale)
                 val tertiaryThreeValueStyle = (
                     when (heroWidthClass) {
                         AdaptiveContentWidthClass.Compact -> MaterialTheme.typography.titleSmall.copy(
@@ -503,7 +525,7 @@ fun DashboardCombinedHeader(
                             lineHeight = 30.sp
                         )
                     }
-                ).copy(fontFeatureSettings = "tnum")
+                ).copy(fontFeatureSettings = "tnum").scaleForHero(heroMultiSensorScale)
                 val statusTitleStyle = when (heroWidthClass) {
                     AdaptiveContentWidthClass.Compact -> MaterialTheme.typography.titleMedium
                     AdaptiveContentWidthClass.Medium -> MaterialTheme.typography.titleLarge
@@ -629,7 +651,7 @@ fun DashboardCombinedHeader(
                                 peerReadings = peerReadings,
                                 contentColor = glucoseContentColor,
                                 onPeerClick = onPeerReadingClick,
-                                modifier = Modifier.padding(top = 6.dp)
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
                     }
@@ -637,6 +659,7 @@ fun DashboardCombinedHeader(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .heightIn(min = heroContentMinHeight)
                             .padding(
                                 start = resolvedStartPadding,
                                 end = resolvedEndPadding,
@@ -676,7 +699,7 @@ fun DashboardCombinedHeader(
                                 peerReadings = peerReadings,
                                 contentColor = glucoseContentColor,
                                 onPeerClick = onPeerReadingClick,
-                                modifier = Modifier.padding(top = 6.dp)
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
                     }
@@ -940,9 +963,9 @@ private fun DashboardHeroPeerStrip(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(identityColor.copy(alpha = 0.12f))
+                    .background(identityColor.copy(alpha = 0.14f))
                     .clickable { onPeerClick(peer.sensorId) }
-                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -950,7 +973,7 @@ private fun DashboardHeroPeerStrip(
                         .size(6.dp)
                         .background(identityColor.copy(alpha = 0.9f), CircleShape)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = peer.primaryStr,
                     style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
@@ -971,7 +994,7 @@ private fun DashboardHeroPeerStrip(
                 tk.glucodata.ui.components.TrendIndicator(
                     trendResult = peerTrend,
                     color = textColor,
-                    modifier = Modifier.size(13.dp)
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }

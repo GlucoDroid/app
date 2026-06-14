@@ -482,6 +482,16 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             activeSensorSerial
         )
         val peerValueItems = NotificationMultiSensorSource.valueItems(peerCurrents)
+        // Match the dashboard: tint the primary value/arrow with its identity color.
+        val primaryDisplayColor = if (peerValueItems.isNotEmpty()) {
+            tk.glucodata.SensorVisuals.blendArgb(
+                glucoseColor,
+                tk.glucodata.SensorVisuals.colorArgb(activeSensorSerial),
+                tk.glucodata.SensorVisuals.PRIMARY_TEXT_BLEND
+            )
+        } else {
+            glucoseColor
+        }
 
         // Draw Components
         val fontSource = prefs.getString("aod_font_source", "APP") ?: "APP"
@@ -501,7 +511,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val textBitmap = NotificationChartDrawer.drawMultiGlucoseText(
             this,
             valStr,
-            glucoseColor,
+            primaryDisplayColor,
             peerValueItems,
             textScale,
             fontWeight,

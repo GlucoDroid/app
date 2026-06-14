@@ -641,6 +641,7 @@ fun DashboardChartSection(
     modifier: Modifier,
     glucoseHistory: List<GlucosePoint>,
     multiSensorDisplay: MultiSensorDisplayData = MultiSensorDisplayData.EMPTY,
+    peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -680,6 +681,7 @@ fun DashboardChartSection(
                     InteractiveGlucoseChart(
                         fullData = glucoseHistory,
                         multiSensorDisplay = multiSensorDisplay,
+                        peerPredictionSeries = peerPredictionSeries,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
                         predictionPoints = predictionPoints,
@@ -742,6 +744,7 @@ fun DashboardChartSection(
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
     multiSensorDisplay: MultiSensorDisplayData = MultiSensorDisplayData.EMPTY,
+    peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -819,6 +822,9 @@ fun InteractiveGlucoseChart(
     // Adjusting alpha for visibility on graph background
     val lowOutOfRangeTintBase = TirLowColor
     val highOutOfRangeTintBase = TirHighColor
+    // Neutral target for desaturating peer (secondary sensor) traces — theme
+    // token so it adapts to light/dark and dynamic color.
+    val peerNeutralBase = MaterialTheme.colorScheme.onSurfaceVariant
 
 
     val context = LocalContext.current
@@ -2055,7 +2061,8 @@ fun InteractiveGlucoseChart(
                 limitYVeryLow,
                 chartHeightPx,
                 highOutOfRangeTintBase,
-                lowOutOfRangeTintBase
+                lowOutOfRangeTintBase,
+                peerNeutralBase
             ) {
                 if (chartHeightPx <= 0f) {
                     emptyMap()
@@ -2064,14 +2071,14 @@ fun InteractiveGlucoseChart(
                     val veryLowTint = Color(GlucoseRangeColors.VERY_LOW)
                     val fadePx = 18f
                     peerChartSeries.associate { series ->
-                        // Desaturate the identity color a touch and keep the
-                        // trace lighter than the primary line.
-                        val base = androidx.compose.ui.graphics.lerp(series.color, Color(0xFFB8BCC0), 0.22f)
-                        val normal = base.copy(alpha = 0.30f)
-                        val high = androidx.compose.ui.graphics.lerp(base, highOutOfRangeTintBase, 0.48f).copy(alpha = 0.36f)
-                        val veryHigh = androidx.compose.ui.graphics.lerp(base, veryHighTint, 0.58f).copy(alpha = 0.40f)
-                        val low = androidx.compose.ui.graphics.lerp(base, lowOutOfRangeTintBase, 0.48f).copy(alpha = 0.36f)
-                        val veryLow = androidx.compose.ui.graphics.lerp(base, veryLowTint, 0.58f).copy(alpha = 0.40f)
+                        // Tone down the coloring (desaturate toward the neutral
+                        // theme token) while keeping the trace clearly visible.
+                        val base = androidx.compose.ui.graphics.lerp(series.color, peerNeutralBase, 0.46f)
+                        val normal = base.copy(alpha = 0.76f)
+                        val high = androidx.compose.ui.graphics.lerp(base, highOutOfRangeTintBase, 0.48f).copy(alpha = 0.72f)
+                        val veryHigh = androidx.compose.ui.graphics.lerp(base, veryHighTint, 0.58f).copy(alpha = 0.74f)
+                        val low = androidx.compose.ui.graphics.lerp(base, lowOutOfRangeTintBase, 0.48f).copy(alpha = 0.72f)
+                        val veryLow = androidx.compose.ui.graphics.lerp(base, veryLowTint, 0.58f).copy(alpha = 0.74f)
                         val stops = mutableListOf<Pair<Float, Color>>()
 
                         fun addStop(y: Float, color: Color) {
@@ -2263,7 +2270,7 @@ fun InteractiveGlucoseChart(
 
                 if (peerChartSeries.isNotEmpty()) {
                     val peerGapThreshold = 900000L // 15 mins
-                    val peerStroke = 1.7.dp.toPx()
+                    val peerStroke = 2.dp.toPx()
                     fun drawPeerSeriesLine(
                         series: PeerSensorChartSeries,
                         useRaw: Boolean,
@@ -2325,7 +2332,7 @@ fun InteractiveGlucoseChart(
                         } else {
                             drawPath(
                                 path = reusablePeerPath,
-                                color = series.color.copy(alpha = 0.26f * alpha),
+                                color = androidx.compose.ui.graphics.lerp(series.color, peerNeutralBase, 0.46f).copy(alpha = 0.5f * alpha),
                                 style = Stroke(
                                     width = strokeWidth,
                                     cap = StrokeCap.Round,
@@ -2339,11 +2346,11 @@ fun InteractiveGlucoseChart(
                         val drawAutoPeer = series.viewMode == 0 || series.viewMode == 2 || series.viewMode == 3
                         when {
                             drawRawPeer && drawAutoPeer -> {
-                                drawPeerSeriesLine(series, useRaw = true, alpha = 0.44f, strokeWidth = peerStroke * 0.84f)
-                                drawPeerSeriesLine(series, useRaw = false, alpha = 0.62f, strokeWidth = peerStroke)
+                                drawPeerSeriesLine(series, useRaw = true, alpha = 0.68f, strokeWidth = peerStroke * 0.84f)
+                                drawPeerSeriesLine(series, useRaw = false, alpha = 0.88f, strokeWidth = peerStroke)
                             }
-                            drawRawPeer -> drawPeerSeriesLine(series, useRaw = true, alpha = 0.70f, strokeWidth = peerStroke)
-                            drawAutoPeer -> drawPeerSeriesLine(series, useRaw = false, alpha = 0.70f, strokeWidth = peerStroke)
+                            drawRawPeer -> drawPeerSeriesLine(series, useRaw = true, alpha = 0.88f, strokeWidth = peerStroke)
+                            drawAutoPeer -> drawPeerSeriesLine(series, useRaw = false, alpha = 0.88f, strokeWidth = peerStroke)
                         }
                     }
                 }
@@ -2702,6 +2709,55 @@ fun InteractiveGlucoseChart(
                             pathEffect = dashEffect
                         )
                     )
+                }
+
+                // --- 3b. PEER PREDICTION LINES ---
+                // Extend the simulation to every peer line too (dashed, in the
+                // peer's desaturated identity color, no uncertainty band).
+                if (peerPredictionSeries.isNotEmpty() && peerChartSeries.isNotEmpty()) {
+                    peerChartSeries.forEach { peer ->
+                        val peerSeriesList = peerPredictionSeries[peer.sensorId] ?: return@forEach
+                        val peerPredColor = androidx.compose.ui.graphics.lerp(peer.color, peerNeutralBase, 0.46f)
+                        peerSeriesList.forEach predict@{ series ->
+                            val valid = series.points.filter { it.value.isFinite() && it.value > 0.1f }
+                            val firstVis = valid.indexOfFirst { it.timestamp >= viewportStart }
+                            val lastVis = valid.indexOfLast { it.timestamp <= viewportEnd }
+                            if (firstVis == -1 || lastVis == -1) return@predict
+                            val s = (firstVis - 1).coerceAtLeast(0)
+                            val e = (lastVis + 1).coerceAtMost(valid.lastIndex)
+                            val vis = valid.subList(s, e + 1)
+                            if (vis.size < 2) return@predict
+                            val samples = vis.mapNotNull { p ->
+                                val x = timeToDataX(p.timestamp)
+                                val y = valToY(p.value)
+                                if (x.isFinite() && y.isFinite()) Offset(x, y) else null
+                            }
+                            if (samples.size < 2) return@predict
+                            val predictionPath = Path().apply {
+                                addSmoothedPredictionOffsets(this, samples, moveToFirst = true)
+                            }
+                            val startX = samples.first().x
+                            val endX = samples.last().x.takeIf { abs(it - startX) > 1f } ?: (startX + 1f)
+                            drawPath(
+                                path = predictionPath,
+                                brush = Brush.horizontalGradient(
+                                    colorStops = arrayOf(
+                                        0f to peerPredColor.copy(alpha = 0.30f),
+                                        0.55f to peerPredColor.copy(alpha = 0.20f),
+                                        1f to peerPredColor.copy(alpha = 0.04f)
+                                    ),
+                                    startX = startX,
+                                    endX = endX
+                                ),
+                                style = Stroke(
+                                    width = 1.5.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round,
+                                    pathEffect = dashEffect
+                                )
+                            )
+                        }
+                    }
                 }
 
                 // --- 4. MIN/MAX INDICATORS (Restored & Optimized) ---

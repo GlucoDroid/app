@@ -51,6 +51,21 @@ object SensorVisuals {
     fun subtlePeerTextColor(baseTextColorArgb: Int, sensorId: String?): Int =
         blendArgb(baseTextColorArgb, colorArgb(sensorId), PEER_TEXT_BLEND)
 
+    /**
+     * Reduces a color's saturation by blending it toward its own luminance grey.
+     * Theme-independent (no fixed target color) so it works on any background —
+     * used to tone down peer (secondary sensor) traces consistently.
+     */
+    @JvmStatic
+    fun desaturate(color: Int, fraction: Float): Int {
+        val r = (color shr 16) and 0xFF
+        val g = (color shr 8) and 0xFF
+        val b = color and 0xFF
+        val lum = (0.299f * r + 0.587f * g + 0.114f * b).toInt().coerceIn(0, 255)
+        val grey = (0xFF shl 24) or (lum shl 16) or (lum shl 8) or lum
+        return blendArgb(color, grey, fraction)
+    }
+
     @JvmStatic
     fun blendArgb(base: Int, tint: Int, fraction: Float): Int {
         val f = fraction.coerceIn(0f, 1f)

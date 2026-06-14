@@ -80,6 +80,16 @@ class DashboardViewModel(
         val sensorViewModes: Map<String, Int>
     )
 
+    /** Display-unit peer history plus the peer ids it covers. */
+    private data class PeerRawHistory(
+        val peerIds: List<String>,
+        val points: List<tk.glucodata.ui.GlucosePoint>
+    ) {
+        companion object {
+            val EMPTY = PeerRawHistory(emptyList(), emptyList())
+        }
+    }
+
     /** Latest displayable reading of a peer (non-primary) selected sensor. */
     data class PeerCurrentReading(
         val sensorId: String,
@@ -180,6 +190,11 @@ class DashboardViewModel(
     private val _multiSensorDisplay =
         MutableStateFlow(tk.glucodata.ui.MultiSensorDisplayData.EMPTY)
     val multiSensorDisplay = _multiSensorDisplay.asStateFlow()
+
+    // Raw (display-unit) peer history kept separate from view-mode resolution so
+    // the display data rebuilds when a peer's auto/raw mode changes natively,
+    // without re-querying Room.
+    private val _multiSensorRawHistory = MutableStateFlow(PeerRawHistory.EMPTY)
 
     private val _peerCurrentReadings = MutableStateFlow<List<PeerCurrentReading>>(emptyList())
     val peerCurrentReadings = _peerCurrentReadings.asStateFlow()
@@ -811,6 +826,7 @@ class DashboardViewModel(
         if (mode != CollectionMode.DASHBOARD) {
             multiSensorHistoryJob?.cancel()
             multiSensorHistoryJob = null
+            _multiSensorRawHistory.value = PeerRawHistory.EMPTY
             _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
             _peerCurrentReadings.value = emptyList()
             return
@@ -818,6 +834,28 @@ class DashboardViewModel(
         if (multiSensorHistoryJob?.isActive == true) return
 
         multiSensorHistoryJob = viewModelScope.launch {
+            // Builder: rebuild the display data when either the raw peer history
+            // or per-sensor view modes change. Keying on _sensorViewModes is what
+            // makes a native auto/raw switch propagate to the chart and reading
+            // rows (not just the live-resolved hero value).
+            launch {
+                combine(_multiSensorRawHistory, _sensorViewModes) { raw, modes -> raw to modes }
+                    .collectLatest { (raw, modes) ->
+                        _multiSensorDisplay.value = if (raw.peerIds.isEmpty() || raw.points.isEmpty()) {
+                            tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+                        } else {
+                            withContext(Dispatchers.Default) {
+                                tk.glucodata.ui.MultiSensorDisplay.buildDisplayData(
+                                    points = raw.points,
+                                    selectedPeerIds = raw.peerIds,
+                                    sensorViewModes = modes
+                                )
+                            }
+                        }
+                    }
+            }
+
+            // Query: feed raw display-unit peer history into _multiSensorRawHistory.
             combine(
                 _unit,
                 _sensorName,
@@ -843,7 +881,7 @@ class DashboardViewModel(
 
                 val peerSensors = config.selectedSensorIds.drop(1)
                 if (peerSensors.isEmpty()) {
-                    _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+                    _multiSensorRawHistory.value = PeerRawHistory.EMPTY
                     _peerCurrentReadings.value = emptyList()
                     return@collectLatest
                 }
@@ -858,13 +896,10 @@ class DashboardViewModel(
                             delay(DASHBOARD_HISTORY_COALESCE_MS)
                         }
                         hasSeenPeerEmission = true
-                        _multiSensorDisplay.value = withContext(Dispatchers.Default) {
-                            tk.glucodata.ui.MultiSensorDisplay.buildDisplayData(
-                                points = rawHistory.inDisplayUnit(config.unit),
-                                selectedPeerIds = peerSensors,
-                                sensorViewModes = config.sensorViewModes
-                            )
+                        val converted = withContext(Dispatchers.Default) {
+                            rawHistory.inDisplayUnit(config.unit)
                         }
+                        _multiSensorRawHistory.value = PeerRawHistory(peerSensors, converted)
                         refreshPeerCurrentReadings(peerSensors)
                     }
                 }
@@ -1002,6 +1037,7 @@ class DashboardViewModel(
         uiRefreshJob = null
         activeHistoryMode = null
         activeHistoryStartTimeMs = null
+        _multiSensorRawHistory.value = PeerRawHistory.EMPTY
         _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
         _peerCurrentReadings.value = emptyList()
     }

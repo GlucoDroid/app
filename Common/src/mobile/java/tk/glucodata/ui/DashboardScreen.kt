@@ -290,7 +290,11 @@ fun DashboardScreen(
     val glucoseHistory by viewModel.glucoseHistory.collectAsState()
     val multiSensorDisplay by viewModel.multiSensorDisplay.collectAsState()
     val peerCurrentReadings by viewModel.peerCurrentReadings.collectAsState()
+    val selectedSensorIds by viewModel.selectedSensorIds.collectAsState()
     val sensorViewModes by viewModel.sensorViewModes.collectAsState()
+    // Multi-sensor mode is active whenever more than one sensor is selected —
+    // stable across new readings, so per-row tinting never flashes uncolored.
+    val multiSensorActive = selectedSensorIds.size > 1
     val unit by viewModel.unit.collectAsState()
     val graphLow by viewModel.graphLow.collectAsState()
     val graphHigh by viewModel.graphHigh.collectAsState()
@@ -430,6 +434,37 @@ fun DashboardScreen(
             viewMode = viewMode,
             settings = predictionSettings
         )
+    }
+    // Per-peer prediction series so the simulation extends every drawn line,
+    // not just the primary. Same journal/settings (same person), each peer's
+    // own points + view mode.
+    val peerPredictionSeries = remember(
+        multiSensorDisplay,
+        journalEnabled,
+        predictionSettings,
+        predictionCalibrationRefresh,
+        scopedJournalEntries,
+        journalPresetsById,
+        unit,
+        targetLow,
+        targetHigh
+    ) {
+        if (multiSensorDisplay.isEmpty || !predictionSettings.enabled) {
+            emptyMap()
+        } else {
+            multiSensorDisplay.series.associate { peer ->
+                peer.sensorId to buildPredictionSeriesForChart(
+                    points = peer.points,
+                    journalEntries = if (journalEnabled) scopedJournalEntries else emptyList(),
+                    insulinPresetsById = journalPresetsById,
+                    unit = unit,
+                    targetLow = targetLow,
+                    targetHigh = targetHigh,
+                    viewMode = peer.viewMode,
+                    settings = predictionSettings
+                )
+            }.filterValues { it.isNotEmpty() }
+        }
     }
     val journalEntriesById = remember(scopedJournalEntries) { scopedJournalEntries.associateBy { it.id } }
     val isMmolUnit = remember(unit) { tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit) }
@@ -1146,6 +1181,7 @@ fun DashboardScreen(
                                 history = recentReadings,
                                 peerReadings = recentReadingPeers.getOrNull(index).orEmpty(),
                                 peerSeries = peerSeriesById,
+                                multiSensorActive = multiSensorActive,
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
@@ -1221,6 +1257,7 @@ fun DashboardScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     glucoseHistory = glucoseHistory,
                                     multiSensorDisplay = multiSensorDisplay,
+                                    peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
                                     predictionSeries = predictionSeries,
@@ -1385,6 +1422,7 @@ fun DashboardScreen(
                                         .padding(bottom = 0.dp),
                                     glucoseHistory = glucoseHistory,
                                     multiSensorDisplay = multiSensorDisplay,
+                                    peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
                                     predictionSeries = predictionSeries,
@@ -1479,6 +1517,7 @@ fun DashboardScreen(
                                 history = recentReadings,
                                 peerReadings = recentReadingPeers.getOrNull(index).orEmpty(),
                                 peerSeries = peerSeriesById,
+                                multiSensorActive = multiSensorActive,
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),

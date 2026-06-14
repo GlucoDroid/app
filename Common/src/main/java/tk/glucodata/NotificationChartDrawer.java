@@ -132,7 +132,9 @@ public class NotificationChartDrawer {
             float veryHighThreshold,
             int sensorColor,
             boolean isMmol) {
-        int base = withAlpha(sensorColor, 0.38f);
+        // Match the dashboard peer-trace treatment: desaturate the identity
+        // color and render at a clearly-visible opacity (dashboard ~0.76).
+        int toned = SensorVisuals.desaturate(sensorColor, 0.4f);
         int thresholdColor = resolveThresholdPointColor(
                 value,
                 targetLow,
@@ -142,9 +144,9 @@ public class NotificationChartDrawer {
                 sensorColor,
                 isMmol);
         if ((thresholdColor & 0x00FFFFFF) == (sensorColor & 0x00FFFFFF)) {
-            return base;
+            return withAlpha(toned, 0.72f);
         }
-        return withAlpha(GlucoseRangeColors.blend(sensorColor, thresholdColor, 0.52f), 0.44f);
+        return withAlpha(GlucoseRangeColors.blend(toned, thresholdColor, 0.45f), 0.72f);
     }
 
     private static void drawSubtlePeerSeries(
@@ -436,12 +438,44 @@ public class NotificationChartDrawer {
             float chartHeight,
             float minY,
             float yRange) {
+        drawPredictionSeries(canvas, baseLinePaint, dm, series, isMmol, viewMode, hasCalibration,
+                lineColor, lineColorSecondary, lineColorTertiary, startTime, chartDuration, chartLeft,
+                chartBottom, chartWidth, chartHeight, minY, yRange, false);
+    }
+
+    /**
+     * @param forcePeer when true, render as a subtle peer prediction: no
+     *                  uncertainty band, [lineColor] used directly as the tint
+     *                  (already desaturated by the caller), thinner stroke.
+     */
+    private static void drawPredictionSeries(
+            Canvas canvas,
+            Paint baseLinePaint,
+            DisplayMetrics dm,
+            NotificationPredictionSeries series,
+            boolean isMmol,
+            int viewMode,
+            boolean hasCalibration,
+            int lineColor,
+            int lineColorSecondary,
+            int lineColorTertiary,
+            long startTime,
+            long chartDuration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange,
+            boolean forcePeer) {
         if (series == null || series.points == null || series.points.size() < 2 || yRange <= 0f) {
             return;
         }
 
-        boolean isPrimary = isPrimaryPrediction(series, viewMode);
-        int tint = predictionTint(series, viewMode, hasCalibration, lineColor, lineColorSecondary, lineColorTertiary);
+        boolean isPrimary = !forcePeer && isPrimaryPrediction(series, viewMode);
+        int tint = forcePeer
+                ? lineColor
+                : predictionTint(series, viewMode, hasCalibration, lineColor, lineColorSecondary, lineColorTertiary);
         ArrayList<PointF> lineSamples = new ArrayList<>(series.points.size());
         ArrayList<PointF> upperSamples = new ArrayList<>(series.points.size());
         ArrayList<PointF> lowerSamples = new ArrayList<>(series.points.size());
@@ -1299,6 +1333,20 @@ public class NotificationChartDrawer {
                         targetLow,
                         targetHigh)
                 : Collections.emptyList();
+        // Peer prediction overlays — one per peer series, so the simulation
+        // extends every drawn line (matching the dashboard), not just the primary.
+        java.util.List<List<NotificationPredictionSeries>> peerPredictionSeries = new ArrayList<>();
+        if (showPredictionOverlay && peerSeries != null) {
+            for (PeerSeries ps : peerSeries) {
+                if (ps == null || ps.points == null || ps.points.size() < 2) {
+                    peerPredictionSeries.add(Collections.emptyList());
+                    continue;
+                }
+                peerPredictionSeries.add(resolvePredictionOverlay(
+                        context, ps.points, isMmol, ps.viewMode, false, ps.sensorId, targetLow, targetHigh));
+            }
+        }
+
         long chartEndTime = now;
         long predictionEnd = 0L;
         for (NotificationPredictionSeries series : predictionSeries) {
@@ -1308,6 +1356,17 @@ public class NotificationChartDrawer {
             NotificationPredictionPoint last = series.points.get(series.points.size() - 1);
             if (last != null) {
                 predictionEnd = Math.max(predictionEnd, last.timestamp);
+            }
+        }
+        for (List<NotificationPredictionSeries> peerList : peerPredictionSeries) {
+            for (NotificationPredictionSeries series : peerList) {
+                if (series == null || series.points == null || series.points.isEmpty()) {
+                    continue;
+                }
+                NotificationPredictionPoint last = series.points.get(series.points.size() - 1);
+                if (last != null) {
+                    predictionEnd = Math.max(predictionEnd, last.timestamp);
+                }
             }
         }
         if (predictionEnd > now) {
@@ -1781,6 +1840,36 @@ public class NotificationChartDrawer {
                     chartHeight,
                     minY,
                     yRange);
+        }
+
+        // Peer prediction lines (subtle, desaturated peer color, no band).
+        for (int peerIdx = 0; peerIdx < peerPredictionSeries.size(); peerIdx++) {
+            if (peerSeries == null || peerIdx >= peerSeries.size()) {
+                break;
+            }
+            int peerColor = SensorVisuals.desaturate(peerSeries.get(peerIdx).color, 0.4f);
+            for (NotificationPredictionSeries series : peerPredictionSeries.get(peerIdx)) {
+                drawPredictionSeries(
+                        canvas,
+                        linePaint,
+                        dm,
+                        series,
+                        isMmol,
+                        peerSeries.get(peerIdx).viewMode,
+                        false,
+                        peerColor,
+                        peerColor,
+                        peerColor,
+                        startTime,
+                        chartDuration,
+                        chartLeft,
+                        chartBottom,
+                        chartWidth,
+                        chartHeight,
+                        minY,
+                        yRange,
+                        true);
+            }
         }
 
         return bitmap;
