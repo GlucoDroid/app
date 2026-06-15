@@ -73,6 +73,7 @@ class ICanHealthBleManager(
         private const val MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS = 2 * 60 * 1000L
         private const val RECENT_GLUCOSE_WINDOW_SIZE = 24
         private const val NATIVE_MIRROR_STREAM_WINDOW_SEC = 15L * 24L * 60L * 60L
+        private const val HISTORY_SYNC_STATUS_STEP = 500
     }
 
     enum class Phase {
@@ -152,6 +153,7 @@ class ICanHealthBleManager(
     @Volatile private var awaitingFreshStatusForHistoryBackfill = false
     @Volatile private var historyBackfillPhase = HistoryBackfillPhase.NONE
     @Volatile private var glucoseHistoryImportedRecordCount = 0
+    @Volatile private var lastHistorySyncStatusBucket = -1
     @Volatile private var pendingGlucoseHistoryStartSequence = ICanHealthConstants.DEFAULT_READING_INTERVAL_MINUTES
     @Volatile private var useModernGlucoseHistoryCommand = true
     @Volatile private var useModernOriginalHistoryCommand = true
@@ -431,6 +433,24 @@ class ICanHealthBleManager(
         }
     }
 
+    private fun refreshHistorySyncProgressStatus() {
+        if (!historyBackfillRequested || historyBackfillPhase == HistoryBackfillPhase.NONE) {
+            return
+        }
+        val visibleCount = glucoseHistoryImportedRecordCount + pendingHistoryBatch.size
+        val bucket = visibleCount / HISTORY_SYNC_STATUS_STEP
+        if (bucket == lastHistorySyncStatusBucket) {
+            return
+        }
+        lastHistorySyncStatusBucket = bucket
+        if (visibleCount > 0) {
+            setUiStatus(UiStatusKind.CUSTOM, "${syncingStatus()} $visibleCount")
+        } else {
+            setUiStatus(UiStatusKind.SYNCING)
+        }
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     private fun lifecycleSummary(): String {
         if (isSensorExpired()) {
             return runCatching { Applic.app.getString(tk.glucodata.R.string.expired) }
@@ -517,6 +537,7 @@ class ICanHealthBleManager(
         serviceDiscoveryStarted = false
         serviceDiscoveryHandled = false
         glucoseHistoryImportedRecordCount = 0
+        lastHistorySyncStatusBucket = -1
     }
 
     override fun softDisconnect() {
@@ -1696,6 +1717,7 @@ class ICanHealthBleManager(
                 )
                 if (importedCount > 0) {
                     sawUnsupportedSnHistoryBatch = false
+                    refreshHistorySyncProgressStatus()
                 } else if (skippedUnanchoredCount > 0) {
                     sawUnsupportedSnHistoryBatch = false
                 } else {
@@ -2121,8 +2143,24 @@ class ICanHealthBleManager(
             return readingInterval
         }
 
+        if (ICanHealthConstants.hasCompleteEndedStatusHistory(
+                sessionStartEpochMs = sessionStartEpochMs,
+                sequenceNumber = currentSequenceNumber,
+                tailTimestampMs = latestTailTimestamp,
+                toleranceMs = MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS
+            )
+        ) {
+            Log.i(
+                TAG,
+                "Skipping capped iCan history read; persisted tail already reaches observed ended status " +
+                    "(tail=$latestTailTimestamp end=${observedEndedStatusEndMs(sessionStartEpochMs)})"
+            )
+            return null
+        }
+
         val intervalMs = readingIntervalMs()
-        val elapsedMs = nowMs - latestTailTimestamp
+        val historyAnchorMs = observedEndedStatusEndMs(sessionStartEpochMs) ?: nowMs
+        val elapsedMs = historyAnchorMs - latestTailTimestamp
         if (elapsedMs < intervalMs - MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS) {
             Log.d(
                 TAG,
@@ -2139,7 +2177,7 @@ class ICanHealthBleManager(
         Log.i(
             TAG,
             "Requesting capped iCan history window from seq=$startSequence " +
-                "(cap=$capSequence tail=$latestTailTimestamp now=$nowMs)"
+                "(cap=$capSequence tail=$latestTailTimestamp anchor=$historyAnchorMs now=$nowMs)"
         )
         return startSequence
     }
@@ -2155,7 +2193,7 @@ class ICanHealthBleManager(
         val startSequence = resolveAutomaticGlucoseHistoryStartSequence()
         if (startSequence == null) {
             historyBackfillAttemptedThisConnection = false
-            shouldRequestAuthenticatedHistoryBackfill = canUseHistoryPastEndedStatusCap()
+            shouldRequestAuthenticatedHistoryBackfill = false
             return
         }
         pendingGlucoseHistoryStartSequence = startSequence
@@ -2203,6 +2241,7 @@ class ICanHealthBleManager(
         historyBackfillRequested = true
         historyBackfillPhase = phase
         sawUnsupportedSnHistoryBatch = false
+        lastHistorySyncStatusBucket = -1
         setUiStatus(UiStatusKind.SYNCING)
         requestHighConnectionPriority("history ${phase.name.lowercase()}")
         if (phase == HistoryBackfillPhase.GLUCOSE) {
@@ -2470,6 +2509,7 @@ class ICanHealthBleManager(
         if (charStatus == null) {
             val startSequence = resolveAutomaticGlucoseHistoryStartSequence()
             if (startSequence == null) {
+                shouldRequestAuthenticatedHistoryBackfill = false
                 return
             }
             pendingGlucoseHistoryStartSequence = startSequence
@@ -2565,7 +2605,7 @@ class ICanHealthBleManager(
                 ?: 0f
         }
         Log.i(TAG, "Persisting ${timestamps.size} direct RACP history readings to Room")
-        val stored = HistorySyncAccess.storeSensorHistoryBatchAsync(SerialNumber, timestamps, values, rawValues)
+        val stored = HistorySyncAccess.storeSensorHistoryBatchBlocking(SerialNumber, timestamps, values, rawValues)
         if (stored) {
             updatePersistedHistoryTailTimestamp(timestamps.last())
             val lastRecord = ordered.last()

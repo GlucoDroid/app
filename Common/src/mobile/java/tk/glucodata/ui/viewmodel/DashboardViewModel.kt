@@ -782,10 +782,17 @@ class DashboardViewModel(
         historyJob = viewModelScope.launch {
             var lastRecoveryRequestSerial: String? = null
             var hasSeenHistoryEmission = false
+            val rawHistoryFlow = when (mode) {
+                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(
+                    startTime = queryStartTimeMs,
+                    fallbackWindowMs = DASHBOARD_HISTORY_WINDOW_MS
+                )
+                CollectionMode.FULL_HISTORY -> glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
+                CollectionMode.INACTIVE -> return@launch
+            }
             combine(
                 _unit,
-                glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
-                    .distinctUntilChangedBy(::historyEdgeSignature)
+                rawHistoryFlow.distinctUntilChangedBy(::historyEdgeSignature)
             ) { unitStr, rawHistory ->
                 unitStr to rawHistory
             }.collectLatest { (unitStr, rawHistory) ->

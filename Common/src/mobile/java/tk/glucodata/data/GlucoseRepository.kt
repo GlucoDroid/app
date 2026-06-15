@@ -27,6 +27,17 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
  * prefer that same sensor's Room history directly; only when no current sensor is known do we
  * fall back to the broader merged display timeline.
  */
+internal object DashboardHistoryWindowPolicy {
+    fun shouldUseOldTailFallback(
+        recentPoints: List<GlucosePoint>,
+        latestTimestamp: Long,
+        startTime: Long
+    ): Boolean = recentPoints.isEmpty() && latestTimestamp > 0L && latestTimestamp < startTime
+
+    fun fallbackStartTime(latestTimestamp: Long, fallbackWindowMs: Long): Long =
+        (latestTimestamp - fallbackWindowMs).coerceAtLeast(0L)
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class GlucoseRepository {
     
@@ -300,6 +311,63 @@ class GlucoseRepository {
                 }
                 observeDisplayHistory(preferredSerial, startTime).collect { points ->
                     send(points)
+                }
+            }
+        }
+    }
+
+    /**
+     * Dashboard live view normally follows a recent window. If the selected
+     * sensor has no recent rows but does have an older persisted tail (expired
+     * sensor, offline backfill review), anchor the chart to that tail instead of
+     * rendering an empty "waiting for data" dashboard.
+     */
+    fun getDashboardHistoryFlowRaw(
+        startTime: Long,
+        fallbackWindowMs: Long
+    ): Flow<List<GlucosePoint>> {
+        return _currentSerial.flatMapLatest { serial ->
+            val preferredSerial = resolveDisplayPreferredSerial(serial)
+            channelFlow {
+                launch {
+                    historyRepository.ensureBackfilled(preferredSerial, startTime)
+                }
+                if (preferredSerial == null) {
+                    historyRepository.getDisplayHistoryFlow(null, startTime).collect { points ->
+                        send(points)
+                    }
+                    return@channelFlow
+                }
+
+                observeDisplayHistory(preferredSerial, startTime).collectLatest { recentPoints ->
+                    if (recentPoints.isNotEmpty()) {
+                        send(recentPoints)
+                        return@collectLatest
+                    }
+
+                    val latestTimestamp = historyRepository.getLatestTimestampForSensor(preferredSerial)
+                    if (!DashboardHistoryWindowPolicy.shouldUseOldTailFallback(
+                            recentPoints = recentPoints,
+                            latestTimestamp = latestTimestamp,
+                            startTime = startTime
+                        )
+                    ) {
+                        send(recentPoints)
+                        return@collectLatest
+                    }
+
+                    val fallbackStartTime = DashboardHistoryWindowPolicy.fallbackStartTime(
+                        latestTimestamp = latestTimestamp,
+                        fallbackWindowMs = fallbackWindowMs
+                    )
+                    BatteryTrace.bump(
+                        key = "dashboard.history.old_tail",
+                        logEvery = 20L,
+                        detail = "serial=$preferredSerial latest=$latestTimestamp start=$fallbackStartTime"
+                    )
+                    observeDisplayHistory(preferredSerial, fallbackStartTime).collect { fallbackPoints ->
+                        send(fallbackPoints)
+                    }
                 }
             }
         }

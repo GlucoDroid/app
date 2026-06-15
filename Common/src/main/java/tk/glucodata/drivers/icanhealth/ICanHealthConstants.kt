@@ -262,6 +262,27 @@ object ICanHealthConstants {
         state == LAUNCHER_STATE_ENDED &&
             sequenceNumber >= LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES
 
+    internal fun endedStatusEndTimestampMs(sessionStartEpochMs: Long, sequenceNumber: Int): Long? {
+        if (sessionStartEpochMs <= 0L || sequenceNumber < LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES) {
+            return null
+        }
+        val endedSequence = sequenceNumber.coerceAtLeast(LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES)
+        return sessionStartEpochMs + endedSequence.toLong() * 60_000L
+    }
+
+    internal fun hasCompleteEndedStatusHistory(
+        sessionStartEpochMs: Long,
+        sequenceNumber: Int,
+        tailTimestampMs: Long,
+        toleranceMs: Long,
+    ): Boolean {
+        if (tailTimestampMs <= 0L) {
+            return false
+        }
+        val endTimestampMs = endedStatusEndTimestampMs(sessionStartEpochMs, sequenceNumber) ?: return false
+        return tailTimestampMs >= endTimestampMs - toleranceMs.coerceAtLeast(0L)
+    }
+
     const val RACP_RESULT_SUCCESS = 0x01
     const val RACP_RESULT_NOT_SUPPORTED = 0x02
     const val RACP_RESULT_NO_DATA = 0x06
