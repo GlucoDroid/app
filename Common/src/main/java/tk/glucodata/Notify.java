@@ -79,7 +79,6 @@ import android.widget.RemoteViews;
 import androidx.annotation.ColorInt;
 
 import java.text.DateFormat;
-import java.util.ArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -1644,58 +1643,6 @@ public class Notify {
         }
     }
 
-    private static final class VibrationPattern {
-        final long[] timings;
-        final int[] amplitudes;
-
-        VibrationPattern(long[] timings, int[] amplitudes) {
-            this.timings = timings;
-            this.amplitudes = amplitudes;
-        }
-    }
-
-    private static VibrationPattern finiteVibrationPattern(long[] baseTimings, int[] baseAmplitudes,
-            int durationSeconds) {
-        // Never hand Android an infinite alert vibration; scheduled stop is only an early cleanup path.
-        final long maxDurationMs = TimeUnit.SECONDS.toMillis(sanitizeAlarmDurationSeconds(durationSeconds));
-        final ArrayList<Long> timingList = new ArrayList<>();
-        final ArrayList<Integer> amplitudeList = new ArrayList<>();
-        long elapsedMs = 0L;
-        boolean emittedAny = false;
-
-        while (elapsedMs < maxDurationMs && timingList.size() < 512) {
-            long loopDurationMs = 0L;
-            for (int i = 0; i < baseTimings.length && elapsedMs < maxDurationMs; i++) {
-                final long baseDuration = Math.max(0L, baseTimings[i]);
-                loopDurationMs += baseDuration;
-                if (emittedAny && baseDuration == 0L) {
-                    continue;
-                }
-                final long clippedDuration = Math.min(baseDuration, maxDurationMs - elapsedMs);
-                timingList.add(clippedDuration);
-                amplitudeList.add(baseAmplitudes[Math.min(i, baseAmplitudes.length - 1)]);
-                elapsedMs += clippedDuration;
-                emittedAny = true;
-            }
-            if (loopDurationMs <= 0L) {
-                break;
-            }
-        }
-
-        if (timingList.isEmpty()) {
-            timingList.add(maxDurationMs);
-            amplitudeList.add(0);
-        }
-
-        final long[] timings = new long[timingList.size()];
-        final int[] amplitudes = new int[amplitudeList.size()];
-        for (int i = 0; i < timingList.size(); i++) {
-            timings[i] = timingList.get(i);
-            amplitudes[i] = amplitudeList.get(i);
-        }
-        return new VibrationPattern(timings, amplitudes);
-    }
-
     private void vibratealarm(int kind) {
         // Lookup profile from SharedPreferences for global alerts
         vibratealarm(kind, getHapticProfile(kind), DEFAULT_ALERT_DURATION_SECONDS);
@@ -1790,10 +1737,10 @@ public class Notify {
                         amplitudes[i] = 1; // Ensure non-zero if it was meant to be on
                 }
             }
-            final VibrationPattern finitePattern = finiteVibrationPattern(timings, amplitudes, durationSeconds);
+            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
             vibrateWaveform(vibrator, finitePattern.timings, finitePattern.amplitudes, -1);
         } else {
-            final VibrationPattern finitePattern = finiteVibrationPattern(timings, amplitudes, durationSeconds);
+            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
             vibrator.vibrate(finitePattern.timings, -1);
         }
 
@@ -2632,7 +2579,7 @@ public class Notify {
                 boolean isBoth = AlertDeliveryPolicy.BOTH.equals(deliveryMode);
 
                 if (isSystem || isBoth) {
-                    showpopupalarm(message, message, Float.NaN, kind, null, deliveryMode);
+                    launchOrQueueAlarmActivityResult(message, message, Float.NaN, kind, null, deliveryMode);
                 }
             }
         } else {

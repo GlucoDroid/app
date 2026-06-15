@@ -207,61 +207,23 @@ object AlertRuntimeManager {
         )
     }
 
-    private data class StandardAlertCondition(
-        val glucoseValue: Float,
-        val evaluatedValue: Float,
-        val threshold: Float
-    )
-
     private fun resolveActiveStandardGlucoseAlerts(
         glucoseValue: Float,
         rate: Float,
         configs: Map<AlertType, AlertConfig>
-    ): Map<AlertType, StandardAlertCondition> {
-        return standardGlucoseAlertTypes.mapNotNull { type ->
-            val config = configs[type] ?: return@mapNotNull null
-            if (!config.enabled) return@mapNotNull null
-            if (!config.isActiveNow()) return@mapNotNull null
-            val threshold = config.threshold?.takeIf { it.isFinite() && it > 0f } ?: return@mapNotNull null
-            val value = if (isForecastAlert(type)) {
-                AlertGlucoseMath.projectedDisplayValue(
-                    glucoseValue = glucoseValue,
-                    rateMgdlPerMinute = rate,
-                    forecastMinutes = config.forecastMinutes,
-                    isMmol = Applic.unit == 1
-                )
-            } else {
-                glucoseValue
-            }
-            if (!value.isFinite()) return@mapNotNull null
-
-            if (isThresholdConditionActive(type, value, threshold)) {
-                type to StandardAlertCondition(glucoseValue, value, threshold)
-            } else {
-                null
-            }
-        }.toMap()
-    }
-
-    private fun isForecastAlert(type: AlertType): Boolean {
-        return type == AlertType.PRE_LOW || type == AlertType.PRE_HIGH
-    }
-
-    private fun isThresholdConditionActive(type: AlertType, value: Float, threshold: Float): Boolean {
-        return when (type) {
-            AlertType.LOW,
-            AlertType.VERY_LOW,
-            AlertType.PRE_LOW -> value < threshold
-            AlertType.HIGH,
-            AlertType.VERY_HIGH,
-            AlertType.PRE_HIGH -> value > threshold
-            else -> false
-        }
+    ): Map<AlertType, StandardGlucoseAlertCondition> {
+        return StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = glucoseValue,
+            rate = rate,
+            configs = configs,
+            alertTypes = standardGlucoseAlertTypes,
+            isMmol = Applic.unit == 1
+        )
     }
 
     private fun logStandardCondition(
         type: AlertType,
-        condition: StandardAlertCondition,
+        condition: StandardGlucoseAlertCondition,
         rate: Float
     ) {
         val snapshot = lastDisplaySnapshot
