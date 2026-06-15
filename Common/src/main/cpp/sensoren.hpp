@@ -137,6 +137,7 @@ public:
         map(mapfile, 1024), maxhist(map.data() ? (last() + 3) : 100),
         hist(new SensorGlucoseData *[maxhist]()) {
     LOGGER("maxhist=%d\n", maxhist);
+    trimTrailingEmptySensorSlots("open");
     setindices();
   }
   void setlibre3nums() {
@@ -274,6 +275,44 @@ public:
   }
 
 private:
+  bool validSensorIndex(const int ind) const {
+    return ind >= 0 && ind <= infoblockptr()->last;
+  }
+
+  bool populatedSensorSlot(const int ind) const {
+    return validSensorIndex(ind) && sensorlist()[ind].name[0] != '\0';
+  }
+
+  bool emptyClearedSensorSlot(const int ind) const {
+    if (!validSensorIndex(ind))
+      return false;
+    const sensor &sens = sensorlist()[ind];
+    return sens.name[0] == '\0' && sens.starttime == 0 && sens.endtime == 0 &&
+           sens.present == 0;
+  }
+
+  bool trimTrailingEmptySensorSlots(const char *reason) {
+    int32_t &lastref = infoblockptr()->last;
+    const int32_t oldlast = lastref;
+    while (lastref >= 0 && emptyClearedSensorSlot(lastref)) {
+      if (lastref < maxhist && hist[lastref]) {
+        auto *old = hist[lastref];
+        hist[lastref] = nullptr;
+        delete old;
+      }
+      --lastref;
+    }
+    if (oldlast == lastref)
+      return false;
+
+    LOGGER("Self-heal: trimmed sensors.dat last %d -> %d (%s)\n",
+           oldlast, lastref, reason ? reason : "");
+    int32_t &current = infoblockptr()->current;
+    if (current > lastref || !populatedSensorSlot(current))
+      current = -1;
+    return true;
+  }
+
   void setmaxhistory(int max) {
     LOGGER("setmaxhistory(%d)\n", max);
     SensorGlucoseData **tmphist = new SensorGlucoseData *[max]();
@@ -985,6 +1024,10 @@ public:
           sensorlist()[ind].present = 0;
           sensorlist()[ind].finished = 0;
           sensorlist()[ind].initialized = false;
+          if (infoblockptr()->current == ind)
+            infoblockptr()->current = -1;
+          if (trimTrailingEmptySensorSlots("missing directory"))
+            setindices();
         }
         return nullptr;
       }
@@ -1096,19 +1139,19 @@ public:
   }
 
   const char *shortsensorname_chars() const {
-    if (int l = infoblockptr()->current; l >= 0)
+    if (int l = infoblockptr()->current; populatedSensorSlot(l))
       return shortsensorname_chars(l);
-    if (int l = last(); l >= 0)
+    if (int l = last(); populatedSensorSlot(l))
       return shortsensorname_chars(l);
     return nullptr;
   }
   const sensorname_t *shortsensorname() const {
     // Use current() (the user-selected main sensor) instead of last() (the most
     // recently added) This enables the "Main Sensor Toggle" feature
-    if (int l = infoblockptr()->current; l >= 0)
+    if (int l = infoblockptr()->current; populatedSensorSlot(l))
       return shortsensorname(l);
     // Fallback to last() if current is invalid (though expected to be synced)
-    if (int l = last(); l >= 0)
+    if (int l = last(); populatedSensorSlot(l))
       return shortsensorname(l);
     return nullptr;
   }
