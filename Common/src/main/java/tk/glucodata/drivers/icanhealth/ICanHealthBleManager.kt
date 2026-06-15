@@ -67,6 +67,7 @@ class ICanHealthBleManager(
         private const val DRIVER_NOTIFICATION_REFRESH_DELAY_MS = 900L
         private const val SEQUENCE_UNIT_MS = 60_000L
         private const val SENSOR_INFO_TIMEOUT_MS = 1_500L
+        private const val CONNECTION_PRIORITY_REFRESH_MIN_MS = 1_500L
         private const val LIVE_SEQUENCE_LAG_ALLOWANCE = 3
         private const val MAX_SESSION_TIMESTAMP_PAST_DRIFT_MS = 6 * 60 * 60 * 1000L
         private const val MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS = 2 * 60 * 1000L
@@ -97,14 +98,6 @@ class ICanHealthBleManager(
         var glucoseMgdl: Float = Float.NaN,
         var rawCurrent: Float = Float.NaN,
         var temperatureC: Float = Float.NaN,
-    )
-
-    private data class DeferredLiveReading(
-        val sequenceNumber: Int,
-        val timestampMs: Long,
-        val glucoseMgdl: Float,
-        val rawCurrent: Float,
-        val temperatureC: Float,
     )
 
     @Volatile
@@ -184,7 +177,6 @@ class ICanHealthBleManager(
     @Volatile private var authRetryCount = 0
     @Volatile private var lastHandledLiveSequence = -1
     @Volatile private var lastHandledLiveTimestampMs = 0L
-    @Volatile private var deferredLiveReading: DeferredLiveReading? = null
     @Volatile private var persistedHistoryTailTimestampMs = 0L
     @Volatile private var persistedCoveredSequence = -1
     @Volatile private var persistedCoveredTimestampMs = 0L
@@ -195,6 +187,7 @@ class ICanHealthBleManager(
     @Volatile private var startCommandIssuedThisConnection = false
     @Volatile private var scheduledReconnectAtMs = 0L
     @Volatile private var scheduledReconnectToken = 0L
+    @Volatile private var lastHighPriorityRequestAtMs = 0L
     @Volatile private var latestCurrentRaw = Float.NaN
     @Volatile private var latestTemperatureC = Float.NaN
     @Volatile private var lastCeCalibrationCount = 0
@@ -520,7 +513,6 @@ class ICanHealthBleManager(
         awaitingFreshStatusForHistoryBackfill = false
         pendingHistoryBackfillReason = null
         pendingHistoryBatch.clear()
-        deferredLiveReading = null
         awaitingMtuNegotiation = false
         serviceDiscoveryStarted = false
         serviceDiscoveryHandled = false
@@ -1109,6 +1101,7 @@ class ICanHealthBleManager(
                 startCommandIssuedThisConnection = false
                 setUiStatus(UiStatusKind.CONNECTED)
                 phase = Phase.DISCOVERING_SERVICES
+                requestHighConnectionPriority("connection setup")
                 if (aesKey == null) {
                     Applic.app?.let { loadAesKeyFromPrefs(it) }
                 }
@@ -1134,6 +1127,13 @@ class ICanHealthBleManager(
 
             BluetoothProfile.STATE_DISCONNECTED -> {
                 Log.i(TAG, "Disconnected (status=$status)")
+                if (historyBackfillRequested || awaitingFreshStatusForHistoryBackfill) {
+                    Log.w(
+                        TAG,
+                        "Disconnected during iCan history state " +
+                            "phase=${historyBackfillPhase.name} status=$status imported=$glucoseHistoryImportedRecordCount"
+                    )
+                }
                 phase = Phase.IDLE
                 val pausedByUser = uiPaused
                 val nowMs = System.currentTimeMillis()
@@ -1163,7 +1163,6 @@ class ICanHealthBleManager(
                 glucoseHistoryImportedRecordCount = 0
                 pendingHistoryBackfillReason = null
                 pendingHistoryBatch.clear()
-                deferredLiveReading = null
                 lastAuthChallenge = null
                 receivedGlucoseThisConnection = false
                 currentSequenceObservedAtMs = 0L
@@ -1519,18 +1518,10 @@ class ICanHealthBleManager(
                 currentSequenceObservedAtMs = nowMs
             }
             if (historyBackfillRequested && historyBackfillPhase == HistoryBackfillPhase.GLUCOSE) {
-                deferredLiveReading = DeferredLiveReading(
-                    sequenceNumber = reading.sequenceNumber,
-                    timestampMs = sampleTimeMs,
-                    glucoseMgdl = reading.glucoseMgdl,
-                    rawCurrent = reading.currentValue,
-                    temperatureC = reading.temperatureC,
+                Log.d(
+                    TAG,
+                    "Delivering live seq=${reading.sequenceNumber} while iCan history backfill continues"
                 )
-                rememberDriverCurrentReading(reading.glucoseMgdl, sampleTimeMs)
-                phase = Phase.STREAMING
-                setUiStatus(UiStatusKind.SYNCING)
-                scheduleNoDataWatchdog()
-                return
             }
             val historyCoveredLiveEdge = historySampleTimeMs?.let {
                 shouldSkipHistoryOverlap(reading.sequenceNumber, it)
@@ -2213,6 +2204,7 @@ class ICanHealthBleManager(
         historyBackfillPhase = phase
         sawUnsupportedSnHistoryBatch = false
         setUiStatus(UiStatusKind.SYNCING)
+        requestHighConnectionPriority("history ${phase.name.lowercase()}")
         if (phase == HistoryBackfillPhase.GLUCOSE) {
             pendingHistoryBatch.clear()
         }
@@ -2288,41 +2280,6 @@ class ICanHealthBleManager(
             }
             UiRefreshBus.requestDataRefresh()
         }
-        applyDeferredLiveReadingAfterHistoryImport()
-    }
-
-    private fun applyDeferredLiveReadingAfterHistoryImport() {
-        val deferred = deferredLiveReading ?: return
-        deferredLiveReading = null
-        if (deferred.sequenceNumber == lastHandledLiveSequence) {
-            return
-        }
-        if (shouldSkipHistoryOverlap(deferred.sequenceNumber, deferred.timestampMs)) {
-            phase = Phase.STREAMING
-            setUiStatus(UiStatusKind.CONNECTED)
-            lastHandledLiveSequence = deferred.sequenceNumber
-            lastHandledLiveTimestampMs = maxOf(deferred.timestampMs, persistedCoveredTimestampMs)
-            scheduleForegroundNotificationRefresh()
-            scheduleNoDataWatchdog()
-            return
-        }
-        rememberDriverCurrentReading(deferred.glucoseMgdl, deferred.timestampMs)
-        storeMeasurement(deferred.glucoseMgdl, deferred.timestampMs)
-        phase = Phase.STREAMING
-        setUiStatus(UiStatusKind.CONNECTED)
-        val packed = packGlucoseResult(deferred.glucoseMgdl)
-        handleGlucoseResult(
-            packed,
-            deferred.timestampMs,
-            resolveRawLaneValue(deferred.rawCurrent, deferred.glucoseMgdl)
-        )
-        lastHandledLiveSequence = deferred.sequenceNumber
-        lastHandledLiveTimestampMs = deferred.timestampMs
-        rememberRecentGlucose(deferred.glucoseMgdl)
-        updatePersistedHistoryTailTimestamp(deferred.timestampMs)
-        rememberCoveredEdge(deferred.sequenceNumber, deferred.timestampMs)
-        scheduleForegroundNotificationRefresh()
-        scheduleNoDataWatchdog()
     }
 
     private fun scheduleMirrorHistoryMerge(delayMs: Long = 750L) {
@@ -3577,7 +3534,6 @@ class ICanHealthBleManager(
         glucoseHistoryImportedRecordCount = 0
         pendingHistoryBackfillReason = null
         pendingHistoryBatch.clear()
-        deferredLiveReading = null
         lastAuthChallenge = null
         authRetryCount = 0
         receivedGlucoseThisConnection = false
@@ -3586,8 +3542,30 @@ class ICanHealthBleManager(
         pendingStartTimeEpochMs = 0L
         awaitingMtuNegotiation = false
         negotiatedMtu = 23
+        lastHighPriorityRequestAtMs = 0L
         serviceDiscoveryStarted = false
         serviceDiscoveryHandled = false
+    }
+
+    private fun requestHighConnectionPriority(reason: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return
+        }
+        val gatt = mBluetoothGatt ?: return
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - lastHighPriorityRequestAtMs < CONNECTION_PRIORITY_REFRESH_MIN_MS) {
+            return
+        }
+        lastHighPriorityRequestAtMs = nowMs
+        runCatching {
+            if (gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)) {
+                Log.d(TAG, "Requested high BLE connection priority for $reason")
+            } else {
+                Log.w(TAG, "Failed to request high BLE connection priority for $reason")
+            }
+        }.onFailure {
+            Log.stack(TAG, "requestHighConnectionPriority($reason)", it)
+        }
     }
 
     internal fun handleReconnectAlarm(token: Long) {
