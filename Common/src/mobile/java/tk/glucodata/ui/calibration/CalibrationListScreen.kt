@@ -66,6 +66,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tk.glucodata.Natives
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.data.HistoryRepository
 import tk.glucodata.data.calibration.CalibrationEntity
 import tk.glucodata.data.calibration.CalibrationManager
@@ -119,7 +120,7 @@ fun CalibrationListScreen(
     val calibrations = allCalibrations
         .asSequence()
         .filter { it.isRawMode == isRawMode }
-        .filter { it.sensorId == currentSensor || it.sensorId.isEmpty() }
+        .filter { it.sensorId.isEmpty() || SensorIdentity.matches(it.sensorId, currentSensor) }
         .sortedByDescending { it.timestamp }
         .toList()
 

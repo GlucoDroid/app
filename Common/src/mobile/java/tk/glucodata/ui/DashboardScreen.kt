@@ -1155,7 +1155,7 @@ fun DashboardScreen(
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, latestPoint?.timestamp ?: System.currentTimeMillis()))
                             }
                         )
                     }
@@ -1371,7 +1371,7 @@ fun DashboardScreen(
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, latestPoint?.timestamp ?: System.currentTimeMillis()))
                             }
                         )
                     }
@@ -1598,7 +1598,7 @@ fun DashboardScreen(
                             onAddCalibration = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, latestPoint?.timestamp ?: System.currentTimeMillis()))
                             },
                             onEditCalibration = { cal ->
                                 triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))

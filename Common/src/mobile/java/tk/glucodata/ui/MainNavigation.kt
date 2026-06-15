@@ -452,7 +452,7 @@ private fun CalibrationListRoute(
             val latest = glucoseHistory.firstOrNull()
             val autoVal = latest?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
             val rawVal = latest?.rawValue ?: autoVal
-            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, latest?.timestamp ?: System.currentTimeMillis()))
         },
         onEdit = { entity ->
             onTriggerCalibration(CalibrationSheetState.Edit(entity))
