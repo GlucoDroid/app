@@ -79,6 +79,7 @@ import android.widget.RemoteViews;
 import androidx.annotation.ColorInt;
 
 import java.text.DateFormat;
+import java.util.ArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -949,11 +950,38 @@ public class Notify {
         }
     }
 
+    private static final class AlarmLaunchResult {
+        final boolean directStarted;
+        final boolean queued;
+        final boolean needsNotificationTransport;
+
+        AlarmLaunchResult(boolean directStarted, boolean queued, boolean needsNotificationTransport) {
+            this.directStarted = directStarted;
+            this.queued = queued;
+            this.needsNotificationTransport = needsNotificationTransport;
+        }
+
+        boolean startedOrQueued() {
+            return directStarted || queued;
+        }
+    }
+
     private static notGlucose copyGlucoseSnapshot(notGlucose glucose, float fallbackValue) {
         if (glucose == null) {
             return new notGlucose(System.currentTimeMillis(), String.valueOf(fallbackValue), Float.NaN, 0);
         }
         return new notGlucose(glucose.time, glucose.value, glucose.rate, glucose.sensorgen2);
+    }
+
+    private static String alarmDisplayGlucoseValue(float glvalue, notGlucose glucose) {
+        if (Float.isFinite(glvalue) && glvalue > 0.1f) {
+            final String glucoseFormat = pureglucoseformat != null ? pureglucoseformat : "%.1f";
+            return format(usedlocale, glucoseFormat, glvalue);
+        }
+        if (glucose != null && glucose.value != null && !glucose.value.isBlank()) {
+            return glucose.value;
+        }
+        return "";
     }
 
     private static String resolveNotificationSensorSerial() {
@@ -1179,6 +1207,9 @@ public class Notify {
     private static void cancelRetrySessionLocked(String reason) {
         if (activeRetrySession != null && doLog) {
             Log.i(LOG_ID, "Cancel retry session kind=" + activeRetrySession.kind + " reason=" + reason);
+        }
+        if (activeRetrySession != null) {
+            cancelQueuedAlarmActivityLaunch(activeRetrySession.kind, null, reason);
         }
         cancelRetryScheduleLocked();
         activeRetrySession = null;
@@ -1569,35 +1600,29 @@ public class Notify {
         synchronized (alertEffectLock) {
             cancelDelayedAlertEffectsLocked("stopalarm");
         }
-        if (!getisalarm()) {
-            {
-                if (doLog) {
-                    Log.d(LOG_ID, "stopalarm not is alarm");
-                }
-                ;
-            }
-            ;
-            return;
+        final int currentAlertKind = resolveAlertKind(-1);
+        if (currentAlertKind >= 0) {
+            cancelQueuedAlarmActivityLaunch(currentAlertKind, null, "stopalarm");
         }
-        {
-            if (doLog) {
-                Log.d(LOG_ID, "stopalarm is alarm");
-            }
-            ;
+        final boolean wasAlarm = getisalarm();
+        if (doLog) {
+            Log.d(LOG_ID, wasAlarm ? "stopalarm is alarm" : "stopalarm not is alarm");
         }
-        ;
         final var stopper = stopschedule;
         if (stopper != null) {
             stopper.cancel(false);
             stopschedule = null;
         }
         var runner = runstopalarm;
+        runstopalarm = null;
         if (runner != null) {
             if (!isWearable) {
-                if (send)
+                if (send && wasAlarm)
                     Applic.app.numdata.stopalarm();
             }
             runner.run();
+        } else if (!wasAlarm && onenot != null) {
+            onenot.stopvibratealarm();
         }
     }
     // static int alarmnr=0;
@@ -1619,6 +1644,58 @@ public class Notify {
         }
     }
 
+    private static final class VibrationPattern {
+        final long[] timings;
+        final int[] amplitudes;
+
+        VibrationPattern(long[] timings, int[] amplitudes) {
+            this.timings = timings;
+            this.amplitudes = amplitudes;
+        }
+    }
+
+    private static VibrationPattern finiteVibrationPattern(long[] baseTimings, int[] baseAmplitudes,
+            int durationSeconds) {
+        // Never hand Android an infinite alert vibration; scheduled stop is only an early cleanup path.
+        final long maxDurationMs = TimeUnit.SECONDS.toMillis(sanitizeAlarmDurationSeconds(durationSeconds));
+        final ArrayList<Long> timingList = new ArrayList<>();
+        final ArrayList<Integer> amplitudeList = new ArrayList<>();
+        long elapsedMs = 0L;
+        boolean emittedAny = false;
+
+        while (elapsedMs < maxDurationMs && timingList.size() < 512) {
+            long loopDurationMs = 0L;
+            for (int i = 0; i < baseTimings.length && elapsedMs < maxDurationMs; i++) {
+                final long baseDuration = Math.max(0L, baseTimings[i]);
+                loopDurationMs += baseDuration;
+                if (emittedAny && baseDuration == 0L) {
+                    continue;
+                }
+                final long clippedDuration = Math.min(baseDuration, maxDurationMs - elapsedMs);
+                timingList.add(clippedDuration);
+                amplitudeList.add(baseAmplitudes[Math.min(i, baseAmplitudes.length - 1)]);
+                elapsedMs += clippedDuration;
+                emittedAny = true;
+            }
+            if (loopDurationMs <= 0L) {
+                break;
+            }
+        }
+
+        if (timingList.isEmpty()) {
+            timingList.add(maxDurationMs);
+            amplitudeList.add(0);
+        }
+
+        final long[] timings = new long[timingList.size()];
+        final int[] amplitudes = new int[amplitudeList.size()];
+        for (int i = 0; i < timingList.size(); i++) {
+            timings[i] = timingList.get(i);
+            amplitudes[i] = amplitudeList.get(i);
+        }
+        return new VibrationPattern(timings, amplitudes);
+    }
+
     private void vibratealarm(int kind) {
         // Lookup profile from SharedPreferences for global alerts
         vibratealarm(kind, getHapticProfile(kind), DEFAULT_ALERT_DURATION_SECONDS);
@@ -1631,6 +1708,13 @@ public class Notify {
                     .getDefaultVibrator();
         } else
             vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
+
+        if (vibrator == null) {
+            if (doLog) {
+                Log.w(LOG_ID, "vibratealarm: vibrator unavailable");
+            }
+            return;
+        }
 
         if (hapticProfileName == null)
             hapticProfileName = "STRONG";
@@ -1706,10 +1790,11 @@ public class Notify {
                         amplitudes[i] = 1; // Ensure non-zero if it was meant to be on
                 }
             }
-            vibrateWaveform(vibrator, timings, amplitudes, 0);
+            final VibrationPattern finitePattern = finiteVibrationPattern(timings, amplitudes, durationSeconds);
+            vibrateWaveform(vibrator, finitePattern.timings, finitePattern.amplitudes, -1);
         } else {
-            // Pre-Oreo fallback: repeat until the scheduled alarm stop cancels it.
-            vibrator.vibrate(timings, 0);
+            final VibrationPattern finitePattern = finiteVibrationPattern(timings, amplitudes, durationSeconds);
+            vibrator.vibrate(finitePattern.timings, -1);
         }
 
         if (doLog) {
@@ -1719,7 +1804,16 @@ public class Notify {
     }
 
     void stopvibratealarm() {
-        vibrator.cancel();
+        if (vibrator == null) {
+            return;
+        }
+        try {
+            vibrator.cancel();
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "stopvibratealarm", th);
+        } finally {
+            vibrator = null;
+        }
     }
 
     private static int lastalarm = -1;
@@ -1910,6 +2004,12 @@ public class Notify {
             } else {
                 if (sound && hasSoundHandle) {
                     soundHandle.stop();
+                }
+                if (!isWearable && flash) {
+                    Flash.stop();
+                }
+                if (vibrate) {
+                    stopvibratealarm();
                 }
                 if (doLog) {
                     {
@@ -2193,22 +2293,25 @@ public class Notify {
 
                 // Delivery Mode Logic
                 String mode = normalizeDeliveryMode(deliveryMode);
-                boolean alarmWindowQueued = false;
+                AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
 
                 // When the phone is idle/locked, background activity starts are not a
                 // reliable contract. Queue the AlarmActivity through AlarmManager so
                 // Alarm mode still wakes into the alarm screen instead of degrading to a
                 // plain heads-up notification.
                 if (AlertDeliveryPolicy.shouldAttemptAlarmWindow(mode)) {
-                    alarmWindowQueued = launchOrQueueAlarmActivity(glucoseStr.value, message, glucoseStr.rate, kind,
-                            customAlertId,
-                            mode);
-                    if (!alarmWindowQueued && doLog) {
+                    final String alarmGlucoseValue = alarmDisplayGlucoseValue(glucoseValue, glucoseStr);
+                    alarmLaunchResult = launchOrQueueAlarmActivityResult(alarmGlucoseValue, message, glucoseStr.rate,
+                            kind, customAlertId, mode);
+                    if (!alarmLaunchResult.startedOrQueued() && doLog) {
                         Log.i(LOG_ID, "Custom Alert: AlarmActivity launch failed, using notification fallback");
                     }
                 }
 
-                boolean skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(mode, alarmWindowQueued);
+                boolean skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
+                        mode,
+                        alarmLaunchResult.startedOrQueued(),
+                        alarmLaunchResult.needsNotificationTransport);
 
                 // 2. Heads-Up Notification (Separate) - This is what standard alerts do!
                 // Only if we shouldn't skip the banner (Notification mode, Both mode, or Alarm
@@ -2306,6 +2409,15 @@ public class Notify {
         return base + (alertTypeId * 257) + (customHash & 0x7FFF);
     }
 
+    private static Intent buildAlarmLaunchReceiverIntent(Intent alarmIntent) {
+        final Intent launchIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmLaunchReceiver.class);
+        launchIntent.setAction(tk.glucodata.receivers.AlarmLaunchReceiver.ACTION_LAUNCH_ALARM_ACTIVITY);
+        if (alarmIntent != null) {
+            launchIntent.putExtras(alarmIntent);
+        }
+        return launchIntent;
+    }
+
     private static boolean queueAlarmActivityLaunch(String glucoseValue, String alarmMessage, float rate,
             int alertTypeId, String customAlertId, String deliveryMode) {
         try {
@@ -2315,9 +2427,7 @@ public class Notify {
             }
             final Intent alarmIntent = buildAlarmActivityIntent(glucoseValue, alarmMessage, rate, alertTypeId,
                     customAlertId, deliveryMode);
-            final Intent launchIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmLaunchReceiver.class);
-            launchIntent.setAction(tk.glucodata.receivers.AlarmLaunchReceiver.ACTION_LAUNCH_ALARM_ACTIVITY);
-            launchIntent.putExtras(alarmIntent);
+            final Intent launchIntent = buildAlarmLaunchReceiverIntent(alarmIntent);
             final PendingIntent pendingIntent = PendingIntent.getBroadcast(Applic.app,
                     alarmPendingRequestCode(200_000, alertTypeId, customAlertId), launchIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
@@ -2332,8 +2442,8 @@ public class Notify {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     final PendingIntent showIntent = mkAlarmPendingIntent(glucoseValue, alarmMessage, rate, alertTypeId,
                             customAlertId, deliveryMode);
-                    alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAtMs, pendingIntent),
-                            showIntent);
+                    alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAtMs, showIntent),
+                            pendingIntent);
                 } else {
                     throw denied;
                 }
@@ -2350,13 +2460,42 @@ public class Notify {
         }
     }
 
-    private static boolean launchOrQueueAlarmActivity(String glucoseValue, String alarmMessage, float rate,
-            int alertTypeId, String customAlertId, String deliveryMode) {
-        if (shouldTryDirectAlarmActivity()) {
-            return showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
+    public static void cancelQueuedAlarmActivityLaunch(int alertTypeId, String customAlertId, String reason) {
+        if (alertTypeId < 0) {
+            return;
         }
-        showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
-        return queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
+        try {
+            final AlarmManager alarmManager = (AlarmManager) Applic.app.getSystemService(Context.ALARM_SERVICE);
+            final Intent launchIntent = buildAlarmLaunchReceiverIntent(null);
+            final PendingIntent pendingIntent = PendingIntent.getBroadcast(Applic.app,
+                    alarmPendingRequestCode(200_000, alertTypeId, customAlertId), launchIntent,
+                    PendingIntent.FLAG_NO_CREATE | penmutable);
+            if (pendingIntent == null) {
+                return;
+            }
+            if (alarmManager != null) {
+                alarmManager.cancel(pendingIntent);
+            }
+            pendingIntent.cancel();
+            if (doLog) {
+                Log.i(LOG_ID, "Cancelled queued AlarmActivity launch kind=" + alertTypeId
+                        + " reason=" + reason);
+            }
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "cancelQueuedAlarmActivityLaunch", th);
+        }
+    }
+
+    private static AlarmLaunchResult launchOrQueueAlarmActivityResult(String glucoseValue, String alarmMessage,
+            float rate, int alertTypeId, String customAlertId, String deliveryMode) {
+        if (shouldTryDirectAlarmActivity()) {
+            final boolean directStarted = showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId,
+                    customAlertId, deliveryMode);
+            return new AlarmLaunchResult(directStarted, false, false);
+        }
+        final boolean queued = queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId,
+                customAlertId, deliveryMode);
+        return new AlarmLaunchResult(false, queued, queued);
     }
 
     private static boolean showpopupalarm(String glucoseValue, String alarmMessage, float rate, int alertTypeId) {
@@ -2438,7 +2577,7 @@ public class Notify {
     }
 
     private void deliverTriggeredAlert(int kind, float glvalue, String message, notGlucose strglucose, String type) {
-        boolean alarmWindowQueued = false;
+        AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
         boolean skipBanner = false;
 
         if (!AlertType.Companion.isLegacyOnlyId(kind)) {
@@ -2453,16 +2592,23 @@ public class Notify {
 
             if (forceLaunch) {
                 float rate = (strglucose != null) ? strglucose.rate : Float.NaN;
-                alarmWindowQueued = launchOrQueueAlarmActivity(strglucose != null ? strglucose.value : message, message,
-                        rate, kind, null, deliveryMode);
+                final String alarmGlucoseValue = alarmDisplayGlucoseValue(glvalue, strglucose);
+                alarmLaunchResult = launchOrQueueAlarmActivityResult(alarmGlucoseValue, message, rate, kind, null,
+                        deliveryMode);
                 if (doLog)
-                    Log.i(LOG_ID, "Alert Debug: alarm window queued=" + alarmWindowQueued);
-                if (!alarmWindowQueued && doLog) {
+                    Log.i(LOG_ID, "Alert Debug: alarm window started=" + alarmLaunchResult.startedOrQueued()
+                            + " direct=" + alarmLaunchResult.directStarted
+                            + " queued=" + alarmLaunchResult.queued
+                            + " notificationTransport=" + alarmLaunchResult.needsNotificationTransport);
+                if (!alarmLaunchResult.startedOrQueued() && doLog) {
                     Log.i(LOG_ID, "Alert Debug: AlarmActivity launch failed, using notification fallback");
                 }
             }
 
-            skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(deliveryMode, alarmWindowQueued);
+            skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
+                    deliveryMode,
+                    alarmLaunchResult.startedOrQueued(),
+                    alarmLaunchResult.needsNotificationTransport);
             if (doLog)
                 Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
         }
@@ -2735,13 +2881,14 @@ public class Notify {
                 String currentDeliveryMode = deliveryModeOverride != null
                         ? normalizeDeliveryMode(deliveryModeOverride)
                         : normalizeDeliveryMode(getDeliveryMode(alertTypeId));
+                final String alarmGlucoseValue = alarmDisplayGlucoseValue(glvalue, glucose);
                 // notificationManager.cancel(glucosealarmid); // Performance optimization:
                 // Don't cancel, just overwrite
                 PendingIntent intent;
                 if (AlertDeliveryPolicy.shouldAttemptAlarmWindow(currentDeliveryMode)) {
                     try {
-                        intent = mkAlarmPendingIntent(glucose.value, message, glucose.rate, alertTypeId, customAlertId,
-                                currentDeliveryMode);
+                        intent = mkAlarmPendingIntent(alarmGlucoseValue, message, glucose.rate, alertTypeId,
+                                customAlertId, currentDeliveryMode);
                     } catch (Throwable e) {
                         if (doLog) {
                             Log.e(LOG_ID, "alarm content intent setup failed: " + e.toString());
@@ -2769,7 +2916,7 @@ public class Notify {
                 GluNotBuilder.setDeleteIntent(swipeDismissPendingIntent);
                 {
                     if (doLog) {
-                        Log.i(LOG_ID, "makeseparatenotification " + glucose.value);
+                        Log.i(LOG_ID, "makeseparatenotification " + alarmGlucoseValue);
                     }
                     ;
                 }
@@ -2792,7 +2939,7 @@ public class Notify {
                     // Use Reflection for Intent creation to safe-guard against Missing Class on
                     // Wear
                     try {
-                        PendingIntent fullScreenPendingIntent = mkAlarmPendingIntent(glucose.value, message,
+                        PendingIntent fullScreenPendingIntent = mkAlarmPendingIntent(alarmGlucoseValue, message,
                                 glucose.rate, alertTypeId, customAlertId, currentDeliveryMode);
                         GluNotBuilder.setFullScreenIntent(fullScreenPendingIntent, true);
                     } catch (Throwable e) {
