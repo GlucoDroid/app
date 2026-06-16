@@ -347,6 +347,7 @@ fun DashboardScreen(
     var showICanHealthWizard by remember { mutableStateOf(false) }
     var showMQWizard by remember { mutableStateOf(false) }
     var showAnytimeWizard by remember { mutableStateOf(false) }
+    var showOttaiWizard by remember { mutableStateOf(false) }
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var journalActionTimestamp by rememberSaveable { mutableStateOf<Long?>(null) }
     var journalActionSuggestedGlucoseMgDl by remember { mutableStateOf<Float?>(null) }
@@ -649,6 +650,18 @@ fun DashboardScreen(
             onNavigateToReadiness = onNavigateToReadiness,
             onComplete = {
                 showAnytimeWizard = false
+                viewModel.refreshData()
+            },
+        )
+        return
+    }
+
+    // Ottai Setup Wizard
+    if (showOttaiWizard) {
+        tk.glucodata.ui.setup.OttaiSetupWizard(
+            onDismiss = { showOttaiWizard = false },
+            onComplete = {
+                showOttaiWizard = false
                 viewModel.refreshData()
             },
         )
@@ -1102,6 +1115,7 @@ fun DashboardScreen(
                     tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                     tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                     tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
+                    tk.glucodata.ui.components.SensorType.OTTAI -> showOttaiWizard = true
                 }
             },
                 onImportHistory = {

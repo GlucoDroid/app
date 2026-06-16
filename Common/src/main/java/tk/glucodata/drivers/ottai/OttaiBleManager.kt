@@ -1,0 +1,519 @@
+// OttaiBleManager.kt — BLE state machine for Ottai CGM.
+//
+// Flow after connect: discover -> requestMtu -> enable notifications (history,
+// live, cgm-info) -> Auth V2 (read device time, read device param+sign, verify,
+// write app param+sign, derive ECDH session key) -> STREAMING (decrypt+parse
+// live/history). Activation is a separate, explicitly-gated action because it
+// starts the sensor's irreversible lifetime (see OttaiDriver.requestActivation).
+//
+// The crypto/auth/parse are delegated to the unit-tested OttaiCrypto/OttaiBleAuth/
+// OttaiParser. This manager only sequences GATT ops and wires results. GATT
+// timing details will be refined during field testing; the structure + crypto
+// calls are faithful to the decompile.
+
+package tk.glucodata.drivers.ottai
+
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothProfile
+import android.content.Context
+import android.os.Handler
+import android.os.HandlerThread
+import java.security.interfaces.ECPrivateKey
+import java.security.interfaces.ECPublicKey
+import java.util.UUID
+import tk.glucodata.Applic
+import tk.glucodata.Log
+import tk.glucodata.Natives
+import tk.glucodata.SuperGattCallback
+import tk.glucodata.UiRefreshBus
+
+@SuppressLint("MissingPermission")
+class OttaiBleManager(
+    serial: String,
+    dataptr: Long,
+) : SuperGattCallback(serial, dataptr, SENSOR_GEN), OttaiDriver {
+
+    companion object {
+        private const val TAG = OttaiConstants.TAG
+        const val SENSOR_GEN = 0
+        private const val RECONNECT_DELAY_MS = 3_000L
+        private const val MTU = 247
+    }
+
+    enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
+    private enum class AuthStep { NONE, READ_DEVICE_TIME, READ_DEVICE_PARAM, READ_DEVICE_SIGN, WRITE_APP_PARAM, WRITE_APP_SIGN, DONE }
+    private enum class ActStep { NONE, RTC, MAX_ACTIVE, DESTRUCTION, COMMAND, DONE }
+
+    @Volatile var phase: Phase = Phase.IDLE
+        private set
+
+    private val handlerThread = HandlerThread("Ottai-$serial").also { it.start() }
+    private val handler = Handler(handlerThread.looper)
+
+    private var svcDeviceInfo: BluetoothGattService? = null
+    private var svcCgm: BluetoothGattService? = null
+    private var svcAuth: BluetoothGattService? = null
+
+    // ---- session state ----
+    @Volatile private var materials: OttaiRegistry.DeviceMaterials = OttaiRegistry.DeviceMaterials("", "", "", 0L, "", 0)
+    @Volatile private var authKeys: List<ByteArray>? = null
+    @Volatile private var macBytes: ByteArray = ByteArray(0)
+
+    @Volatile private var deviceTimeBytes: ByteArray = ByteArray(0)
+    @Volatile private var deviceParamIndex: Int = 0
+    @Volatile private var deviceParamTime: ByteArray = ByteArray(0)
+    @Volatile private var devicePubX: ByteArray = ByteArray(0)
+    @Volatile private var devicePubY: ByteArray = ByteArray(0)
+
+    @Volatile private var appPrivate: ECPrivateKey? = null
+    @Volatile private var appPubX: ByteArray = ByteArray(0)
+    @Volatile private var appPubY: ByteArray = ByteArray(0)
+    @Volatile private var appTime3: ByteArray = ByteArray(0)
+    @Volatile private var appIndex: Int = 0
+    @Volatile private var sessionKeyHex: String = ""
+
+    @Volatile private var authStep: AuthStep = AuthStep.NONE
+    @Volatile private var actStep: ActStep = ActStep.NONE
+    @Volatile private var notifyEnableIndex = 0
+
+    @Volatile private var lastGlucoseAtMs = 0L
+    @Volatile private var lastGlucoseMgdl = 0f
+    @Volatile private var lastRawCurrent = Float.NaN
+    @Volatile private var lastDataNo = -1
+
+    override var viewMode: Int = 0
+
+    private val notifyOrder = listOf(
+        OttaiConstants.SERVICE_CGM to OttaiConstants.CHAR_GLUCOSE_HISTORY,
+        OttaiConstants.SERVICE_CGM to OttaiConstants.CHAR_GLUCOSE_LIVE,
+        OttaiConstants.SERVICE_DEVICE_INFO to OttaiConstants.CHAR_CGM_INFO_NOTIFY,
+    )
+
+    // ---- persistence ----
+
+    fun restoreFromPersistence(context: Context) {
+        val id = SerialNumber ?: return
+        materials = OttaiRegistry.loadMaterials(context, id)
+        authKeys = materials.authKeys
+        lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
+        macBytes = runCatching { OttaiCrypto.hexToBytes(OttaiConstants.canonicalSensorId(id)) }.getOrDefault(ByteArray(0))
+    }
+
+    private val reconnectRunnable = Runnable { if (!stop) connectDevice(0) }
+    private fun scheduleReconnect(reason: String, delay: Long = RECONNECT_DELAY_MS) {
+        if (stop) return
+        Log.i(TAG, "reconnect: $reason")
+        handler.removeCallbacks(reconnectRunnable)
+        handler.postDelayed(reconnectRunnable, delay)
+    }
+
+    // ---- lifecycle ----
+
+    override fun getService(): UUID = OttaiConstants.SERVICE_CGM
+
+    @Synchronized
+    override fun connectDevice(delayMillis: Long): Boolean {
+        if (stop) return false
+        if (phase != Phase.IDLE && (mBluetoothGatt != null || mActiveBluetoothDevice != null)) return true
+        phase = Phase.CONNECTING
+        val scheduled = super.connectDevice(delayMillis)
+        if (!scheduled && phase == Phase.CONNECTING) phase = Phase.IDLE
+        return scheduled
+    }
+
+    override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
+        if (!address.isNullOrBlank() &&
+            OttaiConstants.canonicalSensorId(address).equals(SerialNumber, ignoreCase = true)
+        ) return true
+        val known = mActiveDeviceAddress
+        return known != null && address != null && address.equals(known, ignoreCase = true)
+    }
+
+    override fun setDeviceAddress(address: String?) {
+        super.setDeviceAddress(address)
+        val normalized = address?.trim().orEmpty().takeIf { it.isNotEmpty() } ?: return
+        val ctx = Applic.app ?: return
+        val id = SerialNumber ?: return
+        OttaiRegistry.ensureSensorRecord(ctx, id, normalized, OttaiConstants.DEFAULT_DISPLAY_NAME)
+    }
+
+    override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        if (stop) return
+        when (newState) {
+            BluetoothProfile.STATE_CONNECTED -> {
+                Log.i(TAG, "connected ${gatt.device?.address}")
+                handler.removeCallbacks(reconnectRunnable)
+                mBluetoothGatt = gatt
+                mActiveBluetoothDevice = gatt.device
+                connectTime = System.currentTimeMillis()
+                phase = Phase.DISCOVERING
+                authStep = AuthStep.NONE
+                actStep = ActStep.NONE
+                notifyEnableIndex = 0
+                runCatching { gatt.requestMtu(MTU) }
+                handler.postDelayed({ runCatching { gatt.discoverServices() } }, 300)
+                UiRefreshBus.requestStatusRefresh()
+            }
+            BluetoothProfile.STATE_DISCONNECTED -> {
+                Log.i(TAG, "disconnected status=$status")
+                phase = Phase.IDLE
+                svcDeviceInfo = null; svcCgm = null; svcAuth = null
+                sessionKeyHex = ""
+                runCatching { gatt.close() }
+                mBluetoothGatt = null
+                mActiveBluetoothDevice = null
+                if (!stop) scheduleReconnect("gatt disconnect")
+                UiRefreshBus.requestStatusRefresh()
+            }
+        }
+    }
+
+    override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+        Log.d(TAG, "mtu=$mtu status=$status")
+    }
+
+    override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            scheduleReconnect("discover failed $status"); return
+        }
+        svcDeviceInfo = gatt.getService(OttaiConstants.SERVICE_DEVICE_INFO)
+        svcCgm = gatt.getService(OttaiConstants.SERVICE_CGM)
+        svcAuth = gatt.getService(OttaiConstants.SERVICE_AUTH)
+        if (svcCgm == null || svcAuth == null || svcDeviceInfo == null) {
+            Log.e(TAG, "missing Ottai services (cgm=$svcCgm auth=$svcAuth info=$svcDeviceInfo)")
+            scheduleReconnect("missing services"); return
+        }
+        authKeys = materials.authKeys
+        if (authKeys == null) {
+            Log.w(TAG, "no auth keys (cloud materials missing) — cannot authenticate")
+            // Stay connected but idle; the driver needs cloud bind first.
+            phase = Phase.IDLE
+            return
+        }
+        phase = Phase.ENABLING_NOTIFY
+        notifyEnableIndex = 0
+        enableNextNotification(gatt)
+    }
+
+    private fun enableNextNotification(gatt: BluetoothGatt) {
+        if (notifyEnableIndex >= notifyOrder.size) {
+            startAuth(gatt)
+            return
+        }
+        val (svcUuid, chUuid) = notifyOrder[notifyEnableIndex]
+        val ch = gatt.getService(svcUuid)?.getCharacteristic(chUuid)
+        if (ch == null) {
+            notifyEnableIndex++
+            enableNextNotification(gatt)
+            return
+        }
+        gatt.setCharacteristicNotification(ch, true)
+        val cccd = ch.getDescriptor(OttaiConstants.CCCD)
+        if (cccd != null) {
+            cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            runCatching { gatt.writeDescriptor(cccd) }
+        } else {
+            notifyEnableIndex++
+            enableNextNotification(gatt)
+        }
+    }
+
+    override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+        if (phase == Phase.ENABLING_NOTIFY) {
+            notifyEnableIndex++
+            enableNextNotification(gatt)
+        }
+    }
+
+    // ---- Auth V2 ----
+
+    private fun startAuth(gatt: BluetoothGatt) {
+        phase = Phase.AUTH
+        authStep = AuthStep.READ_DEVICE_TIME
+        readChar(gatt, OttaiConstants.SERVICE_DEVICE_INFO, OttaiConstants.CHAR_CURRENT_TIME)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onCharacteristicRead(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
+        val value = ch.value ?: ByteArray(0)
+        when (ch.uuid) {
+            OttaiConstants.CHAR_CURRENT_TIME -> {
+                deviceTimeBytes = value.copyOf()
+                authStep = AuthStep.READ_DEVICE_PARAM
+                readChar(gatt, OttaiConstants.SERVICE_AUTH, OttaiConstants.CHAR_AUTH_DEVICE_PARAM)
+            }
+            OttaiConstants.CHAR_AUTH_DEVICE_PARAM -> {
+                parseDeviceAuthParam(value)
+                authStep = AuthStep.READ_DEVICE_SIGN
+                readChar(gatt, OttaiConstants.SERVICE_AUTH, OttaiConstants.CHAR_AUTH_SIGN)
+            }
+            OttaiConstants.CHAR_AUTH_SIGN -> {
+                verifyDeviceSign(value)
+                writeAppParam(gatt)
+            }
+            OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true)
+        }
+    }
+
+    private fun parseDeviceAuthParam(v: ByteArray) {
+        // [0]=index, [1..3]=time(3), [4..35]=pubX(32), [36..67]=pubY(32)
+        if (v.size < 68) { Log.w(TAG, "device param short ${v.size}"); return }
+        deviceParamIndex = v[0].toInt() and 0xFF
+        deviceParamTime = v.copyOfRange(1, 4)
+        devicePubX = v.copyOfRange(4, 36)
+        devicePubY = v.copyOfRange(36, 68)
+    }
+
+    private fun verifyDeviceSign(deviceSign: ByteArray) {
+        val keys = authKeys ?: return
+        if (deviceParamIndex !in keys.indices) { Log.w(TAG, "device index oob"); return }
+        val authKeyHex = OttaiCrypto.bytesToHex(keys[deviceParamIndex])
+        val ok = OttaiBleAuth.verifyDeviceSign(
+            deviceSign, authKeyHex, OttaiCrypto.bytesToHex(macBytes),
+            devicePubX, devicePubY, deviceParamTime,
+        )
+        // Per decompile notes the boolean polarity is noisy; log, do not hard-fail.
+        Log.i(TAG, "device sign verify=$ok")
+    }
+
+    private fun writeAppParam(gatt: BluetoothGatt) {
+        val keys = authKeys ?: return
+        val kp = OttaiBleAuth.generateKeyPair()
+        appPrivate = kp.private as ECPrivateKey
+        val (x, y) = OttaiBleAuth.publicCoords(kp.public as ECPublicKey)
+        appPubX = x; appPubY = y
+        appTime3 = OttaiBleAuth.appTime3(deviceTimeBytes)
+        appIndex = (0 until keys.size).random()
+        val param = OttaiBleAuth.appAuthParameter(appIndex, appTime3, appPubX, appPubY)
+        authStep = AuthStep.WRITE_APP_PARAM
+        writeChar(gatt, OttaiConstants.SERVICE_AUTH, OttaiConstants.CHAR_AUTH_APP_PARAM, param)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onCharacteristicWrite(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
+        when {
+            authStep == AuthStep.WRITE_APP_PARAM && ch.uuid == OttaiConstants.CHAR_AUTH_APP_PARAM -> {
+                val keys = authKeys ?: return
+                val authKeyHex = OttaiCrypto.bytesToHex(keys[appIndex])
+                val sign = OttaiBleAuth.authSignHex(authKeyHex, OttaiCrypto.bytesToHex(macBytes), appPubX, appPubY, appTime3)
+                authStep = AuthStep.WRITE_APP_SIGN
+                writeChar(gatt, OttaiConstants.SERVICE_AUTH, OttaiConstants.CHAR_AUTH_SIGN, sign)
+            }
+            authStep == AuthStep.WRITE_APP_SIGN && ch.uuid == OttaiConstants.CHAR_AUTH_SIGN -> {
+                deriveSession()
+                authStep = AuthStep.DONE
+                phase = Phase.STREAMING
+                Log.i(TAG, "auth complete; session=${if (sessionKeyHex.isNotBlank()) "ok" else "FAILED"}")
+                UiRefreshBus.requestStatusRefresh()
+            }
+            actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_COMMAND ||
+                actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_MAX_ACTIVE_TIME ||
+                actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_CURRENT_TIME -> advanceActivation(gatt)
+        }
+    }
+
+    private fun deriveSession() {
+        val priv = appPrivate ?: return
+        sessionKeyHex = OttaiBleAuth.deriveSessionKey(
+            OttaiCrypto.bytesToHex(devicePubX),
+            OttaiCrypto.bytesToHex(devicePubY),
+            priv,
+        ).orEmpty()
+    }
+
+    // ---- streaming ----
+
+    @Suppress("DEPRECATION")
+    override fun onCharacteristicChanged(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic) {
+        val value = ch.value ?: return
+        when (ch.uuid) {
+            OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true)
+            OttaiConstants.CHAR_GLUCOSE_HISTORY -> handleGlucosePayload(value, live = false)
+        }
+    }
+
+    private fun handleGlucosePayload(cipher: ByteArray, live: Boolean) {
+        if (sessionKeyHex.isBlank()) { Log.w(TAG, "payload before session key"); return }
+        val activeMs = materials.activeTimeMs
+        val readings = if (live) {
+            OttaiParser.parseLive(cipher, sessionKeyHex, materials.method, materials.coefficients, activeMs)
+                ?.let { listOf(it) } ?: emptyList()
+        } else {
+            OttaiParser.parseHistory(cipher, sessionKeyHex, materials.method, materials.coefficients, activeMs)
+        }
+        for (r in readings) {
+            if (!r.valid) continue
+            if (materials.method.isBlank()) {
+                Log.w(TAG, "no method — skipping emit (raw only) dataNo=${r.record.dataNo}")
+                continue
+            }
+            emitReading(r)
+        }
+        if (readings.isNotEmpty()) UiRefreshBus.requestStatusRefresh()
+    }
+
+    private fun emitReading(r: OttaiReading) {
+        // adjustGlucose is mmol/L; convert to mg/dL for native stream.
+        val mgdl = (r.adjustGlucose * 18.0).toFloat()
+        if (mgdl <= 1f) return
+        val sampleMs = if (r.monitorTimeMs > 0L) r.monitorTimeMs else System.currentTimeMillis()
+        if (sampleMs >= lastGlucoseAtMs) {
+            lastGlucoseAtMs = sampleMs
+            lastGlucoseMgdl = mgdl
+            lastRawCurrent = r.record.rawCurrent.toFloat()
+            lastDataNo = r.record.dataNo
+        }
+        Log.i(TAG, "BG dataNo=${r.record.dataNo} mmol=%.2f mgdl=%.0f raw=%d T=%.1f".format(
+            r.adjustGlucose, mgdl, r.record.rawCurrent, r.record.temperatureC))
+        mirrorReadingIntoNative(sampleMs, mgdl)
+        Applic.app?.let { OttaiRegistry.saveLastDataNo(it, SerialNumber.orEmpty(), r.record.dataNo) }
+    }
+
+    private fun ensureNativeShell() {
+        val id = SerialNumber ?: return
+        runCatching {
+            val startSec = (materials.activeTimeMs / 1000L).coerceAtLeast(1L)
+            Natives.ensureSensorShell(id, startSec)
+            if (dataptr == 0L) dataptr = runCatching { Natives.getdataptr(id) }.getOrDefault(0L)
+        }.onFailure { Log.stack(TAG, "ensureNativeShell", it) }
+    }
+
+    private fun mirrorReadingIntoNative(sampleMs: Long, mgdl: Float) {
+        val id = SerialNumber ?: return
+        ensureNativeShell()
+        runCatching {
+            Natives.addGlucoseStream(sampleMs / 1000L, mgdl, id)
+            Natives.wakebackup()
+        }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
+    }
+
+    // ---- activation (gated) ----
+
+    override fun requestActivation(): Boolean {
+        val gatt = mBluetoothGatt ?: return false
+        if (phase != Phase.STREAMING || sessionKeyHex.isBlank()) {
+            Log.w(TAG, "activation refused — not authenticated (phase=$phase)")
+            return false
+        }
+        Log.i(TAG, "starting activation sequence")
+        actStep = ActStep.RTC
+        writeRtc(gatt)
+        return true
+    }
+
+    private fun advanceActivation(gatt: BluetoothGatt) {
+        when (actStep) {
+            ActStep.RTC -> { actStep = ActStep.MAX_ACTIVE; writeMaxActiveTime(gatt) }
+            ActStep.MAX_ACTIVE -> { actStep = ActStep.DESTRUCTION; writeDestructionTime(gatt) }
+            ActStep.DESTRUCTION -> { actStep = ActStep.COMMAND; writeActivateCmd(gatt) }
+            ActStep.COMMAND -> { actStep = ActStep.DONE; Log.i(TAG, "activation command sent") }
+            else -> {}
+        }
+    }
+
+    private fun writeRtc(gatt: BluetoothGatt) {
+        val secs = (System.currentTimeMillis() / 1000L).toInt()
+        writeChar(gatt, OttaiConstants.SERVICE_DEVICE_INFO, OttaiConstants.CHAR_CURRENT_TIME, OttaiBleAuth.intToBytesLE(secs))
+    }
+
+    private fun writeMaxActiveTime(gatt: BluetoothGatt) {
+        // p.w0(maxActiveSeconds) little-endian 8 bytes; default to rated lifetime.
+        val secs = OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L
+        writeChar(gatt, OttaiConstants.SERVICE_DEVICE_INFO, OttaiConstants.CHAR_MAX_ACTIVE_TIME, longToBytesLE(secs))
+    }
+
+    private fun writeDestructionTime(gatt: BluetoothGatt) {
+        val destSec = System.currentTimeMillis() / 1000L + OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L
+        val payload = longToBytesLE(destSec) + byteArrayOf(0x04)
+        writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND, payload)
+    }
+
+    private fun writeActivateCmd(gatt: BluetoothGatt) {
+        val cmd = OttaiCrypto.encryptActivateCmd(byteArrayOf(OttaiConstants.ACTIVATE_CMD), sessionKeyHex)
+            ?: byteArrayOf(OttaiConstants.ACTIVATE_CMD)
+        writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND, cmd)
+    }
+
+    private fun longToBytesLE(v: Long): ByteArray = ByteArray(8) { ((v ushr (it * 8)) and 0xFF).toByte() }
+
+    override fun requestHistoryBackfill(): Boolean {
+        // History arrives via notifications on CHAR_GLUCOSE_HISTORY once subscribed;
+        // a dedicated pull command is not required for the watch protocol. The
+        // device pushes buffered history after auth. No-op trigger for now.
+        return phase == Phase.STREAMING
+    }
+
+    // ---- GATT helpers ----
+
+    @Suppress("DEPRECATION")
+    private fun readChar(gatt: BluetoothGatt, svc: UUID, ch: UUID) {
+        val c = gatt.getService(svc)?.getCharacteristic(ch)
+        if (c == null) { Log.w(TAG, "readChar missing $ch"); return }
+        runCatching { gatt.readCharacteristic(c) }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun writeChar(gatt: BluetoothGatt, svc: UUID, ch: UUID, value: ByteArray) {
+        val c = gatt.getService(svc)?.getCharacteristic(ch)
+        if (c == null) { Log.w(TAG, "writeChar missing $ch"); return }
+        c.value = value
+        c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        runCatching { gatt.writeCharacteristic(c) }
+    }
+
+    // ---- OttaiDriver ----
+
+    /** Apply freshly-fetched cloud materials (after bind/validate + decrypt). */
+    fun applyMaterials(context: Context, m: OttaiRegistry.DeviceMaterials) {
+        materials = m
+        authKeys = m.authKeys
+        OttaiRegistry.saveMaterials(context, SerialNumber.orEmpty(), m)
+    }
+
+    override fun getCurrentSnapshot(maxAgeMillis: Long): OttaiCurrentSnapshot? {
+        if (lastGlucoseAtMs == 0L) return null
+        if (System.currentTimeMillis() - lastGlucoseAtMs > maxAgeMillis) return null
+        return OttaiCurrentSnapshot(lastGlucoseAtMs, lastGlucoseMgdl, lastRawCurrent, Float.NaN, SENSOR_GEN)
+    }
+
+    override fun getStartTimeMs(): Long = materials.activeTimeMs
+    override fun getOfficialEndMs(): Long =
+        if (materials.activeTimeMs <= 0L) 0L
+        else materials.activeTimeMs + OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
+    override fun getExpectedEndMs(): Long = getOfficialEndMs()
+    override fun isSensorExpired(): Boolean {
+        val end = getOfficialEndMs(); return end > 0L && System.currentTimeMillis() > end
+    }
+    override fun getSensorRemainingHours(): Int {
+        val end = getOfficialEndMs(); if (end <= 0L) return -1
+        val ms = end - System.currentTimeMillis(); return if (ms <= 0L) 0 else (ms / 3_600_000L).toInt()
+    }
+    override fun getSensorAgeHours(): Int {
+        if (materials.activeTimeMs <= 0L) return -1
+        return ((System.currentTimeMillis() - materials.activeTimeMs) / 3_600_000L).toInt()
+    }
+    override fun getReadingIntervalMinutes(): Int = OttaiConstants.DEFAULT_READING_INTERVAL_MINUTES
+
+    override val vendorFirmwareVersion: String get() = materials.deviceVersion
+    override val vendorModelName: String get() = OttaiConstants.DEFAULT_DISPLAY_NAME
+
+    override fun matchesManagedSensorId(sensorId: String?): Boolean =
+        OttaiConstants.matchesCanonicalOrKnownNativeAlias(sensorId, SerialNumber)
+
+    override fun hasNativeSensorBacking(): Boolean = true
+
+    override fun getDetailedBleStatus(): String = when (phase) {
+        Phase.IDLE -> if (authKeys == null) "Needs cloud bind" else "Idle"
+        Phase.CONNECTING -> "Connecting"
+        Phase.DISCOVERING -> "Discovering"
+        Phase.ENABLING_NOTIFY -> "Subscribing"
+        Phase.AUTH -> "Authenticating"
+        Phase.STREAMING -> if (lastGlucoseAtMs > 0L) {
+            "Streaming • ${((System.currentTimeMillis() - lastGlucoseAtMs) / 60000L)}m ago"
+        } else "Streaming (awaiting data)"
+    }
+}

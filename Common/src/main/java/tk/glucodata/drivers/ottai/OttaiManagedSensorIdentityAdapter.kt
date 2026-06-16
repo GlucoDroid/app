@@ -1,0 +1,88 @@
+// OttaiManagedSensorIdentityAdapter.kt — vendor adapter for the managed identity seam.
+
+package tk.glucodata.drivers.ottai
+
+import android.content.Context
+import tk.glucodata.Applic
+import tk.glucodata.SensorBluetooth
+import tk.glucodata.SuperGattCallback
+import tk.glucodata.drivers.ManagedSensorIdentityAdapter
+
+object OttaiManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
+
+    override fun matchesCallbackId(callbackId: String?, sensorId: String): Boolean {
+        val normalized = callbackId?.trim().takeIf { !it.isNullOrEmpty() } ?: return false
+        if (normalized.equals(sensorId, ignoreCase = true) ||
+            OttaiConstants.matchesCanonicalOrKnownNativeAlias(normalized, sensorId)
+        ) {
+            return true
+        }
+        return SensorBluetooth.mygatts().any { cb ->
+            val d = cb as? OttaiDriver ?: return@any false
+            d.matchesManagedSensorId(normalized) && d.matchesManagedSensorId(sensorId)
+        }
+    }
+
+    override fun resolveCanonicalSensorId(sensorId: String?): String? {
+        val raw = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return null
+        if (OttaiConstants.isProvisionalSensorId(raw)) return raw
+        val normalized = OttaiConstants.canonicalSensorId(raw)
+        if (normalized.isEmpty()) return null
+        runCatching { OttaiRegistry.resolveCanonicalSensorId(Applic.app, normalized) }
+            .getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
+        return normalized.takeIf { OttaiConstants.looksLikeMac(it) }
+    }
+
+    override fun resolveStableStorageSensorId(sensorId: String?): String? {
+        val raw = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return null
+        resolveCanonicalSensorId(raw)?.takeIf { it.isNotBlank() }?.let { return it }
+        val canonical = OttaiConstants.canonicalSensorId(raw)
+        return canonical.takeIf { OttaiConstants.isProvisionalSensorId(it) || OttaiConstants.looksLikeMac(it) }
+    }
+
+    override fun resolveNativeSensorName(sensorId: String?): String? {
+        val raw = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return null
+        val canonical = resolveCanonicalSensorId(raw) ?: return null
+        return OttaiRegistry.findRecord(Applic.app, canonical)?.let { canonical }
+    }
+
+    override fun hasPersistedManagedRecord(sensorId: String?): Boolean {
+        val normalized = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return false
+        return OttaiRegistry.findRecord(Applic.app, normalized) != null
+    }
+
+    override fun resolveCallbackDataptr(sensorId: String?): Long? =
+        resolveCanonicalSensorId(sensorId)?.let { OttaiRegistry.findRecord(Applic.app, it) }?.let { 0L }
+
+    override fun persistedSensorIds(context: Context): List<String> =
+        OttaiRegistry.persistedRecords(context).map { it.sensorId }
+
+    override fun createManagedCallback(context: Context, sensorId: String, dataptr: Long): SuperGattCallback? {
+        OttaiRegistry.createRestoredCallback(context, sensorId, dataptr)?.let { return it }
+        val canonical = resolveCanonicalSensorId(sensorId)
+            ?.takeIf { it.isNotBlank() && !OttaiConstants.isProvisionalSensorId(it) }
+            ?: return null
+        OttaiRegistry.findRecord(context, canonical) ?: return null
+        return OttaiBleManager(canonical, dataptr).also { it.restoreFromPersistence(context) }
+    }
+
+    override fun removePersistedSensor(context: Context, sensorId: String?) {
+        OttaiRegistry.removeSensor(context, sensorId)
+    }
+
+    override fun isExternallyManagedBleSensor(sensorId: String?): Boolean =
+        resolveCanonicalSensorId(sensorId)?.let { OttaiRegistry.findRecord(Applic.app, it) } != null
+
+    override fun usesNativeDirectStreamShell(sensorId: String?): Boolean =
+        resolveCanonicalSensorId(sensorId)?.let { OttaiRegistry.findRecord(Applic.app, it) } != null
+
+    override fun hasNativeSensorBacking(sensorId: String?): Boolean? {
+        resolveCanonicalSensorId(sensorId) ?: return null
+        return true
+    }
+
+    override fun shouldUseNativeHistorySync(sensorId: String?): Boolean? {
+        resolveCanonicalSensorId(sensorId) ?: return null
+        return false // driver owns Room storage end-to-end
+    }
+}

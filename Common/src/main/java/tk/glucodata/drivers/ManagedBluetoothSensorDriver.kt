@@ -37,6 +37,7 @@ enum class ManagedSensorUiFamily {
     AIDEX,
     ICAN,
     ANYTIME,
+    OTTAI,
 }
 
 data class ManagedSensorUiSnapshot(
