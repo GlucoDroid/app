@@ -42,6 +42,14 @@ class OttaiBleManager(
         const val SENSOR_GEN = 0
         private const val RECONNECT_DELAY_MS = 3_000L
         private const val MTU = 247
+
+        /**
+         * Set (by the setup wizard) to a canonical sensorId to request a one-time
+         * activation on that sensor's next successful auth. Cleared once fired.
+         * Activation starts the sensor's irreversible lifetime, so it is only ever
+         * armed by an explicit user action.
+         */
+        @Volatile @JvmStatic var activateRequestedFor: String? = null
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
@@ -100,6 +108,7 @@ class OttaiBleManager(
         materials = OttaiRegistry.loadMaterials(context, id)
         authKeys = materials.authKeys
         lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
+        // Auth V2 signs the cloud id bytes, not necessarily the Android BLE address.
         macBytes = runCatching { OttaiCrypto.hexToBytes(OttaiConstants.canonicalSensorId(id)) }.getOrDefault(ByteArray(0))
     }
 
@@ -126,16 +135,18 @@ class OttaiBleManager(
     }
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
-        if (!address.isNullOrBlank() &&
-            OttaiConstants.canonicalSensorId(address).equals(SerialNumber, ignoreCase = true)
-        ) return true
-        val known = mActiveDeviceAddress
-        return known != null && address != null && address.equals(known, ignoreCase = true)
+        val scanned = OttaiConstants.normalizeBleAddress(address, allowPlain = false) ?: return false
+        val known = OttaiConstants.normalizeBleAddress(mActiveDeviceAddress, allowPlain = false)
+            ?: OttaiConstants.normalizeBleAddress(
+                OttaiRegistry.findRecord(Applic.app, SerialNumber)?.address,
+                allowPlain = false,
+            )
+        return known != null && scanned.equals(known, ignoreCase = true)
     }
 
     override fun setDeviceAddress(address: String?) {
         super.setDeviceAddress(address)
-        val normalized = address?.trim().orEmpty().takeIf { it.isNotEmpty() } ?: return
+        val normalized = OttaiConstants.normalizeBleAddress(address, allowPlain = false) ?: return
         val ctx = Applic.app ?: return
         val id = SerialNumber ?: return
         OttaiRegistry.ensureSensorRecord(ctx, id, normalized, OttaiConstants.DEFAULT_DISPLAY_NAME)
@@ -155,7 +166,14 @@ class OttaiBleManager(
                 actStep = ActStep.NONE
                 notifyEnableIndex = 0
                 runCatching { gatt.requestMtu(MTU) }
-                handler.postDelayed({ runCatching { gatt.discoverServices() } }, 300)
+                // CGM links drop quickly at default (balanced) params; request a fast
+                // interval so auth/activation completes before the sensor drops idle.
+                runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
+                // Clear any stale GATT cache: a cached handle made the MaxActiveTime
+                // write hit an invalid handle (ATT INVALID_HANDLE) and the sensor then
+                // terminated the link. refresh() forces a fresh discovery each connect.
+                runCatching { gatt.javaClass.getMethod("refresh").invoke(gatt) }
+                handler.postDelayed({ runCatching { gatt.discoverServices() } }, 600)
                 UiRefreshBus.requestStatusRefresh()
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
@@ -307,8 +325,18 @@ class OttaiBleManager(
                 deriveSession()
                 authStep = AuthStep.DONE
                 phase = Phase.STREAMING
-                Log.i(TAG, "auth complete; session=${if (sessionKeyHex.isNotBlank()) "ok" else "FAILED"}")
+                val sessionOk = sessionKeyHex.isNotBlank()
+                Log.i(TAG, "auth complete; session=${if (sessionOk) "ok" else "FAILED"}")
                 UiRefreshBus.requestStatusRefresh()
+                // One-time activation, armed by the wizard. Fire promptly (within the
+                // sensor's idle window) so a virgin sensor starts streaming.
+                if (sessionOk && SerialNumber != null &&
+                    OttaiConstants.matchesCanonicalOrKnownNativeAlias(SerialNumber, activateRequestedFor)
+                ) {
+                    activateRequestedFor = null
+                    Log.i(TAG, "auto-activating on auth (user-armed)")
+                    handler.postDelayed({ runCatching { requestActivation() } }, 400)
+                }
             }
             actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_COMMAND ||
                 actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_MAX_ACTIVE_TIME ||
@@ -461,7 +489,13 @@ class OttaiBleManager(
         val c = gatt.getService(svc)?.getCharacteristic(ch)
         if (c == null) { Log.w(TAG, "writeChar missing $ch"); return }
         c.value = value
-        c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        // Match the official app: use the characteristic's supported write type rather
+        // than forcing write-with-response (forcing it on a no-response-only char gets
+        // an ATT error and the sensor drops the link).
+        c.writeType = if (c.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0)
+            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        else BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+        Log.i(TAG, "write ${ch.toString().take(8)} props=0x${c.properties.toString(16)} wt=${c.writeType} len=${value.size}")
         runCatching { gatt.writeCharacteristic(c) }
     }
 

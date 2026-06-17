@@ -1856,4 +1856,38 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">已连接，已收到原始值</string>
     <string name="sensor_display_select">选择要显示的传感器</string>
     <string name="sensor_display_selected">已选择显示传感器</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">使用手机号登录，绑定云端 ID，然后通过蓝牙地址连接</string>
+    <string name="ottai_sensor_picker_desc">中国市场 CGM - 云端登录 + 蓝牙</string>
+    <string name="ottai_setup_title">Ottai 设置</string>
+    <string name="ottai_login_title">登录 Ottai</string>
+    <string name="ottai_phone_hint">手机号</string>
+    <string name="ottai_send_code">发送验证码</string>
+    <string name="ottai_code_hint">短信验证码</string>
+    <string name="ottai_code_sent">验证码已发送 - 请在下方输入（ref ...%1$s）</string>
+    <string name="ottai_login_button">登录</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">已登录</string>
+    <string name="ottai_sensor_mac_hint">云端设备 ID（12 位十六进制或二维码）</string>
+    <string name="ottai_ble_address_hint">蓝牙地址（例如 F0:FD:45:09:C7:C2）</string>
+    <string name="ottai_validate_readonly">验证（只读）</string>
+    <string name="ottai_bind_connect">绑定并连接</string>
+    <string name="ottai_bind_save">绑定并保存材料</string>
+    <string name="ottai_connect_saved">从账号或已保存材料连接</string>
+    <string name="ottai_device_version_hint">设备版本（例如 V2.5.S2417.2）</string>
+    <string name="ottai_validate_ok">云端材料可成功解密。绑定会占用此传感器。</string>
+    <string name="ottai_validate_fail">无法获取/解密此云端 ID 的材料</string>
+    <string name="ottai_login_fail">登录失败 - 请检查手机号/验证码</string>
+    <string name="ottai_bind_fail">绑定失败 - 请检查云端 ID、设备版本和账号</string>
+    <string name="ottai_connect_saved_fail">账号中或本地没有此云端 ID 的材料</string>
+    <string name="ottai_bound_needs_ble">云端绑定已保存。请输入蓝牙地址以连接。</string>
+    <string name="ottai_saved_needs_ble">找到已保存材料。请输入蓝牙地址以连接。</string>
+    <string name="ottai_ble_scan_title">官方方式蓝牙扫描</string>
+    <string name="ottai_ble_scan_hint">扫描 CGM 服务 10 秒，只显示稳定且信号强于 -70 dBm 的设备，与官方应用一致。</string>
+    <string name="ottai_ble_scan_empty">未找到稳定的 CGM 服务设备。请将手机靠近传感器后重新扫描。</string>
+    <string name="ottai_ble_scan_selected">已选择蓝牙地址 %1$s</string>
+    <string name="ottai_ble_scan_likely">稳定的 CGM 候选设备</string>
+    <string name="ottai_ble_scan_possible">CGM 候选设备</string>
+    <string name="ottai_ble_scan_unknown">已过滤的广播设备</string>
 </resources>

@@ -1912,4 +1912,38 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram зберігає оновлення бота до 24 годин. Укажіть один або кілька chat ID чи імен користувачів, повідомлення яких можна імпортувати.</string>
     <string name="sensor_display_select">Вибрати датчик для відображення</string>
     <string name="sensor_display_selected">Датчик вибрано для відображення</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Увійдіть телефоном, прив’яжіть хмарний ID, потім підключіться за Bluetooth-адресою</string>
+    <string name="ottai_sensor_picker_desc">CGM для китайського ринку - хмарний вхід + Bluetooth</string>
+    <string name="ottai_setup_title">Налаштування Ottai</string>
+    <string name="ottai_login_title">Увійти в Ottai</string>
+    <string name="ottai_phone_hint">Номер телефону</string>
+    <string name="ottai_send_code">Надіслати код</string>
+    <string name="ottai_code_hint">SMS-код</string>
+    <string name="ottai_code_sent">Код надіслано - введіть його нижче (ref ...%1$s)</string>
+    <string name="ottai_login_button">Увійти</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Вхід виконано</string>
+    <string name="ottai_sensor_mac_hint">Хмарний ID пристрою (12 hex або QR)</string>
+    <string name="ottai_ble_address_hint">Bluetooth-адреса (наприклад F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Перевірити (лише читання)</string>
+    <string name="ottai_bind_connect">Прив’язати й підключити</string>
+    <string name="ottai_bind_save">Прив’язати й зберегти матеріали</string>
+    <string name="ottai_connect_saved">Підключити з акаунта або збережених матеріалів</string>
+    <string name="ottai_device_version_hint">Версія пристрою (наприклад V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Хмарні матеріали успішно розшифровуються. Прив’язка закріпить цей сенсор.</string>
+    <string name="ottai_validate_fail">Не вдалося отримати/розшифрувати матеріали для цього хмарного ID</string>
+    <string name="ottai_login_fail">Не вдалося увійти - перевірте телефон/код</string>
+    <string name="ottai_bind_fail">Прив’язка не вдалася - перевірте хмарний ID, версію пристрою та акаунт</string>
+    <string name="ottai_connect_saved_fail">Немає матеріалів в акаунті або збережених матеріалів для цього хмарного ID</string>
+    <string name="ottai_bound_needs_ble">Хмарну прив’язку збережено. Введіть Bluetooth-адресу для підключення.</string>
+    <string name="ottai_saved_needs_ble">Збережені матеріали знайдено. Введіть Bluetooth-адресу для підключення.</string>
+    <string name="ottai_ble_scan_title">Сканування Bluetooth як в офіційному застосунку</string>
+    <string name="ottai_ble_scan_hint">Сканує сервіс CGM 10 секунд і показує лише стабільні пристрої сильніше за -70 dBm, як в офіційному застосунку.</string>
+    <string name="ottai_ble_scan_empty">Стабільний пристрій із сервісом CGM не знайдено. Піднесіть телефон ближче до сенсора і повторіть сканування.</string>
+    <string name="ottai_ble_scan_selected">Вибрано Bluetooth-адресу %1$s</string>
+    <string name="ottai_ble_scan_likely">Стабільний кандидат CGM</string>
+    <string name="ottai_ble_scan_possible">Кандидат CGM</string>
+    <string name="ottai_ble_scan_unknown">Відфільтроване BLE-оголошення</string>
 </resources>

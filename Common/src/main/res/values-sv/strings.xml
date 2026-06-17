@@ -1840,4 +1840,38 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">Ansluten, råvärden mottagna</string>
     <string name="sensor_display_select">Välj sensor för visning</string>
     <string name="sensor_display_selected">Sensor vald för visning</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Logga in med telefon, bind moln-ID och anslut sedan via Bluetooth-adress</string>
+    <string name="ottai_sensor_picker_desc">CGM för kinesiska marknaden - molninloggning + Bluetooth</string>
+    <string name="ottai_setup_title">Ottai-inställning</string>
+    <string name="ottai_login_title">Logga in på Ottai</string>
+    <string name="ottai_phone_hint">Telefonnummer</string>
+    <string name="ottai_send_code">Skicka kod</string>
+    <string name="ottai_code_hint">SMS-kod</string>
+    <string name="ottai_code_sent">Kod skickad - ange den nedan (ref ...%1$s)</string>
+    <string name="ottai_login_button">Logga in</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Inloggad</string>
+    <string name="ottai_sensor_mac_hint">Moln-enhets-ID (12 hex eller QR)</string>
+    <string name="ottai_ble_address_hint">Bluetooth-adress (t.ex. F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Validera (endast läsning)</string>
+    <string name="ottai_bind_connect">Bind och anslut</string>
+    <string name="ottai_bind_save">Bind och spara material</string>
+    <string name="ottai_connect_saved">Anslut från konto eller sparade material</string>
+    <string name="ottai_device_version_hint">Enhetsversion (t.ex. V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Molnmaterial kan dekrypteras. Bindning kommer att göra anspråk på sensorn.</string>
+    <string name="ottai_validate_fail">Kunde inte hämta/dekryptera material för detta moln-ID</string>
+    <string name="ottai_login_fail">Inloggning misslyckades - kontrollera telefon/kod</string>
+    <string name="ottai_bind_fail">Bindning misslyckades - kontrollera moln-ID, enhetsversion och konto</string>
+    <string name="ottai_connect_saved_fail">Inga konto- eller sparade material för detta moln-ID</string>
+    <string name="ottai_bound_needs_ble">Molnbindning sparad. Ange Bluetooth-adressen för att ansluta.</string>
+    <string name="ottai_saved_needs_ble">Sparade material hittades. Ange Bluetooth-adressen för att ansluta.</string>
+    <string name="ottai_ble_scan_title">Bluetoothsökning som i officiella appen</string>
+    <string name="ottai_ble_scan_hint">Söker efter CGM-tjänsten i 10 sekunder och visar bara stabila enheter starkare än -70 dBm, som i officiella appen.</string>
+    <string name="ottai_ble_scan_empty">Ingen stabil enhet med CGM-tjänst hittades. Håll telefonen närmare sensorn och sök igen.</string>
+    <string name="ottai_ble_scan_selected">Bluetooth-adress %1$s vald</string>
+    <string name="ottai_ble_scan_likely">Stabil CGM-kandidat</string>
+    <string name="ottai_ble_scan_possible">CGM-kandidat</string>
+    <string name="ottai_ble_scan_unknown">Filtrerad BLE-annons</string>
 </resources>

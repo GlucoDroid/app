@@ -1,9 +1,9 @@
 // JugglucoNG — Ottai (Chinese-market CGM) driver
 // OttaiConstants.kt — BLE UUIDs, cloud endpoints/headers, prefs keys, identity.
 //
-// See AGENTS/ottai-protocol.md + AGENTS/ottai-phase0-confirmed.md. Ottai connects
-// directly to the bound MAC (no name scan needed); the CGM service 0x181F is also
-// advertised so we can surface it in a scan list.
+// See AGENTS/ottai-protocol.md + AGENTS/ottai-phase0-confirmed.md. The cloud
+// "mac" is a 12-hex logical id used for server calls and BLE auth signatures; it
+// is not necessarily the Android BLE address used for scanning/connecting.
 
 package tk.glucodata.drivers.ottai
 
@@ -78,7 +78,7 @@ object OttaiConstants {
     fun isProvisionalSensorId(name: String?): Boolean =
         name?.trim()?.startsWith(PROVISIONAL_SENSOR_PREFIX, ignoreCase = true) == true
 
-    /** Canonical MAC: 12 uppercase hex, no separators. */
+    /** Canonical cloud device id: 12 uppercase hex, no separators. */
     @JvmStatic
     fun canonicalSensorId(sensorId: String?): String {
         val trimmed = sensorId?.trim().orEmpty()
@@ -88,13 +88,32 @@ object OttaiConstants {
         return trimmed
     }
 
-    /** Add colons to a 12-hex MAC for BluetoothAdapter.getRemoteDevice(). */
+    /** Add colons to a 12-hex value only when the caller already knows it is a BLE address. */
     @JvmStatic
     fun macWithColons(canonical: String): String {
         val c = canonicalSensorId(canonical)
         if (!MAC_PLAIN.matches(c)) return c
         return c.chunked(2).joinToString(":")
     }
+
+    /**
+     * Normalize an Android BLE address to uppercase colon form. Plain 12-hex is
+     * accepted only for explicit BLE-address entry; persisted records should use
+     * colon form so cloud ids are never mistaken for Bluetooth addresses.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun normalizeBleAddress(address: String?, allowPlain: Boolean = false): String? {
+        val t = address?.trim().orEmpty()
+        if (t.isEmpty()) return null
+        if (MAC_COLON.matches(t)) return t.uppercase(Locale.US)
+        if (allowPlain && MAC_PLAIN.matches(t)) return t.uppercase(Locale.US).chunked(2).joinToString(":")
+        return null
+    }
+
+    @JvmStatic
+    fun looksLikeBleAddress(address: String?): Boolean =
+        normalizeBleAddress(address, allowPlain = true) != null
 
     @JvmStatic
     fun looksLikeMac(s: String?): Boolean {

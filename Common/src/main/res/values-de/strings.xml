@@ -1878,4 +1878,38 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="status_raw_values_received">Verbunden, Rohwerte empfangen</string>
     <string name="sensor_display_select">Sensor zur Anzeige auswählen</string>
     <string name="sensor_display_selected">Sensor für Anzeige ausgewählt</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Mit Telefon anmelden, Cloud-ID binden und dann über Bluetooth-Adresse verbinden</string>
+    <string name="ottai_sensor_picker_desc">CGM für den chinesischen Markt - Cloud-Anmeldung + Bluetooth</string>
+    <string name="ottai_setup_title">Ottai-Einrichtung</string>
+    <string name="ottai_login_title">Bei Ottai anmelden</string>
+    <string name="ottai_phone_hint">Telefonnummer</string>
+    <string name="ottai_send_code">Code senden</string>
+    <string name="ottai_code_hint">SMS-Code</string>
+    <string name="ottai_code_sent">Code gesendet - unten eingeben (Ref. ...%1$s)</string>
+    <string name="ottai_login_button">Anmelden</string>
+    <string name="ottai_login_request_suffix">\nAnfrage=...%1$s</string>
+    <string name="ottai_already_signed_in">Angemeldet</string>
+    <string name="ottai_sensor_mac_hint">Cloud-Geräte-ID (12 Hex-Zeichen oder QR)</string>
+    <string name="ottai_ble_address_hint">Bluetooth-Adresse (z. B. F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Prüfen (nur Lesen)</string>
+    <string name="ottai_bind_connect">Binden &amp; verbinden</string>
+    <string name="ottai_bind_save">Binden &amp; Materialien speichern</string>
+    <string name="ottai_connect_saved">Aus Konto oder gespeicherten Materialien verbinden</string>
+    <string name="ottai_device_version_hint">Geräteversion (z. B. V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Cloud-Materialien wurden entschlüsselt. Binden beansprucht diesen Sensor.</string>
+    <string name="ottai_validate_fail">Materialien für diese Cloud-ID konnten nicht abgerufen/entschlüsselt werden</string>
+    <string name="ottai_login_fail">Anmeldung fehlgeschlagen - Telefon/Code prüfen</string>
+    <string name="ottai_bind_fail">Binden fehlgeschlagen - Cloud-ID, Geräteversion und Konto prüfen</string>
+    <string name="ottai_connect_saved_fail">Keine Konto- oder gespeicherten Materialien für diese Cloud-ID</string>
+    <string name="ottai_bound_needs_ble">Cloud-Bindung gespeichert. Bluetooth-Adresse zum Verbinden eingeben.</string>
+    <string name="ottai_saved_needs_ble">Gespeicherte Materialien gefunden. Bluetooth-Adresse zum Verbinden eingeben.</string>
+    <string name="ottai_ble_scan_title">Bluetooth-Suche wie in der offiziellen App</string>
+    <string name="ottai_ble_scan_hint">Sucht 10 Sekunden nach dem CGM-Dienst und zeigt nur stabile Geräte stärker als -70 dBm, wie in der offiziellen App.</string>
+    <string name="ottai_ble_scan_empty">Kein stabiles Gerät mit CGM-Dienst gefunden. Halten Sie das Telefon näher an den Sensor und suchen Sie erneut.</string>
+    <string name="ottai_ble_scan_selected">Bluetooth-Adresse %1$s ausgewählt</string>
+    <string name="ottai_ble_scan_likely">Stabiler CGM-Kandidat</string>
+    <string name="ottai_ble_scan_possible">CGM-Kandidat</string>
+    <string name="ottai_ble_scan_unknown">Gefilterte BLE-Werbung</string>
 </resources>

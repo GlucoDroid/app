@@ -1841,4 +1841,38 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">Conectado, valores brutos recebidos</string>
     <string name="sensor_display_select">Selecionar sensor para exibição</string>
     <string name="sensor_display_selected">Sensor selecionado para exibição</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Entre com telefone, vincule o ID na nuvem e depois conecte pelo endereço Bluetooth</string>
+    <string name="ottai_sensor_picker_desc">CGM para o mercado chinês - login na nuvem + Bluetooth</string>
+    <string name="ottai_setup_title">Configuração Ottai</string>
+    <string name="ottai_login_title">Entrar no Ottai</string>
+    <string name="ottai_phone_hint">Número de telefone</string>
+    <string name="ottai_send_code">Enviar código</string>
+    <string name="ottai_code_hint">Código SMS</string>
+    <string name="ottai_code_sent">Código enviado - digite abaixo (ref. ...%1$s)</string>
+    <string name="ottai_login_button">Entrar</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Conectado</string>
+    <string name="ottai_sensor_mac_hint">ID do dispositivo na nuvem (12 hex ou QR)</string>
+    <string name="ottai_ble_address_hint">Endereço Bluetooth (por exemplo F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Validar (somente leitura)</string>
+    <string name="ottai_bind_connect">Vincular e conectar</string>
+    <string name="ottai_bind_save">Vincular e salvar materiais</string>
+    <string name="ottai_connect_saved">Conectar pela conta ou materiais salvos</string>
+    <string name="ottai_device_version_hint">Versão do dispositivo (ex.: V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Os materiais da nuvem descriptografam corretamente. Vincular irá reivindicar este sensor.</string>
+    <string name="ottai_validate_fail">Não foi possível buscar/descriptografar materiais para este ID na nuvem</string>
+    <string name="ottai_login_fail">Falha ao entrar - verifique telefone/código</string>
+    <string name="ottai_bind_fail">Falha ao vincular - verifique ID na nuvem, versão do dispositivo e conta</string>
+    <string name="ottai_connect_saved_fail">Nenhum material da conta ou salvo para este ID na nuvem</string>
+    <string name="ottai_bound_needs_ble">Vínculo na nuvem salvo. Digite o endereço Bluetooth para conectar.</string>
+    <string name="ottai_saved_needs_ble">Materiais salvos encontrados. Digite o endereço Bluetooth para conectar.</string>
+    <string name="ottai_ble_scan_title">Busca Bluetooth como no app oficial</string>
+    <string name="ottai_ble_scan_hint">Busca o serviço CGM por 10 segundos e mostra apenas dispositivos estáveis acima de -70 dBm, como no app oficial.</string>
+    <string name="ottai_ble_scan_empty">Nenhum dispositivo estável com serviço CGM encontrado. Aproxime o telefone do sensor e tente novamente.</string>
+    <string name="ottai_ble_scan_selected">Endereço Bluetooth %1$s selecionado</string>
+    <string name="ottai_ble_scan_likely">Candidato CGM estável</string>
+    <string name="ottai_ble_scan_possible">Candidato CGM</string>
+    <string name="ottai_ble_scan_unknown">Anúncio BLE filtrado</string>
 </resources>

@@ -52,6 +52,7 @@ class BleDeviceScanner(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun startScan(
+        serviceUuids: List<UUID> = emptyList(),
         onResult: (ScanResult) -> Unit,
         onError: (ScanStartError) -> Unit = {}
     ) {
@@ -99,9 +100,14 @@ class BleDeviceScanner(context: Context) {
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
+        val filters = serviceUuids.map { uuid ->
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(uuid))
+                .build()
+        }
 
         try {
-            scanner.startScan(null, settings, scanCallback)
+            scanner.startScan(filters.ifEmpty { null }, settings, scanCallback)
         } catch (e: SecurityException) {
             Log.e(LOG_ID, "SecurityException during startScan: " + e.message)
             scanCallback = null

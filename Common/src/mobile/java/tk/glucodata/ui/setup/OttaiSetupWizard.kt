@@ -1,20 +1,27 @@
 // JugglucoNG — Ottai Setup Wizard
 //
 // Two phases: (1) phone-number SMS sign-in to Ottai cloud (skipped if already
-// signed in), (2) bind a sensor by MAC. A read-only "Validate" button runs the
-// no-risk validateDeviceByMacV2 probe (confirms materials decrypt) before the
-// committing "Bind & connect" (which activates cloud-side and stores materials).
-// BLE activation of the sensor stays gated inside the driver.
+// signed in), (2) bind a sensor by cloud id and connect by Android BLE address.
+// A read-only "Validate" button runs the no-risk validateDeviceByMacV2 probe
+// (confirms materials decrypt) before the committing bind, which activates
+// cloud-side and stores materials. BLE activation stays gated inside the driver.
 
 package tk.glucodata.ui.setup
 
-import android.widget.Toast
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.le.ScanResult
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,13 +31,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -38,6 +49,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,9 +70,63 @@ import tk.glucodata.Log
 import tk.glucodata.R
 import tk.glucodata.drivers.ottai.OttaiCloudClient
 import tk.glucodata.drivers.ottai.OttaiConstants
+import tk.glucodata.drivers.ottai.OttaiNfc
 import tk.glucodata.drivers.ottai.OttaiRegistry
+import tk.glucodata.ui.util.BleDeviceScanner
+import tk.glucodata.ui.util.rememberBleScanner
+import java.util.UUID
 
 private enum class OttaiSetupStep { LOGIN, SENSOR, CONNECTING, SUCCESS }
+private const val OTTAI_OFFICIAL_SCAN_DURATION_MS = 10_000L
+private const val OTTAI_OFFICIAL_RSSI_THRESHOLD = -70
+
+private data class OttaiWizardConnectResult(
+    val connecting: Boolean,
+    val usedSavedMaterials: Boolean = false,
+)
+
+private data class OttaiScanCandidate(
+    val address: String,
+    val displayName: String,
+    val rssi: Int,
+    val advertisesAuth: Boolean,
+    val advertisesCgm: Boolean,
+    val advertisesDeviceInfo: Boolean,
+    val nameLooksOttai: Boolean,
+    val nameLooksCgm: Boolean,
+    val serviceSummary: String,
+) {
+    val isLikelyOttai: Boolean
+        get() = advertisesAuth || nameLooksOttai || (advertisesCgm && advertisesDeviceInfo)
+
+    val isPossibleCgm: Boolean
+        get() = isLikelyOttai || advertisesCgm || nameLooksCgm
+}
+
+private data class OttaiScanStats(
+    val candidate: OttaiScanCandidate,
+    val totalHits: Int,
+    val strongHits: Int,
+    val bestRssi: Int,
+) {
+    val isStableOfficialCandidate: Boolean
+        get() = strongHits > 0 && strongHits * 2 > totalHits
+}
+
+private fun loadSavedOrBoundOttaiMaterials(
+    context: Context,
+    canonical: String,
+): OttaiRegistry.DeviceMaterials? {
+    val saved = OttaiRegistry.loadMaterials(context, canonical)
+    if (saved.authKeys != null) return saved
+
+    val resp = OttaiCloudClient.getBindDevice(context) ?: return null
+    val boundId = OttaiConstants.canonicalSensorId(resp.mac)
+    if (!OttaiConstants.matchesCanonicalOrKnownNativeAlias(boundId, canonical)) return null
+    val materials = OttaiCloudClient.toMaterials(context, boundId, resp) ?: return null
+    OttaiRegistry.saveMaterials(context, boundId, materials)
+    return materials
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,10 +145,58 @@ fun OttaiSetupWizard(
     var phone by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var requestId by remember { mutableStateOf("") }
-    var mac by remember { mutableStateOf("") }
+    var cloudId by remember { mutableStateOf("") }
+    var bleAddress by remember { mutableStateOf("") }
     var deviceVersion by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
+
+    // Never leave debug NFC-dump mode armed (it would swallow normal/Libre taps).
+    DisposableEffect(Unit) {
+        onDispose { OttaiNfc.dumpMode = false; OttaiNfc.onResult = null }
+    }
+
+    // Save the decrypted per-sensor materials to a file (portable to any device).
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            val msg = withContext(Dispatchers.IO) {
+                val id = OttaiConstants.canonicalSensorId(cloudId)
+                val json = OttaiRegistry.exportJson(context, id)
+                    ?: return@withContext "Nothing to save — fetch credentials first (Validate)."
+                runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) } }
+                    .fold({ "Credentials saved to file." }, { "Save failed: ${it.message}" })
+            }
+            status = msg
+        }
+    }
+    // Load materials from a file and connect — no server/login needed on this device.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            val id = withContext(Dispatchers.IO) {
+                val json = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                }.getOrNull() ?: return@withContext null
+                OttaiRegistry.importJson(context, json)?.also { sid ->
+                    OttaiRegistry.addSensor(
+                        context, sid,
+                        OttaiRegistry.findRecord(context, sid)?.address.orEmpty(),
+                        connectNow = true,
+                    )
+                }
+            }
+            if (id != null) {
+                cloudId = id
+                step = OttaiSetupStep.CONNECTING
+                status = "Credentials loaded — connecting…"
+            } else {
+                status = "Import failed — not a valid Ottai credentials file."
+            }
+        }
+    }
 
     BackHandler {
         when (step) {
@@ -134,7 +249,7 @@ fun OttaiSetupWizard(
                                 else {
                                     requestId = rid
                                     code = "" // force entering the code tied to THIS request
-                                    status = "Code sent — enter it below (ref …${rid.takeLast(6)})"
+                                    status = context.getString(R.string.ottai_code_sent, rid.takeLast(6))
                                 }
                             }
                         },
@@ -161,7 +276,7 @@ fun OttaiSetupWizard(
                                 if (ok) step = OttaiSetupStep.SENSOR
                                 else status = context.getString(R.string.ottai_login_fail) +
                                     OttaiCloudClient.lastError.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty() +
-                                    "\nreq=…${requestId.takeLast(6)}"
+                                    context.getString(R.string.ottai_login_request_suffix, requestId.takeLast(6))
                             }
                         },
                         enabled = !busy && code.isNotBlank() && requestId.isNotBlank(),
@@ -183,7 +298,7 @@ fun OttaiSetupWizard(
                         Text(stringResource(R.string.ottai_already_signed_in), color = MaterialTheme.colorScheme.primary)
                     }
                     OutlinedTextField(
-                        value = mac, onValueChange = { mac = OttaiConstants.extractMacFromQr(it) ?: it.trim() },
+                        value = cloudId, onValueChange = { cloudId = OttaiConstants.extractMacFromQr(it) ?: it.trim() },
                         label = { Text(stringResource(R.string.ottai_sensor_mac_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -195,64 +310,201 @@ fun OttaiSetupWizard(
                         Column(Modifier.padding(12.dp)) {
                             InlineQrScannerCard(
                                 modifier = Modifier.fillMaxWidth().height(200.dp),
-                                onScanResult = { raw -> OttaiConstants.extractMacFromQr(raw)?.let { mac = it } },
+                                onScanResult = { raw -> OttaiConstants.extractMacFromQr(raw)?.let { cloudId = it } },
                             )
                         }
                     }
+                    OttaiBleScanPanel(
+                        ui = ui,
+                        selectedAddress = bleAddress,
+                        onAddressSelected = { address ->
+                            bleAddress = address
+                            status = context.getString(R.string.ottai_ble_scan_selected, address)
+                        },
+                    )
                     OutlinedTextField(
-                        value = deviceVersion, onValueChange = { deviceVersion = it.trim() },
-                        label = { Text(stringResource(R.string.ottai_device_version_hint)) },
+                        value = bleAddress, onValueChange = { bleAddress = it.trim() },
+                        label = { Text(stringResource(R.string.ottai_ble_address_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    // Device version is fetched from the server by Validate (not typed).
+                    if (deviceVersion.isNotBlank()) {
+                        Text(
+                            "Device version: $deviceVersion",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
 
                     OutlinedButton(
                         onClick = {
                             busy = true; status = ""
                             scope.launch {
-                                val ok = withContext(Dispatchers.IO) {
+                                // Fetch from server, decrypt, and SAVE the materials so they
+                                // persist (and can be exported). deviceVersion comes from the response.
+                                val fetchedVersion = withContext(Dispatchers.IO) {
                                     runCatching {
-                                        val resp = OttaiCloudClient.validateByMac(context, mac) ?: return@runCatching false
-                                        OttaiCloudClient.toMaterials(context, mac, resp)?.authKeys != null
-                                    }.onFailure { Log.w(tag, "validate: ${it.message}") }.getOrDefault(false)
+                                        val id = OttaiConstants.canonicalSensorId(cloudId)
+                                        val resp = OttaiCloudClient.validateByMac(context, id) ?: return@runCatching null
+                                        val m = OttaiCloudClient.toMaterials(context, id, resp) ?: return@runCatching null
+                                        if (m.authKeys == null) return@runCatching null
+                                        OttaiRegistry.ensureSensorRecord(context, id, bleAddress, OttaiConstants.DEFAULT_DISPLAY_NAME)
+                                        OttaiRegistry.saveMaterials(context, id, m)
+                                        m.deviceVersion
+                                    }.onFailure { Log.w(tag, "validate: ${it.message}") }.getOrNull()
                                 }
                                 busy = false
-                                status = context.getString(
-                                    if (ok) R.string.ottai_validate_ok else R.string.ottai_validate_fail,
-                                )
+                                if (fetchedVersion != null) {
+                                    deviceVersion = fetchedVersion
+                                    status = context.getString(R.string.ottai_validate_ok)
+                                } else {
+                                    status = context.getString(R.string.ottai_validate_fail) +
+                                        OttaiCloudClient.lastError.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()
+                                }
                             }
                         },
-                        enabled = !busy && OttaiConstants.looksLikeMac(mac),
+                        enabled = !busy && OttaiConstants.looksLikeMac(cloudId),
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.ottai_validate_readonly)) }
+
+                    // DEBUG: read-only ISO15693 memory dump (no secret commands; cannot
+                    // change sensor state). Arms dump mode, then the user taps the sensor.
+                    OutlinedButton(
+                        onClick = {
+                            status = "NFC dump armed — hold the sensor flat on the back of the phone for ~3s…"
+                            OttaiNfc.onResult = { dump ->
+                                OttaiNfc.dumpMode = false
+                                OttaiNfc.onResult = null
+                                scope.launch { status = dump.take(1800) }
+                            }
+                            OttaiNfc.dumpMode = true
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Dump sensor NFC (debug)") }
+
+                    // Portable credentials: fetch from server once (Validate), Save to a file,
+                    // then Load on any device to connect over BLE without server/login.
+                    OutlinedButton(
+                        onClick = { exportLauncher.launch("ottai_${OttaiConstants.canonicalSensorId(cloudId)}.json") },
+                        enabled = !busy && OttaiConstants.looksLikeMac(cloudId),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Save credentials to file") }
+
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "text/*", "*/*")) },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Load credentials from file & connect") }
+
+                    // Irreversible: starts the sensor's lifetime (CgmActivate over BLE).
+                    OutlinedButton(
+                        onClick = {
+                            val canonical = OttaiConstants.canonicalSensorId(cloudId)
+                            scope.launch {
+                                val fired = withContext(Dispatchers.IO) {
+                                    OttaiRegistry.requestActivation(context, canonical)
+                                }
+                                status = if (fired) "Activating sensor — warmup should begin…"
+                                else "Activation armed — keep the sensor on the phone; it fires on connect/auth."
+                            }
+                        },
+                        enabled = !busy && OttaiConstants.looksLikeMac(cloudId),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Activate sensor (start warmup)") }
+
+                    OutlinedButton(
+                        onClick = {
+                            busy = true; status = ""
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        val canonical = OttaiConstants.canonicalSensorId(cloudId)
+                                        val ble = OttaiConstants.normalizeBleAddress(bleAddress, allowPlain = true)
+                                            ?: OttaiConstants.normalizeBleAddress(
+                                                OttaiRegistry.findRecord(context, canonical)?.address,
+                                                allowPlain = false,
+                                            ).orEmpty()
+                                        val materials = loadSavedOrBoundOttaiMaterials(context, canonical)
+                                            ?: return@runCatching null
+                                        if (materials.authKeys == null) return@runCatching null
+                                        OttaiRegistry.addSensor(
+                                            context = context,
+                                            sensorId = canonical,
+                                            address = ble,
+                                            displayName = OttaiConstants.DEFAULT_DISPLAY_NAME,
+                                            connectNow = ble.isNotBlank(),
+                                        ) ?: return@runCatching null
+                                        OttaiWizardConnectResult(ble.isNotBlank(), usedSavedMaterials = true)
+                                    }.onFailure { Log.w(tag, "connectSaved: ${it.message}") }.getOrNull()
+                                }
+                                busy = false
+                                when {
+                                    result == null -> status = context.getString(R.string.ottai_connect_saved_fail)
+                                    result.connecting -> step = OttaiSetupStep.CONNECTING
+                                    else -> status = context.getString(R.string.ottai_saved_needs_ble)
+                                }
+                            }
+                        },
+                        enabled = !busy && OttaiConstants.looksLikeMac(cloudId),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.ottai_connect_saved)) }
 
                     Button(
                         onClick = {
                             busy = true; status = ""
                             scope.launch {
-                                val sensorId = withContext(Dispatchers.IO) {
+                                val result = withContext(Dispatchers.IO) {
                                     runCatching {
                                         val userId = OttaiRegistry.loadUserId(context)
-                                        val resp = OttaiCloudClient.bind(context, mac, deviceVersion, userId)
-                                            ?: return@runCatching null
-                                        val materials = OttaiCloudClient.toMaterials(context, mac, resp)
-                                            ?: return@runCatching null
-                                        val canonical = OttaiConstants.canonicalSensorId(mac)
+                                        val canonical = OttaiConstants.canonicalSensorId(cloudId)
+                                        val ble = OttaiConstants.normalizeBleAddress(bleAddress, allowPlain = true)
+                                            ?: OttaiConstants.normalizeBleAddress(
+                                                OttaiRegistry.findRecord(context, canonical)?.address,
+                                                allowPlain = false,
+                                            ).orEmpty()
+                                        val resp = OttaiCloudClient.bind(context, canonical, deviceVersion, userId)
+                                        val materials = if (resp != null) {
+                                            OttaiCloudClient.toMaterials(context, canonical, resp)
+                                        } else {
+                                            loadSavedOrBoundOttaiMaterials(context, canonical)
+                                        } ?: return@runCatching null
                                         OttaiRegistry.saveMaterials(context, canonical, materials)
-                                        OttaiRegistry.addSensor(context, canonical, canonical, OttaiConstants.DEFAULT_DISPLAY_NAME, connectNow = true)
+                                        OttaiRegistry.addSensor(
+                                            context = context,
+                                            sensorId = canonical,
+                                            address = ble,
+                                            displayName = OttaiConstants.DEFAULT_DISPLAY_NAME,
+                                            connectNow = ble.isNotBlank(),
+                                        ) ?: return@runCatching null
+                                        OttaiWizardConnectResult(
+                                            connecting = ble.isNotBlank(),
+                                            usedSavedMaterials = resp == null,
+                                        )
                                     }.onFailure { Log.w(tag, "bind: ${it.message}") }.getOrNull()
                                 }
                                 busy = false
-                                if (sensorId == null) {
+                                if (result == null) {
                                     status = context.getString(R.string.ottai_bind_fail)
-                                } else {
+                                    OttaiCloudClient.lastError.takeIf { it.isNotBlank() }?.let { status += "\n$it" }
+                                } else if (result.connecting) {
                                     step = OttaiSetupStep.CONNECTING
+                                } else {
+                                    status = context.getString(
+                                        if (result.usedSavedMaterials) R.string.ottai_saved_needs_ble else R.string.ottai_bound_needs_ble,
+                                    )
                                 }
                             }
                         },
-                        enabled = !busy && OttaiConstants.looksLikeMac(mac) && deviceVersion.isNotBlank(),
+                        enabled = !busy && OttaiConstants.looksLikeMac(cloudId) && deviceVersion.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.ottai_bind_connect)) }
+                    ) {
+                        Text(stringResource(
+                            if (OttaiConstants.looksLikeBleAddress(bleAddress)) R.string.ottai_bind_connect
+                            else R.string.ottai_bind_save,
+                        ))
+                    }
 
                     if (busy) CircularProgressIndicator()
                     if (status.isNotBlank()) Text(status)
@@ -261,19 +513,408 @@ fun OttaiSetupWizard(
                 OttaiSetupStep.CONNECTING -> {
                     LaunchedScreenAdvance { step = OttaiSetupStep.SUCCESS }
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        SensorSetupConnectingScreen(ui = ui, sensorLabel = mac.ifBlank { null })
+                        SensorSetupConnectingScreen(ui = ui, sensorLabel = cloudId.ifBlank { null })
                     }
                 }
 
                 OttaiSetupStep.SUCCESS -> {
                     LaunchedScreenComplete(onComplete)
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        SensorSetupSuccessScreen(ui = ui, sensorLabel = mac.ifBlank { null })
+                        SensorSetupSuccessScreen(ui = ui, sensorLabel = cloudId.ifBlank { null })
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun OttaiBleScanPanel(
+    ui: WizardUiMetrics,
+    selectedAddress: String,
+    onAddressSelected: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val scanner = rememberBleScanner()
+    var scanStats by remember { mutableStateOf<Map<String, OttaiScanStats>>(emptyMap()) }
+    var scanActive by remember { mutableStateOf(false) }
+    var scanPermissionGranted by remember { mutableStateOf(hasBleScanPermissions(context)) }
+    var bluetoothEnabled by remember { mutableStateOf(scanner.isBluetoothEnabled()) }
+    var scanRetryKey by remember { mutableStateOf(0) }
+    var scanError by remember { mutableStateOf<BleDeviceScanner.ScanStartError?>(null) }
+    var requestedPermissionOnce by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        scanPermissionGranted = hasBleScanPermissions(context)
+        bluetoothEnabled = scanner.isBluetoothEnabled()
+        scanError = null
+        scanRetryKey += 1
+    }
+    val enableBluetoothLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) {
+        bluetoothEnabled = scanner.isBluetoothEnabled()
+        scanError = null
+        scanRetryKey += 1
+    }
+
+    val requestScanPermission = {
+        val required = requiredBleScanPermissions()
+        if (required.isEmpty()) {
+            scanPermissionGranted = true
+            scanRetryKey += 1
+        } else {
+            permissionLauncher.launch(required)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!scanPermissionGranted && !requestedPermissionOnce) {
+            requestedPermissionOnce = true
+            requestScanPermission()
+        }
+    }
+
+    DisposableEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey) {
+        if (!scanPermissionGranted || !bluetoothEnabled) {
+            scanner.stopScan()
+            scanStats = emptyMap()
+            scanActive = false
+            return@DisposableEffect onDispose { scanner.stopScan() }
+        }
+
+        scanStats = emptyMap()
+        scanError = null
+        scanActive = true
+        scanner.startScan(
+            serviceUuids = listOf(OttaiConstants.SERVICE_CGM),
+            onResult = { result ->
+                val candidate = ottaiCandidateFromScan(result, assumeCgmService = true) ?: return@startScan
+                val previous = scanStats[candidate.address]
+                val totalHits = (previous?.totalHits ?: 0) + 1
+                val strongHits = (previous?.strongHits ?: 0) +
+                    if (candidate.rssi >= OTTAI_OFFICIAL_RSSI_THRESHOLD) 1 else 0
+                val bestRssi = maxOf(previous?.bestRssi ?: candidate.rssi, candidate.rssi)
+                val previousCandidate = previous?.candidate
+                val mergedCandidate = candidate.copy(
+                    displayName = candidate.displayName.ifBlank { previousCandidate?.displayName.orEmpty() },
+                    rssi = bestRssi,
+                    advertisesAuth = candidate.advertisesAuth || (previousCandidate?.advertisesAuth == true),
+                    advertisesCgm = candidate.advertisesCgm || (previousCandidate?.advertisesCgm == true),
+                    advertisesDeviceInfo = candidate.advertisesDeviceInfo ||
+                        (previousCandidate?.advertisesDeviceInfo == true),
+                    nameLooksOttai = candidate.nameLooksOttai || (previousCandidate?.nameLooksOttai == true),
+                    nameLooksCgm = candidate.nameLooksCgm || (previousCandidate?.nameLooksCgm == true),
+                    serviceSummary = mergeOttaiServiceSummary(previousCandidate?.serviceSummary, candidate.serviceSummary),
+                )
+                scanStats = scanStats + (
+                    candidate.address to OttaiScanStats(
+                        candidate = mergedCandidate,
+                        totalHits = totalHits,
+                        strongHits = strongHits,
+                        bestRssi = bestRssi,
+                    )
+                )
+            },
+            onError = { error ->
+                scanError = error
+                scanActive = false
+                when (error) {
+                    BleDeviceScanner.ScanStartError.NoPermission -> scanPermissionGranted = false
+                    BleDeviceScanner.ScanStartError.BluetoothDisabled -> bluetoothEnabled = false
+                    else -> Unit
+                }
+            },
+        )
+        onDispose { scanner.stopScan() }
+    }
+
+    LaunchedEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey) {
+        if (scanPermissionGranted && bluetoothEnabled) {
+            delay(OTTAI_OFFICIAL_SCAN_DURATION_MS)
+            scanActive = false
+            scanner.stopScan()
+        }
+    }
+
+    val stableDevices = scanStats.values
+        .filter { it.isStableOfficialCandidate }
+        .sortedWith(
+            compareByDescending<OttaiScanStats> { if (it.candidate.isLikelyOttai) 1 else 0 }
+                .thenByDescending { if (it.candidate.isPossibleCgm) 1 else 0 }
+                .thenByDescending { it.bestRssi },
+        )
+        .take(8)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (scanActive) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.ottai_ble_scan_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                OutlinedButton(
+                    onClick = {
+                        scanError = null
+                        scanPermissionGranted = hasBleScanPermissions(context)
+                        bluetoothEnabled = scanner.isBluetoothEnabled()
+                        scanRetryKey += 1
+                    },
+                    enabled = !scanActive,
+                ) {
+                    Text(stringResource(R.string.search_bluetooth))
+                }
+            }
+            Text(
+                stringResource(R.string.ottai_ble_scan_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            if (!scanPermissionGranted || !bluetoothEnabled || scanError != null) {
+                val messageRes = when {
+                    !scanPermissionGranted && Build.VERSION.SDK_INT >= 31 -> R.string.turn_on_nearby_devices_permission
+                    !scanPermissionGranted -> R.string.turn_on_location_permission
+                    !bluetoothEnabled || scanError is BleDeviceScanner.ScanStartError.BluetoothDisabled -> R.string.bluetooth_is_turned_off
+                    else -> R.string.nobluetooth
+                }
+                Text(
+                    text = stringResource(messageRes),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = {
+                        when {
+                            !scanPermissionGranted -> requestScanPermission()
+                            !bluetoothEnabled || scanError is BleDeviceScanner.ScanStartError.BluetoothDisabled -> {
+                                enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                            }
+                            else -> {
+                                scanError = null
+                                scanPermissionGranted = hasBleScanPermissions(context)
+                                bluetoothEnabled = scanner.isBluetoothEnabled()
+                                scanRetryKey += 1
+                            }
+                        }
+                    },
+                    modifier = Modifier.height(ui.buttonHeight),
+                ) {
+                    val buttonRes = when {
+                        !scanPermissionGranted -> R.string.permission
+                        !bluetoothEnabled || scanError is BleDeviceScanner.ScanStartError.BluetoothDisabled -> R.string.enable_bluetooth
+                        else -> R.string.search_bluetooth
+                    }
+                    Text(stringResource(buttonRes))
+                }
+            } else if (scanActive) {
+                Text(
+                    stringResource(R.string.looking_for_transmitters),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (stableDevices.isEmpty()) {
+                Text(
+                    stringResource(R.string.ottai_ble_scan_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Column {
+                    stableDevices.forEach { stats ->
+                        val device = stats.candidate
+                        val selected = selectedAddress.equals(device.address, ignoreCase = true)
+                        val labelRes = when {
+                            device.isLikelyOttai -> R.string.ottai_ble_scan_likely
+                            device.isPossibleCgm -> R.string.ottai_ble_scan_possible
+                            else -> R.string.ottai_ble_scan_unknown
+                        }
+                        ListItem(
+                            headlineContent = {
+                                Text(device.displayName.ifBlank { stringResource(R.string.unknown) })
+                            },
+                            supportingContent = {
+                                val serviceText = device.serviceSummary.ifBlank { stringResource(R.string.unknown) }
+                                Text(
+                                    "${stringResource(labelRes)} · ${device.address} · " +
+                                        "${stats.strongHits}/${stats.totalHits} >= $OTTAI_OFFICIAL_RSSI_THRESHOLD · " +
+                                        "$serviceText",
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    Icons.Default.Bluetooth,
+                                    contentDescription = null,
+                                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            trailingContent = {
+                                Text(
+                                    "${device.rssi} dBm",
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            },
+                            modifier = Modifier.clickable { onAddressSelected(device.address) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun mergeOttaiServiceSummary(previous: String?, current: String): String =
+    listOf(previous.orEmpty(), current)
+        .flatMap { it.split(' ') }
+        .mapNotNull { it.trim().takeIf(String::isNotBlank) }
+        .distinct()
+        .joinToString(" ")
+
+private fun ottaiCandidateFromScan(result: ScanResult, assumeCgmService: Boolean = false): OttaiScanCandidate? {
+    val address = try {
+        result.device.address
+    } catch (_: SecurityException) {
+        null
+    } ?: return null
+
+    val record = result.scanRecord
+    val recordBytes = record?.bytes
+    val services = record?.serviceUuids?.map { it.uuid }.orEmpty()
+    val names = linkedSetOf<String>()
+    listOf(
+        try {
+            result.device.name
+        } catch (_: SecurityException) {
+            null
+        },
+        record?.deviceName,
+        scanRecordLocalName(recordBytes),
+    ).mapNotNull { it?.trim()?.takeIf(String::isNotBlank) }
+        .forEach { names.add(it) }
+
+    val advertisesAuth = services.contains(OttaiConstants.SERVICE_AUTH) ||
+        scanRecordAdvertises128BitService(recordBytes, OttaiConstants.SERVICE_AUTH)
+    val advertisesCgm = assumeCgmService ||
+        services.contains(OttaiConstants.SERVICE_CGM) ||
+        scanRecordAdvertises16BitService(recordBytes, 0x181F)
+    val advertisesDeviceInfo = services.contains(OttaiConstants.SERVICE_DEVICE_INFO) ||
+        scanRecordAdvertises16BitService(recordBytes, 0x180A)
+    val nameLooksOttai = names.any { it.contains("ottai", ignoreCase = true) }
+    val nameLooksCgm = names.any { it.contains("cgm", ignoreCase = true) }
+
+    val serviceTags = mutableListOf<String>()
+    if (advertisesAuth) serviceTags += "AUTH"
+    if (advertisesCgm) serviceTags += "CGM"
+    if (advertisesDeviceInfo) serviceTags += "DIS"
+    val serviceDataCount = record?.serviceData?.size ?: 0
+    if (serviceDataCount > 0) serviceTags += "sd=$serviceDataCount"
+    val manufacturerCount = record?.manufacturerSpecificData?.size() ?: 0
+    if (manufacturerCount > 0) serviceTags += "mfg=$manufacturerCount"
+    if (serviceTags.isEmpty() && services.isNotEmpty()) serviceTags += "services=${services.size}"
+
+    return OttaiScanCandidate(
+        address = address,
+        displayName = names.firstOrNull().orEmpty(),
+        rssi = result.rssi,
+        advertisesAuth = advertisesAuth,
+        advertisesCgm = advertisesCgm,
+        advertisesDeviceInfo = advertisesDeviceInfo,
+        nameLooksOttai = nameLooksOttai,
+        nameLooksCgm = nameLooksCgm,
+        serviceSummary = serviceTags.joinToString(" "),
+    )
+}
+
+private fun scanRecordLocalName(scanRecord: ByteArray?): String? {
+    if (scanRecord == null) return null
+    var offset = 0
+    while (offset < scanRecord.size - 1) {
+        val len = scanRecord[offset].toInt() and 0xFF
+        if (len == 0) break
+        val next = offset + len + 1
+        if (next > scanRecord.size) break
+        val type = scanRecord[offset + 1].toInt() and 0xFF
+        if (type == 0x08 || type == 0x09) {
+            val start = offset + 2
+            if (next > start) {
+                return runCatching { String(scanRecord, start, next - start, Charsets.UTF_8) }.getOrNull()
+            }
+        }
+        offset = next
+    }
+    return null
+}
+
+private fun scanRecordAdvertises16BitService(scanRecord: ByteArray?, serviceShortUuid: Int): Boolean {
+    if (scanRecord == null) return false
+    var offset = 0
+    while (offset < scanRecord.size - 1) {
+        val len = scanRecord[offset].toInt() and 0xFF
+        if (len == 0) break
+        val next = offset + len + 1
+        if (next > scanRecord.size) break
+        val type = scanRecord[offset + 1].toInt() and 0xFF
+        if (type == 0x02 || type == 0x03) {
+            var uuidOffset = offset + 2
+            while (uuidOffset + 1 < next) {
+                val uuid = (scanRecord[uuidOffset].toInt() and 0xFF) or
+                    ((scanRecord[uuidOffset + 1].toInt() and 0xFF) shl 8)
+                if (uuid == serviceShortUuid) return true
+                uuidOffset += 2
+            }
+        }
+        offset = next
+    }
+    return false
+}
+
+private fun scanRecordAdvertises128BitService(scanRecord: ByteArray?, serviceUuid: UUID): Boolean {
+    if (scanRecord == null) return false
+    val littleEndian = serviceUuid.toLittleEndianBytes()
+    var offset = 0
+    while (offset < scanRecord.size - 1) {
+        val len = scanRecord[offset].toInt() and 0xFF
+        if (len == 0) break
+        val next = offset + len + 1
+        if (next > scanRecord.size) break
+        val type = scanRecord[offset + 1].toInt() and 0xFF
+        if (type == 0x06 || type == 0x07) {
+            var uuidOffset = offset + 2
+            while (uuidOffset + 15 < next) {
+                var same = true
+                for (i in littleEndian.indices) {
+                    if (scanRecord[uuidOffset + i] != littleEndian[i]) {
+                        same = false
+                        break
+                    }
+                }
+                if (same) return true
+                uuidOffset += 16
+            }
+        }
+        offset = next
+    }
+    return false
+}
+
+private fun UUID.toLittleEndianBytes(): ByteArray {
+    val text = toString().replace("-", "")
+    val bigEndian = text.chunked(2).map { it.toInt(16).toByte() }
+    return bigEndian.asReversed().toByteArray()
 }
 
 @Composable

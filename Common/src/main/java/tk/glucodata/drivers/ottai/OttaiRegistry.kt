@@ -1,7 +1,7 @@
 // OttaiRegistry.kt — SharedPreferences persistence for Ottai sensors.
 //
 // Account-level: accessToken, glucoseSecretKey, userId.
-// Per-sensor (keyed by canonical MAC): decrypted keyA (192 hex) / method /
+// Per-sensor (keyed by canonical cloud id): decrypted keyA (192 hex) / method /
 // coefficient, activeTime, deviceVersion, lastDataNo, deviceId.
 //
 // SECURITY: accessToken, glucoseSecretKey, keyA-plaintext, method and coefficient
@@ -10,6 +10,8 @@
 
 package tk.glucodata.drivers.ottai
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.SharedPreferences
 import tk.glucodata.Log
@@ -24,8 +26,8 @@ object OttaiRegistry {
     private const val PREFS_NAME = "tk.glucodata_preferences"
 
     data class SensorRecord(
-        val sensorId: String, // canonical MAC
-        val address: String,
+        val sensorId: String, // canonical cloud id used by server + BLE auth
+        val address: String,  // Android BLE address, colon form; may be blank
         val displayName: String,
     ) {
         fun matchesId(id: String?): Boolean =
@@ -86,7 +88,10 @@ object OttaiRegistry {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
         val records = persistedRecords(context).toMutableList()
         val idx = records.indexOfFirst { it.matchesId(canonical) }
-        val record = SensorRecord(canonical, address, displayName.ifBlank { canonical })
+        val existing = records.getOrNull(idx)
+        val bleAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false)
+            ?: OttaiConstants.normalizeBleAddress(existing?.address, allowPlain = false).orEmpty()
+        val record = SensorRecord(canonical, bleAddress, displayName.ifBlank { canonical })
         if (idx >= 0) records[idx] = record else records.add(record)
         writeRecords(context, records)
     }
@@ -166,14 +171,71 @@ object OttaiRegistry {
         prefs(c).edit().putInt(OttaiConstants.PREF_LAST_DATA_NO_PREFIX + OttaiConstants.canonicalSensorId(id), dataNo).apply()
     }
 
+    // ---- portable export / import ----
+    //
+    // Serializes the DECRYPTED per-sensor materials + record. This is everything
+    // the driver needs to connect, authenticate and activate over BLE without ever
+    // contacting the server again — so the user does the cloud fetch (login →
+    // validate/bind) once on one device, saves the JSON, and loads it on any other
+    // device running this app. accessToken / glucoseSecretKey are NOT exported (not
+    // needed once keyA/coefficient are decrypted).
+
+    @JvmStatic
+    fun exportJson(context: Context, sensorId: String): String? {
+        val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        val record = findRecord(context, canonical) ?: return null
+        val m = loadMaterials(context, canonical)
+        if (m.keyAHex.isBlank()) return null
+        return org.json.JSONObject().apply {
+            put("v", 1)
+            put("sensorId", canonical)
+            put("bleAddress", record.address)
+            put("displayName", record.displayName)
+            put("keyAHex", m.keyAHex)
+            put("method", m.method)
+            put("coefficient", m.coefficient)
+            put("activeTimeMs", m.activeTimeMs)
+            put("deviceVersion", m.deviceVersion)
+            put("deviceId", m.deviceId)
+        }.toString(2)
+    }
+
+    /** Returns the canonical sensorId on success, or null if the JSON is invalid. */
+    @JvmStatic
+    fun importJson(context: Context, json: String): String? {
+        val o = runCatching { org.json.JSONObject(json) }.getOrNull() ?: return null
+        val id = OttaiConstants.canonicalSensorId(o.optString("sensorId")).ifEmpty { return null }
+        val keyA = o.optString("keyAHex")
+        if (OttaiCrypto.parseAuthKeys(keyA) == null) return null // must be 192 hex = 6 auth keys
+        ensureSensorRecord(
+            context, id, o.optString("bleAddress"),
+            o.optString("displayName").ifBlank { OttaiConstants.DEFAULT_DISPLAY_NAME },
+        )
+        saveMaterials(
+            context, id,
+            DeviceMaterials(
+                keyAHex = keyA,
+                method = o.optString("method"),
+                coefficient = o.optString("coefficient"),
+                activeTimeMs = o.optLong("activeTimeMs", 0L),
+                deviceVersion = o.optString("deviceVersion"),
+                deviceId = o.optInt("deviceId", 0),
+            ),
+        )
+        return id
+    }
+
     // ---- restore / wizard ----
 
     @JvmStatic
     fun createRestoredCallback(context: Context, sensorId: String, dataptr: Long): SuperGattCallback? {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
-        if (findRecord(context, canonical) == null) return null
+        val record = findRecord(context, canonical) ?: return null
         return runCatching {
-            OttaiBleManager(canonical, dataptr).also { it.restoreFromPersistence(context) }
+            OttaiBleManager(canonical, dataptr).also {
+                it.mActiveDeviceAddress = OttaiConstants.normalizeBleAddress(record.address, allowPlain = false)
+                it.restoreFromPersistence(context)
+            }
         }.onFailure { Log.stack(TAG, "createRestoredCallback", it) }.getOrNull()
     }
 
@@ -188,7 +250,8 @@ object OttaiRegistry {
     ): String? {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
         if (canonical.isBlank()) return null
-        ensureSensorRecord(context, canonical, address, displayName ?: OttaiConstants.DEFAULT_DISPLAY_NAME)
+        val bleAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false).orEmpty()
+        ensureSensorRecord(context, canonical, bleAddress, displayName ?: OttaiConstants.DEFAULT_DISPLAY_NAME)
         if (connectNow) connectSensor(context, canonical)
         ManagedSensorUiSignals.markDeviceListDirty()
         return canonical
@@ -207,11 +270,38 @@ object OttaiRegistry {
             runCatching { Natives.setmaxsensors(SensorBluetooth.gattcallbacks.size) }
         } ?: return
         if (callback is OttaiBleManager) {
-            callback.mActiveDeviceAddress = record.address.takeIf { it.isNotBlank() }
+            val bleAddress = OttaiConstants.normalizeBleAddress(record.address, allowPlain = false)
+            callback.mActiveDeviceAddress = bleAddress
+            callback.mActiveBluetoothDevice = null
+            if (bleAddress != null && BluetoothAdapter.checkBluetoothAddress(bleAddress)) {
+                val adapter = runCatching {
+                    (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+                        ?: BluetoothAdapter.getDefaultAdapter()
+                }.getOrNull()
+                callback.mActiveBluetoothDevice = runCatching { adapter?.getRemoteDevice(bleAddress) }.getOrNull()
+            }
             callback.restoreFromPersistence(context)
         }
         runCatching { SensorBluetooth.ensureCurrentSensorSelection() }
         if (SensorBluetooth.blueone === blue) callback.connectDevice(0)
         ManagedSensorUiSignals.markDeviceListDirty()
+    }
+
+    /**
+     * Arm + trigger the one-time BLE activation (irreversible — starts the sensor
+     * lifetime). Fires immediately if the sensor is already connected+authenticated;
+     * otherwise arms the flag and (re)connects so it fires on the next auth.
+     * Returns true if it fired right now.
+     */
+    @JvmStatic
+    fun requestActivation(context: Context, sensorId: String): Boolean {
+        val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        OttaiBleManager.activateRequestedFor = canonical
+        val mgr = SensorBluetooth.gattcallbacks.firstOrNull { cb ->
+            (cb as? OttaiBleManager)?.matchesManagedSensorId(canonical) == true
+        } as? OttaiBleManager
+        if (mgr != null && mgr.requestActivation()) return true
+        connectSensor(context, canonical)
+        return false
     }
 }

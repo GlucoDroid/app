@@ -1846,4 +1846,38 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">Connecté, valeurs brutes reçues</string>
     <string name="sensor_display_select">Sélectionner le capteur à afficher</string>
     <string name="sensor_display_selected">Capteur sélectionné pour affichage</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Connectez-vous par téléphone, associez l’ID cloud, puis connectez l’adresse Bluetooth</string>
+    <string name="ottai_sensor_picker_desc">CGM pour le marché chinois - connexion cloud + Bluetooth</string>
+    <string name="ottai_setup_title">Configuration Ottai</string>
+    <string name="ottai_login_title">Se connecter à Ottai</string>
+    <string name="ottai_phone_hint">Numéro de téléphone</string>
+    <string name="ottai_send_code">Envoyer le code</string>
+    <string name="ottai_code_hint">Code SMS</string>
+    <string name="ottai_code_sent">Code envoyé - saisissez-le ci-dessous (réf. ...%1$s)</string>
+    <string name="ottai_login_button">Se connecter</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Connecté</string>
+    <string name="ottai_sensor_mac_hint">ID cloud du dispositif (12 hex ou QR)</string>
+    <string name="ottai_ble_address_hint">Adresse Bluetooth (par exemple F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Valider (lecture seule)</string>
+    <string name="ottai_bind_connect">Associer et connecter</string>
+    <string name="ottai_bind_save">Associer et enregistrer les données</string>
+    <string name="ottai_connect_saved">Connecter depuis le compte ou les données enregistrées</string>
+    <string name="ottai_device_version_hint">Version du dispositif (p. ex. V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Les données cloud se déchiffrent correctement. L’association revendiquera ce capteur.</string>
+    <string name="ottai_validate_fail">Impossible de récupérer/déchiffrer les données pour cet ID cloud</string>
+    <string name="ottai_login_fail">Connexion échouée - vérifiez le téléphone/code</string>
+    <string name="ottai_bind_fail">Association échouée - vérifiez l’ID cloud, la version du dispositif et le compte</string>
+    <string name="ottai_connect_saved_fail">Aucune donnée de compte ou enregistrée pour cet ID cloud</string>
+    <string name="ottai_bound_needs_ble">Association cloud enregistrée. Saisissez l’adresse Bluetooth pour connecter.</string>
+    <string name="ottai_saved_needs_ble">Données enregistrées trouvées. Saisissez l’adresse Bluetooth pour connecter.</string>
+    <string name="ottai_ble_scan_title">Recherche Bluetooth comme l’application officielle</string>
+    <string name="ottai_ble_scan_hint">Recherche le service CGM pendant 10 secondes et affiche seulement les appareils stables au-dessus de -70 dBm, comme l’application officielle.</string>
+    <string name="ottai_ble_scan_empty">Aucun appareil stable avec service CGM trouvé. Rapprochez le téléphone du capteur et relancez la recherche.</string>
+    <string name="ottai_ble_scan_selected">Adresse Bluetooth %1$s sélectionnée</string>
+    <string name="ottai_ble_scan_likely">Candidat CGM stable</string>
+    <string name="ottai_ble_scan_possible">Candidat CGM</string>
+    <string name="ottai_ble_scan_unknown">Annonce BLE filtrée</string>
 </resources>

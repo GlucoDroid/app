@@ -1883,4 +1883,38 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">Подключено, получены сырые значения</string>
     <string name="sensor_display_select">Выбрать датчик для отображения</string>
     <string name="sensor_display_selected">Датчик выбран для отображения</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Войдите по телефону, привяжите облачный ID, затем подключитесь по Bluetooth-адресу</string>
+    <string name="ottai_sensor_picker_desc">CGM для китайского рынка - облачный вход + Bluetooth</string>
+    <string name="ottai_setup_title">Настройка Ottai</string>
+    <string name="ottai_login_title">Вход в Ottai</string>
+    <string name="ottai_phone_hint">Номер телефона</string>
+    <string name="ottai_send_code">Отправить код</string>
+    <string name="ottai_code_hint">SMS-код</string>
+    <string name="ottai_code_sent">Код отправлен - введите его ниже (ref ...%1$s)</string>
+    <string name="ottai_login_button">Войти</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Вход выполнен</string>
+    <string name="ottai_sensor_mac_hint">Облачный ID устройства (12 hex или QR)</string>
+    <string name="ottai_ble_address_hint">Bluetooth-адрес (например F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Проверить (только чтение)</string>
+    <string name="ottai_bind_connect">Привязать и подключить</string>
+    <string name="ottai_bind_save">Привязать и сохранить материалы</string>
+    <string name="ottai_connect_saved">Подключить из аккаунта или сохраненных материалов</string>
+    <string name="ottai_device_version_hint">Версия устройства (например V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Облачные материалы успешно расшифрованы. Привязка закрепит этот сенсор за аккаунтом.</string>
+    <string name="ottai_validate_fail">Не удалось получить/расшифровать материалы для этого облачного ID</string>
+    <string name="ottai_login_fail">Вход не выполнен - проверьте телефон/код</string>
+    <string name="ottai_bind_fail">Привязка не выполнена - проверьте облачный ID, версию устройства и аккаунт</string>
+    <string name="ottai_connect_saved_fail">Нет материалов в аккаунте или сохраненных материалов для этого облачного ID</string>
+    <string name="ottai_bound_needs_ble">Облачная привязка сохранена. Введите Bluetooth-адрес для подключения.</string>
+    <string name="ottai_saved_needs_ble">Сохраненные материалы найдены. Введите Bluetooth-адрес для подключения.</string>
+    <string name="ottai_ble_scan_title">Сканирование Bluetooth как в официальном приложении</string>
+    <string name="ottai_ble_scan_hint">Сканирует сервис CGM 10 секунд и показывает только стабильные устройства сильнее -70 dBm, как в официальном приложении.</string>
+    <string name="ottai_ble_scan_empty">Стабильное устройство с сервисом CGM не найдено. Поднесите телефон ближе к сенсору и повторите сканирование.</string>
+    <string name="ottai_ble_scan_selected">Выбран Bluetooth-адрес %1$s</string>
+    <string name="ottai_ble_scan_likely">Стабильный кандидат CGM</string>
+    <string name="ottai_ble_scan_possible">Кандидат CGM</string>
+    <string name="ottai_ble_scan_unknown">Отфильтрованное BLE-объявление</string>
 </resources>

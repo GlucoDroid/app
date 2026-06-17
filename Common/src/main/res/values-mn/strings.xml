@@ -1951,4 +1951,38 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram ботын шинэчлэлтийг 24 цаг хүртэл хадгална. Импортлох боломжтой ботын мессежтэй нэг эсвэл хэд хэдэн chat ID/хэрэглэгчийн нэр оруулна уу.</string>
     <string name="sensor_display_select">Дэлгэцэд харуулах мэдрэгчийг сонгох</string>
     <string name="sensor_display_selected">Дэлгэцэд харуулах мэдрэгч сонгогдсон</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Утсаар нэвтэрч, cloud ID-г холбож, дараа нь Bluetooth хаягаар холбоно</string>
+    <string name="ottai_sensor_picker_desc">Хятадын зах зээлийн CGM - cloud нэвтрэлт + Bluetooth</string>
+    <string name="ottai_setup_title">Ottai тохиргоо</string>
+    <string name="ottai_login_title">Ottai-д нэвтрэх</string>
+    <string name="ottai_phone_hint">Утасны дугаар</string>
+    <string name="ottai_send_code">Код илгээх</string>
+    <string name="ottai_code_hint">SMS код</string>
+    <string name="ottai_code_sent">Код илгээгдлээ - доор оруулна уу (ref ...%1$s)</string>
+    <string name="ottai_login_button">Нэвтрэх</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Нэвтэрсэн</string>
+    <string name="ottai_sensor_mac_hint">Cloud төхөөрөмжийн ID (12 hex эсвэл QR)</string>
+    <string name="ottai_ble_address_hint">Bluetooth хаяг (жишээ F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Шалгах (зөвхөн унших)</string>
+    <string name="ottai_bind_connect">Холбож хадгалаад холбогдох</string>
+    <string name="ottai_bind_save">Холбож материалыг хадгалах</string>
+    <string name="ottai_connect_saved">Аккаунт эсвэл хадгалсан материалаас холбогдох</string>
+    <string name="ottai_device_version_hint">Төхөөрөмжийн хувилбар (жишээ V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Cloud материалууд амжилттай тайлагдана. Холбох үед энэ сенсорыг эзэмшинэ.</string>
+    <string name="ottai_validate_fail">Энэ cloud ID-д зориулсан материалыг авах/тайлах боломжгүй</string>
+    <string name="ottai_login_fail">Нэвтрэх амжилтгүй - утас/кодоо шалгана уу</string>
+    <string name="ottai_bind_fail">Холбох амжилтгүй - cloud ID, төхөөрөмжийн хувилбар болон аккаунтыг шалгана уу</string>
+    <string name="ottai_connect_saved_fail">Энэ cloud ID-д аккаунт эсвэл хадгалсан материал алга</string>
+    <string name="ottai_bound_needs_ble">Cloud холболт хадгалагдлаа. Холбогдохын тулд Bluetooth хаягийг оруулна уу.</string>
+    <string name="ottai_saved_needs_ble">Хадгалсан материал олдлоо. Холбогдохын тулд Bluetooth хаягийг оруулна уу.</string>
+    <string name="ottai_ble_scan_title">Албан апп шиг Bluetooth скан</string>
+    <string name="ottai_ble_scan_hint">CGM үйлчилгээг 10 секунд скан хийж, албан апп шиг -70 dBm-ээс хүчтэй тогтвортой төхөөрөмжүүдийг л харуулна.</string>
+    <string name="ottai_ble_scan_empty">CGM үйлчилгээтэй тогтвортой төхөөрөмж олдсонгүй. Утсаа мэдрэгчид ойртуулаад дахин скан хийнэ үү.</string>
+    <string name="ottai_ble_scan_selected">Bluetooth хаяг %1$s сонгогдлоо</string>
+    <string name="ottai_ble_scan_likely">Тогтвортой CGM нэр дэвшигч</string>
+    <string name="ottai_ble_scan_possible">CGM нэр дэвшигч</string>
+    <string name="ottai_ble_scan_unknown">Шүүсэн BLE зар</string>
 </resources>

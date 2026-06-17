@@ -53,6 +53,7 @@ object OttaiCloudClient {
     }
 
     data class DeviceResp(
+        val mac: String,
         val keyA: String,
         val method: String,
         val coefficient: String,
@@ -198,12 +199,24 @@ object OttaiCloudClient {
         return parseDeviceResp(resp)
     }
 
+    /** GET /deviceBind/getBindDevice — current account-bound sensor, no signature. */
+    fun getBindDevice(ctx: Context): DeviceResp? {
+        val ts = now()
+        val resp = httpGet(
+            OttaiConstants.API_BASE + OttaiConstants.EP_GET_BIND_DEVICE,
+            emptyMap(),
+            headers(ctx, ts),
+        ) ?: return null
+        return parseDeviceResp(resp)
+    }
+
     private fun parseDeviceResp(resp: JSONObject): DeviceResp? {
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val vo = data.optJSONObject("cgmDeviceRespVO") ?: data
         val keyA = vo.optString("keyA").orEmptyIfNull()
         if (keyA.isBlank()) return null
         return DeviceResp(
+            mac = vo.optString("mac").orEmptyIfNull(),
             keyA = keyA,
             method = vo.optString("method").orEmptyIfNull(),
             coefficient = vo.optString("coefficient").orEmptyIfNull(),

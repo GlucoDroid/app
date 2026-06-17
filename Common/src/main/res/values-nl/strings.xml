@@ -1883,4 +1883,38 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="status_raw_values_received">Verbonden, ruwe waarden ontvangen</string>
     <string name="sensor_display_select">Sensor voor weergave selecteren</string>
     <string name="sensor_display_selected">Sensor voor weergave geselecteerd</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Meld aan met telefoon, bind de cloud-ID en verbind daarna via Bluetooth-adres</string>
+    <string name="ottai_sensor_picker_desc">CGM voor de Chinese markt - cloudaanmelding + Bluetooth</string>
+    <string name="ottai_setup_title">Ottai instellen</string>
+    <string name="ottai_login_title">Aanmelden bij Ottai</string>
+    <string name="ottai_phone_hint">Telefoonnummer</string>
+    <string name="ottai_send_code">Code verzenden</string>
+    <string name="ottai_code_hint">Sms-code</string>
+    <string name="ottai_code_sent">Code verzonden - voer hem hieronder in (ref. ...%1$s)</string>
+    <string name="ottai_login_button">Aanmelden</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Aangemeld</string>
+    <string name="ottai_sensor_mac_hint">Cloud-apparaat-ID (12 hex of QR)</string>
+    <string name="ottai_ble_address_hint">Bluetooth-adres (bijvoorbeeld F0:FD:45:09:C7:C2)</string>
+    <string name="ottai_validate_readonly">Valideren (alleen lezen)</string>
+    <string name="ottai_bind_connect">Binden en verbinden</string>
+    <string name="ottai_bind_save">Binden en materialen opslaan</string>
+    <string name="ottai_connect_saved">Verbinden via account of opgeslagen materialen</string>
+    <string name="ottai_device_version_hint">Apparaatversie (bijv. V2.5.S2417.2)</string>
+    <string name="ottai_validate_ok">Cloudmaterialen kunnen worden ontsleuteld. Binden claimt deze sensor.</string>
+    <string name="ottai_validate_fail">Kan materialen voor deze cloud-ID niet ophalen/ontsleutelen</string>
+    <string name="ottai_login_fail">Aanmelden mislukt - controleer telefoon/code</string>
+    <string name="ottai_bind_fail">Binden mislukt - controleer cloud-ID, apparaatversie en account</string>
+    <string name="ottai_connect_saved_fail">Geen account- of opgeslagen materialen voor deze cloud-ID</string>
+    <string name="ottai_bound_needs_ble">Cloudbinding opgeslagen. Voer het Bluetooth-adres in om te verbinden.</string>
+    <string name="ottai_saved_needs_ble">Opgeslagen materialen gevonden. Voer het Bluetooth-adres in om te verbinden.</string>
+    <string name="ottai_ble_scan_title">Bluetoothscan zoals de officiële app</string>
+    <string name="ottai_ble_scan_hint">Scant de CGM-service 10 seconden en toont alleen stabiele apparaten sterker dan -70 dBm, zoals de officiële app.</string>
+    <string name="ottai_ble_scan_empty">Geen stabiel apparaat met CGM-service gevonden. Houd de telefoon dichter bij de sensor en scan opnieuw.</string>
+    <string name="ottai_ble_scan_selected">Bluetooth-adres %1$s geselecteerd</string>
+    <string name="ottai_ble_scan_likely">Stabiele CGM-kandidaat</string>
+    <string name="ottai_ble_scan_possible">CGM-kandidaat</string>
+    <string name="ottai_ble_scan_unknown">Gefilterde BLE-advertentie</string>
 </resources>
