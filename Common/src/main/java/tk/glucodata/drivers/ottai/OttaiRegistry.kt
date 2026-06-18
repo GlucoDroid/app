@@ -41,6 +41,11 @@ object OttaiRegistry {
         val activeTimeMs: Long,
         val deviceVersion: String,
         val deviceId: Int,
+        // From the cloud validate-by-mac response; used verbatim by BLE activation.
+        // activeExpireTimeMs -> maxActive write (p.D); retainTimeMs -> destruction
+        // write (p.E, defaults to 172800000 when the server omits it).
+        val activeExpireTimeMs: Long = 0L,
+        val retainTimeMs: Long = 0L,
     ) {
         val authKeys: List<ByteArray>? get() = OttaiCrypto.parseAuthKeys(keyAHex)
         val coefficients: List<Double>
@@ -130,8 +135,9 @@ object OttaiRegistry {
             listOf(
                 OttaiConstants.PREF_KEYA_PREFIX, OttaiConstants.PREF_METHOD_PREFIX,
                 OttaiConstants.PREF_COEFF_PREFIX, OttaiConstants.PREF_ACTIVE_TIME_PREFIX,
+                OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX, OttaiConstants.PREF_RETAIN_TIME_PREFIX,
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
-                OttaiConstants.PREF_DEVICE_ID_PREFIX,
+                OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
             ).forEach { remove(it + canonical) }
         }.apply()
     }
@@ -146,6 +152,8 @@ object OttaiRegistry {
             putString(OttaiConstants.PREF_METHOD_PREFIX + id, m.method)
             putString(OttaiConstants.PREF_COEFF_PREFIX + id, m.coefficient)
             putLong(OttaiConstants.PREF_ACTIVE_TIME_PREFIX + id, m.activeTimeMs)
+            putLong(OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX + id, m.activeExpireTimeMs)
+            putLong(OttaiConstants.PREF_RETAIN_TIME_PREFIX + id, m.retainTimeMs)
             putString(OttaiConstants.PREF_DEVICE_VERSION_PREFIX + id, m.deviceVersion)
             putInt(OttaiConstants.PREF_DEVICE_ID_PREFIX + id, m.deviceId)
         }.apply()
@@ -160,9 +168,22 @@ object OttaiRegistry {
             method = p.getString(OttaiConstants.PREF_METHOD_PREFIX + id, null).orEmpty(),
             coefficient = p.getString(OttaiConstants.PREF_COEFF_PREFIX + id, null).orEmpty(),
             activeTimeMs = p.getLong(OttaiConstants.PREF_ACTIVE_TIME_PREFIX + id, 0L),
+            activeExpireTimeMs = p.getLong(OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX + id, 0L),
+            retainTimeMs = p.getLong(OttaiConstants.PREF_RETAIN_TIME_PREFIX + id, 0L),
             deviceVersion = p.getString(OttaiConstants.PREF_DEVICE_VERSION_PREFIX + id, null).orEmpty(),
             deviceId = p.getInt(OttaiConstants.PREF_DEVICE_ID_PREFIX + id, 0),
         )
+    }
+
+    /**
+     * One-shot guard for auto-activate-on-first-connect: true once the driver has
+     * fired (or been asked to fire) the irreversible activation for this sensor, so a
+     * virgin sensor activates exactly once and never re-fires on later reconnects.
+     */
+    @JvmStatic fun loadActivationAttempted(c: Context, id: String): Boolean =
+        prefs(c).getBoolean(OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX + OttaiConstants.canonicalSensorId(id), false)
+    @JvmStatic fun setActivationAttempted(c: Context, id: String, v: Boolean) {
+        prefs(c).edit().putBoolean(OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX + OttaiConstants.canonicalSensorId(id), v).apply()
     }
 
     @JvmStatic fun loadLastDataNo(c: Context, id: String): Int =
@@ -195,6 +216,8 @@ object OttaiRegistry {
             put("method", m.method)
             put("coefficient", m.coefficient)
             put("activeTimeMs", m.activeTimeMs)
+            put("activeExpireTimeMs", m.activeExpireTimeMs)
+            put("retainTimeMs", m.retainTimeMs)
             put("deviceVersion", m.deviceVersion)
             put("deviceId", m.deviceId)
         }.toString(2)
@@ -218,6 +241,8 @@ object OttaiRegistry {
                 method = o.optString("method"),
                 coefficient = o.optString("coefficient"),
                 activeTimeMs = o.optLong("activeTimeMs", 0L),
+                activeExpireTimeMs = o.optLong("activeExpireTimeMs", 0L),
+                retainTimeMs = o.optLong("retainTimeMs", 0L),
                 deviceVersion = o.optString("deviceVersion"),
                 deviceId = o.optInt("deviceId", 0),
             ),

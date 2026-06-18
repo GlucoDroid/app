@@ -965,6 +965,41 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Stable CGM candidate</string>
     <string name="ottai_ble_scan_possible">CGM candidate</string>
     <string name="ottai_ble_scan_unknown">Filtered advertiser</string>
+    <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
+    <string name="ottai_entry_blurb">Sign in to load the sensors on your Ottai account, or import a credentials file you exported earlier.</string>
+    <string name="ottai_entry_signin_title">Sign in to Ottai</string>
+    <string name="ottai_entry_signin_desc">Phone number + SMS code — fetches your sensor list.</string>
+    <string name="ottai_entry_import_title">Import credentials file</string>
+    <string name="ottai_entry_import_desc">Use a saved .json — no account or network needed.</string>
+    <string name="ottai_entry_manual">Set up manually / advanced</string>
+    <string name="ottai_login_sms">SMS code</string>
+    <string name="ottai_login_password">Password</string>
+    <string name="ottai_account_hint">Email or phone</string>
+    <string name="ottai_password_hint">Password</string>
+    <string name="ottai_sign_out">Sign out</string>
+    <string name="ottai_choose_sensor">Choose your sensor</string>
+    <string name="ottai_sensor_saved">Saved</string>
+    <string name="ottai_sensor_active">Active</string>
+    <string name="ottai_sensor_past">Previously used</string>
+    <string name="ottai_sensors_loading">Loading your sensors…</string>
+    <string name="ottai_add_by_code">Or add by code</string>
+    <string name="ottai_no_account_sensors">No sensors on this account yet — scan or enter the sensor code below.</string>
+    <string name="ottai_creds_loaded">Credentials loaded — pick the sensor below to connect.</string>
+    <string name="ottai_import_failed">Import failed — not a valid Ottai credentials file.</string>
+    <string name="ottai_advanced">Advanced</string>
+    <string name="ottai_advanced_hide">Hide advanced</string>
+    <string name="ottai_search_ble">Search over Bluetooth</string>
+    <string name="ottai_hide_ble_scan">Hide Bluetooth scan</string>
+    <string name="ottai_device_version_label">Device version: %1$s</string>
+    <string name="ottai_nfc_dump">Dump sensor NFC (debug)</string>
+    <string name="ottai_nfc_dump_armed">NFC dump armed — hold the sensor flat on the back of the phone for ~3s…</string>
+    <string name="ottai_save_credentials">Save credentials to file</string>
+    <string name="ottai_load_credentials">Load credentials from file</string>
+    <string name="ottai_save_ok">Credentials saved to file.</string>
+    <string name="ottai_save_nothing">Nothing to save — fetch credentials first (Validate).</string>
+    <string name="ottai_activate">Activate sensor (start warmup)</string>
+    <string name="ottai_activating">Activating sensor — warmup should begin…</string>
+    <string name="ottai_activate_armed">Activation armed — keep the sensor on the phone; it fires on connect/auth.</string>
 
     <!-- Anytime/Yuwell Setup Wizard Strings -->
     <string name="anytime_setup_title">Anytime / Yuwell Setup</string>

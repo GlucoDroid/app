@@ -53,7 +53,10 @@ interface OttaiDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
     override fun softReconnect() {}
     override fun terminateManagedSensor(wipeData: Boolean) {}
 
-    fun supportsRawDisplayModes(): Boolean = true
+    // No usable raw/glucose stream yet (V1.5 calc unimplemented + activation pending), so
+    // the auto/raw "Data Mode" toggle has nothing to show — keep it hidden for Ottai until
+    // real readings flow. Flip this back to true once raw current/glucose is emitted.
+    fun supportsRawDisplayModes(): Boolean = false
     override fun supportsResetAction(): Boolean = false
     override fun supportsDisplayModes(): Boolean = supportsRawDisplayModes()
     override fun supportsManualCalibration(): Boolean = false

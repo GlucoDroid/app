@@ -61,6 +61,8 @@ object OttaiCloudClient {
         val methodUpdateTime: Long,
         val coeffUpdateTime: Long,
         val activeTime: Long,
+        val activeExpireTime: Long,  // maxActive duration (ms) -> BLE p.D
+        val retainTime: Long,        // destruction value (ms) -> BLE p.E; 0 => server default
         val deviceVersion: String,
         val deviceId: Int,
     )
@@ -170,6 +172,64 @@ object OttaiCloudClient {
     }
 
     /** GET /device/validateDeviceByMacV2 — sig over (mac). Read-only, no sensor change. */
+    /**
+     * Global-app login: account (email or phone) + password, no SMS. POSTs the confirmed
+     * `/user/accountLogin` (it needs an apiToken in the body, same as smsCode). The exact
+     * signature arg-order isn't capturable from the Flutter global app, so a few orderings
+     * are tried with a fresh apiToken each (a wrong signature is rejected pre-auth, so it
+     * isn't a failed-login attempt). Persists creds on success; see [lastError] otherwise.
+     */
+    fun passwordLogin(ctx: Context, account: String, password: String): LoginResult? {
+        val acct = account.trim()
+        if (acct.isBlank() || password.isBlank()) { lastError = "account/password required"; return null }
+        val isEmail = acct.contains('@')
+        // The global app is Flutter (its exact signature arg-order isn't capturable), so
+        // try the few plausible orderings, each with a fresh apiToken.
+        for (idx in 0..2) {
+            val apiToken = getApiToken(ctx) ?: run { lastError = "apiToken failed"; return null }
+            val ts = now()
+            val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
+            val sigArgs = when (idx) {
+                0 -> arrayOf(acct, password)
+                1 -> arrayOf(acct, password, apiToken)
+                else -> arrayOf(acct, apiToken)
+            }
+            val body = JSONObject().apply {
+                put("account", acct)
+                if (isEmail) put("email", acct) else { put("phone", normalizePhone(acct)); put("phoneCode", "86") }
+                put("password", password)
+                put("apiToken", apiToken)
+                put("signature", sign(deviceId, ts, *sigArgs))
+            }
+            val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts)) ?: continue
+            val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: continue
+            val result = LoginResult(
+                userId = data.optString("userId").orEmptyIfNull(),
+                accessToken = data.optString("accessToken").orEmptyIfNull(),
+                glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
+            )
+            if (result.ok) {
+                OttaiRegistry.saveAccessToken(ctx, result.accessToken)
+                OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
+                OttaiRegistry.saveUserId(ctx, result.userId)
+                Log.i(TAG, "passwordLogin ok (sigOrder=$idx)")
+                return result
+            }
+        }
+        return null
+    }
+
+    /** POST /user/logout (best-effort) and clear all locally-stored account credentials. */
+    fun logout(ctx: Context) {
+        runCatching {
+            val ts = now()
+            httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_LOGOUT, "{}", headers(ctx, ts))
+        }
+        OttaiRegistry.saveAccessToken(ctx, null)
+        OttaiRegistry.saveGlucoseSecretKey(ctx, null)
+        OttaiRegistry.saveUserId(ctx, null)
+    }
+
     fun validateByMac(ctx: Context, mac: String): DeviceResp? {
         val canonical = OttaiConstants.canonicalSensorId(mac)
         val ts = now()
@@ -210,6 +270,53 @@ object OttaiCloudClient {
         return parseDeviceResp(resp)
     }
 
+    /** One row of GET /deviceBind/list — a sensor the account has bound (now or before). */
+    data class DeviceSummary(
+        val mac: String,
+        val serialNo: String,
+        val deviceType: String,
+        val bindTime: Long,
+        val unbindTime: Long,
+    ) {
+        /** Still bound (vs. a previously-used sensor that was unbound). */
+        val isActive: Boolean get() = unbindTime <= 0L
+    }
+
+    /**
+     * GET /deviceBind/list — the account's bound + previously-bound sensors, newest
+     * first. Lets the user pick a sensor instead of typing/scanning a MAC. Returns an
+     * empty list on error (see [lastError]).
+     */
+    fun listDevices(ctx: Context, pageSize: Int = 80, pageNumber: Int = 1): List<DeviceSummary> {
+        val ts = now()
+        val resp = httpGet(
+            OttaiConstants.API_BASE + OttaiConstants.EP_DEVICE_LIST,
+            mapOf("pageSize" to pageSize.toString(), "pageNumber" to pageNumber.toString()),
+            headers(ctx, ts),
+        ) ?: return emptyList()
+        val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return emptyList()
+        val items = data.optJSONArray("items")
+            ?: data.optJSONArray("list")
+            ?: data.optJSONArray("records")
+            ?: return emptyList()
+        val out = ArrayList<DeviceSummary>(items.length())
+        for (i in 0 until items.length()) {
+            val o = items.optJSONObject(i) ?: continue
+            val mac = o.optString("mac").orEmptyIfNull()
+            if (mac.isBlank()) continue
+            out.add(
+                DeviceSummary(
+                    mac = mac,
+                    serialNo = o.optString("serialNo").orEmptyIfNull(),
+                    deviceType = o.optString("deviceType").orEmptyIfNull(),
+                    bindTime = o.optLongLoose("bindTime"),
+                    unbindTime = o.optLongLoose("unbindTime"),
+                ),
+            )
+        }
+        return out
+    }
+
     private fun parseDeviceResp(resp: JSONObject): DeviceResp? {
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val vo = data.optJSONObject("cgmDeviceRespVO") ?: data
@@ -224,6 +331,8 @@ object OttaiCloudClient {
             methodUpdateTime = vo.optLongLoose("methodUpdateTime"),
             coeffUpdateTime = vo.optLongLoose("coeffUpdateTime"),
             activeTime = vo.optLongLoose("activeTime"),
+            activeExpireTime = vo.optLongLoose("activeExpireTime"),
+            retainTime = vo.optLongLoose("retainTime"),
             deviceVersion = vo.optString("deviceVersion").orEmptyIfNull(),
             deviceId = vo.optInt("id", 0),
         )
@@ -249,6 +358,8 @@ object OttaiCloudClient {
             method = methodPlain,
             coefficient = coeffPlain,
             activeTimeMs = resp.activeTime,
+            activeExpireTimeMs = resp.activeExpireTime,
+            retainTimeMs = resp.retainTime,
             deviceVersion = resp.deviceVersion,
             deviceId = resp.deviceId,
         )

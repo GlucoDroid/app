@@ -87,6 +87,11 @@ class OttaiBleManager(
     @Volatile private var authStep: AuthStep = AuthStep.NONE
     @Volatile private var actStep: ActStep = ActStep.NONE
     @Volatile private var notifyEnableIndex = 0
+    @Volatile private var discoveryStarted = false
+    // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
+    // Changed characteristic and may restructure its GATT post-auth, leaving the
+    // pre-auth handles for the activation chars stale). onServicesDiscovered consumes it.
+    @Volatile private var pendingActivation = false
 
     @Volatile private var lastGlucoseAtMs = 0L
     @Volatile private var lastGlucoseMgdl = 0f
@@ -165,15 +170,19 @@ class OttaiBleManager(
                 authStep = AuthStep.NONE
                 actStep = ActStep.NONE
                 notifyEnableIndex = 0
-                runCatching { gatt.requestMtu(MTU) }
+                discoveryStarted = false
                 // CGM links drop quickly at default (balanced) params; request a fast
                 // interval so auth/activation completes before the sensor drops idle.
                 runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
-                // Clear any stale GATT cache: a cached handle made the MaxActiveTime
-                // write hit an invalid handle (ATT INVALID_HANDLE) and the sensor then
-                // terminated the link. refresh() forces a fresh discovery each connect.
-                runCatching { gatt.javaClass.getMethod("refresh").invoke(gatt) }
-                handler.postDelayed({ runCatching { gatt.discoverServices() } }, 600)
+                // Start discovery ONLY after MTU settles (in onMtuChanged). A fixed-delay
+                // discoverServices() raced the MTU exchange on the Mi9T: an MTU change
+                // landing mid-discovery dropped the discovery callback (onServicesDiscovered
+                // never fired → no auth → sensor terminates after ~60s, status=19). Do NOT
+                // call gatt.refresh() either — where it actually runs it wipes the cache
+                // mid-setup and breaks discovery the same way.
+                val mtuRequested = runCatching { gatt.requestMtu(MTU) }.getOrDefault(false)
+                // Fallback: if onMtuChanged never fires, discover anyway.
+                handler.postDelayed({ startServiceDiscovery(gatt) }, if (mtuRequested) 1500 else 300)
                 UiRefreshBus.requestStatusRefresh()
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
@@ -192,11 +201,36 @@ class OttaiBleManager(
 
     override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
         Log.d(TAG, "mtu=$mtu status=$status")
+        startServiceDiscovery(gatt)
+    }
+
+    /** Idempotent: kicks off service discovery exactly once per connection. */
+    private fun startServiceDiscovery(gatt: BluetoothGatt) {
+        if (discoveryStarted || phase != Phase.DISCOVERING) return
+        discoveryStarted = true
+        val started = runCatching { gatt.discoverServices() }.getOrDefault(false)
+        Log.i(TAG, "discoverServices() started=$started")
+        if (!started) {
+            discoveryStarted = false
+            handler.postDelayed({ startServiceDiscovery(gatt) }, 800)
+        }
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
         if (status != BluetoothGatt.GATT_SUCCESS) {
             scheduleReconnect("discover failed $status"); return
+        }
+        // One-time GATT map dump: service UUID + instanceId (≈ATT handle), then each
+        // characteristic's short UUID, handle and properties. Reveals duplicate-UUID
+        // services and the real handle of b8fd9848/6aa799b6 (the activation writes that
+        // fail) so we can tell a resolution bug from the sensor rejecting the write.
+        runCatching {
+            for (s in gatt.services) {
+                val chars = s.characteristics.joinToString(" ") {
+                    "${it.uuid.toString().take(8)}#${it.instanceId}/0x${it.properties.toString(16)}"
+                }
+                Log.i(TAG, "GATT svc ${s.uuid.toString().take(8)}#${s.instanceId} [$chars]")
+            }
         }
         svcDeviceInfo = gatt.getService(OttaiConstants.SERVICE_DEVICE_INFO)
         svcCgm = gatt.getService(OttaiConstants.SERVICE_CGM)
@@ -204,6 +238,15 @@ class OttaiBleManager(
         if (svcCgm == null || svcAuth == null || svcDeviceInfo == null) {
             Log.e(TAG, "missing Ottai services (cgm=$svcCgm auth=$svcAuth info=$svcDeviceInfo)")
             scheduleReconnect("missing services"); return
+        }
+        // Post-auth re-discovery (requested by requestActivation): handles above are now
+        // fresh — start the activation writes. The GATT map dumped above lets us compare
+        // b8fd9848's handle pre- vs post-auth.
+        if (pendingActivation) {
+            pendingActivation = false
+            Log.i(TAG, "post-auth re-discovery complete — starting activation")
+            startActivationWrites(gatt)
+            return
         }
         authKeys = materials.authKeys
         if (authKeys == null) {
@@ -313,6 +356,17 @@ class OttaiBleManager(
 
     @Suppress("DEPRECATION")
     override fun onCharacteristicWrite(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            Log.w(TAG, "write err ${ch.uuid.toString().take(8)} status=$status actStep=$actStep")
+            if (actStep != ActStep.NONE) {
+                // Match the official app: ANY activation-write failure aborts (it returns
+                // FALSE and never proceeds). On a healthy/virgin sensor every step succeeds.
+                Log.e(TAG, "activation aborted after $actStep write error (status=$status) — " +
+                    "sensor rejected the write (advertised handle, refused at write time)")
+                actStep = ActStep.NONE
+            }
+            return
+        }
         when {
             authStep == AuthStep.WRITE_APP_PARAM && ch.uuid == OttaiConstants.CHAR_AUTH_APP_PARAM -> {
                 val keys = authKeys ?: return
@@ -328,19 +382,28 @@ class OttaiBleManager(
                 val sessionOk = sessionKeyHex.isNotBlank()
                 Log.i(TAG, "auth complete; session=${if (sessionOk) "ok" else "FAILED"}")
                 UiRefreshBus.requestStatusRefresh()
-                // One-time activation, armed by the wizard. Fire promptly (within the
-                // sensor's idle window) so a virgin sensor starts streaming.
-                if (sessionOk && SerialNumber != null &&
-                    OttaiConstants.matchesCanonicalOrKnownNativeAlias(SerialNumber, activateRequestedFor)
-                ) {
-                    activateRequestedFor = null
-                    Log.i(TAG, "auto-activating on auth (user-armed)")
-                    handler.postDelayed({ runCatching { requestActivation() } }, 400)
+                // Activation fires once, promptly (within the sensor's idle window):
+                //  - AUTO: a virgin sensor (no cloud activeTime) self-activates on its
+                //    first authenticated connect, guarded one-shot so reconnects don't
+                //    re-fire the irreversible write.
+                //  - EXPLICIT: the Advanced "Activate" action arms activateRequestedFor.
+                val ctx = Applic.app
+                val id = SerialNumber
+                if (sessionOk && id != null) {
+                    val explicit = OttaiConstants.matchesCanonicalOrKnownNativeAlias(id, activateRequestedFor)
+                    val auto = !explicit && ctx != null && materials.activeTimeMs <= 0L &&
+                        !OttaiRegistry.loadActivationAttempted(ctx, id)
+                    if (explicit || auto) {
+                        activateRequestedFor = null
+                        if (ctx != null) OttaiRegistry.setActivationAttempted(ctx, id, true)
+                        Log.i(TAG, "auto-activating on first connect (explicit=$explicit auto=$auto)")
+                        handler.postDelayed({ runCatching { requestActivation() } }, 400)
+                    }
                 }
             }
-            actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_COMMAND ||
-                actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_MAX_ACTIVE_TIME ||
-                actStep != ActStep.NONE && ch.uuid == OttaiConstants.CHAR_CURRENT_TIME -> advanceActivation(gatt)
+            // Any successful activation write advances the sequence (RTC/maxActive on
+            // 0000180a, destruction on 84c5b711, cmd on 0000181f).
+            actStep != ActStep.NONE -> advanceActivation(gatt)
         }
     }
 
@@ -427,10 +490,24 @@ class OttaiBleManager(
             Log.w(TAG, "activation refused — not authenticated (phase=$phase)")
             return false
         }
+        // Re-discover first. The pre-auth GATT can be stale post-auth (b8fd9848/6aa799b6
+        // returned Invalid Handle on the handles discovered before auth, while the sensor
+        // advertises Service Changed). A fresh discovery picks up the post-auth handles;
+        // if discovery can't start, fall back to the current handles.
+        pendingActivation = true
+        discoveryStarted = true // suppress the connect-time discovery guard
+        Log.i(TAG, "re-discovering services before activation")
+        if (!runCatching { gatt.discoverServices() }.getOrDefault(false)) {
+            pendingActivation = false
+            startActivationWrites(gatt)
+        }
+        return true
+    }
+
+    private fun startActivationWrites(gatt: BluetoothGatt) {
         Log.i(TAG, "starting activation sequence")
         actStep = ActStep.RTC
         writeRtc(gatt)
-        return true
     }
 
     private fun advanceActivation(gatt: BluetoothGatt) {
@@ -449,21 +526,54 @@ class OttaiBleManager(
     }
 
     private fun writeMaxActiveTime(gatt: BluetoothGatt) {
-        // p.w0(maxActiveSeconds) little-endian 8 bytes; default to rated lifetime.
-        val secs = OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L
-        writeChar(gatt, OttaiConstants.SERVICE_DEVICE_INFO, OttaiConstants.CHAR_MAX_ACTIVE_TIME, longToBytesLE(secs))
+        // Official: p.U(p.w0(p.D / 1000), hex2bytes(sessionKey)), where p.D =
+        // activeExpireTime (ms) from the cloud validate-by-mac response. p.U zero-pads
+        // to one AES block and encrypts with AES/ECB/ZeroBytePadding; this is a 16-byte
+        // write, not plaintext duration + session key.
+        val expireMs = materials.activeExpireTimeMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_ACTIVE_EXPIRE_MS
+        val secs = expireMs / 1000L
+        val payload = OttaiCrypto.encryptPayload(longToBytesLE(secs), sessionKeyHex)
+            ?: run {
+                Log.e(TAG, "maxActive encryption failed — aborting activation")
+                actStep = ActStep.NONE
+                return
+            }
+        val issued = writeChar(gatt, OttaiConstants.SERVICE_DEVICE_INFO, OttaiConstants.CHAR_MAX_ACTIVE_TIME, payload)
+        if (!issued) {
+            // Characteristic not present at all (some firmwares omit it) — skip to the
+            // next step. A present-but-rejected write is handled in onCharacteristicWrite.
+            Log.w(TAG, "maxActive char absent — skipping to destruction")
+            advanceActivation(gatt)
+        }
     }
 
     private fun writeDestructionTime(gatt: BluetoothGatt) {
-        val destSec = System.currentTimeMillis() / 1000L + OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L
-        val payload = longToBytesLE(destSec) + byteArrayOf(0x04)
-        writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND, payload)
+        // Official: p.w0(p.E / 1000) || {0x04}, where p.E = retainTime (ms) from the cloud
+        // response, defaulting to 172800000 (= 172800 s) when the server omits it. This is
+        // a small DURATION, not an absolute epoch — writing now+lifetime here made the
+        // sensor terminate the link (HCI reason 0x13).
+        val retainMs = materials.retainTimeMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_RETAIN_TIME_MS
+        val secs = retainMs / 1000L
+        val payload = longToBytesLE(secs) + byteArrayOf(0x04)
+        if (!writeChar(gatt, OttaiConstants.SERVICE_DESTRUCTIVE, OttaiConstants.CHAR_DESTRUCTIVE, payload)) {
+            Log.e(TAG, "destruction char absent — aborting activation")
+            actStep = ActStep.NONE
+        }
     }
 
     private fun writeActivateCmd(gatt: BluetoothGatt) {
+        // Official: p.U({0x03}, hex2bytes(sessionKey)) then write to the CGM command
+        // characteristic. This is encrypted and exactly one AES block.
         val cmd = OttaiCrypto.encryptActivateCmd(byteArrayOf(OttaiConstants.ACTIVATE_CMD), sessionKeyHex)
-            ?: byteArrayOf(OttaiConstants.ACTIVATE_CMD)
-        writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND, cmd)
+            ?: run {
+                Log.e(TAG, "activation command encryption failed — aborting activation")
+                actStep = ActStep.NONE
+                return
+            }
+        if (!writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND, cmd)) {
+            Log.e(TAG, "command char absent — activation not sent")
+            actStep = ActStep.NONE
+        }
     }
 
     private fun longToBytesLE(v: Long): ByteArray = ByteArray(8) { ((v ushr (it * 8)) and 0xFF).toByte() }
@@ -484,10 +594,11 @@ class OttaiBleManager(
         runCatching { gatt.readCharacteristic(c) }
     }
 
+    /** Returns true if a write was issued (characteristic resolved), false if missing. */
     @Suppress("DEPRECATION")
-    private fun writeChar(gatt: BluetoothGatt, svc: UUID, ch: UUID, value: ByteArray) {
+    private fun writeChar(gatt: BluetoothGatt, svc: UUID, ch: UUID, value: ByteArray): Boolean {
         val c = gatt.getService(svc)?.getCharacteristic(ch)
-        if (c == null) { Log.w(TAG, "writeChar missing $ch"); return }
+        if (c == null) { Log.w(TAG, "writeChar missing $ch"); return false }
         c.value = value
         // Match the official app: use the characteristic's supported write type rather
         // than forcing write-with-response (forcing it on a no-response-only char gets
@@ -495,8 +606,9 @@ class OttaiBleManager(
         c.writeType = if (c.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0)
             BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         else BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-        Log.i(TAG, "write ${ch.toString().take(8)} props=0x${c.properties.toString(16)} wt=${c.writeType} len=${value.size}")
+        Log.i(TAG, "write ${ch.toString().take(8)}#${c.instanceId} props=0x${c.properties.toString(16)} wt=${c.writeType} len=${value.size}")
         runCatching { gatt.writeCharacteristic(c) }
+        return true
     }
 
     // ---- OttaiDriver ----

@@ -52,11 +52,14 @@ object OttaiConstants {
     const val EP_API_TOKEN = "$PREFIX/user/apiToken"
     const val EP_SMS_CODE = "$PREFIX/user/smsCode"
     const val EP_SMS_LOGIN = "$PREFIX/user/smsLogin"
+    const val EP_ACCOUNT_LOGIN = "$PREFIX/user/accountLogin"   // global app: account/email + password (probe-confirmed endpoint)
+    const val EP_LOGOUT = "$PREFIX/user/logout"
     const val EP_GET_USER = "$PREFIX/user/getUser"
     const val EP_VALIDATE_BY_MAC = "$PREFIX/device/validateDeviceByMacV2"
     const val EP_BIND = "$PREFIX/deviceBind/composite/bind"
     const val EP_UNBIND = "$PREFIX/deviceBind/unBindDevice"
     const val EP_GET_BIND_DEVICE = "$PREFIX/deviceBind/getBindDevice"
+    const val EP_DEVICE_LIST = "$PREFIX/deviceBind/list"  // account's bound + past sensors (paged)
     const val EP_DOWNLOAD_GLUCOSE = "$PREFIX/search/downloadGlucose"
 
     /**
@@ -129,19 +132,56 @@ object OttaiConstants {
         return ca.equals(cb, ignoreCase = true)
     }
 
-    /** Extract a 12-hex MAC from arbitrary QR text, if present. */
+    /**
+     * Extract the sensor's 12-hex MAC from arbitrary QR / barcode text.
+     *
+     * The Ottai sensor-box label is a GS1 DataMatrix: `(01)`GTIN `(11)`prod-date
+     * `(17)`expiry `(10)`batch `(21)`serial. The MAC is the **(21) serial**, NOT the
+     * leading `(01)` GTIN — naively grabbing the first 12-hex run returns the GTIN and
+     * the cloud lookup fails. The GTIN and the dates are pure decimal, whereas the
+     * serial usually carries hex letters (the OUI), so candidates are ranked:
+     * a run right after the AI "21" (+8) / containing a hex letter (+4) / standing
+     * alone, not part of a longer hex run (+2). Falls back to the first 12-hex run.
+     */
     @JvmStatic
     fun extractMacFromQr(qr: String?): String? {
-        val raw = qr?.uppercase(Locale.US) ?: return null
+        if (qr.isNullOrBlank()) return null
+        val raw = qr.uppercase(Locale.US)
+        // Literal colon MAC wins outright.
         Regex("(?:[0-9A-F]{2}:){5}[0-9A-F]{2}").find(raw)?.let { return canonicalSensorId(it.value) }
-        Regex("[0-9A-F]{12}").find(raw)?.let { return it.value }
-        return null
+        fun isHex(c: Char) = c in '0'..'9' || c in 'A'..'F'
+        var best: String? = null
+        var bestScore = -1
+        var i = 0
+        while (i + 12 <= raw.length) {
+            if ((i until i + 12).all { isHex(raw[it]) }) {
+                val sub = raw.substring(i, i + 12)
+                val afterAi21 = i >= 2 && raw[i - 1] == '1' && raw[i - 2] == '2'
+                val standalone = (i == 0 || !isHex(raw[i - 1])) && (i + 12 == raw.length || !isHex(raw[i + 12]))
+                val hasLetter = sub.any { it in 'A'..'F' }
+                val score = (if (afterAi21) 8 else 0) + (if (hasLetter) 4 else 0) + (if (standalone) 2 else 0)
+                if (score > bestScore) { bestScore = score; best = sub }
+            }
+            i++
+        }
+        return best
     }
 
     // ---- Lifetime / cadence ----
 
     /** Sensor rated lifetime (typical Ottai). */
     const val DEFAULT_RATED_LIFETIME_DAYS = 15
+
+    /**
+     * Activation values come from the cloud validate-by-mac response, NOT fabricated
+     * locally. The official app stores them in kotlin.reflect.p.D (activeExpireTime,
+     * ms — the maxActive duration) and p.E (retainTime, ms — the destruction value);
+     * p.E defaults to 172800000 (= 172800 s = 2 days) when the response omits it.
+     * The BLE writes are p.D/1000 and p.E/1000 respectively. Writing a fabricated
+     * absolute epoch to the destruction char made the sensor terminate the link.
+     */
+    const val DEFAULT_RETAIN_TIME_MS = 172_800_000L
+    const val DEFAULT_ACTIVE_EXPIRE_MS = DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
     /** Reading cadence (minutes). */
     const val DEFAULT_READING_INTERVAL_MINUTES = 1
@@ -159,8 +199,11 @@ object OttaiConstants {
     const val PREF_METHOD_PREFIX = "ottai_method_"        // decrypted method text
     const val PREF_COEFF_PREFIX = "ottai_coeff_"          // decrypted coefficient CSV
     const val PREF_ACTIVE_TIME_PREFIX = "ottai_active_time_"
+    const val PREF_ACTIVE_EXPIRE_PREFIX = "ottai_active_expire_"  // activeExpireTime ms (maxActive duration)
+    const val PREF_RETAIN_TIME_PREFIX = "ottai_retain_time_"      // retainTime ms (destruction value)
     const val PREF_DEVICE_VERSION_PREFIX = "ottai_device_version_"
     const val PREF_LAST_DATA_NO_PREFIX = "ottai_last_datano_"
     const val PREF_DEVICE_ID_PREFIX = "ottai_device_id_"
+    const val PREF_ACTIVATION_ATTEMPTED_PREFIX = "ottai_act_tried_"  // one-shot auto-activate guard
     const val PREF_SELF_DEVICE_ID = "ottai_self_device_id"
 }
