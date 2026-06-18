@@ -103,6 +103,9 @@ class OttaiBleManager(
     // Changed characteristic and may restructure its GATT post-auth, leaving the
     // pre-auth handles for the activation chars stale). onServicesDiscovered consumes it.
     @Volatile private var pendingActivation = false
+    // Set by an explicit Advanced "Activate" to bypass the already-started guard — e.g. to
+    // try re-arming/extending an expired (cmd>3) sensor via the maxActive write.
+    @Volatile private var forceActivationRequested = false
 
     @Volatile private var lastGlucoseAtMs = 0L
     @Volatile private var lastGlucoseMgdl = 0f
@@ -370,6 +373,10 @@ class OttaiBleManager(
             }
             OttaiConstants.CHAR_CGM_INFO_NOTIFY -> handleCgmInfo(value, source = "read")
             OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true, source = "read")
+            OttaiConstants.CHAR_COMMAND -> {
+                val status = if (value.isNotEmpty()) value[0].toInt() and 0xFF else -1
+                Log.i(TAG, "cmd/activation status=$status (official: 3=activated, <3=needs activation) raw=${OttaiCrypto.bytesToHex(value)}")
+            }
         }
     }
 
@@ -438,6 +445,12 @@ class OttaiBleManager(
                 val sessionOk = sessionKeyHex.isNotBlank()
                 Log.i(TAG, "auth complete; session=${if (sessionOk) "ok" else "FAILED"}")
                 UiRefreshBus.requestStatusRefresh()
+                // Read the activation-state byte exactly like the official app (CgmActivate
+                // readCmd → 0000181f/d78d0706: bArr[0], where 3 = activated, <3 = needs
+                // activation). Reads on this post-CCCD char may work even though writes hit
+                // Invalid Handle — and this tells us whether the empty glucose is because
+                // the sensor was never started vs. a dead element.
+                if (sessionOk) readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND)
                 // Activation fires once, promptly (within the sensor's idle window):
                 //  - AUTO: a virgin sensor (no cloud activeTime) self-activates on its
                 //    first authenticated connect, guarded one-shot so reconnects don't
@@ -486,6 +499,11 @@ class OttaiBleManager(
             OttaiCrypto.bytesToHex(devicePubY),
             priv,
         ).orEmpty()
+        // DEBUG (remove): dump the session key so a captured live/history cipher can be
+        // decrypted offline in every mode — to settle whether records are genuinely empty
+        // or our AES-ECB path is wrong (different ciphers → identical empty payload is
+        // impossible for correct ECB). Local single-sensor RE only; not a normal secret log.
+        Log.i(TAG, "DEBUG sessionKey=$sessionKeyHex")
     }
 
     // ---- streaming ----
@@ -504,8 +522,14 @@ class OttaiBleManager(
         val hex = OttaiCrypto.bytesToHex(value).take(160)
         Log.i(TAG, "cgm-info $source len=${value.size} hex=$hex")
         maybeUpdateLivePollInterval(value)
-        maybeUpdateLatestDataNoFromCgmInfo(value)
         maybeSeedProvisionalActiveTimeFromCgmInfo(value)
+        // NOTE: the 0x0477 cgm-info packet is NOT glucose. Its 8-byte records are
+        // [epochSec LE :4][state LE :2][flags :2], and the state field only ever takes a
+        // few discrete values (e.g. 4104/4115/4118) that do NOT track real glucose — a
+        // reference CGM moved 4..6 mmol/L while this stayed flat. Real glucose is the
+        // 12-byte live/history record (rawCurrent → method/coefficient → mmol/L), which
+        // this sensor returns as an EMPTY frame on every read (never a record). So there
+        // is nothing to emit from cgm-info; do not fabricate a reading here.
     }
 
     private fun maybeUpdateLatestDataNoFromCgmInfo(value: ByteArray) {
@@ -569,7 +593,10 @@ class OttaiBleManager(
     private fun setProvisionalActiveTime(activeTimeMs: Long, reason: String) {
         if (activeTimeMs <= 0L || materials.activeTimeMs > 0L) return
         val old = provisionalActiveTimeMs
-        if (old > 0L && activeTimeMs >= old && activeTimeMs - old < 5L * 60_000L) return
+        // Only ever move EARLIER. The cgm-info 0x0477 window is a sliding set of recent
+        // records, so its min epoch creeps forward every reconnect; letting it drift kept
+        // re-anchoring the native sensor shell (start time) and broke the chart/DB write.
+        if (old > 0L && activeTimeMs >= old) return
         provisionalActiveTimeMs = activeTimeMs
         activationCommandSentAtMs = activeTimeMs
         val id = SerialNumber.orEmpty()
@@ -668,17 +695,27 @@ class OttaiBleManager(
         runCatching {
             Natives.addGlucoseStream(sampleMs / 1000L, mgdl, id)
             Natives.wakebackup()
+            Log.i(TAG, "native write sec=${sampleMs / 1000L} mgdl=%.1f dataptr=$dataptr start=${effectiveActiveTimeMs() / 1000L}".format(mgdl))
         }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
     }
 
     // ---- activation (gated) ----
 
+    /** Explicit re-activate that bypasses the already-started guard (Advanced action). */
+    fun requestForceActivation(): Boolean {
+        forceActivationRequested = true
+        return requestActivation()
+    }
+
     override fun requestActivation(): Boolean {
-        if (effectiveActiveTimeMs() > 0L || activationCommandSentAtMs > 0L) {
+        val force = forceActivationRequested
+        forceActivationRequested = false
+        if (!force && (effectiveActiveTimeMs() > 0L || activationCommandSentAtMs > 0L)) {
             Log.i(TAG, "activation request ignored — command already sent/start time known")
             activateRequestedFor = null
             return true
         }
+        if (force) Log.i(TAG, "FORCE activation (bypassing already-started guard)")
         val gatt = mBluetoothGatt ?: return false
         if (phase != Phase.STREAMING || sessionKeyHex.isBlank()) {
             Log.w(TAG, "activation refused — not authenticated (phase=$phase)")
@@ -735,6 +772,9 @@ class OttaiBleManager(
                     scheduleLivePoll()
                 }
             }, 2_000)
+            // Re-read the cmd/activation byte: if our writes took, an expired (cmd>3) unit
+            // should drop back to 3 (activated). Logs "cmd/activation status=N".
+            handler.postDelayed({ runCatching { readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND) } }, 3_000)
         }
         UiRefreshBus.requestStatusRefresh()
     }
@@ -859,9 +899,10 @@ class OttaiBleManager(
         val c = gatt.getService(svc)?.getCharacteristic(ch)
         if (c == null) { Log.w(TAG, "writeChar missing $ch"); return false }
         c.value = value
-        // Match the official app: use the characteristic's supported write type rather
-        // than forcing write-with-response (forcing it on a no-response-only char gets
-        // an ATT error and the sensor drops the link).
+        // Match the official app (a.java d()): use the characteristic's supported write
+        // type. The post-CCCD Invalid-Handle we saw was on an EXPIRED unit locking its
+        // control chars; a no-response Write Command gave no ATT feedback and didn't
+        // un-expire it, so this stays with the official's proven with-response form.
         c.writeType = if (c.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0)
             BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         else BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE

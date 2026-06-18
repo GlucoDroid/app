@@ -348,7 +348,9 @@ object OttaiRegistry {
         val mgr = SensorBluetooth.gattcallbacks.firstOrNull { cb ->
             (cb as? OttaiBleManager)?.matchesManagedSensorId(canonical) == true
         } as? OttaiBleManager
-        if (mgr != null && mgr.requestActivation()) return true
+        // The Advanced "Activate" is an explicit user action — force it so it can also
+        // attempt to re-arm/extend an already-started or expired (cmd>3) sensor.
+        if (mgr != null && mgr.requestForceActivation()) return true
         connectSensor(context, canonical)
         return false
     }
