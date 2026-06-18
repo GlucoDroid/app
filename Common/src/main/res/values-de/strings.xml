@@ -1905,6 +1905,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_connect_saved_fail">Keine Konto- oder gespeicherten Materialien für diese Cloud-ID</string>
     <string name="ottai_bound_needs_ble">Cloud-Bindung gespeichert. Bluetooth-Adresse zum Verbinden eingeben.</string>
     <string name="ottai_saved_needs_ble">Gespeicherte Materialien gefunden. Bluetooth-Adresse zum Verbinden eingeben.</string>
+    <string name="ottai_status_needs_ble_address">BLE-Adresse erforderlich</string>
+    <string name="ottai_status_warmup_provisional">Vorläufiges Aufwärmen • noch %1$d Min.</string>
     <string name="ottai_ble_scan_title">Bluetooth-Suche wie in der offiziellen App</string>
     <string name="ottai_ble_scan_hint">Sucht 10 Sekunden nach dem CGM-Dienst und zeigt nur stabile Geräte stärker als -70 dBm, wie in der offiziellen App.</string>
     <string name="ottai_ble_scan_empty">Kein stabiles Gerät mit CGM-Dienst gefunden. Halten Sie das Telefon näher an den Sensor und suchen Sie erneut.</string>

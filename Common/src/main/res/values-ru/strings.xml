@@ -1910,6 +1910,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Нет материалов в аккаунте или сохраненных материалов для этого облачного ID</string>
     <string name="ottai_bound_needs_ble">Облачная привязка сохранена. Введите Bluetooth-адрес для подключения.</string>
     <string name="ottai_saved_needs_ble">Сохраненные материалы найдены. Введите Bluetooth-адрес для подключения.</string>
+    <string name="ottai_status_needs_ble_address">Нужен BLE-адрес</string>
+    <string name="ottai_status_warmup_provisional">Предварительный прогрев • осталось %1$d мин</string>
     <string name="ottai_ble_scan_title">Сканирование Bluetooth как в официальном приложении</string>
     <string name="ottai_ble_scan_hint">Сканирует сервис CGM 10 секунд и показывает только стабильные устройства сильнее -70 dBm, как в официальном приложении.</string>
     <string name="ottai_ble_scan_empty">Стабильное устройство с сервисом CGM не найдено. Поднесите телефон ближе к сенсору и повторите сканирование.</string>

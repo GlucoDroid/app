@@ -14,10 +14,12 @@
 package tk.glucodata.drivers.ottai
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Handler
@@ -28,6 +30,7 @@ import java.util.UUID
 import tk.glucodata.Applic
 import tk.glucodata.Log
 import tk.glucodata.Natives
+import tk.glucodata.R
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.UiRefreshBus
 
@@ -50,6 +53,9 @@ class OttaiBleManager(
          * armed by an explicit user action.
          */
         @Volatile @JvmStatic var activateRequestedFor: String? = null
+
+        private const val HISTORY_REQUEST_WINDOW_RECORDS = 270
+        private const val HISTORY_REQUEST_COOLDOWN_MS = 60_000L
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
@@ -88,6 +94,11 @@ class OttaiBleManager(
     @Volatile private var actStep: ActStep = ActStep.NONE
     @Volatile private var notifyEnableIndex = 0
     @Volatile private var discoveryStarted = false
+    @Volatile private var activationCommandSentAtMs = 0L
+    @Volatile private var provisionalActiveTimeMs = 0L
+    @Volatile private var livePollIntervalMs = 60_000L
+    @Volatile private var latestCgmInfoDataNo = 0
+    @Volatile private var lastHistoryRequestAtMs = 0L
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
     // Changed characteristic and may restructure its GATT post-auth, leaving the
     // pre-auth handles for the activation chars stale). onServicesDiscovered consumes it.
@@ -100,6 +111,13 @@ class OttaiBleManager(
 
     override var viewMode: Int = 0
 
+    private val livePollRunnable = Runnable {
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return@Runnable
+        val gatt = mBluetoothGatt ?: return@Runnable
+        readLiveGlucose(gatt, "poll")
+        scheduleLivePoll()
+    }
+
     private val notifyOrder = listOf(
         OttaiConstants.SERVICE_CGM to OttaiConstants.CHAR_GLUCOSE_HISTORY,
         OttaiConstants.SERVICE_CGM to OttaiConstants.CHAR_GLUCOSE_LIVE,
@@ -111,6 +129,13 @@ class OttaiBleManager(
     fun restoreFromPersistence(context: Context) {
         val id = SerialNumber ?: return
         materials = OttaiRegistry.loadMaterials(context, id)
+        provisionalActiveTimeMs = if (materials.activeTimeMs > 0L) {
+            OttaiRegistry.saveProvisionalActiveTime(context, id, 0L)
+            0L
+        } else {
+            OttaiRegistry.loadProvisionalActiveTime(context, id)
+        }
+        if (provisionalActiveTimeMs > 0L) activationCommandSentAtMs = provisionalActiveTimeMs
         authKeys = materials.authKeys
         lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
         // Auth V2 signs the cloud id bytes, not necessarily the Android BLE address.
@@ -133,10 +158,35 @@ class OttaiBleManager(
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
         if (phase != Phase.IDLE && (mBluetoothGatt != null || mActiveBluetoothDevice != null)) return true
+        if (mActiveBluetoothDevice == null && !hydrateBluetoothDeviceFromAddress()) {
+            phase = Phase.IDLE
+            Log.i(TAG, "connect postponed — no Android BLE address for $SerialNumber")
+            UiRefreshBus.requestStatusRefresh()
+            return true
+        }
         phase = Phase.CONNECTING
         val scheduled = super.connectDevice(delayMillis)
         if (!scheduled && phase == Phase.CONNECTING) phase = Phase.IDLE
         return scheduled
+    }
+
+    private fun knownBleAddress(): String? =
+        OttaiConstants.normalizeBleAddress(mActiveDeviceAddress, allowPlain = false)
+            ?: OttaiConstants.normalizeBleAddress(
+                OttaiRegistry.findRecord(Applic.app, SerialNumber)?.address,
+                allowPlain = false,
+            )
+
+    private fun hydrateBluetoothDeviceFromAddress(): Boolean {
+        val address = knownBleAddress() ?: return false
+        mActiveDeviceAddress = address
+        if (mActiveBluetoothDevice?.address?.equals(address, ignoreCase = true) == true) return true
+        val adapter = runCatching {
+            (Applic.app?.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+                ?: BluetoothAdapter.getDefaultAdapter()
+        }.getOrNull() ?: return false
+        mActiveBluetoothDevice = runCatching { adapter.getRemoteDevice(address) }.getOrNull()
+        return mActiveBluetoothDevice != null
     }
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
@@ -165,6 +215,7 @@ class OttaiBleManager(
                 handler.removeCallbacks(reconnectRunnable)
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
+                gatt.device?.address?.let { setDeviceAddress(it) }
                 connectTime = System.currentTimeMillis()
                 phase = Phase.DISCOVERING
                 authStep = AuthStep.NONE
@@ -188,6 +239,7 @@ class OttaiBleManager(
             BluetoothProfile.STATE_DISCONNECTED -> {
                 Log.i(TAG, "disconnected status=$status")
                 phase = Phase.IDLE
+                handler.removeCallbacks(livePollRunnable)
                 svcDeviceInfo = null; svcCgm = null; svcAuth = null
                 sessionKeyHex = ""
                 runCatching { gatt.close() }
@@ -316,7 +368,8 @@ class OttaiBleManager(
                 verifyDeviceSign(value)
                 writeAppParam(gatt)
             }
-            OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true)
+            OttaiConstants.CHAR_CGM_INFO_NOTIFY -> handleCgmInfo(value, source = "read")
+            OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true, source = "read")
         }
     }
 
@@ -368,6 +421,9 @@ class OttaiBleManager(
             return
         }
         when {
+            ch.uuid == OttaiConstants.CHAR_HISTORY_REQUEST -> {
+                Log.i(TAG, "history request write accepted")
+            }
             authStep == AuthStep.WRITE_APP_PARAM && ch.uuid == OttaiConstants.CHAR_AUTH_APP_PARAM -> {
                 val keys = authKeys ?: return
                 val authKeyHex = OttaiCrypto.bytesToHex(keys[appIndex])
@@ -391,13 +447,29 @@ class OttaiBleManager(
                 val id = SerialNumber
                 if (sessionOk && id != null) {
                     val explicit = OttaiConstants.matchesCanonicalOrKnownNativeAlias(id, activateRequestedFor)
-                    val auto = !explicit && ctx != null && materials.activeTimeMs <= 0L &&
+                    val alreadyStarted = effectiveActiveTimeMs() > 0L || activationCommandSentAtMs > 0L
+                    var activationScheduled = false
+                    if (explicit && alreadyStarted) {
+                        activateRequestedFor = null
+                        Log.i(TAG, "activation request ignored — sensor already has a local start time")
+                    }
+                    val auto = !explicit && ctx != null && effectiveActiveTimeMs() <= 0L &&
                         !OttaiRegistry.loadActivationAttempted(ctx, id)
-                    if (explicit || auto) {
+                    if ((explicit && !alreadyStarted) || auto) {
                         activateRequestedFor = null
                         if (ctx != null) OttaiRegistry.setActivationAttempted(ctx, id, true)
                         Log.i(TAG, "auto-activating on first connect (explicit=$explicit auto=$auto)")
                         handler.postDelayed({ runCatching { requestActivation() } }, 400)
+                        activationScheduled = true
+                    }
+                    if (!activationScheduled) {
+                        handler.postDelayed({ runCatching { readCgmInfo(gatt) } }, 700)
+                        handler.postDelayed({
+                            runCatching {
+                                readLiveGlucose(gatt, "initial")
+                                scheduleLivePoll()
+                            }
+                        }, 1_200)
                     }
                 }
             }
@@ -422,28 +494,134 @@ class OttaiBleManager(
     override fun onCharacteristicChanged(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic) {
         val value = ch.value ?: return
         when (ch.uuid) {
-            OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true)
-            OttaiConstants.CHAR_GLUCOSE_HISTORY -> handleGlucosePayload(value, live = false)
+            OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true, source = "notify")
+            OttaiConstants.CHAR_GLUCOSE_HISTORY -> handleGlucosePayload(value, live = false, source = "notify")
+            OttaiConstants.CHAR_CGM_INFO_NOTIFY -> handleCgmInfo(value, source = "notify")
         }
     }
 
-    private fun handleGlucosePayload(cipher: ByteArray, live: Boolean) {
+    private fun handleCgmInfo(value: ByteArray, source: String) {
+        val hex = OttaiCrypto.bytesToHex(value).take(160)
+        Log.i(TAG, "cgm-info $source len=${value.size} hex=$hex")
+        maybeUpdateLivePollInterval(value)
+        maybeUpdateLatestDataNoFromCgmInfo(value)
+        maybeSeedProvisionalActiveTimeFromCgmInfo(value)
+    }
+
+    private fun maybeUpdateLatestDataNoFromCgmInfo(value: ByteArray) {
+        if (value.size < 10) return
+        if (value[0].toInt() != 0x04 || value[1].toInt() != 0x77) return
+        var latest = latestCgmInfoDataNo
+        var offset = 2
+        while (offset + 8 <= value.size) {
+            val dataNo = uint32Le(value, offset + 4).toInt()
+            if (dataNo in 1..65534 && dataNo > latest) latest = dataNo
+            offset += 8
+        }
+        if (latest != latestCgmInfoDataNo) {
+            latestCgmInfoDataNo = latest
+            Log.i(TAG, "cgm-info latest dataNo=$latest")
+        }
+    }
+
+    private fun maybeUpdateLivePollInterval(value: ByteArray) {
+        if (value.size < 4) return
+        if (value[0].toInt() != 0x07 || value[1].toInt() != 0x77) return
+        val seconds = le16(value[2], value[3])
+        if (seconds !in 5..3600) return
+        val next = seconds * 1000L
+        if (next == livePollIntervalMs) return
+        livePollIntervalMs = next
+        Log.i(TAG, "live poll interval=${seconds}s from cgm-info")
+        if (phase == Phase.STREAMING && sessionKeyHex.isNotBlank()) scheduleLivePoll(next)
+    }
+
+    private fun maybeSeedProvisionalActiveTimeFromCgmInfo(value: ByteArray) {
+        if (materials.activeTimeMs > 0L || value.size < 22) return
+        if (value[0].toInt() != 0x04 || value[1].toInt() != 0x77) return
+        val nowSec = System.currentTimeMillis() / 1000L
+        val minSec = nowSec - 30L * 24L * 3600L
+        val candidates = mutableListOf<Long>()
+        var offset = 10
+        while (offset + 4 <= value.size) {
+            val epoch = uint32Le(value, offset)
+            if (epoch in minSec..(nowSec + 3600L)) candidates.add(epoch)
+            offset += 4
+        }
+        val activeSec = candidates.minOrNull() ?: return
+        setProvisionalActiveTime(activeSec * 1000L, "cgm-info")
+    }
+
+    private fun effectiveActiveTimeMs(): Long =
+        materials.activeTimeMs.takeIf { it > 0L }
+            ?: provisionalActiveTimeMs.takeIf { it > 0L }
+            ?: 0L
+
+    private fun preheatPeriodMs(): Long =
+        materials.preheatPeriodMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_PREHEAT_PERIOD_MS
+
+    private fun warmupRemainingMs(now: Long = System.currentTimeMillis()): Long {
+        val start = effectiveActiveTimeMs()
+        if (start <= 0L) return -1L
+        return (start + preheatPeriodMs() - now).coerceAtLeast(0L)
+    }
+
+    private fun setProvisionalActiveTime(activeTimeMs: Long, reason: String) {
+        if (activeTimeMs <= 0L || materials.activeTimeMs > 0L) return
+        val old = provisionalActiveTimeMs
+        if (old > 0L && activeTimeMs >= old && activeTimeMs - old < 5L * 60_000L) return
+        provisionalActiveTimeMs = activeTimeMs
+        activationCommandSentAtMs = activeTimeMs
+        val id = SerialNumber.orEmpty()
+        Applic.app?.let { ctx ->
+            if (id.isNotBlank()) {
+                OttaiRegistry.saveProvisionalActiveTime(ctx, id, activeTimeMs)
+                OttaiRegistry.setActivationAttempted(ctx, id, true)
+            }
+        }
+        Log.i(TAG, "provisional activeTime set=$activeTimeMs source=$reason")
+        ensureNativeShell()
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    private fun appString(resId: Int, fallback: String, vararg args: Any): String =
+        runCatching { Applic.app?.getString(resId, *args) }.getOrNull() ?: fallback
+
+    private fun handleGlucosePayload(cipher: ByteArray, live: Boolean, source: String) {
         if (sessionKeyHex.isBlank()) { Log.w(TAG, "payload before session key"); return }
-        val activeMs = materials.activeTimeMs
+        val activeMs = effectiveActiveTimeMs()
+        val kind = if (live) "live" else "history"
+        val cipherHex = OttaiCrypto.bytesToHex(cipher).take(96)
+        Log.i(TAG, "$kind $source cipher len=${cipher.size} hex=$cipherHex")
+        val payload = OttaiCrypto.decryptPayload(cipher, sessionKeyHex)
+        if (payload == null) {
+            Log.w(TAG, "$kind $source decrypt failed len=${cipher.size} blockMod=${cipher.size % 16}")
+            return
+        }
+        val records = OttaiParser.frameRecords(payload)
+        if (records.isEmpty()) {
+            Log.w(TAG, "$kind $source no records payloadLen=${payload.size} hex=${OttaiCrypto.bytesToHex(payload).take(160)}")
+            if (live) handler.postDelayed({ requestRecentHistory("empty-live") }, 1_800L)
+            return
+        }
+        Log.i(TAG, "$kind $source decrypted payloadLen=${payload.size} records=${records.size} front=${OttaiParser.frontDataNo(payload)}")
         val readings = if (live) {
-            OttaiParser.parseLive(cipher, sessionKeyHex, materials.method, materials.coefficients, activeMs)
-                ?.let { listOf(it) } ?: emptyList()
+            listOf(OttaiParser.toReading(records.last(), materials.method, materials.coefficients, activeMs))
         } else {
-            OttaiParser.parseHistory(cipher, sessionKeyHex, materials.method, materials.coefficients, activeMs)
+            records.map { OttaiParser.toReading(it, materials.method, materials.coefficients, activeMs) }
         }
         for (r in readings) {
-            if (!r.valid) continue
+            if (!r.valid) {
+                Log.w(TAG, "$kind record rejected dataNo=${r.record.dataNo} runtime=${r.record.runtimeSec} raw=${r.record.rawCurrent}")
+                continue
+            }
             if (materials.method.isBlank()) {
                 Log.w(TAG, "no method — skipping emit (raw only) dataNo=${r.record.dataNo}")
                 continue
             }
             emitReading(r)
         }
+        if (!live && readings.isNotEmpty()) lastHistoryRequestAtMs = 0L
         if (readings.isNotEmpty()) UiRefreshBus.requestStatusRefresh()
     }
 
@@ -451,7 +629,16 @@ class OttaiBleManager(
         // adjustGlucose is mmol/L; convert to mg/dL for native stream.
         val mgdl = (r.adjustGlucose * 18.0).toFloat()
         if (mgdl <= 1f) return
-        val sampleMs = if (r.monitorTimeMs > 0L) r.monitorTimeMs else System.currentTimeMillis()
+        val activeMs = effectiveActiveTimeMs()
+        val sampleMs = if (activeMs > 0L) {
+            activeMs + r.record.runtimeSec * 1000L
+        } else {
+            r.monitorTimeMs
+        }
+        if (sampleMs <= 0L) {
+            Log.w(TAG, "no active-time anchor — skipping emit dataNo=${r.record.dataNo}")
+            return
+        }
         if (sampleMs >= lastGlucoseAtMs) {
             lastGlucoseAtMs = sampleMs
             lastGlucoseMgdl = mgdl
@@ -466,8 +653,10 @@ class OttaiBleManager(
 
     private fun ensureNativeShell() {
         val id = SerialNumber ?: return
+        val activeMs = effectiveActiveTimeMs()
+        if (activeMs <= 0L) return
         runCatching {
-            val startSec = (materials.activeTimeMs / 1000L).coerceAtLeast(1L)
+            val startSec = (activeMs / 1000L).coerceAtLeast(1L)
             Natives.ensureSensorShell(id, startSec)
             if (dataptr == 0L) dataptr = runCatching { Natives.getdataptr(id) }.getOrDefault(0L)
         }.onFailure { Log.stack(TAG, "ensureNativeShell", it) }
@@ -485,6 +674,11 @@ class OttaiBleManager(
     // ---- activation (gated) ----
 
     override fun requestActivation(): Boolean {
+        if (effectiveActiveTimeMs() > 0L || activationCommandSentAtMs > 0L) {
+            Log.i(TAG, "activation request ignored — command already sent/start time known")
+            activateRequestedFor = null
+            return true
+        }
         val gatt = mBluetoothGatt ?: return false
         if (phase != Phase.STREAMING || sessionKeyHex.isBlank()) {
             Log.w(TAG, "activation refused — not authenticated (phase=$phase)")
@@ -515,9 +709,34 @@ class OttaiBleManager(
             ActStep.RTC -> { actStep = ActStep.MAX_ACTIVE; writeMaxActiveTime(gatt) }
             ActStep.MAX_ACTIVE -> { actStep = ActStep.DESTRUCTION; writeDestructionTime(gatt) }
             ActStep.DESTRUCTION -> { actStep = ActStep.COMMAND; writeActivateCmd(gatt) }
-            ActStep.COMMAND -> { actStep = ActStep.DONE; Log.i(TAG, "activation command sent") }
+            ActStep.COMMAND -> { actStep = ActStep.DONE; markActivationCommandSent() }
             else -> {}
         }
+    }
+
+    private fun markActivationCommandSent() {
+        val now = System.currentTimeMillis()
+        activationCommandSentAtMs = now
+        val id = SerialNumber.orEmpty()
+        val ctx = Applic.app
+        if (ctx != null && id.isNotBlank()) {
+            OttaiRegistry.setActivationAttempted(ctx, id, true)
+            if (materials.activeTimeMs <= 0L) {
+                setProvisionalActiveTime(now, "activation-command")
+            }
+        }
+        Log.i(TAG, "activation command sent; sensor accepted activation writes")
+        ensureNativeShell()
+        mBluetoothGatt?.let { gatt ->
+            handler.postDelayed({ runCatching { readCgmInfo(gatt) } }, 1_000)
+            handler.postDelayed({
+                runCatching {
+                    readLiveGlucose(gatt, "post-activation")
+                    scheduleLivePoll()
+                }
+            }, 2_000)
+        }
+        UiRefreshBus.requestStatusRefresh()
     }
 
     private fun writeRtc(gatt: BluetoothGatt) {
@@ -577,21 +796,61 @@ class OttaiBleManager(
     }
 
     private fun longToBytesLE(v: Long): ByteArray = ByteArray(8) { ((v ushr (it * 8)) and 0xFF).toByte() }
+    private fun shortToBytesLE(v: Int): ByteArray = byteArrayOf(
+        (v and 0xFF).toByte(),
+        ((v ushr 8) and 0xFF).toByte(),
+    )
+    private fun le16(lo: Byte, hi: Byte): Int =
+        (lo.toInt() and 0xFF) or ((hi.toInt() and 0xFF) shl 8)
+    private fun uint32Le(b: ByteArray, offset: Int): Long =
+        ((b[offset].toLong() and 0xFFL) or
+            ((b[offset + 1].toLong() and 0xFFL) shl 8) or
+            ((b[offset + 2].toLong() and 0xFFL) shl 16) or
+            ((b[offset + 3].toLong() and 0xFFL) shl 24))
 
     override fun requestHistoryBackfill(): Boolean {
-        // History arrives via notifications on CHAR_GLUCOSE_HISTORY once subscribed;
-        // a dedicated pull command is not required for the watch protocol. The
-        // device pushes buffered history after auth. No-op trigger for now.
-        return phase == Phase.STREAMING
+        return requestRecentHistory("manual")
+    }
+
+    private fun requestRecentHistory(reason: String): Boolean {
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return false
+        val gatt = mBluetoothGatt ?: return false
+        val latest = latestCgmInfoDataNo.takeIf { it > 0 } ?: lastDataNo.takeIf { it > 0 } ?: return false
+        val now = System.currentTimeMillis()
+        if (reason != "manual" && now - lastHistoryRequestAtMs < HISTORY_REQUEST_COOLDOWN_MS) return false
+        val count = minOf(HISTORY_REQUEST_WINDOW_RECORDS, latest + 1)
+        val start = (latest - count + 1).coerceAtLeast(0)
+        val payload = shortToBytesLE(start) + shortToBytesLE(count)
+        lastHistoryRequestAtMs = now
+        Log.i(TAG, "request history reason=$reason start=$start count=$count latest=$latest payload=${OttaiCrypto.bytesToHex(payload)}")
+        return writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_HISTORY_REQUEST, payload)
     }
 
     // ---- GATT helpers ----
 
     @Suppress("DEPRECATION")
-    private fun readChar(gatt: BluetoothGatt, svc: UUID, ch: UUID) {
+    private fun readChar(gatt: BluetoothGatt, svc: UUID, ch: UUID): Boolean {
         val c = gatt.getService(svc)?.getCharacteristic(ch)
-        if (c == null) { Log.w(TAG, "readChar missing $ch"); return }
-        runCatching { gatt.readCharacteristic(c) }
+        if (c == null) { Log.w(TAG, "readChar missing $ch"); return false }
+        val started = runCatching { gatt.readCharacteristic(c) }.getOrDefault(false)
+        Log.i(TAG, "read ${ch.toString().take(8)}#${c.instanceId} props=0x${c.properties.toString(16)} started=$started")
+        return started
+    }
+
+    private fun readCgmInfo(gatt: BluetoothGatt) {
+        readChar(gatt, OttaiConstants.SERVICE_DEVICE_INFO, OttaiConstants.CHAR_CGM_INFO_NOTIFY)
+    }
+
+    private fun readLiveGlucose(gatt: BluetoothGatt, reason: String) {
+        if (sessionKeyHex.isBlank()) return
+        Log.i(TAG, "read live glucose reason=$reason")
+        readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_GLUCOSE_LIVE)
+    }
+
+    private fun scheduleLivePoll(delayMs: Long = livePollIntervalMs) {
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return
+        handler.removeCallbacks(livePollRunnable)
+        handler.postDelayed(livePollRunnable, delayMs.coerceIn(5_000L, 3_600_000L))
     }
 
     /** Returns true if a write was issued (characteristic resolved), false if missing. */
@@ -616,6 +875,12 @@ class OttaiBleManager(
     /** Apply freshly-fetched cloud materials (after bind/validate + decrypt). */
     fun applyMaterials(context: Context, m: OttaiRegistry.DeviceMaterials) {
         materials = m
+        if (m.activeTimeMs > 0L) {
+            provisionalActiveTimeMs = 0L
+            OttaiRegistry.saveProvisionalActiveTime(context, SerialNumber.orEmpty(), 0L)
+        } else {
+            provisionalActiveTimeMs = OttaiRegistry.loadProvisionalActiveTime(context, SerialNumber.orEmpty())
+        }
         authKeys = m.authKeys
         OttaiRegistry.saveMaterials(context, SerialNumber.orEmpty(), m)
     }
@@ -626,21 +891,25 @@ class OttaiBleManager(
         return OttaiCurrentSnapshot(lastGlucoseAtMs, lastGlucoseMgdl, lastRawCurrent, Float.NaN, SENSOR_GEN)
     }
 
-    override fun getStartTimeMs(): Long = materials.activeTimeMs
+    override fun getStartTimeMs(): Long = effectiveActiveTimeMs()
     override fun getOfficialEndMs(): Long =
         if (materials.activeTimeMs <= 0L) 0L
         else materials.activeTimeMs + OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
-    override fun getExpectedEndMs(): Long = getOfficialEndMs()
+    override fun getExpectedEndMs(): Long {
+        val start = effectiveActiveTimeMs()
+        return if (start <= 0L) 0L else start + OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
+    }
     override fun isSensorExpired(): Boolean {
-        val end = getOfficialEndMs(); return end > 0L && System.currentTimeMillis() > end
+        val end = getExpectedEndMs(); return end > 0L && System.currentTimeMillis() > end
     }
     override fun getSensorRemainingHours(): Int {
-        val end = getOfficialEndMs(); if (end <= 0L) return -1
+        val end = getExpectedEndMs(); if (end <= 0L) return -1
         val ms = end - System.currentTimeMillis(); return if (ms <= 0L) 0 else (ms / 3_600_000L).toInt()
     }
     override fun getSensorAgeHours(): Int {
-        if (materials.activeTimeMs <= 0L) return -1
-        return ((System.currentTimeMillis() - materials.activeTimeMs) / 3_600_000L).toInt()
+        val start = effectiveActiveTimeMs()
+        if (start <= 0L) return -1
+        return ((System.currentTimeMillis() - start) / 3_600_000L).toInt()
     }
     override fun getReadingIntervalMinutes(): Int = OttaiConstants.DEFAULT_READING_INTERVAL_MINUTES
 
@@ -650,16 +919,30 @@ class OttaiBleManager(
     override fun matchesManagedSensorId(sensorId: String?): Boolean =
         OttaiConstants.matchesCanonicalOrKnownNativeAlias(sensorId, SerialNumber)
 
-    override fun hasNativeSensorBacking(): Boolean = true
+    override fun hasNativeSensorBacking(): Boolean = effectiveActiveTimeMs() > 0L || dataptr != 0L
 
     override fun getDetailedBleStatus(): String = when (phase) {
-        Phase.IDLE -> if (authKeys == null) "Needs cloud bind" else "Idle"
+        Phase.IDLE -> if (authKeys == null) "Needs cloud bind"
+            else if (knownBleAddress() == null) appString(
+                R.string.ottai_status_needs_ble_address,
+                "Needs BLE address",
+            )
+            else "Idle"
         Phase.CONNECTING -> "Connecting"
         Phase.DISCOVERING -> "Discovering"
         Phase.ENABLING_NOTIFY -> "Subscribing"
         Phase.AUTH -> "Authenticating"
         Phase.STREAMING -> if (lastGlucoseAtMs > 0L) {
             "Streaming • ${((System.currentTimeMillis() - lastGlucoseAtMs) / 60000L)}m ago"
+        } else if (effectiveActiveTimeMs() > 0L) {
+            val remaining = warmupRemainingMs()
+            val minutes = ((remaining + 59_999L) / 60_000L).toInt()
+            if (remaining > 0L) appString(
+                R.string.ottai_status_warmup_provisional,
+                "Provisional warmup • ${minutes}m left",
+                minutes,
+            )
+            else "Streaming (awaiting data)"
         } else "Streaming (awaiting data)"
     }
 }

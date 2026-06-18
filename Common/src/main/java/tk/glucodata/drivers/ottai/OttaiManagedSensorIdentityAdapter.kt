@@ -43,7 +43,8 @@ object OttaiManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
     override fun resolveNativeSensorName(sensorId: String?): String? {
         val raw = sensorId?.trim().takeIf { !it.isNullOrEmpty() } ?: return null
         val canonical = resolveCanonicalSensorId(raw) ?: return null
-        return OttaiRegistry.findRecord(Applic.app, canonical)?.let { canonical }
+        OttaiRegistry.findRecord(Applic.app, canonical) ?: return null
+        return canonical.takeIf { hasNativeBackingFor(it) }
     }
 
     override fun hasPersistedManagedRecord(sensorId: String?): Boolean {
@@ -74,15 +75,22 @@ object OttaiManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
         resolveCanonicalSensorId(sensorId)?.let { OttaiRegistry.findRecord(Applic.app, it) } != null
 
     override fun usesNativeDirectStreamShell(sensorId: String?): Boolean =
-        resolveCanonicalSensorId(sensorId)?.let { OttaiRegistry.findRecord(Applic.app, it) } != null
+        resolveCanonicalSensorId(sensorId)?.let { hasNativeBackingFor(it) } == true
 
     override fun hasNativeSensorBacking(sensorId: String?): Boolean? {
-        resolveCanonicalSensorId(sensorId) ?: return null
-        return true
+        val canonical = resolveCanonicalSensorId(sensorId) ?: return null
+        OttaiRegistry.findRecord(Applic.app, canonical) ?: return null
+        return hasNativeBackingFor(canonical)
     }
 
     override fun shouldUseNativeHistorySync(sensorId: String?): Boolean? {
         resolveCanonicalSensorId(sensorId) ?: return null
         return false // driver owns Room storage end-to-end
+    }
+
+    private fun hasNativeBackingFor(canonical: String): Boolean {
+        val context = Applic.app ?: return false
+        val materials = OttaiRegistry.loadMaterials(context, canonical)
+        return materials.activeTimeMs > 0L || OttaiRegistry.loadProvisionalActiveTime(context, canonical) > 0L
     }
 }

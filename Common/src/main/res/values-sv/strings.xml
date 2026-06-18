@@ -1867,6 +1867,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Inga konto- eller sparade material för detta moln-ID</string>
     <string name="ottai_bound_needs_ble">Molnbindning sparad. Ange Bluetooth-adressen för att ansluta.</string>
     <string name="ottai_saved_needs_ble">Sparade material hittades. Ange Bluetooth-adressen för att ansluta.</string>
+    <string name="ottai_status_needs_ble_address">BLE-adress behövs</string>
+    <string name="ottai_status_warmup_provisional">Provisorisk uppvärmning • %1$d min kvar</string>
     <string name="ottai_ble_scan_title">Bluetoothsökning som i officiella appen</string>
     <string name="ottai_ble_scan_hint">Söker efter CGM-tjänsten i 10 sekunder och visar bara stabila enheter starkare än -70 dBm, som i officiella appen.</string>
     <string name="ottai_ble_scan_empty">Ingen stabil enhet med CGM-tjänst hittades. Håll telefonen närmare sensorn och sök igen.</string>

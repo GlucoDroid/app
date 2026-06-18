@@ -46,6 +46,7 @@ object OttaiRegistry {
         // write (p.E, defaults to 172800000 when the server omits it).
         val activeExpireTimeMs: Long = 0L,
         val retainTimeMs: Long = 0L,
+        val preheatPeriodMs: Long = 0L,
     ) {
         val authKeys: List<ByteArray>? get() = OttaiCrypto.parseAuthKeys(keyAHex)
         val coefficients: List<Double>
@@ -135,7 +136,9 @@ object OttaiRegistry {
             listOf(
                 OttaiConstants.PREF_KEYA_PREFIX, OttaiConstants.PREF_METHOD_PREFIX,
                 OttaiConstants.PREF_COEFF_PREFIX, OttaiConstants.PREF_ACTIVE_TIME_PREFIX,
+                OttaiConstants.PREF_PROVISIONAL_ACTIVE_TIME_PREFIX,
                 OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX, OttaiConstants.PREF_RETAIN_TIME_PREFIX,
+                OttaiConstants.PREF_PREHEAT_PERIOD_PREFIX,
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
             ).forEach { remove(it + canonical) }
@@ -154,6 +157,7 @@ object OttaiRegistry {
             putLong(OttaiConstants.PREF_ACTIVE_TIME_PREFIX + id, m.activeTimeMs)
             putLong(OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX + id, m.activeExpireTimeMs)
             putLong(OttaiConstants.PREF_RETAIN_TIME_PREFIX + id, m.retainTimeMs)
+            putLong(OttaiConstants.PREF_PREHEAT_PERIOD_PREFIX + id, m.preheatPeriodMs)
             putString(OttaiConstants.PREF_DEVICE_VERSION_PREFIX + id, m.deviceVersion)
             putInt(OttaiConstants.PREF_DEVICE_ID_PREFIX + id, m.deviceId)
         }.apply()
@@ -170,9 +174,24 @@ object OttaiRegistry {
             activeTimeMs = p.getLong(OttaiConstants.PREF_ACTIVE_TIME_PREFIX + id, 0L),
             activeExpireTimeMs = p.getLong(OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX + id, 0L),
             retainTimeMs = p.getLong(OttaiConstants.PREF_RETAIN_TIME_PREFIX + id, 0L),
+            preheatPeriodMs = p.getLong(OttaiConstants.PREF_PREHEAT_PERIOD_PREFIX + id, 0L),
             deviceVersion = p.getString(OttaiConstants.PREF_DEVICE_VERSION_PREFIX + id, null).orEmpty(),
             deviceId = p.getInt(OttaiConstants.PREF_DEVICE_ID_PREFIX + id, 0),
         )
+    }
+
+    @JvmStatic fun loadProvisionalActiveTime(c: Context, id: String): Long =
+        prefs(c).getLong(
+            OttaiConstants.PREF_PROVISIONAL_ACTIVE_TIME_PREFIX + OttaiConstants.canonicalSensorId(id),
+            0L,
+        )
+
+    @JvmStatic fun saveProvisionalActiveTime(c: Context, id: String, activeTimeMs: Long) {
+        val canonical = OttaiConstants.canonicalSensorId(id)
+        prefs(c).edit().apply {
+            if (activeTimeMs > 0L) putLong(OttaiConstants.PREF_PROVISIONAL_ACTIVE_TIME_PREFIX + canonical, activeTimeMs)
+            else remove(OttaiConstants.PREF_PROVISIONAL_ACTIVE_TIME_PREFIX + canonical)
+        }.apply()
     }
 
     /**
@@ -218,6 +237,8 @@ object OttaiRegistry {
             put("activeTimeMs", m.activeTimeMs)
             put("activeExpireTimeMs", m.activeExpireTimeMs)
             put("retainTimeMs", m.retainTimeMs)
+            put("preheatPeriodMs", m.preheatPeriodMs)
+            put("provisionalActiveTimeMs", loadProvisionalActiveTime(context, canonical))
             put("deviceVersion", m.deviceVersion)
             put("deviceId", m.deviceId)
         }.toString(2)
@@ -243,10 +264,12 @@ object OttaiRegistry {
                 activeTimeMs = o.optLong("activeTimeMs", 0L),
                 activeExpireTimeMs = o.optLong("activeExpireTimeMs", 0L),
                 retainTimeMs = o.optLong("retainTimeMs", 0L),
+                preheatPeriodMs = o.optLong("preheatPeriodMs", 0L),
                 deviceVersion = o.optString("deviceVersion"),
                 deviceId = o.optInt("deviceId", 0),
             ),
         )
+        saveProvisionalActiveTime(context, id, o.optLong("provisionalActiveTimeMs", 0L))
         return id
     }
 

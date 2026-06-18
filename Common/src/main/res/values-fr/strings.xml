@@ -1873,6 +1873,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Aucune donnée de compte ou enregistrée pour cet ID cloud</string>
     <string name="ottai_bound_needs_ble">Association cloud enregistrée. Saisissez l’adresse Bluetooth pour connecter.</string>
     <string name="ottai_saved_needs_ble">Données enregistrées trouvées. Saisissez l’adresse Bluetooth pour connecter.</string>
+    <string name="ottai_status_needs_ble_address">Adresse BLE requise</string>
+    <string name="ottai_status_warmup_provisional">Préchauffage provisoire • %1$d min restantes</string>
     <string name="ottai_ble_scan_title">Recherche Bluetooth comme l’application officielle</string>
     <string name="ottai_ble_scan_hint">Recherche le service CGM pendant 10 secondes et affiche seulement les appareils stables au-dessus de -70 dBm, comme l’application officielle.</string>
     <string name="ottai_ble_scan_empty">Aucun appareil stable avec service CGM trouvé. Rapprochez le téléphone du capteur et relancez la recherche.</string>

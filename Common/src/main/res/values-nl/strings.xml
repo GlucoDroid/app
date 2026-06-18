@@ -1910,6 +1910,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_connect_saved_fail">Geen account- of opgeslagen materialen voor deze cloud-ID</string>
     <string name="ottai_bound_needs_ble">Cloudbinding opgeslagen. Voer het Bluetooth-adres in om te verbinden.</string>
     <string name="ottai_saved_needs_ble">Opgeslagen materialen gevonden. Voer het Bluetooth-adres in om te verbinden.</string>
+    <string name="ottai_status_needs_ble_address">BLE-adres nodig</string>
+    <string name="ottai_status_warmup_provisional">Voorlopige opwarming • nog %1$d min</string>
     <string name="ottai_ble_scan_title">Bluetoothscan zoals de officiële app</string>
     <string name="ottai_ble_scan_hint">Scant de CGM-service 10 seconden en toont alleen stabiele apparaten sterker dan -70 dBm, zoals de officiële app.</string>
     <string name="ottai_ble_scan_empty">Geen stabiel apparaat met CGM-service gevonden. Houd de telefoon dichter bij de sensor en scan opnieuw.</string>

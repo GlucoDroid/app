@@ -1978,6 +1978,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Энэ cloud ID-д аккаунт эсвэл хадгалсан материал алга</string>
     <string name="ottai_bound_needs_ble">Cloud холболт хадгалагдлаа. Холбогдохын тулд Bluetooth хаягийг оруулна уу.</string>
     <string name="ottai_saved_needs_ble">Хадгалсан материал олдлоо. Холбогдохын тулд Bluetooth хаягийг оруулна уу.</string>
+    <string name="ottai_status_needs_ble_address">BLE хаяг хэрэгтэй</string>
+    <string name="ottai_status_warmup_provisional">Түр халаалт • %1$d мин үлдлээ</string>
     <string name="ottai_ble_scan_title">Албан апп шиг Bluetooth скан</string>
     <string name="ottai_ble_scan_hint">CGM үйлчилгээг 10 секунд скан хийж, албан апп шиг -70 dBm-ээс хүчтэй тогтвортой төхөөрөмжүүдийг л харуулна.</string>
     <string name="ottai_ble_scan_empty">CGM үйлчилгээтэй тогтвортой төхөөрөмж олдсонгүй. Утсаа мэдрэгчид ойртуулаад дахин скан хийнэ үү.</string>

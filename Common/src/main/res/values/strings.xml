@@ -958,6 +958,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">No account or saved materials for this cloud ID</string>
     <string name="ottai_bound_needs_ble">Cloud bind saved. Enter the Bluetooth address to connect.</string>
     <string name="ottai_saved_needs_ble">Saved materials found. Enter the Bluetooth address to connect.</string>
+    <string name="ottai_status_needs_ble_address">Needs BLE address</string>
+    <string name="ottai_status_warmup_provisional">Provisional warmup • %1$dm left</string>
     <string name="ottai_ble_scan_title">Official-style Bluetooth scan</string>
     <string name="ottai_ble_scan_hint">Scans the CGM service for 10 seconds and shows only stable devices above -70 dBm, matching the official app.</string>
     <string name="ottai_ble_scan_empty">No stable CGM-service device found. Move the phone close to the sensor and scan again.</string>

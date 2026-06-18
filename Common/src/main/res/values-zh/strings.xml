@@ -1883,6 +1883,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">账号中或本地没有此云端 ID 的材料</string>
     <string name="ottai_bound_needs_ble">云端绑定已保存。请输入蓝牙地址以连接。</string>
     <string name="ottai_saved_needs_ble">找到已保存材料。请输入蓝牙地址以连接。</string>
+    <string name="ottai_status_needs_ble_address">需要 BLE 地址</string>
+    <string name="ottai_status_warmup_provisional">预估预热 • 剩余 %1$d 分钟</string>
     <string name="ottai_ble_scan_title">官方方式蓝牙扫描</string>
     <string name="ottai_ble_scan_hint">扫描 CGM 服务 10 秒，只显示稳定且信号强于 -70 dBm 的设备，与官方应用一致。</string>
     <string name="ottai_ble_scan_empty">未找到稳定的 CGM 服务设备。请将手机靠近传感器后重新扫描。</string>

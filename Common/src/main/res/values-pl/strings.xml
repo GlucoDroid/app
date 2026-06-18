@@ -1902,6 +1902,8 @@
     <string name="ottai_connect_saved_fail">Brak materiałów z konta lub zapisanych dla tego ID w chmurze</string>
     <string name="ottai_bound_needs_ble">Powiązanie w chmurze zapisane. Wpisz adres Bluetooth, aby połączyć.</string>
     <string name="ottai_saved_needs_ble">Znaleziono zapisane materiały. Wpisz adres Bluetooth, aby połączyć.</string>
+    <string name="ottai_status_needs_ble_address">Wymagany adres BLE</string>
+    <string name="ottai_status_warmup_provisional">Tymczasowe rozgrzewanie • pozostało %1$d min</string>
     <string name="ottai_ble_scan_title">Skan Bluetooth jak w oficjalnej aplikacji</string>
     <string name="ottai_ble_scan_hint">Skanuje usługę CGM przez 10 sekund i pokazuje tylko stabilne urządzenia silniejsze niż -70 dBm, jak w oficjalnej aplikacji.</string>
     <string name="ottai_ble_scan_empty">Nie znaleziono stabilnego urządzenia z usługą CGM. Zbliż telefon do sensora i zeskanuj ponownie.</string>

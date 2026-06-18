@@ -62,6 +62,7 @@ object OttaiCloudClient {
         val coeffUpdateTime: Long,
         val activeTime: Long,
         val activeExpireTime: Long,  // maxActive duration (ms) -> BLE p.D
+        val preheatPeriodTime: Long,
         val retainTime: Long,        // destruction value (ms) -> BLE p.E; 0 => server default
         val deviceVersion: String,
         val deviceId: Int,
@@ -332,6 +333,7 @@ object OttaiCloudClient {
             coeffUpdateTime = vo.optLongLoose("coeffUpdateTime"),
             activeTime = vo.optLongLoose("activeTime"),
             activeExpireTime = vo.optLongLoose("activeExpireTime"),
+            preheatPeriodTime = vo.optLongLoose("preheatPeriodTime"),
             retainTime = vo.optLongLoose("retainTime"),
             deviceVersion = vo.optString("deviceVersion").orEmptyIfNull(),
             deviceId = vo.optInt("id", 0),
@@ -360,6 +362,7 @@ object OttaiCloudClient {
             activeTimeMs = resp.activeTime,
             activeExpireTimeMs = resp.activeExpireTime,
             retainTimeMs = resp.retainTime,
+            preheatPeriodMs = resp.preheatPeriodTime,
             deviceVersion = resp.deviceVersion,
             deviceId = resp.deviceId,
         )

@@ -1934,6 +1934,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Няма матэрыялаў у акаўнце або захаваных матэрыялаў для гэтага воблачнага ID</string>
     <string name="ottai_bound_needs_ble">Воблачная прывязка захавана. Увядзіце Bluetooth-адрас для падключэння.</string>
     <string name="ottai_saved_needs_ble">Захаваныя матэрыялы знойдзены. Увядзіце Bluetooth-адрас для падключэння.</string>
+    <string name="ottai_status_needs_ble_address">Патрэбны BLE-адрас</string>
+    <string name="ottai_status_warmup_provisional">Папярэдні прагрэў • засталося %1$d хв</string>
     <string name="ottai_ble_scan_title">Сканіраванне Bluetooth як у афіцыйнай праграме</string>
     <string name="ottai_ble_scan_hint">Сканіруе сэрвіс CGM 10 секунд і паказвае толькі стабільныя прылады мацней за -70 dBm, як у афіцыйнай праграме.</string>
     <string name="ottai_ble_scan_empty">Стабільная прылада з сэрвісам CGM не знойдзена. Паднясіце тэлефон бліжэй да датчыка і паўтарыце сканаванне.</string>

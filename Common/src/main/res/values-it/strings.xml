@@ -1857,6 +1857,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Nessun materiale dell’account o salvato per questo ID cloud</string>
     <string name="ottai_bound_needs_ble">Associazione cloud salvata. Inserisci l’indirizzo Bluetooth per connettere.</string>
     <string name="ottai_saved_needs_ble">Materiali salvati trovati. Inserisci l’indirizzo Bluetooth per connettere.</string>
+    <string name="ottai_status_needs_ble_address">Serve indirizzo BLE</string>
+    <string name="ottai_status_warmup_provisional">Riscaldamento provvisorio • %1$d min rimanenti</string>
     <string name="ottai_ble_scan_title">Scansione Bluetooth come l’app ufficiale</string>
     <string name="ottai_ble_scan_hint">Scansiona il servizio CGM per 10 secondi e mostra solo dispositivi stabili sopra -70 dBm, come l’app ufficiale.</string>
     <string name="ottai_ble_scan_empty">Nessun dispositivo stabile con servizio CGM trovato. Avvicina il telefono al sensore e riprova.</string>

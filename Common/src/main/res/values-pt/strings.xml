@@ -1868,6 +1868,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Nenhum material da conta ou salvo para este ID na nuvem</string>
     <string name="ottai_bound_needs_ble">Vínculo na nuvem salvo. Digite o endereço Bluetooth para conectar.</string>
     <string name="ottai_saved_needs_ble">Materiais salvos encontrados. Digite o endereço Bluetooth para conectar.</string>
+    <string name="ottai_status_needs_ble_address">Precisa de endereço BLE</string>
+    <string name="ottai_status_warmup_provisional">Aquecimento provisório • faltam %1$d min</string>
     <string name="ottai_ble_scan_title">Busca Bluetooth como no app oficial</string>
     <string name="ottai_ble_scan_hint">Busca o serviço CGM por 10 segundos e mostra apenas dispositivos estáveis acima de -70 dBm, como no app oficial.</string>
     <string name="ottai_ble_scan_empty">Nenhum dispositivo estável com serviço CGM encontrado. Aproxime o telefone do sensor e tente novamente.</string>

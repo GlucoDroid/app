@@ -1895,6 +1895,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_connect_saved_fail">Bu bulut kimliği için hesapta veya kayıtlı materyal yok</string>
     <string name="ottai_bound_needs_ble">Bulut bağlama kaydedildi. Bağlanmak için Bluetooth adresini girin.</string>
     <string name="ottai_saved_needs_ble">Kayıtlı materyaller bulundu. Bağlanmak için Bluetooth adresini girin.</string>
+    <string name="ottai_status_needs_ble_address">BLE adresi gerekli</string>
+    <string name="ottai_status_warmup_provisional">Geçici ısınma • %1$d dk kaldı</string>
     <string name="ottai_ble_scan_title">Resmi uygulama tarzı Bluetooth taraması</string>
     <string name="ottai_ble_scan_hint">CGM servisini 10 saniye tarar ve resmi uygulamadaki gibi yalnızca -70 dBm üzerindeki kararlı cihazları gösterir.</string>
     <string name="ottai_ble_scan_empty">Kararlı CGM servis cihazı bulunamadı. Telefonu sensöre yaklaştırıp tekrar tarayın.</string>

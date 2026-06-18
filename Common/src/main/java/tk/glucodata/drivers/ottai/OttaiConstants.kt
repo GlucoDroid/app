@@ -27,6 +27,7 @@ object OttaiConstants {
 
     val SERVICE_CGM: UUID = UUID.fromString("0000181f-0000-1000-8000-00805f9b34fb")
     val CHAR_GLUCOSE_LIVE: UUID = UUID.fromString("00002aa7-0000-1000-8000-00805f9b34fb")
+    val CHAR_HISTORY_REQUEST: UUID = UUID.fromString("ccecb015-6750-41fd-ba78-3fb77d350574")
     val CHAR_GLUCOSE_HISTORY: UUID = UUID.fromString("69e4f45f-a180-422c-83c0-324146402112")
     val CHAR_COMMAND: UUID = UUID.fromString("d78d0706-c775-448d-8a78-01215e7c2e11")
 
@@ -35,7 +36,7 @@ object OttaiConstants {
     val CHAR_AUTH_APP_PARAM: UUID = UUID.fromString("1756ef6e-884b-4eb0-b646-f04ab18408f9")
     val CHAR_AUTH_SIGN: UUID = UUID.fromString("785022c6-08c0-48af-ad17-684bb889aa83")
 
-    /** DESTRUCTIVE — never touched by this driver. */
+    /** Official activation retain/destruction service. Only used during gated activation. */
     val SERVICE_DESTRUCTIVE: UUID = UUID.fromString("84c5b711-655a-460d-89ca-337dbc981857")
     val CHAR_DESTRUCTIVE: UUID = UUID.fromString("6aa799b6-b374-4148-8f36-6d440c0ec203")
 
@@ -188,6 +189,7 @@ object OttaiConstants {
 
     /** Default warmup seconds (device_manage_warmup_duration). */
     const val DEFAULT_WARMUP_SECONDS = 3200
+    const val DEFAULT_PREHEAT_PERIOD_MS = 3_600_000L
 
     // ---- SharedPreferences keys ----
 
@@ -199,7 +201,9 @@ object OttaiConstants {
     const val PREF_METHOD_PREFIX = "ottai_method_"        // decrypted method text
     const val PREF_COEFF_PREFIX = "ottai_coeff_"          // decrypted coefficient CSV
     const val PREF_ACTIVE_TIME_PREFIX = "ottai_active_time_"
+    const val PREF_PROVISIONAL_ACTIVE_TIME_PREFIX = "ottai_provisional_active_time_"
     const val PREF_ACTIVE_EXPIRE_PREFIX = "ottai_active_expire_"  // activeExpireTime ms (maxActive duration)
+    const val PREF_PREHEAT_PERIOD_PREFIX = "ottai_preheat_period_"
     const val PREF_RETAIN_TIME_PREFIX = "ottai_retain_time_"      // retainTime ms (destruction value)
     const val PREF_DEVICE_VERSION_PREFIX = "ottai_device_version_"
     const val PREF_LAST_DATA_NO_PREFIX = "ottai_last_datano_"
