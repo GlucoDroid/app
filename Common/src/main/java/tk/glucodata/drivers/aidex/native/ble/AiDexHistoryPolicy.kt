@@ -36,6 +36,7 @@ internal object AiDexHistoryPolicy {
         }
 
         val effectiveRawNextIndex = if (
+            persistedRawNextIndex <= newest &&
             persistedBriefNextIndex > 0 &&
             persistedRawNextIndex > persistedBriefNextIndex
         ) {
@@ -101,6 +102,20 @@ internal object AiDexHistoryPolicy {
         // were not yet emitted as direct F003, so skipping >= cutoff drops
         // real backfill rows. Only skip the exact live-backed offset.
         return entryOffsetMinutes == liveOffsetCutoff
+    }
+
+    fun wearDurationMinutes(wearDays: Int?): Long? {
+        if (wearDays == null || wearDays <= 0) return null
+        return wearDays.toLong() * 24L * 60L
+    }
+
+    fun isWithinWearDuration(
+        offsetMinutes: Int,
+        wearDays: Int?,
+    ): Boolean {
+        if (offsetMinutes < 0) return false
+        val wearMinutes = wearDurationMinutes(wearDays) ?: return true
+        return offsetMinutes.toLong() < wearMinutes
     }
 
     fun shouldQuarantinePostResetHistoryRange(
