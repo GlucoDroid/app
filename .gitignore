@@ -59,3 +59,7 @@ device-test-results/
 out/
 tmp/
 Common/printmappingout.txt
+
+# Kilo CLI / editor / IDE
+.kilo/
+glucodroid.code-workspace
