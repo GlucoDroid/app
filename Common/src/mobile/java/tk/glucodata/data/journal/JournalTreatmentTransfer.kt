@@ -21,7 +21,6 @@ object JournalTreatmentTransfer {
     private const val SOURCE_KIND_NOTE = "note"
     private const val MIN_VALID_EPOCH_MS = 946_684_800_000L
     private const val MGDL_PER_MMOLL = 18.0182f
-    private const val JUGGLUCO_REMOTE_ID_PREFIX = "jng-j-"
 
     private val allKinds = listOf(
         SOURCE_KIND_CARBS,
@@ -259,16 +258,6 @@ object JournalTreatmentTransfer {
             candidateSourceRecordIds = candidateIds,
             remoteId = remoteId
         )
-    }
-
-    fun isJugglucoUpload(treatment: JSONObject): Boolean {
-        val remoteId = treatment.optRemoteId()
-        if (remoteId?.startsWith(JUGGLUCO_REMOTE_ID_PREFIX, ignoreCase = true) == true) {
-            return true
-        }
-        val app = treatment.optNonBlankString("app", "enteredBy", "device") ?: return false
-        return app.equals("JugglucoNG", ignoreCase = true) ||
-            app.equals("Juggluco", ignoreCase = true)
     }
 
     fun hasAnyRemoteIdentifier(treatment: JSONObject, remoteIds: Set<String>): Boolean {

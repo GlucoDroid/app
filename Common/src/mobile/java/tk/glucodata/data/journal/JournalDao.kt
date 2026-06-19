@@ -103,6 +103,9 @@ interface JournalDao {
     @Query("UPDATE journal_entries SET nsUploadedAt = :uploadedAt, nsRemoteId = :remoteId WHERE id = :id")
     suspend fun markEntryUploadedToNightscout(id: Long, remoteId: String, uploadedAt: Long)
 
+    @Query("SELECT nsRemoteId FROM journal_entries WHERE nsUploadedAt IS NOT NULL AND nsRemoteId IS NOT NULL")
+    suspend fun getOwnUploadedNightscoutRemoteIds(): List<String>
+
     @Query("SELECT * FROM journal_pending_deletes ORDER BY deletedAt ASC")
     suspend fun getPendingNightscoutDeletes(): List<JournalPendingDeleteEntity>
 
