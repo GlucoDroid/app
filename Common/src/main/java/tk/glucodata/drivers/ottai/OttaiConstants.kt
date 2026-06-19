@@ -47,7 +47,8 @@ object OttaiConstants {
 
     // ---- Cloud ----
 
-    const val API_BASE = "https://api.ottai.com"
+    const val API_BASE = "https://api.ottai.com"          // CN app (phone/SMS account)
+    const val API_BASE_GLOBAL = "https://seas.ottai.com"  // global app com.ottai.seas (email/password); same API, different host
     const val PREFIX = "/cgm/app/server"
 
     const val EP_API_TOKEN = "$PREFIX/user/apiToken"
@@ -197,6 +198,7 @@ object OttaiConstants {
     const val PREF_ACCESS_TOKEN = "ottai_access_token"
     const val PREF_GLUCOSE_SECRET = "ottai_glucose_secret_key"
     const val PREF_USER_ID = "ottai_user_id"
+    const val PREF_API_BASE = "ottai_api_base"  // which backend the signed-in account is on (CN vs global)
     const val PREF_KEYA_PREFIX = "ottai_keya_"            // decrypted 6x16 hex (192)
     const val PREF_METHOD_PREFIX = "ottai_method_"        // decrypted method text
     const val PREF_COEFF_PREFIX = "ottai_coeff_"          // decrypted coefficient CSV

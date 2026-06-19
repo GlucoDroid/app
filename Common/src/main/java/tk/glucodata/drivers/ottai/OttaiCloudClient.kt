@@ -116,18 +116,21 @@ object OttaiCloudClient {
 
     // ---- API ----
 
+    /** Backend host for the signed-in account (CN api.ottai.com vs global seas.ottai.com). */
+    private fun base(ctx: Context): String = OttaiRegistry.loadApiBase(ctx)
+
     /** GET /user/apiToken — sig over (ts). Returns the apiToken or null. */
-    fun getApiToken(ctx: Context): String? {
+    fun getApiToken(ctx: Context, apiBase: String = base(ctx)): String? {
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val sig = sign(deviceId, ts)
-        val resp = httpGet(OttaiConstants.API_BASE + OttaiConstants.EP_API_TOKEN, mapOf("signature" to sig), headers(ctx, ts))
+        val resp = httpGet(apiBase + OttaiConstants.EP_API_TOKEN, mapOf("signature" to sig), headers(ctx, ts))
         return resp?.optStringDeep("data")
     }
 
     /** POST /user/smsCode — needs apiToken; sig over (phone, apiToken). Returns requestId. */
     fun requestSmsCode(ctx: Context, phone: String): String? {
-        val apiToken = getApiToken(ctx) ?: run { lastError = "apiToken failed"; Log.w(TAG, "apiToken failed"); return null }
+        val apiToken = getApiToken(ctx, OttaiConstants.API_BASE) ?: run { lastError = "apiToken failed"; Log.w(TAG, "apiToken failed"); return null }
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val ph = normalizePhone(phone)
@@ -165,6 +168,7 @@ object OttaiCloudClient {
             glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
         )
         if (result.ok) {
+            OttaiRegistry.saveApiBase(ctx, OttaiConstants.API_BASE)  // this account lives on the CN backend
             OttaiRegistry.saveAccessToken(ctx, result.accessToken)
             OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
             OttaiRegistry.saveUserId(ctx, result.userId)
@@ -183,39 +187,47 @@ object OttaiCloudClient {
     fun passwordLogin(ctx: Context, account: String, password: String): LoginResult? {
         val acct = account.trim()
         if (acct.isBlank() || password.isBlank()) { lastError = "account/password required"; return null }
-        val isEmail = acct.contains('@')
-        // The global app is Flutter (its exact signature arg-order isn't capturable), so
-        // try the few plausible orderings, each with a fresh apiToken.
-        for (idx in 0..2) {
-            val apiToken = getApiToken(ctx) ?: run { lastError = "apiToken failed"; return null }
-            val ts = now()
-            val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
-            val sigArgs = when (idx) {
-                0 -> arrayOf(acct, password)
-                1 -> arrayOf(acct, password, apiToken)
-                else -> arrayOf(acct, apiToken)
+        // Account/password accounts live on the GLOBAL backend seas.ottai.com (the
+        // com.ottai.seas app) — same API + signature scheme, different host. The login
+        // identifier is the account USERNAME (e.g. test.test NOT the email — the server
+        // keys on it; sending the email returns "account or password incorrect" (not found).
+        // Password is PLAINTEXT over TLS (verified end-to-end). Signature arg-order is
+        // sign(apiToken, account, password). SINGLE attempt only — a wrong password is a
+        // real failed-login attempt, so do NOT retry with variants (lockout).
+        val gbase = OttaiConstants.API_BASE_GLOBAL
+        val apiToken = getApiToken(ctx, gbase) ?: run { lastError = "apiToken failed"; return null }
+        val ts = now()
+        val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
+        val body = JSONObject().apply {
+            put("account", acct)
+            put("username", acct)
+            put("userName", acct)
+            // Only attach email/phone when the identifier clearly is one; a plain username
+            // must NOT be run through normalizePhone (it would corrupt it).
+            when {
+                acct.contains('@') -> put("email", acct)
+                acct.all { it.isDigit() || it == '+' || it == ' ' } && acct.count { it.isDigit() } >= 6 -> {
+                    put("phone", normalizePhone(acct)); put("phoneCode", "86")
+                }
             }
-            val body = JSONObject().apply {
-                put("account", acct)
-                if (isEmail) put("email", acct) else { put("phone", normalizePhone(acct)); put("phoneCode", "86") }
-                put("password", password)
-                put("apiToken", apiToken)
-                put("signature", sign(deviceId, ts, *sigArgs))
-            }
-            val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts)) ?: continue
-            val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: continue
-            val result = LoginResult(
-                userId = data.optString("userId").orEmptyIfNull(),
-                accessToken = data.optString("accessToken").orEmptyIfNull(),
-                glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
-            )
-            if (result.ok) {
-                OttaiRegistry.saveAccessToken(ctx, result.accessToken)
-                OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
-                OttaiRegistry.saveUserId(ctx, result.userId)
-                Log.i(TAG, "passwordLogin ok (sigOrder=$idx)")
-                return result
-            }
+            put("password", password)
+            put("apiToken", apiToken)
+            put("signature", sign(deviceId, ts, apiToken, acct, password))
+        }
+        val resp = httpPostJson(gbase + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts)) ?: return null
+        val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
+        val result = LoginResult(
+            userId = data.optString("userId").orEmptyIfNull(),
+            accessToken = data.optString("accessToken").orEmptyIfNull(),
+            glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
+        )
+        if (result.ok) {
+            OttaiRegistry.saveApiBase(ctx, gbase)  // subsequent validate/list/bind use the global backend
+            OttaiRegistry.saveAccessToken(ctx, result.accessToken)
+            OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
+            OttaiRegistry.saveUserId(ctx, result.userId)
+            Log.i(TAG, "passwordLogin ok")
+            return result
         }
         return null
     }
@@ -224,11 +236,12 @@ object OttaiCloudClient {
     fun logout(ctx: Context) {
         runCatching {
             val ts = now()
-            httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_LOGOUT, "{}", headers(ctx, ts))
+            httpPostJson(base(ctx) + OttaiConstants.EP_LOGOUT, "{}", headers(ctx, ts))
         }
         OttaiRegistry.saveAccessToken(ctx, null)
         OttaiRegistry.saveGlucoseSecretKey(ctx, null)
         OttaiRegistry.saveUserId(ctx, null)
+        OttaiRegistry.saveApiBase(ctx, OttaiConstants.API_BASE)  // reset to CN default
     }
 
     fun validateByMac(ctx: Context, mac: String): DeviceResp? {
@@ -237,7 +250,7 @@ object OttaiCloudClient {
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val sig = sign(deviceId, ts, canonical)
         val resp = httpGet(
-            OttaiConstants.API_BASE + OttaiConstants.EP_VALIDATE_BY_MAC,
+            base(ctx) + OttaiConstants.EP_VALIDATE_BY_MAC,
             mapOf("mac" to canonical, "signature" to sig),
             headers(ctx, ts),
         ) ?: return null
@@ -256,7 +269,7 @@ object OttaiCloudClient {
             put("userId", userId)
             put("newBindType", 2)
         }
-        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_BIND, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_BIND, body.toString(), headers(ctx, ts)) ?: return null
         return parseDeviceResp(resp)
     }
 
@@ -264,7 +277,7 @@ object OttaiCloudClient {
     fun getBindDevice(ctx: Context): DeviceResp? {
         val ts = now()
         val resp = httpGet(
-            OttaiConstants.API_BASE + OttaiConstants.EP_GET_BIND_DEVICE,
+            base(ctx) + OttaiConstants.EP_GET_BIND_DEVICE,
             emptyMap(),
             headers(ctx, ts),
         ) ?: return null
@@ -291,7 +304,7 @@ object OttaiCloudClient {
     fun listDevices(ctx: Context, pageSize: Int = 80, pageNumber: Int = 1): List<DeviceSummary> {
         val ts = now()
         val resp = httpGet(
-            OttaiConstants.API_BASE + OttaiConstants.EP_DEVICE_LIST,
+            base(ctx) + OttaiConstants.EP_DEVICE_LIST,
             mapOf("pageSize" to pageSize.toString(), "pageNumber" to pageNumber.toString()),
             headers(ctx, ts),
         ) ?: return emptyList()

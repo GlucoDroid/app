@@ -37,7 +37,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,6 +75,7 @@ import tk.glucodata.drivers.ottai.OttaiConstants
 import tk.glucodata.drivers.ottai.OttaiNfc
 import tk.glucodata.drivers.ottai.OttaiRegistry
 import tk.glucodata.ui.util.BleDeviceScanner
+import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.util.rememberBleScanner
 import java.util.UUID
 
@@ -330,18 +330,13 @@ fun OttaiSetupWizard(
                     var usePassword by remember { mutableStateOf(false) }
                     var password by remember { mutableStateOf("") }
                     // SMS code (CN app) vs account + password (global app).
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = !usePassword,
-                            onClick = { usePassword = false; status = "" },
-                            label = { Text(stringResource(R.string.ottai_login_sms)) },
-                        )
-                        FilterChip(
-                            selected = usePassword,
-                            onClick = { usePassword = true; status = "" },
-                            label = { Text(stringResource(R.string.ottai_login_password)) },
-                        )
-                    }
+                    ConnectedButtonGroup(
+                        options = listOf(false, true),
+                        selectedOption = usePassword,
+                        onOptionSelected = { usePassword = it; status = "" },
+                        label = { pw -> Text(stringResource(if (pw) R.string.ottai_login_password else R.string.ottai_login_sms)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                     OutlinedTextField(
                         value = phone, onValueChange = { phone = it.trim() },
                         label = { Text(stringResource(if (usePassword) R.string.ottai_account_hint else R.string.ottai_phone_hint)) },

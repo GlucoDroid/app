@@ -77,6 +77,13 @@ object OttaiRegistry {
         prefs(c).edit().putString(OttaiConstants.PREF_USER_ID, v).apply()
     }
 
+    /** Backend host for the signed-in account (CN api.ottai.com vs global seas.ottai.com). */
+    @JvmStatic fun loadApiBase(c: Context): String =
+        prefs(c).getString(OttaiConstants.PREF_API_BASE, null)?.takeIf { it.isNotBlank() } ?: OttaiConstants.API_BASE
+    @JvmStatic fun saveApiBase(c: Context, v: String) {
+        prefs(c).edit().putString(OttaiConstants.PREF_API_BASE, v).apply()
+    }
+
     /** Stable per-install device id used in the cloud signature + deviceId header. */
     @JvmStatic
     fun loadOrCreateDeviceId(c: Context): String {

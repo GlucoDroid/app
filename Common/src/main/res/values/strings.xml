@@ -976,7 +976,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_entry_manual">Set up manually / advanced</string>
     <string name="ottai_login_sms">SMS code</string>
     <string name="ottai_login_password">Password</string>
-    <string name="ottai_account_hint">Email or phone</string>
+    <string name="ottai_account_hint">Username</string>
     <string name="ottai_password_hint">Password</string>
     <string name="ottai_sign_out">Sign out</string>
     <string name="ottai_choose_sensor">Choose your sensor</string>
