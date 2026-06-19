@@ -81,7 +81,18 @@ import java.util.UUID
 
 // ENTRY: choose sign-in vs import. LOGIN: phone/SMS. SENSOR: pick from the account's
 // sensor list (or scan/enter a code), Advanced holds the RE/debug tools. Then connect.
-private enum class OttaiSetupStep { ENTRY, LOGIN, SENSOR, CONNECTING, SUCCESS }
+private enum class OttaiSetupStep { ENTRY, LOGIN, REGISTER, SENSOR, CONNECTING, SUCCESS }
+
+/**
+ * Cloud account region. CN is the original phone+SMS app (api.ottai.com); Global (Ottai
+ * com.ottai.seas, seas.ottai.com) and syai (ru.syai.com) are username/email + password and
+ * share the same API. [usesSms] picks the login form.
+ */
+private enum class OttaiRegion(val labelRes: Int, val base: String, val usesSms: Boolean) {
+    CN(R.string.ottai_region_cn, OttaiConstants.API_BASE, true),
+    GLOBAL(R.string.ottai_region_global, OttaiConstants.API_BASE_GLOBAL, false),
+    SYAI(R.string.ottai_region_syai, OttaiConstants.API_BASE_SYAI, false),
+}
 private const val OTTAI_OFFICIAL_SCAN_DURATION_MS = 10_000L
 private const val OTTAI_OFFICIAL_RSSI_THRESHOLD = -70
 
@@ -327,27 +338,34 @@ fun OttaiSetupWizard(
                     verticalArrangement = Arrangement.spacedBy(ui.spacerMedium),
                 ) {
                     Text(stringResource(R.string.ottai_login_title), style = MaterialTheme.typography.titleLarge)
-                    var usePassword by remember { mutableStateOf(false) }
+                    var region by remember { mutableStateOf(OttaiRegion.CN) }
                     var password by remember { mutableStateOf("") }
-                    // SMS code (CN app) vs account + password (global app).
+                    // Region picks backend + form: CN = phone + SMS code (api.ottai.com);
+                    // Ottai Global (seas) / syai (ru) = username or email + password.
                     ConnectedButtonGroup(
-                        options = listOf(false, true),
-                        selectedOption = usePassword,
-                        onOptionSelected = { usePassword = it; status = "" },
-                        label = { pw -> Text(stringResource(if (pw) R.string.ottai_login_password else R.string.ottai_login_sms)) },
+                        options = OttaiRegion.entries.toList(),
+                        selectedOption = region,
+                        onOptionSelected = { region = it; status = "" },
+                        label = { r -> Text(stringResource(r.labelRes)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    val useSms = region.usesSms
                     OutlinedTextField(
                         value = phone, onValueChange = { phone = it.trim() },
-                        label = { Text(stringResource(if (usePassword) R.string.ottai_account_hint else R.string.ottai_phone_hint)) },
+                        label = { Text(stringResource(if (useSms) R.string.ottai_phone_hint else R.string.ottai_account_hint)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
-                            keyboardType = if (usePassword) KeyboardType.Email else KeyboardType.Phone,
+                            keyboardType = if (useSms) KeyboardType.Phone else KeyboardType.Email,
                         ),
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    if (!useSms) Text(
+                        stringResource(R.string.ottai_account_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
 
-                    if (!usePassword) {
+                    if (useSms) {
                         OutlinedButton(
                             onClick = {
                                 busy = true; status = ""
@@ -409,8 +427,17 @@ fun OttaiSetupWizard(
                                 busy = true; status = ""
                                 scope.launch {
                                     val ok = withContext(Dispatchers.IO) {
-                                        runCatching { OttaiCloudClient.passwordLogin(context, phone, password)?.ok == true }
-                                            .onFailure { Log.w(tag, "passwordLogin: ${it.message}") }.getOrDefault(false)
+                                        runCatching {
+                                            val id = phone.trim()
+                                            // Email → web mail/login (the username is server-random, so the
+                                            // email is the only identifier a user knows). Otherwise username
+                                            // → accountLogin on the region's backend.
+                                            val r = if (region == OttaiRegion.GLOBAL && id.contains('@'))
+                                                OttaiCloudClient.mailLogin(context, id, password)
+                                            else
+                                                OttaiCloudClient.passwordLogin(context, id, password, region.base)
+                                            r?.accessToken?.isNotBlank() == true
+                                        }.onFailure { Log.w(tag, "passwordLogin: ${it.message}") }.getOrDefault(false)
                                     }
                                     busy = false
                                     if (ok) { signedIn = true; step = OttaiSetupStep.SENSOR }
@@ -423,6 +450,103 @@ fun OttaiSetupWizard(
                         ) { Text(stringResource(R.string.ottai_login_button)) }
                     }
 
+                    // Registration is the global (Ottai) web account flow.
+                    if (region == OttaiRegion.GLOBAL && !useSms) {
+                        TextButton(
+                            onClick = { status = ""; step = OttaiSetupStep.REGISTER },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.ottai_register_cta)) }
+                    }
+
+                    if (busy) CircularProgressIndicator()
+                    if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.error)
+                }
+
+                OttaiSetupStep.REGISTER -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(ui.horizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(ui.spacerMedium),
+                ) {
+                    Text(stringResource(R.string.ottai_register_title), style = MaterialTheme.typography.titleLarge)
+                    var email by remember { mutableStateOf("") }
+                    var regCode by remember { mutableStateOf("") }
+                    var regPassword by remember { mutableStateOf("") }
+                    var profileName by remember { mutableStateOf("") }
+                    var regRequestId by remember { mutableStateOf("") }
+                    OutlinedTextField(
+                        value = email, onValueChange = { email = it.trim() },
+                        label = { Text(stringResource(R.string.ottai_email_hint)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            busy = true; status = ""
+                            scope.launch {
+                                val rid = withContext(Dispatchers.IO) {
+                                    runCatching { OttaiCloudClient.sendMail(email.trim(), "SIGN_UP") }
+                                        .onFailure { Log.w(tag, "sendMail: ${it.message}") }.getOrNull()
+                                }
+                                busy = false
+                                if (rid.isNullOrBlank()) status = context.getString(R.string.ottai_register_fail) +
+                                    OttaiCloudClient.lastError.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()
+                                else { regRequestId = rid; status = context.getString(R.string.ottai_code_sent_email, email) }
+                            }
+                        },
+                        enabled = !busy && email.contains('@'),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.ottai_send_code)) }
+                    OutlinedTextField(
+                        value = regCode, onValueChange = { regCode = it.trim() },
+                        label = { Text(stringResource(R.string.ottai_verify_code_hint)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = regPassword, onValueChange = { regPassword = it },
+                        label = { Text(stringResource(R.string.ottai_password_hint)) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        stringResource(R.string.ottai_password_rule),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = profileName, onValueChange = { profileName = it },
+                        label = { Text(stringResource(R.string.ottai_profile_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        onClick = {
+                            busy = true; status = ""
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        OttaiCloudClient.signUp(
+                                            context, email.trim(), regPassword, profileName.trim(),
+                                            regRequestId, regCode.trim(),
+                                        )?.accessToken?.isNotBlank() == true
+                                    }.onFailure { Log.w(tag, "signUp: ${it.message}") }.getOrDefault(false)
+                                }
+                                busy = false
+                                if (ok) { signedIn = true; step = OttaiSetupStep.SENSOR }
+                                else status = context.getString(R.string.ottai_register_fail) +
+                                    OttaiCloudClient.lastError.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()
+                            }
+                        },
+                        enabled = !busy && regRequestId.isNotBlank() && regCode.isNotBlank() &&
+                            regPassword.isNotBlank() && profileName.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.ottai_register_button)) }
                     if (busy) CircularProgressIndicator()
                     if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.error)
                 }

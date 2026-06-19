@@ -184,37 +184,32 @@ object OttaiCloudClient {
      * are tried with a fresh apiToken each (a wrong signature is rejected pre-auth, so it
      * isn't a failed-login attempt). Persists creds on success; see [lastError] otherwise.
      */
-    fun passwordLogin(ctx: Context, account: String, password: String): LoginResult? {
+    fun passwordLogin(
+        ctx: Context,
+        account: String,
+        password: String,
+        base: String = OttaiConstants.API_BASE_GLOBAL,
+    ): LoginResult? {
         val acct = account.trim()
         if (acct.isBlank() || password.isBlank()) { lastError = "account/password required"; return null }
-        // Account/password accounts live on the GLOBAL backend seas.ottai.com (the
-        // com.ottai.seas app) — same API + signature scheme, different host. The login
-        // identifier is the account USERNAME (e.g. test.test NOT the email — the server
-        // keys on it; sending the email returns "account or password incorrect" (not found).
-        // Password is PLAINTEXT over TLS (verified end-to-end). Signature arg-order is
-        // sign(apiToken, account, password). SINGLE attempt only — a wrong password is a
-        // real failed-login attempt, so do NOT retry with variants (lockout).
-        val gbase = OttaiConstants.API_BASE_GLOBAL
-        val apiToken = getApiToken(ctx, gbase) ?: run { lastError = "apiToken failed"; return null }
+        // Username + password login on a GLOBAL backend (seas.ottai.com / ru.syai.com) — same
+        // API + signature scheme, different host. The server keys on the account USERNAME, which
+        // is a server-assigned RANDOM string (verified: NOT derived from the email), so the email
+        // cannot be used here — email sign-in goes through the web API (see mailLogin). Password
+        // is PLAINTEXT; sig arg-order = sign(apiToken, account, password). SINGLE attempt only —
+        // a wrong password is a real failed-login attempt, so do NOT retry variants (lockout).
+        val apiToken = getApiToken(ctx, base) ?: run { lastError = "apiToken failed"; return null }
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val body = JSONObject().apply {
             put("account", acct)
             put("username", acct)
             put("userName", acct)
-            // Only attach email/phone when the identifier clearly is one; a plain username
-            // must NOT be run through normalizePhone (it would corrupt it).
-            when {
-                acct.contains('@') -> put("email", acct)
-                acct.all { it.isDigit() || it == '+' || it == ' ' } && acct.count { it.isDigit() } >= 6 -> {
-                    put("phone", normalizePhone(acct)); put("phoneCode", "86")
-                }
-            }
             put("password", password)
             put("apiToken", apiToken)
             put("signature", sign(deviceId, ts, apiToken, acct, password))
         }
-        val resp = httpPostJson(gbase + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(base + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts)) ?: return null
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
@@ -222,7 +217,7 @@ object OttaiCloudClient {
             glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
         )
         if (result.ok) {
-            OttaiRegistry.saveApiBase(ctx, gbase)  // subsequent validate/list/bind use the global backend
+            OttaiRegistry.saveApiBase(ctx, base)  // subsequent validate/list/bind use this backend
             OttaiRegistry.saveAccessToken(ctx, result.accessToken)
             OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
             OttaiRegistry.saveUserId(ctx, result.userId)
@@ -382,6 +377,137 @@ object OttaiCloudClient {
     }
 
     // ---- HTTP ----
+
+    // ---- WEB API (www.ottai.com/api/cgm/web) — true email login + in-app registration ----
+    // The website's account API, fully recovered from its JS. Different profile from the watch
+    // API: appName "ottai-seas", signature = md5(parts + SEED) (no deviceId-prefix), and the
+    // sensitive fields are AES-256-ECB-encrypted into "encryptInfo". The GuestToken header
+    // signature is NOT required (verified). We use this because the account's login username is
+    // a server-assigned random string (e.g. "test234123154") — the EMAIL is the only identifier
+    // a user knows — and so users can register without installing the vendor app.
+
+    private const val WEB_BASE = "https://www.ottai.com/api/cgm/web"
+    private const val WEB_APP = "ottai-seas"
+    private const val WEB_DEVICE_ID = "8"  // sent as the deviceId header + used in the mail/login body sig (any stable value)
+    private const val WEB_AES_KEY = "miH5ngQ7z4NZU3JgZFq87Gg6v1Y7YJm9"  // web __ENV NEXT_PUBLIC_AES_KEY (AES-256)
+    private const val WEB_FINGERPRINT = "0123456789abcdef0123456789abcdef01234567"  // opaque client fp (not validated)
+
+    private fun webSign(vararg parts: String): String = md5Hex(parts.joinToString("") + SEED)
+
+    private fun webHeaders(ts: Long): Map<String, String> = mapOf(
+        "appName" to WEB_APP,
+        "timestamp" to ts.toString(),
+        "deviceId" to WEB_DEVICE_ID,
+        "deviceFingerprinting" to WEB_FINGERPRINT,
+        "region" to "Europe",
+        "ua" to "web",
+        "versionCode" to "253201",
+        "traceId" to "trace_$ts",
+        "language" to "en",
+        "timezone" to "0",
+        "X-Canary-Mode" to "OFF",
+        "country" to "RU",
+    )
+
+    /** AES-256-ECB/PKCS5 of the plaintext JSON, base64 — the web "encryptInfo" field. */
+    private fun webEncrypt(plainJson: String): String {
+        val cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding")
+        cipher.init(
+            javax.crypto.Cipher.ENCRYPT_MODE,
+            javax.crypto.spec.SecretKeySpec(WEB_AES_KEY.toByteArray(Charsets.UTF_8), "AES"),
+        )
+        return android.util.Base64.encodeToString(
+            cipher.doFinal(plainJson.toByteArray(Charsets.UTF_8)),
+            android.util.Base64.NO_WRAP,
+        )
+    }
+
+    private fun getWebApiToken(): String? {
+        val ts = now()
+        val resp = httpGet(
+            "$WEB_BASE/user/apiToken",
+            mapOf("signature" to webSign(WEB_APP, ts.toString())),
+            webHeaders(ts),
+        )
+        return resp?.optStringDeep("data")
+    }
+
+    /** Email login via the website API. Body sig = md5(appName+ts+deviceId+apiToken+email+password+SEED). */
+    fun mailLogin(ctx: Context, email: String, password: String): LoginResult? {
+        val em = email.trim()
+        if (em.isBlank() || password.isBlank()) { lastError = "email/password required"; return null }
+        val apiToken = getWebApiToken() ?: run { lastError = "apiToken failed"; return null }
+        val ts = now()
+        val encInfo = webEncrypt(JSONObject().put("username", em).put("password", password).toString())
+        val body = JSONObject().apply {
+            put("uuid", java.util.UUID.randomUUID().toString().replace("-", ""))
+            put("encryptInfo", encInfo)
+            put("apiToken", apiToken)
+            put("source", 5)
+            put("signature", webSign(WEB_APP, ts.toString(), WEB_DEVICE_ID, apiToken, em, password))
+        }
+        val resp = httpPostJson("$WEB_BASE/user/mail/login", body.toString(), webHeaders(ts)) ?: return null
+        return persistWebLogin(ctx, resp)
+    }
+
+    /** POST /user/mail/sendMail — emails a verification code, returns the requestId. type: SIGN_UP/LOGIN/RESET_PASSWORD. */
+    fun sendMail(email: String, type: String = "SIGN_UP"): String? {
+        val em = email.trim()
+        val apiToken = getWebApiToken() ?: run { lastError = "apiToken failed"; return null }
+        val ts = now()
+        val body = JSONObject().apply {
+            put("type", type)
+            put("isSend", 1)
+            put("email", em)
+            put("apiToken", apiToken)
+            put("signature", webSign(WEB_APP, ts.toString(), em, apiToken))
+        }
+        val resp = httpPostJson("$WEB_BASE/user/mail/sendMail", body.toString(), webHeaders(ts)) ?: return null
+        // Success = code "OK"; the requestId for signUp is data.key. Anything else
+        // (e.g. USER_REGISTERED for an existing email) -> null, with lastError already set.
+        if (!resp.optString("code").equals("OK", ignoreCase = true)) return null
+        return resp.optJSONObject("data")?.optString("key").orEmptyIfNull().takeIf { it.isNotBlank() }
+    }
+
+    /** POST /user/mail/signUp — register (email + emailed code + password + display name). Persists creds. */
+    fun signUp(ctx: Context, email: String, password: String, profileName: String, requestId: String, validCode: String): LoginResult? {
+        val em = email.trim()
+        val apiToken = getWebApiToken() ?: run { lastError = "apiToken failed"; return null }
+        val ts = now()
+        val encInfo = webEncrypt(
+            JSONObject().put("email", em).put("password", password).put("profileName", profileName).toString(),
+        )
+        val body = JSONObject().apply {
+            put("apiToken", apiToken)
+            put("encryptInfo", encInfo)
+            put("requestId", requestId)
+            put("validCode", validCode)
+            put("recommendFlag", false)
+            put("country", "RU")
+            put("language", "en")
+            put("signature", webSign(WEB_APP, ts.toString(), requestId, em, validCode))
+        }
+        val resp = httpPostJson("$WEB_BASE/user/mail/signUp", body.toString(), webHeaders(ts)) ?: return null
+        return persistWebLogin(ctx, resp)
+    }
+
+    /** Store accessToken/userId/glucoseSecretKey from a web login/signup; CGM ops use the seas mobile API. */
+    private fun persistWebLogin(ctx: Context, resp: JSONObject): LoginResult? {
+        val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
+        val result = LoginResult(
+            userId = data.optString("userId").orEmptyIfNull(),
+            accessToken = data.optString("accessToken").orEmptyIfNull(),
+            glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
+        )
+        if (result.accessToken.isNotBlank()) {
+            OttaiRegistry.saveApiBase(ctx, OttaiConstants.API_BASE_GLOBAL)
+            OttaiRegistry.saveAccessToken(ctx, result.accessToken)
+            if (result.glucoseSecretKey.isNotBlank()) OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
+            OttaiRegistry.saveUserId(ctx, result.userId)
+            Log.i(TAG, "web login ok")
+        }
+        return result
+    }
 
     private fun httpGet(base: String, query: Map<String, String>, headers: Map<String, String>): JSONObject? {
         val qs = query.entries.joinToString("&") {

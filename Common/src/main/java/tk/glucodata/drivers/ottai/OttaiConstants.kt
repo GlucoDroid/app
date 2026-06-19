@@ -48,7 +48,8 @@ object OttaiConstants {
     // ---- Cloud ----
 
     const val API_BASE = "https://api.ottai.com"          // CN app (phone/SMS account)
-    const val API_BASE_GLOBAL = "https://seas.ottai.com"  // global app com.ottai.seas (email/password); same API, different host
+    const val API_BASE_GLOBAL = "https://seas.ottai.com"  // Ottai global app com.ottai.seas (username/password); same API, different host
+    const val API_BASE_SYAI = "https://ru.syai.com"       // syai (rebrand) global app; same API, different host
     const val PREFIX = "/cgm/app/server"
 
     const val EP_API_TOKEN = "$PREFIX/user/apiToken"
