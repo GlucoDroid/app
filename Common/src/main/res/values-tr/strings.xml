@@ -1936,7 +1936,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_profile_hint">Görünen ad</string>
     <string name="ottai_region_cn">Çin</string>
     <string name="ottai_region_global">Küresel</string>
-    <string name="ottai_region_syai">syai</string>
+    <string name="ottai_region_syai">Syai</string>
     <string name="ottai_register_button">Kaydol</string>
     <string name="ottai_register_cta">Hesap oluştur</string>
     <string name="ottai_register_fail">Kayıt başarısız</string>

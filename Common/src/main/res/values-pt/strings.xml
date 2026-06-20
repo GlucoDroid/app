@@ -1909,7 +1909,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_profile_hint">Nome a apresentar</string>
     <string name="ottai_region_cn">China</string>
     <string name="ottai_region_global">Global</string>
-    <string name="ottai_region_syai">syai</string>
+    <string name="ottai_region_syai">Syai</string>
     <string name="ottai_register_button">Registar</string>
     <string name="ottai_register_cta">Criar conta</string>
     <string name="ottai_register_fail">Falha no registo</string>

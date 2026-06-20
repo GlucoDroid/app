@@ -1946,7 +1946,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_profile_hint">Anzeigename</string>
     <string name="ottai_region_cn">China</string>
     <string name="ottai_region_global">Global</string>
-    <string name="ottai_region_syai">syai</string>
+    <string name="ottai_region_syai">Syai</string>
     <string name="ottai_register_button">Registrieren</string>
     <string name="ottai_register_cta">Konto erstellen</string>
     <string name="ottai_register_fail">Registrierung fehlgeschlagen</string>

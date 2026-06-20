@@ -1914,7 +1914,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_profile_hint">Nom affiché</string>
     <string name="ottai_region_cn">Chine</string>
     <string name="ottai_region_global">Mondial</string>
-    <string name="ottai_region_syai">syai</string>
+    <string name="ottai_region_syai">Syai</string>
     <string name="ottai_register_button">S’inscrire</string>
     <string name="ottai_register_cta">Créer un compte</string>
     <string name="ottai_register_fail">Échec de l’inscription</string>

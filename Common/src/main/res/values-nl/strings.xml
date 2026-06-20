@@ -1951,7 +1951,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_profile_hint">Weergavenaam</string>
     <string name="ottai_region_cn">China</string>
     <string name="ottai_region_global">Globaal</string>
-    <string name="ottai_region_syai">syai</string>
+    <string name="ottai_region_syai">Syai</string>
     <string name="ottai_register_button">Registreren</string>
     <string name="ottai_register_cta">Account aanmaken</string>
     <string name="ottai_register_fail">Registratie mislukt</string>

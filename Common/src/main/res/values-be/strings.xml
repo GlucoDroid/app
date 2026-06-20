@@ -1975,7 +1975,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_profile_hint">Адлюстраванае імя</string>
     <string name="ottai_region_cn">Кітай</string>
     <string name="ottai_region_global">Глабальны</string>
-    <string name="ottai_region_syai">syai</string>
+    <string name="ottai_region_syai">Syai</string>
     <string name="ottai_register_button">Зарэгістравацца</string>
     <string name="ottai_register_cta">Стварыць акаўнт</string>
     <string name="ottai_register_fail">Памылка рэгістрацыі</string>

@@ -1924,7 +1924,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_profile_hint">显示名称</string>
     <string name="ottai_region_cn">中国</string>
     <string name="ottai_region_global">全球</string>
-    <string name="ottai_region_syai">syai</string>
+    <string name="ottai_region_syai">Syai</string>
     <string name="ottai_register_button">注册</string>
     <string name="ottai_register_cta">创建账户</string>
     <string name="ottai_register_fail">注册失败</string>

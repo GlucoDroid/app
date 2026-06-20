@@ -88,10 +88,15 @@ private enum class OttaiSetupStep { ENTRY, LOGIN, REGISTER, SENSOR, CONNECTING, 
  * com.ottai.seas, seas.ottai.com) and syai (ru.syai.com) are username/email + password and
  * share the same API. [usesSms] picks the login form.
  */
-private enum class OttaiRegion(val labelRes: Int, val base: String, val usesSms: Boolean) {
-    CN(R.string.ottai_region_cn, OttaiConstants.API_BASE, true),
-    GLOBAL(R.string.ottai_region_global, OttaiConstants.API_BASE_GLOBAL, false),
-    SYAI(R.string.ottai_region_syai, OttaiConstants.API_BASE_SYAI, false),
+private enum class OttaiRegion(
+    val labelRes: Int,
+    val base: String,
+    val usesSms: Boolean,
+    val webBase: String?,  // website account API (email login + registration); null = no web account flow
+) {
+    CN(R.string.ottai_region_cn, OttaiConstants.API_BASE, true, null),
+    GLOBAL(R.string.ottai_region_global, OttaiConstants.API_BASE_GLOBAL, false, OttaiConstants.WEB_BASE_OTTAI),
+    SYAI(R.string.ottai_region_syai, OttaiConstants.API_BASE_SYAI, false, OttaiConstants.WEB_BASE_SYAI),
 }
 private const val OTTAI_OFFICIAL_SCAN_DURATION_MS = 10_000L
 private const val OTTAI_OFFICIAL_RSSI_THRESHOLD = -70
@@ -189,6 +194,7 @@ fun OttaiSetupWizard(
     var step by remember { mutableStateOf(if (alreadySignedIn) OttaiSetupStep.SENSOR else OttaiSetupStep.ENTRY) }
 
     var phone by remember { mutableStateOf("") }
+    var region by remember { mutableStateOf(OttaiRegion.CN) }  // hoisted: LOGIN + REGISTER share it
     var code by remember { mutableStateOf("") }
     var requestId by remember { mutableStateOf("") }
     var cloudId by remember { mutableStateOf("") }
@@ -338,7 +344,6 @@ fun OttaiSetupWizard(
                     verticalArrangement = Arrangement.spacedBy(ui.spacerMedium),
                 ) {
                     Text(stringResource(R.string.ottai_login_title), style = MaterialTheme.typography.titleLarge)
-                    var region by remember { mutableStateOf(OttaiRegion.CN) }
                     var password by remember { mutableStateOf("") }
                     // Region picks backend + form: CN = phone + SMS code (api.ottai.com);
                     // Ottai Global (seas) / syai (ru) = username or email + password.
@@ -432,8 +437,9 @@ fun OttaiSetupWizard(
                                             // Email → web mail/login (the username is server-random, so the
                                             // email is the only identifier a user knows). Otherwise username
                                             // → accountLogin on the region's backend.
-                                            val r = if (region == OttaiRegion.GLOBAL && id.contains('@'))
-                                                OttaiCloudClient.mailLogin(context, id, password)
+                                            val wb = region.webBase
+                                            val r = if (wb != null && id.contains('@'))
+                                                OttaiCloudClient.mailLogin(context, id, password, wb)
                                             else
                                                 OttaiCloudClient.passwordLogin(context, id, password, region.base)
                                             r?.accessToken?.isNotBlank() == true
@@ -450,8 +456,8 @@ fun OttaiSetupWizard(
                         ) { Text(stringResource(R.string.ottai_login_button)) }
                     }
 
-                    // Registration is the global (Ottai) web account flow.
-                    if (region == OttaiRegion.GLOBAL && !useSms) {
+                    // Registration is the website account flow (Ottai Global + Syai).
+                    if (region.webBase != null && !useSms) {
                         TextButton(
                             onClick = { status = ""; step = OttaiSetupStep.REGISTER },
                             modifier = Modifier.fillMaxWidth(),
@@ -487,8 +493,12 @@ fun OttaiSetupWizard(
                             busy = true; status = ""
                             scope.launch {
                                 val rid = withContext(Dispatchers.IO) {
-                                    runCatching { OttaiCloudClient.sendMail(email.trim(), "SIGN_UP") }
-                                        .onFailure { Log.w(tag, "sendMail: ${it.message}") }.getOrNull()
+                                    runCatching {
+                                        OttaiCloudClient.sendMail(
+                                            email.trim(), "SIGN_UP",
+                                            region.webBase ?: OttaiConstants.WEB_BASE_OTTAI,
+                                        )
+                                    }.onFailure { Log.w(tag, "sendMail: ${it.message}") }.getOrNull()
                                 }
                                 busy = false
                                 if (rid.isNullOrBlank()) status = context.getString(R.string.ottai_register_fail) +
@@ -534,6 +544,7 @@ fun OttaiSetupWizard(
                                         OttaiCloudClient.signUp(
                                             context, email.trim(), regPassword, profileName.trim(),
                                             regRequestId, regCode.trim(),
+                                            region.webBase ?: OttaiConstants.WEB_BASE_OTTAI,
                                         )?.accessToken?.isNotBlank() == true
                                     }.onFailure { Log.w(tag, "signUp: ${it.message}") }.getOrDefault(false)
                                 }

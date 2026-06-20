@@ -422,47 +422,77 @@ object OttaiCloudClient {
         )
     }
 
-    private fun getWebApiToken(): String? {
-        val ts = now()
-        val resp = httpGet(
-            "$WEB_BASE/user/apiToken",
-            mapOf("signature" to webSign(WEB_APP, ts.toString())),
-            webHeaders(ts),
-        )
-        return resp?.optStringDeep("data")
+    private fun getWebApiToken(webBase: String): String? {
+        // The apiToken endpoint throttles rapid hits (returns a null token); one retry after a
+        // short pause covers a transient throttle so a single user tap doesn't fail spuriously.
+        repeat(2) { attempt ->
+            val ts = now()
+            val resp = httpGet(
+                "$webBase/user/apiToken",
+                mapOf("signature" to webSign(WEB_APP, ts.toString())),
+                webHeaders(ts),
+            )
+            val tok = resp?.optStringDeep("data")
+            if (!tok.isNullOrBlank()) return tok
+            if (attempt == 0) runCatching { Thread.sleep(900) }
+        }
+        return null
     }
 
-    /** Email login via the website API. Body sig = md5(appName+ts+deviceId+apiToken+email+password+SEED). */
-    fun mailLogin(ctx: Context, email: String, password: String): LoginResult? {
+    /**
+     * POST a web-API call, retrying the whole flow (fresh apiToken each time) on
+     * User_SignatureInvalid. The www host is load-balanced and an apiToken issued by one node is
+     * sometimes not yet known to the node serving the POST → a spurious SignatureInvalid; a retry
+     * lands on a consistent node. Returns the response (whatever biz code) or null if never valid.
+     */
+    private fun webPostRetry(webBase: String, path: String, buildBody: (apiToken: String, ts: Long) -> JSONObject): JSONObject? {
+        repeat(5) { attempt ->
+            val apiToken = getWebApiToken(webBase) ?: run { lastError = "apiToken failed"; return null }
+            val ts = now()
+            val resp = httpPostJson("$webBase$path", buildBody(apiToken, ts).toString(), webHeaders(ts)) ?: return null
+            if (!resp.optString("code").equals("User_SignatureInvalid", ignoreCase = true)) return resp
+            if (attempt < 4) runCatching { Thread.sleep(500) }
+        }
+        return null
+    }
+
+    /**
+     * Email-or-username + password login via the website API — the endpoint is
+     * `/user/login/thirdLoginByPassword` (the site's "confirm by password" handler), which
+     * accepts the EMAIL or the username in the encrypted "username" field. (`/user/mail/login` is
+     * the separate email-CODE login — sending a password there is rejected and trips the lockout.)
+     * Body sig = md5(appName+deviceId+ts+apiToken+identifier+password+SEED).
+     */
+    fun mailLogin(ctx: Context, email: String, password: String, webBase: String = WEB_BASE): LoginResult? {
         val em = email.trim()
         if (em.isBlank() || password.isBlank()) { lastError = "email/password required"; return null }
-        val apiToken = getWebApiToken() ?: run { lastError = "apiToken failed"; return null }
-        val ts = now()
         val encInfo = webEncrypt(JSONObject().put("username", em).put("password", password).toString())
-        val body = JSONObject().apply {
-            put("uuid", java.util.UUID.randomUUID().toString().replace("-", ""))
-            put("encryptInfo", encInfo)
-            put("apiToken", apiToken)
-            put("source", 5)
-            put("signature", webSign(WEB_APP, ts.toString(), WEB_DEVICE_ID, apiToken, em, password))
-        }
-        val resp = httpPostJson("$WEB_BASE/user/mail/login", body.toString(), webHeaders(ts)) ?: return null
-        return persistWebLogin(ctx, resp)
+        val resp = webPostRetry(webBase, "/user/login/thirdLoginByPassword") { apiToken, ts ->
+            JSONObject().apply {
+                put("uuid", java.util.UUID.randomUUID().toString().replace("-", ""))
+                put("encryptInfo", encInfo)
+                put("apiToken", apiToken)
+                put("source", 5)
+                // sig order is deviceId BEFORE timestamp: md5(appName + deviceId + ts + apiToken + id + password + SEED).
+                // (A wrong order here returns the MISLEADING "User_FAILED_RETRY_TIMES", not SignatureInvalid.)
+                put("signature", webSign(WEB_APP, WEB_DEVICE_ID, ts.toString(), apiToken, em, password))
+            }
+        } ?: return null
+        return persistWebLogin(ctx, resp, webBaseToMobile(webBase))
     }
 
     /** POST /user/mail/sendMail — emails a verification code, returns the requestId. type: SIGN_UP/LOGIN/RESET_PASSWORD. */
-    fun sendMail(email: String, type: String = "SIGN_UP"): String? {
+    fun sendMail(email: String, type: String = "SIGN_UP", webBase: String = WEB_BASE): String? {
         val em = email.trim()
-        val apiToken = getWebApiToken() ?: run { lastError = "apiToken failed"; return null }
-        val ts = now()
-        val body = JSONObject().apply {
-            put("type", type)
-            put("isSend", 1)
-            put("email", em)
-            put("apiToken", apiToken)
-            put("signature", webSign(WEB_APP, ts.toString(), em, apiToken))
-        }
-        val resp = httpPostJson("$WEB_BASE/user/mail/sendMail", body.toString(), webHeaders(ts)) ?: return null
+        val resp = webPostRetry(webBase, "/user/mail/sendMail") { apiToken, ts ->
+            JSONObject().apply {
+                put("type", type)
+                put("isSend", 1)
+                put("email", em)
+                put("apiToken", apiToken)
+                put("signature", webSign(WEB_APP, ts.toString(), em, apiToken))
+            }
+        } ?: return null
         // Success = code "OK"; the requestId for signUp is data.key. Anything else
         // (e.g. USER_REGISTERED for an existing email) -> null, with lastError already set.
         if (!resp.optString("code").equals("OK", ignoreCase = true)) return null
@@ -470,29 +500,32 @@ object OttaiCloudClient {
     }
 
     /** POST /user/mail/signUp — register (email + emailed code + password + display name). Persists creds. */
-    fun signUp(ctx: Context, email: String, password: String, profileName: String, requestId: String, validCode: String): LoginResult? {
+    fun signUp(ctx: Context, email: String, password: String, profileName: String, requestId: String, validCode: String, webBase: String = WEB_BASE): LoginResult? {
         val em = email.trim()
-        val apiToken = getWebApiToken() ?: run { lastError = "apiToken failed"; return null }
-        val ts = now()
         val encInfo = webEncrypt(
             JSONObject().put("email", em).put("password", password).put("profileName", profileName).toString(),
         )
-        val body = JSONObject().apply {
-            put("apiToken", apiToken)
-            put("encryptInfo", encInfo)
-            put("requestId", requestId)
-            put("validCode", validCode)
-            put("recommendFlag", false)
-            put("country", "RU")
-            put("language", "en")
-            put("signature", webSign(WEB_APP, ts.toString(), requestId, em, validCode))
-        }
-        val resp = httpPostJson("$WEB_BASE/user/mail/signUp", body.toString(), webHeaders(ts)) ?: return null
-        return persistWebLogin(ctx, resp)
+        val resp = webPostRetry(webBase, "/user/mail/signUp") { apiToken, ts ->
+            JSONObject().apply {
+                put("apiToken", apiToken)
+                put("encryptInfo", encInfo)
+                put("requestId", requestId)
+                put("validCode", validCode)
+                put("recommendFlag", false)
+                put("country", "RU")
+                put("language", "en")
+                put("signature", webSign(WEB_APP, ts.toString(), requestId, em, validCode))
+            }
+        } ?: return null
+        return persistWebLogin(ctx, resp, webBaseToMobile(webBase))
     }
 
-    /** Store accessToken/userId/glucoseSecretKey from a web login/signup; CGM ops use the seas mobile API. */
-    private fun persistWebLogin(ctx: Context, resp: JSONObject): LoginResult? {
+    /** Map a web API host to the matching mobile CGM API base for subsequent validate/list calls. */
+    private fun webBaseToMobile(webBase: String): String =
+        if (webBase.contains("syai")) OttaiConstants.API_BASE_SYAI else OttaiConstants.API_BASE_GLOBAL
+
+    /** Store accessToken/userId/glucoseSecretKey from a web login/signup; CGM ops use the region's mobile API. */
+    private fun persistWebLogin(ctx: Context, resp: JSONObject, mobileBase: String): LoginResult? {
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
@@ -500,7 +533,7 @@ object OttaiCloudClient {
             glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
         )
         if (result.accessToken.isNotBlank()) {
-            OttaiRegistry.saveApiBase(ctx, OttaiConstants.API_BASE_GLOBAL)
+            OttaiRegistry.saveApiBase(ctx, mobileBase)
             OttaiRegistry.saveAccessToken(ctx, result.accessToken)
             if (result.glucoseSecretKey.isNotBlank()) OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
             OttaiRegistry.saveUserId(ctx, result.userId)
