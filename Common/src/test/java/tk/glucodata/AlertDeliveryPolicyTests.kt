@@ -28,22 +28,13 @@ class AlertDeliveryPolicyTests {
         assertFalse(
             AlertDeliveryPolicy.shouldPostAlertNotification(
                 AlertDeliveryPolicy.SYSTEM_ALARM,
-                true,
-                false
-            )
-        )
-        assertTrue(
-            AlertDeliveryPolicy.shouldPostAlertNotification(
-                AlertDeliveryPolicy.SYSTEM_ALARM,
-                false,
-                false
-            )
-        )
-        assertTrue(
-            AlertDeliveryPolicy.shouldPostAlertNotification(
-                AlertDeliveryPolicy.SYSTEM_ALARM,
-                true,
                 true
+            )
+        )
+        assertTrue(
+            AlertDeliveryPolicy.shouldPostAlertNotification(
+                AlertDeliveryPolicy.SYSTEM_ALARM,
+                false
             )
         )
     }
