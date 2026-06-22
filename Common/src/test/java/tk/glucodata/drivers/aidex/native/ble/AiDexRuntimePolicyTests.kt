@@ -191,6 +191,7 @@ class AiDexRuntimePolicyTests {
                 startupMetadataComplete = true,
                 hasModelMetadata = true,
                 hasAuthoritativeSessionStart = true,
+                hasSensorReportedWearDays = true,
             )
         )
         assertTrue(
@@ -198,6 +199,7 @@ class AiDexRuntimePolicyTests {
                 startupMetadataComplete = true,
                 hasModelMetadata = true,
                 hasAuthoritativeSessionStart = false,
+                hasSensorReportedWearDays = true,
             )
         )
         assertTrue(
@@ -205,6 +207,15 @@ class AiDexRuntimePolicyTests {
                 startupMetadataComplete = false,
                 hasModelMetadata = false,
                 hasAuthoritativeSessionStart = false,
+                hasSensorReportedWearDays = false,
+            )
+        )
+        assertTrue(
+            AiDexRuntimePolicy.shouldRequestRoutineStreamingMetadata(
+                startupMetadataComplete = false,
+                hasModelMetadata = true,
+                hasAuthoritativeSessionStart = true,
+                hasSensorReportedWearDays = false,
             )
         )
     }

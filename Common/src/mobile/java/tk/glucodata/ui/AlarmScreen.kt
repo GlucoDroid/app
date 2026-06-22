@@ -53,8 +53,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
@@ -309,20 +311,48 @@ private fun HeroBlock(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = primaryGlucose,
-            style = MaterialTheme.typography.displayLarge.copy(
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            val textMeasurer = rememberTextMeasurer()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val availableWidthPx = with(density) { maxWidth.roundToPx() }
+            val candidateSizes = remember(compact) {
+                if (compact) {
+                    listOf(120.sp, 112.sp, 104.sp, 96.sp, 88.sp, 80.sp, 72.sp, 64.sp, 56.sp, 48.sp, 40.sp, 32.sp)
+                } else {
+                    listOf(146.sp, 136.sp, 126.sp, 116.sp, 106.sp, 96.sp, 86.sp, 76.sp, 66.sp, 56.sp, 48.sp, 40.sp, 32.sp)
+                }
+            }
+            val baseStyle = MaterialTheme.typography.displayLarge.copy(
                 fontFamily = typographyChoice.fontFamily,
-                fontSize = if (compact) 120.sp else 146.sp,
-                lineHeight = if (compact) 122.sp else 146.sp,
                 fontWeight = typographyChoice.fontWeight,
-                letterSpacing = (-3.0).sp
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+                letterSpacing = 0.sp,
+                fontFeatureSettings = "tnum"
+            )
+            val valueFontSize = remember(primaryGlucose, availableWidthPx, candidateSizes, baseStyle) {
+                candidateSizes.firstOrNull { size ->
+                    textMeasurer.measure(
+                        text = AnnotatedString(primaryGlucose),
+                        style = baseStyle.copy(
+                            fontSize = size,
+                            lineHeight = (size.value + 2f).sp
+                        ),
+                        maxLines = 1
+                    ).size.width <= availableWidthPx
+                } ?: candidateSizes.last()
+            }
+
+            Text(
+                text = primaryGlucose,
+                style = baseStyle.copy(
+                    fontSize = valueFontSize,
+                    lineHeight = (valueFontSize.value + 2f).sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         Box(
             modifier = Modifier

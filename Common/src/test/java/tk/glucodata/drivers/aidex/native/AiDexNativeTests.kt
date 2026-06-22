@@ -946,6 +946,45 @@ class StartupMetadataParsingTests {
     }
 
     @Test
+    fun testParseStartupDeviceInfoFrame_stripsOpcodeOnly() {
+        val frame = AiDexParser.dataFromHex("100000010701030F0047582D3031530000")
+
+        val parsed = AiDexParser.parseStartupDeviceInfoFrame(frame)
+
+        assertNotNull(parsed)
+        assertEquals("1.7", parsed!!.firmwareVersion)
+        assertEquals("1.3", parsed.hardwareVersion)
+        assertEquals(15, parsed.wearDays)
+        assertEquals("GX-01S", parsed.modelName)
+    }
+
+    @Test
+    fun testParseStartupDeviceInfoPayload_lumiflex16DayShape() {
+        val payload = AiDexParser.dataFromHex("000001080201100047582D3031530000")
+
+        val parsed = AiDexParser.parseStartupDeviceInfoPayload(payload)
+
+        assertNotNull(parsed)
+        assertEquals("1.8", parsed!!.firmwareVersion)
+        assertEquals("2.1", parsed.hardwareVersion)
+        assertEquals(16, parsed.wearDays)
+        assertEquals("GX-01S", parsed.modelName)
+    }
+
+    @Test
+    fun testParseStartupDeviceInfoFrame_lumiflex16DayShape() {
+        val frame = AiDexParser.dataFromHex("10000001080201100047582D3031530000")
+
+        val parsed = AiDexParser.parseStartupDeviceInfoFrame(frame)
+
+        assertNotNull(parsed)
+        assertEquals("1.8", parsed!!.firmwareVersion)
+        assertEquals("2.1", parsed.hardwareVersion)
+        assertEquals(16, parsed.wearDays)
+        assertEquals("GX-01S", parsed.modelName)
+    }
+
+    @Test
     fun testParseLocalStartTimePayload_acceptsPlausibleDate() {
         val payload = byteArrayOf(
             0xEA.toByte(), 0x07,

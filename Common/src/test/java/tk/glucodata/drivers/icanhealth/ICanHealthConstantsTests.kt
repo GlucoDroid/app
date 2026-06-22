@@ -44,6 +44,59 @@ class ICanHealthConstantsTests {
     }
 
     @Test
+    fun matchesOnboardingIdentity_acceptsLauncherCodeForObservedDisSerial() {
+        assertEquals("8760080A", ICanHealthConstants.onboardingIdentityPrefix("8760080A2604"))
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "8760080A2604",
+                "8760080a0007000000000000"
+            )
+        )
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "8760080A2604",
+                "8760080A00070000"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_acceptsExactShortSerialFamily() {
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "726022F50005",
+                "726022f50005"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsAnotherNearbySensor() {
+        assertFalse(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "8760080A2604",
+                "8760080B00070000"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsWeakPartialIdentity() {
+        assertFalse(ICanHealthConstants.matchesOnboardingIdentity("8760", "8760080A00070000"))
+    }
+
+    @Test
+    fun onboardingIdentityPrefix_usesExtendedVendorPrefixRule() {
+        assertEquals("G760080A2", ICanHealthConstants.onboardingIdentityPrefix("G760080A2604"))
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "G760080A2604",
+                "G760080A200070000"
+            )
+        )
+    }
+
+    @Test
     fun isEndedStatusSequenceCap_onlyMatchesEndedStateAtVendorCap() {
         assertFalse(
             ICanHealthConstants.isEndedStatusSequenceCap(

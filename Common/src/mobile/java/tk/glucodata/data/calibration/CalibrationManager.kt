@@ -15,6 +15,7 @@ import tk.glucodata.Applic
 import tk.glucodata.Natives
 import tk.glucodata.SensorIdentity
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.alerts.AlertRuntimeManager
 import java.util.LinkedHashMap
 import kotlin.math.abs
 import kotlin.math.pow
@@ -345,6 +346,10 @@ object CalibrationManager {
         UiRefreshBus.requestStatusRefresh()
     }
 
+    private fun deferGlucoseAlertsUntilNextReading() {
+        AlertRuntimeManager.onDisplayCalibrationChanged()
+    }
+
     private fun sensorMatches(calibrationSensorId: String, sensorId: String): Boolean {
         if (calibrationSensorId.isBlank()) return true
         if (sensorId.isBlank()) return false
@@ -428,6 +433,7 @@ object CalibrationManager {
             }
         }
         invalidateComputationCache("setEnabledForMode(${if (isRawMode) "raw" else "auto"})")
+        deferGlucoseAlertsUntilNextReading()
         requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Calibration enabled for ${if (isRawMode) "Raw" else "Auto"}: $enabled")
@@ -547,6 +553,7 @@ object CalibrationManager {
         invalidateComputationCache("setWeightMode")
         refreshDiagnosticsPreview(isRawMode = true, force = true)
         refreshDiagnosticsPreview(isRawMode = false, force = true)
+        deferGlucoseAlertsUntilNextReading()
         requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Calibration weight mode: ${mode.storageValue}")
@@ -573,6 +580,7 @@ object CalibrationManager {
         }
         invalidateComputationCache("setAlgorithmForMode(${if (isRawMode) "raw" else "auto"})")
         refreshDiagnosticsPreview(isRawMode = isRawMode, force = true)
+        deferGlucoseAlertsUntilNextReading()
         requestUiRefreshAfterCalibrationChange()
         requestMirrorCalibrationSyncForCurrentOrKnownSensors()
         Log.i(TAG, "Calibration algorithm for ${if (isRawMode) "Raw" else "Auto"}: ${algorithm.title}")
@@ -734,6 +742,7 @@ object CalibrationManager {
         setAlgorithmForMode(isRawMode = true, algorithm = rawAlgorithm)
         setAlgorithmForMode(isRawMode = false, algorithm = autoAlgorithm)
 
+        deferGlucoseAlertsUntilNextReading()
         loadCalibrations()
 
         requestMirrorCalibrationSync(targetSensorId)
@@ -767,6 +776,7 @@ object CalibrationManager {
             isRawMode = isRawMode
         )
         withContext(Dispatchers.IO) { dao.insert(entity) }
+        deferGlucoseAlertsUntilNextReading()
         loadCalibrations()
         refreshDiagnosticsPreview(isRawMode = isRawMode, force = true)
         requestMirrorCalibrationSync(entity.sensorId)
@@ -775,6 +785,7 @@ object CalibrationManager {
 
     suspend fun restoreCalibration(entity: CalibrationEntity) {
         withContext(Dispatchers.IO) { dao.insert(entity) }
+        deferGlucoseAlertsUntilNextReading()
         loadCalibrations()
         refreshDiagnosticsPreview(isRawMode = entity.isRawMode, force = true)
         requestMirrorCalibrationSync(entity.sensorId)
@@ -783,6 +794,7 @@ object CalibrationManager {
 
     suspend fun deleteCalibration(entity: CalibrationEntity) {
         withContext(Dispatchers.IO) { dao.delete(entity) }
+        deferGlucoseAlertsUntilNextReading()
         loadCalibrations()
         refreshDiagnosticsPreview(isRawMode = entity.isRawMode, force = true)
         requestMirrorCalibrationSync(entity.sensorId)
@@ -791,6 +803,7 @@ object CalibrationManager {
     
     suspend fun updateCalibration(entity: CalibrationEntity) {
         withContext(Dispatchers.IO) { dao.update(entity) }
+        deferGlucoseAlertsUntilNextReading()
         loadCalibrations()
         refreshDiagnosticsPreview(isRawMode = entity.isRawMode, force = true)
         requestMirrorCalibrationSync(entity.sensorId)
@@ -799,6 +812,7 @@ object CalibrationManager {
     suspend fun clearAll() {
         val affectedSensors = _calibrations.value.map { it.sensorId }
         withContext(Dispatchers.IO) { dao.deleteAll() }
+        deferGlucoseAlertsUntilNextReading()
         loadCalibrations()
         refreshDiagnosticsPreview(isRawMode = true, force = true)
         refreshDiagnosticsPreview(isRawMode = false, force = true)
@@ -808,6 +822,7 @@ object CalibrationManager {
 
     suspend fun restoreAll(calibrations: List<CalibrationEntity>) {
         withContext(Dispatchers.IO) { dao.insertAll(calibrations) }
+        deferGlucoseAlertsUntilNextReading()
         loadCalibrations()
         refreshDiagnosticsPreview(isRawMode = true, force = true)
         refreshDiagnosticsPreview(isRawMode = false, force = true)

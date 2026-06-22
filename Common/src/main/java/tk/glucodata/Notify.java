@@ -952,12 +952,10 @@ public class Notify {
     private static final class AlarmLaunchResult {
         final boolean directStarted;
         final boolean queued;
-        final boolean needsNotificationTransport;
 
-        AlarmLaunchResult(boolean directStarted, boolean queued, boolean needsNotificationTransport) {
+        AlarmLaunchResult(boolean directStarted, boolean queued) {
             this.directStarted = directStarted;
             this.queued = queued;
-            this.needsNotificationTransport = needsNotificationTransport;
         }
 
         boolean startedOrQueued() {
@@ -2129,36 +2127,25 @@ public class Notify {
         // Run on main thread to be safe with UI/Toasts
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             boolean isMmol = tk.glucodata.Applic.unit == 1;
-            float dummyValue;
-            String typeStr;
-            String message;
-
-            // Determine appropriate dummy values based on kind
-            switch (kind) {
-                case 0: // Low
-                    dummyValue = isMmol ? 3.5f : 63f;
-                    typeStr = alertChannelForKind(kind);
-                    message = isMmol ? "LOW 3.5" : "LOW 63";
-                    break;
-                case 1: // High
-                    dummyValue = isMmol ? 12.0f : 216f;
-                    typeStr = alertChannelForKind(kind);
-                    message = isMmol ? "HIGH 12.0" : "HIGH 216";
-                    break;
-                case 4: // Loss (AlertType.LOSS.id = 4)
-                    dummyValue = 0f;
-                    typeStr = alertChannelForKind(kind);
-                    message = "Signal Loss";
-                    break;
-                default:
-                    dummyValue = isMmol ? 3.5f : 63f;
-                    typeStr = alertChannelForKind(kind);
-                    message = "Test Alert";
-            }
+            final AlertType alertType = AlertType.Companion.fromId(kind);
+            final AlertConfig config = alertType != null ? AlertRepository.INSTANCE.loadConfig(alertType) : null;
+            final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+            final float currentDisplayValue = current != null ? current.getPrimaryValue() : Float.NaN;
+            final float dummyValue = AlertTestValuePolicy.resolve(
+                    alertType,
+                    config,
+                    isMmol,
+                    currentDisplayValue);
+            final String typeStr = alertChannelForKind(kind);
+            final String label = alertType != null
+                    ? Applic.app.getString(alertType.getNameResId())
+                    : "Test Alert";
+            final String message = alertType == AlertType.LOSS
+                    ? label
+                    : label + " " + glucosestr(dummyValue);
 
             if (onenot != null) {
                 // Reset state so test always plays sound
-                AlertType alertType = AlertType.Companion.fromId(kind);
                 if (alertType != null) {
                     AlertStateTracker.INSTANCE.resetState(alertType);
                     AlertStateTracker.INSTANCE.allowNextTriggerForTest(alertType);
@@ -2240,7 +2227,7 @@ public class Notify {
 
                 // Delivery Mode Logic
                 String mode = normalizeDeliveryMode(deliveryMode);
-                AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
+                AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false);
 
                 // When the phone is idle/locked, background activity starts are not a
                 // reliable contract. Queue the AlarmActivity through AlarmManager so
@@ -2257,8 +2244,7 @@ public class Notify {
 
                 boolean skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
                         mode,
-                        alarmLaunchResult.startedOrQueued(),
-                        alarmLaunchResult.needsNotificationTransport);
+                        alarmLaunchResult.startedOrQueued());
 
                 // 2. Heads-Up Notification (Separate) - This is what standard alerts do!
                 // Only if we shouldn't skip the banner (Notification mode, Both mode, or Alarm
@@ -2435,14 +2421,15 @@ public class Notify {
 
     private static AlarmLaunchResult launchOrQueueAlarmActivityResult(String glucoseValue, String alarmMessage,
             float rate, int alertTypeId, String customAlertId, String deliveryMode) {
-        if (shouldTryDirectAlarmActivity()) {
-            final boolean directStarted = showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId,
-                    customAlertId, deliveryMode);
-            return new AlarmLaunchResult(directStarted, false, false);
+        final boolean directStartIsReliable = shouldTryDirectAlarmActivity();
+        final boolean directStarted = AlarmLaunchStrategy.shouldAttemptDirectStart()
+                && showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
+        if (!AlarmLaunchStrategy.shouldQueueBackup(directStartIsReliable)) {
+            return new AlarmLaunchResult(directStarted, false);
         }
         final boolean queued = queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId,
                 customAlertId, deliveryMode);
-        return new AlarmLaunchResult(false, queued, queued);
+        return new AlarmLaunchResult(directStarted, queued);
     }
 
     private static boolean showpopupalarm(String glucoseValue, String alarmMessage, float rate, int alertTypeId) {
@@ -2524,7 +2511,7 @@ public class Notify {
     }
 
     private void deliverTriggeredAlert(int kind, float glvalue, String message, notGlucose strglucose, String type) {
-        AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
+        AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false);
         boolean skipBanner = false;
 
         if (!AlertType.Companion.isLegacyOnlyId(kind)) {
@@ -2545,8 +2532,7 @@ public class Notify {
                 if (doLog)
                     Log.i(LOG_ID, "Alert Debug: alarm window started=" + alarmLaunchResult.startedOrQueued()
                             + " direct=" + alarmLaunchResult.directStarted
-                            + " queued=" + alarmLaunchResult.queued
-                            + " notificationTransport=" + alarmLaunchResult.needsNotificationTransport);
+                            + " queued=" + alarmLaunchResult.queued);
                 if (!alarmLaunchResult.startedOrQueued() && doLog) {
                     Log.i(LOG_ID, "Alert Debug: AlarmActivity launch failed, using notification fallback");
                 }
@@ -2554,8 +2540,7 @@ public class Notify {
 
             skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
                     deliveryMode,
-                    alarmLaunchResult.startedOrQueued(),
-                    alarmLaunchResult.needsNotificationTransport);
+                    alarmLaunchResult.startedOrQueued());
             if (doLog)
                 Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
         }

@@ -33,6 +33,7 @@ object AlertRuntimeManager {
     private var persistentHighStartedAtMs: Long = 0L
     private val standardEpisodes = AlertEpisodeState<AlertType>()
     private val sensorExpiryState = SensorExpiryAlertState()
+    private val calibrationReadingBarrier = ReadingTimestampBarrier()
 
     private val standardGlucoseAlertTypes = listOf(
         AlertType.VERY_LOW,
@@ -50,6 +51,25 @@ object AlertRuntimeManager {
         synchronized(lock) {
             // Keep an already-active threshold episode eligible to re-fire when snooze expires.
             standardEpisodes.markPendingAfterSnooze(type)
+        }
+    }
+
+    /**
+     * Calibration can change the dashboard value without producing a new sensor sample.
+     * Keep the existing threshold episode untouched until a newer reading arrives.
+     */
+    fun onDisplayCalibrationChanged() {
+        val currentReadingTimeMs = try {
+            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)?.timeMillis ?: 0L
+        } catch (t: Throwable) {
+            0L
+        }
+        synchronized(lock) {
+            val suppressThroughMs = maxOf(lastReadingTimeMs, currentReadingTimeMs)
+            calibrationReadingBarrier.suppressThrough(suppressThroughMs)
+            if (suppressThroughMs > 0L) {
+                Log.i(LOG_ID, "Calibration changed; glucose alerts wait for reading after $suppressThroughMs")
+            }
         }
     }
 
@@ -124,9 +144,16 @@ object AlertRuntimeManager {
         bootstrapLastReadingLocked()
         syncCurrentReadingLocked()
 
-        val standardAlertEvaluation = evaluateStandardGlucoseAlertsLocked()
+        val glucoseAlertsBlocked = calibrationReadingBarrier.blocks(lastReadingTimeMs)
+        val standardAlertEvaluation = if (glucoseAlertsBlocked) {
+            AlertRuntimeEvaluation()
+        } else {
+            evaluateStandardGlucoseAlertsLocked()
+        }
         evaluateMissedReadingLocked(nowMs)
-        evaluatePersistentHighLocked(nowMs)
+        if (!glucoseAlertsBlocked) {
+            evaluatePersistentHighLocked(nowMs)
+        }
         evaluateSensorExpiryLocked(nowMs)
         return standardAlertEvaluation
     }

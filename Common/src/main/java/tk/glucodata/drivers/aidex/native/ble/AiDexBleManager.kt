@@ -881,7 +881,8 @@ class AiDexBleManager(
     // -- AiDexDriver State --
     @Volatile private var _batteryMillivolts: Int = 0
     @Volatile private var _sensorExpired: Boolean = false
-    @Volatile private var _wearDays: Int = 15  // default 15-day sensor (AIDEX_SENSOR_MAX_DAYS)
+    @Volatile private var _wearDays: Int = 0  // authoritative only after sensor 0x10 reports wear_days
+    @Volatile private var sensorReportedWearDays: Boolean = false
     @Volatile private var _firmwareVersion: String = ""
     @Volatile private var _hardwareVersion: String = ""
     @Volatile private var _modelName: String = ""
@@ -896,6 +897,27 @@ class AiDexBleManager(
         }
     }
     @Volatile private var _resetCompensationEnabled: Boolean = false
+
+    private fun reportedWearDaysOrNull(): Int? =
+        _wearDays.takeIf { sensorReportedWearDays && it > 0 }
+
+    private fun hasCompleteStartupMetadata(): Boolean =
+        _modelName.isNotBlank() &&
+            _firmwareVersion.isNotBlank() &&
+            hasAuthoritativeSessionStart &&
+            sensorstartmsec > 0L &&
+            sensorReportedWearDays
+
+    private fun updateSensorExpiredFromStart(now: Long): Boolean {
+        val wearDays = reportedWearDaysOrNull()
+        if (sensorstartmsec <= 0L || wearDays == null) {
+            _sensorExpired = false
+            return false
+        }
+        val expiryMs = sensorstartmsec + (wearDays.toLong() * 24 * 3600_000L)
+        _sensorExpired = now > expiryMs
+        return _sensorExpired
+    }
 
     // -- Broadcast Scan State --
     @Volatile private var broadcastScanActive: Boolean = false
@@ -1330,8 +1352,7 @@ class AiDexBleManager(
         liveOffsetCutoff = 0
         lastHistoryNewestGlucose = 0f
         lastHistoryNewestOffset = 0
-        startupMetadataComplete =
-            _modelName.isNotBlank() && _firmwareVersion.isNotBlank() && hasAuthoritativeSessionStart && sensorstartmsec > 0L
+        startupMetadataComplete = hasCompleteStartupMetadata()
     }
 
     private fun shouldRecoverBlockedReconnectNow(now: Long = System.currentTimeMillis()): Boolean {
@@ -1772,8 +1793,7 @@ class AiDexBleManager(
             cccdWriteInProgress = false
             cccdRetryCount = 0
             pendingBondedCccdUuid = null
-            startupMetadataComplete =
-                _modelName.isNotBlank() && _firmwareVersion.isNotBlank() && hasAuthoritativeSessionStart && sensorstartmsec > 0L
+            startupMetadataComplete = hasCompleteStartupMetadata()
             startupDeviceInfoRequested = false
             legacyStartTimeRequested = false
             startTimeRepairProbePending = false
@@ -2315,7 +2335,7 @@ class AiDexBleManager(
                 val manufacturer = String(data, Charsets.UTF_8).trim('\u0000', ' ')
                 Log.i(TAG, "DIS Manufacturer Name: $manufacturer")
             }
-            // CGM Session Start Time (0x2AAA) — parse activation date + compute wear days
+            // CGM Session Start Time (0x2AAA) — parse activation date; wear days come from 0x10.
             CHAR_CGM_SESSION_START -> handleCGMSessionStartTime(data)
             // CGM Session Run Time (0x2AAB) — how long sensor has been running
             CHAR_CGM_SESSION_RUN -> {
@@ -2427,17 +2447,20 @@ class AiDexBleManager(
         hasAuthoritativeSessionStart = true
         val ageMs = System.currentTimeMillis() - startMs
         val ageDays = ageMs.toDouble() / 86400_000.0
-        val remainDays = _wearDays - ageDays
+        val reportedWearDays = reportedWearDaysOrNull()
+        val remainDays = reportedWearDays?.let { it - ageDays }
         Log.i(
             TAG,
             "$source start time parsed: startMs=$startMs, age=${String.format("%.1f", ageDays)} days, " +
-                "remaining=${String.format("%.1f", remainDays)} days"
+                "remaining=${remainDays?.let { String.format("%.1f days", it) } ?: "unknown"}"
         )
 
-        try {
-            Natives.aidexSetWearDays(dataptr, _wearDays)
-            Log.i(TAG, "aidexSetWearDays: days=$_wearDays (from $source)")
-        } catch (_: Throwable) {}
+        if (reportedWearDays != null) {
+            try {
+                Natives.aidexSetWearDays(dataptr, reportedWearDays)
+                Log.i(TAG, "aidexSetWearDays: days=$reportedWearDays (sensor-reported, from $source)")
+            } catch (_: Throwable) {}
+        }
 
         if (sensorstartmsec <= 0L || kotlin.math.abs(sensorstartmsec - startMs) > 60_000L) {
             Log.i(TAG, "Updating sensorstartmsec from $source: $sensorstartmsec → $startMs")
@@ -2448,8 +2471,7 @@ class AiDexBleManager(
             armFirstValidReadingWait(startMs, "$source-authoritative-start")
         }
 
-        val expiryMs = startMs + (_wearDays.toLong() * 24 * 3600_000L)
-        _sensorExpired = System.currentTimeMillis() > expiryMs
+        updateSensorExpiredFromStart(System.currentTimeMillis())
         if (
             pendingInitialHistoryRequest &&
             !historyDownloading &&
@@ -2464,7 +2486,7 @@ class AiDexBleManager(
     /**
      * Parse CGM Session Start Time (0x2AAA):
      * Bytes: year(u16LE), month, day, hour, minute, second, timezone(s8), DST(u8)
-     * Sets sensorstartmsec and computes actual wear days from the sensor.
+     * Sets sensorstartmsec. Wear duration is reported separately by startup device info 0x10.
      */
     private fun handleCGMSessionStartTime(data: ByteArray) {
         val parsed = AiDexParser.parseLocalStartTimePayload(data)
@@ -2981,6 +3003,17 @@ class AiDexBleManager(
                 liveOffsetCutoff = trustedOffset
             }
         }
+        if (
+            trustedTimeOffsetMinutes != null &&
+            !AiDexHistoryPolicy.isWithinWearDuration(trustedTimeOffsetMinutes, reportedWearDaysOrNull())
+        ) {
+            _sensorExpired = true
+            Log.w(
+                TAG,
+                "F003($source): skipping post-wear live reading offset=$trustedTimeOffsetMinutes wearDays=${reportedWearDaysOrNull()}"
+            )
+            return
+        }
         markStartupControlComplete("first-live-$source")
         val shouldStartHistoryNow = AiDexRuntimePolicy.shouldStartHistoryImmediately(
             pendingInitialHistoryRequest = pendingInitialHistoryRequest,
@@ -3155,6 +3188,7 @@ class AiDexBleManager(
             startupMetadataComplete = startupMetadataComplete,
             hasModelMetadata = _modelName.isNotBlank() && _firmwareVersion.isNotBlank(),
             hasAuthoritativeSessionStart = hasAuthoritativeSessionStart,
+            hasSensorReportedWearDays = sensorReportedWearDays,
         )
     }
 
@@ -3274,7 +3308,8 @@ class AiDexBleManager(
         }
         val needsModelMetadata = _modelName.isBlank() || _firmwareVersion.isBlank()
         val needsSessionMetadata = !hasAuthoritativeSessionStart
-        if (!needsModelMetadata && !needsSessionMetadata) {
+        val needsStartupWearDays = !sensorReportedWearDays
+        if (!needsModelMetadata && !needsSessionMetadata && !needsStartupWearDays) {
             pendingStreamingMetadataRead = false
             pendingStreamingMetadataReason = null
             pendingStreamingMetadataScheduled = false
@@ -3294,7 +3329,7 @@ class AiDexBleManager(
         if (needsSessionMetadata) {
             readCGMSessionCharacteristics()
         }
-        if (!startupMetadataComplete || needsModelMetadata) {
+        if (!startupMetadataComplete || needsModelMetadata || needsStartupWearDays) {
             handler.postDelayed({
                 maybeRequestStartupDeviceInfo("streaming-metadata-$reason")
             }, STARTUP_DEVICE_INFO_REQUEST_DELAY_MS)
@@ -3355,7 +3390,7 @@ class AiDexBleManager(
     private fun maybeRequestStartupDeviceInfo(reason: String) {
         if (startupMetadataComplete || startupDeviceInfoRequested) return
         if (!keyExchange.isComplete) return
-        if (_modelName.isNotBlank() && _firmwareVersion.isNotBlank() && hasAuthoritativeSessionStart) {
+        if (hasCompleteStartupMetadata()) {
             startupMetadataComplete = true
             return
         }
@@ -3816,31 +3851,46 @@ class AiDexBleManager(
         } else {
             data.size
         }
-        if (payloadEndExclusive <= 2) {
+        if (payloadEndExclusive <= 1) {
             Log.d(TAG, "Startup device info 0x10: too short (${data.size} bytes)")
             return
         }
 
-        val payload = data.copyOfRange(2, payloadEndExclusive)
-        val parsed = AiDexParser.parseStartupDeviceInfoPayload(payload)
+        val payload = data.copyOfRange(1, payloadEndExclusive)
+        val parsed = AiDexParser.parseStartupDeviceInfoFrame(data, payloadEndExclusive)
         if (parsed == null) {
-            Log.d(TAG, "Startup device info 0x10: unsupported payload len=${payload.size} — keeping DIS/2AAA as source of truth")
+            Log.d(
+                TAG,
+                "Startup device info 0x10: unsupported payload len=${payload.size} " +
+                    "hex=${AiDexParser.hexString(payload.copyOfRange(0, minOf(payload.size, 16)))} — keeping DIS/2AAA as source of truth"
+            )
             return
         }
 
-        startupMetadataComplete = true
         val resolvedFirmwareVersion = mergedFirmwareVersion(_firmwareVersion, parsed.firmwareVersion)
         _firmwareVersion = resolvedFirmwareVersion
         _hardwareVersion = parsed.hardwareVersion
-        _wearDays = parsed.wearDays
+        if (parsed.wearDays > 0) {
+            _wearDays = parsed.wearDays
+            sensorReportedWearDays = true
+            if (dataptr != 0L) {
+                try {
+                    Natives.aidexSetWearDays(dataptr, parsed.wearDays)
+                    Log.i(TAG, "aidexSetWearDays: days=${parsed.wearDays} (sensor-reported, from startup-0x10)")
+                } catch (_: Throwable) {}
+            }
+            if (sensorstartmsec > 0L) {
+                updateSensorExpiredFromStart(System.currentTimeMillis())
+            }
+        }
         _modelName = parsed.modelName
-        applyWearProfileFromModel(_modelName)
+        startupMetadataComplete = hasCompleteStartupMetadata()
         Log.i(
             TAG,
             "Startup device info 0x10: fw=${parsed.firmwareVersion}" +
                 if (resolvedFirmwareVersion != parsed.firmwareVersion) " mergedFw=$resolvedFirmwareVersion" else "" +
                 " hw=$_hardwareVersion " +
-                "days=$_wearDays model=$_modelName"
+                "days=${reportedWearDaysOrNull()?.toString() ?: "unknown"} source=${if (sensorReportedWearDays) "sensor" else "unknown"} model=$_modelName"
         )
         if (phase == Phase.STREAMING) {
             scheduleOptionalStreamingSync("startup-0x10-ready")
@@ -3871,7 +3921,7 @@ class AiDexBleManager(
                 allowActivation = false,
                 allowRepairProbe = true,
             )
-            startupMetadataComplete = startupMetadataComplete || hasAuthoritativeSessionStart
+            startupMetadataComplete = startupMetadataComplete || hasCompleteStartupMetadata()
             return
         }
 
@@ -3928,7 +3978,7 @@ class AiDexBleManager(
             }
         }
 
-        startupMetadataComplete = startupMetadataComplete || (_modelName.isNotBlank() && _firmwareVersion.isNotBlank())
+        startupMetadataComplete = startupMetadataComplete || hasCompleteStartupMetadata()
     }
 
     private fun handleBroadcastDataResponse(data: ByteArray) {
@@ -4929,8 +4979,7 @@ class AiDexBleManager(
      */
     private fun ensureSensorStartTime(now: Long, trustedOffsetMinutes: Int? = null) {
         if (hasAuthoritativeSessionStart && sensorstartmsec > 0L) {
-            val expiryMs = sensorstartmsec + (_wearDays.toLong() * 24 * 3600_000L)
-            _sensorExpired = now > expiryMs
+            updateSensorExpiredFromStart(now)
             return
         }
 
@@ -4941,11 +4990,11 @@ class AiDexBleManager(
                 sensorstartmsec = inferredStart
                 Log.i(TAG, "Updated sensorstartmsec from offset: ${effectiveOffsetMinutes}min → $inferredStart")
                 if (dataptr != 0L) {
-                    // Push wear days BEFORE start time — aidexSetStartTime
-                    // uses info->days to compute wearduration2
-                    try {
-                        Natives.aidexSetWearDays(dataptr, _wearDays)
-                    } catch (_: Throwable) {}
+                    reportedWearDaysOrNull()?.let { wearDays ->
+                        try {
+                            Natives.aidexSetWearDays(dataptr, wearDays)
+                        } catch (_: Throwable) {}
+                    }
                     try {
                         Natives.aidexSetStartTime(dataptr, sensorstartmsec)
                     } catch (_: Throwable) {}
@@ -4955,8 +5004,7 @@ class AiDexBleManager(
 
         // Update local expiry state whenever start time is set
         if (sensorstartmsec > 0L) {
-            val expiryMs = sensorstartmsec + (_wearDays.toLong() * 24 * 3600_000L)
-            _sensorExpired = now > expiryMs
+            updateSensorExpiredFromStart(now)
         }
     }
 
@@ -4987,7 +5035,10 @@ class AiDexBleManager(
         }
 
         val now = System.currentTimeMillis()
+        val reportedWearDays = reportedWearDaysOrNull()
+        val wearDurationMinutes = AiDexHistoryPolicy.wearDurationMinutes(reportedWearDays)
         var stored = 0
+        var skippedWearDuration = 0
         var newestStoredTimeMs = 0L
 
         for (entry in entries) {
@@ -4995,6 +5046,10 @@ class AiDexBleManager(
             if (!entry.isValid) continue
             if (entry.offsetMinutes <= 0) continue
             if (entry.offsetMinutes.toLong() > MAX_OFFSET_DAYS * 24L * 60L) continue
+            if (!AiDexHistoryPolicy.isWithinWearDuration(entry.offsetMinutes, reportedWearDays)) {
+                skippedWearDuration++
+                continue
+            }
 
             // Skip entries beyond the sensor's reported newest offset — these contain
             // uninitialized/corrupt data from the sensor's ring buffer write head.
@@ -5050,6 +5105,14 @@ class AiDexBleManager(
 
         }
 
+        if (skippedWearDuration > 0) {
+            val wearLimitLabel = wearDurationMinutes?.let { "${it}min" } ?: "unknown"
+            Log.w(
+                TAG,
+                "storeHistoryEntries: skipped $skippedWearDuration/${entries.size} entries at/after declared wear duration " +
+                    "($wearLimitLabel, wearDays=$reportedWearDays)"
+            )
+        }
         if (stored > 0) {
             noteValidReadingAvailable(newestStoredTimeMs, "valid-history")
             Log.i(TAG, "storeHistoryEntries: stored $stored/${entries.size} entries (total=$historyStoredCount)")
@@ -5163,12 +5226,11 @@ class AiDexBleManager(
     }
 
     private fun applyWearProfileFromModel(modelName: String) {
-        val normalized = modelName.trim().uppercase(java.util.Locale.US)
-        _wearDays = when {
-            normalized.startsWith("GX-01S") -> 15
-            else -> 15
+        if (sensorReportedWearDays) {
+            Log.i(TAG, "Wear profile: keeping sensor-reported days=$_wearDays for model=$modelName")
+            return
         }
-        Log.i(TAG, "Wear profile: model=$modelName days=$_wearDays")
+        Log.i(TAG, "Wear profile: model=$modelName; waiting for sensor-reported wear_days")
     }
 
     // =========================================================================
@@ -5282,10 +5344,15 @@ class AiDexBleManager(
     override fun getSensorRemainingHours(): Int {
         if (sensorstartmsec <= 0L) return -1
         val elapsedMs = System.currentTimeMillis() - sensorstartmsec
-        val totalMs = _wearDays.toLong() * 24 * 60 * 60 * 1000
+        val wearDays = reportedWearDaysOrNull() ?: return -1
+        val totalMs = wearDays.toLong() * 24 * 60 * 60 * 1000
         val remainingMs = totalMs - elapsedMs
         return if (remainingMs <= 0) 0 else (remainingMs / (60 * 60 * 1000)).toInt()
     }
+
+    override fun getSensorReportedWearDays(): Int = reportedWearDaysOrNull() ?: -1
+
+    override fun shouldUseNativeOfficialEndFallback(): Boolean = false
 
     override fun getSensorAgeHours(): Int {
         if (sensorstartmsec <= 0L) return -1
@@ -6169,6 +6236,18 @@ class AiDexBleManager(
         lastOffsetMinutes = sample.offsetMinutes
         ensureSensorStartTime(now, sample.offsetMinutes)
         val sampleTimestampMs = resolveBroadcastSampleTimestampMs(now, sample.offsetMinutes)
+        val reportedWearDays = reportedWearDaysOrNull()
+        if (!AiDexHistoryPolicy.isWithinWearDuration(sample.offsetMinutes, reportedWearDays)) {
+            _sensorExpired = true
+            Log.w(
+                TAG,
+                "$source: skipping post-wear broadcast reading offset=${sample.offsetMinutes} wearDays=$reportedWearDays"
+            )
+            if (stopActiveScanAfterHandling) {
+                stopBroadcastScan("broadcast-post-wear", found = true)
+            }
+            return
+        }
         ExchangeTrend.cacheAiDexTrend(SerialNumber, sampleTimestampMs, sample.trend)
 
         val fallbackActive = AiDexRuntimePolicy.shouldAcceptBroadcastFallback(
