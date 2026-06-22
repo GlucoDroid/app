@@ -392,22 +392,43 @@ object OttaiCloudClient {
     private const val WEB_AES_KEY = "miH5ngQ7z4NZU3JgZFq87Gg6v1Y7YJm9"  // web __ENV NEXT_PUBLIC_AES_KEY (AES-256)
     private const val WEB_FINGERPRINT = "0123456789abcdef0123456789abcdef01234567"  // opaque client fp (not validated)
 
+    // syai (syai.com / ru.syai.com) is a different, older web profile that shares ONLY the SEED and
+    // AES key with Ottai. appName=cgm, US/Americas/Android/v5, no deviceId header; login uses
+    // /user/mail/login (not thirdLoginByPassword). Verified against a real syai.com login capture.
+    private const val WEB_APP_SYAI = "cgm"
+    private const val WEB_FINGERPRINT_SYAI = "90507337afdab98e443d3ec8fcccb672"
+
+    private fun isSyai(webBase: String): Boolean = webBase.contains("syai")
+    private fun webAppFor(webBase: String): String = if (isSyai(webBase)) WEB_APP_SYAI else WEB_APP
+
     private fun webSign(vararg parts: String): String = md5Hex(parts.joinToString("") + SEED)
 
-    private fun webHeaders(ts: Long): Map<String, String> = mapOf(
-        "appName" to WEB_APP,
-        "timestamp" to ts.toString(),
-        "deviceId" to WEB_DEVICE_ID,
-        "deviceFingerprinting" to WEB_FINGERPRINT,
-        "region" to "Europe",
-        "ua" to "web",
-        "versionCode" to "253201",
-        "traceId" to "trace_$ts",
-        "language" to "en",
-        "timezone" to "0",
-        "X-Canary-Mode" to "OFF",
-        "country" to "RU",
-    )
+    private fun webHeaders(webBase: String, ts: Long): Map<String, String> =
+        if (isSyai(webBase)) mapOf(
+            "appName" to WEB_APP_SYAI,
+            "timestamp" to ts.toString(),
+            "deviceFingerprinting" to WEB_FINGERPRINT_SYAI,
+            "country" to "US",
+            "region" to "Americas",
+            "ua" to "Android",
+            "versionCode" to "5",
+            "traceId" to "trace_$ts",
+            "language" to "en",
+            "timezone" to "-18000",
+        ) else mapOf(
+            "appName" to WEB_APP,
+            "timestamp" to ts.toString(),
+            "deviceId" to WEB_DEVICE_ID,
+            "deviceFingerprinting" to WEB_FINGERPRINT,
+            "region" to "Europe",
+            "ua" to "web",
+            "versionCode" to "253201",
+            "traceId" to "trace_$ts",
+            "language" to "en",
+            "timezone" to "0",
+            "X-Canary-Mode" to "OFF",
+            "country" to "RU",
+        )
 
     /** AES-256-ECB/PKCS5 of the plaintext JSON, base64 — the web "encryptInfo" field. */
     private fun webEncrypt(plainJson: String): String {
@@ -429,8 +450,8 @@ object OttaiCloudClient {
             val ts = now()
             val resp = httpGet(
                 "$webBase/user/apiToken",
-                mapOf("signature" to webSign(WEB_APP, ts.toString())),
-                webHeaders(ts),
+                mapOf("signature" to webSign(webAppFor(webBase), ts.toString())),
+                webHeaders(webBase, ts),
             )
             val tok = resp?.optStringDeep("data")
             if (!tok.isNullOrBlank()) return tok
@@ -449,7 +470,7 @@ object OttaiCloudClient {
         repeat(5) { attempt ->
             val apiToken = getWebApiToken(webBase) ?: run { lastError = "apiToken failed"; return null }
             val ts = now()
-            val resp = httpPostJson("$webBase$path", buildBody(apiToken, ts).toString(), webHeaders(ts)) ?: return null
+            val resp = httpPostJson("$webBase$path", buildBody(apiToken, ts).toString(), webHeaders(webBase, ts)) ?: return null
             if (!resp.optString("code").equals("User_SignatureInvalid", ignoreCase = true)) return resp
             if (attempt < 4) runCatching { Thread.sleep(500) }
         }
@@ -457,28 +478,40 @@ object OttaiCloudClient {
     }
 
     /**
-     * Email-or-username + password login via the website API — the endpoint is
-     * `/user/login/thirdLoginByPassword` (the site's "confirm by password" handler), which
-     * accepts the EMAIL or the username in the encrypted "username" field. (`/user/mail/login` is
-     * the separate email-CODE login — sending a password there is rejected and trips the lockout.)
-     * Body sig = md5(appName+deviceId+ts+apiToken+identifier+password+SEED).
+     * Email + password login via the website API. The endpoint differs by region:
+     *  - Ottai: `/user/login/thirdLoginByPassword` (accepts the email OR the username in the
+     *    encrypted "username" field). sig = md5(appName+deviceId+ts+apiToken+identifier+password+SEED) —
+     *    deviceId BEFORE ts. (A wrong order here returns the MISLEADING "User_FAILED_RETRY_TIMES".)
+     *  - syai: `/user/mail/login` with a plaintext "email" field + encryptInfo={email,password};
+     *    sig = md5(appName+ts+apiToken+email+password+SEED) (no deviceId). Returns a JWT used as a
+     *    bearer token; glucoseSecretKey is fetched separately via getUser (see persistWebLogin).
      */
     fun mailLogin(ctx: Context, email: String, password: String, webBase: String = WEB_BASE): LoginResult? {
         val em = email.trim()
         if (em.isBlank() || password.isBlank()) { lastError = "email/password required"; return null }
-        val encInfo = webEncrypt(JSONObject().put("username", em).put("password", password).toString())
-        val resp = webPostRetry(webBase, "/user/login/thirdLoginByPassword") { apiToken, ts ->
-            JSONObject().apply {
-                put("uuid", java.util.UUID.randomUUID().toString().replace("-", ""))
-                put("encryptInfo", encInfo)
-                put("apiToken", apiToken)
-                put("source", 5)
-                // sig order is deviceId BEFORE timestamp: md5(appName + deviceId + ts + apiToken + id + password + SEED).
-                // (A wrong order here returns the MISLEADING "User_FAILED_RETRY_TIMES", not SignatureInvalid.)
-                put("signature", webSign(WEB_APP, WEB_DEVICE_ID, ts.toString(), apiToken, em, password))
+        val resp = if (isSyai(webBase)) {
+            val encInfo = webEncrypt(JSONObject().put("email", em).put("password", password).toString())
+            webPostRetry(webBase, "/user/mail/login") { apiToken, ts ->
+                JSONObject().apply {
+                    put("encryptInfo", encInfo)
+                    put("email", em)
+                    put("apiToken", apiToken)
+                    put("signature", webSign(WEB_APP_SYAI, ts.toString(), apiToken, em, password))
+                }
+            }
+        } else {
+            val encInfo = webEncrypt(JSONObject().put("username", em).put("password", password).toString())
+            webPostRetry(webBase, "/user/login/thirdLoginByPassword") { apiToken, ts ->
+                JSONObject().apply {
+                    put("uuid", java.util.UUID.randomUUID().toString().replace("-", ""))
+                    put("encryptInfo", encInfo)
+                    put("apiToken", apiToken)
+                    put("source", 5)
+                    put("signature", webSign(WEB_APP, WEB_DEVICE_ID, ts.toString(), apiToken, em, password))
+                }
             }
         } ?: return null
-        return persistWebLogin(ctx, resp, webBaseToMobile(webBase))
+        return persistWebLogin(ctx, resp, webBaseToMobile(webBase), webBase)
     }
 
     /** POST /user/mail/sendMail — emails a verification code, returns the requestId. type: SIGN_UP/LOGIN/RESET_PASSWORD. */
@@ -490,7 +523,7 @@ object OttaiCloudClient {
                 put("isSend", 1)
                 put("email", em)
                 put("apiToken", apiToken)
-                put("signature", webSign(WEB_APP, ts.toString(), em, apiToken))
+                put("signature", webSign(webAppFor(webBase), ts.toString(), em, apiToken))
             }
         } ?: return null
         // Success = code "OK"; the requestId for signUp is data.key. Anything else
@@ -502,6 +535,7 @@ object OttaiCloudClient {
     /** POST /user/mail/signUp — register (email + emailed code + password + display name). Persists creds. */
     fun signUp(ctx: Context, email: String, password: String, profileName: String, requestId: String, validCode: String, webBase: String = WEB_BASE): LoginResult? {
         val em = email.trim()
+        if (isSyai(webBase)) return syaiSignUp(ctx, em, password, requestId, validCode, webBase)
         val encInfo = webEncrypt(
             JSONObject().put("email", em).put("password", password).put("profileName", profileName).toString(),
         )
@@ -517,7 +551,40 @@ object OttaiCloudClient {
                 put("signature", webSign(WEB_APP, ts.toString(), requestId, em, validCode))
             }
         } ?: return null
-        return persistWebLogin(ctx, resp, webBaseToMobile(webBase))
+        return persistWebLogin(ctx, resp, webBaseToMobile(webBase), webBase)
+    }
+
+    /**
+     * syai registration is a 3-step flow (vs Ottai's 2-step) and has no display name: sendMail (the
+     * caller already did this for the requestId) -> verifyMail (plaintext {validCode} -> activates the
+     * requestId) -> signUp (encryptInfo={email,password}, the password is in the sig, no validCode).
+     * Shapes derived from syai's web chunks; NOT round-trip-verified (disposable mailboxes don't
+     * receive syai's codes), so this is best-effort until tested on a real account.
+     */
+    private fun syaiSignUp(ctx: Context, em: String, password: String, requestId: String, validCode: String, webBase: String): LoginResult? {
+        // 1) verify the emailed code — plaintext body, code in the signature.
+        val verify = webPostRetry(webBase, "/user/mail/verifyMail") { _, ts ->
+            JSONObject().apply {
+                put("type", "SIGN_UP")
+                put("validCode", validCode)
+                put("requestId", requestId)
+                put("email", em)
+                put("signature", webSign(WEB_APP_SYAI, ts.toString(), requestId, em, validCode))
+            }
+        }
+        if (verify == null || !verify.optString("code").equals("OK", ignoreCase = true)) return null
+        // 2) complete registration — encryptInfo={email,password}; the sig is requestId+email ONLY
+        // (the password rides inside encryptInfo, NOT the signature — verified empirically: a sig with
+        // the password gives SignatureInvalid, while requestId+email gets past it).
+        val encInfo = webEncrypt(JSONObject().put("email", em).put("password", password).toString())
+        val resp = webPostRetry(webBase, "/user/mail/signUp") { _, ts ->
+            JSONObject().apply {
+                put("encryptInfo", encInfo)
+                put("requestId", requestId)
+                put("signature", webSign(WEB_APP_SYAI, ts.toString(), requestId, em))
+            }
+        } ?: return null
+        return persistWebLogin(ctx, resp, webBaseToMobile(webBase), webBase)
     }
 
     /** Map a web API host to the matching mobile CGM API base for subsequent validate/list calls. */
@@ -525,12 +592,18 @@ object OttaiCloudClient {
         if (webBase.contains("syai")) OttaiConstants.API_BASE_SYAI else OttaiConstants.API_BASE_GLOBAL
 
     /** Store accessToken/userId/glucoseSecretKey from a web login/signup; CGM ops use the region's mobile API. */
-    private fun persistWebLogin(ctx: Context, resp: JSONObject, mobileBase: String): LoginResult? {
+    private fun persistWebLogin(ctx: Context, resp: JSONObject, mobileBase: String, webBase: String): LoginResult? {
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
+        val accessToken = data.optString("accessToken").orEmptyIfNull()
+        var glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull()
+        // syai's /user/mail/login returns only the JWT; glucoseSecretKey is exposed via getUser instead.
+        if (accessToken.isNotBlank() && glucoseSecretKey.isBlank()) {
+            glucoseSecretKey = fetchGlucoseSecretKey(webBase, accessToken).orEmptyIfNull()
+        }
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
-            accessToken = data.optString("accessToken").orEmptyIfNull(),
-            glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull(),
+            accessToken = accessToken,
+            glucoseSecretKey = glucoseSecretKey,
         )
         if (result.accessToken.isNotBlank()) {
             OttaiRegistry.saveApiBase(ctx, mobileBase)
@@ -540,6 +613,15 @@ object OttaiCloudClient {
             Log.i(TAG, "web login ok")
         }
         return result
+    }
+
+    /** GET /user/getUser with the JWT as a bearer token → glucoseSecretKey (syai exposes it here, not in login). */
+    private fun fetchGlucoseSecretKey(webBase: String, accessToken: String): String? {
+        val ts = now()
+        val headers = webHeaders(webBase, ts) + ("Authorization" to "Bearer $accessToken")
+        val resp = httpGet("$webBase/user/getUser", emptyMap(), headers) ?: return null
+        val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
+        return data.optString("glucoseSecretKey").takeIf { it.isNotBlank() }
     }
 
     private fun httpGet(base: String, query: Map<String, String>, headers: Map<String, String>): JSONObject? {
