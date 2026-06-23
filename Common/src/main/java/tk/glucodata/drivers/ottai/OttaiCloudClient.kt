@@ -511,7 +511,22 @@ object OttaiCloudClient {
                 }
             }
         } ?: return null
-        return persistWebLogin(ctx, resp, webBaseToMobile(webBase), webBase)
+        // The web/email login token has NO device scope — the mobile deviceBind/list (+ validate/
+        // bind) reject it with AuthFailed_TokenInvalid. Upgrade to a mobile accountLogin token:
+        // getUser exposes the account's server-assigned random username, then accountLogin(username,
+        // password) yields a token the mobile CGM API accepts. (Verified end-to-end: a web-only
+        // token fails every device endpoint; the chained mobile token lists devices.)
+        val mobileBase = webBaseToMobile(webBase)
+        val webToken = (resp.optJSONObject("data") ?: resp.optJSONObject("result"))
+            ?.optString("accessToken").orEmptyIfNull()
+        if (webToken.isNotBlank()) {
+            val userName = webGetUser(webBase, webToken)?.optString("userName")?.takeIf { it.isNotBlank() }
+            if (userName != null) {
+                passwordLogin(ctx, userName, password, mobileBase)?.takeIf { it.ok }?.let { return it }
+            }
+        }
+        // Fallback: persist the web token (authenticated, but the device list may not work).
+        return persistWebLogin(ctx, resp, mobileBase, webBase)
     }
 
     /** POST /user/mail/sendMail — emails a verification code, returns the requestId. type: SIGN_UP/LOGIN/RESET_PASSWORD. */
@@ -598,7 +613,7 @@ object OttaiCloudClient {
         var glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull()
         // syai's /user/mail/login returns only the JWT; glucoseSecretKey is exposed via getUser instead.
         if (accessToken.isNotBlank() && glucoseSecretKey.isBlank()) {
-            glucoseSecretKey = fetchGlucoseSecretKey(webBase, accessToken).orEmptyIfNull()
+            glucoseSecretKey = webGetUser(webBase, accessToken)?.optString("glucoseSecretKey").orEmptyIfNull()
         }
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
@@ -615,13 +630,12 @@ object OttaiCloudClient {
         return result
     }
 
-    /** GET /user/getUser with the JWT as a bearer token → glucoseSecretKey (syai exposes it here, not in login). */
-    private fun fetchGlucoseSecretKey(webBase: String, accessToken: String): String? {
+    /** GET /user/getUser (JWT bearer) → the user data object (glucoseSecretKey, userName, email, …). */
+    private fun webGetUser(webBase: String, accessToken: String): JSONObject? {
         val ts = now()
         val headers = webHeaders(webBase, ts) + ("Authorization" to "Bearer $accessToken")
         val resp = httpGet("$webBase/user/getUser", emptyMap(), headers) ?: return null
-        val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
-        return data.optString("glucoseSecretKey").takeIf { it.isNotBlank() }
+        return resp.optJSONObject("data") ?: resp.optJSONObject("result")
     }
 
     private fun httpGet(base: String, query: Map<String, String>, headers: Map<String, String>): JSONObject? {
