@@ -1285,13 +1285,18 @@ public class Notify {
             return;
         }
         final int kind = resolveAlertKind(-1);
-        cancelCurrentRetrySession("notification-open");
+        boolean productionAction = true;
         if (kind >= 0) {
             final AlertType type = AlertType.Companion.fromId(kind);
             if (type != null) {
-                SnoozeManager.INSTANCE.clearSnooze(type);
-                AlertStateTracker.INSTANCE.onAlertDismissed(type);
+                productionAction = AlertStateTracker.INSTANCE.onAlertDismissed(type);
+                if (productionAction) {
+                    SnoozeManager.INSTANCE.clearSnooze(type);
+                }
             }
+        }
+        if (productionAction) {
+            cancelCurrentRetrySession("notification-open");
         }
         cancelAlertNotification();
         stopalarm();
@@ -2145,9 +2150,7 @@ public class Notify {
                     : label + " " + glucosestr(dummyValue);
 
             if (onenot != null) {
-                // Reset state so test always plays sound
                 if (alertType != null) {
-                    AlertStateTracker.INSTANCE.resetState(alertType);
                     AlertStateTracker.INSTANCE.allowNextTriggerForTest(alertType);
                 }
                 allowNextAlertEffectsForTest();
@@ -2204,14 +2207,6 @@ public class Notify {
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             if (onenot != null) {
                 int kind = isHigh ? 1 : 0;
-
-                // For test scenarios, reset tracker state so sound always plays
-                if (isTest) {
-                    AlertType alertType = AlertType.Companion.fromId(kind);
-                    if (alertType != null) {
-                        AlertStateTracker.INSTANCE.resetState(alertType);
-                    }
-                }
 
                 final String defaultName = isTest
                         ? ("Test Custom " + (isHigh ? "High" : "Low"))
@@ -2638,11 +2633,13 @@ public class Notify {
 
                     if (!AlertStateTracker.INSTANCE.shouldTrigger(alertType, config)) {
                         if (doLog)
-                            Log.i(LOG_ID, "Alert Suppressed (Snoozed or Retry Logic): kind=" + kind);
+                            Log.i(LOG_ID, "Alert suppressed by alert state: kind=" + kind);
                         alarm = false;
                     } else {
-                        AlertStateTracker.INSTANCE.onAlertTriggered(alertType);
-                        syncRetrySession(kind, glvalue, message, strglucose, type, config, true);
+                        final boolean productionTrigger = AlertStateTracker.INSTANCE.onAlertTriggered(alertType);
+                        if (productionTrigger) {
+                            syncRetrySession(kind, glvalue, message, strglucose, type, config, true);
+                        }
                     }
                 }
             } catch (Exception e) {

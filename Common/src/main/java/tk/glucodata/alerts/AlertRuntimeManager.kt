@@ -50,7 +50,7 @@ object AlertRuntimeManager {
         }
         synchronized(lock) {
             // Keep an already-active threshold episode eligible to re-fire when snooze expires.
-            standardEpisodes.markPendingAfterSnooze(type)
+            standardEpisodes.markPendingDelivery(type)
         }
     }
 
@@ -221,13 +221,21 @@ object AlertRuntimeManager {
         logStandardCondition(type, condition, rate)
 
         if (SnoozeManager.isSnoozed(type)) {
-            standardEpisodes.markPendingAfterSnooze(type)
+            standardEpisodes.markPendingDelivery(type)
             return AlertRuntimeEvaluation()
         }
 
         val message = buildStandardAlertMessage(type, condition, configs[type])
         val triggered = triggerAlert(type, condition.glucoseValue, rate, message)
-        standardEpisodes.clearPending(type)
+        if (triggered) {
+            standardEpisodes.clearPending(type)
+        } else if (AlertStateTracker.isWaitingForRearmCooldown(type)) {
+            // A threshold entry during the short rearm cooldown must remain eligible;
+            // otherwise the alert is lost until glucose first returns to normal.
+            standardEpisodes.markPendingDelivery(type)
+        } else {
+            standardEpisodes.clearPending(type)
+        }
         return AlertRuntimeEvaluation(
             standardGlucoseAlertHandled = true,
             standardGlucoseAlertStarted = triggered

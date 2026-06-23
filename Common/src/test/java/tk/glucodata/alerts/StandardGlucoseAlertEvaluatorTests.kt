@@ -254,4 +254,31 @@ class StandardGlucoseAlertEvaluatorTests {
 
         assertTrue(active.isEmpty())
     }
+
+    @Test
+    fun conditionBeyondThresholdEntersWhenTimeWindowOpens() {
+        val episodes = AlertEpisodeState<AlertType>()
+        val config = AlertConfig(AlertType.HIGH, enabled = true, threshold = 6.4f)
+
+        val inactive = StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = 6.5f,
+            rate = 0f,
+            configs = mapOf(AlertType.HIGH to config),
+            alertTypes = listOf(AlertType.HIGH),
+            isMmol = true,
+            isConfigActive = { false }
+        )
+        episodes.update(inactive.keys)
+
+        val active = StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = 6.5f,
+            rate = 0f,
+            configs = mapOf(AlertType.HIGH to config),
+            alertTypes = listOf(AlertType.HIGH),
+            isMmol = true,
+            isConfigActive = { true }
+        )
+
+        assertTrue(episodes.update(active.keys).shouldTryFire(AlertType.HIGH))
+    }
 }

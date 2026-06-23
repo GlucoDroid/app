@@ -118,7 +118,7 @@ object CustomAlertManager {
 
         if (evaluationMs < candidate.snoozedUntil) {
             synchronized(sessionLock) {
-                conditionEpisodes.markPendingAfterSnooze(candidate.id)
+                conditionEpisodes.markPendingDelivery(candidate.id)
             }
             return
         }
@@ -146,7 +146,7 @@ object CustomAlertManager {
 
             val cooldownUntil = cooldownUntilMap[candidate.id] ?: 0L
             if (evaluationMs < cooldownUntil) {
-                conditionEpisodes.clearPending(candidate.id)
+                conditionEpisodes.markPendingDelivery(candidate.id)
                 return@synchronized
             }
 
