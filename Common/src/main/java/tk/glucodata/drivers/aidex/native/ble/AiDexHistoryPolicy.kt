@@ -145,6 +145,14 @@ internal object AiDexHistoryPolicy {
         }
     }
 
+    fun shouldAcceptRealtimeTimestamp(
+        candidateTimeMs: Long,
+        latestAcceptedTimeMs: Long,
+    ): Boolean {
+        if (candidateTimeMs <= 0L) return false
+        return latestAcceptedTimeMs <= 0L || candidateTimeMs >= latestAcceptedTimeMs
+    }
+
     private fun normalizePersistedIndex(
         persistedIndex: Int,
         startIndex: Int,

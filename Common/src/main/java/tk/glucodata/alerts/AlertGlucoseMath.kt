@@ -14,10 +14,14 @@ internal object AlertGlucoseMath {
         if (!glucoseValue.isFinite() || !rateMgdlPerMinute.isFinite()) {
             return Float.NaN
         }
-        val minutes = (forecastMinutes ?: AlertDefaults.FORECAST_LOOK_AHEAD_MINUTES)
-            .coerceIn(MIN_FORECAST_MINUTES, MAX_FORECAST_MINUTES)
+        val minutes = normalizedForecastMinutes(forecastMinutes)
         val glucoseMgdl = if (isMmol) glucoseValue * MGDL_PER_MMOL else glucoseValue
         val projectedMgdl = glucoseMgdl + rateMgdlPerMinute * minutes
         return if (isMmol) projectedMgdl / MGDL_PER_MMOL else projectedMgdl
+    }
+
+    fun normalizedForecastMinutes(forecastMinutes: Int?): Int {
+        return (forecastMinutes ?: AlertDefaults.FORECAST_LOOK_AHEAD_MINUTES)
+            .coerceIn(MIN_FORECAST_MINUTES, MAX_FORECAST_MINUTES)
     }
 }

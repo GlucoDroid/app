@@ -3044,6 +3044,14 @@ class AiDexBleManager(
             sensorStartMs = sensorstartmsec,
             offsetMinutes = trustedTimeOffsetMinutes,
         )
+        if (!AiDexHistoryPolicy.shouldAcceptRealtimeTimestamp(sampleTimestampMs, lastGlucoseTimeMs)) {
+            Log.w(
+                TAG,
+                "F003($source): dropping stale realtime sample time=$sampleTimestampMs " +
+                    "latestAccepted=$lastGlucoseTimeMs wireOffset=$trustedTimeOffsetMinutes"
+            )
+            return
+        }
         noteValidReadingAvailable(sampleTimestampMs, "valid-$source")
 
         val bareSerial = tk.glucodata.drivers.aidex.native.crypto.SerialCrypto.stripPrefix(SerialNumber)

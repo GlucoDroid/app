@@ -13,7 +13,8 @@ internal object StandardGlucoseAlertEvaluator {
         configs: Map<AlertType, AlertConfig>,
         alertTypes: Iterable<AlertType>,
         isMmol: Boolean,
-        isConfigActive: (AlertConfig) -> Boolean = { it.isActiveNow() }
+        isConfigActive: (AlertConfig) -> Boolean = { it.isActiveNow() },
+        wasConditionActive: (AlertType) -> Boolean = { false }
     ): Map<AlertType, StandardGlucoseAlertCondition> {
         if (!glucoseValue.isFinite()) {
             return emptyMap()
@@ -36,7 +37,20 @@ internal object StandardGlucoseAlertEvaluator {
             }
             if (!value.isFinite()) return@mapNotNull null
 
-            if (isThresholdConditionActive(type, value, threshold)) {
+            val conditionActive = if (isForecastAlert(type)) {
+                ForecastThresholdPolicy.isActive(
+                    type = type,
+                    currentValue = glucoseValue,
+                    projectedValue = value,
+                    threshold = threshold,
+                    wasActive = wasConditionActive(type),
+                    isMmol = isMmol
+                )
+            } else {
+                isThresholdConditionActive(type, value, threshold)
+            }
+
+            if (conditionActive) {
                 type to StandardGlucoseAlertCondition(glucoseValue, value, threshold)
             } else {
                 null
@@ -56,6 +70,39 @@ internal object StandardGlucoseAlertEvaluator {
             AlertType.HIGH,
             AlertType.VERY_HIGH,
             AlertType.PRE_HIGH -> value > threshold
+            else -> false
+        }
+    }
+}
+
+internal object ForecastThresholdPolicy {
+    private const val REARM_MARGIN_MMOL = 0.2f
+    private const val REARM_MARGIN_MGDL = 4.0f
+
+    fun isActive(
+        type: AlertType,
+        currentValue: Float,
+        projectedValue: Float,
+        threshold: Float,
+        wasActive: Boolean,
+        isMmol: Boolean
+    ): Boolean {
+        val margin = if (isMmol) REARM_MARGIN_MMOL else REARM_MARGIN_MGDL
+        // Once entered, keep one forecast episode alive through threshold crossing
+        // and minor projection jitter; rearm only after meaningful recovery.
+        return when (type) {
+            AlertType.PRE_LOW -> if (wasActive) {
+                currentValue < threshold + margin || projectedValue < threshold + margin
+            } else {
+                currentValue >= threshold && projectedValue < threshold
+            }
+
+            AlertType.PRE_HIGH -> if (wasActive) {
+                currentValue > threshold - margin || projectedValue > threshold - margin
+            } else {
+                currentValue <= threshold && projectedValue > threshold
+            }
+
             else -> false
         }
     }

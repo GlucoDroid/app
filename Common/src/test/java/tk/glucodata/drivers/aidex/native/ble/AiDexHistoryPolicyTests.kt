@@ -247,4 +247,20 @@ class AiDexHistoryPolicyTests {
 
         assertEquals(1_000_000L, resolved)
     }
+
+    @Test
+    fun shouldAcceptRealtimeTimestamp_rejectsObservedHistoryRegression() {
+        assertFalse(
+            AiDexHistoryPolicy.shouldAcceptRealtimeTimestamp(
+                candidateTimeMs = 1_782_006_372_000L,
+                latestAcceptedTimeMs = 1_782_133_332_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldAcceptRealtimeTimestamp_allowsDuplicateAndNewerLiveSamples() {
+        assertTrue(AiDexHistoryPolicy.shouldAcceptRealtimeTimestamp(2_000L, 2_000L))
+        assertTrue(AiDexHistoryPolicy.shouldAcceptRealtimeTimestamp(2_001L, 2_000L))
+    }
 }

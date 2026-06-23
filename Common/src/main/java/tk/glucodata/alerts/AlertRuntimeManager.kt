@@ -225,7 +225,7 @@ object AlertRuntimeManager {
             return AlertRuntimeEvaluation()
         }
 
-        val message = Applic.app.getString(type.nameResId) + " " + Notify.glucosestr(condition.glucoseValue)
+        val message = buildStandardAlertMessage(type, condition, configs[type])
         val triggered = triggerAlert(type, condition.glucoseValue, rate, message)
         standardEpisodes.clearPending(type)
         return AlertRuntimeEvaluation(
@@ -244,8 +244,23 @@ object AlertRuntimeManager {
             rate = rate,
             configs = configs,
             alertTypes = standardGlucoseAlertTypes,
-            isMmol = Applic.unit == 1
+            isMmol = Applic.unit == 1,
+            wasConditionActive = standardEpisodes::isActive
         )
+    }
+
+    private fun buildStandardAlertMessage(
+        type: AlertType,
+        condition: StandardGlucoseAlertCondition,
+        config: AlertConfig?
+    ): String {
+        val label = Applic.app.getString(type.nameResId)
+        if (type != AlertType.PRE_LOW && type != AlertType.PRE_HIGH) {
+            return "$label ${Notify.glucosestr(condition.glucoseValue)}"
+        }
+        val horizonMinutes = AlertGlucoseMath.normalizedForecastMinutes(config?.forecastMinutes)
+        val horizon = Applic.app.getString(R.string.minutes_short_format, horizonMinutes)
+        return "$label: ${Notify.glucosestr(condition.evaluatedValue)} ($horizon)"
     }
 
     private fun logStandardCondition(

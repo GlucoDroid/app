@@ -44,6 +44,8 @@ internal class AlertEpisodeState<T> {
         active.clear()
         pendingAfterSnooze.clear()
     }
+
+    fun isActive(key: T): Boolean = key in active
 }
 
 internal data class AlertEpisodeTransition<T>(
