@@ -66,8 +66,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import tk.glucodata.Natives
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.data.calibration.CalibrationEntity
 import tk.glucodata.data.calibration.CalibrationManager
 import java.text.SimpleDateFormat
@@ -123,16 +123,16 @@ fun CalibrationModelTableScreen(
     navController: NavController,
     isMmol: Boolean,
     viewMode: Int = 0,
+    sensorId: String,
     onEdit: (CalibrationEntity) -> Unit
 ) {
     val isRawMode = viewMode == 1 || viewMode == 3
     val modeTitle = if (isRawMode) stringResource(R.string.raw) else stringResource(R.string.auto)
-    val currentSensor = Natives.lastsensorname() ?: ""
+    val currentSensor = SensorIdentity.resolveAppSensorId(sensorId) ?: sensorId
     val allCalibrations by CalibrationManager
         .getCalibrationsFlow()
         .collectAsState(initial = CalibrationManager.getCachedCalibrations())
-    val isEnabledForRaw by CalibrationManager.isEnabledForRaw.collectAsState()
-    val isEnabledForAuto by CalibrationManager.isEnabledForAuto.collectAsState()
+    val calibrationRevision by CalibrationManager.revision.collectAsState()
     val algorithmForRaw by CalibrationManager.algorithmForRaw.collectAsState()
     val algorithmForAuto by CalibrationManager.algorithmForAuto.collectAsState()
     val applyToPast by CalibrationManager.applyToPast.collectAsState()
@@ -140,13 +140,15 @@ fun CalibrationModelTableScreen(
     val keepDisabledHistory by CalibrationManager.keepDisabledHistory.collectAsState()
     val weightMode by CalibrationManager.weightMode.collectAsState()
 
-    val isCalibrationEnabled = if (isRawMode) isEnabledForRaw else isEnabledForAuto
+    val isCalibrationEnabled = remember(isRawMode, currentSensor, calibrationRevision) {
+        CalibrationManager.isEnabledForMode(isRawMode, currentSensor)
+    }
     val selectedAlgorithm = if (isRawMode) algorithmForRaw else algorithmForAuto
     val calibrations = remember(allCalibrations, isRawMode, currentSensor) {
         allCalibrations
             .asSequence()
             .filter { it.isRawMode == isRawMode }
-            .filter { it.sensorId == currentSensor || it.sensorId.isEmpty() }
+            .filter { currentSensor.isNotBlank() && SensorIdentity.matches(it.sensorId, currentSensor) }
             .sortedByDescending { it.timestamp }
             .toList()
     }

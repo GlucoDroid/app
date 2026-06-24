@@ -107,6 +107,7 @@ import androidx.compose.ui.unit.lerp
 import kotlin.math.cos
 import kotlin.math.sin
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.DisplayDataState
@@ -1538,6 +1539,7 @@ private fun SwipeableDeleteRow(
 fun CalibrationsCard(
     viewMode: Int,
     isMmol: Boolean,
+    sensorId: String,
     showEmptyAction: Boolean = true,
     onAddCalibration: () -> Unit,
     onEditCalibration: (tk.glucodata.data.calibration.CalibrationEntity) -> Unit,
@@ -1549,14 +1551,17 @@ fun CalibrationsCard(
     // Collect calibrations and enable state
     val allCalibrations by tk.glucodata.data.calibration.CalibrationManager.getCalibrationsFlow()?.collectAsState(initial = tk.glucodata.data.calibration.CalibrationManager.getCachedCalibrations())
         ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(tk.glucodata.data.calibration.CalibrationManager.getCachedCalibrations()) }
-    val currentSensor = tk.glucodata.Natives.lastsensorname() ?: ""
+    val currentSensor = SensorIdentity.resolveAppSensorId(sensorId) ?: sensorId
     val calibrations = allCalibrations.filter {
-        it.isRawMode == isRawMode && (it.sensorId == currentSensor || it.sensorId.isEmpty())
+        currentSensor.isNotBlank() &&
+            it.isRawMode == isRawMode &&
+            SensorIdentity.matches(it.sensorId, currentSensor)
     }
     
-    val isEnabledForRaw by tk.glucodata.data.calibration.CalibrationManager.isEnabledForRaw.collectAsState()
-    val isEnabledForAuto by tk.glucodata.data.calibration.CalibrationManager.isEnabledForAuto.collectAsState()
-    val isCalibrationEnabled = if (isRawMode) isEnabledForRaw else isEnabledForAuto
+    val calibrationRevision by tk.glucodata.data.calibration.CalibrationManager.revision.collectAsState()
+    val isCalibrationEnabled = remember(isRawMode, currentSensor, calibrationRevision) {
+        tk.glucodata.data.calibration.CalibrationManager.isEnabledForMode(isRawMode, currentSensor)
+    }
     
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val dateFormatter = androidx.compose.runtime.remember { java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()) }
@@ -1679,7 +1684,7 @@ fun CalibrationsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { 
-                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, !isCalibrationEnabled) 
+                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, !isCalibrationEnabled, currentSensor)
                     }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1701,7 +1706,7 @@ fun CalibrationsCard(
                 androidx.compose.material3.Switch(
                     checked = isCalibrationEnabled,
                     onCheckedChange = { enabled ->
-                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, enabled)
+                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, enabled, currentSensor)
                     },
                     thumbContent = if (isCalibrationEnabled) {
                         {

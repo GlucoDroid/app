@@ -28,6 +28,9 @@ interface CalibrationDao {
 
     @Query("DELETE FROM calibrations WHERE sensorId = :sensorId")
     suspend fun deleteForSensor(sensorId: String): Int
+
+    @Query("UPDATE calibrations SET sensorId = :sensorId WHERE TRIM(sensorId) = ''")
+    suspend fun assignBlankSensorIds(sensorId: String): Int
     
     @Query("DELETE FROM calibrations")
     suspend fun deleteAll()

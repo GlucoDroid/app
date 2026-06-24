@@ -114,10 +114,12 @@ fun ExpressiveSettingsScreen(
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val alertsMasterEnabled by viewModel.alertsMasterEnabled.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
+    val sensorName by viewModel.sensorName.collectAsState()
     val isRawCalibrationMode = viewMode == 1 || viewMode == 3
-    val calibrationEnabledRaw by CalibrationManager.isEnabledForRaw.collectAsState()
-    val calibrationEnabledAuto by CalibrationManager.isEnabledForAuto.collectAsState()
-    val calibrationEnabled = if (isRawCalibrationMode) calibrationEnabledRaw else calibrationEnabledAuto
+    val calibrationRevision by CalibrationManager.revision.collectAsState()
+    val calibrationEnabled = remember(isRawCalibrationMode, sensorName, calibrationRevision) {
+        CalibrationManager.isEnabledForMode(isRawCalibrationMode, sensorName)
+    }
     val calibrationModeLabel = if (isRawCalibrationMode) "Raw" else "Auto"
     
     // Auto-refresh data when screen becomes active (e.g. returning from Alerts screen)
@@ -263,7 +265,9 @@ fun ExpressiveSettingsScreen(
                 ManualCalibrationSettingsItem(
                     calibrationEnabled = calibrationEnabled,
                     modeLabel = calibrationModeLabel,
-                    onToggleEnabled = { CalibrationManager.setEnabledForMode(isRawCalibrationMode, it) },
+                    onToggleEnabled = {
+                        CalibrationManager.setEnabledForMode(isRawCalibrationMode, it, sensorName)
+                    },
                     onOpenCalibration = { navController.navigate("settings/calibrations") },
                     iconTint = glucoseColor,
                     position = CardPosition.MIDDLE

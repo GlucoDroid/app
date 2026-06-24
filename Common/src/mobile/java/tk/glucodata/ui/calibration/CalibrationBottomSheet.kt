@@ -82,7 +82,7 @@ fun CalibrationBottomSheet(
     glucoseHistory: List<GlucosePoint>,
     isMmol: Boolean = true,
     viewMode: Int = 0,
-    sensorIdOverride: String? = null,
+    sensorId: String,
     onNavigateToHistory: () -> Unit
 ) {
     val view = LocalView.current
@@ -96,9 +96,7 @@ fun CalibrationBottomSheet(
 
     // State
     var editingEntity by remember { mutableStateOf<CalibrationEntity?>(null) }
-    val currentSensor = sensorIdOverride?.takeIf { it.isNotBlank() }
-        ?: tk.glucodata.Natives.lastsensorname()
-        ?: ""
+    val currentSensor = SensorIdentity.resolveAppSensorId(sensorId) ?: sensorId
     var selectedTimestamp by remember { mutableLongStateOf(initialTimestamp) }
 
     val nearestHistoryPoint = remember(selectedTimestamp, glucoseHistory) {
