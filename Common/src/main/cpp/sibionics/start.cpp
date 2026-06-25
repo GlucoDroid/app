@@ -1296,6 +1296,13 @@ fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
       LOGAR("SIprocessData reset");
       return 10LL;
     }
+    if (const uint32_t repaired =
+            sens->repairSibionicsStarttimeFromStream((uint32_t)timsec)) {
+      if (sensors)
+        sensors->setSensorStarttime(sdata->sensorindex, repaired);
+      if (backup)
+        backup->resendResetDevices(&updateone::sendstream);
+    }
     if (info->autoResetDays > 0) {
       if (timsec > info->starttime) {
         float age_days = (timsec - info->starttime) / (24.0f * 3600.0f);

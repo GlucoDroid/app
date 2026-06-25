@@ -821,6 +821,8 @@ public:
   }
   uint32_t getstarttime() const {
     auto *info = getinfo();
+    if (info && info->sibionics)
+      const_cast<SensorGlucoseData *>(this)->repairSibionicsStarttimeFromStream();
     return info ? info->starttime : 0;
   }
   int32_t getstarthistory() const {
@@ -1739,6 +1741,50 @@ uint32_t getlastpolltime() const {
       if (start[i].valid(i))
         return start[i].t;
     return UINT32_MAX;
+  }
+  uint32_t repairSibionicsStarttimeFromStream(uint32_t nowsecs = 0) {
+    if (!isSibionics())
+      return 0;
+    auto *info = getinfo();
+    const ScanData *start = polls.data();
+    if (!info || !start || info->pollcount <= 0)
+      return 0;
+
+    constexpr uint32_t startDriftTolerance = 15 * 60;
+    auto validStart = [](uint32_t tim) {
+      return tim > 1598911200u && tim < 2145909600u;
+    };
+
+    uint32_t candidate = 0;
+    const int count = info->pollcount;
+    for (int pos = 0; pos < count; ++pos) {
+      const ScanData &entry = start[pos];
+      if (!entry.valid(0))
+        continue;
+      if (nowsecs && entry.t > nowsecs + 10 * 60)
+        continue;
+      const uint64_t ageSeconds = static_cast<uint64_t>(pos + 1) * 60ULL;
+      if (entry.t <= ageSeconds)
+        continue;
+      const uint32_t derived =
+          static_cast<uint32_t>(entry.t - ageSeconds);
+      if (!validStart(derived))
+        continue;
+      candidate = derived;
+      break;
+    }
+
+    if (!candidate)
+      return 0;
+
+    const uint32_t old = info->starttime;
+    if (validStart(old) && old <= candidate + startDriftTolerance)
+      return 0;
+
+    info->starttime = candidate;
+    LOGGER("Sibionics stream repaired starttime old=%u new=%u pollcount=%u\n",
+           old, candidate, info->pollcount);
+    return candidate;
   }
   int scancount() const { return getinfo()->scancount; }
   int pollcount() const { return getinfo()->pollcount; }
