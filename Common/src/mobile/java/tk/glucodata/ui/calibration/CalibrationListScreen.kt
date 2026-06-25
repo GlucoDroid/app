@@ -122,7 +122,7 @@ fun CalibrationListScreen(
         .filter { it.isRawMode == isRawMode }
         .filter {
             currentSensor.isNotBlank() &&
-                (it.sensorId.isEmpty() || SensorIdentity.matches(it.sensorId, currentSensor))
+                CalibrationManager.calibrationMatchesSensor(it.sensorId, currentSensor)
         }
         .sortedByDescending { it.timestamp }
         .toList()

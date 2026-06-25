@@ -1555,7 +1555,7 @@ fun CalibrationsCard(
     val calibrations = allCalibrations.filter {
         currentSensor.isNotBlank() &&
             it.isRawMode == isRawMode &&
-            SensorIdentity.matches(it.sensorId, currentSensor)
+            tk.glucodata.data.calibration.CalibrationManager.calibrationMatchesSensor(it.sensorId, currentSensor)
     }
     
     val calibrationRevision by tk.glucodata.data.calibration.CalibrationManager.revision.collectAsState()

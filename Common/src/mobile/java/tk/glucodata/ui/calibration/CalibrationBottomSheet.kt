@@ -179,7 +179,7 @@ fun CalibrationBottomSheet(
         ?: remember { mutableStateOf(emptyList()) }
     val calibrations = allCalibrations
         .filter { it.isRawMode == isRawMode }
-        .filter { it.sensorId.isEmpty() || SensorIdentity.matches(it.sensorId, currentSensor) }
+        .filter { CalibrationManager.calibrationMatchesSensor(it.sensorId, currentSensor) }
         .sortedByDescending { it.timestamp }
 
     // --- SMART MODE SWITCHING LOGIC ---

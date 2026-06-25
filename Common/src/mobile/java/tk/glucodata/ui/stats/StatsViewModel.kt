@@ -628,7 +628,7 @@ class StatsViewModel : ViewModel() {
             resolvedStoredMode = if (isImported) null else resolveViewModeOrNull(sensorId),
             hasRawCalibration = hasRawCalibration,
             hasAutoCalibration = hasAutoCalibration,
-            matchesActiveSensor = SensorIdentity.matches(sensorId, activeSerial)
+            matchesActiveSensor = !activeSerial.isNullOrBlank() && SensorIdentity.matches(sensorId, activeSerial)
         )
     }
 

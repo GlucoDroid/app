@@ -148,7 +148,7 @@ fun CalibrationModelTableScreen(
         allCalibrations
             .asSequence()
             .filter { it.isRawMode == isRawMode }
-            .filter { currentSensor.isNotBlank() && SensorIdentity.matches(it.sensorId, currentSensor) }
+            .filter { currentSensor.isNotBlank() && CalibrationManager.calibrationMatchesSensor(it.sensorId, currentSensor) }
             .sortedByDescending { it.timestamp }
             .toList()
     }
