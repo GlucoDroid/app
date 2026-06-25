@@ -1163,6 +1163,25 @@ object CalibrationManager {
         }
 
         val results = FloatArray(samples.size)
+        if (!_lockPastHistory.value) {
+            val points = context.allPoints.filter { it.isEnabled }
+            samples.forEachIndexed { index, sample ->
+                results[index] = if (points.isEmpty()) {
+                    sample.value
+                } else {
+                    computeCalibratedValue(
+                        originalValue = sample.value,
+                        targetTimestamp = sample.timestamp,
+                        isRawMode = isRawMode,
+                        points = points,
+                        algorithm = context.algorithm,
+                        emitDiagnostics = emitDiagnostics && index == samples.lastIndex
+                    )
+                }
+            }
+            return results
+        }
+
         val indexedSamples = samples.withIndex().sortedBy { it.value.timestamp }
 
         indexedSamples.forEachIndexed { sortedIndex, indexedSample ->
@@ -1213,21 +1232,35 @@ object CalibrationManager {
         targetTimestamp: Long,
         earliestPoint: CalPoint?
     ): List<CalPoint> {
-        return CalibrationPointSelectionPolicy.selectForTimestamp(
-            allPoints = allPoints,
-            targetTimestamp = targetTimestamp,
-            applyToPast = _applyToPast.value,
-            lockPastHistory = _lockPastHistory.value,
-            keepDisabledHistory = _keepDisabledHistory.value,
-            timestampOf = { it.timestamp },
-            isEnabled = { it.isEnabled }
-        ).ifEmpty {
-            if (_applyToPast.value && _lockPastHistory.value && earliestPoint != null) {
-                listOf(earliestPoint)
-            } else {
-                emptyList()
-            }
+        if (!_lockPastHistory.value) {
+            return allPoints.filter { it.isEnabled }
         }
+
+        val historicalCandidates = allPoints.filter { it.timestamp <= targetTimestamp }
+        val activeAtTimestamp = historicalCandidates.filter { it.isEnabled }
+        val allActivePoints = allPoints.filter { it.isEnabled }
+        val retiredAtTimestamp = if (_keepDisabledHistory.value) {
+            historicalCandidates.filter { retired ->
+                if (retired.isEnabled) {
+                    false
+                } else {
+                    val nextActiveTimestamp = allActivePoints
+                        .asSequence()
+                        .filter { active -> active.timestamp > retired.timestamp }
+                        .map { active -> active.timestamp }
+                        .minOrNull()
+                    nextActiveTimestamp != null && targetTimestamp < nextActiveTimestamp
+                }
+            }
+        } else {
+            emptyList()
+        }
+
+        return (activeAtTimestamp + retiredAtTimestamp)
+            .sortedBy { it.timestamp }
+            .ifEmpty {
+                if (_applyToPast.value && earliestPoint != null) listOf(earliestPoint) else emptyList()
+            }
     }
 
     private fun computeCalibratedValue(
