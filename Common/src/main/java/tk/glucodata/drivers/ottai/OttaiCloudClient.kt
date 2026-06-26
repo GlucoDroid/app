@@ -329,16 +329,22 @@ object OttaiCloudClient {
     private fun parseDeviceResp(resp: JSONObject): DeviceResp? {
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val vo = data.optJSONObject("cgmDeviceRespVO") ?: data
+        // method + coefficient (and their update-times) are authoritative in the dedicated
+        // cgmDeviceMethodVO. cgmDeviceRespVO can carry an empty `method` for some firmwares
+        // (e.g. V1.5) while the method VO has it — so prefer the method VO, fall back to vo.
+        val mvo = data.optJSONObject("cgmDeviceMethodVO") ?: vo
         val keyA = vo.optString("keyA").orEmptyIfNull()
         if (keyA.isBlank()) return null
+        fun pick(key: String): String = mvo.optString(key).ifBlank { vo.optString(key) }
+        fun pickTime(key: String): Long = mvo.optLongLoose(key).takeIf { it != 0L } ?: vo.optLongLoose(key)
         return DeviceResp(
             mac = vo.optString("mac").orEmptyIfNull(),
             keyA = keyA,
-            method = vo.optString("method").orEmptyIfNull(),
-            coefficient = vo.optString("coefficient").orEmptyIfNull(),
+            method = pick("method"),
+            coefficient = pick("coefficient"),
             produceTime = vo.optLongLoose("produceTime"),
-            methodUpdateTime = vo.optLongLoose("methodUpdateTime"),
-            coeffUpdateTime = vo.optLongLoose("coeffUpdateTime"),
+            methodUpdateTime = pickTime("methodUpdateTime"),
+            coeffUpdateTime = pickTime("coeffUpdateTime"),
             activeTime = vo.optLongLoose("activeTime"),
             activeExpireTime = vo.optLongLoose("activeExpireTime"),
             preheatPeriodTime = vo.optLongLoose("preheatPeriodTime"),

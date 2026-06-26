@@ -109,8 +109,20 @@ private const val OTTAI_OFFICIAL_RSSI_THRESHOLD = -70
 private fun fetchOttaiMaterials(context: Context, mac: String): OttaiRegistry.DeviceMaterials? {
     val canonical = OttaiConstants.canonicalSensorId(mac).ifEmpty { return null }
     OttaiRegistry.loadMaterials(context, canonical).takeIf { it.authKeys != null }?.let { return it }
-    val resp = OttaiCloudClient.validateByMac(context, canonical) ?: return null
-    val m = OttaiCloudClient.toMaterials(context, canonical, resp)?.takeIf { it.authKeys != null } ?: return null
+    // validate-by-mac works for an unbound sensor, but one we already activated returns
+    // AppDevice_AlreadyUsed there. Fall back to getBindDevice — the currently-bound sensor's
+    // materials (incl. the cgmDeviceMethodVO method) — without needing to re-bind.
+    fun viaValidate(): OttaiRegistry.DeviceMaterials? {
+        val resp = OttaiCloudClient.validateByMac(context, canonical) ?: return null
+        return OttaiCloudClient.toMaterials(context, canonical, resp)?.takeIf { it.authKeys != null }
+    }
+    fun viaBound(): OttaiRegistry.DeviceMaterials? {
+        val resp = OttaiCloudClient.getBindDevice(context) ?: return null
+        val boundId = OttaiConstants.canonicalSensorId(resp.mac)
+        if (!OttaiConstants.matchesCanonicalOrKnownNativeAlias(boundId, canonical)) return null
+        return OttaiCloudClient.toMaterials(context, boundId, resp)?.takeIf { it.authKeys != null }
+    }
+    val m = viaValidate() ?: viaBound() ?: return null
     OttaiRegistry.ensureSensorRecord(context, canonical, OttaiConstants.macWithColons(canonical), OttaiConstants.DEFAULT_DISPLAY_NAME)
     OttaiRegistry.saveMaterials(context, canonical, m)
     return m
