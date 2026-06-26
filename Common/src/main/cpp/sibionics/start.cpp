@@ -179,7 +179,19 @@ extern "C" JNIEXPORT void JNICALL fromjava(setAutoResetDays)(JNIEnv *env,
     return;
   sistream *stream = reinterpret_cast<sistream *>(dataptr);
   auto *sens = stream->hist;
-  sens->getinfo()->autoResetDays = val;
+  if (!sens)
+    return;
+  auto *info = sens->getinfo();
+  if (!info)
+    return;
+  if (val < 0)
+    val = 0;
+  if (val > 255)
+    val = 255;
+  if (info->autoResetDays != val) {
+    info->siBetween = 0;
+  }
+  info->autoResetDays = val;
 }
 
 extern "C" JNIEXPORT jint JNICALL fromjava(getAutoResetDays)(JNIEnv *env,
@@ -1295,13 +1307,6 @@ fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
     if (info->reset) {
       LOGAR("SIprocessData reset");
       return 10LL;
-    }
-    if (const uint32_t repaired =
-            sens->repairSibionicsStarttimeFromStream((uint32_t)timsec)) {
-      if (sensors)
-        sensors->setSensorStarttime(sdata->sensorindex, repaired);
-      if (backup)
-        backup->resendResetDevices(&updateone::sendstream);
     }
     if (info->autoResetDays > 0) {
       if (timsec > info->starttime) {

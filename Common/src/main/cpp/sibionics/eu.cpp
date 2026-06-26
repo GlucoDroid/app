@@ -381,8 +381,6 @@ extern "C" int VISIBLE __vsprintf_chk(char *s, int flag, size_t slen,
 extern int sitrend2abbott(int sitrend);
 extern float sitrend2RateOfChange(int sitrend);
 
-extern uint32_t makestarttime(int index, uint32_t eventTime);
-
 // #include "sibionics/json.hpp"
 // extern bool savejson(SensorGlucoseData *sens,std::string_view, int
 // index,const AlgorithmContext *alg,getjson_t getjson ); extern getjson_t
@@ -410,52 +408,77 @@ static bool saveRawOnlyPoll(SensorGlucoseData *sens, time_t eventTime,
   return true;
 }
 
-static bool validSiPacketStart(uint32_t startTime, time_t eventTime) {
-  return startTime > 1598911200u && startTime <= (uint32_t)eventTime;
+static bool validSiStartTime(uint32_t startTime) {
+  return startTime > 1598911200u && startTime < 2145909600u;
 }
 
-static void repairStartTimeAfterAcceptedPacket(SensorGlucoseData *sens,
-                                               sensor *sensor, int index,
-                                               time_t eventTime) {
-  if (!sens || !sensor || eventTime <= 1598911200) {
+static bool validSiPacketStart(uint32_t startTime, time_t eventTime) {
+  return validSiStartTime(startTime) && startTime <= (uint32_t)eventTime;
+}
+
+static void updateStartTimeFromAcceptedPacket(SensorGlucoseData *sens,
+                                              sensor *sensor, int index,
+                                              time_t eventTime, int reindex) {
+  if (!sens || !sensor || index < 0 || eventTime <= 1598911200) {
     return;
   }
-  const uint32_t oldListStart = sensor->starttime;
-  uint32_t repaired =
-      sens->repairSibionicsStarttimeFromStream((uint32_t)eventTime);
-  if (!repaired && index >= 0 && index <= 9) {
-    auto *info = sens->getinfo();
-    const uint32_t packetStart = makestarttime(index, (uint32_t)eventTime);
-    if (info && validSiPacketStart(packetStart, eventTime)) {
-      const uint32_t oldInfoStart = info->starttime;
-      const uint32_t diff = oldInfoStart > packetStart
-                                ? oldInfoStart - packetStart
-                                : packetStart - oldInfoStart;
-      if (!validSiPacketStart(oldInfoStart, eventTime) || diff > 30) {
-        info->starttime = packetStart;
-        repaired = packetStart;
-        LOGGER("SIprocess repaired info starttime from early packet old=%u "
-               "new=%u index=%d itime=%ld\n",
-               oldInfoStart, repaired, index, (long)eventTime);
-      }
-    }
-  }
-  if (!repaired) {
-    return;
-  }
-  constexpr uint32_t startDriftTolerance = 15 * 60;
-  if (validSiPacketStart(oldListStart, eventTime) &&
-      oldListStart <= repaired + startDriftTolerance) {
+  auto *info = sens->getinfo();
+  if (!info) {
     return;
   }
 
-  sensor->starttime = repaired;
-  sensors->setindices();
-  if (backup) {
-    backup->resendResetDevices(&updateone::sendstream);
+  const uint64_t packetAgeSeconds = static_cast<uint64_t>(index) * 60ULL;
+  if (packetAgeSeconds > static_cast<uint64_t>(eventTime)) {
+    return;
   }
-  LOGGER("SIprocess repaired list starttime old=%u new=%u index=%d itime=%ld\n",
-         oldListStart, repaired, index, (long)eventTime);
+  const uint32_t packetStart =
+      static_cast<uint32_t>(eventTime - packetAgeSeconds);
+  if (!validSiPacketStart(packetStart, eventTime)) {
+    return;
+  }
+
+  constexpr uint32_t startDriftTolerance = 30;
+  const bool currentPacket = reindex == 0;
+  const bool earlyPacket = index <= 9;
+  if (!currentPacket && !earlyPacket) {
+    return;
+  }
+
+  const uint32_t oldInfoStart = info->starttime;
+  const uint32_t infoDiff = oldInfoStart > packetStart
+                                ? oldInfoStart - packetStart
+                                : packetStart - oldInfoStart;
+  const bool validInfoStart = validSiStartTime(oldInfoStart);
+  const bool updateInfo =
+      !validInfoStart ||
+      (infoDiff > startDriftTolerance &&
+       (currentPacket || packetStart > oldInfoStart + startDriftTolerance));
+
+  const uint32_t oldListStart = sensor->starttime;
+  const uint32_t listDiff = oldListStart > packetStart
+                                ? oldListStart - packetStart
+                                : packetStart - oldListStart;
+  const bool validListStart = validSiStartTime(oldListStart);
+  const bool updateList =
+      !validListStart ||
+      (listDiff > startDriftTolerance &&
+       (currentPacket || packetStart > oldListStart + startDriftTolerance));
+
+  if (!updateInfo && !updateList) {
+    return;
+  }
+
+  if (updateInfo)
+    info->starttime = packetStart;
+  if (updateList)
+    sensor->starttime = packetStart;
+  sensors->setindices();
+  if (backup)
+    backup->resendResetDevices(&updateone::sendstream);
+  LOGGER("SIprocess updated starttime from packet old=%u/%u new=%u index=%d "
+         "reindex=%d itime=%ld\n",
+         oldInfoStart, oldListStart, packetStart, index, reindex,
+         (long)eventTime);
 }
 
 static bool splitJsonValue(const char *json, const char *key, jlong &value) {
@@ -753,7 +776,8 @@ jlong SiContext::processData2(SensorGlucoseData *sens, time_t nowsecs,
         }
         sens->savestream(eventTime, totalIndex, mgdL, abbottrend, change,
                          (int)current, (uint16_t)basear[1]);
-        repairStartTimeAfterAcceptedPacket(sens, sensor, index, eventTime);
+        updateStartTimeFromAcceptedPacket(sens, sensor, index, eventTime,
+                                          reindex);
         sens->setSiIndex(index + 1);
         sens->retried = 0;
         if (!reindex) {
@@ -809,7 +833,8 @@ jlong SiContext::processData2(SensorGlucoseData *sens, time_t nowsecs,
             saveRawOnlyPoll(sens, eventTime, totalIndex, (int)current,
                             (uint16_t)basear[1]);
         if (savedRawOnly) {
-          repairStartTimeAfterAcceptedPacket(sens, sensor, index, eventTime);
+          updateStartTimeFromAcceptedPacket(sens, sensor, index, eventTime,
+                                            reindex);
         }
         if (!reindex && savedRawOnly) {
           sens->receivehistory = nowsecs;
