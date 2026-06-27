@@ -54,8 +54,11 @@ class OttaiBleManager(
          */
         @Volatile @JvmStatic var activateRequestedFor: String? = null
 
-        private const val HISTORY_REQUEST_WINDOW_RECORDS = 270
+        private const val MAX_HISTORY_REQUEST_RECORDS = 0xFFFF
+        private const val HISTORY_FORWARD_PROBE_RECORDS = 20
         private const val HISTORY_REQUEST_COOLDOWN_MS = 60_000L
+        private const val MAX_LIVE_POLL_INTERVAL_MS = 60_000L
+        private const val RECORD_INTERVAL_MS = 60_000L
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
@@ -97,7 +100,6 @@ class OttaiBleManager(
     @Volatile private var activationCommandSentAtMs = 0L
     @Volatile private var provisionalActiveTimeMs = 0L
     @Volatile private var livePollIntervalMs = 60_000L
-    @Volatile private var latestCgmInfoDataNo = 0
     @Volatile private var lastHistoryRequestAtMs = 0L
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
     // Changed characteristic and may restructure its GATT post-auth, leaving the
@@ -111,6 +113,7 @@ class OttaiBleManager(
     @Volatile private var lastGlucoseMgdl = 0f
     @Volatile private var lastRawCurrent = Float.NaN
     @Volatile private var lastDataNo = -1
+    @Volatile private var streamStartTimeMs = 0L
 
     override var viewMode: Int = 0
 
@@ -118,6 +121,13 @@ class OttaiBleManager(
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return@Runnable
         val gatt = mBluetoothGatt ?: return@Runnable
         readLiveGlucose(gatt, "poll")
+        scheduleLivePoll()
+    }
+
+    private val postHistoryLiveRunnable = Runnable {
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return@Runnable
+        val gatt = mBluetoothGatt ?: return@Runnable
+        readLiveGlucose(gatt, "post-history")
         scheduleLivePoll()
     }
 
@@ -243,6 +253,7 @@ class OttaiBleManager(
                 Log.i(TAG, "disconnected status=$status")
                 phase = Phase.IDLE
                 handler.removeCallbacks(livePollRunnable)
+                handler.removeCallbacks(postHistoryLiveRunnable)
                 svcDeviceInfo = null; svcCgm = null; svcAuth = null
                 sessionKeyHex = ""
                 runCatching { gatt.close() }
@@ -532,31 +543,15 @@ class OttaiBleManager(
         // is nothing to emit from cgm-info; do not fabricate a reading here.
     }
 
-    private fun maybeUpdateLatestDataNoFromCgmInfo(value: ByteArray) {
-        if (value.size < 10) return
-        if (value[0].toInt() != 0x04 || value[1].toInt() != 0x77) return
-        var latest = latestCgmInfoDataNo
-        var offset = 2
-        while (offset + 8 <= value.size) {
-            val dataNo = uint32Le(value, offset + 4).toInt()
-            if (dataNo in 1..65534 && dataNo > latest) latest = dataNo
-            offset += 8
-        }
-        if (latest != latestCgmInfoDataNo) {
-            latestCgmInfoDataNo = latest
-            Log.i(TAG, "cgm-info latest dataNo=$latest")
-        }
-    }
-
     private fun maybeUpdateLivePollInterval(value: ByteArray) {
         if (value.size < 4) return
         if (value[0].toInt() != 0x07 || value[1].toInt() != 0x77) return
         val seconds = le16(value[2], value[3])
         if (seconds !in 5..3600) return
-        val next = seconds * 1000L
+        val next = (seconds * 1000L).coerceAtMost(MAX_LIVE_POLL_INTERVAL_MS)
         if (next == livePollIntervalMs) return
         livePollIntervalMs = next
-        Log.i(TAG, "live poll interval=${seconds}s from cgm-info")
+        Log.i(TAG, "live poll interval=${next / 1000}s from cgm-info raw=${seconds}s")
         if (phase == Phase.STREAMING && sessionKeyHex.isNotBlank()) scheduleLivePoll(next)
     }
 
@@ -617,6 +612,7 @@ class OttaiBleManager(
     private fun handleGlucosePayload(cipher: ByteArray, live: Boolean, source: String) {
         if (sessionKeyHex.isBlank()) { Log.w(TAG, "payload before session key"); return }
         val activeMs = effectiveActiveTimeMs()
+        val receivedAtMs = System.currentTimeMillis()
         val kind = if (live) "live" else "history"
         val cipherHex = OttaiCrypto.bytesToHex(cipher).take(96)
         Log.i(TAG, "$kind $source cipher len=${cipher.size} hex=$cipherHex")
@@ -637,6 +633,8 @@ class OttaiBleManager(
         } else {
             records.map { OttaiParser.toReading(it, materials.method, materials.coefficients, activeMs) }
         }
+        val previousDataNo = lastDataNo
+        var emitted = false
         for (r in readings) {
             if (!r.valid) {
                 Log.w(TAG, "$kind record rejected dataNo=${r.record.dataNo} runtime=${r.record.runtimeSec} raw=${r.record.rawCurrent}")
@@ -646,41 +644,77 @@ class OttaiBleManager(
                 Log.w(TAG, "no method — skipping emit (raw only) dataNo=${r.record.dataNo}")
                 continue
             }
-            emitReading(r)
+            emitted = emitReading(r, live, receivedAtMs) || emitted
         }
-        if (!live && readings.isNotEmpty()) lastHistoryRequestAtMs = 0L
-        if (readings.isNotEmpty()) UiRefreshBus.requestStatusRefresh()
+        if (emitted) {
+            if (live) {
+                val liveDataNo = lastDataNo
+                handler.postDelayed({ requestHistoryAfterLive(previousDataNo, liveDataNo) }, 1_500L)
+            } else {
+                // History can arrive in a long burst and still end several minutes behind
+                // wall time. Ask live immediately afterwards on a one-shot that cgm-info
+                // cadence updates cannot cancel.
+                handler.removeCallbacks(postHistoryLiveRunnable)
+                handler.postDelayed(postHistoryLiveRunnable, 1_000L)
+            }
+            UiRefreshBus.requestStatusRefresh()
+        }
     }
 
-    private fun emitReading(r: OttaiReading) {
+    private fun emitReading(r: OttaiReading, live: Boolean, receivedAtMs: Long): Boolean {
         // adjustGlucose is mmol/L; convert to mg/dL for native stream.
         val mgdl = (r.adjustGlucose * 18.0).toFloat()
-        if (mgdl <= 1f) return
-        val activeMs = effectiveActiveTimeMs()
-        val sampleMs = if (activeMs > 0L) {
-            activeMs + r.record.runtimeSec * 1000L
-        } else {
-            r.monitorTimeMs
-        }
+        if (mgdl <= 1f) return false
+        val advancesDataNo = r.record.dataNo > lastDataNo
+        val sampleMs = resolveSampleTimeMs(r, live, receivedAtMs, advancesDataNo)
         if (sampleMs <= 0L) {
             Log.w(TAG, "no active-time anchor — skipping emit dataNo=${r.record.dataNo}")
-            return
+            return false
         }
-        if (sampleMs >= lastGlucoseAtMs) {
+        val newest = sampleMs >= lastGlucoseAtMs
+        if (newest) {
             lastGlucoseAtMs = sampleMs
             lastGlucoseMgdl = mgdl
             lastRawCurrent = r.record.rawCurrent.toFloat()
-            lastDataNo = r.record.dataNo
         }
+        if (advancesDataNo) lastDataNo = r.record.dataNo
         Log.i(TAG, "BG dataNo=${r.record.dataNo} mmol=%.2f mgdl=%.0f raw=%d T=%.1f".format(
             r.adjustGlucose, mgdl, r.record.rawCurrent, r.record.temperatureC))
-        mirrorReadingIntoNative(sampleMs, mgdl)
-        Applic.app?.let { OttaiRegistry.saveLastDataNo(it, SerialNumber.orEmpty(), r.record.dataNo) }
+        val nativeOk = mirrorReadingIntoNative(sampleMs, mgdl)
+        if (advancesDataNo) {
+            Applic.app?.let { OttaiRegistry.saveLastDataNo(it, SerialNumber.orEmpty(), r.record.dataNo) }
+        }
+        return nativeOk || newest
+    }
+
+    private fun resolveSampleTimeMs(
+        r: OttaiReading,
+        live: Boolean,
+        receivedAtMs: Long,
+        advancesDataNo: Boolean,
+    ): Long {
+        if (live && advancesDataNo && receivedAtMs > 0L && r.record.dataNo >= 0) {
+            val start = receivedAtMs - r.record.dataNo.toLong() * RECORD_INTERVAL_MS
+            if (start > 0L) {
+                val old = streamStartTimeMs
+                streamStartTimeMs = start
+                if (old == 0L || kotlin.math.abs(old - start) > RECORD_INTERVAL_MS) {
+                    Log.i(TAG, "stream time anchor dataNo=${r.record.dataNo} start=${start / 1000L} live=${receivedAtMs / 1000L}")
+                }
+            }
+            return receivedAtMs
+        }
+        streamStartTimeMs.takeIf { it > 0L }?.let { start ->
+            return start + r.record.dataNo.toLong() * RECORD_INTERVAL_MS
+        }
+        val activeMs = effectiveActiveTimeMs()
+        if (activeMs > 0L) return activeMs + r.record.runtimeSec * 1000L
+        return r.monitorTimeMs
     }
 
     private fun ensureNativeShell() {
         val id = SerialNumber ?: return
-        val activeMs = effectiveActiveTimeMs()
+        val activeMs = nativeStreamStartTimeMs()
         if (activeMs <= 0L) return
         runCatching {
             val startSec = (activeMs / 1000L).coerceAtLeast(1L)
@@ -689,14 +723,24 @@ class OttaiBleManager(
         }.onFailure { Log.stack(TAG, "ensureNativeShell", it) }
     }
 
-    private fun mirrorReadingIntoNative(sampleMs: Long, mgdl: Float) {
-        val id = SerialNumber ?: return
+    private fun nativeStreamStartTimeMs(): Long =
+        streamStartTimeMs.takeIf { it > 0L }
+            ?: effectiveActiveTimeMs()
+
+    private fun mirrorReadingIntoNative(sampleMs: Long, mgdl: Float): Boolean {
+        val id = SerialNumber ?: return false
         ensureNativeShell()
-        runCatching {
-            Natives.addGlucoseStream(sampleMs / 1000L, mgdl, id)
+        return runCatching {
+            // Native direct-stream storage multiplies this float by 10 internally.
+            val nativeValue = mgdl / 10f
+            Natives.addGlucoseStream(sampleMs / 1000L, nativeValue, id)
             Natives.wakebackup()
-            Log.i(TAG, "native write sec=${sampleMs / 1000L} mgdl=%.1f dataptr=$dataptr start=${effectiveActiveTimeMs() / 1000L}".format(mgdl))
-        }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
+            Log.i(TAG, "native write sec=${sampleMs / 1000L} mgdl=%.1f native=%.2f dataptr=$dataptr streamStart=${nativeStreamStartTimeMs() / 1000L} activeStart=${effectiveActiveTimeMs() / 1000L}".format(mgdl, nativeValue))
+            true
+        }.getOrElse {
+            Log.stack(TAG, "mirrorReadingIntoNative", it)
+            false
+        }
     }
 
     // ---- activation (gated) ----
@@ -849,21 +893,58 @@ class OttaiBleManager(
             ((b[offset + 3].toLong() and 0xFFL) shl 24))
 
     override fun requestHistoryBackfill(): Boolean {
-        return requestRecentHistory("manual")
+        val latest = lastDataNo.takeIf { it > 0 } ?: return false
+        return requestHistoryRange("manual", 0, latest + 1)
     }
 
     private fun requestRecentHistory(reason: String): Boolean {
+        val latest = lastDataNo.takeIf { it > 0 } ?: return false
+        val start = (latest + 1).coerceAtLeast(0)
+        return requestHistoryRange(reason, start, HISTORY_FORWARD_PROBE_RECORDS)
+    }
+
+    private fun requestHistoryAfterLive(previousDataNo: Int, liveDataNo: Int): Boolean {
+        if (liveDataNo <= 0) return false
+        val missingBeforeLive = liveDataNo - previousDataNo - 1
+        if (previousDataNo >= 0 && missingBeforeLive <= 0) {
+            Log.i(TAG, "skip history reason=post-live previous=$previousDataNo live=$liveDataNo")
+            return false
+        }
+        val count = if (previousDataNo < 0) {
+            liveDataNo + 1
+        } else {
+            missingBeforeLive
+        }
+        if (count <= 0) return false
+        if (count > MAX_HISTORY_REQUEST_RECORDS) {
+            Log.w(TAG, "history request too large reason=post-live previous=$previousDataNo live=$liveDataNo count=$count")
+            return false
+        }
+        val start = if (previousDataNo < 0) {
+            0
+        } else {
+            previousDataNo + 1
+        }
+        return requestHistoryRange("post-live", start, count)
+    }
+
+    private fun requestHistoryRange(reason: String, start: Int, count: Int): Boolean {
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return false
         val gatt = mBluetoothGatt ?: return false
-        val latest = latestCgmInfoDataNo.takeIf { it > 0 } ?: lastDataNo.takeIf { it > 0 } ?: return false
+        if (start < 0 || count <= 0) return false
+        if (count > MAX_HISTORY_REQUEST_RECORDS) {
+            Log.w(TAG, "history request too large reason=$reason start=$start count=$count")
+            return false
+        }
         val now = System.currentTimeMillis()
         if (reason != "manual" && now - lastHistoryRequestAtMs < HISTORY_REQUEST_COOLDOWN_MS) return false
-        val count = minOf(HISTORY_REQUEST_WINDOW_RECORDS, latest + 1)
-        val start = (latest - count + 1).coerceAtLeast(0)
         val payload = shortToBytesLE(start) + shortToBytesLE(count)
-        lastHistoryRequestAtMs = now
-        Log.i(TAG, "request history reason=$reason start=$start count=$count latest=$latest payload=${OttaiCrypto.bytesToHex(payload)}")
-        return writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_HISTORY_REQUEST, payload)
+        val issued = writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_HISTORY_REQUEST, payload)
+        if (issued) {
+            lastHistoryRequestAtMs = now
+            Log.i(TAG, "request history reason=$reason start=$start count=$count payload=${OttaiCrypto.bytesToHex(payload)}")
+        }
+        return issued
     }
 
     // ---- GATT helpers ----

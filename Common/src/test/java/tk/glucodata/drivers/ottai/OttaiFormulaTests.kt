@@ -59,6 +59,37 @@ class OttaiFormulaTests {
     }
 
     @Test
+    fun comparisons_returnMaskValueOrZero() {
+        assertEquals(7.0, OttaiFormula.evaluate("V0 C0 C1 GT", listOf(5.0, 7.0), v(6.0, 0.0, 0.0, 0.0, 0.0, 0.0), noBytes), 1e-9)
+        assertEquals(0.0, OttaiFormula.evaluate("V0 C0 C1 GT", listOf(5.0, 7.0), v(4.0, 0.0, 0.0, 0.0, 0.0, 0.0), noBytes), 1e-9)
+        assertEquals(3.0, OttaiFormula.evaluate("V0 C0 C1 LE", listOf(5.0, 3.0), v(5.0, 0.0, 0.0, 0.0, 0.0, 0.0), noBytes), 1e-9)
+        assertEquals(0.0, OttaiFormula.evaluate("V0 C0 C1 LE", listOf(5.0, 3.0), v(6.0, 0.0, 0.0, 0.0, 0.0, 0.0), noBytes), 1e-9)
+    }
+
+    @Test
+    fun ageCorrectionMasks_areMutuallyExclusive() {
+        // This mirrors the Ottai age-correction pattern:
+        //   V2 C12 1 LE
+        //   V2 C12 1 GT
+        // Only one side may contribute; the old decompile-shaped port returned 1.0
+        // for the false side too, doubling the correction factor.
+        val early = OttaiFormula.evaluate(
+            "V2 C0 1 LE;V2 C0 1 GT;R0 R1 AD",
+            listOf(86_400.0),
+            v(0.0, 0.0, 25.0, 0.0, 0.0, 0.0),
+            noBytes,
+        )
+        val late = OttaiFormula.evaluate(
+            "V2 C0 1 LE;V2 C0 1 GT;R0 R1 AD",
+            listOf(86_400.0),
+            v(0.0, 0.0, 172_800.0, 0.0, 0.0, 0.0),
+            noBytes,
+        )
+        assertEquals(1.0, early, 1e-9)
+        assertEquals(1.0, late, 1e-9)
+    }
+
+    @Test
     fun buildVariables_v4IsIntegerHours() {
         val vv = OttaiFormula.buildVariables(rawCurrent = 120, temperature = 35.0, runtimeSec = 7300, dataNo = 42, voltage = 6)
         assertEquals(120.0, vv[0], 1e-9)

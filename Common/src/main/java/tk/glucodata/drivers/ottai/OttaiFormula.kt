@@ -126,10 +126,10 @@ object OttaiFormula {
                             stack[sp]
                         } else 1.0
                     }
-                    "GT" -> { sp -= 2; r = if (stack[sp] > stack[sp + 1] && stack[sp + 2] != 1.0) stack[sp] else 1.0 }
-                    "GE" -> { sp -= 2; r = if (stack[sp] >= stack[sp + 1] && stack[sp + 2] != 1.0) stack[sp] else 1.0 }
-                    "LT" -> { sp -= 2; r = if (stack[sp] < stack[sp + 1] && stack[sp + 2] != 1.0) stack[sp] else 1.0 }
-                    "LE" -> { sp -= 2; r = if (stack[sp] <= stack[sp + 1] && stack[sp + 2] != 1.0) stack[sp] else 1.0 }
+                    "GT" -> { sp -= 2; r = if (stack[sp] > stack[sp + 1]) stack[sp + 2] else 0.0 }
+                    "GE" -> { sp -= 2; r = if (stack[sp] >= stack[sp + 1]) stack[sp + 2] else 0.0 }
+                    "LT" -> { sp -= 2; r = if (stack[sp] < stack[sp + 1]) stack[sp + 2] else 0.0 }
+                    "LE" -> { sp -= 2; r = if (stack[sp] <= stack[sp + 1]) stack[sp + 2] else 0.0 }
                     "RD" -> {
                         sp--
                         val decimals = stack[sp + 1].toInt()
