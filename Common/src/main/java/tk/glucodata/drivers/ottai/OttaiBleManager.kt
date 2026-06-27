@@ -27,6 +27,7 @@ import android.os.HandlerThread
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.util.UUID
+import kotlin.math.abs
 import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
@@ -124,6 +125,10 @@ class OttaiBleManager(
     @Volatile private var lastGlucoseMmol = Float.NaN
     @Volatile private var lastGlucoseMgdl = 0f
     @Volatile private var lastRawCurrent = Float.NaN
+    @Volatile private var lastAcceptedDataNo = -1
+    @Volatile private var lastAcceptedSampleMs = 0L
+    @Volatile private var lastAcceptedMmol = Float.NaN
+    @Volatile private var lastAcceptedRawCurrent = 0
     @Volatile private var lastDataNo = -1
     @Volatile private var streamStartTimeMs = 0L
 
@@ -649,7 +654,7 @@ class OttaiBleManager(
         }
         val previousDataNo = lastDataNo
         val emittedReadings = ArrayList<EmittedReading>(readings.size)
-        for (r in readings) {
+        for ((index, r) in readings.withIndex()) {
             if (!r.valid) {
                 Log.w(TAG, "$kind record rejected dataNo=${r.record.dataNo} runtime=${r.record.runtimeSec} raw=${r.record.rawCurrent}")
                 continue
@@ -658,7 +663,7 @@ class OttaiBleManager(
                 Log.w(TAG, "no method — skipping emit (raw only) dataNo=${r.record.dataNo}")
                 continue
             }
-            emitReading(r, live, receivedAtMs)?.let(emittedReadings::add)
+            emitReading(r, live, receivedAtMs, readings, index)?.let(emittedReadings::add)
         }
         if (emittedReadings.isNotEmpty()) {
             storeDecodedReadings(emittedReadings, live)
@@ -683,16 +688,28 @@ class OttaiBleManager(
         }
     }
 
-    private fun emitReading(r: OttaiReading, live: Boolean, receivedAtMs: Long): EmittedReading? {
+    private fun emitReading(
+        r: OttaiReading,
+        live: Boolean,
+        receivedAtMs: Long,
+        batch: List<OttaiReading>,
+        batchIndex: Int,
+    ): EmittedReading? {
         // adjustGlucose is mmol/L; convert to mg/dL for Room storage.
         val mmol = r.adjustGlucose.toFloat()
         val mgdl = mmol * MGDL_PER_MMOLL
-        if (mgdl <= 1f) return null
+        OttaiOutputFilter.hardRejectReason(r.record, mmol)?.let { reason ->
+            return rejectReading(r, mmol, live, "hard-$reason")
+        }
+        if (mgdl <= 1f) return rejectReading(r, mmol, live, "mgdl=$mgdl")
         val advancesDataNo = r.record.dataNo > lastDataNo
-        val sampleMs = resolveSampleTimeMs(r, live, receivedAtMs, advancesDataNo)
+        val sampleMs = resolveSampleTimeMs(r, live, receivedAtMs)
         if (sampleMs <= 0L) {
             Log.w(TAG, "no active-time anchor — skipping emit dataNo=${r.record.dataNo}")
             return null
+        }
+        continuityRejectReason(r, mmol, sampleMs, live, batch, batchIndex)?.let { reason ->
+            return rejectReading(r, mmol, live, reason)
         }
         val previousGlucoseAtMs = lastGlucoseAtMs
         val freshLiveSample = live &&
@@ -705,13 +722,11 @@ class OttaiBleManager(
             lastGlucoseMgdl = mgdl
             lastRawCurrent = r.record.rawCurrent.toFloat()
         }
-        if (advancesDataNo) lastDataNo = r.record.dataNo
+        rememberAcceptedReading(r, mmol, sampleMs)
+        if (advancesDataNo) noteSeenDataNo(r.record.dataNo)
         Log.i(TAG, "BG dataNo=${r.record.dataNo} mmol=%.2f mgdl=%.0f raw=%d T=%.1f".format(
             mmol, mgdl, r.record.rawCurrent, r.record.temperatureC))
         val shouldPersist = !live || (freshLiveSample && sampleMs > previousGlucoseAtMs)
-        if (advancesDataNo) {
-            Applic.app?.let { OttaiRegistry.saveLastDataNo(it, SerialNumber.orEmpty(), r.record.dataNo) }
-        }
         return EmittedReading(
             sampleMs = sampleMs,
             mgdl = mgdl,
@@ -719,6 +734,114 @@ class OttaiBleManager(
             publishCurrent = freshLiveSample && sampleMs > previousGlucoseAtMs,
             persist = shouldPersist,
         )
+    }
+
+    private fun rejectReading(r: OttaiReading, mmol: Float, live: Boolean, reason: String): EmittedReading? {
+        noteSeenDataNo(r.record.dataNo)
+        val kind = if (live) "live" else "history"
+        Log.w(TAG, "$kind BG rejected reason=$reason dataNo=${r.record.dataNo} mmol=%.2f raw=%d T=%.1f".format(
+            mmol, r.record.rawCurrent, r.record.temperatureC))
+        return null
+    }
+
+    private fun noteSeenDataNo(dataNo: Int) {
+        if (dataNo <= lastDataNo) return
+        lastDataNo = dataNo
+        Applic.app?.let { OttaiRegistry.saveLastDataNo(it, SerialNumber.orEmpty(), dataNo) }
+    }
+
+    private fun rememberAcceptedReading(r: OttaiReading, mmol: Float, sampleMs: Long) {
+        lastAcceptedDataNo = r.record.dataNo
+        lastAcceptedSampleMs = sampleMs
+        lastAcceptedMmol = mmol
+        lastAcceptedRawCurrent = r.record.rawCurrent
+    }
+
+    private data class NeighborSample(
+        val dataNo: Int,
+        val mmol: Float,
+        val rawCurrent: Int,
+    )
+
+    private fun continuityRejectReason(
+        r: OttaiReading,
+        mmol: Float,
+        sampleMs: Long,
+        live: Boolean,
+        batch: List<OttaiReading>,
+        batchIndex: Int,
+    ): String? {
+        if (isAdjacentToLastAccepted(r.record.dataNo, sampleMs) &&
+            OttaiOutputFilter.isOneMinuteRawExcursion(
+                candidateMmol = mmol,
+                candidateRaw = r.record.rawCurrent,
+                baselineMmol = lastAcceptedMmol,
+                baselineRaw = lastAcceptedRawCurrent,
+            )
+        ) {
+            return "continuity-prev dataNo=${lastAcceptedDataNo} mmol=%.2f raw=%d".format(
+                lastAcceptedMmol, lastAcceptedRawCurrent)
+        }
+        if (!live) {
+            historyIsolatedSpikeReason(batch, batchIndex, r, mmol)?.let { return it }
+        }
+        return null
+    }
+
+    private fun isAdjacentToLastAccepted(dataNo: Int, sampleMs: Long): Boolean {
+        val previousDataNo = lastAcceptedDataNo
+        if (previousDataNo < 0) return false
+        val dataNoGap = dataNo - previousDataNo
+        if (dataNoGap in 1..2) return true
+        val previousMs = lastAcceptedSampleMs
+        if (previousMs <= 0L || sampleMs <= previousMs) return false
+        val timeGap = sampleMs - previousMs
+        return timeGap in 1..(2 * RECORD_INTERVAL_MS + 15_000L)
+    }
+
+    private fun historyIsolatedSpikeReason(
+        batch: List<OttaiReading>,
+        batchIndex: Int,
+        candidate: OttaiReading,
+        candidateMmol: Float,
+    ): String? {
+        val previous = neighborSample(batch, batchIndex - 1, -1)
+        val next = neighborSample(batch, batchIndex + 1, 1)
+        val previousAdjacent = previous != null && candidate.record.dataNo - previous.dataNo in 1..2
+        val nextAdjacent = next != null && next.dataNo - candidate.record.dataNo in 1..2
+
+        if (previousAdjacent && nextAdjacent) {
+            val neighborsAgree = abs(previous!!.mmol - next!!.mmol) < OttaiOutputFilter.SINGLE_SAMPLE_DELTA_MMOL
+            if (neighborsAgree &&
+                OttaiOutputFilter.isOneMinuteRawExcursion(candidateMmol, candidate.record.rawCurrent, previous.mmol, previous.rawCurrent) &&
+                OttaiOutputFilter.isOneMinuteRawExcursion(candidateMmol, candidate.record.rawCurrent, next.mmol, next.rawCurrent)
+            ) {
+                return "history-isolated prev=${previous.dataNo} next=${next.dataNo}"
+            }
+        }
+
+        if (!previousAdjacent && nextAdjacent && candidate.record.dataNo <= 5 &&
+            OttaiOutputFilter.isOneMinuteRawExcursion(candidateMmol, candidate.record.rawCurrent, next!!.mmol, next.rawCurrent)
+        ) {
+            return "history-start next=${next.dataNo}"
+        }
+
+        return null
+    }
+
+    private fun neighborSample(batch: List<OttaiReading>, start: Int, step: Int): NeighborSample? {
+        var index = start
+        while (index in batch.indices) {
+            val reading = batch[index]
+            if (reading.valid) {
+                val mmol = reading.adjustGlucose.toFloat()
+                if (OttaiOutputFilter.hardRejectReason(reading.record, mmol) == null) {
+                    return NeighborSample(reading.record.dataNo, mmol, reading.record.rawCurrent)
+                }
+            }
+            index += step
+        }
+        return null
     }
 
     private fun storeDecodedReadings(readings: List<EmittedReading>, live: Boolean) {
@@ -748,27 +871,50 @@ class OttaiBleManager(
         r: OttaiReading,
         live: Boolean,
         receivedAtMs: Long,
-        advancesDataNo: Boolean,
     ): Long {
-        if (live && advancesDataNo && receivedAtMs > 0L && r.record.dataNo >= 0) {
-            val start = receivedAtMs - r.record.dataNo.toLong() * RECORD_INTERVAL_MS
-            if (start > 0L) {
-                val old = streamStartTimeMs
-                streamStartTimeMs = start
-                if (old == 0L || kotlin.math.abs(old - start) > RECORD_INTERVAL_MS) {
-                    Log.i(TAG, "stream time anchor dataNo=${r.record.dataNo} start=${start / 1000L} live=${receivedAtMs / 1000L}")
-                }
-                if (effectiveActiveTimeMs() <= 0L) ensureNativePresenceShell("stream-anchor")
-            }
-            return receivedAtMs
-        }
         streamStartTimeMs.takeIf { it > 0L }?.let { start ->
             return start + r.record.dataNo.toLong() * RECORD_INTERVAL_MS
         }
+
+        if (live && receivedAtMs > 0L && r.record.dataNo >= 0) {
+            val monitorMs = r.monitorTimeMs
+            if (monitorMs > 0L && kotlin.math.abs(receivedAtMs - monitorMs) <= CURRENT_SAMPLE_FRESH_MS) {
+                return seedStreamTimeAnchor(r.record.dataNo, monitorMs, "monitor-live")
+            }
+            if (monitorMs > 0L) {
+                val deltaSec = kotlin.math.abs(receivedAtMs - monitorMs) / 1000L
+                Log.w(TAG, "ignore stale live monitor timestamp dataNo=${r.record.dataNo} monitor=${monitorMs / 1000L} live=${receivedAtMs / 1000L} delta=${deltaSec}s")
+            }
+            return seedStreamTimeAnchor(r.record.dataNo, receivedAtMs, "live")
+        }
+
+        r.monitorTimeMs.takeIf { it > 0L }?.let { monitorMs ->
+            return seedStreamTimeAnchor(r.record.dataNo, monitorMs, "monitor")
+        }
         val activeMs = effectiveActiveTimeMs()
-        if (activeMs > 0L) return activeMs + r.record.runtimeSec * 1000L
+        if (activeMs > 0L) {
+            return seedStreamTimeAnchor(r.record.dataNo, activeMs + r.record.runtimeSec * 1000L, "active")
+        }
         return r.monitorTimeMs
     }
+
+    private fun seedStreamTimeAnchor(dataNo: Int, sampleHintMs: Long, reason: String): Long {
+        if (dataNo < 0 || sampleHintMs <= 0L) return sampleHintMs
+        val sampleMs = floorToRecordMinute(sampleHintMs)
+        val start = sampleMs - dataNo.toLong() * RECORD_INTERVAL_MS
+        if (start > 0L) {
+            val old = streamStartTimeMs
+            streamStartTimeMs = start
+            if (old == 0L || kotlin.math.abs(old - start) > RECORD_INTERVAL_MS) {
+                Log.i(TAG, "stream time anchor dataNo=$dataNo start=${start / 1000L} sample=${sampleMs / 1000L} source=$reason")
+            }
+            if (effectiveActiveTimeMs() <= 0L) ensureNativePresenceShell("stream-anchor-$reason")
+        }
+        return sampleMs
+    }
+
+    private fun floorToRecordMinute(timestampMs: Long): Long =
+        (timestampMs / RECORD_INTERVAL_MS) * RECORD_INTERVAL_MS
 
     private fun ensureNativePresenceShell(reason: String) {
         val id = SerialNumber ?: return
