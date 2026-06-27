@@ -1237,15 +1237,30 @@ class OttaiBleManager(
     }
 
     override fun getStartTimeMs(): Long = effectiveActiveTimeMs()
-    override fun getOfficialEndMs(): Long =
-        if (materials.activeTimeMs <= 0L) 0L
-        else materials.activeTimeMs + OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
+    // Rated/"official" end = vendor activation + the cloud-reported rated lifetime
+    // (activeExpireTime ms; ~14d for these units), falling back to the local default.
+    override fun getOfficialEndMs(): Long {
+        val start = materials.activeTimeMs
+        if (start <= 0L) return 0L
+        val ratedMs = materials.activeExpireTimeMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_ACTIVE_EXPIRE_MS
+        return start + ratedMs
+    }
+    // Expected end = the extended horizon we keep reading to (25d). This is a display hint,
+    // NOT a hard cutoff (see isSensorExpired).
     override fun getExpectedEndMs(): Long {
         val start = effectiveActiveTimeMs()
-        return if (start <= 0L) 0L else start + OttaiConstants.DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
+        return if (start <= 0L) 0L else start + OttaiConstants.EXTENDED_LIFETIME_MS
     }
+    // Never expire on the calendar alone: within the extended horizon the sensor is alive,
+    // and past it we keep reading as long as samples still arrive — only once the stream has
+    // been silent past the stale-grace do we call it expired, so a healthy sensor runs past 25d.
     override fun isSensorExpired(): Boolean {
-        val end = getExpectedEndMs(); return end > 0L && System.currentTimeMillis() > end
+        val end = getExpectedEndMs()
+        if (end <= 0L) return false
+        val now = System.currentTimeMillis()
+        if (now <= end) return false
+        val lastData = lastGlucoseAtMs
+        return lastData <= 0L || now - lastData > OttaiConstants.EXPIRED_STALE_GRACE_MS
     }
     override fun getSensorRemainingHours(): Int {
         val end = getExpectedEndMs(); if (end <= 0L) return -1

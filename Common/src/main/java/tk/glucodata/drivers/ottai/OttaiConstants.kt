@@ -189,6 +189,18 @@ object OttaiConstants {
     const val DEFAULT_RETAIN_TIME_MS = 172_800_000L
     const val DEFAULT_ACTIVE_EXPIRE_MS = DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
+    /**
+     * These sensors keep streaming well past the vendor's rated lifetime. We surface the
+     * cloud-reported rated end (getOfficialEndMs) for reference, but let the sensor run to
+     * this extended horizon and never hard-stop on the calendar alone: readings continue
+     * past the extended end as long as samples keep arriving (see [OttaiBleManager.isSensorExpired]).
+     */
+    const val EXTENDED_LIFETIME_DAYS = 25
+    const val EXTENDED_LIFETIME_MS = EXTENDED_LIFETIME_DAYS * 24L * 3600L * 1000L
+
+    /** Past the extended end, only declare the sensor expired once samples stop this long. */
+    const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L
+
     /** Reading cadence (minutes). */
     const val DEFAULT_READING_INTERVAL_MINUTES = 1
 
