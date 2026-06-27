@@ -56,6 +56,7 @@ class OttaiBleManager(
         @Volatile @JvmStatic var activateRequestedFor: String? = null
 
         private const val MAX_HISTORY_REQUEST_RECORDS = 0xFFFF
+        private const val RECENT_HISTORY_RECORDS = 60
         private const val HISTORY_REQUEST_COOLDOWN_MS = 60_000L
         private const val MAX_LIVE_POLL_INTERVAL_MS = 60_000L
         private const val RECORD_INTERVAL_MS = 60_000L
@@ -164,6 +165,7 @@ class OttaiBleManager(
         lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
         // Auth V2 signs the cloud id bytes, not necessarily the Android BLE address.
         macBytes = runCatching { OttaiCrypto.hexToBytes(OttaiConstants.canonicalSensorId(id)) }.getOrDefault(ByteArray(0))
+        ensureNativePresenceShell("restore")
     }
 
     private val reconnectRunnable = Runnable { if (!stop) connectDevice(0) }
@@ -602,7 +604,7 @@ class OttaiBleManager(
         val old = provisionalActiveTimeMs
         // Only ever move EARLIER. The cgm-info 0x0477 window is a sliding set of recent
         // records, so its min epoch creeps forward every reconnect; letting it drift kept
-        // re-anchoring the native sensor shell (start time) and broke the chart/DB write.
+        // re-anchoring the stream start and broke chart/DB timestamps.
         if (old > 0L && activeTimeMs >= old) return
         provisionalActiveTimeMs = activeTimeMs
         activationCommandSentAtMs = activeTimeMs
@@ -614,7 +616,7 @@ class OttaiBleManager(
             }
         }
         Log.i(TAG, "provisional activeTime set=$activeTimeMs source=$reason")
-        ensureNativeShell()
+        ensureNativePresenceShell("provisional-$reason")
         UiRefreshBus.requestStatusRefresh()
     }
 
@@ -664,7 +666,7 @@ class OttaiBleManager(
             if (live) {
                 scheduleLivePoll()
                 val liveDataNo = lastDataNo
-                if (!requestRoomBackfillAfterLive(liveDataNo)) {
+                if (!requestRoomBackfillAfterLive(liveDataNo, previousDataNo)) {
                     val missingBeforeLive = liveDataNo - previousDataNo - 1
                     if (previousDataNo < 0 || missingBeforeLive > 0) {
                         handler.postDelayed({ requestHistoryAfterLive(previousDataNo, liveDataNo) }, 1_500L)
@@ -756,6 +758,7 @@ class OttaiBleManager(
                 if (old == 0L || kotlin.math.abs(old - start) > RECORD_INTERVAL_MS) {
                     Log.i(TAG, "stream time anchor dataNo=${r.record.dataNo} start=${start / 1000L} live=${receivedAtMs / 1000L}")
                 }
+                if (effectiveActiveTimeMs() <= 0L) ensureNativePresenceShell("stream-anchor")
             }
             return receivedAtMs
         }
@@ -767,20 +770,19 @@ class OttaiBleManager(
         return r.monitorTimeMs
     }
 
-    private fun ensureNativeShell() {
+    private fun ensureNativePresenceShell(reason: String) {
         val id = SerialNumber ?: return
-        val activeMs = nativeStreamStartTimeMs()
-        if (activeMs <= 0L) return
+        val startMs = nativePresenceStartTimeMs()
+        if (id.isBlank() || startMs <= 0L) return
         runCatching {
-            val startSec = (activeMs / 1000L).coerceAtLeast(1L)
-            Natives.ensureSensorShell(id, startSec)
-            if (dataptr == 0L) dataptr = runCatching { Natives.getdataptr(id) }.getOrDefault(0L)
-        }.onFailure { Log.stack(TAG, "ensureNativeShell", it) }
+            Natives.ensureSensorShell(id, (startMs / 1000L).coerceAtLeast(1L))
+        }.onFailure { Log.stack(TAG, "ensureNativePresenceShell($reason)", it) }
     }
 
-    private fun nativeStreamStartTimeMs(): Long =
-        streamStartTimeMs.takeIf { it > 0L }
-            ?: effectiveActiveTimeMs()
+    private fun nativePresenceStartTimeMs(): Long =
+        effectiveActiveTimeMs().takeIf { it > 0L }
+            ?: streamStartTimeMs.takeIf { it > 0L }
+            ?: 0L
 
     // ---- activation (gated) ----
 
@@ -846,7 +848,6 @@ class OttaiBleManager(
             }
         }
         Log.i(TAG, "activation command sent; sensor accepted activation writes")
-        ensureNativeShell()
         mBluetoothGatt?.let { gatt ->
             handler.postDelayed({ runCatching { readCgmInfo(gatt) } }, 1_000)
             handler.postDelayed({
@@ -936,11 +937,19 @@ class OttaiBleManager(
         return requestHistoryRange("manual", 0, latest + 1)
     }
 
-    private fun requestRoomBackfillAfterLive(liveDataNo: Int): Boolean {
+    private fun requestRoomBackfillAfterLive(liveDataNo: Int, previousDataNo: Int): Boolean {
         if (roomBackfillChecked || liveDataNo <= 0) return false
         val id = SerialNumber ?: return false
-        val startMs = streamStartTimeMs.takeIf { it > 0L } ?: return false
         roomBackfillChecked = true
+        if (previousDataNo >= 0) {
+            val missingBeforeLive = liveDataNo - previousDataNo - 1
+            if (missingBeforeLive <= 0) {
+                Log.i(TAG, "skip history reason=room-backfill previous=$previousDataNo live=$liveDataNo")
+                return false
+            }
+            return requestHistoryRange("room-backfill", previousDataNo + 1, missingBeforeLive)
+        }
+        val startMs = streamStartTimeMs.takeIf { it > 0L } ?: return false
         val endMs = (System.currentTimeMillis() + RECORD_INTERVAL_MS).coerceAtLeast(startMs)
         val existing = HistorySyncAccess.getHistoryTimestampsForSensor(
             id,
@@ -948,20 +957,23 @@ class OttaiBleManager(
             endMs,
         )
         if (existing.isEmpty()) {
-            return requestHistoryRange("room-backfill", 0, liveDataNo + 1)
+            return requestHistoryRange("room-backfill", 0, liveDataNo)
         }
-        val present = BooleanArray(liveDataNo + 1)
+        val present = BooleanArray(liveDataNo)
         for (timestamp in existing) {
             val dataNo = ((timestamp - startMs + RECORD_INTERVAL_MS / 2L) / RECORD_INTERVAL_MS).toInt()
             if (dataNo in present.indices) present[dataNo] = true
         }
-        val firstMissing = (0..liveDataNo).firstOrNull { !present[it] } ?: return false
-        return requestHistoryRange("room-backfill", firstMissing, liveDataNo - firstMissing + 1)
+        val firstMissing = present.indices.firstOrNull { !present[it] } ?: return false
+        return requestHistoryRange("room-backfill", firstMissing, liveDataNo - firstMissing)
     }
 
     private fun requestRecentHistory(reason: String): Boolean {
         val latest = lastDataNo.takeIf { it > 0 } ?: return false
-        return requestHistoryRange(reason, 0, latest + 1)
+        val endExclusive = latest
+        val start = (endExclusive - RECENT_HISTORY_RECORDS).coerceAtLeast(0)
+        val count = endExclusive - start
+        return requestHistoryRange(reason, start, count)
     }
 
     private fun requestHistoryAfterLive(previousDataNo: Int, liveDataNo: Int): Boolean {
@@ -971,7 +983,7 @@ class OttaiBleManager(
             return false
         }
         val count = if (previousDataNo < 0) {
-            liveDataNo + 1
+            liveDataNo
         } else {
             missingBeforeLive
         }
@@ -1108,7 +1120,7 @@ class OttaiBleManager(
             ?.let { OttaiConstants.matchesCanonicalOrKnownNativeAlias(it, SerialNumber) }
             ?: OttaiConstants.matchesCanonicalOrKnownNativeAlias(sensorId, SerialNumber)
 
-    override fun hasNativeSensorBacking(): Boolean = effectiveActiveTimeMs() > 0L || dataptr != 0L
+    override fun hasNativeSensorBacking(): Boolean = false
 
     override fun getDetailedBleStatus(): String = when (phase) {
         Phase.IDLE -> if (authKeys == null) "Needs cloud bind"
