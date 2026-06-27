@@ -12,6 +12,13 @@ object OttaiManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
 
     override fun matchesCallbackId(callbackId: String?, sensorId: String): Boolean {
         val normalized = callbackId?.trim().takeIf { !it.isNullOrEmpty() } ?: return false
+        val left = resolveCanonicalSensorId(normalized)
+            ?: OttaiConstants.canonicalSensorId(normalized).takeIf { it.isNotBlank() }
+        val right = resolveCanonicalSensorId(sensorId)
+            ?: OttaiConstants.canonicalSensorId(sensorId).takeIf { it.isNotBlank() }
+        if (!left.isNullOrBlank() && !right.isNullOrBlank() && left.equals(right, ignoreCase = true)) {
+            return true
+        }
         if (normalized.equals(sensorId, ignoreCase = true) ||
             OttaiConstants.matchesCanonicalOrKnownNativeAlias(normalized, sensorId)
         ) {

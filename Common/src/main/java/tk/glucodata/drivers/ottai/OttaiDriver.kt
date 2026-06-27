@@ -12,7 +12,7 @@ import tk.glucodata.drivers.ManagedSensorUiSnapshot
 
 data class OttaiCurrentSnapshot(
     val timeMillis: Long,
-    val glucoseValue: Float,         // mg/dL
+    val glucoseValue: Float,         // current display unit
     val rawValue: Float = Float.NaN, // raw current (for diagnostic view)
     val rate: Float = Float.NaN,
     val sensorGen: Int = 0,
@@ -22,6 +22,7 @@ interface OttaiDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
 
     override fun canConnectWithoutDataptr(): Boolean = true
     override fun managesLiveRoomStorage(): Boolean = true
+    override fun shouldUseNativeHistorySync(): Boolean = false
     override fun shouldUseSharedCurrentSensorHandoffOnTerminate(): Boolean = false
 
     fun isUiEnabled(): Boolean = true

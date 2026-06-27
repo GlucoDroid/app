@@ -122,7 +122,12 @@ object OttaiRegistry {
     fun findRecord(context: Context?, sensorId: String?): SensorRecord? {
         val ctx = context ?: return null
         val id = sensorId?.trim().takeIf { !it.isNullOrBlank() } ?: return null
-        return persistedRecords(ctx).firstOrNull { it.matchesId(id) }
+        val records = persistedRecords(ctx)
+        records.firstOrNull { it.matchesId(id) }?.let { return it }
+        val suffix = OttaiConstants.canonicalSensorId(id).takeIf { it.length >= 6 } ?: return null
+        return records
+            .filter { it.sensorId.endsWith(suffix, ignoreCase = true) }
+            .singleOrNull()
     }
 
     @JvmStatic
