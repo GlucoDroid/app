@@ -226,7 +226,11 @@ fun InlineQrScannerCard(
                                     barcodeScanner.process(inputImage)
                                         .addOnSuccessListener(mainExecutor) { barcodes ->
                                             val rawValue = barcodes
-                                                .firstNotNullOfOrNull { it.rawValue?.trim()?.takeIf { value -> value.isNotEmpty() } }
+                                                .firstNotNullOfOrNull { barcode ->
+                                                    tk.glucodata.PhotoScan
+                                                        .trimOuterScannerWhitespace(barcode.rawValue)
+                                                        ?.takeIf { value -> value.isNotEmpty() }
+                                                }
                                             if (rawValue != null && !consumed) {
                                                 consumed = true
                                                 onScanResult(rawValue)

@@ -1951,4 +1951,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram ботын шинэчлэлтийг 24 цаг хүртэл хадгална. Импортлох боломжтой ботын мессежтэй нэг эсвэл хэд хэдэн chat ID/хэрэглэгчийн нэр оруулна уу.</string>
     <string name="sensor_display_select">Дэлгэцэд харуулах мэдрэгчийг сонгох</string>
     <string name="sensor_display_selected">Дэлгэцэд харуулах мэдрэгч сонгогдсон</string>
+    <string name="wrongcode">Wrong QR code</string>
 </resources>

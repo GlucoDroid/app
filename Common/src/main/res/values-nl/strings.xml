@@ -1883,4 +1883,5 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="status_raw_values_received">Verbonden, ruwe waarden ontvangen</string>
     <string name="sensor_display_select">Sensor voor weergave selecteren</string>
     <string name="sensor_display_selected">Sensor voor weergave geselecteerd</string>
+    <string name="wrongcode">Verkeerde QR-code</string>
 </resources>

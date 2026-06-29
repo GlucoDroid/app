@@ -1856,4 +1856,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">已连接，已收到原始值</string>
     <string name="sensor_display_select">选择要显示的传感器</string>
     <string name="sensor_display_selected">已选择显示传感器</string>
+    <string name="wrongcode">二维码错误</string>
 </resources>

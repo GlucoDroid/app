@@ -1907,4 +1907,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram захоўвае абнаўленні бота да 24 гадзін. Укажыце адзін або некалькі chat ID ці імёнаў карыстальнікаў, паведамленні якіх можна імпартаваць.</string>
     <string name="sensor_display_select">Выбраць датчык для паказу</string>
     <string name="sensor_display_selected">Датчык абраны для паказу</string>
+    <string name="wrongcode">Няправільны QR-код</string>
 </resources>

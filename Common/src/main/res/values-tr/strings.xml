@@ -1868,4 +1868,5 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="status_raw_values_received">Bağlandı, ham değerler alındı</string>
     <string name="sensor_display_select">Görüntülenecek sensörü seç</string>
     <string name="sensor_display_selected">Görüntülenecek sensör seçildi</string>
+    <string name="wrongcode">Yanlış QR kodu</string>
 </resources>

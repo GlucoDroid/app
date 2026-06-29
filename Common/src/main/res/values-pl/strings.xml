@@ -1875,4 +1875,5 @@
     <string name="status_raw_values_received">Połączono, odebrano wartości surowe</string>
     <string name="sensor_display_select">Wybierz czujnik do wyświetlania</string>
     <string name="sensor_display_selected">Czujnik wybrany do wyświetlania</string>
+    <string name="wrongcode">Nieprawidłowy kod QR</string>
 </resources>

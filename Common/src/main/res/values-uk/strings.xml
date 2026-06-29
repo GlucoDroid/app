@@ -1912,4 +1912,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram зберігає оновлення бота до 24 годин. Укажіть один або кілька chat ID чи імен користувачів, повідомлення яких можна імпортувати.</string>
     <string name="sensor_display_select">Вибрати датчик для відображення</string>
     <string name="sensor_display_selected">Датчик вибрано для відображення</string>
+    <string name="wrongcode">Неправильний QR-код</string>
 </resources>

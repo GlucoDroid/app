@@ -47,9 +47,14 @@ import java.util.regex.Pattern;
 public class PhotoScan {
     private static final String LOG_ID = "PhotoScan";
     private static final String GROUP_SEPARATOR = "\u001D";
+    private static final char GROUP_SEPARATOR_CHAR = '\u001D';
     private static final String SIBIONICS_GTIN = "0697283164";
     private static final String SIBIONICS_GTIN_NO_LEADING_ZERO = "697283164";
     private static final int SIBIONICS_PREFIX_PADDING = 43;
+    private static final String ACCUCHEK_MANUFACTURER = "4015630";
+    private static final Pattern ACCUCHEK_GS1_COMPACT = Pattern.compile(
+            "^01([0-9]{14})11[0-9]{6}17[0-9]{6}21[A-Z0-9]{11}$",
+            Pattern.CASE_INSENSITIVE);
     private static final Pattern AI10_PAREN = Pattern.compile("\\(10\\)\\s*([A-Z0-9]{4,40})",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern AI21_PAREN = Pattern.compile("\\(21\\)\\s*([A-Z0-9]{4,40})",
@@ -65,7 +70,7 @@ public class PhotoScan {
             Pattern.CASE_INSENSITIVE);
 
     private static void wrongtag() {
-        Toaster("Wrong QR code");
+        Toaster(R.string.wrongcode);
     }
 
     /*
@@ -194,6 +199,25 @@ public class PhotoScan {
     }
 
     static long wasdataptr = 0L;
+
+    public static String trimOuterScannerWhitespace(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        int start = 0;
+        int end = value.length();
+        while (start < end && isTrimmableScannerEdge(value.charAt(start))) {
+            start++;
+        }
+        while (end > start && isTrimmableScannerEdge(value.charAt(end - 1))) {
+            end--;
+        }
+        return start == 0 && end == value.length() ? value : value.substring(start, end);
+    }
+
+    private static boolean isTrimmableScannerEdge(char ch) {
+        return ch != GROUP_SEPARATOR_CHAR && (Character.isWhitespace(ch) || Character.isSpaceChar(ch));
+    }
 
     private static boolean isLikelyMirrorPayload(String text) {
         return text.endsWith("MirrorJuggluco") || text.contains("\"port\"");
@@ -346,6 +370,29 @@ public class PhotoScan {
         String out = input.toUpperCase(Locale.ROOT).replace(" ", "");
         out = stripSymbologyPrefix(out);
         return out.replace("^]", GROUP_SEPARATOR);
+    }
+
+    private static String normalizeAccuChekFraming(String input) {
+        if (input == null || input.isEmpty() || isLikelyMirrorPayload(input)) {
+            return input;
+        }
+        String out = stripSymbologyPrefix(input.toUpperCase(Locale.ROOT).replace(" ", ""));
+        if (out == null || out.isEmpty()) {
+            return input;
+        }
+        if (out.startsWith(GROUP_SEPARATOR)) {
+            return out;
+        }
+        Matcher matcher = ACCUCHEK_GS1_COMPACT.matcher(out);
+        if (!matcher.matches()) {
+            return input;
+        }
+        final String gtin = matcher.group(1);
+        if (gtin != null && gtin.contains(ACCUCHEK_MANUFACTURER)) {
+            scanLog("Restored leading GS separator for Accu-Chek SmartGuide QR payload");
+            return GROUP_SEPARATOR + out;
+        }
+        return input;
     }
 
     private static String repairSibionicsPackageAi21Framing(String input) {
@@ -585,7 +632,7 @@ public class PhotoScan {
         if (scanText == null) {
             return "";
         }
-        final String trimmed = scanText.trim();
+        final String trimmed = trimOuterScannerWhitespace(scanText);
 
         if (request == REQUEST_BARCODE_SIB2) {
             final String transmitterPayload = buildSibionics2TransmitterPayload(trimmed);
@@ -597,6 +644,8 @@ public class PhotoScan {
         }
 
         String normalized = trimmed;
+
+        normalized = normalizeAccuChekFraming(normalized);
 
         if (looksLikeSibionicsPayload(normalized)) {
             normalized = normalizeSibionicsFraming(normalized);

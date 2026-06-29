@@ -1840,4 +1840,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">Ansluten, råvärden mottagna</string>
     <string name="sensor_display_select">Välj sensor för visning</string>
     <string name="sensor_display_selected">Sensor vald för visning</string>
+    <string name="wrongcode">Fel QR-kod</string>
 </resources>

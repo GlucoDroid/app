@@ -1883,4 +1883,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">Подключено, получены сырые значения</string>
     <string name="sensor_display_select">Выбрать датчик для отображения</string>
     <string name="sensor_display_selected">Датчик выбран для отображения</string>
+    <string name="wrongcode">Неверный QR-код</string>
 </resources>

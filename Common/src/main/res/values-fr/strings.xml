@@ -1846,4 +1846,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_raw_values_received">Connecté, valeurs brutes reçues</string>
     <string name="sensor_display_select">Sélectionner le capteur à afficher</string>
     <string name="sensor_display_selected">Capteur sélectionné pour affichage</string>
+    <string name="wrongcode">Code QR incorrect</string>
 </resources>

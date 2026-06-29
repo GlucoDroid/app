@@ -2058,4 +2058,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="voice_schedule_until">Until</string>
     <string name="sensor_display_select">Select display sensor</string>
     <string name="sensor_display_selected">Display sensor selected</string>
+    <string name="wrongcode">Wrong QR code</string>
 </resources>

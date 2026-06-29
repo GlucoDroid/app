@@ -1878,4 +1878,5 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="status_raw_values_received">Verbunden, Rohwerte empfangen</string>
     <string name="sensor_display_select">Sensor zur Anzeige auswählen</string>
     <string name="sensor_display_selected">Sensor für Anzeige ausgewählt</string>
+    <string name="wrongcode">Falscher QR-Code</string>
 </resources>

@@ -328,7 +328,7 @@ public class UnifiedScanActivity extends AppCompatActivity {
                     for (Barcode barcode : barcodes) {
                         String raw = barcode.getRawValue();
                         if (raw != null && !raw.isEmpty()) {
-                            deliverResult(raw.trim());
+                            deliverResult(PhotoScan.trimOuterScannerWhitespace(raw));
                             break;
                         }
                     }
