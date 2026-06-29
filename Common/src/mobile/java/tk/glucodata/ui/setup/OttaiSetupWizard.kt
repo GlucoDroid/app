@@ -750,20 +750,24 @@ fun OttaiSetupWizard(
                                 onClick = {
                                     busy = true; status = ""
                                     scope.launch {
-                                        val fetchedVersion = withContext(Dispatchers.IO) {
+                                        val materials = withContext(Dispatchers.IO) {
                                             runCatching {
                                                 val id = OttaiConstants.canonicalSensorId(cloudId)
-                                                val resp = OttaiCloudClient.validateByMac(context, id) ?: return@runCatching null
-                                                val m = OttaiCloudClient.toMaterials(context, id, resp) ?: return@runCatching null
-                                                if (m.authKeys == null) return@runCatching null
-                                                OttaiRegistry.ensureSensorRecord(context, id, bleAddress, OttaiConstants.DEFAULT_DISPLAY_NAME)
-                                                OttaiRegistry.saveMaterials(context, id, m)
-                                                m.deviceVersion
+                                                val m = fetchOttaiMaterials(context, id) ?: return@runCatching null
+                                                if (bleAddress.isNotBlank()) {
+                                                    OttaiRegistry.ensureSensorRecord(
+                                                        context,
+                                                        id,
+                                                        bleAddress,
+                                                        OttaiConstants.DEFAULT_DISPLAY_NAME,
+                                                    )
+                                                }
+                                                m
                                             }.onFailure { Log.w(tag, "validate: ${it.message}") }.getOrNull()
                                         }
                                         busy = false
-                                        status = if (fetchedVersion != null) {
-                                            deviceVersion = fetchedVersion
+                                        status = if (materials != null) {
+                                            deviceVersion = materials.deviceVersion
                                             context.getString(R.string.ottai_validate_ok)
                                         } else {
                                             context.getString(R.string.ottai_validate_fail) +
