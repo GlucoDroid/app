@@ -3,10 +3,10 @@ package tk.glucodata.data.journal
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import tk.glucodata.Log
 
 object AapsJournalImport {
     private const val TAG = "AapsJournalImport"
@@ -31,7 +31,8 @@ object AapsJournalImport {
     data class ImportResult(
         val importedEntries: Int,
         val deletedEntries: Int,
-        val skippedTreatments: Int
+        val skippedTreatments: Int,
+        val treatmentObjects: Int
     )
 
     fun isEnabled(context: Context): Boolean {
@@ -49,11 +50,11 @@ object AapsJournalImport {
     }
 
     suspend fun handleIntent(context: Context, intent: Intent): ImportResult {
-        val action = intent.action ?: return ImportResult(0, 0, 0)
-        if (action !in supportedActions) return ImportResult(0, 0, 0)
+        val action = intent.action ?: return emptyResult()
+        if (action !in supportedActions) return emptyResult()
 
         val treatments = extractTreatmentObjects(intent.extras)
-        if (treatments.isEmpty()) return ImportResult(0, 0, 0)
+        if (treatments.isEmpty()) return emptyResult()
 
         val repository = JournalRepository()
         if (action == ACTION_REMOVED_TREATMENT) {
@@ -61,7 +62,12 @@ object AapsJournalImport {
                 JournalTreatmentTransfer.sourceRecordIdsForTreatment(treatment, SOURCE_PREFIX)
             }
             repository.deleteEntriesBySourceRecordIds(sourceIds)
-            return ImportResult(importedEntries = 0, deletedEntries = sourceIds.distinct().size, skippedTreatments = 0)
+            return ImportResult(
+                importedEntries = 0,
+                deletedEntries = sourceIds.distinct().size,
+                skippedTreatments = 0,
+                treatmentObjects = treatments.size
+            )
         }
 
         repository.ensureDefaultInsulinPresets()
@@ -98,8 +104,33 @@ object AapsJournalImport {
                 deleted += staleSourceIds.size
             }
         }
-        return ImportResult(importedEntries = imported, deletedEntries = deleted, skippedTreatments = skipped)
+        return ImportResult(
+            importedEntries = imported,
+            deletedEntries = deleted,
+            skippedTreatments = skipped,
+            treatmentObjects = treatments.size
+        )
     }
+
+    @Suppress("DEPRECATION")
+    fun describeExtras(intent: Intent): String {
+        val extras = intent.extras ?: return "none"
+        val keys = extras.keySet().sorted()
+        if (keys.isEmpty()) return "empty"
+        val summary = keys.joinToString(prefix = "[", postfix = "]") { key ->
+            val value = runCatching { extras.get(key) }.getOrNull()
+            "$key:${describeValue(value)}"
+        }
+        return summary.take(400)
+    }
+
+    private fun emptyResult(): ImportResult =
+        ImportResult(
+            importedEntries = 0,
+            deletedEntries = 0,
+            skippedTreatments = 0,
+            treatmentObjects = 0
+        )
 
     @Suppress("DEPRECATION")
     private fun extractTreatmentObjects(extras: Bundle?): List<JSONObject> {
@@ -110,7 +141,7 @@ object AapsJournalImport {
         }
         if (result.isEmpty()) {
             for (key in extras.keySet()) {
-                if (key.equals("treatments", ignoreCase = true) || key.equals("treatment", ignoreCase = true)) {
+                if (treatmentExtraKeys.any { it.equals(key, ignoreCase = true) }) {
                     appendJsonValue(extras.get(key), result)
                 }
             }
@@ -118,6 +149,7 @@ object AapsJournalImport {
         return result
     }
 
+    @Suppress("DEPRECATION")
     private fun appendJsonValue(value: Any?, out: MutableList<JSONObject>) {
         when (value) {
             null -> return
@@ -146,9 +178,7 @@ object AapsJournalImport {
                 text.startsWith("[") -> appendJsonValue(JSONArray(text), out)
                 text.startsWith("{") -> {
                     val root = JSONObject(text)
-                    val nested = root.optJSONArray("treatments")
-                        ?: root.optJSONArray("treatment")
-                        ?: root.optJSONArray("data")
+                    val nested = root.optNestedTreatmentPayload()
                     if (nested != null) {
                         appendJsonValue(nested, out)
                     } else {
@@ -157,7 +187,27 @@ object AapsJournalImport {
                 }
             }
         } catch (e: JSONException) {
-            Log.w(TAG, "Ignoring malformed AAPS treatment payload", e)
+            Log.w(TAG, "Ignoring malformed AAPS treatment payload: ${e.message}")
         }
     }
+
+    private fun JSONObject.optNestedTreatmentPayload(): Any? {
+        for (key in treatmentExtraKeys) {
+            if (has(key) && !isNull(key)) return opt(key)
+        }
+        return null
+    }
+
+    private fun describeValue(value: Any?): String =
+        when (value) {
+            null -> "null"
+            is Bundle -> "Bundle(${value.keySet().size})"
+            is JSONObject -> "JSONObject(${value.length()})"
+            is JSONArray -> "JSONArray(${value.length()})"
+            is String -> "String(${value.length})"
+            is ByteArray -> "ByteArray(${value.size})"
+            is Collection<*> -> "Collection(${value.size})"
+            is Array<*> -> "Array(${value.size})"
+            else -> value::class.java.simpleName
+        }
 }

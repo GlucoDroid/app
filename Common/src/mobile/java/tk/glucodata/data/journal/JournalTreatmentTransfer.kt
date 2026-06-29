@@ -155,7 +155,7 @@ object JournalTreatmentTransfer {
         val eventKey = eventType.orEmpty().lowercase(Locale.US)
         val safeTimestamp = timestamp ?: return null
 
-        val carbs = treatment.optFiniteFloat("carbs", "carb", "enteredCarbs", "grams", "carbsGrams")
+        val carbs = treatment.optFiniteFloat("carbs", "carb", "enteredCarbs", "enteredcarbs", "grams", "carbsGrams")
             ?: treatment.optFiniteFloat("amount").takeIf {
                 explicitType == JournalEntryType.CARBS || eventKey.contains("carb")
             }
@@ -177,7 +177,7 @@ object JournalTreatmentTransfer {
             )
         }
 
-        val insulin = treatment.optPositiveFloat("insulin", "enteredInsulin", "bolus")
+        val insulin = treatment.optPositiveFloat("insulin", "enteredInsulin", "enteredinsulin", "bolus")
             ?: treatment.optPositiveFloat("amount").takeIf { explicitType == JournalEntryType.INSULIN }
         if (insulin != null) {
             val preset = chooseInsulinPreset(insulinPresets, treatment)
@@ -280,7 +280,8 @@ object JournalTreatmentTransfer {
         val text = listOfNotNull(
             treatment.optNonBlankString("eventType", "eventtype"),
             treatment.optNonBlankString("notes", "note"),
-            treatment.optNonBlankString("insulinType", "type")
+            treatment.optNonBlankString("insulinType", "type"),
+            treatment.optNonBlankString("enteredBy", "device", "app")
         ).joinToString(" ").lowercase(Locale.US)
         val isBasal = treatment.optBoolean("isBasalInsulin", false) ||
             text.contains("basal") ||
@@ -315,8 +316,8 @@ object JournalTreatmentTransfer {
         val fingerprint = listOf(
             timestamp,
             optNonBlankString("eventType", "eventtype", "type").orEmpty(),
-            optFiniteFloat("carbs", "carb", "enteredCarbs", "grams", "amount")?.toString().orEmpty(),
-            optPositiveFloat("insulin", "enteredInsulin", "bolus", "amount")?.toString().orEmpty(),
+            optFiniteFloat("carbs", "carb", "enteredCarbs", "enteredcarbs", "grams", "amount")?.toString().orEmpty(),
+            optPositiveFloat("insulin", "enteredInsulin", "enteredinsulin", "bolus", "amount")?.toString().orEmpty(),
             optGlucoseMgdl()?.toString().orEmpty(),
             optNonBlankString("notes", "note").orEmpty()
         ).joinToString("|")
