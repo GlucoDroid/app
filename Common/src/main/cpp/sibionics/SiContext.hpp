@@ -52,6 +52,7 @@ public:
                      int sensorindex);
 #endif
   ~SiContext();
+  void prepareHardwareReset(SensorGlucoseData *sens);
   void reset(SensorGlucoseData *sens);
   void resetAll(SensorGlucoseData *sens);
   void wipeDataOnly(SensorGlucoseData *sens);

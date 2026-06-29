@@ -728,6 +728,10 @@ SiContext::SiContext(SensorGlucoseData *sens)
                              initAlgorithm3(sens, binState)),
       notchinese(sens->notchinese()) {};
 void SiContext::release() {
+  if (!algcontext) {
+    LOGSTRING("releaseAlgorithmContext skipped: algcontext==null\n");
+    return;
+  }
 #ifndef NOLOG
   int res =
 #endif
@@ -741,7 +745,64 @@ void SiContext::release() {
   LOGGER("releaseAlgorithmContext(%p)=%d notchinese=%d\n", algcontext, res,
          notchinese);
   delete algcontext;
+  algcontext = nullptr;
 }
+
+void SiContext::prepareHardwareReset(SensorGlucoseData *sens) {
+  if (!sens) {
+    LOGAR("SiContext::prepareHardwareReset sens==null");
+    return;
+  }
+  auto *info = sens->getinfo();
+  if (!info) {
+    LOGAR("SiContext::prepareHardwareReset info==null");
+    return;
+  }
+
+  const int savedSiIndex = sens->getSiIndex();
+  const bool savedReset = info->reset;
+  LOGGER("SiContext::prepareHardwareReset() sensor=%s siIndex=%d "
+         "pollcount=%u starttime=%u starthistory=%d\n",
+         sens->deviceaddress(), savedSiIndex, info->pollcount, info->starttime,
+         info->starthistory);
+
+  release();
+
+  if (binState.map.data() && binState.map.size() > 0) {
+    memset(binState.map.data(), 0, binState.map.size());
+    LOGSTRING("SiContext::prepareHardwareReset zeroed binState memory map.\n");
+  }
+  binState.reset();
+  unlink(sens->statefile.c_str());
+  unlink(pathconcat(sens->getsensordir(), "state3.json").c_str());
+
+  info->lastCalResetTime = (uint32_t)time(nullptr);
+  info->caliNr = 0;
+  info->pollinterval = 0.0;
+  badValueStreak = 0;
+  sens->sensorerror = false;
+  sens->sensorErrorTime = 0;
+  sens->retried = 0;
+
+  // Recreate with siIndex=0 so initAlgorithm does not restore the stale
+  // pre-reset binary state or trigger a local replay. Restore siIndex
+  // afterwards so the first post-reset packet can still be bridged/appended by
+  // the normal index<maxid logic instead of overwriting existing history.
+  sens->setSiIndex(0);
+  if (notchinese) {
+    algcontext = initAlgorithm2(sens, binState);
+  } else {
+    algcontext = initAlgorithm3(sens, binState);
+  }
+  sens->setSiIndex(savedSiIndex > 0 ? savedSiIndex : 1);
+  info->reset = savedReset;
+
+  LOGGER("SiContext::prepareHardwareReset() done ok=%d restoredSiIndex=%d "
+         "reset=%d mNativeContext=%lld\n",
+         algcontext != nullptr, sens->getSiIndex(), info->reset ? 1 : 0,
+         algcontext ? algcontext->mNativeContext : 0LL);
+}
+
 void SiContext::reset(SensorGlucoseData *sens) {
   LOGGER("SiContext::reset() called for sensor %s\n", sens->deviceaddress());
   auto *info = sens->getinfo();
@@ -1305,6 +1366,7 @@ fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
   if (sens->notchinese()) {
     auto *info = sens->getinfo();
     if (info->reset) {
+      sdata->sicontext.prepareHardwareReset(sens);
       LOGAR("SIprocessData reset");
       return 10LL;
     }
@@ -1315,6 +1377,7 @@ fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
           if (info->siBetween == 0) {
             info->reset = true;
             info->siBetween = 1;
+            sdata->sicontext.prepareHardwareReset(sens);
             LOGGER("Auto Reset triggered: age=%.2f days limit=%d\n", age_days,
                    info->autoResetDays);
             return 10LL;
