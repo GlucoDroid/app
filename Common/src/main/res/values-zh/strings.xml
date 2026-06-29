@@ -1939,4 +1939,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_sensors_loading">正在加载您的传感器…</string>
     <string name="ottai_sign_out">退出登录</string>
     <string name="ottai_verify_code_hint">验证码</string>
+    <string name="wrongcode">二维码错误</string>
 </resources>

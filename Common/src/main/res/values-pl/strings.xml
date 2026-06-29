@@ -1958,4 +1958,5 @@
     <string name="ottai_sensors_loading">Wczytywanie sensorów…</string>
     <string name="ottai_sign_out">Wyloguj się</string>
     <string name="ottai_verify_code_hint">Kod weryfikacyjny</string>
+    <string name="wrongcode">Nieprawidłowy kod QR</string>
 </resources>

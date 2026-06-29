@@ -1923,4 +1923,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_sensors_loading">Läser in dina sensorer…</string>
     <string name="ottai_sign_out">Logga ut</string>
     <string name="ottai_verify_code_hint">Verifieringskod</string>
+    <string name="wrongcode">Fel QR-kod</string>
 </resources>

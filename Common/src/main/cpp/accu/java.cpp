@@ -85,26 +85,28 @@ float makearrow(const SensorGlucoseData *sens,float mgdL,uint32_t was)  {
 extern jlong glucoseback(uint32_t nu,uint32_t glval,float drate,SensorGlucoseData *hist);
 
 jlong mkres(SensorGlucoseData *sens,uint32_t timsec,uint32_t eventTime, int min,int mgdL, int abbotttrend, float change){
-    sens->savestreamonly(eventTime,min,mgdL,abbotttrend, change);
-    jlong res;
-    if((timsec-eventTime)<maxbluetoothage) {
-         sens->sensorerror=false;
-         const int sensorindex=sens->sensorIndex;
-         sensor *sensor=sensors->getsensor(sensorindex);
-         if(sensor->finished) {
-                LOGGER("accuProcessData finished was %d becomes 0\n", sensor->finished);
-                sensor->finished=0;
-                backup->resensordata(sensorindex);
-                }
-         res=glucoseback(eventTime,mgdL,change,sens);
-         wakewithcurrent();
+    if(sens->savestreamonly(eventTime,min,mgdL,abbotttrend, change)) {
+        jlong res;
+        if((timsec-eventTime)<maxbluetoothage) {
+             sens->sensorerror=false;
+             const int sensorindex=sens->sensorIndex;
+             sensor *sensor=sensors->getsensor(sensorindex);
+             if(sensor->finished) {
+                    LOGGER("mkres %s finished was %d becomes 0\n", sens->showsensorname().data(), sensor->finished);
+                    sensor->finished=0;
+                    backup->resensordata(sensorindex);
+                    }
+             res=glucoseback(eventTime,mgdL,change,sens);
+             wakewithcurrent();
+             }
+          else {
+            sens->receivehistory=timsec;
+            res=1LL;
+            }
+         backup->wakebackup(Backup::wakestream);
+         return res;
          }
-      else {
-        sens->receivehistory=timsec;
-        res=1LL;
-        }
-     backup->wakebackup(Backup::wakestream);
-     return res;
+    return 0LL;
     }
 extern "C" JNIEXPORT jlong JNICALL   fromjava(accuProcessData)(JNIEnv *env, jclass cl,jlong dataptr,jbyteArray value,jlong mmsec) {
     if(!value) {
@@ -118,17 +120,19 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(accuProcessData)(JNIEnv *env, jcla
           return 1LL;
          }
      const auto arlen=env->GetArrayLength(value);
+    const uint32_t timsec=mmsec/1000L;
      if(arlen<sizeof(AccuData))  {
         LOGGER("accuProcessData size  value %d < AccuData %d\n",arlen,sizeof(AccuData));
         sens->sensorerror=true;
+        sens->sensorErrorTime=timsec;
         return 0LL;
         }
-    const uint32_t timsec=mmsec/1000L;
     const CritAr  bluedata(env,value);
     const uint32_t starttime=sens->getinfo()->starttime;
     const AccuData *accu=reinterpret_cast<const AccuData *>(bluedata.data());
     if(accu->start[0]!=0x0D||accu->start[1]!=0x43) {
 //        0E C3 FF 07  AF 46  08 02  FF 07 FF 07  EA 5C
+//        0E C3 FF 07  FE 01  08 03  FF 07 FF 07 86 E8
         const uint8_t *start=accu->start;
         if(start[0]==0x0E&&start[1]==0xC3) {
             constexpr const auto isFF07{[](const uint8_t *data){
@@ -137,6 +141,7 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(accuProcessData)(JNIEnv *env, jcla
             if(isFF07(start+2)&&isFF07(start+8)&&isFF07(start+10)) {
                 LOGGER("accuProcessData sensor error id=%d\n",accu->min);
                 sens->sensorerror=true;
+                sens->sensorErrorTime=timsec;
                 return 0LL;
                }
             }
@@ -164,9 +169,10 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(accuProcessData)(JNIEnv *env, jcla
                         if (diff >= 5 && diff < 30 && last->getmgdL() < 120) {
                             const uint32_t eventTime = low->getTime(starttime);
                             constexpr const uint32_t mgdL = 39;
+                            /*
                             if((timsec-eventTime)<maxbluetoothage) {
                                 sens->sensorerror=false;
-                                }
+                                } */
                             return mkres(sens, timsec, eventTime, min, mgdL, 0, NAN);
                             }
                         }
@@ -175,6 +181,7 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(accuProcessData)(JNIEnv *env, jcla
             }
 //0F E3 02 08 E5 15 08 02 40 F0 FF 38 00 64 27
 //0F E3 02 08 EA 15 08 02 40 BF EF 0E 00 E5 72
+        sens->sensorErrorTime=timsec;
         sens->sensorerror=true;
         return 0LL;
         }
@@ -186,14 +193,16 @@ extern "C" JNIEXPORT jlong JNICALL   fromjava(accuProcessData)(JNIEnv *env, jcla
         }
     float mgdLf=accu->mgdL();
     uint32_t mgdL= std::round(mgdLf);
+    /*
     if(mgdL<39||mgdL>401) { //Ever used?
         LOGGER("accuProcessData: ERROR min=%d value %d mg/dL %.1f mmol/L\n",accu->min,mgdL,mgdLf/18.0);
         if((timsec-eventTime)<maxbluetoothage) {
+            sens->sensorErrorTime=timsec;
             sens->sensorerror=true;
             return 0LL;
             }
         return 1LL;
-        }
+        } */
    // float change=makearrow(sens, mgdLf,eventTime) ;
     float change=accu->getTrend() ;
     int abbotttrend=rate2changeindex(change);
@@ -289,9 +298,16 @@ extern "C" JNIEXPORT void JNICALL   fromjava(accuSetStartTime)(JNIEnv *env, jcla
 
 
     uint32_t now=time(nullptr);
-    sens->getinfo()->starttime=now-start->minback*60;
+    uint32_t newstarttime=now-start->minback*60;
+    const int startdiff = (int)newstarttime - (int)sens->getinfo()->starttime;
+    if(abs(startdiff)>20) {
+          const int sensorindex=sens->sensorIndex;
+           sensors->getsensor(sensorindex)->starttime=sens->getinfo()->starttime=newstarttime;
+           sensors->setindices();
+           backup->resendResetDevices(&updateone::sendstream);
+            }
     #ifndef NOLOG
-    const time_t starttime=sens->getinfo()->starttime;
+    const time_t starttime=newstarttime;
     LOGGER("accuSetStartTime minback=%d starttime=%u %s",start->minback,starttime,ctime(&starttime));
     #endif
     }

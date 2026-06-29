@@ -1966,4 +1966,5 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_sensors_loading">Je sensoren worden geladen…</string>
     <string name="ottai_sign_out">Afmelden</string>
     <string name="ottai_verify_code_hint">Verificatiecode</string>
+    <string name="wrongcode">Verkeerde QR-code</string>
 </resources>

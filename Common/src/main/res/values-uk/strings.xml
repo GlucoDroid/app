@@ -1995,4 +1995,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_sensors_loading">Завантаження ваших сенсорів…</string>
     <string name="ottai_sign_out">Вийти</string>
     <string name="ottai_verify_code_hint">Код підтвердження</string>
+    <string name="wrongcode">Неправильний QR-код</string>
 </resources>

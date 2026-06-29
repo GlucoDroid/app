@@ -41,4 +41,10 @@ class AlertGlucoseMathTests {
 
         assertEquals(160f, projected, 0.001f)
     }
+
+    @Test
+    fun forecastDefaultsRemainDisabled() {
+        assertTrue(!AlertDefaults.defaultConfig(AlertType.PRE_LOW, true).enabled)
+        assertTrue(!AlertDefaults.defaultConfig(AlertType.PRE_HIGH, false).enabled)
+    }
 }

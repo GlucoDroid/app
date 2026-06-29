@@ -2034,4 +2034,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_sensors_loading">Таны мэдрэгчүүдийг ачаалж байна…</string>
     <string name="ottai_sign_out">Гарах</string>
     <string name="ottai_verify_code_hint">Баталгаажуулах код</string>
+    <string name="wrongcode">Wrong QR code</string>
 </resources>

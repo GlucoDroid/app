@@ -1951,4 +1951,5 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_sensors_loading">Sensörleriniz yükleniyor…</string>
     <string name="ottai_sign_out">Çıkış yap</string>
     <string name="ottai_verify_code_hint">Doğrulama kodu</string>
+    <string name="wrongcode">Yanlış QR kodu</string>
 </resources>

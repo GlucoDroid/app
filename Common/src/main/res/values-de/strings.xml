@@ -1961,4 +1961,5 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_sensors_loading">Ihre Sensoren werden geladen…</string>
     <string name="ottai_sign_out">Abmelden</string>
     <string name="ottai_verify_code_hint">Bestätigungscode</string>
+    <string name="wrongcode">Falscher QR-Code</string>
 </resources>

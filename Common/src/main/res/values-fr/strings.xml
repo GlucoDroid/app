@@ -1929,4 +1929,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_sensors_loading">Chargement de vos capteurs…</string>
     <string name="ottai_sign_out">Se déconnecter</string>
     <string name="ottai_verify_code_hint">Code de vérification</string>
+    <string name="wrongcode">Code QR incorrect</string>
 </resources>

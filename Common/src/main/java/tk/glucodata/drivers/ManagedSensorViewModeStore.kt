@@ -15,6 +15,13 @@ object ManagedSensorViewModeStore {
         return sanitize(if (prefs.contains(key)) prefs.getInt(key, fallback) else fallback)
     }
 
+    fun readOrNull(context: Context? = Applic.app, sensorId: String?): Int? {
+        val key = keyFor(sensorId) ?: return null
+        val prefs = prefs(context) ?: return null
+        if (!prefs.contains(key)) return null
+        return sanitize(prefs.getInt(key, 0))
+    }
+
     fun write(context: Context? = Applic.app, sensorId: String?, mode: Int) {
         val key = keyFor(sensorId) ?: return
         val prefs = prefs(context) ?: return

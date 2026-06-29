@@ -1966,4 +1966,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_sensors_loading">Загрузка ваших сенсоров…</string>
     <string name="ottai_sign_out">Выйти</string>
     <string name="ottai_verify_code_hint">Код подтверждения</string>
+    <string name="wrongcode">Неверный QR-код</string>
 </resources>
