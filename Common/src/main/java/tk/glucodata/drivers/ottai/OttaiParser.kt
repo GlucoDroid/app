@@ -47,8 +47,19 @@ object OttaiParser {
 
     const val HEADER_SIZE = 8
     const val BLE_RECORD_SIZE = 8
+    /** V1.7 firmware (vE1.2.x) packs 9-byte live records with a different field layout. */
+    const val BLE_RECORD_SIZE_V17 = 9
     const val PARSER_RECORD_SIZE = 12
     const val INVALID_DATA_NO = 65535
+
+    /**
+     * V1.7 sensors emit 9-byte records (current[0:2] LE, aux[2:4], a 16-bit runtime
+     * counter[4:6] that wraps, voltage[6], temp*100[7:9] LE) instead of the 8-byte
+     * V1.5/V2.5 layout. The 8-byte frame header (frontDataNo at [4:6]) is identical.
+     * New 9-byte firmwares get added to this check.
+     */
+    fun isNineByteRecord(deviceVersion: String): Boolean =
+        deviceVersion.contains("V1.7", ignoreCase = true)
 
     private fun le16(lo: Byte, hi: Byte): Int =
         (lo.toInt() and 0xFF) or ((hi.toInt() and 0xFF) shl 8)
@@ -64,21 +75,40 @@ object OttaiParser {
      * (`{0,0} || LE16(frontDataNo+idx) || record8`). Trailing partial bytes are
      * ignored. Returns empty if there is no record region.
      */
-    fun frameRecords(payload: ByteArray): List<ByteArray> {
+    fun frameRecords(payload: ByteArray, deviceVersion: String = ""): List<ByteArray> {
         if (payload.size <= HEADER_SIZE) return emptyList()
         val front = frontDataNo(payload)
+        val nineByte = isNineByteRecord(deviceVersion)
+        val bleSize = if (nineByte) BLE_RECORD_SIZE_V17 else BLE_RECORD_SIZE
         val bodyLen = payload.size - HEADER_SIZE
-        val count = bodyLen / BLE_RECORD_SIZE
+        val count = bodyLen / bleSize
         if (count <= 0) return emptyList()
         val out = ArrayList<ByteArray>(count)
         for (i in 0 until count) {
+            val src = HEADER_SIZE + i * bleSize
+            // V1.7 notifies pad the frame tail with zero records; skip them so the live
+            // path's records.last() lands on the real sample.
+            if (nineByte && (0 until bleSize).all { payload[src + it].toInt() == 0 }) continue
             val dataNo = (front + i) and 0xFFFF
             val rec = ByteArray(PARSER_RECORD_SIZE)
-            rec[0] = 0
-            rec[1] = 0
             rec[2] = (dataNo and 0xFF).toByte()
             rec[3] = ((dataNo ushr 8) and 0xFF).toByte()
-            System.arraycopy(payload, HEADER_SIZE + i * BLE_RECORD_SIZE, rec, 4, BLE_RECORD_SIZE)
+            if (nineByte) {
+                // Transcode the 9-byte V1.7 record into the 12-byte parser layout so
+                // parseRecord/formula stay unchanged. The 16-bit runtime counter wraps,
+                // so derive runtime from dataNo (= minutes since activation) instead.
+                val runtime = dataNo * 60
+                rec[4] = payload[src + 6]                       // voltage
+                rec[5] = ((runtime ushr 16) and 0xFF).toByte() // runtime (parser: b5<<16)
+                rec[6] = (runtime and 0xFF).toByte()           // runtime (parser: | b6)
+                rec[7] = ((runtime ushr 8) and 0xFF).toByte()  // runtime (parser: | b7<<8)
+                rec[8] = payload[src + 0]                       // current LE lo
+                rec[9] = payload[src + 1]                       // current LE hi
+                rec[10] = payload[src + 7]                      // temp*100 LE lo
+                rec[11] = payload[src + 8]                      // temp*100 LE hi
+            } else {
+                System.arraycopy(payload, src, rec, 4, BLE_RECORD_SIZE)
+            }
             out.add(rec)
         }
         return out

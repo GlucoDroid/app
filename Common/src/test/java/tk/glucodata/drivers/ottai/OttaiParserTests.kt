@@ -100,4 +100,33 @@ class OttaiParserTests {
         assertEquals(1_700_000_000_000L + reading.record.runtimeSec * 1000L, reading.monitorTimeMs)
         assertTrue(reading.valid || reading.record.dataNo < 60)
     }
+
+    private fun hex(s: String) = ByteArray(s.length / 2) {
+        ((Character.digit(s[it * 2], 16) shl 4) + Character.digit(s[it * 2 + 1], 16)).toByte()
+    }
+
+    @Test
+    fun frameRecords_v17_nineByteLayout() {
+        // Real decrypted V1.7 notify: header [0000][dataNo=0x4C81 LE][ffff] + one 9-byte
+        // record (current[0:2]=0x3C1F, voltage[6]=0x47, temp[7:9]=0x0BC5) + zero padding.
+        val payload = hex("00000000814cffff1f3c34e115ba47c50b" + "00".repeat(15))
+        val recs = OttaiParser.frameRecords(payload, "V1.7.SH2542.1")
+        assertEquals(1, recs.size) // trailing zero-padding record skipped
+        val r = OttaiParser.parseRecord(recs[0])
+        assertEquals(19585, r.dataNo)              // 0x4C81
+        assertEquals(15391, r.rawCurrent)          // 0x3C1F LE
+        assertEquals(71, r.voltage)                // 0x47
+        assertEquals(30.13, r.temperatureC, 1e-9)  // 0x0BC5 / 100
+        assertEquals(19585 * 60, r.runtimeSec)     // derived from dataNo (counter wraps)
+    }
+
+    @Test
+    fun frameRecords_v15_versionStillUsesEightByteRecords() {
+        // Same payload bytes but a non-V1.7 version -> 8-byte framing (front=0x4C81).
+        val payload = hex("00000000814cffff1f3c34e115ba47c50b" + "00".repeat(15))
+        val recs = OttaiParser.frameRecords(payload, "V1.5.S2428.1")
+        assertEquals(19585, OttaiParser.parseRecord(recs[0]).dataNo)
+        // 8-byte layout reads current from different offset -> 0xBA15, NOT V1.7's 0x3C1F.
+        assertEquals(47637, OttaiParser.parseRecord(recs[0]).rawCurrent)
+    }
 }

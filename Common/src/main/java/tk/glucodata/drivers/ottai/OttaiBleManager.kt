@@ -640,7 +640,7 @@ class OttaiBleManager(
             Log.w(TAG, "$kind $source decrypt failed len=${cipher.size} blockMod=${cipher.size % 16}")
             return
         }
-        val records = OttaiParser.frameRecords(payload)
+        val records = OttaiParser.frameRecords(payload, materials.deviceVersion)
         if (records.isEmpty()) {
             Log.w(TAG, "$kind $source no records payloadLen=${payload.size} hex=${OttaiCrypto.bytesToHex(payload).take(160)}")
             if (live) handler.postDelayed({ requestRecentHistory("empty-live") }, 1_800L)
