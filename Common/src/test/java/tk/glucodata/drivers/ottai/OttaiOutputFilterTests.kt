@@ -52,6 +52,22 @@ class OttaiOutputFilterTests {
                 baselineRaw = 13_707,
             )
         )
+        assertTrue(
+            OttaiOutputFilter.isOneMinuteRawExcursion(
+                candidateMmol = 13.5f,
+                candidateRaw = 25_649,
+                baselineMmol = 4.5f,
+                baselineRaw = 7_706,
+            )
+        )
+        assertTrue(
+            OttaiOutputFilter.isOneMinuteRawExcursion(
+                candidateMmol = 13.5f,
+                candidateRaw = 25_649,
+                baselineMmol = 5.9f,
+                baselineRaw = 10_598,
+            )
+        )
     }
 
     @Test

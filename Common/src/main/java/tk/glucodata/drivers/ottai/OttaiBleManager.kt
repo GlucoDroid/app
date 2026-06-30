@@ -92,6 +92,10 @@ class OttaiBleManager(
         val publishCurrent: Boolean,
         val persist: Boolean,
     )
+    private data class RejectedSample(
+        val rawCurrent: Int,
+        val mmol: Float,
+    )
 
     @Volatile var phase: Phase = Phase.IDLE
         private set
@@ -152,6 +156,9 @@ class OttaiBleManager(
     @Volatile private var lastAcceptedRawCurrent = 0
     @Volatile private var lastDataNo = -1
     @Volatile private var streamStartTimeMs = 0L
+    private val recentlyRejectedSamples = object : LinkedHashMap<Int, RejectedSample>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, RejectedSample>?): Boolean = size > 64
+    }
 
     override var viewMode: Int = 0
 
@@ -738,6 +745,9 @@ class OttaiBleManager(
             return rejectReading(r, mmol, live, "hard-$reason")
         }
         if (mgdl <= 1f) return rejectReading(r, mmol, live, "mgdl=$mgdl")
+        recentRejectedSampleReason(r, mmol)?.let { reason ->
+            return rejectReading(r, mmol, live, reason)
+        }
         repairAheadLastDataNoIfNeeded(r.record.dataNo, live)
         val advancesDataNo = r.record.dataNo > lastDataNo
         val sampleMs = resolveSampleTimeMs(r, live, receivedAtMs)
@@ -772,10 +782,26 @@ class OttaiBleManager(
     }
 
     private fun rejectReading(r: OttaiReading, mmol: Float, live: Boolean, reason: String): EmittedReading? {
+        rememberRejectedReading(r, mmol)
         val kind = if (live) "live" else "history"
         Log.w(TAG, "$kind BG rejected reason=$reason dataNo=${r.record.dataNo} mmol=%.2f raw=%d T=%.1f".format(
             mmol, r.record.rawCurrent, r.record.temperatureC))
         return null
+    }
+
+    private fun rememberRejectedReading(r: OttaiReading, mmol: Float) {
+        recentlyRejectedSamples[r.record.dataNo] = RejectedSample(r.record.rawCurrent, mmol)
+    }
+
+    private fun recentRejectedSampleReason(r: OttaiReading, mmol: Float): String? {
+        val rejected = recentlyRejectedSamples[r.record.dataNo] ?: return null
+        val sameRaw = rejected.rawCurrent == r.record.rawCurrent
+        val sameValue = abs(rejected.mmol - mmol) < 0.05f
+        return if (sameRaw || sameValue) {
+            "recent-rejected raw=${rejected.rawCurrent} mmol=%.2f".format(rejected.mmol)
+        } else {
+            null
+        }
     }
 
     private fun repairAheadLastDataNoIfNeeded(acceptedDataNo: Int, live: Boolean) {
@@ -793,6 +819,7 @@ class OttaiBleManager(
     }
 
     private fun rememberAcceptedReading(r: OttaiReading, mmol: Float, sampleMs: Long) {
+        recentlyRejectedSamples.remove(r.record.dataNo)
         lastAcceptedDataNo = r.record.dataNo
         lastAcceptedSampleMs = sampleMs
         lastAcceptedMmol = mmol
@@ -824,6 +851,18 @@ class OttaiBleManager(
             return "continuity-prev dataNo=${lastAcceptedDataNo} mmol=%.2f raw=%d".format(
                 lastAcceptedMmol, lastAcceptedRawCurrent)
         }
+        if (!live &&
+            isImmediatelyBeforeLastAccepted(r.record.dataNo, sampleMs) &&
+            OttaiOutputFilter.isOneMinuteRawExcursion(
+                candidateMmol = mmol,
+                candidateRaw = r.record.rawCurrent,
+                baselineMmol = lastAcceptedMmol,
+                baselineRaw = lastAcceptedRawCurrent,
+            )
+        ) {
+            return "continuity-next dataNo=${lastAcceptedDataNo} mmol=%.2f raw=%d".format(
+                lastAcceptedMmol, lastAcceptedRawCurrent)
+        }
         if (!live) {
             historyIsolatedSpikeReason(batch, batchIndex, r, mmol)?.let { return it }
         }
@@ -838,6 +877,17 @@ class OttaiBleManager(
         val previousMs = lastAcceptedSampleMs
         if (previousMs <= 0L || sampleMs <= previousMs) return false
         val timeGap = sampleMs - previousMs
+        return timeGap in 1..(2 * RECORD_INTERVAL_MS + 15_000L)
+    }
+
+    private fun isImmediatelyBeforeLastAccepted(dataNo: Int, sampleMs: Long): Boolean {
+        val nextDataNo = lastAcceptedDataNo
+        if (nextDataNo < 0) return false
+        val dataNoGap = nextDataNo - dataNo
+        if (dataNoGap in 1..2) return true
+        val nextMs = lastAcceptedSampleMs
+        if (nextMs <= 0L || sampleMs >= nextMs) return false
+        val timeGap = nextMs - sampleMs
         return timeGap in 1..(2 * RECORD_INTERVAL_MS + 15_000L)
     }
 
