@@ -57,18 +57,29 @@ class OttaiBleManager(
         @Volatile @JvmStatic var activateRequestedFor: String? = null
 
         private const val MAX_HISTORY_REQUEST_RECORDS = 0xFFFF
+        private const val HISTORY_REQUEST_CHUNK_RECORDS = 270
+        private const val HISTORY_CHUNK_DELAY_MS = 750L
         private const val RECENT_HISTORY_RECORDS = 60
         private const val HISTORY_REQUEST_COOLDOWN_MS = 60_000L
         private const val MAX_LIVE_POLL_INTERVAL_MS = 60_000L
         private const val RECORD_INTERVAL_MS = 60_000L
         private const val CURRENT_SAMPLE_FRESH_MS = 120_000L
         private const val CURRENT_SAMPLE_FLOOR_GRACE_MS = RECORD_INTERVAL_MS
+        private const val MAX_REASONABLE_DATA_NO_AHEAD = 120
         private const val MGDL_PER_MMOLL = 18.0f
 
         internal fun isFreshLiveSample(receivedAtMs: Long, sampleMs: Long): Boolean =
             receivedAtMs > 0L &&
                 sampleMs > 0L &&
                 abs(receivedAtMs - sampleMs) <= CURRENT_SAMPLE_FRESH_MS + CURRENT_SAMPLE_FLOOR_GRACE_MS
+
+        internal fun isPersistedDataNoAheadOfLive(previousDataNo: Int, liveDataNo: Int): Boolean =
+            previousDataNo >= 0 &&
+                liveDataNo >= 0 &&
+                previousDataNo > liveDataNo + MAX_REASONABLE_DATA_NO_AHEAD
+
+        internal fun previousDataNoForHistory(previousDataNo: Int, liveDataNo: Int): Int =
+            if (isPersistedDataNoAheadOfLive(previousDataNo, liveDataNo)) -1 else previousDataNo
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
@@ -119,6 +130,10 @@ class OttaiBleManager(
     @Volatile private var livePollIntervalMs = 60_000L
     @Volatile private var lastHistoryRequestAtMs = 0L
     @Volatile private var roomBackfillChecked = false
+    @Volatile private var pendingHistoryReason: String? = null
+    @Volatile private var pendingHistoryNextStart = 0
+    @Volatile private var pendingHistoryEndExclusive = 0
+    @Volatile private var activeHistoryEndExclusive = -1
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
     // Changed characteristic and may restructure its GATT post-auth, leaving the
     // pre-auth handles for the activation chars stale). onServicesDiscovered consumes it.
@@ -152,6 +167,10 @@ class OttaiBleManager(
         val gatt = mBluetoothGatt ?: return@Runnable
         readLiveGlucose(gatt, "post-history")
         scheduleLivePoll()
+    }
+
+    private val pendingHistoryChunkRunnable = Runnable {
+        requestPendingHistoryChunk()
     }
 
     private val notifyOrder = listOf(
@@ -260,6 +279,7 @@ class OttaiBleManager(
                 notifyEnableIndex = 0
                 discoveryStarted = false
                 roomBackfillChecked = false
+                clearPendingHistoryRange()
                 // CGM links drop quickly at default (balanced) params; request a fast
                 // interval so auth/activation completes before the sensor drops idle.
                 runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
@@ -279,6 +299,8 @@ class OttaiBleManager(
                 phase = Phase.IDLE
                 handler.removeCallbacks(livePollRunnable)
                 handler.removeCallbacks(postHistoryLiveRunnable)
+                handler.removeCallbacks(pendingHistoryChunkRunnable)
+                clearPendingHistoryRange()
                 svcDeviceInfo = null; svcCgm = null; svcAuth = null
                 sessionKeyHex = ""
                 runCatching { gatt.close() }
@@ -677,20 +699,28 @@ class OttaiBleManager(
             if (live) {
                 scheduleLivePoll()
                 val liveDataNo = lastDataNo
-                if (!requestRoomBackfillAfterLive(liveDataNo, previousDataNo)) {
-                    val missingBeforeLive = liveDataNo - previousDataNo - 1
-                    if (previousDataNo < 0 || missingBeforeLive > 0) {
-                        handler.postDelayed({ requestHistoryAfterLive(previousDataNo, liveDataNo) }, 1_500L)
+                val previousForHistory = previousDataNoForHistory(previousDataNo, liveDataNo)
+                if (previousForHistory != previousDataNo) {
+                    Log.w(TAG, "ignore ahead previous dataNo for history previous=$previousDataNo live=$liveDataNo")
+                }
+                if (!requestRoomBackfillAfterLive(liveDataNo, previousForHistory)) {
+                    val missingBeforeLive = liveDataNo - previousForHistory - 1
+                    if (previousForHistory < 0 || missingBeforeLive > 0) {
+                        handler.postDelayed({ requestHistoryAfterLive(previousForHistory, liveDataNo) }, 1_500L)
                     }
                 }
             } else {
-                // History can arrive in a long burst and still end several minutes behind
-                // wall time. Ask live immediately afterwards on a one-shot that cgm-info
-                // cadence updates cannot cancel.
-                handler.removeCallbacks(postHistoryLiveRunnable)
-                handler.postDelayed(postHistoryLiveRunnable, 1_000L)
+                if (!continueHistoryAfterPayload(readings)) {
+                    // History can arrive in a long burst and still end several minutes behind
+                    // wall time. Ask live immediately afterwards on a one-shot that cgm-info
+                    // cadence updates cannot cancel.
+                    handler.removeCallbacks(postHistoryLiveRunnable)
+                    handler.postDelayed(postHistoryLiveRunnable, 1_000L)
+                }
             }
             UiRefreshBus.requestStatusRefresh()
+        } else if (!live) {
+            continueHistoryAfterPayload(readings)
         }
     }
 
@@ -708,6 +738,7 @@ class OttaiBleManager(
             return rejectReading(r, mmol, live, "hard-$reason")
         }
         if (mgdl <= 1f) return rejectReading(r, mmol, live, "mgdl=$mgdl")
+        repairAheadLastDataNoIfNeeded(r.record.dataNo, live)
         val advancesDataNo = r.record.dataNo > lastDataNo
         val sampleMs = resolveSampleTimeMs(r, live, receivedAtMs)
         if (sampleMs <= 0L) {
@@ -741,11 +772,18 @@ class OttaiBleManager(
     }
 
     private fun rejectReading(r: OttaiReading, mmol: Float, live: Boolean, reason: String): EmittedReading? {
-        noteSeenDataNo(r.record.dataNo)
         val kind = if (live) "live" else "history"
         Log.w(TAG, "$kind BG rejected reason=$reason dataNo=${r.record.dataNo} mmol=%.2f raw=%d T=%.1f".format(
             mmol, r.record.rawCurrent, r.record.temperatureC))
         return null
+    }
+
+    private fun repairAheadLastDataNoIfNeeded(acceptedDataNo: Int, live: Boolean) {
+        if (!live || !isPersistedDataNoAheadOfLive(lastDataNo, acceptedDataNo)) return
+        val previous = lastDataNo
+        lastDataNo = acceptedDataNo - 1
+        Applic.app?.let { OttaiRegistry.saveLastDataNo(it, SerialNumber.orEmpty(), lastDataNo) }
+        Log.w(TAG, "reset ahead lastDataNo previous=$previous acceptedLive=$acceptedDataNo")
     }
 
     private fun noteSeenDataNo(dataNo: Int) {
@@ -1151,6 +1189,24 @@ class OttaiBleManager(
     }
 
     private fun requestHistoryRange(reason: String, start: Int, count: Int): Boolean {
+        if (start < 0 || count <= 0) return false
+        if (count > MAX_HISTORY_REQUEST_RECORDS) {
+            Log.w(TAG, "history request too large reason=$reason start=$start count=$count")
+            return false
+        }
+        clearPendingHistoryRange()
+        val requestCount = count.coerceAtMost(HISTORY_REQUEST_CHUNK_RECORDS)
+        val issued = issueHistoryRequest(reason, start, requestCount, bypassCooldown = reason == "manual" || reason == "room-backfill")
+        if (issued && requestCount < count) {
+            pendingHistoryReason = reason
+            pendingHistoryNextStart = start + requestCount
+            pendingHistoryEndExclusive = start + count
+            Log.i(TAG, "history chunked reason=$reason start=$start count=$count first=$requestCount next=$pendingHistoryNextStart")
+        }
+        return issued
+    }
+
+    private fun issueHistoryRequest(reason: String, start: Int, count: Int, bypassCooldown: Boolean): Boolean {
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return false
         val gatt = mBluetoothGatt ?: return false
         if (start < 0 || count <= 0) return false
@@ -1159,14 +1215,62 @@ class OttaiBleManager(
             return false
         }
         val now = System.currentTimeMillis()
-        if (reason != "manual" && reason != "room-backfill" && now - lastHistoryRequestAtMs < HISTORY_REQUEST_COOLDOWN_MS) return false
+        if (!bypassCooldown && now - lastHistoryRequestAtMs < HISTORY_REQUEST_COOLDOWN_MS) return false
         val payload = shortToBytesLE(start) + shortToBytesLE(count)
         val issued = writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_HISTORY_REQUEST, payload)
         if (issued) {
             lastHistoryRequestAtMs = now
+            activeHistoryEndExclusive = start + count
             Log.i(TAG, "request history reason=$reason start=$start count=$count payload=${OttaiCrypto.bytesToHex(payload)}")
         }
         return issued
+    }
+
+    private fun requestPendingHistoryChunk(): Boolean {
+        val reason = pendingHistoryReason ?: return false
+        val start = pendingHistoryNextStart
+        val endExclusive = pendingHistoryEndExclusive
+        val remaining = endExclusive - start
+        if (remaining <= 0) {
+            clearPendingHistoryRange()
+            return false
+        }
+        val count = remaining.coerceAtMost(HISTORY_REQUEST_CHUNK_RECORDS)
+        val issued = issueHistoryRequest("$reason-chunk", start, count, bypassCooldown = true)
+        if (!issued) {
+            Log.w(TAG, "history chunk request failed reason=$reason start=$start count=$count end=$endExclusive")
+            return false
+        }
+        pendingHistoryNextStart = start + count
+        if (pendingHistoryNextStart >= endExclusive) {
+            pendingHistoryReason = null
+            pendingHistoryNextStart = 0
+            pendingHistoryEndExclusive = 0
+        }
+        return true
+    }
+
+    private fun continueHistoryAfterPayload(readings: List<OttaiReading>): Boolean {
+        val activeEndExclusive = activeHistoryEndExclusive
+        if (activeEndExclusive <= 0) return pendingHistoryReason != null
+        val maxDataNo = readings.maxOfOrNull { it.record.dataNo } ?: return false
+        if (maxDataNo + 1 < activeEndExclusive) {
+            return true
+        }
+        activeHistoryEndExclusive = -1
+        if (pendingHistoryReason == null) return false
+        handler.removeCallbacks(pendingHistoryChunkRunnable)
+        handler.postDelayed(pendingHistoryChunkRunnable, HISTORY_CHUNK_DELAY_MS)
+        Log.i(TAG, "history chunk complete through=$maxDataNo next=$pendingHistoryNextStart end=$pendingHistoryEndExclusive")
+        return true
+    }
+
+    private fun clearPendingHistoryRange() {
+        handler.removeCallbacks(pendingHistoryChunkRunnable)
+        pendingHistoryReason = null
+        pendingHistoryNextStart = 0
+        pendingHistoryEndExclusive = 0
+        activeHistoryEndExclusive = -1
     }
 
     // ---- GATT helpers ----
