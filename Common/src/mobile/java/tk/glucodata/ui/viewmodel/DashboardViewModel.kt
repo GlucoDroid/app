@@ -105,7 +105,6 @@ class DashboardViewModel(
         const val DASHBOARD_HISTORY_COALESCE_MS = 300L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
-        const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val DASHBOARD_PEER_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
@@ -740,12 +739,12 @@ class DashboardViewModel(
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
+            CollectionMode.DASHBOARD -> 0L
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
+            CollectionMode.DASHBOARD -> 0L
             CollectionMode.FULL_HISTORY -> 0L
         }
         activeHistoryStartTimeMs = recoveryStartTimeMs
@@ -783,10 +782,7 @@ class DashboardViewModel(
             var lastRecoveryRequestSerial: String? = null
             var hasSeenHistoryEmission = false
             val rawHistoryFlow = when (mode) {
-                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(
-                    startTime = queryStartTimeMs,
-                    fallbackWindowMs = DASHBOARD_HISTORY_WINDOW_MS
-                )
+                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(startTime = queryStartTimeMs)
                 CollectionMode.FULL_HISTORY -> glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
                 CollectionMode.INACTIVE -> return@launch
             }
