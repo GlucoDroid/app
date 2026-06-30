@@ -53,13 +53,43 @@ object OttaiParser {
     const val INVALID_DATA_NO = 65535
 
     /**
-     * V1.7 sensors emit 9-byte records (current[0:2] LE, aux[2:4], a 16-bit runtime
-     * counter[4:6] that wraps, voltage[6], temp*100[7:9] LE) instead of the 8-byte
-     * V1.5/V2.5 layout. The 8-byte frame header (frontDataNo at [4:6]) is identical.
-     * New 9-byte firmwares get added to this check.
+     * Choose the BLE record size for a decrypted payload.
+     *
+     * Confirmed firmware families are DETERMINISTIC — V1.7 ships 9-byte records, V1.5
+     * ships 8-byte — so for those we just trust the version string; no guessing. Only a
+     * genuinely UNKNOWN version is inferred from the data, and that inference uses the
+     * vendor's OWN validity gate (raw current >= 1000, temperature <= 45 — a1.a.b), not a
+     * made-up physiological band: a cold reading is still valid, while the mis-aligned
+     * layout loses because it decodes an impossible current/temperature (e.g. 505 °C).
+     * 9-byte: current[0:2], temp[7:9]; 8-byte: current[4:6], temp[6:8].
      */
-    fun isNineByteRecord(deviceVersion: String): Boolean =
-        deviceVersion.contains("V1.7", ignoreCase = true)
+    internal fun chooseRecordSize(payload: ByteArray, deviceVersion: String): Int {
+        confirmedRecordSize(deviceVersion)?.let { return it }
+        val nine = vendorValidCount(payload, BLE_RECORD_SIZE_V17, curLo = 0, tempLo = 7)
+        val eight = vendorValidCount(payload, BLE_RECORD_SIZE, curLo = 4, tempLo = 6)
+        return if (nine > eight) BLE_RECORD_SIZE_V17 else BLE_RECORD_SIZE
+    }
+
+    /** Record size for firmware whose live format we've directly confirmed; null = unknown. */
+    private fun confirmedRecordSize(deviceVersion: String): Int? = when {
+        deviceVersion.contains("V1.7", ignoreCase = true) -> BLE_RECORD_SIZE_V17
+        deviceVersion.contains("V1.5", ignoreCase = true) -> BLE_RECORD_SIZE
+        else -> null
+    }
+
+    /** Records that pass the vendor temp/current validity gate (a1.a.b) under [recSize]. */
+    private fun vendorValidCount(payload: ByteArray, recSize: Int, curLo: Int, tempLo: Int): Int {
+        val count = (payload.size - HEADER_SIZE) / recSize
+        var valid = 0
+        for (i in 0 until count) {
+            val src = HEADER_SIZE + i * recSize
+            if (src + tempLo + 1 >= payload.size) break
+            val current = le16(payload[src + curLo], payload[src + curLo + 1])
+            val temperature = le16(payload[src + tempLo], payload[src + tempLo + 1]) / 100.0
+            if (current >= 1_000 && temperature <= 45.0) valid++
+        }
+        return valid
+    }
 
     private fun le16(lo: Byte, hi: Byte): Int =
         (lo.toInt() and 0xFF) or ((hi.toInt() and 0xFF) shl 8)
@@ -78,8 +108,8 @@ object OttaiParser {
     fun frameRecords(payload: ByteArray, deviceVersion: String = ""): List<ByteArray> {
         if (payload.size <= HEADER_SIZE) return emptyList()
         val front = frontDataNo(payload)
-        val nineByte = isNineByteRecord(deviceVersion)
-        val bleSize = if (nineByte) BLE_RECORD_SIZE_V17 else BLE_RECORD_SIZE
+        val bleSize = chooseRecordSize(payload, deviceVersion)
+        val nineByte = bleSize == BLE_RECORD_SIZE_V17
         val bodyLen = payload.size - HEADER_SIZE
         val count = bodyLen / bleSize
         if (count <= 0) return emptyList()

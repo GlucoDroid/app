@@ -200,6 +200,16 @@ class OttaiBleManager(
         if (provisionalActiveTimeMs > 0L) activationCommandSentAtMs = provisionalActiveTimeMs
         authKeys = materials.authKeys
         lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
+        // Restore the spike-filter baseline so the first sample after an app restart is
+        // still checked against the last real reading (an isolated raw spike otherwise
+        // slips through with an empty baseline). The adjacency window in
+        // continuityRejectReason makes a stale (long-downtime) baseline a no-op.
+        OttaiRegistry.loadContinuityBaseline(context, id)?.let {
+            lastAcceptedDataNo = it.dataNo
+            lastAcceptedSampleMs = it.sampleMs
+            lastAcceptedMmol = it.mmol
+            lastAcceptedRawCurrent = it.rawCurrent
+        }
         // Auth V2 signs the cloud id bytes, not necessarily the Android BLE address.
         macBytes = runCatching { OttaiCrypto.hexToBytes(OttaiConstants.canonicalSensorId(id)) }.getOrDefault(ByteArray(0))
         ensureNativePresenceShell("restore")
@@ -824,6 +834,9 @@ class OttaiBleManager(
         lastAcceptedSampleMs = sampleMs
         lastAcceptedMmol = mmol
         lastAcceptedRawCurrent = r.record.rawCurrent
+        Applic.app?.let {
+            OttaiRegistry.saveContinuityBaseline(it, SerialNumber.orEmpty(), r.record.dataNo, sampleMs, mmol, r.record.rawCurrent)
+        }
     }
 
     private data class NeighborSample(

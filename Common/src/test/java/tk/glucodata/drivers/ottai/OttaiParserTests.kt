@@ -121,12 +121,28 @@ class OttaiParserTests {
     }
 
     @Test
-    fun frameRecords_v15_versionStillUsesEightByteRecords() {
-        // Same payload bytes but a non-V1.7 version -> 8-byte framing (front=0x4C81).
+    fun chooseRecordSize_confirmedVersionsAreDeterministic() {
+        // Confirmed families trust the version string outright — no structural guessing.
+        val nineData = hex("00000000814cffff1f3c34e115ba47c50b" + "00".repeat(15))
+        val eightData = hex("000000000a000300" + "05010203401fac0d" + "05010203501fb00d" + "05010203601fb40d")
+        assertEquals(OttaiParser.BLE_RECORD_SIZE_V17, OttaiParser.chooseRecordSize(nineData, "E1.2.3(V1.7.SH2542.1)"))
+        assertEquals(OttaiParser.BLE_RECORD_SIZE, OttaiParser.chooseRecordSize(eightData, "V1.5.S2428.1"))
+    }
+
+    @Test
+    fun chooseRecordSize_picksNineForUnknownNineByteFirmware() {
+        // A brand-new version string we've never enumerated still works, by structure alone.
         val payload = hex("00000000814cffff1f3c34e115ba47c50b" + "00".repeat(15))
-        val recs = OttaiParser.frameRecords(payload, "V1.5.S2428.1")
-        assertEquals(19585, OttaiParser.parseRecord(recs[0]).dataNo)
-        // 8-byte layout reads current from different offset -> 0xBA15, NOT V1.7's 0x3C1F.
-        assertEquals(47637, OttaiParser.parseRecord(recs[0]).rawCurrent)
+        assertEquals(OttaiParser.BLE_RECORD_SIZE_V17, OttaiParser.chooseRecordSize(payload, "E9.9.9(V3.1.ZZ0000.0)"))
+    }
+
+    @Test
+    fun chooseRecordSize_picksEightForGenuineEightByteData() {
+        // Real 8-byte records (current[4:6]=8000, temp[6:8]=35C) stay 8-byte for any version.
+        val payload = hex("000000000a000300" + "05010203401fac0d" + "05010203501fb00d" + "05010203601fb40d")
+        assertEquals(OttaiParser.BLE_RECORD_SIZE, OttaiParser.chooseRecordSize(payload, "E9.9.9(V9.9.UNK)"))
+        val r = OttaiParser.parseRecord(OttaiParser.frameRecords(payload, "")[0])
+        assertEquals(8000, r.rawCurrent)
+        assertEquals(35.0, r.temperatureC, 1e-9)
     }
 }

@@ -153,6 +153,7 @@ object OttaiRegistry {
                 OttaiConstants.PREF_PREHEAT_PERIOD_PREFIX,
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
+                OttaiConstants.PREF_CONTINUITY_BASELINE_PREFIX,
             ).forEach { remove(it + canonical) }
         }.apply()
     }
@@ -229,6 +230,29 @@ object OttaiRegistry {
         prefs(c).getInt(OttaiConstants.PREF_LAST_DATA_NO_PREFIX + OttaiConstants.canonicalSensorId(id), -1)
     @JvmStatic fun saveLastDataNo(c: Context, id: String, dataNo: Int) {
         prefs(c).edit().putInt(OttaiConstants.PREF_LAST_DATA_NO_PREFIX + OttaiConstants.canonicalSensorId(id), dataNo).apply()
+    }
+
+    /** Last accepted spike-filter baseline, persisted so it survives an app restart. */
+    data class ContinuityBaseline(val dataNo: Int, val sampleMs: Long, val mmol: Float, val rawCurrent: Int)
+
+    @JvmStatic
+    fun saveContinuityBaseline(c: Context, id: String, dataNo: Int, sampleMs: Long, mmol: Float, rawCurrent: Int) {
+        if (!mmol.isFinite()) return
+        val key = OttaiConstants.PREF_CONTINUITY_BASELINE_PREFIX + OttaiConstants.canonicalSensorId(id)
+        prefs(c).edit().putString(key, "$dataNo,$sampleMs,$mmol,$rawCurrent").apply()
+    }
+
+    @JvmStatic
+    fun loadContinuityBaseline(c: Context, id: String): ContinuityBaseline? {
+        val key = OttaiConstants.PREF_CONTINUITY_BASELINE_PREFIX + OttaiConstants.canonicalSensorId(id)
+        val parts = prefs(c).getString(key, null)?.split(',') ?: return null
+        if (parts.size != 4) return null
+        return ContinuityBaseline(
+            dataNo = parts[0].toIntOrNull() ?: return null,
+            sampleMs = parts[1].toLongOrNull() ?: return null,
+            mmol = parts[2].toFloatOrNull()?.takeIf { it.isFinite() } ?: return null,
+            rawCurrent = parts[3].toIntOrNull() ?: return null,
+        )
     }
 
     // ---- portable export / import ----

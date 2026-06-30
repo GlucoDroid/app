@@ -220,6 +220,9 @@ object OttaiConstants {
     const val PREF_COEFF_PREFIX = "ottai_coeff_"          // decrypted coefficient CSV
     const val PREF_ACTIVE_TIME_PREFIX = "ottai_active_time_"
     const val PREF_PROVISIONAL_ACTIVE_TIME_PREFIX = "ottai_provisional_active_time_"
+    // Spike-filter baseline (dataNo,sampleMs,mmol,raw) persisted so a restart can't let
+    // the first post-restart sample bypass the continuity gate.
+    const val PREF_CONTINUITY_BASELINE_PREFIX = "ottai_continuity_baseline_"
     const val PREF_ACTIVE_EXPIRE_PREFIX = "ottai_active_expire_"  // activeExpireTime ms (maxActive duration)
     const val PREF_PREHEAT_PERIOD_PREFIX = "ottai_preheat_period_"
     const val PREF_RETAIN_TIME_PREFIX = "ottai_retain_time_"      // retainTime ms (destruction value)
