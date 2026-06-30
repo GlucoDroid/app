@@ -62,7 +62,13 @@ class OttaiBleManager(
         private const val MAX_LIVE_POLL_INTERVAL_MS = 60_000L
         private const val RECORD_INTERVAL_MS = 60_000L
         private const val CURRENT_SAMPLE_FRESH_MS = 120_000L
+        private const val CURRENT_SAMPLE_FLOOR_GRACE_MS = RECORD_INTERVAL_MS
         private const val MGDL_PER_MMOLL = 18.0f
+
+        internal fun isFreshLiveSample(receivedAtMs: Long, sampleMs: Long): Boolean =
+            receivedAtMs > 0L &&
+                sampleMs > 0L &&
+                abs(receivedAtMs - sampleMs) <= CURRENT_SAMPLE_FRESH_MS + CURRENT_SAMPLE_FLOOR_GRACE_MS
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
@@ -712,9 +718,7 @@ class OttaiBleManager(
             return rejectReading(r, mmol, live, reason)
         }
         val previousGlucoseAtMs = lastGlucoseAtMs
-        val freshLiveSample = live &&
-            receivedAtMs > 0L &&
-            kotlin.math.abs(receivedAtMs - sampleMs) <= CURRENT_SAMPLE_FRESH_MS
+        val freshLiveSample = live && isFreshLiveSample(receivedAtMs, sampleMs)
         val newest = sampleMs >= previousGlucoseAtMs
         if (newest && (!live || freshLiveSample)) {
             lastGlucoseAtMs = sampleMs
