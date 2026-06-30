@@ -371,7 +371,7 @@ object OttaiCloudClient {
             OttaiCrypto.decryptCoefficient(resp.coefficient, secret, resp.coeffUpdateTime.toString(), canonical).orEmpty() else ""
         return OttaiRegistry.DeviceMaterials(
             keyAHex = keyAPlain,
-            method = methodPlain,
+            method = OttaiMethodDefaults.resolve(methodPlain, coeffPlain),
             coefficient = coeffPlain,
             activeTimeMs = resp.activeTime,
             activeExpireTimeMs = resp.activeExpireTime,

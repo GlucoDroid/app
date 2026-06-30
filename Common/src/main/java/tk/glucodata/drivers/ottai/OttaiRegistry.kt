@@ -162,10 +162,13 @@ object OttaiRegistry {
     @JvmStatic
     fun saveMaterials(context: Context, sensorId: String, m: DeviceMaterials) {
         val id = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        val existing = loadMaterials(context, id)
+        val coefficient = m.coefficient.ifBlank { existing.coefficient }
+        val method = OttaiMethodDefaults.resolve(m.method.ifBlank { existing.method }, coefficient)
         prefs(context).edit().apply {
             putString(OttaiConstants.PREF_KEYA_PREFIX + id, m.keyAHex)
-            putString(OttaiConstants.PREF_METHOD_PREFIX + id, m.method)
-            putString(OttaiConstants.PREF_COEFF_PREFIX + id, m.coefficient)
+            putString(OttaiConstants.PREF_METHOD_PREFIX + id, method)
+            putString(OttaiConstants.PREF_COEFF_PREFIX + id, coefficient)
             putLong(OttaiConstants.PREF_ACTIVE_TIME_PREFIX + id, m.activeTimeMs)
             putLong(OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX + id, m.activeExpireTimeMs)
             putLong(OttaiConstants.PREF_RETAIN_TIME_PREFIX + id, m.retainTimeMs)
@@ -179,10 +182,15 @@ object OttaiRegistry {
     fun loadMaterials(context: Context, sensorId: String): DeviceMaterials {
         val id = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
         val p = prefs(context)
+        val coefficient = p.getString(OttaiConstants.PREF_COEFF_PREFIX + id, null).orEmpty()
+        val method = OttaiMethodDefaults.resolve(
+            p.getString(OttaiConstants.PREF_METHOD_PREFIX + id, null).orEmpty(),
+            coefficient,
+        )
         return DeviceMaterials(
             keyAHex = p.getString(OttaiConstants.PREF_KEYA_PREFIX + id, null).orEmpty(),
-            method = p.getString(OttaiConstants.PREF_METHOD_PREFIX + id, null).orEmpty(),
-            coefficient = p.getString(OttaiConstants.PREF_COEFF_PREFIX + id, null).orEmpty(),
+            method = method,
+            coefficient = coefficient,
             activeTimeMs = p.getLong(OttaiConstants.PREF_ACTIVE_TIME_PREFIX + id, 0L),
             activeExpireTimeMs = p.getLong(OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX + id, 0L),
             retainTimeMs = p.getLong(OttaiConstants.PREF_RETAIN_TIME_PREFIX + id, 0L),
