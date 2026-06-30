@@ -614,6 +614,12 @@ class DashboardViewModel(
             availableSensorIds = availableDisplaySensors,
             primarySensorId = sName
         )
+        selectedDisplaySensors.firstOrNull()?.let { selectedPrimary ->
+            if (!SensorIdentity.matches(sName, selectedPrimary)) {
+                SensorBluetooth.setCurrentSensorSelection(selectedPrimary)
+                sName = selectedPrimary
+            }
+        }
         _selectedSensorIds.value = selectedDisplaySensors
         _activeSensorList.value = selectedDisplaySensors
         _sensorViewModes.value = resolveSelectedSensorViewModes(selectedDisplaySensors)
@@ -711,12 +717,14 @@ class DashboardViewModel(
         primarySensorId: String?
     ): List<String> {
         val candidates = ArrayList<String?>()
-        candidates.add(primarySensorId)
         activeSensors?.forEach { candidates.add(it) }
         runCatching {
             SensorBluetooth.mygatts()?.forEach { callback ->
                 candidates.add(callback.SerialNumber)
             }
+        }
+        if (candidates.isEmpty()) {
+            candidates.add(primarySensorId)
         }
         return SensorIdentity.distinctLogicalSensorIds(candidates)
     }
