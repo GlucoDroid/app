@@ -95,7 +95,9 @@ object ICanHealthConstants {
     /** mmol/L to mg/dL conversion factor (exact) */
     const val MMOL_TO_MGDL: Float = 18.0182f
     const val MIN_VALID_GLUCOSE_MGDL = 10f
-    const val MAX_VALID_GLUCOSE_MGDL = 500f
+    // Keep iCan aligned with the native stream validator (<552 mg/dL). Values
+    // above the normal display maximum still render as HI instead of no data.
+    const val MAX_VALID_GLUCOSE_MGDL = 551f
 
     private enum class BundledKeyFamily {
         OLD,

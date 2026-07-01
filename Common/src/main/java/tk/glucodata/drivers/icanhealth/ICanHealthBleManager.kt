@@ -225,6 +225,7 @@ class ICanHealthBleManager(
         WAITING_FOR_NEXT_READING,
         SYNCING,
         NO_DATA_TIMEOUT,
+        INVALID_GLUCOSE,
         CUSTOM,
     }
 
@@ -399,6 +400,11 @@ class ICanHealthBleManager(
             .getOrDefault("Connected, waiting for data...")
     }
 
+    private fun invalidGlucoseStatus(): String {
+        return runCatching { Applic.app.getString(tk.glucodata.R.string.status_invalid_glucose_from_sensor) }
+            .getOrDefault("Invalid glucose from sensor")
+    }
+
     private fun isPassiveUiStatus(kind: UiStatusKind): Boolean {
         return when (kind) {
             UiStatusKind.NONE,
@@ -413,6 +419,7 @@ class ICanHealthBleManager(
             UiStatusKind.WAITING_FOR_NEXT_READING -> true
             UiStatusKind.SYNCING,
             UiStatusKind.NO_DATA_TIMEOUT,
+            UiStatusKind.INVALID_GLUCOSE,
             UiStatusKind.CUSTOM -> false
         }
     }
@@ -432,8 +439,17 @@ class ICanHealthBleManager(
             UiStatusKind.WAITING_FOR_NEXT_READING,
             UiStatusKind.NO_DATA_TIMEOUT -> waitingForDataStatus()
             UiStatusKind.SYNCING -> syncingStatus()
+            UiStatusKind.INVALID_GLUCOSE -> invalidGlucoseStatus()
             UiStatusKind.CUSTOM -> customStatus.orEmpty()
         }
+    }
+
+    private fun reportInvalidGlucoseFromSensor(valueMgdl: Float, source: String) {
+        Log.w(TAG, "Discarding invalid $source glucose $valueMgdl mg/dL")
+        setUiStatus(UiStatusKind.INVALID_GLUCOSE)
+        UiRefreshBus.requestStatusRefresh()
+        scheduleForegroundNotificationRefresh()
+        scheduleNoDataWatchdogIfNeeded()
     }
 
     private fun refreshHistorySyncProgressStatus() {
@@ -1565,7 +1581,7 @@ class ICanHealthBleManager(
                 return
             }
         if (reading.glucoseMgdl !in ICanHealthConstants.MIN_VALID_GLUCOSE_MGDL..ICanHealthConstants.MAX_VALID_GLUCOSE_MGDL) {
-            Log.w(TAG, "Discarding out-of-range glucose ${reading.glucoseMgdl} mg/dL")
+            reportInvalidGlucoseFromSensor(reading.glucoseMgdl, "live")
             return
         }
 
