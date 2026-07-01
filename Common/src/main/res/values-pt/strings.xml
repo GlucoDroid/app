@@ -1855,7 +1855,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Conectado</string>
     <string name="ottai_sensor_mac_hint">ID do dispositivo na nuvem (12 hex ou QR)</string>
-    <string name="ottai_connect_saved">Conectar pela conta ou materiais salvos</string>
+    <string name="ottai_connect_saved">Conectar</string>
     <string name="ottai_login_fail">Falha ao entrar - verifique telefone/código</string>
     <string name="ottai_connect_saved_fail">Nenhum material da conta ou salvo para este ID na nuvem</string>
     <string name="ottai_status_needs_ble_address">Precisa de endereço BLE</string>

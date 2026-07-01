@@ -1892,7 +1892,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_login_request_suffix">\nAnfrage=...%1$s</string>
     <string name="ottai_already_signed_in">Angemeldet</string>
     <string name="ottai_sensor_mac_hint">Cloud-Geräte-ID (12 Hex-Zeichen oder QR)</string>
-    <string name="ottai_connect_saved">Aus Konto oder gespeicherten Materialien verbinden</string>
+    <string name="ottai_connect_saved">Verbinden</string>
     <string name="ottai_login_fail">Anmeldung fehlgeschlagen - Telefon/Code prüfen</string>
     <string name="ottai_connect_saved_fail">Keine Konto- oder gespeicherten Materialien für diese Cloud-ID</string>
     <string name="ottai_status_needs_ble_address">BLE-Adresse erforderlich</string>

@@ -1854,7 +1854,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Inloggad</string>
     <string name="ottai_sensor_mac_hint">Moln-enhets-ID (12 hex eller QR)</string>
-    <string name="ottai_connect_saved">Anslut från konto eller sparade material</string>
+    <string name="ottai_connect_saved">Anslut</string>
     <string name="ottai_login_fail">Inloggning misslyckades - kontrollera telefon/kod</string>
     <string name="ottai_connect_saved_fail">Inga konto- eller sparade material för detta moln-ID</string>
     <string name="ottai_status_needs_ble_address">BLE-adress behövs</string>

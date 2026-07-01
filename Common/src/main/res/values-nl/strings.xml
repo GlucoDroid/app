@@ -1897,7 +1897,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Aangemeld</string>
     <string name="ottai_sensor_mac_hint">Cloud-apparaat-ID (12 hex of QR)</string>
-    <string name="ottai_connect_saved">Verbinden via account of opgeslagen materialen</string>
+    <string name="ottai_connect_saved">Verbinden</string>
     <string name="ottai_login_fail">Aanmelden mislukt - controleer telefoon/code</string>
     <string name="ottai_connect_saved_fail">Geen account- of opgeslagen materialen voor deze cloud-ID</string>
     <string name="ottai_status_needs_ble_address">BLE-adres nodig</string>

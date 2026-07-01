@@ -1926,7 +1926,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Вхід виконано</string>
     <string name="ottai_sensor_mac_hint">Хмарний ID пристрою (12 hex або QR)</string>
-    <string name="ottai_connect_saved">Підключити з акаунта або збережених матеріалів</string>
+    <string name="ottai_connect_saved">Підключити</string>
     <string name="ottai_login_fail">Не вдалося увійти - перевірте телефон/код</string>
     <string name="ottai_connect_saved_fail">Немає матеріалів в акаунті або збережених матеріалів для цього хмарного ID</string>
     <string name="ottai_status_needs_ble_address">Потрібна BLE-адреса</string>

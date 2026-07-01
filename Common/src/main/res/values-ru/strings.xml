@@ -1897,7 +1897,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Вход выполнен</string>
     <string name="ottai_sensor_mac_hint">Облачный ID устройства (12 hex или QR)</string>
-    <string name="ottai_connect_saved">Подключить из аккаунта или сохраненных материалов</string>
+    <string name="ottai_connect_saved">Подключить</string>
     <string name="ottai_login_fail">Вход не выполнен - проверьте телефон/код</string>
     <string name="ottai_connect_saved_fail">Нет материалов в аккаунте или сохраненных материалов для этого облачного ID</string>
     <string name="ottai_status_needs_ble_address">Нужен BLE-адрес</string>

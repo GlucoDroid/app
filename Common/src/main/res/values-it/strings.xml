@@ -1844,7 +1844,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Accesso effettuato</string>
     <string name="ottai_sensor_mac_hint">ID dispositivo cloud (12 esadecimali o QR)</string>
-    <string name="ottai_connect_saved">Connetti dall’account o dai materiali salvati</string>
+    <string name="ottai_connect_saved">Connetti</string>
     <string name="ottai_login_fail">Accesso non riuscito - controlla telefono/codice</string>
     <string name="ottai_connect_saved_fail">Nessun materiale dell’account o salvato per questo ID cloud</string>
     <string name="ottai_status_needs_ble_address">Serve indirizzo BLE</string>

@@ -1860,7 +1860,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Connecté</string>
     <string name="ottai_sensor_mac_hint">ID cloud du dispositif (12 hex ou QR)</string>
-    <string name="ottai_connect_saved">Connecter depuis le compte ou les données enregistrées</string>
+    <string name="ottai_connect_saved">Connecter</string>
     <string name="ottai_login_fail">Connexion échouée - vérifiez le téléphone/code</string>
     <string name="ottai_connect_saved_fail">Aucune donnée de compte ou enregistrée pour cet ID cloud</string>
     <string name="ottai_status_needs_ble_address">Adresse BLE requise</string>
