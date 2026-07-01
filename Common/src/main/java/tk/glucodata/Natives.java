@@ -1441,6 +1441,7 @@ public class Natives {
         public static native boolean getAllValues();
 
         public static native void setResetSibionics2(long dataptr, boolean val);
+        public static native void prepareSibionicsHardwareReset(long dataptr);
 
         public static native void setAutoResetDays(long dataptr, int val);
 

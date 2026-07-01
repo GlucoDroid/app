@@ -1001,6 +1001,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_selected_sensor">Selected %1$s</string>
     <string name="ottai_materials_missing_title">Materials not loaded</string>
     <string name="ottai_materials_missing_desc">Use a signed-in account or import a credentials file before connecting.</string>
+    <string name="ottai_materials_loading">Loading materials from account…</string>
+    <string name="ottai_connect_account_hint">Will fetch materials from account</string>
     <string name="ottai_materials_partial_title">Formula materials incomplete</string>
     <string name="ottai_materials_partial_desc">Authentication keys are present, but method/coefficient data is missing. Fetch or import full materials before expecting glucose values.</string>
     <string name="ottai_state_not_activated">Ready to activate</string>

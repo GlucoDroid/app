@@ -852,6 +852,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_selected_sensor">%1$s сонгосон</string>
     <string name="ottai_materials_missing_title">Материал ачаалагдаагүй</string>
     <string name="ottai_materials_missing_desc">Холбогдохоос өмнө дансаар нэвтрэх эсвэл нэвтрэх мэдээллийн файл импортлоно уу.</string>
+    <string name="ottai_materials_loading">Материалыг данснаас ачаалж байна…</string>
+    <string name="ottai_connect_account_hint">Материалыг данснаас татна</string>
     <string name="ottai_materials_partial_title">Томъёоны материал дутуу</string>
     <string name="ottai_materials_partial_desc">Баталгаажуулалтын түлхүүрүүд байгаа боловч method/coefficient өгөгдөл дутуу байна. Глюкозын утга хүлээхээс өмнө бүрэн материалыг татах эсвэл импортлоно уу.</string>
     <string name="ottai_state_not_activated">Идэвхжүүлэхэд бэлэн</string>

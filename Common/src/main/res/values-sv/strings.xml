@@ -1910,6 +1910,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_selected_sensor">Vald %1$s</string>
     <string name="ottai_materials_missing_title">Material inte inläst</string>
     <string name="ottai_materials_missing_desc">Logga in på kontot eller importera en uppgiftsfil innan du ansluter.</string>
+    <string name="ottai_materials_loading">Läser in material från kontot…</string>
+    <string name="ottai_connect_account_hint">Material hämtas från kontot</string>
     <string name="ottai_materials_partial_title">Formelmaterial ofullständigt</string>
     <string name="ottai_materials_partial_desc">Autentiseringsnycklar finns, men method/coefficient-data saknas. Hämta eller importera komplett material innan du förväntar dig glukosvärden.</string>
     <string name="ottai_state_not_activated">Redo att aktiveras</string>

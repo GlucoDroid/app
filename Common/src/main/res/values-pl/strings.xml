@@ -1945,6 +1945,8 @@
     <string name="ottai_selected_sensor">Wybrano %1$s</string>
     <string name="ottai_materials_missing_title">Materiały nie są wczytane</string>
     <string name="ottai_materials_missing_desc">Przed połączeniem zaloguj się na konto albo zaimportuj plik danych logowania.</string>
+    <string name="ottai_materials_loading">Wczytywanie materiałów z konta…</string>
+    <string name="ottai_connect_account_hint">Materiały zostaną pobrane z konta</string>
     <string name="ottai_materials_partial_title">Materiały formuły są niekompletne</string>
     <string name="ottai_materials_partial_desc">Klucze uwierzytelniania są obecne, ale brakuje danych method/coefficient. Pobierz lub zaimportuj kompletne materiały, zanim oczekujesz wartości glukozy.</string>
     <string name="ottai_state_not_activated">Gotowy do aktywacji</string>

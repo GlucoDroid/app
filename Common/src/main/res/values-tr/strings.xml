@@ -1938,6 +1938,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_selected_sensor">%1$s seçildi</string>
     <string name="ottai_materials_missing_title">Materyaller yüklenmedi</string>
     <string name="ottai_materials_missing_desc">Bağlanmadan önce hesapla oturum açın veya kimlik bilgileri dosyası içe aktarın.</string>
+    <string name="ottai_materials_loading">Materyaller hesaptan yükleniyor…</string>
+    <string name="ottai_connect_account_hint">Materyaller hesaptan alınacak</string>
     <string name="ottai_materials_partial_title">Formül materyalleri eksik</string>
     <string name="ottai_materials_partial_desc">Kimlik doğrulama anahtarları var, ancak method/coefficient verisi eksik. Glikoz değerleri beklemeden önce tam materyalleri alın veya içe aktarın.</string>
     <string name="ottai_state_not_activated">Etkinleştirmeye hazır</string>

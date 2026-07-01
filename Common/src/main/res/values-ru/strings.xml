@@ -1953,6 +1953,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_selected_sensor">Выбран %1$s</string>
     <string name="ottai_materials_missing_title">Материалы не загружены</string>
     <string name="ottai_materials_missing_desc">Перед подключением войдите в аккаунт или импортируйте файл учётных данных.</string>
+    <string name="ottai_materials_loading">Загрузка материалов из аккаунта…</string>
+    <string name="ottai_connect_account_hint">Материалы будут загружены из аккаунта</string>
     <string name="ottai_materials_partial_title">Материалы формулы неполные</string>
     <string name="ottai_materials_partial_desc">Ключи аутентификации есть, но method/coefficient отсутствуют. Загрузите или импортируйте полные материалы перед ожиданием значений глюкозы.</string>
     <string name="ottai_state_not_activated">Готов к активации</string>

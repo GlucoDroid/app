@@ -1926,6 +1926,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_selected_sensor">已选择 %1$s</string>
     <string name="ottai_materials_missing_title">材料未加载</string>
     <string name="ottai_materials_missing_desc">连接前请登录账户或导入凭据文件。</string>
+    <string name="ottai_materials_loading">正在从账号加载材料…</string>
+    <string name="ottai_connect_account_hint">将从账号获取材料</string>
     <string name="ottai_materials_partial_title">公式材料不完整</string>
     <string name="ottai_materials_partial_desc">认证密钥已存在，但缺少 method/coefficient 数据。请先获取或导入完整材料，再期待葡萄糖值。</string>
     <string name="ottai_state_not_activated">可激活</string>

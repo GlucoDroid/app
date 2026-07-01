@@ -1977,6 +1977,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_selected_sensor">Выбрана %1$s</string>
     <string name="ottai_materials_missing_title">Матэрыялы не загружаныя</string>
     <string name="ottai_materials_missing_desc">Перад падключэннем увайдзіце ў акаўнт або імпартуйце файл уліковых даных.</string>
+    <string name="ottai_materials_loading">Загрузка матэрыялаў з акаўнта…</string>
+    <string name="ottai_connect_account_hint">Матэрыялы будуць загружаныя з акаўнта</string>
     <string name="ottai_materials_partial_title">Матэрыялы формулы няпоўныя</string>
     <string name="ottai_materials_partial_desc">Ключы аўтэнтыфікацыі ёсць, але бракуе даных method/coefficient. Загрузіце або імпартуйце поўныя матэрыялы, перш чым чакаць значэнні глюкозы.</string>
     <string name="ottai_state_not_activated">Гатовы да актывацыі</string>

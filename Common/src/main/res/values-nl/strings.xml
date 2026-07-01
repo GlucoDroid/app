@@ -1953,6 +1953,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_selected_sensor">%1$s geselecteerd</string>
     <string name="ottai_materials_missing_title">Materialen niet geladen</string>
     <string name="ottai_materials_missing_desc">Meld je aan of importeer een aanmeldgegevensbestand voordat je verbindt.</string>
+    <string name="ottai_materials_loading">Materialen laden vanuit account…</string>
+    <string name="ottai_connect_account_hint">Materialen worden opgehaald uit account</string>
     <string name="ottai_materials_partial_title">Formulematerialen onvolledig</string>
     <string name="ottai_materials_partial_desc">Authenticatiesleutels zijn aanwezig, maar method/coefficient-gegevens ontbreken. Haal volledige materialen op of importeer ze voordat je glucosewaarden verwacht.</string>
     <string name="ottai_state_not_activated">Klaar voor activatie</string>

@@ -1900,6 +1900,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_selected_sensor">Selezionato %1$s</string>
     <string name="ottai_materials_missing_title">Materiali non caricati</string>
     <string name="ottai_materials_missing_desc">Prima di connettere, accedi all’account o importa un file credenziali.</string>
+    <string name="ottai_materials_loading">Caricamento materiali dall’account…</string>
+    <string name="ottai_connect_account_hint">I materiali verranno recuperati dall’account</string>
     <string name="ottai_materials_partial_title">Materiali della formula incompleti</string>
     <string name="ottai_materials_partial_desc">Le chiavi di autenticazione sono presenti, ma mancano i dati method/coefficient. Recupera o importa materiali completi prima di aspettarti valori glicemici.</string>
     <string name="ottai_state_not_activated">Pronto per l’attivazione</string>

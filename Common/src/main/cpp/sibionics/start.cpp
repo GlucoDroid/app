@@ -171,6 +171,17 @@ extern "C" JNIEXPORT void JNICALL fromjava(setResetSibionics2)(JNIEnv *env,
   sens->getinfo()->reset = val;
 }
 
+extern "C" JNIEXPORT void JNICALL fromjava(prepareSibionicsHardwareReset)(
+    JNIEnv *env, jclass cl, jlong dataptr) {
+  if (!dataptr)
+    return;
+  sistream *stream = reinterpret_cast<sistream *>(dataptr);
+  auto *sens = stream->hist;
+  if (!sens)
+    return;
+  stream->sicontext.prepareHardwareReset(sens);
+}
+
 extern "C" JNIEXPORT void JNICALL fromjava(setAutoResetDays)(JNIEnv *env,
                                                              jclass cl,
                                                              jlong dataptr,
@@ -326,11 +337,17 @@ extern "C" JNIEXPORT jint JNICALL fromjava(getViewMode)(JNIEnv *env, jclass cl,
   }
   return 0;
 }
-/*
-extern "C" JNIEXPORT jboolean  JNICALL   fromjava(getResetSibionics2)(JNIEnv
-*env, jclass cl,jlong dataptr) { if(!dataptr) return false; return
-reinterpret_cast<streamdata *>(dataptr)->hist->getinfo()->reset;
-    } */
+extern "C" JNIEXPORT jboolean JNICALL fromjava(getResetSibionics2)(
+    JNIEnv *env, jclass cl, jlong dataptr) {
+  if (!dataptr)
+    return false;
+  sistream *stream = reinterpret_cast<sistream *>(dataptr);
+  auto *sens = stream->hist;
+  if (!sens)
+    return false;
+  auto *info = sens->getinfo();
+  return info && info->reset;
+}
 
 extern "C" JNIEXPORT jboolean JNICALL fromjava(siSensorptrTransmitterScan)(
     JNIEnv *env, jclass cl, jlong sensorptr, jstring jscancode) {
@@ -1355,6 +1372,11 @@ fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
     LOGAR("SIprocessData refreshing context to notchinese");
     sdata->sicontext.setNotchinese(sens);
   }
+  auto *info = sens->getinfo();
+  if (!info) {
+    LOGAR("SIprocessData SensorGlucoseData info==null");
+    return 0LL;
+  }
   /*
     if(sens->getinfo()->reset) {
           if(!sens->getinfo()->notchinese||!V120Reset) {
@@ -1363,13 +1385,18 @@ fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
           LOGAR("SIprocessData reset");
           return 10LL;
           } */
-  if (sens->notchinese()) {
-    auto *info = sens->getinfo();
-    if (info->reset) {
-      sdata->sicontext.prepareHardwareReset(sens);
-      LOGAR("SIprocessData reset");
+  if (info->reset && sens->isSibionics() && sens->siSubtype() <= 3) {
+    if (!sens->notchinese() && sens->siSubtype() <= 2) {
+      LOGGER("SIprocessData direct reset pending subtype=%u notchinese=0\n",
+             sens->siSubtype());
       return 10LL;
     }
+    sdata->sicontext.prepareHardwareReset(sens);
+    LOGGER("SIprocessData reset subtype=%u notchinese=%d\n",
+           sens->siSubtype(), sens->notchinese() ? 1 : 0);
+    return 10LL;
+  }
+  if (sens->notchinese()) {
     if (info->autoResetDays > 0) {
       if (timsec > info->starttime) {
         float age_days = (timsec - info->starttime) / (24.0f * 3600.0f);

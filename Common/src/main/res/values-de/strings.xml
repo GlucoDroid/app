@@ -1948,6 +1948,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_selected_sensor">Ausgewählt: %1$s</string>
     <string name="ottai_materials_missing_title">Materialien nicht geladen</string>
     <string name="ottai_materials_missing_desc">Vor dem Verbinden beim Konto anmelden oder eine Zugangsdaten-Datei importieren.</string>
+    <string name="ottai_materials_loading">Materialien werden aus dem Konto geladen…</string>
+    <string name="ottai_connect_account_hint">Materialien werden aus dem Konto abgerufen</string>
     <string name="ottai_materials_partial_title">Formelmaterialien unvollständig</string>
     <string name="ottai_materials_partial_desc">Authentifizierungsschlüssel sind vorhanden, aber method/coefficient fehlen. Lade oder importiere vollständige Materialien, bevor Glukosewerte erwartet werden.</string>
     <string name="ottai_state_not_activated">Bereit zur Aktivierung</string>
