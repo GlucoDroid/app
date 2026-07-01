@@ -750,7 +750,7 @@
     <string name="connecting_to_sensor">Podłączanie do czujnika...</string>
     <string name="connecting_to_sensor_wait">Proszę poczekać, aż nawiążemy połączenie.</string>
     <string name="daily_trends">Codzienne trendy</string>
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Główna</string>
     <string name="days_to_export">Days to export</string>
     <string name="quick_range">Szybki zakres</string>
     <string name="add_patient_info">Dodaj dane pacjenta</string>
@@ -1873,6 +1873,7 @@
     <string name="api_source_telegram_note">Telegram przechowuje aktualizacje bota do 24 godzin. Wprowadź co najmniej jedno ID czatu lub nazwę użytkownika, których wiadomości bota mogą być importowane.</string>
     <string name="status_waiting_for_data">Połączono, oczekiwanie na dane...</string>
     <string name="status_raw_values_received">Połączono, odebrano wartości surowe</string>
+    <string name="status_invalid_glucose_from_sensor">Nieprawidłowa glukoza z sensora</string>
     <string name="sensor_display_select">Wybierz czujnik do wyświetlania</string>
     <string name="sensor_display_selected">Czujnik wybrany do wyświetlania</string>
     <!-- Ottai Setup Wizard -->

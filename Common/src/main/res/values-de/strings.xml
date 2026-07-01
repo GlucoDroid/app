@@ -747,7 +747,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="connecting_to_sensor">Verbindung zum Sensor herstellen...</string>
     <string name="connecting_to_sensor_wait">Bitte warten Sie, während wir eine Verbindung herstellen.</string>
     <string name="daily_trends">Tägliche Trends</string>
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Start</string>
     <string name="days_to_export">Days to export</string>
     <string name="quick_range">Schnellbereich</string>
     <string name="add_patient_info">Patienteninformationen hinzufügen</string>
@@ -1876,6 +1876,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="api_source_telegram_note">Telegram speichert Bot-Updates bis zu 24 Stunden. Gib eine oder mehrere Chat-IDs oder Benutzernamen ein, deren Bot-Nachrichten importiert werden dürfen.</string>
     <string name="status_waiting_for_data">Verbunden, warte auf Daten...</string>
     <string name="status_raw_values_received">Verbunden, Rohwerte empfangen</string>
+    <string name="status_invalid_glucose_from_sensor">Ungültiger Glukosewert vom Sensor</string>
     <string name="sensor_display_select">Sensor zur Anzeige auswählen</string>
     <string name="sensor_display_selected">Sensor für Anzeige ausgewählt</string>
     <!-- Ottai Setup Wizard -->

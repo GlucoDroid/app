@@ -729,7 +729,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="connecting_to_sensor">Sensöre bağlanılıyor...</string>
     <string name="connecting_to_sensor_wait">Bağlantı kurulurken lütfen bekleyin.</string>
     <string name="daily_trends">Günlük Trendler</string>
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Ana sayfa</string>
     <string name="days_to_export">Days to export</string>
     <string name="quick_range">Hızlı aralık</string>
     <string name="add_patient_info">Hasta bilgisi ekle</string>
@@ -1866,6 +1866,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="api_source_telegram_note">Telegram bot güncellemelerini 24 saate kadar saklar. Bot mesajları içe aktarılabilecek bir veya daha fazla sohbet kimliği/kullanıcı adı girin.</string>
     <string name="status_waiting_for_data">Bağlandı, veri bekleniyor...</string>
     <string name="status_raw_values_received">Bağlandı, ham değerler alındı</string>
+    <string name="status_invalid_glucose_from_sensor">Sensörden geçersiz glikoz değeri</string>
     <string name="sensor_display_select">Görüntülenecek sensörü seç</string>
     <string name="sensor_display_selected">Görüntülenecek sensör seçildi</string>
     <!-- Ottai Setup Wizard -->

@@ -694,7 +694,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="connecting_to_sensor">Підключення до датчика...</string>
     <string name="connecting_to_sensor_wait">Будь ласка, зачекайте, поки ми встановимо з\'єднання.</string>
     <string name="daily_trends">Щоденні тренди</string>
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Головна</string>
     <string name="days_to_export">Days to export</string>
     <string name="quick_range">Швидкий діапазон</string>
     <string name="add_patient_info">Додати дані пацієнта</string>
@@ -1452,6 +1452,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="startjuggluco">Juggluco запущено на телефоні?\n\nWIFI та Bluetooth увімкнено?</string>
     <string name="status_raw_values_received">Підключено, отримано необроблені значення</string>
     <string name="status_waiting_for_data">Підключено, очікування даних…</string>
+    <string name="status_invalid_glucose_from_sensor">Некоректна глюкоза від сенсора</string>
     <string name="switchtowatch">Перемкнути</string>
     <string name="text">Текст</string>
     <string name="veryhighglucoseshort">" Дуже ВИСОКИЙ!"</string>

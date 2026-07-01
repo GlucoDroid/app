@@ -189,7 +189,7 @@
 <string name="system_ui">UI di sistema</string>
 <string name="watches">Orologio</string>
 <string name="sensor">Sensore</string>
-<string name="settings">Impostazione</string>
+<string name="settings">Impostazioni</string>
 <string name="aboutname">About</string>
 <string name="export">Esporta</string>
 <string name="mirror">Mirror</string>
@@ -567,7 +567,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="connecting_to_sensor_wait">Per favore attendi mentre stabiliamo una connessione.</string>
     <string name="daily_trends">Tendenze quotidiane</string>
     <string name="darkmode">Dark mode</string>
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Principale</string>
     <string name="days_to_export">Days to export</string>
     <string name="quick_range">Intervallo rapido</string>
     <string name="add_patient_info">Aggiungi informazioni paziente</string>
@@ -1828,6 +1828,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram conserva gli aggiornamenti del bot fino a 24 ore. Inserisci uno o più ID chat o nomi utente i cui messaggi bot possono essere importati.</string>
     <string name="status_waiting_for_data">Connesso, in attesa dei dati...</string>
     <string name="status_raw_values_received">Connesso, valori grezzi ricevuti</string>
+    <string name="status_invalid_glucose_from_sensor">Glucosio non valido dal sensore</string>
     <string name="sensor_display_select">Seleziona sensore da visualizzare</string>
     <string name="sensor_display_selected">Sensore selezionato per la visualizzazione</string>
     <!-- Ottai Setup Wizard -->

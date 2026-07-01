@@ -508,7 +508,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stream">Дамжуулалт</string>
     <string name="exchanges">Exchange data</string>
     <!-- Main UI Strings -->
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Нүүр</string>
     <string name="stats">Stats</string>
     <!-- sensors and settings might already exist, checking duplicates avoids error -->
     <!-- existing: <string name="settings">Settings</string> -->
@@ -816,6 +816,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_disconnected">Disconnected</string>
     <string name="status_waiting_for_data">Холбогдсон, өгөгдөл хүлээж байна...</string>
     <string name="status_raw_values_received">Холбогдсон, түүхий утгууд хүлээн авсан</string>
+    <string name="status_invalid_glucose_from_sensor">Сенсороос ирсэн глюкозын утга буруу</string>
     <string name="select_sensor_type">Select sensor type</string>
     <string name="choose_theme">Choose theme</string>
     <string name="sibionics_sensor_picker_desc">QR скан</string>

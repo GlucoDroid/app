@@ -593,7 +593,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="connecting_to_sensor">Conectando ao sensor...</string>
     <string name="connecting_to_sensor_wait">Aguarde enquanto estabelecemos uma conexão.</string>
     <string name="daily_trends">Tendências Diárias</string>
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Início</string>
     <string name="days_to_export">Days to export</string>
     <string name="quick_range">Intervalo rápido</string>
     <string name="add_patient_info">Adicionar informações do paciente</string>
@@ -1839,6 +1839,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">O Telegram mantém atualizações do bot por até 24 horas. Introduza um ou mais IDs de chat/nomes de utilizador cujas mensagens do bot podem ser importadas.</string>
     <string name="status_waiting_for_data">Conectado, aguardando dados...</string>
     <string name="status_raw_values_received">Conectado, valores brutos recebidos</string>
+    <string name="status_invalid_glucose_from_sensor">Glicose inválida do sensor</string>
     <string name="sensor_display_select">Selecionar sensor para exibição</string>
     <string name="sensor_display_selected">Sensor selecionado para exibição</string>
     <!-- Ottai Setup Wizard -->
