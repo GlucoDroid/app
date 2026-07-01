@@ -55,7 +55,7 @@ interface OttaiDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
     override fun terminateManagedSensor(wipeData: Boolean) {}
 
     // Decoded readings carry both calculated glucose and raw sensor current.
-    fun supportsRawDisplayModes(): Boolean = true
+    fun supportsRawDisplayModes(): Boolean = false
     override fun supportsResetAction(): Boolean = false
     override fun supportsDisplayModes(): Boolean = supportsRawDisplayModes()
     override fun supportsManualCalibration(): Boolean = false
