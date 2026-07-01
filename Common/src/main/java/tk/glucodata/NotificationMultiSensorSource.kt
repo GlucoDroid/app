@@ -8,7 +8,8 @@ object NotificationMultiSensorSource {
      */
     class PeerCurrent(
         @JvmField val sensorId: String,
-        @JvmField val snapshot: CurrentDisplaySource.Snapshot?
+        @JvmField val snapshot: CurrentDisplaySource.Snapshot?,
+        @JvmField val colorArgb: Int
     )
 
     @JvmStatic
@@ -33,6 +34,7 @@ object NotificationMultiSensorSource {
     fun peerCurrents(maxAgeMillis: Long, primarySensorId: String?): List<PeerCurrent> {
         val selected = selectedSensorIds(primarySensorId)
         if (selected.size <= 1) return emptyList()
+        val selectedColors = SensorVisuals.distinctColorArgbMap(selected)
         return selected.drop(1).map { sensorId ->
             val snapshot = runCatching {
                 CurrentDisplaySource.resolveCurrent(
@@ -41,7 +43,10 @@ object NotificationMultiSensorSource {
                     DisplayTrendSource.TREND_WINDOW_MS
                 )
             }.getOrNull()
-            PeerCurrent(sensorId, snapshot)
+            val color = selectedColors.entries.firstOrNull { (selectedId, _) ->
+                SensorIdentity.matches(selectedId, sensorId)
+            }?.value ?: SensorVisuals.colorArgb(sensorId)
+            PeerCurrent(sensorId, snapshot, color)
         }
     }
 
@@ -51,7 +56,7 @@ object NotificationMultiSensorSource {
             val snapshot = peer.snapshot ?: return@mapNotNull null
             NotificationChartDrawer.ValueItem(
                 snapshot.fullFormatted,
-                SensorVisuals.colorArgb(peer.sensorId),
+                peer.colorArgb,
                 snapshot.rate
             )
         }
@@ -73,7 +78,7 @@ object NotificationMultiSensorSource {
                 NotificationChartDrawer.PeerSeries(
                     peer.sensorId,
                     peer.snapshot?.viewMode ?: resolveViewMode(peer.sensorId),
-                    SensorVisuals.colorArgb(peer.sensorId),
+                    peer.colorArgb,
                     history
                 )
             }

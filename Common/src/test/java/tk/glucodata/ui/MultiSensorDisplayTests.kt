@@ -1,8 +1,10 @@
 package tk.glucodata.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tk.glucodata.SensorVisuals
 
 class MultiSensorDisplayTests {
     @Test
@@ -53,6 +55,45 @@ class MultiSensorDisplayTests {
 
         assertEquals(listOf("peer-a"), data.series.map { it.sensorId })
         assertEquals(listOf("peer-a"), data.peersAt(timestamp).map { it.sensorSerial })
+    }
+
+    @Test
+    fun selectedPeerColorsResolvePaletteCollisions() {
+        val libreSerial = "46HU804EBJ4"
+        val iCanSerial = "X-2222268X25"
+        assertEquals(SensorVisuals.colorIndex(libreSerial), SensorVisuals.colorIndex(iCanSerial))
+
+        val colors = SensorVisuals.distinctColorArgbs(listOf(libreSerial, iCanSerial))
+        val colorMap = SensorVisuals.distinctColorArgbMap(listOf(libreSerial, iCanSerial))
+
+        assertEquals(SensorVisuals.colorArgb(libreSerial), colors[0])
+        assertNotEquals(colors[0], colors[1])
+        assertEquals(colors[0], colorMap[libreSerial])
+        assertEquals(colors[1], colorMap[iCanSerial])
+    }
+
+    @Test
+    fun buildDisplayDataUsesFullSelectedOrderForPeerColors() {
+        val timestamp = 3_600_000L
+        val primarySerial = "X-2222268X25"
+        val peerSerial = "46HU804EBJ4"
+        assertEquals(SensorVisuals.colorArgb(primarySerial), SensorVisuals.colorArgb(peerSerial))
+
+        val data = MultiSensorDisplay.buildDisplayData(
+            points = listOf(
+                point(sensor = peerSerial, timestamp = timestamp + 5_000L, value = 3.1f),
+            ),
+            selectedPeerIds = listOf(peerSerial),
+            sensorViewModes = emptyMap(),
+            selectedSensorIdsForColors = listOf(primarySerial, peerSerial)
+        )
+
+        assertEquals(listOf(peerSerial), data.series.map { it.sensorId })
+        assertEquals(
+            SensorVisuals.colorArgbForSelected(peerSerial, listOf(primarySerial, peerSerial)),
+            data.series.single().colorArgb
+        )
+        assertNotEquals(SensorVisuals.colorArgb(peerSerial), data.series.single().colorArgb)
     }
 
     @Test

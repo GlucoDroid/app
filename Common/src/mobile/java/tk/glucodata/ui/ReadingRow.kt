@@ -351,7 +351,8 @@ fun ReadingRow(
             @Composable
             fun PeerReadingValue(peer: GlucosePoint) {
                 val peerSensorSeries = seriesForSensor(peer.sensorSerial)
-                val peerColor = SensorColors.getColor(peer.sensorSerial.orEmpty())
+                val peerColor = peerSensorSeries?.let { Color(it.colorArgb) }
+                    ?: SensorColors.getColor(peer.sensorSerial.orEmpty())
                 val peerMode = peerSensorSeries?.viewMode ?: viewMode
                 val isRawModePeer = peerMode == 1 || peerMode == 3
                 val peerSensorId = peer.sensorSerial?.takeIf { it.isNotBlank() }

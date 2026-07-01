@@ -87,10 +87,11 @@ data class SensorInfo(
     // Edit 59: Reset compensation state
     val resetCompensationActive: Boolean = false,  // AiDex: whether initialization bias compensation is active
     val resetCompensationStatus: String = "",  // AiDex: human-readable compensation status (e.g. "Phase 1: ×1.176 (23h left)")
-    val isSelectedForDisplay: Boolean = false
+    val isSelectedForDisplay: Boolean = false,
+    val assignedColorArgb: Int = SensorVisuals.colorArgb(serial)
 ) {
     /** Get the assigned color for this sensor */
-    val color: Color get() = SensorColors.getColor(serial)
+    val color: Color get() = Color(assignedColorArgb)
 }
 
 /** UI-friendly calibration record/event from a managed sensor. */
@@ -183,6 +184,13 @@ class SensorViewModel : ViewModel() {
             }
         }
         return deduped.values.toList()
+    }
+
+    private fun assignVisibleSensorColors(sensors: List<SensorInfo>): List<SensorInfo> {
+        val assignedColors = SensorVisuals.distinctColorArgbs(sensors.map { it.serial })
+        return sensors.mapIndexed { index, sensor ->
+            sensor.copy(assignedColorArgb = assignedColors[index])
+        }
     }
 
     init {
@@ -530,7 +538,7 @@ class SensorViewModel : ViewModel() {
                     }
                 )
             }
-            _sensors.value = selectedSensors
+            val sortedSensors = selectedSensors
                 .withIndex()
                 .sortedWith(
                     compareBy<IndexedValue<SensorInfo>> { indexed ->
@@ -540,6 +548,7 @@ class SensorViewModel : ViewModel() {
                     }.thenBy { indexed -> indexed.index }
                 )
                 .map { it.value }
+            _sensors.value = assignVisibleSensorColors(sortedSensors)
         }
     }
 

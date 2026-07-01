@@ -36,10 +36,51 @@ object SensorVisuals {
     fun colorArgb(sensorId: String?): Int = palette[colorIndex(sensorId)]
 
     @JvmStatic
+    fun colorArgbAt(index: Int): Int = palette[wrappedPaletteIndex(index)]
+
+    @JvmStatic
     fun colorIndex(sensorId: String?): Int {
         val normalized = sensorId?.trim().orEmpty()
         if (normalized.isEmpty()) return 0
-        return abs(normalized.hashCode()) % palette.size
+        val hash = normalized.hashCode()
+        return (if (hash == Int.MIN_VALUE) 0 else abs(hash)) % palette.size
+    }
+
+    @JvmStatic
+    fun distinctColorArgbs(sensorIds: List<String?>): List<Int> {
+        if (sensorIds.size <= 1) return sensorIds.map(::colorArgb)
+
+        val used = BooleanArray(palette.size)
+        return sensorIds.map { sensorId ->
+            val baseIndex = colorIndex(sensorId)
+            val assignedIndex = if (!used[baseIndex]) {
+                baseIndex
+            } else {
+                nextUnusedPaletteIndex(baseIndex, used)
+            }
+            used[assignedIndex] = true
+            colorArgbAt(assignedIndex)
+        }
+    }
+
+    @JvmStatic
+    fun distinctColorArgbMap(sensorIds: List<String?>): Map<String, Int> {
+        val normalized = SensorIdentity.distinctLogicalSensorIds(sensorIds)
+        val colors = distinctColorArgbs(normalized)
+        return normalized.zip(colors).toMap()
+    }
+
+    @JvmStatic
+    fun colorArgbForSelected(sensorId: String?, selectedSensorIds: List<String?>): Int {
+        val normalized = SensorIdentity.resolveAppSensorId(sensorId)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: sensorId?.trim()?.takeIf { it.isNotEmpty() }
+            ?: return colorArgb(sensorId)
+        val selectedColors = distinctColorArgbMap(selectedSensorIds)
+        return selectedColors.entries.firstOrNull { (selected, _) ->
+            SensorIdentity.matches(selected, normalized)
+        }?.value ?: colorArgb(normalized)
     }
 
     /**
@@ -64,6 +105,21 @@ object SensorVisuals {
         val lum = (0.299f * r + 0.587f * g + 0.114f * b).toInt().coerceIn(0, 255)
         val grey = (0xFF shl 24) or (lum shl 16) or (lum shl 8) or lum
         return blendArgb(color, grey, fraction)
+    }
+
+    private fun nextUnusedPaletteIndex(startIndex: Int, used: BooleanArray): Int {
+        for (offset in 1 until palette.size) {
+            val candidate = wrappedPaletteIndex(startIndex + offset)
+            if (!used[candidate]) {
+                return candidate
+            }
+        }
+        return startIndex
+    }
+
+    private fun wrappedPaletteIndex(index: Int): Int {
+        val size = palette.size
+        return ((index % size) + size) % size
     }
 
     @JvmStatic

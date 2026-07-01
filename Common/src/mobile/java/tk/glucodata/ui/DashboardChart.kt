@@ -911,7 +911,7 @@ fun InteractiveGlucoseChart(
             PeerSensorChartSeries(
                 sensorId = series.sensorId,
                 viewMode = series.viewMode,
-                color = SensorColors.getColor(series.sensorId),
+                color = Color(series.colorArgb),
                 points = buildSmoothedChartData(series.points, graphSmoothingMinutes, collapseSmoothedData)
             )
         }
@@ -921,7 +921,7 @@ fun InteractiveGlucoseChart(
     // cursor/tooltip hot paths instead of SensorIdentity.matches per frame.
     val peerDrawAttrs = remember(multiSensorDisplay) {
         multiSensorDisplay.series.associate { series ->
-            series.sensorId to (SensorColors.getColor(series.sensorId) to series.viewMode)
+            series.sensorId to (Color(series.colorArgb) to series.viewMode)
         }
     }
     val primarySerial = fullData.lastOrNull()?.sensorSerial

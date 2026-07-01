@@ -82,11 +82,12 @@ class DashboardViewModel(
 
     /** Display-unit peer history plus the peer ids it covers. */
     private data class PeerRawHistory(
+        val selectedSensorIds: List<String>,
         val peerIds: List<String>,
         val points: List<tk.glucodata.ui.GlucosePoint>
     ) {
         companion object {
-            val EMPTY = PeerRawHistory(emptyList(), emptyList())
+            val EMPTY = PeerRawHistory(emptyList(), emptyList(), emptyList())
         }
     }
 
@@ -859,7 +860,8 @@ class DashboardViewModel(
                                 tk.glucodata.ui.MultiSensorDisplay.buildDisplayData(
                                     points = raw.points,
                                     selectedPeerIds = raw.peerIds,
-                                    sensorViewModes = modes
+                                    sensorViewModes = modes,
+                                    selectedSensorIdsForColors = raw.selectedSensorIds
                                 )
                             }
                         }
@@ -910,7 +912,7 @@ class DashboardViewModel(
                         val converted = withContext(Dispatchers.Default) {
                             rawHistory.inDisplayUnit(config.unit)
                         }
-                        _multiSensorRawHistory.value = PeerRawHistory(peerSensors, converted)
+                        _multiSensorRawHistory.value = PeerRawHistory(config.selectedSensorIds, peerSensors, converted)
                         refreshPeerCurrentReadings(peerSensors)
                     }
                 }

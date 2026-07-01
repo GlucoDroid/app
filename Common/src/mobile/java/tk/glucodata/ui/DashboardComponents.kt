@@ -650,6 +650,7 @@ fun DashboardCombinedHeader(
                         if (peerReadings.isNotEmpty()) {
                             DashboardHeroPeerStrip(
                                 peerReadings = peerReadings,
+                                selectedSensorIds = activeSensors,
                                 contentColor = glucoseContentColor,
                                 onPeerClick = onPeerReadingClick,
                                 modifier = Modifier.padding(top = 4.dp)
@@ -698,6 +699,7 @@ fun DashboardCombinedHeader(
                         if (peerReadings.isNotEmpty()) {
                             DashboardHeroPeerStrip(
                                 peerReadings = peerReadings,
+                                selectedSensorIds = activeSensors,
                                 contentColor = glucoseContentColor,
                                 onPeerClick = onPeerReadingClick,
                                 modifier = Modifier.padding(top = 4.dp)
@@ -804,12 +806,22 @@ fun DashboardCombinedHeader(
                             // Active Indicators (Dots) - Right of Name
                             // Hidden if only 1 active sensor
                             if (activeSensors.size > 1) {
+                                val selectedSensorColors = remember(activeSensors) {
+                                    tk.glucodata.SensorVisuals.distinctColorArgbMap(activeSensors)
+                                }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 activeSensors.forEach { serial ->
                                      Box(
                                          modifier = Modifier
                                              .size(6.dp)
-                                             .background(tk.glucodata.ui.viewmodel.SensorColors.getColor(serial), androidx.compose.foundation.shape.CircleShape)
+                                             .background(
+                                                 Color(
+                                                     selectedSensorColors.entries.firstOrNull { (selected, _) ->
+                                                         tk.glucodata.SensorIdentity.matches(selected, serial)
+                                                     }?.value ?: tk.glucodata.SensorVisuals.colorArgb(serial)
+                                                 ),
+                                                 androidx.compose.foundation.shape.CircleShape
+                                             )
                                      )
                                      Spacer(modifier = Modifier.width(4.dp))
                                 }
@@ -940,6 +952,7 @@ private fun DashboardHeroPrimaryText(
 @Composable
 private fun DashboardHeroPeerStrip(
     peerReadings: List<tk.glucodata.ui.viewmodel.DashboardViewModel.PeerCurrentReading>,
+    selectedSensorIds: List<String>,
     contentColor: Color,
     onPeerClick: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -949,8 +962,17 @@ private fun DashboardHeroPeerStrip(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val selectedColors = remember(selectedSensorIds, peerReadings) {
+            tk.glucodata.SensorVisuals.distinctColorArgbMap(
+                selectedSensorIds.ifEmpty { peerReadings.map { it.sensorId } }
+            )
+        }
         peerReadings.forEach { peer ->
-            val identityColor = tk.glucodata.ui.viewmodel.SensorColors.getColor(peer.sensorId)
+            val identityColor = Color(
+                selectedColors.entries.firstOrNull { (selected, _) ->
+                    tk.glucodata.SensorIdentity.matches(selected, peer.sensorId)
+                }?.value ?: tk.glucodata.SensorVisuals.colorArgb(peer.sensorId)
+            )
             val textColor = lerpColor(contentColor, identityColor, tk.glucodata.SensorVisuals.PEER_TEXT_BLEND)
             val velocity = if (peer.rate.isFinite()) peer.rate else 0f
             val peerTrend = remember(peer.sensorId, velocity) {
