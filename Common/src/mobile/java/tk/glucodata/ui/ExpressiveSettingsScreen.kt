@@ -99,6 +99,11 @@ fun ExpressiveSettingsScreen(
             mqAccountState.hasCredentials ||
             mqAccountState.hasToken ||
             tk.glucodata.drivers.mq.MQRegistry.isCloudSyncEnabled(context)
+    val showOttaiSettings = remember {
+        SensorBluetooth.mygatts().any { callback ->
+            (callback as? tk.glucodata.drivers.ottai.OttaiDriver)?.isUiEnabled() == true
+        }
+    }
 
     // States
     val unit by viewModel.unit.collectAsState()
@@ -425,6 +430,17 @@ fun ExpressiveSettingsScreen(
                         iconTint = exchangeColor,
                         position = CardPosition.MIDDLE,
                         onClick = { navController.navigate("settings/mq-account") }
+                    )
+                }
+                if (showOttaiSettings) {
+                    SettingsItem(
+                        title = stringResource(R.string.ottai_setup_title),
+                        subtitle = stringResource(R.string.ottai_settings_desc),
+                        showArrow = true,
+                        icon = Icons.Default.Sensors,
+                        iconTint = exchangeColor,
+                        position = CardPosition.MIDDLE,
+                        onClick = { navController.navigate("settings/ottai") }
                     )
                 }
                 SettingsItem(

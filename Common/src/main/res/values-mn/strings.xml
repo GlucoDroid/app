@@ -844,6 +844,34 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_sensor">MQ / Glutec</string>
     <string name="mq_sensor_desc">Pair a Glutec / MQ CGM transmitter via Bluetooth</string>
     <string name="anytime_sensor_desc">Pair an Anytime / Yuwell CT3 CGM transmitter via Bluetooth</string>
+    <string name="ottai_settings_desc">Холбогдсон Ottai мэдрэгчийн Ottai дансны хандалт, хадгалсан материал болон тохиргоог удирдана.</string>
+    <string name="ottai_account_sensors_title">Ottai дансны мэдрэгчүүд</string>
+    <string name="ottai_account_sensors_desc">Cloud ID-г бөглөхийн тулд хадгалсан эсвэл дансны мэдрэгчийг сонгоно уу. Connect товч дарсны дараа л холболт эхэлнэ.</string>
+    <string name="ottai_account_sensors_need_login">Ottai дансныхаа мэдрэгчүүдийг ачаалахын тулд эхлээд нэвтэрнэ үү.</string>
+    <string name="ottai_saved_credentials_title">Хадгалсан нэвтрэх мэдээлэл</string>
+    <string name="ottai_selected_sensor">%1$s сонгосон</string>
+    <string name="ottai_materials_missing_title">Материал ачаалагдаагүй</string>
+    <string name="ottai_materials_missing_desc">Холбохоос өмнө шалгах, нэвтрэх эсвэл нэвтрэх мэдээллийн файлыг импортлоно уу.</string>
+    <string name="ottai_materials_partial_title">Томъёоны материал дутуу</string>
+    <string name="ottai_materials_partial_desc">Баталгаажуулалтын түлхүүрүүд байгаа боловч method/coefficient өгөгдөл дутуу байна. Глюкозын утга хүлээхээс өмнө бүрэн материалыг татах эсвэл импортлоно уу.</string>
+    <string name="ottai_state_not_activated">Идэвхжүүлэхэд бэлэн</string>
+    <string name="ottai_state_not_activated_desc">Энэ мэдрэгчид түлхүүрүүд байна, гэхдээ эхлэх цаг хараахан алга. Холбох үед баталгаажуулж, халаалтыг эхлүүлнэ.</string>
+    <string name="ottai_state_warmup">Халаалт явагдаж байна</string>
+    <string name="ottai_state_warmup_desc">Мэдрэгч эхлэх цагтай бөгөөд халаалтын дараа өгөгдөл дамжуулж эхлэх ёстой.</string>
+    <string name="ottai_state_active">Идэвхтэй мэдрэгч</string>
+    <string name="ottai_state_active_desc">Материал болон эхлэх цаг байна. Холбох үед дамжуулалт/түүхийг сэргээнэ.</string>
+    <string name="ottai_state_expired">Дууссан эсвэл хаагдсан</string>
+    <string name="ottai_state_expired_desc">Хадгалсан ажиллах хугацаа дууссан. Мэдрэгч идэвхжүүлэлтийг татгалзах эсвэл зөвхөн түүхэн өгөгдөл үзүүлж магадгүй.</string>
+    <string name="ottai_cloud_id_value">Cloud ID: %1$s</string>
+    <string name="ottai_ble_address_value">Bluetooth хаяг: %1$s</string>
+    <string name="ottai_connect_activate">Холбож халаалтыг эхлүүлэх</string>
+    <string name="ottai_connect_expired">Дууссан мэдрэгчийг холбох</string>
+    <string name="ottai_import_export_title">Нэвтрэх мэдээллийн файл</string>
+    <string name="ottai_import_export_ready">%1$s-д хадгалсан материал экспортлоход бэлэн.</string>
+    <string name="ottai_import_export_missing">Энэ мэдрэгчид бүрэн хадгалсан материал хараахан алга.</string>
+    <string name="ottai_nfc_help_title">Хуучин мэдрэгчийн NFC</string>
+    <string name="ottai_nfc_help_desc">Зарим хуучин Ottai мэдрэгч Bluetooth идэвхжүүлэлтийн өмнө NFC wake/read шаарддаг. Мэдрэгчийг утасны ар талд хэдэн секунд хавтгай бариад дахин холбоно уу. Dump товч нь зөвхөн оношилгоонд зориулагдсан бөгөөд мэдрэгчид юу ч бичихгүй.</string>
+
     <!-- Anytime/Yuwell Setup Wizard Strings -->
     <string name="anytime_setup_title">Anytime / Yuwell Setup</string>
     <string name="anytime_searching_sensors">Searching for Anytime / Yuwell transmitters…</string>

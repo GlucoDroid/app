@@ -1015,6 +1015,33 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_activate">Activate sensor (start warmup)</string>
     <string name="ottai_activating">Activating sensor — warmup should begin…</string>
     <string name="ottai_activate_armed">Activation armed — keep the sensor on the phone; it fires on connect/auth.</string>
+    <string name="ottai_settings_desc">Manage Ottai account access, saved materials, and setup for the connected Ottai sensor.</string>
+    <string name="ottai_account_sensors_title">Ottai account sensors</string>
+    <string name="ottai_account_sensors_desc">Pick a saved or account sensor to fill the cloud ID. It will not connect until you press Connect.</string>
+    <string name="ottai_account_sensors_need_login">Sign in first to load sensors from your Ottai account.</string>
+    <string name="ottai_saved_credentials_title">Saved credentials</string>
+    <string name="ottai_selected_sensor">Selected %1$s</string>
+    <string name="ottai_materials_missing_title">Materials not loaded</string>
+    <string name="ottai_materials_missing_desc">Validate, sign in, or import a credentials file before connecting.</string>
+    <string name="ottai_materials_partial_title">Formula materials incomplete</string>
+    <string name="ottai_materials_partial_desc">Authentication keys are present, but method/coefficient data is missing. Fetch or import full materials before expecting glucose values.</string>
+    <string name="ottai_state_not_activated">Ready to activate</string>
+    <string name="ottai_state_not_activated_desc">This sensor has keys but no start time yet. Connect will authenticate and start warmup.</string>
+    <string name="ottai_state_warmup">Warmup in progress</string>
+    <string name="ottai_state_warmup_desc">The sensor has a start time and should begin streaming after warmup.</string>
+    <string name="ottai_state_active">Active sensor</string>
+    <string name="ottai_state_active_desc">Materials and start time are present. Connect will resume streaming/history.</string>
+    <string name="ottai_state_expired">Expired or ended</string>
+    <string name="ottai_state_expired_desc">The saved lifetime is over. The sensor may refuse activation or only expose historical data.</string>
+    <string name="ottai_cloud_id_value">Cloud ID: %1$s</string>
+    <string name="ottai_ble_address_value">Bluetooth address: %1$s</string>
+    <string name="ottai_connect_activate">Connect and start warmup</string>
+    <string name="ottai_connect_expired">Connect ended sensor</string>
+    <string name="ottai_import_export_title">Credentials file</string>
+    <string name="ottai_import_export_ready">Ready to export saved materials for %1$s.</string>
+    <string name="ottai_import_export_missing">No complete saved materials for this sensor yet.</string>
+    <string name="ottai_nfc_help_title">NFC for older sensors</string>
+    <string name="ottai_nfc_help_desc">Some older Ottai sensors need an NFC wake/read before Bluetooth activation. Hold the sensor flat against the phone back for a few seconds, then connect again. The dump button is diagnostic and does not write to the sensor.</string>
 
     <!-- Anytime/Yuwell Setup Wizard Strings -->
     <string name="anytime_setup_title">Anytime / Yuwell Setup</string>

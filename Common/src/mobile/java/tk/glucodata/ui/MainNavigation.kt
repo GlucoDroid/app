@@ -761,6 +761,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                     composable("settings/mq-account") { MQAccountSettingsScreen(navController) }
                     composable("settings/mq-follower") { MQFollowerSettingsScreen(navController) }
+                    composable("settings/ottai") { tk.glucodata.ui.setup.OttaiSettingsScreen(navController) }
                     composable("settings/mirror") { MirrorSettingsScreen(navController) }
                     composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                     composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
@@ -903,6 +904,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                 composable("settings/mq-account") { MQAccountSettingsScreen(navController) }
                 composable("settings/mq-follower") { MQFollowerSettingsScreen(navController) }
+                composable("settings/ottai") { tk.glucodata.ui.setup.OttaiSettingsScreen(navController) }
                 composable("settings/mirror") { MirrorSettingsScreen(navController) }
                 composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                 composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
