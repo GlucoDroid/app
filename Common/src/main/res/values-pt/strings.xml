@@ -1925,5 +1925,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Ligar e iniciar aquecimento</string>
     <string name="ottai_connect_expired">Ligar sensor terminado</string>
     <string name="ottai_import_export_title">Ficheiro de credenciais</string>
-    <string name="ottai_import_export_ready">Materiais guardados para %1$s prontos para exportação.</string>
+    <string name="ottai_import_export_ready">Materiais guardados para %1$s prontos.</string>
+    <string name="ottai_credentials_import">Importar</string>
+    <string name="ottai_credentials_replace">Substituir</string>
 </resources>

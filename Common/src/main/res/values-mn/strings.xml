@@ -866,7 +866,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Холбож халаалтыг эхлүүлэх</string>
     <string name="ottai_connect_expired">Дууссан мэдрэгчийг холбох</string>
     <string name="ottai_import_export_title">Нэвтрэх мэдээллийн файл</string>
-    <string name="ottai_import_export_ready">%1$s-д хадгалсан материал экспортлоход бэлэн.</string>
+    <string name="ottai_import_export_ready">%1$s-д хадгалсан материал бэлэн.</string>
+    <string name="ottai_credentials_import">Импортлох</string>
+    <string name="ottai_credentials_replace">Солих</string>
 
     <!-- Anytime/Yuwell Setup Wizard Strings -->
     <string name="anytime_setup_title">Anytime / Yuwell Setup</string>

@@ -15,6 +15,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,12 +28,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Nfc
@@ -50,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -63,6 +67,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -315,7 +320,7 @@ fun OttaiSetupWizard(
                 cloudId = id
                 savedRefresh += 1
                 step = OttaiSetupStep.SENSOR
-                status = context.getString(R.string.ottai_creds_loaded)
+                status = ""
             } else {
                 status = context.getString(R.string.ottai_import_failed)
             }
@@ -510,24 +515,6 @@ fun OttaiSetupWizard(
                                     }
                                 }) { Text(stringResource(R.string.ottai_sign_out)) }
                             }
-
-                            OttaiSetupActionRow(
-                                title = stringResource(R.string.ottai_account_sensors_title),
-                                description = stringResource(R.string.ottai_account_sensors_desc),
-                                enabled = !busy,
-                                onClick = { step = OttaiSetupStep.ACCOUNT_SENSORS },
-                            )
-
-                            OttaiBleScanPanel(
-                                ui = ui,
-                                selectedAddress = bleAddress,
-                                onAddressSelected = { address ->
-                                    bleAddress = address
-                                    val id = OttaiConstants.canonicalSensorId(address)
-                                    if (OttaiConstants.looksLikeMac(id)) cloudId = id
-                                    status = context.getString(R.string.ottai_ble_scan_selected, address)
-                                },
-                            )
                         } else {
                             Text(stringResource(R.string.ottai_login_title), style = MaterialTheme.typography.titleMedium)
                             ConnectedButtonGroup(
@@ -646,14 +633,6 @@ fun OttaiSetupWizard(
                             }
                         }
 
-                        OttaiCredentialFileCard(
-                            cloudId = cloudId,
-                            materials = currentMaterials,
-                            enabled = !busy,
-                            onImport = { importLauncher.launch(arrayOf("application/json", "text/*", "*/*")) },
-                            onExport = { exportLauncher.launch("ottai_${OttaiConstants.canonicalSensorId(cloudId)}.json") },
-                        )
-
                         OutlinedTextField(
                             value = cloudId,
                             onValueChange = { cloudId = OttaiConstants.extractMacFromQr(it) ?: it.trim() },
@@ -680,6 +659,9 @@ fun OttaiSetupWizard(
                                 cloudId = cloudId,
                                 materials = currentMaterials,
                                 state = materialState,
+                                enabled = !busy,
+                                onImport = { importLauncher.launch(arrayOf("application/json", "text/*", "*/*")) },
+                                onExport = { exportLauncher.launch("ottai_${OttaiConstants.canonicalSensorId(cloudId)}.json") },
                             )
                         }
                         Button(
@@ -700,6 +682,37 @@ fun OttaiSetupWizard(
 
                         if (busy) CircularProgressIndicator()
                         if (status.isNotBlank()) Text(status)
+
+                        if (!hasSensorCode && currentMaterials == null) {
+                            OttaiSecondaryActionButton(
+                                title = stringResource(R.string.ottai_entry_import_title),
+                                description = stringResource(R.string.ottai_entry_import_desc),
+                                icon = Icons.Default.FileDownload,
+                                enabled = !busy,
+                                onClick = { importLauncher.launch(arrayOf("application/json", "text/*", "*/*")) },
+                            )
+                        }
+
+                        if (signedIn) {
+                            OttaiSecondaryActionButton(
+                                title = stringResource(R.string.ottai_account_sensors_title),
+                                description = stringResource(R.string.ottai_account_sensors_desc),
+                                icon = Icons.Default.Cloud,
+                                enabled = !busy,
+                                onClick = { step = OttaiSetupStep.ACCOUNT_SENSORS },
+                            )
+
+                            OttaiBleScanPanel(
+                                ui = ui,
+                                selectedAddress = bleAddress,
+                                onAddressSelected = { address ->
+                                    bleAddress = address
+                                    val id = OttaiConstants.canonicalSensorId(address)
+                                    if (OttaiConstants.looksLikeMac(id)) cloudId = id
+                                    status = context.getString(R.string.ottai_ble_scan_selected, address)
+                                },
+                            )
+                        }
                     }
                 }
 
@@ -811,25 +824,49 @@ fun OttaiSettingsScreen(navController: NavController) {
 }
 
 @Composable
-private fun OttaiSetupActionRow(
+private fun OttaiSecondaryActionButton(
     title: String,
     description: String,
+    icon: ImageVector,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = {
-            Text(
-                description,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onClick),
-    )
-    HorizontalDivider()
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable
@@ -859,6 +896,9 @@ private fun OttaiMaterialStatusCard(
     cloudId: String,
     materials: OttaiRegistry.DeviceMaterials?,
     state: OttaiMaterialState,
+    enabled: Boolean,
+    onImport: () -> Unit,
+    onExport: () -> Unit,
 ) {
     val titleRes = when (state) {
         OttaiMaterialState.MISSING -> R.string.ottai_materials_missing_title
@@ -876,6 +916,9 @@ private fun OttaiMaterialStatusCard(
         OttaiMaterialState.ACTIVE -> R.string.ottai_state_active_desc
         OttaiMaterialState.EXPIRED -> R.string.ottai_state_expired_desc
     }
+    val ready = materials?.authKeys != null
+    val canonical = OttaiConstants.canonicalSensorId(cloudId)
+    val canExport = ready && OttaiConstants.looksLikeMac(canonical)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -906,56 +949,54 @@ private fun OttaiMaterialStatusCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-    }
-}
 
-@Composable
-private fun OttaiCredentialFileCard(
-    cloudId: String,
-    materials: OttaiRegistry.DeviceMaterials?,
-    enabled: Boolean,
-    onImport: () -> Unit,
-    onExport: () -> Unit,
-) {
-    val ready = materials?.authKeys != null
-    val canonical = OttaiConstants.canonicalSensorId(cloudId)
-    val canExport = ready && OttaiConstants.looksLikeMac(canonical)
-    val actionEnabled = enabled && (!ready || canExport)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = actionEnabled) {
-                if (ready) onExport() else onImport()
-            },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        ListItem(
-            headlineContent = {
-                Text(stringResource(if (ready) R.string.ottai_import_export_title else R.string.ottai_entry_import_title))
-            },
-            supportingContent = {
-                Text(
-                    if (ready) stringResource(R.string.ottai_import_export_ready, canonical)
-                    else stringResource(R.string.ottai_entry_import_desc),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-            leadingContent = {
-                Icon(
-                    if (ready) Icons.Default.FileUpload else Icons.Default.FileDownload,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            },
-            trailingContent = {
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-        )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+            Text(
+                stringResource(R.string.ottai_import_export_title),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                if (ready) stringResource(R.string.ottai_import_export_ready, canonical)
+                else stringResource(R.string.ottai_entry_import_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (ready) {
+                    OutlinedButton(
+                        onClick = onImport,
+                        enabled = enabled,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.ottai_credentials_replace))
+                    }
+                    OutlinedButton(
+                        onClick = onExport,
+                        enabled = enabled && canExport,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.FileUpload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.export))
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onImport,
+                        enabled = enabled,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.ottai_credentials_import))
+                    }
+                }
+            }
+        }
     }
 }
 

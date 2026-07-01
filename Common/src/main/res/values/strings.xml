@@ -1015,7 +1015,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Connect and start warmup</string>
     <string name="ottai_connect_expired">Connect ended sensor</string>
     <string name="ottai_import_export_title">Credentials file</string>
-    <string name="ottai_import_export_ready">Ready to export saved materials for %1$s.</string>
+    <string name="ottai_import_export_ready">Saved materials for %1$s are ready.</string>
+    <string name="ottai_credentials_import">Import</string>
+    <string name="ottai_credentials_replace">Replace</string>
 
     <!-- Anytime/Yuwell Setup Wizard Strings -->
     <string name="anytime_setup_title">Anytime / Yuwell Setup</string>

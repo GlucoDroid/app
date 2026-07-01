@@ -1952,5 +1952,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_connect_activate">Bağlan ve ısınmayı başlat</string>
     <string name="ottai_connect_expired">Bitmiş sensöre bağlan</string>
     <string name="ottai_import_export_title">Kimlik bilgileri dosyası</string>
-    <string name="ottai_import_export_ready">%1$s için kayıtlı materyaller dışa aktarmaya hazır.</string>
+    <string name="ottai_import_export_ready">%1$s için kayıtlı materyaller hazır.</string>
+    <string name="ottai_credentials_import">İçe aktar</string>
+    <string name="ottai_credentials_replace">Değiştir</string>
 </resources>

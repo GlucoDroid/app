@@ -1930,5 +1930,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Connecter et lancer le préchauffage</string>
     <string name="ottai_connect_expired">Connecter un capteur terminé</string>
     <string name="ottai_import_export_title">Fichier d’identifiants</string>
-    <string name="ottai_import_export_ready">Les matériaux enregistrés pour %1$s sont prêts à être exportés.</string>
+    <string name="ottai_import_export_ready">Les matériaux enregistrés pour %1$s sont prêts.</string>
+    <string name="ottai_credentials_import">Importer</string>
+    <string name="ottai_credentials_replace">Remplacer</string>
 </resources>

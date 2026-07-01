@@ -1940,5 +1940,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">连接并开始预热</string>
     <string name="ottai_connect_expired">连接已结束的传感器</string>
     <string name="ottai_import_export_title">凭据文件</string>
-    <string name="ottai_import_export_ready">%1$s 的已保存材料可导出。</string>
+    <string name="ottai_import_export_ready">%1$s 的已保存材料已就绪。</string>
+    <string name="ottai_credentials_import">导入</string>
+    <string name="ottai_credentials_replace">替换</string>
 </resources>

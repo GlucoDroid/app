@@ -1962,5 +1962,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_connect_activate">Verbinden und Aufwärmen starten</string>
     <string name="ottai_connect_expired">Beendeten Sensor verbinden</string>
     <string name="ottai_import_export_title">Zugangsdaten-Datei</string>
-    <string name="ottai_import_export_ready">Gespeicherte Materialien für %1$s können exportiert werden.</string>
+    <string name="ottai_import_export_ready">Gespeicherte Materialien für %1$s sind bereit.</string>
+    <string name="ottai_credentials_import">Importieren</string>
+    <string name="ottai_credentials_replace">Ersetzen</string>
 </resources>

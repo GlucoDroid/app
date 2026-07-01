@@ -1996,5 +1996,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Підключити й почати прогрів</string>
     <string name="ottai_connect_expired">Підключити завершений датчик</string>
     <string name="ottai_import_export_title">Файл облікових даних</string>
-    <string name="ottai_import_export_ready">Збережені матеріали для %1$s готові до експорту.</string>
+    <string name="ottai_import_export_ready">Збережені матеріали для %1$s готові.</string>
+    <string name="ottai_credentials_import">Імпорт</string>
+    <string name="ottai_credentials_replace">Замінити</string>
 </resources>

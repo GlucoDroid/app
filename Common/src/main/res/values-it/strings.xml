@@ -1914,5 +1914,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Connetti e avvia riscaldamento</string>
     <string name="ottai_connect_expired">Connetti sensore terminato</string>
     <string name="ottai_import_export_title">File credenziali</string>
-    <string name="ottai_import_export_ready">Materiali salvati per %1$s pronti per l’esportazione.</string>
+    <string name="ottai_import_export_ready">Materiali salvati per %1$s pronti.</string>
+    <string name="ottai_credentials_import">Importa</string>
+    <string name="ottai_credentials_replace">Sostituisci</string>
 </resources>

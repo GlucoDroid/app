@@ -1991,5 +1991,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Падключыць і пачаць прагрэў</string>
     <string name="ottai_connect_expired">Падключыць завершаны датчык</string>
     <string name="ottai_import_export_title">Файл уліковых даных</string>
-    <string name="ottai_import_export_ready">Захаваныя матэрыялы для %1$s гатовыя да экспарту.</string>
+    <string name="ottai_import_export_ready">Захаваныя матэрыялы для %1$s гатовыя.</string>
+    <string name="ottai_credentials_import">Імпарт</string>
+    <string name="ottai_credentials_replace">Замяніць</string>
 </resources>

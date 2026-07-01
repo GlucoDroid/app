@@ -1967,5 +1967,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_connect_activate">Verbinden en opwarming starten</string>
     <string name="ottai_connect_expired">Beëindigde sensor verbinden</string>
     <string name="ottai_import_export_title">Bestand met aanmeldgegevens</string>
-    <string name="ottai_import_export_ready">Opgeslagen materialen voor %1$s zijn klaar om te exporteren.</string>
+    <string name="ottai_import_export_ready">Opgeslagen materialen voor %1$s zijn klaar.</string>
+    <string name="ottai_credentials_import">Importeren</string>
+    <string name="ottai_credentials_replace">Vervangen</string>
 </resources>

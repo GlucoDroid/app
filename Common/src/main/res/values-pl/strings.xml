@@ -1959,5 +1959,7 @@
     <string name="ottai_connect_activate">Połącz i rozpocznij rozgrzewanie</string>
     <string name="ottai_connect_expired">Połącz zakończony sensor</string>
     <string name="ottai_import_export_title">Plik danych logowania</string>
-    <string name="ottai_import_export_ready">Zapisane materiały dla %1$s są gotowe do eksportu.</string>
+    <string name="ottai_import_export_ready">Zapisane materiały dla %1$s są gotowe.</string>
+    <string name="ottai_credentials_import">Importuj</string>
+    <string name="ottai_credentials_replace">Zastąp</string>
 </resources>

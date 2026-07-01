@@ -1967,5 +1967,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Подключить и начать прогрев</string>
     <string name="ottai_connect_expired">Подключить завершённый датчик</string>
     <string name="ottai_import_export_title">Файл учётных данных</string>
-    <string name="ottai_import_export_ready">Материалы для %1$s готовы к экспорту.</string>
+    <string name="ottai_import_export_ready">Материалы для %1$s загружены.</string>
+    <string name="ottai_credentials_import">Импорт</string>
+    <string name="ottai_credentials_replace">Заменить</string>
 </resources>

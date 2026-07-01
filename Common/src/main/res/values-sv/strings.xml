@@ -1924,5 +1924,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_activate">Anslut och starta uppvärmning</string>
     <string name="ottai_connect_expired">Anslut avslutad sensor</string>
     <string name="ottai_import_export_title">Fil med inloggningsuppgifter</string>
-    <string name="ottai_import_export_ready">Sparat material för %1$s är redo att exporteras.</string>
+    <string name="ottai_import_export_ready">Sparat material för %1$s är redo.</string>
+    <string name="ottai_credentials_import">Importera</string>
+    <string name="ottai_credentials_replace">Ersätt</string>
 </resources>
