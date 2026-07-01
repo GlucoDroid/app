@@ -56,6 +56,8 @@ interface OttaiDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
 
     // Decoded readings carry both calculated glucose and raw sensor current.
     fun supportsRawDisplayModes(): Boolean = false
+    fun isVendorConnectedForUi(): Boolean =
+        (this as? SuperGattCallback)?.mActiveBluetoothDevice != null
     override fun supportsResetAction(): Boolean = false
     override fun supportsDisplayModes(): Boolean = supportsRawDisplayModes()
     override fun supportsManualCalibration(): Boolean = false
@@ -88,7 +90,8 @@ interface OttaiDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
             supportsDisplayModes = supportsDisplayModes(),
             supportsManualCalibration = supportsManualCalibration(),
             supportsHardwareReset = supportsResetAction(),
-            isVendorConnected = callback.mActiveBluetoothDevice != null,
+            isVendorConnected = runCatching { isVendorConnectedForUi() }
+                .getOrDefault(callback.mActiveBluetoothDevice != null),
             isSensorExpired = runCatching { isSensorExpired() }.getOrDefault(false),
             sensorRemainingHours = runCatching { getSensorRemainingHours() }.getOrDefault(-1),
             sensorAgeHours = runCatching { getSensorAgeHours() }.getOrDefault(-1),

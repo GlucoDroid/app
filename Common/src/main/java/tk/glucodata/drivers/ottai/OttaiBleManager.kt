@@ -62,6 +62,9 @@ class OttaiBleManager(
         private const val RECENT_HISTORY_RECORDS = 60
         private const val HISTORY_REQUEST_COOLDOWN_MS = 60_000L
         private const val MAX_LIVE_POLL_INTERVAL_MS = 60_000L
+        private const val STREAM_ACTIVITY_STALE_MS = 180_000L
+        private const val SETUP_ACTIVITY_STALE_MS = 90_000L
+        private const val CONNECTION_WATCHDOG_MS = 30_000L
         private const val RECORD_INTERVAL_MS = 60_000L
         private const val CURRENT_SAMPLE_FRESH_MS = 120_000L
         private const val CURRENT_SAMPLE_FLOOR_GRACE_MS = RECORD_INTERVAL_MS
@@ -156,6 +159,7 @@ class OttaiBleManager(
     @Volatile private var lastAcceptedRawCurrent = 0
     @Volatile private var lastDataNo = -1
     @Volatile private var streamStartTimeMs = 0L
+    @Volatile private var lastBleActivityAtMs = 0L
     private val recentlyRejectedSamples = object : LinkedHashMap<Int, RejectedSample>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, RejectedSample>?): Boolean = size > 64
     }
@@ -178,6 +182,10 @@ class OttaiBleManager(
 
     private val pendingHistoryChunkRunnable = Runnable {
         requestPendingHistoryChunk()
+    }
+
+    private val connectionWatchdogRunnable = Runnable {
+        checkConnectionWatchdog()
     }
 
     private val notifyOrder = listOf(
@@ -223,6 +231,82 @@ class OttaiBleManager(
         handler.postDelayed(reconnectRunnable, delay)
     }
 
+    private fun lossOfSignalText(): String = appString(R.string.lossofsignal, "Loss of signal")
+
+    private fun noteGattActivity() {
+        lastBleActivityAtMs = System.currentTimeMillis()
+        if (constatstatusstr == "Loss of signal" || constatstatusstr == lossOfSignalText()) {
+            constatstatusstr = ""
+        }
+        if (phase != Phase.IDLE) scheduleConnectionWatchdog()
+    }
+
+    private fun scheduleConnectionWatchdog() {
+        handler.removeCallbacks(connectionWatchdogRunnable)
+        handler.postDelayed(connectionWatchdogRunnable, CONNECTION_WATCHDOG_MS)
+    }
+
+    private fun connectionStaleThresholdMs(): Long =
+        if (phase == Phase.STREAMING) {
+            maxOf(STREAM_ACTIVITY_STALE_MS, livePollIntervalMs * 3L + 15_000L)
+        } else {
+            SETUP_ACTIVITY_STALE_MS
+        }
+
+    private fun lastConnectionActivityMs(): Long = maxOf(lastBleActivityAtMs, connectTime)
+
+    private fun isConnectionStale(now: Long = System.currentTimeMillis()): Boolean {
+        if (phase == Phase.IDLE) return false
+        if (mBluetoothGatt == null && mActiveBluetoothDevice == null) return true
+        val last = lastConnectionActivityMs()
+        return last > 0L && now - last > connectionStaleThresholdMs()
+    }
+
+    private fun checkConnectionWatchdog() {
+        if (stop || phase == Phase.IDLE) return
+        val now = System.currentTimeMillis()
+        if (isConnectionStale(now)) {
+            val ageSec = ((now - lastConnectionActivityMs()).coerceAtLeast(0L)) / 1000L
+            recoverGattAndReconnect("no GATT activity for ${ageSec}s")
+        } else {
+            scheduleConnectionWatchdog()
+        }
+    }
+
+    @Synchronized
+    private fun clearGattTransport(reason: String, markSignalLoss: Boolean) {
+        Log.w(TAG, "clearing Ottai GATT: $reason phase=$phase")
+        if (markSignalLoss) constatstatusstr = lossOfSignalText()
+        handler.removeCallbacks(livePollRunnable)
+        handler.removeCallbacks(postHistoryLiveRunnable)
+        handler.removeCallbacks(pendingHistoryChunkRunnable)
+        handler.removeCallbacks(connectionWatchdogRunnable)
+        clearPendingHistoryRange()
+        svcDeviceInfo = null
+        svcCgm = null
+        svcAuth = null
+        sessionKeyHex = ""
+        authStep = AuthStep.NONE
+        actStep = ActStep.NONE
+        notifyEnableIndex = 0
+        discoveryStarted = false
+        pendingActivation = false
+        phase = Phase.IDLE
+        val oldGatt = mBluetoothGatt
+        runCatching { disconnect() }
+            .onFailure { Log.stack(TAG, "clearGattTransport(disconnect)", it) }
+        mBluetoothGatt = null
+        mActiveBluetoothDevice = null
+        runCatching { oldGatt?.close() }
+            .onFailure { Log.stack(TAG, "clearGattTransport(close)", it) }
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    private fun recoverGattAndReconnect(reason: String) {
+        clearGattTransport(reason, markSignalLoss = true)
+        scheduleReconnect(reason, 250L)
+    }
+
     // ---- lifecycle ----
 
     override fun getService(): UUID = OttaiConstants.SERVICE_CGM
@@ -230,7 +314,13 @@ class OttaiBleManager(
     @Synchronized
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
-        if (phase != Phase.IDLE && (mBluetoothGatt != null || mActiveBluetoothDevice != null)) return true
+        if (phase != Phase.IDLE && (mBluetoothGatt != null || mActiveBluetoothDevice != null)) {
+            if (isConnectionStale() || constatstatusstr == "Loss of signal" || constatstatusstr == lossOfSignalText()) {
+                clearGattTransport("connect requested with stale transport", markSignalLoss = true)
+            } else {
+                return true
+            }
+        }
         if (mActiveBluetoothDevice == null && !hydrateBluetoothDeviceFromAddress()) {
             phase = Phase.IDLE
             Log.i(TAG, "connect postponed — no Android BLE address for $SerialNumber")
@@ -238,9 +328,35 @@ class OttaiBleManager(
             return true
         }
         phase = Phase.CONNECTING
+        lastBleActivityAtMs = System.currentTimeMillis()
+        scheduleConnectionWatchdog()
         val scheduled = super.connectDevice(delayMillis)
         if (!scheduled && phase == Phase.CONNECTING) phase = Phase.IDLE
         return scheduled
+    }
+
+    @Synchronized
+    override fun reconnect(now: Long): Boolean {
+        if (stop) return true
+        if (phase != Phase.IDLE && !isConnectionStale(now)) return true
+        if (phase != Phase.IDLE || mBluetoothGatt != null || mActiveBluetoothDevice != null) {
+            val ageSec = ((now - lastConnectionActivityMs()).coerceAtLeast(0L)) / 1000L
+            clearGattTransport("generic reconnect after stale activity age=${ageSec}s", markSignalLoss = true)
+        }
+        return connectDevice(0)
+    }
+
+    override fun softDisconnect() {
+        setPause(true)
+        clearGattTransport("user disconnect", markSignalLoss = false)
+        constatstatusstr = appString(R.string.status_disconnected, "Disconnected")
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    override fun softReconnect() {
+        setPause(false)
+        clearGattTransport("user reconnect", markSignalLoss = false)
+        connectDevice(0)
     }
 
     private fun knownBleAddress(): String? =
@@ -290,6 +406,10 @@ class OttaiBleManager(
                 mActiveBluetoothDevice = gatt.device
                 gatt.device?.address?.let { setDeviceAddress(it) }
                 connectTime = System.currentTimeMillis()
+                lastBleActivityAtMs = connectTime
+                if (constatstatusstr == "Loss of signal" || constatstatusstr == lossOfSignalText()) {
+                    constatstatusstr = ""
+                }
                 phase = Phase.DISCOVERING
                 authStep = AuthStep.NONE
                 actStep = ActStep.NONE
@@ -309,6 +429,7 @@ class OttaiBleManager(
                 val mtuRequested = runCatching { gatt.requestMtu(MTU) }.getOrDefault(false)
                 // Fallback: if onMtuChanged never fires, discover anyway.
                 handler.postDelayed({ startServiceDiscovery(gatt) }, if (mtuRequested) 1500 else 300)
+                scheduleConnectionWatchdog()
                 UiRefreshBus.requestStatusRefresh()
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
@@ -317,6 +438,7 @@ class OttaiBleManager(
                 handler.removeCallbacks(livePollRunnable)
                 handler.removeCallbacks(postHistoryLiveRunnable)
                 handler.removeCallbacks(pendingHistoryChunkRunnable)
+                handler.removeCallbacks(connectionWatchdogRunnable)
                 clearPendingHistoryRange()
                 svcDeviceInfo = null; svcCgm = null; svcAuth = null
                 sessionKeyHex = ""
@@ -331,6 +453,7 @@ class OttaiBleManager(
 
     override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
         Log.d(TAG, "mtu=$mtu status=$status")
+        noteGattActivity()
         startServiceDiscovery(gatt)
     }
 
@@ -347,6 +470,7 @@ class OttaiBleManager(
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+        noteGattActivity()
         if (status != BluetoothGatt.GATT_SUCCESS) {
             scheduleReconnect("discover failed $status"); return
         }
@@ -414,6 +538,7 @@ class OttaiBleManager(
     }
 
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+        noteGattActivity()
         if (phase == Phase.ENABLING_NOTIFY) {
             notifyEnableIndex++
             enableNextNotification(gatt)
@@ -431,6 +556,12 @@ class OttaiBleManager(
     @Suppress("DEPRECATION")
     override fun onCharacteristicRead(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
         val value = ch.value ?: ByteArray(0)
+        noteGattActivity()
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            Log.w(TAG, "read err ${ch.uuid.toString().take(8)} status=$status phase=$phase")
+            if (phase == Phase.STREAMING || phase == Phase.AUTH) recoverGattAndReconnect("read failed status=$status")
+            return
+        }
         when (ch.uuid) {
             OttaiConstants.CHAR_CURRENT_TIME -> {
                 deviceTimeBytes = value.copyOf()
@@ -491,6 +622,7 @@ class OttaiBleManager(
 
     @Suppress("DEPRECATION")
     override fun onCharacteristicWrite(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
+        noteGattActivity()
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "write err ${ch.uuid.toString().take(8)} status=$status actStep=$actStep")
             if (actStep != ActStep.NONE) {
@@ -517,8 +649,10 @@ class OttaiBleManager(
                 deriveSession()
                 authStep = AuthStep.DONE
                 phase = Phase.STREAMING
+                lastBleActivityAtMs = System.currentTimeMillis()
                 val sessionOk = sessionKeyHex.isNotBlank()
                 Log.i(TAG, "auth complete; session=${if (sessionOk) "ok" else "FAILED"}")
+                if (sessionOk) scheduleConnectionWatchdog()
                 UiRefreshBus.requestStatusRefresh()
                 // Read the activation-state byte exactly like the official app (CgmActivate
                 // readCmd → 0000181f/d78d0706: bArr[0], where 3 = activated, <3 = needs
@@ -586,6 +720,7 @@ class OttaiBleManager(
     @Suppress("DEPRECATION")
     override fun onCharacteristicChanged(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic) {
         val value = ch.value ?: return
+        noteGattActivity()
         when (ch.uuid) {
             OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true, source = "notify")
             OttaiConstants.CHAR_GLUCOSE_HISTORY -> handleGlucosePayload(value, live = false, source = "notify")
@@ -1354,7 +1489,11 @@ class OttaiBleManager(
     private fun readLiveGlucose(gatt: BluetoothGatt, reason: String) {
         if (sessionKeyHex.isBlank()) return
         Log.i(TAG, "read live glucose reason=$reason")
-        readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_GLUCOSE_LIVE)
+        if (!readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_GLUCOSE_LIVE) &&
+            phase == Phase.STREAMING
+        ) {
+            recoverGattAndReconnect("live read could not start")
+        }
     }
 
     private fun scheduleLivePoll(delayMs: Long = livePollIntervalMs) {
@@ -1446,6 +1585,9 @@ class OttaiBleManager(
 
     override val vendorFirmwareVersion: String get() = materials.deviceVersion
     override val vendorModelName: String get() = OttaiConstants.DEFAULT_DISPLAY_NAME
+    override fun isUiEnabled(): Boolean = !stop
+    override fun isVendorConnectedForUi(): Boolean =
+        !stop && phase == Phase.STREAMING && sessionKeyHex.isNotBlank() && !isConnectionStale()
 
     override fun matchesManagedSensorId(sensorId: String?): Boolean =
         OttaiRegistry.resolveCanonicalSensorId(Applic.app, sensorId)
@@ -1454,28 +1596,34 @@ class OttaiBleManager(
 
     override fun hasNativeSensorBacking(): Boolean = false
 
-    override fun getDetailedBleStatus(): String = when (phase) {
-        Phase.IDLE -> if (authKeys == null) "Needs cloud bind"
-            else if (knownBleAddress() == null) appString(
-                R.string.ottai_status_needs_ble_address,
-                "Needs BLE address",
-            )
-            else "Idle"
-        Phase.CONNECTING -> "Connecting"
-        Phase.DISCOVERING -> "Discovering"
-        Phase.ENABLING_NOTIFY -> "Subscribing"
-        Phase.AUTH -> "Authenticating"
-        Phase.STREAMING -> if (lastGlucoseAtMs > 0L) {
-            "Connected"
-        } else if (effectiveActiveTimeMs() > 0L) {
-            val remaining = warmupRemainingMs()
-            val minutes = ((remaining + 59_999L) / 60_000L).toInt()
-            if (remaining > 0L) appString(
-                R.string.ottai_status_warmup_provisional,
-                "Provisional warmup • ${minutes}m left",
-                minutes,
-            )
-            else "Streaming (awaiting data)"
-        } else "Streaming (awaiting data)"
+    override fun getDetailedBleStatus(): String {
+        val loss = lossOfSignalText()
+        val hasLossStatus = constatstatusstr == "Loss of signal" || constatstatusstr == loss
+        if (isConnectionStale()) return loss
+        return when (phase) {
+            Phase.IDLE -> if (hasLossStatus) loss
+                else if (authKeys == null) "Needs cloud bind"
+                else if (knownBleAddress() == null) appString(
+                    R.string.ottai_status_needs_ble_address,
+                    "Needs BLE address",
+                )
+                else "Idle"
+            Phase.CONNECTING -> if (hasLossStatus) loss else "Connecting"
+            Phase.DISCOVERING -> "Discovering"
+            Phase.ENABLING_NOTIFY -> "Subscribing"
+            Phase.AUTH -> "Authenticating"
+            Phase.STREAMING -> if (lastGlucoseAtMs > 0L) {
+                "Connected"
+            } else if (effectiveActiveTimeMs() > 0L) {
+                val remaining = warmupRemainingMs()
+                val minutes = ((remaining + 59_999L) / 60_000L).toInt()
+                if (remaining > 0L) appString(
+                    R.string.ottai_status_warmup_provisional,
+                    "Provisional warmup • ${minutes}m left",
+                    minutes,
+                )
+                else "Streaming (awaiting data)"
+            } else "Streaming (awaiting data)"
+        }
     }
 }

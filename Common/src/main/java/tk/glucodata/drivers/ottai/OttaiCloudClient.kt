@@ -255,6 +255,10 @@ object OttaiCloudClient {
     /** POST /deviceBind/composite/bind — unsigned; activates cloud-side, returns keyA. */
     fun bind(ctx: Context, mac: String, deviceVersion: String, userId: String): DeviceResp? {
         val canonical = OttaiConstants.canonicalSensorId(mac)
+        if (canonical.isBlank() || deviceVersion.isBlank() || userId.isBlank()) {
+            lastError = "bind requires mac, deviceVersion and userId"
+            return null
+        }
         val ts = now()
         val body = JSONObject().apply {
             put("mac", canonical)
@@ -266,6 +270,37 @@ object OttaiCloudClient {
         }
         val resp = httpPostJson(base(ctx) + OttaiConstants.EP_BIND, body.toString(), headers(ctx, ts)) ?: return null
         return parseDeviceResp(resp)
+    }
+
+    /**
+     * Bind only long enough to recover keyA/method/coefficient for a previously used account
+     * sensor, then immediately unbind. Normal current-sensor setup should use validate/getBindDevice
+     * before reaching this fallback.
+     */
+    fun bindForMaterials(ctx: Context, mac: String, deviceVersion: String): DeviceResp? {
+        val canonical = OttaiConstants.canonicalSensorId(mac)
+        val userId = OttaiRegistry.loadUserId(ctx)
+        val resp = bind(ctx, canonical, deviceVersion.trim(), userId) ?: return null
+        val bindError = lastError
+        runCatching { unbind(ctx, canonical) }
+            .onFailure { Log.w(TAG, "unbind after material fetch failed: ${it.message}") }
+        lastError = bindError
+        return resp
+    }
+
+    /** POST /deviceBind/unBindDevice — best-effort cleanup after a temporary bind. */
+    fun unbind(ctx: Context, mac: String): Boolean {
+        val canonical = OttaiConstants.canonicalSensorId(mac)
+        if (canonical.isBlank()) return false
+        val ts = now()
+        val body = JSONObject().apply {
+            put("mac", canonical)
+            put("deviceType", "cgm")
+            put("unbindType", 0)
+        }
+        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_UNBIND, body.toString(), headers(ctx, ts)) ?: return false
+        val bizCode = resp.opt("code")?.toString().orEmpty()
+        return bizCode.isBlank() || bizCode == "200" || bizCode.equals("OK", ignoreCase = true)
     }
 
     /** GET /deviceBind/getBindDevice — current account-bound sensor, no signature. */
@@ -284,6 +319,7 @@ object OttaiCloudClient {
         val mac: String,
         val serialNo: String,
         val deviceType: String,
+        val deviceVersion: String,
         val bindTime: Long,
         val unbindTime: Long,
     ) {
@@ -318,6 +354,8 @@ object OttaiCloudClient {
                     mac = mac,
                     serialNo = o.optString("serialNo").orEmptyIfNull(),
                     deviceType = o.optString("deviceType").orEmptyIfNull(),
+                    deviceVersion = o.optString("deviceVersion").orEmptyIfNull()
+                        .ifBlank { o.optJSONObject("cgmDeviceRespVO")?.optString("deviceVersion").orEmptyIfNull() },
                     bindTime = o.optLongLoose("bindTime"),
                     unbindTime = o.optLongLoose("unbindTime"),
                 ),

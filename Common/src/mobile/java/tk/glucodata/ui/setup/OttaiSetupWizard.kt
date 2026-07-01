@@ -729,13 +729,7 @@ fun OttaiSetupWizard(
                             onExport = { exportLauncher.launch("ottai_${OttaiConstants.canonicalSensorId(cloudId)}.json") },
                         )
 
-                        Button(
-                            onClick = { startConnect(cloudId) },
-                            enabled = !busy && !materialLoading && canConnect,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(connectTitleRes))
-                        }
+
 
                         InlineQrScannerCard(
                             modifier = Modifier.fillMaxWidth().height(180.dp),
@@ -749,7 +743,14 @@ fun OttaiSetupWizard(
                                 }
                             },
                         )
-
+                        Button(
+                            onClick = { startConnect(cloudId) },
+                            enabled = !busy && !materialLoading && canConnect,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(connectTitleRes))
+                        }
+                        HorizontalDivider()
                         if (busy) CircularProgressIndicator()
                         if (status.isNotBlank()) Text(status)
 
@@ -982,7 +983,7 @@ private fun OttaiSensorMaterialCard(
                 }
             }
 
-            HorizontalDivider()
+//
             if (ready) {
                 Text(stringResource(R.string.ottai_import_export_title), style = MaterialTheme.typography.titleSmall)
                 Row(
