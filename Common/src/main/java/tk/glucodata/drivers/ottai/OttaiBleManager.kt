@@ -614,7 +614,12 @@ class OttaiBleManager(
         val (x, y) = OttaiBleAuth.publicCoords(kp.public as ECPublicKey)
         appPubX = x; appPubY = y
         appTime3 = OttaiBleAuth.appTime3(deviceTimeBytes)
-        appIndex = (0 until keys.size).random()
+        // The sensor rotates which of its keys is valid over its life (~day 15 for a
+        // 30-day unit) and broadcasts the current one as deviceParamIndex. Mirror it for
+        // the app's half of the handshake — a random pick auth'd early (one lucky index
+        // held while streaming) but failed intermittently after a rotation, recovering
+        // only by chance on reconnect. Coerce in case of a malformed device index.
+        appIndex = deviceParamIndex.coerceIn(0, keys.size - 1)
         val param = OttaiBleAuth.appAuthParameter(appIndex, appTime3, appPubX, appPubY)
         authStep = AuthStep.WRITE_APP_PARAM
         writeChar(gatt, OttaiConstants.SERVICE_AUTH, OttaiConstants.CHAR_AUTH_APP_PARAM, param)
