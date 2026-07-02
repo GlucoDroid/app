@@ -3324,18 +3324,15 @@ public class Notify {
         final java.util.List<NotificationChartDrawer.ValueItem> peerValueItems =
                 NotificationMultiSensorSource.valueItems(peerCurrents);
 
-        // Semantic Color
-        int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, displayGlucoseValue, isMmol);
-        // Multi-sensor: tint the primary value (and its inline arrow) with the
-        // primary sensor's identity color, matching the dashboard's subtle
-        // PRIMARY_TEXT_BLEND so the notification follows the same color scheme.
-        int primaryDisplayColor = glucoseColor;
-        if (!peerValueItems.isEmpty()) {
-            primaryDisplayColor = SensorVisuals.blendArgb(
-                    glucoseColor,
-                    SensorVisuals.colorArgb(activeSensorSerial),
-                    SensorVisuals.PRIMARY_TEXT_BLEND);
-        }
+        boolean hasSelectedPeerSensors = !peerCurrents.isEmpty();
+        int primaryDisplayColor = NotificationChartDrawer.notificationChartPrimaryValueColor(
+                Applic.app,
+                displayGlucoseValue,
+                isMmol,
+                activeSensorSerial,
+                hasSelectedPeerSensors);
+        int secondaryDisplayColor = NotificationChartDrawer.notificationChartSecondaryValueColor(Applic.app);
+        int tertiaryDisplayColor = NotificationChartDrawer.notificationChartTertiaryValueColor(Applic.app);
 
         // ========== READ NOTIFICATION PREFERENCES ==========
         android.content.SharedPreferences prefs = Applic.app
@@ -3360,7 +3357,7 @@ public class Notify {
         // Render Arrow (Color + Size from Preferences) - still bitmap for colored
         // vector
         Bitmap arrowBitmap = (showArrow && !inlineMultiArrows)
-                ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, glucoseColor, arrowSize)
+                ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, primaryDisplayColor, arrowSize)
                 : null;
 
         // 3a. Construct RemoteViews (Collapsed)
@@ -3414,8 +3411,9 @@ public class Notify {
         // Glucose Value - Render as Bitmap to support IBM Plex Font & Locale
         // consistency
         // Collapsed: Base size 24sp (scale 1.0 * fontSize)
-        Bitmap valueBitmap = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(), primaryDisplayColor,
-                peerValueItems, fontSize, fontWeight, useSystemFont,
+        Bitmap valueBitmap = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(),
+                primaryDisplayColor, secondaryDisplayColor, tertiaryDisplayColor, peerValueItems,
+                fontSize, fontWeight, useSystemFont,
                 inlineMultiArrows ? rate : Float.NaN, isMmol, arrowSize);
         remoteViews.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViews.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);
@@ -3442,7 +3440,8 @@ public class Notify {
 
         // Glucose Value - Expanded: Size 28sp (scale ~1.17 * fontSize)
         Bitmap valueBitmapExpanded = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(),
-                primaryDisplayColor, peerValueItems, fontSize * 1.166f, fontWeight, useSystemFont,
+                primaryDisplayColor, secondaryDisplayColor, tertiaryDisplayColor, peerValueItems,
+                fontSize * 1.166f, fontWeight, useSystemFont,
                 inlineMultiArrows ? rate : Float.NaN, isMmol, arrowSize);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);

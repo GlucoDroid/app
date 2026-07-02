@@ -112,6 +112,7 @@ class StatsViewModel : ViewModel() {
     private var historyWindowStartMs: Long = Long.MAX_VALUE
     private var cachedTemperatureSerial: String? = null
     private var cachedTemperaturePoints: List<TemperaturePoint> = emptyList()
+    private var cachedTemperatureHistoryStartMs: Long = Long.MAX_VALUE
     private var lastTemperatureRefreshMs: Long = 0L
     private var availableRangeJob: Job? = null
     @Volatile private var statsDisplayHistoryCacheKey: StatsDisplayHistoryCacheKey? = null
@@ -267,6 +268,10 @@ class StatsViewModel : ViewModel() {
                 _viewMode.value = 0
                 activeSerial = null
                 historyWindowStartMs = Long.MAX_VALUE
+                cachedTemperatureSerial = null
+                cachedTemperaturePoints = emptyList()
+                cachedTemperatureHistoryStartMs = Long.MAX_VALUE
+                lastTemperatureRefreshMs = 0L
                 historyJob?.cancel()
                 availableRangeJob?.cancel()
                 return@launch
@@ -812,7 +817,10 @@ class StatsViewModel : ViewModel() {
 
     private fun maybeRefreshTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
         val now = System.currentTimeMillis()
+        val historyStartMs = history.firstOrNull()?.timestamp ?: Long.MAX_VALUE
+        val historyWindowExpanded = historyStartMs < cachedTemperatureHistoryStartMs
         val shouldRefresh = serial != cachedTemperatureSerial ||
+            historyWindowExpanded ||
             (cachedTemperaturePoints.isEmpty() && history.isNotEmpty()) ||
             now - lastTemperatureRefreshMs > TEMPERATURE_REFRESH_INTERVAL_MS
 
@@ -823,6 +831,7 @@ class StatsViewModel : ViewModel() {
         val refreshed = readTemperaturePoints(serial, history)
         cachedTemperatureSerial = serial
         cachedTemperaturePoints = refreshed
+        cachedTemperatureHistoryStartMs = historyStartMs
         lastTemperatureRefreshMs = now
         return refreshed
     }
