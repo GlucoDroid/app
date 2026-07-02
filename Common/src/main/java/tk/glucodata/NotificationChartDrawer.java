@@ -24,6 +24,9 @@ public class NotificationChartDrawer {
     private static final long DEFAULT_CHART_DURATION_MS = 3 * 60 * 60 * 1000L;
     private static final String AOD_OVERLAY_SERVICE_NAME =
             "tk.glucodata.accessibility.AODOverlayService";
+    private static final float DASHBOARD_PRIMARY_IDENTITY_TINT = 0.22f;
+    private static final float DASHBOARD_PEER_NEUTRAL_BLEND = 0.46f;
+    private static final float DASHBOARD_PEER_LINE_ALPHA = 0.76f;
 
     public static class PeerSeries {
         public final String sensorId;
@@ -124,6 +127,22 @@ public class NotificationChartDrawer {
         return viewMode == 1 || viewMode == 2 || viewMode == 3;
     }
 
+    private static int dashboardPrimaryLineColor(boolean isDark, String sensorId, boolean multiSensor) {
+        int base = DashboardChartColors.primary(isDark);
+        if (!multiSensor || sensorId == null || sensorId.trim().isEmpty()) {
+            return base;
+        }
+        return SensorVisuals.blendArgb(
+                base,
+                SensorVisuals.colorArgb(sensorId),
+                DASHBOARD_PRIMARY_IDENTITY_TINT);
+    }
+
+    private static int dashboardPeerLineBase(int sensorColor, boolean isDark) {
+        int neutral = DashboardChartColors.onSurfaceVariant(isDark);
+        return SensorVisuals.blendArgb(sensorColor, neutral, DASHBOARD_PEER_NEUTRAL_BLEND);
+    }
+
     private static int resolveSubtlePeerPointColor(
             float value,
             float targetLow,
@@ -131,10 +150,11 @@ public class NotificationChartDrawer {
             float veryLowThreshold,
             float veryHighThreshold,
             int sensorColor,
-            boolean isMmol) {
-        // Match the dashboard peer-trace treatment: desaturate the identity
-        // color and render at a clearly-visible opacity (dashboard ~0.76).
-        int toned = SensorVisuals.desaturate(sensorColor, 0.4f);
+            boolean isMmol,
+            boolean isDark) {
+        // Match the dashboard peer-trace treatment: identity color blended
+        // toward onSurfaceVariant, then rendered at dashboard-like opacity.
+        int toned = dashboardPeerLineBase(sensorColor, isDark);
         int thresholdColor = resolveThresholdPointColor(
                 value,
                 targetLow,
@@ -144,9 +164,9 @@ public class NotificationChartDrawer {
                 sensorColor,
                 isMmol);
         if ((thresholdColor & 0x00FFFFFF) == (sensorColor & 0x00FFFFFF)) {
-            return withAlpha(toned, 0.72f);
+            return withAlpha(toned, DASHBOARD_PEER_LINE_ALPHA);
         }
-        return withAlpha(GlucoseRangeColors.blend(toned, thresholdColor, 0.45f), 0.72f);
+        return withAlpha(GlucoseRangeColors.blend(toned, thresholdColor, 0.48f), DASHBOARD_PEER_LINE_ALPHA);
     }
 
     private static void drawSubtlePeerSeries(
@@ -167,7 +187,8 @@ public class NotificationChartDrawer {
             float veryLowThreshold,
             float veryHighThreshold,
             boolean isMmol,
-            int sensorColor) {
+            int sensorColor,
+            boolean isDark) {
         int size = Math.min(timestamps.size(), values.size());
         if (size < 2) {
             return;
@@ -198,7 +219,8 @@ public class NotificationChartDrawer {
                         veryLowThreshold,
                         veryHighThreshold,
                         sensorColor,
-                        isMmol);
+                        isMmol,
+                        isDark);
                 int endColor = resolveSubtlePeerPointColor(
                         currentValue,
                         targetLow,
@@ -206,7 +228,8 @@ public class NotificationChartDrawer {
                         veryLowThreshold,
                         veryHighThreshold,
                         sensorColor,
-                        isMmol);
+                        isMmol,
+                        isDark);
                 if (startColor == endColor) {
                     linePaint.setShader(null);
                     linePaint.setColor(startColor);
@@ -1173,7 +1196,8 @@ public class NotificationChartDrawer {
         // Theme detection
         boolean isDark = useLightOnTransparentPalette(context);
 
-        int lineColor = isDark ? Color.WHITE : Color.BLACK;
+        boolean hasPeerSeries = peerSeries != null && !peerSeries.isEmpty();
+        int lineColor = dashboardPrimaryLineColor(isDark, calibrationSensorId, hasPeerSeries);
         int lineColorSecondary = isDark ? 0xFF9E9E9E : 0xFF757575;
         // Tertiary: Lighter Gray (match ComposeHost tertiaryColor: alpha 0.45 of
         // content)
@@ -1685,7 +1709,8 @@ public class NotificationChartDrawer {
                             veryLowThreshold,
                             veryHighThreshold,
                             isMmol,
-                            series.color);
+                            series.color,
+                            isDark);
                 }
                 if (peerAuto) {
                     ArrayList<Long> timestamps = new ArrayList<>(series.points.size());
@@ -1712,7 +1737,8 @@ public class NotificationChartDrawer {
                             veryLowThreshold,
                             veryHighThreshold,
                             isMmol,
-                            series.color);
+                            series.color,
+                            isDark);
                 }
             }
             linePaint.setStrokeWidth(primaryStrokeWidth);
@@ -1847,7 +1873,9 @@ public class NotificationChartDrawer {
             if (peerSeries == null || peerIdx >= peerSeries.size()) {
                 break;
             }
-            int peerColor = SensorVisuals.desaturate(peerSeries.get(peerIdx).color, 0.4f);
+            int peerColor = withAlpha(
+                    dashboardPeerLineBase(peerSeries.get(peerIdx).color, isDark),
+                    DASHBOARD_PEER_LINE_ALPHA);
             for (NotificationPredictionSeries series : peerPredictionSeries.get(peerIdx)) {
                 drawPredictionSeries(
                         canvas,
