@@ -139,8 +139,12 @@ public class NotificationChartDrawer {
         return viewMode == 1 || viewMode == 2 || viewMode == 3;
     }
 
+    private static int notificationPrimaryLineColor(boolean isDark) {
+        return isDark ? 0xFFF2F0EA : 0xFF1D1B20;
+    }
+
     private static int dashboardPrimaryLineColor(boolean isDark, String sensorId, boolean multiSensor) {
-        int base = DashboardChartColors.primary(isDark);
+        int base = notificationPrimaryLineColor(isDark);
         if (!multiSensor || sensorId == null || sensorId.trim().isEmpty()) {
             return base;
         }
@@ -164,48 +168,11 @@ public class NotificationChartDrawer {
             String sensorId,
             boolean multiSensor) {
         boolean isDark = useLightOnTransparentPalette(context);
-        int lineColor = dashboardPrimaryLineColor(isDark, sensorId, multiSensor);
-        int identityColor = dashboardPrimaryIdentityColor(sensorId, multiSensor);
-        float targetLow = GlucoseRangeColors.defaultLow(isMmol);
-        float targetHigh = GlucoseRangeColors.defaultHigh(isMmol);
-        float veryLowThreshold = GlucoseRangeColors.defaultVeryLow(isMmol);
-        float veryHighThreshold = GlucoseRangeColors.defaultVeryHigh(isMmol);
-        try {
-            float nLow = Natives.targetlow();
-            float nHigh = Natives.targethigh();
-            float nVeryLow = Natives.alarmverylow();
-            float nVeryHigh = Natives.alarmveryhigh();
-            if (nLow > 0) {
-                targetLow = nLow;
-            }
-            if (nHigh > 0) {
-                targetHigh = nHigh;
-            }
-            if (nVeryLow > 0) {
-                veryLowThreshold = nVeryLow;
-            }
-            if (nVeryHigh > 0) {
-                veryHighThreshold = nVeryHigh;
-            }
-        } catch (Throwable t) {
-        }
-        return resolvePrimaryPointColor(
-                value,
-                targetLow,
-                targetHigh,
-                veryLowThreshold,
-                veryHighThreshold,
-                lineColor,
-                identityColor,
-                isMmol,
-                DASHBOARD_PRIMARY_LINE_ALPHA,
-                DASHBOARD_PRIMARY_THRESHOLD_ALPHA);
+        return notificationPrimaryLineColor(isDark);
     }
 
     public static int notificationChartSecondaryValueColor(Context context) {
-        boolean isDark = useLightOnTransparentPalette(context);
-        int lineColorSecondary = isDark ? 0xFF9E9E9E : 0xFF757575;
-        return withAlpha(lineColorSecondary, DASHBOARD_SECONDARY_LINE_ALPHA);
+        return defaultSecondaryValueTextColor(context);
     }
 
     public static int notificationChartTertiaryValueColor(Context context) {
