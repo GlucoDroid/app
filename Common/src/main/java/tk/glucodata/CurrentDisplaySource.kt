@@ -617,6 +617,14 @@ object CurrentDisplaySource {
             ?: withinWindow.last()
     }
 
+    /**
+     * Canonical per-sensor view mode (auto/raw/auto+raw/raw+auto) resolution,
+     * shared by every multi-sensor surface so the dashboard, notification and
+     * hero card always agree.
+     */
+    @JvmStatic
+    fun resolveViewModeForSensor(sensorName: String?): Int = resolveSensorViewMode(sensorName)
+
     private fun resolveSensorViewMode(sensorName: String?): Int {
         if (sensorName.isNullOrEmpty()) {
             return 0

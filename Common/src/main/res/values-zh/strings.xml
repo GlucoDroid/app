@@ -1,7 +1,7 @@
 <resources>
     <string name="language">zh</string>
     <string name="languagename">语言</string>
-    <string name="app_name">GlucoDroid</string>
+    <string name="app_name">JugglucoNG</string>
 
     <string name="ok">确定</string>
     <string name="cancel">取消</string>
@@ -632,7 +632,7 @@
     <string name="volume_vibration_profile">音量/振动配置</string>
     <string name="ICE">ICE</string>
     <string name="aaps_broadcast">Glucodata</string>
-    <string name="about_text">GPL-3.0 • Fork of JugglucoNG • glucodroid.cloud</string>
+    <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
     <string name="accuchek_scan_instruction">扫描 Accu-Chek SmartGuide 传感器上的数据矩阵</string>
     <string name="accuchek_sensor">Accu-Chek 智能指南</string>
     <string name="accuchek_sensor_desc">扫描数据矩阵+蓝牙</string>
@@ -1281,7 +1281,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">没有足够的每日数据来呈现趋势。</string>
     <string name="report_no_readings_day">这一天没有读数。</string>
-    <string name="report_page1_title">GlucoDroid CGM 临床报告</string>
+    <string name="report_page1_title">JugglucoNG CGM 临床报告</string>
     <string name="report_page1_subtitle">范围 %1$s · 读数 %2$d · 窗口 %3$s 至 %4$s</string>
     <string name="report_estimated_a1c">估计 A1C</string>
     <string name="report_below_target">低于目标</string>
@@ -1296,7 +1296,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_above_duration">上图：%1$s</string>
     <string name="report_agp_section_title">动态血糖曲线（24 小时百分位带）</string>
     <string name="report_reference_targets">参考目标：GMI &lt; 7.0%%，CV &lt;= 36%%，范围时间&gt;= 70%%。</string>
-    <string name="report_page2_title">GlucoDroid CGM 每日趋势与解读</string>
+    <string name="report_page2_title">JugglucoNG CGM 每日趋势与解读</string>
     <string name="report_page2_subtitle">每日变化、指标细分和解释说明</string>
     <string name="report_daily_average_trend">日均趋势</string>
     <string name="report_detailed_metrics">详细指标</string>
@@ -1311,7 +1311,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_generated_insights_message">在此时间范围内没有生成其他模式警告。</string>
     <string name="report_agp_consensus_title">AGP共识参考</string>
     <string name="report_agp_consensus_body">本报告中引用的目标遵循 AGP 国际共识风格：TIR 70-180 mg/dL (3.9-10.0 mmol/L)、TBR &lt;70 和 &lt;54 mg/dL、TAR &gt;180 和 &gt;250 mg/dL，CV 目标 &lt;=36%%。</string>
-    <string name="report_page3_title">GlucoDroid 附录 I - AGP 和每日表格</string>
+    <string name="report_page3_title">JugglucoNG 附录 I - AGP 和每日表格</string>
     <string name="report_page3_subtitle">每小时百分位数和日级结果</string>
     <string name="report_hourly_agp_table">每小时 AGP 配置文件表</string>
     <string name="report_hour">小时</string>
@@ -1320,7 +1320,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_hourly_agp">此范围内没有可用的每小时 AGP 垃圾箱。</string>
     <string name="report_daily_outcomes_table">每日结果表</string>
     <string name="report_showing_latest_days">显示最近 %1$d 天，共 %2$d 天。</string>
-    <string name="report_page4_title">GlucoDroid 附录 II - 活动和每日概况</string>
+    <string name="report_page4_title">JugglucoNG 附录 II - 活动和每日概况</string>
     <string name="report_page4_subtitle">低/高暴露指标和日级概况图表</string>
     <string name="report_hypo_hyper_events">低/过度暴露事件</string>
     <string name="report_hours_per_day">小时/天</string>
@@ -1789,6 +1789,18 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">达到或低于 %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_high">达到或高于 %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_range">达到或低于 %1$s，或达到或高于 %2$s %3$s</string>
+    <string name="outbound_api_bubble_title">Telegram 气泡</string>
+    <string name="outbound_api_bubble_refresh_title">就地刷新</string>
+    <string name="outbound_api_bubble_refresh_desc">在刷新窗口内编辑同一个气泡，而不是发布新消息。</string>
+    <string name="outbound_api_bubble_refresh_window">刷新窗口（分钟）</string>
+    <string name="outbound_api_bubble_suppress_title">数值未变化时跳过</string>
+    <string name="outbound_api_bubble_suppress_desc">当最新读数与上次发送的数值相同时，不编辑气泡。</string>
+    <string name="outbound_api_bubble_stale_title">静默时显示错过读数消息</string>
+    <string name="outbound_api_bubble_stale_desc">如果新读数未及时到达，则发布过期或错过读数消息。</string>
+    <string name="outbound_api_bubble_stale_threshold">过期阈值（分钟）</string>
+    <string name="outbound_api_bubble_missed_threshold">错过阈值（分钟）</string>
+    <string name="outbound_api_decrease_value">减小数值</string>
+    <string name="outbound_api_increase_value">增大数值</string>
     <string name="outbound_api_send_test">发送测试消息</string>
     <string name="outbound_api_test_queued">测试消息已排队</string>
     <string name="outbound_api_no_current_reading">没有可用的当前读数</string>
@@ -1842,4 +1854,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram 最多保留机器人更新 24 小时。输入一个或多个允许导入机器人消息的聊天 ID/用户名。</string>
     <string name="status_waiting_for_data">已连接，正在等待数据...</string>
     <string name="status_raw_values_received">已连接，已收到原始值</string>
+    <string name="sensor_display_select">选择要显示的传感器</string>
+    <string name="sensor_display_selected">已选择显示传感器</string>
 </resources>

@@ -2,7 +2,7 @@
     <string name="language">nl</string>
     <string name="languagename">Taal</string>
 
-    <string name="app_name">GlucoDroid</string>
+    <string name="app_name">JugglucoNG</string>
 
     <string name="ok">OK</string>
     <string name="cancel">Annuleren</string>
@@ -699,7 +699,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ICE">ICE</string>
     <string name="USE_ALARM">Alarm is alarm</string>
     <string name="aaps_broadcast">Glucodata</string>
-    <string name="about_text">GPL-3.0 • Fork of JugglucoNG • glucodroid.cloud</string>
+    <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
     <string name="accuchek_scan_instruction">Scan de datamatrix op uw Accu-Chek SmartGuide-sensor</string>
     <string name="accuchek_sensor">Accu-Chek SmartGuide</string>
     <string name="accuchek_sensor_desc">Scandatamatrix + Bluetooth</string>
@@ -1308,7 +1308,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">Niet genoeg dagelijkse gegevens om de trend weer te geven.</string>
     <string name="report_no_readings_day">Geen lezingen voor deze dag.</string>
-    <string name="report_page1_title">GlucoDroid CGM klinisch rapport</string>
+    <string name="report_page1_title">JugglucoNG CGM klinisch rapport</string>
     <string name="report_page1_subtitle">Bereik %1$s · Uitlezingen %2$d · Venster %3$s tot %4$s</string>
     <string name="report_estimated_a1c">Geschatte A1C</string>
     <string name="report_below_target">Onder doel</string>
@@ -1323,7 +1323,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="report_above_duration">Boven: %1$s</string>
     <string name="report_agp_section_title">Ambulant glucoseprofiel (24-uurs percentielbanden)</string>
     <string name="report_reference_targets">Referentiedoelstellingen: GMI &lt; 7,0%%, CV &lt;= 36%%, Tijd binnen bereik &gt;= 70%%.</string>
-    <string name="report_page2_title">GlucoDroid CGM dagelijkse trends en interpretatie</string>
+    <string name="report_page2_title">JugglucoNG CGM dagelijkse trends en interpretatie</string>
     <string name="report_page2_subtitle">Dagelijkse variabiliteit, metrische uitsplitsing en interpretatienotities</string>
     <string name="report_daily_average_trend">Dagelijkse gemiddelde trend</string>
     <string name="report_detailed_metrics">Gedetailleerde statistieken</string>
@@ -1338,7 +1338,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="report_no_generated_insights_message">Er zijn voor deze periode geen aanvullende patroonwaarschuwingen gegenereerd.</string>
     <string name="report_agp_consensus_title">AGP-consensusreferentie</string>
     <string name="report_agp_consensus_body">De doelstellingen waarnaar in dit rapport wordt verwezen, volgen de internationale consensusstijl van AGP: TIR 70-180 mg/dl (3,9-10,0 mmol/l), TBR &lt;70 en &lt;54 mg/dl, TAR &gt;180 en &gt;250 mg/dl, met CV-doel &lt;=36%%.</string>
-    <string name="report_page3_title">GlucoDroid Bijlage I - AGP en dagtabellen</string>
+    <string name="report_page3_title">JugglucoNG Bijlage I - AGP en dagtabellen</string>
     <string name="report_page3_subtitle">Percentielen per uur en uitkomsten op dagniveau</string>
     <string name="report_hourly_agp_table">AGP-profieltabel per uur</string>
     <string name="report_hour">Uur</string>
@@ -1347,7 +1347,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="report_no_hourly_agp">Er zijn geen AGP-bakken per uur beschikbaar in dit assortiment.</string>
     <string name="report_daily_outcomes_table">Tabel met dagelijkse resultaten</string>
     <string name="report_showing_latest_days">Laatste %1$d van %2$d dagen weergeven.</string>
-    <string name="report_page4_title">GlucoDroid Bijlage II - Evenementen en dagelijkse profielen</string>
+    <string name="report_page4_title">JugglucoNG Bijlage II - Evenementen en dagelijkse profielen</string>
     <string name="report_page4_subtitle">Hypo-/hyperblootstellingsstatistieken en profielgrafieken op dagniveau</string>
     <string name="report_hypo_hyper_events">Hypo-/hyperblootstellingsgebeurtenissen</string>
     <string name="report_hours_per_day">Uren/dag</string>
@@ -1816,6 +1816,18 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="outbound_api_trigger_summary_low">Op of onder %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_high">Op of boven %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_range">Op of onder %1$s of op of boven %2$s %3$s</string>
+    <string name="outbound_api_bubble_title">Telegramballon</string>
+    <string name="outbound_api_bubble_refresh_title">Ter plekke verversen</string>
+    <string name="outbound_api_bubble_refresh_desc">Bewerk binnen het verversingsvenster dezelfde ballon in plaats van een nieuwe te plaatsen.</string>
+    <string name="outbound_api_bubble_refresh_window">Verversingsvenster (minuten)</string>
+    <string name="outbound_api_bubble_suppress_title">Overslaan als waarde ongewijzigd is</string>
+    <string name="outbound_api_bubble_suppress_desc">Bewerk de ballon niet wanneer de nieuwste meting gelijk is aan de laatst verzonden waarde.</string>
+    <string name="outbound_api_bubble_stale_title">Gemiste-metingbericht tonen bij stilte</string>
+    <string name="outbound_api_bubble_stale_desc">Plaats een verouderd of gemist bericht als er niet op tijd een nieuwe meting komt.</string>
+    <string name="outbound_api_bubble_stale_threshold">Drempel voor verouderd (minuten)</string>
+    <string name="outbound_api_bubble_missed_threshold">Drempel voor gemist (minuten)</string>
+    <string name="outbound_api_decrease_value">Waarde verlagen</string>
+    <string name="outbound_api_increase_value">Waarde verhogen</string>
     <string name="outbound_api_send_test">Testbericht sturen</string>
     <string name="outbound_api_test_queued">Testbericht in wachtrij geplaatst</string>
     <string name="outbound_api_no_current_reading">Geen actuele meting beschikbaar</string>
@@ -1869,4 +1881,6 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="api_source_telegram_note">Telegram bewaart botupdates tot 24 uur. Voer een of meer chat-ID’s of gebruikersnamen in waarvan botberichten mogen worden geïmporteerd.</string>
     <string name="status_waiting_for_data">Verbonden, wachten op gegevens...</string>
     <string name="status_raw_values_received">Verbonden, ruwe waarden ontvangen</string>
+    <string name="sensor_display_select">Sensor voor weergave selecteren</string>
+    <string name="sensor_display_selected">Sensor voor weergave geselecteerd</string>
 </resources>

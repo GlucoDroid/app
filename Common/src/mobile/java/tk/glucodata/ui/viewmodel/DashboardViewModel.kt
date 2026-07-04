@@ -7,10 +7,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.withContext
 import tk.glucodata.Natives
@@ -19,7 +21,9 @@ import tk.glucodata.Applic
 import tk.glucodata.BatteryTrace
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.DataSmoothing
+import tk.glucodata.MultiSensorSelection
 import tk.glucodata.Notify
+import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
@@ -42,30 +46,11 @@ import tk.glucodata.ui.util.resolveDashboardSensorStatus
 import kotlin.math.roundToInt
 
 internal object DashboardHistoryCollectionPolicy {
-    const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
-    const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
-
     fun usesMergedCrossSensorHistory(mode: DashboardViewModel.CollectionMode): Boolean =
         mode == DashboardViewModel.CollectionMode.FULL_HISTORY
 
     fun shouldCoalesceEmission(mode: DashboardViewModel.CollectionMode, hasSeenHistoryEmission: Boolean): Boolean =
         mode == DashboardViewModel.CollectionMode.DASHBOARD && hasSeenHistoryEmission
-
-    fun shouldRequestHistoryRecovery(
-        startTimeMs: Long,
-        history: List<tk.glucodata.ui.GlucosePoint>,
-        serial: String?,
-        currentTimeMs: Long,
-        currentSensorMatchesSerial: Boolean
-    ): Boolean {
-        if (history.isEmpty()) return true
-        val oldestTimestamp = history.firstOrNull()?.timestamp ?: return true
-        if (startTimeMs > 0L && oldestTimestamp > (startTimeMs + HISTORY_RECOVERY_TOLERANCE_MS)) return true
-        val latestTimestamp = history.lastOrNull()?.timestamp ?: return true
-        if (currentTimeMs <= 0L || serial.isNullOrBlank()) return false
-        if (!currentSensorMatchesSerial) return false
-        return currentTimeMs > (latestTimestamp + HISTORY_RECOVERY_TAIL_TOLERANCE_MS)
-    }
 }
 
 class DashboardViewModel(
@@ -73,15 +58,55 @@ class DashboardViewModel(
     private val journalRepository: JournalRepository = JournalRepository(),
     private val historyRepository: tk.glucodata.data.HistoryRepository = tk.glucodata.data.HistoryRepository()
 ) : ViewModel() {
+    private data class HistoryEdgeSignature(
+        val size: Int,
+        val firstTimestamp: Long,
+        val lastTimestamp: Long,
+        val sampleHash: Int,
+        val lastValueBits: Int,
+        val lastRawBits: Int,
+        val lastSerial: String?
+    )
+
     private data class DashboardHistoryCacheKey(
         val signature: HistoryEdgeSignature,
         val unit: String
+    )
+
+    private data class MultiSensorHistoryQueryConfig(
+        val unit: String,
+        val primarySensorId: String?,
+        val selectedSensorIds: List<String>,
+        val sensorViewModes: Map<String, Int>
+    )
+
+    /** Display-unit peer history plus the peer ids it covers. */
+    private data class PeerRawHistory(
+        val peerIds: List<String>,
+        val points: List<tk.glucodata.ui.GlucosePoint>
+    ) {
+        companion object {
+            val EMPTY = PeerRawHistory(emptyList(), emptyList())
+        }
+    }
+
+    /** Latest displayable reading of a peer (non-primary) selected sensor. */
+    data class PeerCurrentReading(
+        val sensorId: String,
+        val primaryStr: String,
+        val secondaryStr: String?,
+        val rate: Float,
+        val timeMillis: Long
     )
 
     private companion object {
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val DASHBOARD_HISTORY_COALESCE_MS = 300L
+        const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
+        const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
+        const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
+        const val DASHBOARD_PEER_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
         const val JOURNAL_FOOD_MACROS_KEY = "dashboard_journal_food_macros_enabled"
@@ -161,6 +186,24 @@ class DashboardViewModel(
 
     private val _glucoseHistory = MutableStateFlow<List<tk.glucodata.ui.GlucosePoint>>(emptyList())
     val glucoseHistory = _glucoseHistory.asStateFlow()
+
+    private val _multiSensorDisplay =
+        MutableStateFlow(tk.glucodata.ui.MultiSensorDisplayData.EMPTY)
+    val multiSensorDisplay = _multiSensorDisplay.asStateFlow()
+
+    // Raw (display-unit) peer history kept separate from view-mode resolution so
+    // the display data rebuilds when a peer's auto/raw mode changes natively,
+    // without re-querying Room.
+    private val _multiSensorRawHistory = MutableStateFlow(PeerRawHistory.EMPTY)
+
+    private val _peerCurrentReadings = MutableStateFlow<List<PeerCurrentReading>>(emptyList())
+    val peerCurrentReadings = _peerCurrentReadings.asStateFlow()
+
+    private val _selectedSensorIds = MutableStateFlow<List<String>>(emptyList())
+    val selectedSensorIds = _selectedSensorIds.asStateFlow()
+
+    private val _sensorViewModes = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val sensorViewModes = _sensorViewModes.asStateFlow()
 
     /**
      * Cross-sensor merged history for the History browse screen. Includes
@@ -300,6 +343,7 @@ class DashboardViewModel(
     private var collectionMode = CollectionMode.INACTIVE
     private var currentReadingJob: Job? = null
     private var historyJob: Job? = null
+    private var multiSensorHistoryJob: Job? = null
     private var historyScreenJob: Job? = null
     private var uiRefreshJob: Job? = null
     private var journalEntriesJob: Job? = null
@@ -554,14 +598,6 @@ class DashboardViewModel(
         var sName = SensorIdentity.resolveMainSensor()
         val activeSensors = Natives.activeSensors()
 
-        if (activeSensors != null && activeSensors.isNotEmpty()) {
-            _activeSensorList.value = activeSensors
-                .mapNotNull { SensorIdentity.resolveAppSensorId(it) ?: it }
-                .distinct()
-        } else {
-            _activeSensorList.value = emptyList()
-        }
-
         val cachedSerial = _sensorName.value.takeIf { it.isNotBlank() }
             ?: glucoseRepository.currentSerial.value.takeIf { it.isNotBlank() }
         val fallbackSerial = SensorIdentity.resolveAvailableMainSensor(
@@ -573,6 +609,16 @@ class DashboardViewModel(
         if (sName.isNullOrBlank()) {
             sName = fallbackSerial
         }
+
+        val availableDisplaySensors = availableDisplaySensorIds(activeSensors, sName)
+        val selectedDisplaySensors = MultiSensorSelection.selectedAvailable(
+            availableSensorIds = availableDisplaySensors,
+            primarySensorId = sName
+        )
+        _selectedSensorIds.value = selectedDisplaySensors
+        _activeSensorList.value = selectedDisplaySensors
+        _sensorViewModes.value = resolveSelectedSensorViewModes(selectedDisplaySensors)
+        schedulePeerCurrentRefresh(selectedDisplaySensors.drop(1))
 
         if (!sName.isNullOrEmpty() && sName.isNotBlank()) {
             glucoseRepository.refreshSensorSerial(sName)
@@ -661,6 +707,32 @@ class DashboardViewModel(
         }
     }
 
+    private fun availableDisplaySensorIds(
+        activeSensors: Array<String?>?,
+        primarySensorId: String?
+    ): List<String> {
+        val candidates = ArrayList<String?>()
+        candidates.add(primarySensorId)
+        activeSensors?.forEach { candidates.add(it) }
+        runCatching {
+            SensorBluetooth.mygatts()?.forEach { callback ->
+                candidates.add(callback.SerialNumber)
+            }
+        }
+        return SensorIdentity.distinctLogicalSensorIds(candidates)
+    }
+
+    private fun resolveSelectedSensorViewModes(sensorIds: List<String>): Map<String, Int> {
+        if (sensorIds.isEmpty()) return emptyMap()
+        // Use the same canonical resolution as CurrentDisplaySource.resolveCurrent
+        // (managed runtime, then the native per-sensor UI snapshot). The old
+        // gatt-dataptr path disagreed with it and made peer rows/chart ignore
+        // the per-sensor auto/raw display switch.
+        return sensorIds.associateWith { sensorId ->
+            runCatching { CurrentDisplaySource.resolveViewModeForSensor(sensorId) }.getOrDefault(0)
+        }
+    }
+
     private fun refreshCurrentDisplaySnapshot() {
         refreshCurrentDisplayAfterSmoothingChange()
     }
@@ -668,16 +740,17 @@ class DashboardViewModel(
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD,
+            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD,
+            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
             CollectionMode.FULL_HISTORY -> 0L
         }
         activeHistoryStartTimeMs = recoveryStartTimeMs
 
+        startMultiSensorHistoryCollectionForMode(mode)
         if (historyJob?.isActive == true && activeHistoryMode == mode) return
 
         historyJob?.cancel()
@@ -709,10 +782,17 @@ class DashboardViewModel(
         historyJob = viewModelScope.launch {
             var lastRecoveryRequestSerial: String? = null
             var hasSeenHistoryEmission = false
+            val rawHistoryFlow = when (mode) {
+                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(
+                    startTime = queryStartTimeMs,
+                    fallbackWindowMs = DASHBOARD_HISTORY_WINDOW_MS
+                )
+                CollectionMode.FULL_HISTORY -> glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
+                CollectionMode.INACTIVE -> return@launch
+            }
             combine(
                 _unit,
-                glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
-                    .distinctUntilChangedBy(::historyEdgeSignature)
+                rawHistoryFlow.distinctUntilChangedBy(::historyEdgeSignature)
             ) { unitStr, rawHistory ->
                 unitStr to rawHistory
             }.collectLatest { (unitStr, rawHistory) ->
@@ -749,6 +829,149 @@ class DashboardViewModel(
         }
     }
 
+    private fun startMultiSensorHistoryCollectionForMode(mode: CollectionMode) {
+        if (mode != CollectionMode.DASHBOARD) {
+            multiSensorHistoryJob?.cancel()
+            multiSensorHistoryJob = null
+            _multiSensorRawHistory.value = PeerRawHistory.EMPTY
+            _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+            _peerCurrentReadings.value = emptyList()
+            return
+        }
+        if (multiSensorHistoryJob?.isActive == true) return
+
+        multiSensorHistoryJob = viewModelScope.launch {
+            // Builder: rebuild the display data when either the raw peer history
+            // or per-sensor view modes change. Keying on _sensorViewModes is what
+            // makes a native auto/raw switch propagate to the chart and reading
+            // rows (not just the live-resolved hero value).
+            launch {
+                combine(_multiSensorRawHistory, _sensorViewModes) { raw, modes -> raw to modes }
+                    .collectLatest { (raw, modes) ->
+                        _multiSensorDisplay.value = if (raw.peerIds.isEmpty() || raw.points.isEmpty()) {
+                            tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+                        } else {
+                            withContext(Dispatchers.Default) {
+                                tk.glucodata.ui.MultiSensorDisplay.buildDisplayData(
+                                    points = raw.points,
+                                    selectedPeerIds = raw.peerIds,
+                                    sensorViewModes = modes
+                                )
+                            }
+                        }
+                    }
+            }
+
+            // Query: feed raw display-unit peer history into _multiSensorRawHistory.
+            combine(
+                _unit,
+                _sensorName,
+                MultiSensorSelection.revision
+            ) { unitStr, primarySensor, _ ->
+                val activeSensors = runCatching { Natives.activeSensors() }.getOrNull()
+                val availableSensors = availableDisplaySensorIds(activeSensors, primarySensor)
+                val selectedSensors = MultiSensorSelection.selectedAvailable(
+                    availableSensorIds = availableSensors,
+                    primarySensorId = primarySensor
+                )
+                MultiSensorHistoryQueryConfig(
+                    unit = unitStr,
+                    primarySensorId = primarySensor,
+                    selectedSensorIds = selectedSensors,
+                    sensorViewModes = resolveSelectedSensorViewModes(selectedSensors)
+                )
+            }.distinctUntilChanged()
+                .collectLatest { config ->
+                _selectedSensorIds.value = config.selectedSensorIds
+                _activeSensorList.value = config.selectedSensorIds
+                _sensorViewModes.value = config.sensorViewModes
+
+                val peerSensors = config.selectedSensorIds.drop(1)
+                if (peerSensors.isEmpty()) {
+                    _multiSensorRawHistory.value = PeerRawHistory.EMPTY
+                    _peerCurrentReadings.value = emptyList()
+                    return@collectLatest
+                }
+
+                var hasSeenPeerEmission = false
+                val startTimeMs = System.currentTimeMillis() - DASHBOARD_PEER_HISTORY_WINDOW_MS
+                historyRepository.getHistoryFlowForDisplaySensors(peerSensors, startTimeMs)
+                    .conflate()
+                    .distinctUntilChangedBy(::historyEdgeSignature)
+                    .collectLatest { rawHistory ->
+                        if (hasSeenPeerEmission) {
+                            delay(DASHBOARD_HISTORY_COALESCE_MS)
+                        }
+                        hasSeenPeerEmission = true
+                        val converted = withContext(Dispatchers.Default) {
+                            rawHistory.inDisplayUnit(config.unit)
+                        }
+                        _multiSensorRawHistory.value = PeerRawHistory(peerSensors, converted)
+                        refreshPeerCurrentReadings(peerSensors)
+                    }
+                }
+        }
+    }
+
+    private var peerCurrentRefreshJob: Job? = null
+
+    /** Coalesced hero peer chip refresh; piggybacks on the regular data refresh. */
+    private fun schedulePeerCurrentRefresh(peerSensors: List<String>) {
+        if (peerSensors.isEmpty()) {
+            if (_peerCurrentReadings.value.isNotEmpty()) {
+                _peerCurrentReadings.value = emptyList()
+            }
+            return
+        }
+        if (peerCurrentRefreshJob?.isActive == true) return
+        peerCurrentRefreshJob = viewModelScope.launch {
+            refreshPeerCurrentReadings(peerSensors)
+        }
+    }
+
+    private suspend fun refreshPeerCurrentReadings(peerSensors: List<String>) {
+        if (peerSensors.isEmpty()) {
+            _peerCurrentReadings.value = emptyList()
+            return
+        }
+        _peerCurrentReadings.value = withContext(Dispatchers.IO) {
+            peerSensors.mapNotNull { sensorId ->
+                runCatching {
+                    CurrentDisplaySource.resolveCurrent(
+                        Notify.glucosetimeout,
+                        sensorId,
+                        tk.glucodata.DisplayTrendSource.TREND_WINDOW_MS
+                    )
+                }.getOrNull()?.let { snapshot ->
+                    PeerCurrentReading(
+                        sensorId = sensorId,
+                        primaryStr = snapshot.primaryStr,
+                        secondaryStr = snapshot.secondaryStr,
+                        rate = snapshot.rate,
+                        timeMillis = snapshot.timeMillis
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Makes [sensorId] the primary display sensor (front of the multi-sensor
+     * selection + native current sensor), mirroring SensorViewModel.setMain.
+     */
+    fun promoteSensorToPrimary(sensorId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                MultiSensorSelection.moveToFront(sensorId)
+                SensorBluetooth.setCurrentSensorSelection(sensorId)
+                tk.glucodata.data.HistorySync.mergeFullSyncForSensor(sensorId)
+                UiRefreshBus.requestDataRefresh()
+            }.onFailure {
+                android.util.Log.e("DashboardVM", "promoteSensorToPrimary failed: ${it.message}")
+            }
+        }
+    }
+
     private suspend fun resolveHistoryDisplayList(
         rawHistory: List<GlucosePoint>,
         unitStr: String,
@@ -779,17 +1002,51 @@ class DashboardViewModel(
     }
 
 
+    private fun historyEdgeSignature(points: List<tk.glucodata.ui.GlucosePoint>): HistoryEdgeSignature {
+        val first = points.firstOrNull()
+        val last = points.lastOrNull()
+        return HistoryEdgeSignature(
+            size = points.size,
+            firstTimestamp = first?.timestamp ?: 0L,
+            lastTimestamp = last?.timestamp ?: 0L,
+            sampleHash = sparseHistorySampleHash(points),
+            lastValueBits = java.lang.Float.floatToRawIntBits(last?.value ?: 0f),
+            lastRawBits = java.lang.Float.floatToRawIntBits(last?.rawValue ?: 0f),
+            lastSerial = last?.sensorSerial
+        )
+    }
+
+    private fun sparseHistorySampleHash(points: List<tk.glucodata.ui.GlucosePoint>): Int {
+        if (points.isEmpty()) return 0
+        val sampleCount = minOf(points.size, 8)
+        var hash = 1
+        for (sampleIndex in 0 until sampleCount) {
+            val pointIndex = ((points.lastIndex.toLong() * sampleIndex) / (sampleCount - 1).coerceAtLeast(1)).toInt()
+            val point = points[pointIndex]
+            hash = 31 * hash + point.timestamp.hashCode()
+            hash = 31 * hash + java.lang.Float.floatToRawIntBits(point.value)
+            hash = 31 * hash + java.lang.Float.floatToRawIntBits(point.rawValue)
+            hash = 31 * hash + (point.sensorSerial?.hashCode() ?: 0)
+        }
+        return hash
+    }
+
     private fun stopCollectionJobs() {
         currentReadingJob?.cancel()
         currentReadingJob = null
         historyJob?.cancel()
         historyJob = null
+        multiSensorHistoryJob?.cancel()
+        multiSensorHistoryJob = null
         historyScreenJob?.cancel()
         historyScreenJob = null
         uiRefreshJob?.cancel()
         uiRefreshJob = null
         activeHistoryMode = null
         activeHistoryStartTimeMs = null
+        _multiSensorRawHistory.value = PeerRawHistory.EMPTY
+        _multiSensorDisplay.value = tk.glucodata.ui.MultiSensorDisplayData.EMPTY
+        _peerCurrentReadings.value = emptyList()
     }
 
     fun setLowAlarm(enabled: Boolean, threshold: Float) {
@@ -1266,15 +1523,21 @@ class DashboardViewModel(
         serial: String?,
         current: CurrentDisplaySource.Snapshot?
     ): Boolean {
-        val sensorMatches = current?.sensorId.isNullOrBlank() ||
-            SensorIdentity.matches(current!!.sensorId, serial)
-        return DashboardHistoryCollectionPolicy.shouldRequestHistoryRecovery(
-            startTimeMs = startTimeMs,
-            history = history,
-            serial = serial,
-            currentTimeMs = current?.timeMillis ?: 0L,
-            currentSensorMatchesSerial = sensorMatches
-        )
+        if (history.isEmpty()) {
+            return true
+        }
+        val oldestTimestamp = history.firstOrNull()?.timestamp ?: return true
+        if (startTimeMs > 0L && oldestTimestamp > (startTimeMs + HISTORY_RECOVERY_TOLERANCE_MS)) {
+            return true
+        }
+        val latestTimestamp = history.lastOrNull()?.timestamp ?: return true
+        if (current == null || current.timeMillis <= 0L || serial.isNullOrBlank()) {
+            return false
+        }
+        if (!current.sensorId.isNullOrBlank() && !SensorIdentity.matches(current.sensorId, serial)) {
+            return false
+        }
+        return current.timeMillis > (latestTimestamp + HISTORY_RECOVERY_TAIL_TOLERANCE_MS)
     }
 
     private fun resolveCurrentForHistoryRecovery(serial: String?): CurrentDisplaySource.Snapshot? {

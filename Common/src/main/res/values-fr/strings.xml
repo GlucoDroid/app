@@ -1,7 +1,7 @@
 <resources>
     <string name="language">fr</string>
     <string name="languagename">Langue</string>
-<string name="app_name">GlucoDroid</string>
+<string name="app_name">JugglucoNG</string>
 
 <string name="ok">OK</string>
 <string name="cancel">Annuler</string>
@@ -567,7 +567,7 @@
     <string name="volume_vibration_profile">Profil volume/vibration</string>
     <string name="ICE">ICE</string>
     <string name="aaps_broadcast">Glucodata</string>
-    <string name="about_text">GPL-3.0 • Fork of JugglucoNG • glucodroid.cloud</string>
+    <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
     <string name="accuchek_scan_instruction">Scannez la matrice de données sur votre capteur Accu-Chek SmartGuide</string>
     <string name="accuchek_sensor">Guide intelligent Accu-Chek</string>
     <string name="accuchek_sensor_desc">Scan Data Matrix + Bluetooth</string>
@@ -1014,7 +1014,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="gvi_description">Mesure la stabilité et la variabilité du glucose</string>
     <string name="psg_title">État glycémique personnel</string>
     <string name="psg_description">État glycémique personnel : votre niveau de base glycémique typique sur cette période, avec contexte de confiance et de tendance.</string>
-    <string name="iqr_description">Écart interquartile : l\'étendue des 50 %% centraux des lectures de glucose (P25-P75). Des valeurs plus faibles indiquent une plage de glucose plus resserrée et plus stable.</string>
+    <string name="iqr_description">Écart interquartile : l\'étendue des 50 % centraux des lectures de glucose (P25-P75). Des valeurs plus faibles indiquent une plage de glucose plus resserrée et plus stable.</string>
     <string name="range_3d">3D</string>
     <string name="time_12am">00h00</string>
     <string name="time_6am">6 heures du matin</string>
@@ -1271,7 +1271,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">Pas assez de données quotidiennes pour afficher la tendance.</string>
     <string name="report_no_readings_day">Aucune lecture pour ce jour.</string>
-    <string name="report_page1_title">Rapport clinique GlucoDroid CGM</string>
+    <string name="report_page1_title">Rapport clinique JugglucoNG CGM</string>
     <string name="report_page1_subtitle">Plage %1$s · Lectures %2$d · Fenêtre %3$s à %4$s</string>
     <string name="report_estimated_a1c">A1C estimé</string>
     <string name="report_below_target">En dessous de l\'objectif</string>
@@ -1286,7 +1286,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_above_duration">Ci-dessus : %1$s</string>
     <string name="report_agp_section_title">Profil de glycémie ambulatoire (bandes centiles sur 24 h)</string>
     <string name="report_reference_targets">Cibles de référence : GMI &lt; 7,0 %%, CV &lt;= 36 %%, Temps dans la plage &gt;= 70 %%.</string>
-    <string name="report_page2_title">GlucoDroid CGM Tendances quotidiennes et interprétation</string>
+    <string name="report_page2_title">JugglucoNG CGM Tendances quotidiennes et interprétation</string>
     <string name="report_page2_subtitle">Variabilité quotidienne, répartition des métriques et notes d\'interprétation</string>
     <string name="report_daily_average_trend">Tendance moyenne quotidienne</string>
     <string name="report_detailed_metrics">Métriques détaillées</string>
@@ -1301,7 +1301,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_generated_insights_message">Aucun avertissement de modèle supplémentaire n\'a été généré pour cette plage horaire.</string>
     <string name="report_agp_consensus_title">Référence consensuelle de l\'AGP</string>
     <string name="report_agp_consensus_body">Les cibles référencées dans ce rapport suivent le style de consensus international AGP : TIR 70-180 mg/dL (3,9-10,0 mmol/L), TBR &lt;70 et &lt;54 mg/dL, TAR &gt;180 et &gt;250 mg/dL, avec un objectif CV &lt;=36 %%.</string>
-    <string name="report_page3_title">GlucoDroid Annexe I - AGP et tableaux quotidiens</string>
+    <string name="report_page3_title">JugglucoNG Annexe I - AGP et tableaux quotidiens</string>
     <string name="report_page3_subtitle">Centiles horaires et résultats au niveau journalier</string>
     <string name="report_hourly_agp_table">Tableau de profil horaire AGP</string>
     <string name="report_hour">Heure</string>
@@ -1310,7 +1310,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_hourly_agp">Aucun bac AGP horaire disponible dans cette gamme.</string>
     <string name="report_daily_outcomes_table">Tableau des résultats quotidiens</string>
     <string name="report_showing_latest_days">Affichage des %1$d derniers jours sur %2$d.</string>
-    <string name="report_page4_title">GlucoDroid Annexe II - Événements et profils quotidiens</string>
+    <string name="report_page4_title">JugglucoNG Annexe II - Événements et profils quotidiens</string>
     <string name="report_page4_subtitle">Mesures d\'hypo/hyperexposition et graphiques de profil au niveau journalier</string>
     <string name="report_hypo_hyper_events">Événements d’hypo/hyper exposition</string>
     <string name="report_hours_per_day">Heures/jour</string>
@@ -1779,6 +1779,18 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">À %1$s %2$s ou en dessous</string>
     <string name="outbound_api_trigger_summary_high">À %1$s %2$s ou au-dessus</string>
     <string name="outbound_api_trigger_summary_range">À %1$s ou en dessous, ou à %2$s %3$s ou au-dessus</string>
+    <string name="outbound_api_bubble_title">Bulle Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Actualiser sur place</string>
+    <string name="outbound_api_bubble_refresh_desc">Pendant la fenêtre d’actualisation, modifie la même bulle au lieu de publier un nouveau message.</string>
+    <string name="outbound_api_bubble_refresh_window">Fenêtre d’actualisation (minutes)</string>
+    <string name="outbound_api_bubble_suppress_title">Ignorer si la valeur est inchangée</string>
+    <string name="outbound_api_bubble_suppress_desc">Évite de modifier la bulle lorsque la dernière lecture correspond à la dernière valeur envoyée.</string>
+    <string name="outbound_api_bubble_stale_title">Afficher un message de lecture manquée en cas de silence</string>
+    <string name="outbound_api_bubble_stale_desc">Publie un message périmé ou manqué si aucune nouvelle lecture n’arrive à temps.</string>
+    <string name="outbound_api_bubble_stale_threshold">Seuil périmé (minutes)</string>
+    <string name="outbound_api_bubble_missed_threshold">Seuil manqué (minutes)</string>
+    <string name="outbound_api_decrease_value">Diminuer la valeur</string>
+    <string name="outbound_api_increase_value">Augmenter la valeur</string>
     <string name="outbound_api_send_test">Envoyer un message de test</string>
     <string name="outbound_api_test_queued">Message de test mis en file</string>
     <string name="outbound_api_no_current_reading">Aucune valeur actuelle disponible</string>
@@ -1832,4 +1844,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram conserve les mises à jour du bot jusqu’à 24 heures. Saisissez un ou plusieurs ID de chat ou noms d’utilisateur dont les messages au bot peuvent être importés.</string>
     <string name="status_waiting_for_data">Connecté, en attente de données...</string>
     <string name="status_raw_values_received">Connecté, valeurs brutes reçues</string>
+    <string name="sensor_display_select">Sélectionner le capteur à afficher</string>
+    <string name="sensor_display_selected">Capteur sélectionné pour affichage</string>
 </resources>

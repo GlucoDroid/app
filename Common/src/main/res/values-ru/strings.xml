@@ -14,7 +14,7 @@
 	<string name="amountshort">@string/amountsname</string>
     <string name="amountsname">Значения</string>
 	<string name="android13">Android</string>
-    <string name="app_name">GlucoDroid</string>
+    <string name="app_name">JugglucoNG</string>
     <string name="background">Зад. фон</string>
     <string name="backgroundshort">Позади</string>
     <string name="blueormirror">Датчик через Bluetooth должен быть включен или он должен быть настроен как клон</string>
@@ -1303,7 +1303,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">Недостаточно ежедневных данных для отображения тренда.</string>
     <string name="report_no_readings_day">Чтений на этот день нет.</string>
-    <string name="report_page1_title">Клинический отчет GlucoDroid CGM</string>
+    <string name="report_page1_title">Клинический отчет JugglucoNG CGM</string>
     <string name="report_page1_subtitle">Диапазон %1$s · Показания %2$d · Окно от %3$s до %4$s</string>
     <string name="report_estimated_a1c">Предполагаемый A1C</string>
     <string name="report_below_target">Ниже целевого показателя</string>
@@ -1333,7 +1333,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_generated_insights_message">Никаких дополнительных предупреждений о шаблонах для этого периода времени создано не было.</string>
     <string name="report_agp_consensus_title">Справочник по консенсусу AGP</string>
     <string name="report_agp_consensus_body">Целевые показатели, упомянутые в этом отчете, соответствуют стилю международного консенсуса AGP: TIR 70–180 мг/дл (3,9–10,0 ммоль/л), TBR &lt;70 и &lt;54 мг/дл, TAR &gt;180 и &gt;250 мг/дл, с целевым значением CV &lt;=36%%.</string>
-    <string name="report_page3_title">Приложение I GlucoDroid – AGP и ежедневные таблицы</string>
+    <string name="report_page3_title">Приложение I JugglucoNG – AGP и ежедневные таблицы</string>
     <string name="report_page3_subtitle">Почасовые процентили и результаты на уровне дня</string>
     <string name="report_hourly_agp_table">Таблица почасового профиля AGP</string>
     <string name="report_hour">Час</string>
@@ -1816,6 +1816,18 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">На уровне %1$s %2$s или ниже</string>
     <string name="outbound_api_trigger_summary_high">На уровне %1$s %2$s или выше</string>
     <string name="outbound_api_trigger_summary_range">На уровне %1$s или ниже, либо на уровне %2$s %3$s или выше</string>
+    <string name="outbound_api_bubble_title">Пузырь Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Обновлять на месте</string>
+    <string name="outbound_api_bubble_refresh_desc">В течение окна обновления редактировать то же сообщение, а не отправлять новое.</string>
+    <string name="outbound_api_bubble_refresh_window">Окно обновления (минуты)</string>
+    <string name="outbound_api_bubble_suppress_title">Пропускать, если значение не изменилось</string>
+    <string name="outbound_api_bubble_suppress_desc">Не редактировать сообщение, если последнее показание совпадает с последним отправленным значением.</string>
+    <string name="outbound_api_bubble_stale_title">Показывать сообщение о пропущенном показании при тишине</string>
+    <string name="outbound_api_bubble_stale_desc">Отправлять сообщение об устаревшем или пропущенном показании, если новое показание не пришло вовремя.</string>
+    <string name="outbound_api_bubble_stale_threshold">Порог устаревания (минуты)</string>
+    <string name="outbound_api_bubble_missed_threshold">Порог пропуска (минуты)</string>
+    <string name="outbound_api_decrease_value">Уменьшить значение</string>
+    <string name="outbound_api_increase_value">Увеличить значение</string>
     <string name="outbound_api_send_test">Отправить тестовое сообщение</string>
     <string name="outbound_api_test_queued">Тестовое сообщение поставлено в очередь</string>
     <string name="outbound_api_no_current_reading">Нет доступного текущего показания</string>
@@ -1869,4 +1881,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_note">Telegram хранит обновления бота до 24 часов. Укажите один или несколько chat ID/имён пользователей, сообщения которых можно импортировать.</string>
     <string name="status_waiting_for_data">Подключено, ожидание данных...</string>
     <string name="status_raw_values_received">Подключено, получены сырые значения</string>
+    <string name="sensor_display_select">Выбрать датчик для отображения</string>
+    <string name="sensor_display_selected">Датчик выбран для отображения</string>
 </resources>

@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dlfcn.h>
 #include <inttypes.h>
 #include <jni.h>
 #include <memory>
@@ -224,6 +225,9 @@ extern "C" JNIEXPORT void JNICALL fromjava(setSensorptrSiSubtype)(
   if (type == 3) {
     info->notchinese = true;
     LOGGER("setSensorptrSiSubtype %d forced notchinese\n", type);
+  } else if (type == 2) {
+    info->notchinese = false;
+    LOGGER("setSensorptrSiSubtype %d forced chinese\n", type);
   }
   if (type != 3) {
     info->reset = false;
@@ -317,9 +321,31 @@ Data_t askindexdata(jlong index) {
 static THREADLOCAL jlong sprintargs[2048];
 static THREADLOCAL int recordsprint = -1;
 #define VISIBLE __attribute__((__visibility__("default")))
+using vsprintf_chk_t = int (*)(char *, int, size_t, const char *, va_list);
+
+static vsprintf_chk_t realVsprintfChk() {
+  static vsprintf_chk_t real = reinterpret_cast<vsprintf_chk_t>(
+      dlsym(RTLD_NEXT, "__vsprintf_chk"));
+  return real;
+}
+
 static int recordAndFormatSprintf(char *s, int flag, size_t slen,
                                   const char *format, va_list args) {
   const bool recording = recordsprint >= 0;
+  if (!recording) {
+    va_list passthroughArgs;
+    va_copy(passthroughArgs, args);
+    if (auto real = realVsprintfChk()) {
+      const int res = real(s, flag, slen, format, passthroughArgs);
+      va_end(passthroughArgs);
+      return res;
+    }
+    const size_t fallbackSize =
+        slen == static_cast<size_t>(-1) ? 4096 : slen;
+    const int res = std::vsnprintf(s, fallbackSize, format, passthroughArgs);
+    va_end(passthroughArgs);
+    return res;
+  }
   if (recording &&
       recordsprint < (int)(sizeof(sprintargs) / sizeof(sprintargs[0]))) {
     va_list newargs;
@@ -372,6 +398,8 @@ static bool saveRawOnlyPoll(SensorGlucoseData *sens, time_t eventTime,
     return false;
   }
   sens->savestream(eventTime, streamIndex, 0, 0, 0.0f, rawCurrent, rawTemp);
+  sens->sensorerror = false;
+  sens->sensorErrorTime = 0;
   LOGGER("SIprocess raw-only: index=%d raw=%d temp=%u itime=%ld\n",
          streamIndex, rawCurrent, rawTemp, (long)eventTime);
   if (backup) {
@@ -385,7 +413,7 @@ static bool saveRawOnlyPoll(SensorGlucoseData *sens, time_t eventTime,
 static void anchorStartTimeFromCurrentPacket(SensorGlucoseData *sens,
                                              sensor *sensor, int index,
                                              time_t eventTime, int reindex) {
-  if (!sens || !sensor || reindex || index < 0 || eventTime <= 1598911200) {
+  if (!sens || !sensor || index < 0 || eventTime <= 1598911200) {
     return;
   }
   const time_t now = time(nullptr);
@@ -406,9 +434,11 @@ static void anchorStartTimeFromCurrentPacket(SensorGlucoseData *sens,
   const uint32_t oldListStart = sensor->starttime;
   constexpr uint32_t startDriftTolerance = 15 * 60;
   const bool shouldRepairInfo =
-      oldInfoStart == 0 || oldInfoStart > packetStart + startDriftTolerance;
+      oldInfoStart == 0 ||
+      (!reindex && oldInfoStart > packetStart + startDriftTolerance);
   const bool shouldRepairList =
-      oldListStart == 0 || oldListStart > packetStart + startDriftTolerance;
+      oldListStart == 0 ||
+      (!reindex && oldListStart > packetStart + startDriftTolerance);
   if (!shouldRepairInfo && !shouldRepairList) {
     return;
   }

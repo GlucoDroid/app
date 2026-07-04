@@ -9,8 +9,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import tk.glucodata.Applic
+import tk.glucodata.MultiSensorSelection
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
+import tk.glucodata.SensorVisuals
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.Natives
 import tk.glucodata.UiRefreshBus
@@ -27,33 +29,15 @@ import tk.glucodata.drivers.mq.MQBootstrapClient
 import tk.glucodata.drivers.mq.MQDriver
 import tk.glucodata.drivers.mq.MQRegistry
 import tk.glucodata.ui.util.getLegacyWarmupStatus
-import kotlin.math.abs
 
 /**
  * Color palette for sensors - M3 Expressive style.
  * Colors are assigned deterministically based on sensor serial hash.
  */
 object SensorColors {
-    // Muted, expressive palette that works in both light and dark modes
-    private val palette = listOf(
-        Color(0xFF6750A4), // Primary purple
-        Color(0xFF00796B), // Teal
-        Color(0xFF5C6BC0), // Indigo
-        Color(0xFFD81B60), // Pink
-        Color(0xFF1E88E5), // Blue
-        Color(0xFF43A047), // Green
-        Color(0xFFF4511E), // Deep orange
-        Color(0xFF8E24AA), // Purple
-    )
-    
-    fun getColor(serial: String): Color {
-        val index = abs(serial.hashCode()) % palette.size
-        return palette[index]
-    }
-    
-    fun getColorIndex(serial: String): Int {
-        return abs(serial.hashCode()) % palette.size
-    }
+    fun getColor(serial: String): Color = Color(SensorVisuals.colorArgb(serial))
+
+    fun getColorIndex(serial: String): Int = SensorVisuals.colorIndex(serial)
 }
 
 data class SensorInfo(
@@ -102,7 +86,8 @@ data class SensorInfo(
     val isAnytime: Boolean = false,  // Anytime/Yuwell: vendor reports battery as percent + voltage
     // Edit 59: Reset compensation state
     val resetCompensationActive: Boolean = false,  // AiDex: whether initialization bias compensation is active
-    val resetCompensationStatus: String = ""  // AiDex: human-readable compensation status (e.g. "Phase 1: ×1.176 (23h left)")
+    val resetCompensationStatus: String = "",  // AiDex: human-readable compensation status (e.g. "Phase 1: ×1.176 (23h left)")
+    val isSelectedForDisplay: Boolean = false
 ) {
     /** Get the assigned color for this sensor */
     val color: Color get() = SensorColors.getColor(serial)
@@ -253,12 +238,38 @@ class SensorViewModel : ViewModel() {
     fun setMain(serial: String) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
+                MultiSensorSelection.moveToFront(serial, _sensors.value.map { it.serial })
                 SensorBluetooth.setCurrentSensorSelection(serial)
                 // Ensure this sensor's data is synced into Room (non-destructive)
                 tk.glucodata.data.HistorySync.mergeFullSyncForSensor(serial)
                 refreshSensorsWithDeviceSync()
+                UiRefreshBus.requestDataRefresh()
             } catch (e: Exception) {
                 android.util.Log.e("SensorVM", "Failed to set main sensor: ${e.message}")
+            }
+        }
+    }
+
+    fun toggleDisplaySelection(serial: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val available = _sensors.value.map { it.serial }
+                val selected = MultiSensorSelection.toggle(
+                    sensorId = serial,
+                    availableSensorIds = available,
+                    primarySensorId = SensorIdentity.resolveMainSensor()
+                )
+                selected.firstOrNull()?.let { primary ->
+                    val currentPrimary = SensorIdentity.resolveMainSensor()
+                    if (!SensorIdentity.matches(currentPrimary, primary)) {
+                        SensorBluetooth.setCurrentSensorSelection(primary)
+                        tk.glucodata.data.HistorySync.mergeFullSyncForSensor(primary)
+                    }
+                }
+                refreshSensorsWithDeviceSync()
+                UiRefreshBus.requestDataRefresh()
+            } catch (e: Exception) {
+                android.util.Log.e("SensorVM", "Failed to toggle display sensor: ${e.message}")
             }
         }
     }
@@ -507,11 +518,28 @@ class SensorViewModel : ViewModel() {
                     )
                 }
             }
-            // Edit 86: Preserve natural order from mygatts() (native insertion order).
-            // The main sensor is visually distinguished by its isActive styling —
-            // no need to sort it to the top. Sorting on every refresh caused the
-            // list to jump when the user manually switched the main sensor.
-            _sensors.value = dedupePublishedSensors(sensorList)
+            val deduped = dedupePublishedSensors(sensorList)
+            val selectedOrder = MultiSensorSelection.selectedAvailable(
+                availableSensorIds = deduped.map { it.serial },
+                primarySensorId = activeSensorSerial
+            )
+            val selectedSensors = deduped.map { sensor ->
+                sensor.copy(
+                    isSelectedForDisplay = selectedOrder.any { selected ->
+                        SensorIdentity.matches(sensor.serial, selected)
+                    }
+                )
+            }
+            _sensors.value = selectedSensors
+                .withIndex()
+                .sortedWith(
+                    compareBy<IndexedValue<SensorInfo>> { indexed ->
+                        selectedOrder.indexOfFirst { selected ->
+                            SensorIdentity.matches(indexed.value.serial, selected)
+                        }.takeIf { it >= 0 } ?: Int.MAX_VALUE
+                    }.thenBy { indexed -> indexed.index }
+                )
+                .map { it.value }
         }
     }
 

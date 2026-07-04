@@ -1,7 +1,7 @@
 <resources>
     <string name="language">pl</string>
     <string name="languagename">Język</string>
-    <string name="app_name">GlucoDroid</string>
+    <string name="app_name">JugglucoNG</string>
 
     <string name="ok">OK</string>
     <string name="cancel">Anuluj</string>
@@ -696,7 +696,7 @@
     <string name="volume_vibration_profile">Profil glosnosci/wibracji</string>
     <string name="ICE">ICE</string>
     <string name="aaps_broadcast">Glucodata</string>
-    <string name="about_text">GPL-3.0 • Fork of JugglucoNG • glucodroid.cloud</string>
+    <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
     <string name="accuchek_scan_instruction">Zeskanuj matrycę danych na czujniku Accu-Chek SmartGuide</string>
     <string name="accuchek_sensor">Accu-Chek SmartGuide</string>
     <string name="accuchek_sensor_desc">Skanuj matrycę danych + Bluetooth</string>
@@ -1300,7 +1300,7 @@
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">Za mało danych dziennych, aby wygenerować trend.</string>
     <string name="report_no_readings_day">Brak odczytów na ten dzień.</string>
-    <string name="report_page1_title">Raport kliniczny GlucoDroid CGM</string>
+    <string name="report_page1_title">Raport kliniczny JugglucoNG CGM</string>
     <string name="report_page1_subtitle">Zakres %1$s · Odczyty %2$d · Okno %3$s do %4$s</string>
     <string name="report_estimated_a1c">Szacunkowa wartość HbA1C</string>
     <string name="report_below_target">Poniżej celu</string>
@@ -1315,7 +1315,7 @@
     <string name="report_above_duration">Powyżej: %1$s</string>
     <string name="report_agp_section_title">Ambulatoryjny profil glukozy (24-godzinne pasma percentylowe)</string>
     <string name="report_reference_targets">Cele referencyjne: GMI &lt; 7,0%%, CV &lt;= 36%%, Czas w zakresie &gt;= 70%%.</string>
-    <string name="report_page2_title">Codzienne trendy i interpretacja GlucoDroid CGM</string>
+    <string name="report_page2_title">Codzienne trendy i interpretacja JugglucoNG CGM</string>
     <string name="report_page2_subtitle">Dzienna zmienność, podział miar i uwagi dotyczące interpretacji</string>
     <string name="report_daily_average_trend">Średni dzienny trend</string>
     <string name="report_detailed_metrics">Szczegółowe wskaźniki</string>
@@ -1330,7 +1330,7 @@
     <string name="report_no_generated_insights_message">Dla tego zakresu czasu nie wygenerowano żadnych dodatkowych ostrzeżeń o wzorcach.</string>
     <string name="report_agp_consensus_title">Odniesienie do konsensusu AGP</string>
     <string name="report_agp_consensus_body">Cele wymienione w tym raporcie są zgodne z międzynarodowym konsensusem AGP: TIR 70–180 mg/dl (3,9–10,0 mmol/l), TBR &lt;70 i &lt;54 mg/dl, TAR &gt;180 i &gt;250 mg/dl, z docelowym współczynnikiem CV &lt;=36%%.</string>
-    <string name="report_page3_title">GlucoDroid Załącznik I - AGP i tabele dzienne</string>
+    <string name="report_page3_title">JugglucoNG Załącznik I - AGP i tabele dzienne</string>
     <string name="report_page3_subtitle">Percentyle godzinowe i wyniki na poziomie dnia</string>
     <string name="report_hourly_agp_table">Godzinowa tabela profili AGP</string>
     <string name="report_hour">Godzina</string>
@@ -1339,7 +1339,7 @@
     <string name="report_no_hourly_agp">W tym zakresie nie są dostępne żadne godzinne pojemniki AGP.</string>
     <string name="report_daily_outcomes_table">Tabela wyników dziennych</string>
     <string name="report_showing_latest_days">Wyświetlanie ostatnich %1$d z %2$d dni.</string>
-    <string name="report_page4_title">GlucoDroid Załącznik II - Wydarzenia i codzienne profile</string>
+    <string name="report_page4_title">JugglucoNG Załącznik II - Wydarzenia i codzienne profile</string>
     <string name="report_page4_subtitle">Wskaźniki hipo/nadmiernej ekspozycji i wykresy profili na poziomie dnia</string>
     <string name="report_hypo_hyper_events">Zdarzenia hipo/nadmiernej ekspozycji</string>
     <string name="report_hours_per_day">Godziny/dzień</string>
@@ -1808,6 +1808,18 @@
     <string name="outbound_api_trigger_summary_low">Na poziomie %1$s %2$s lub poniżej</string>
     <string name="outbound_api_trigger_summary_high">Na poziomie %1$s %2$s lub powyżej</string>
     <string name="outbound_api_trigger_summary_range">Na poziomie %1$s lub poniżej albo na poziomie %2$s %3$s lub powyżej</string>
+    <string name="outbound_api_bubble_title">Dymek Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Odświeżaj w miejscu</string>
+    <string name="outbound_api_bubble_refresh_desc">W oknie odświeżania edytuje ten sam dymek zamiast publikować nowy.</string>
+    <string name="outbound_api_bubble_refresh_window">Okno odświeżania (minuty)</string>
+    <string name="outbound_api_bubble_suppress_title">Pomiń, jeśli wartość bez zmian</string>
+    <string name="outbound_api_bubble_suppress_desc">Nie edytuj dymku, gdy najnowszy odczyt jest taki sam jak ostatnio wysłana wartość.</string>
+    <string name="outbound_api_bubble_stale_title">Pokazuj komunikat o braku odczytu przy ciszy</string>
+    <string name="outbound_api_bubble_stale_desc">Publikuje komunikat nieaktualny lub o braku odczytu, jeśli nowy odczyt nie nadejdzie na czas.</string>
+    <string name="outbound_api_bubble_stale_threshold">Próg nieaktualności (minuty)</string>
+    <string name="outbound_api_bubble_missed_threshold">Próg braku odczytu (minuty)</string>
+    <string name="outbound_api_decrease_value">Zmniejsz wartość</string>
+    <string name="outbound_api_increase_value">Zwiększ wartość</string>
     <string name="outbound_api_send_test">Wyślij wiadomość testową</string>
     <string name="outbound_api_test_queued">Wiadomość testowa dodana do kolejki</string>
     <string name="outbound_api_no_current_reading">Brak dostępnego bieżącego odczytu</string>
@@ -1861,4 +1873,6 @@
     <string name="api_source_telegram_note">Telegram przechowuje aktualizacje bota do 24 godzin. Wprowadź co najmniej jedno ID czatu lub nazwę użytkownika, których wiadomości bota mogą być importowane.</string>
     <string name="status_waiting_for_data">Połączono, oczekiwanie na dane...</string>
     <string name="status_raw_values_received">Połączono, odebrano wartości surowe</string>
+    <string name="sensor_display_select">Wybierz czujnik do wyświetlania</string>
+    <string name="sensor_display_selected">Czujnik wybrany do wyświetlania</string>
 </resources>

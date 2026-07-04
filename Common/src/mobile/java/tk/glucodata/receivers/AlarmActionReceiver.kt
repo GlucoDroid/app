@@ -33,6 +33,11 @@ class AlarmActionReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_DISMISS -> {
                 Log.i(LOG_ID, "Dismiss action received for alert type: $resolvedAlertType")
+                Notify.cancelQueuedAlarmActivityLaunch(
+                    Notify.resolveAlertKind(fallbackAlertTypeId),
+                    customAlertId,
+                    "notification-dismiss"
+                )
                 Notify.stopalarm()
                 if (customAlertId != null) {
                     CustomAlertManager.dismissAlert(customAlertId)
@@ -48,6 +53,11 @@ class AlarmActionReceiver : BroadcastReceiver() {
             
             ACTION_SNOOZE -> {
                 Log.i(LOG_ID, "Snooze action received for alert type: $resolvedAlertType")
+                Notify.cancelQueuedAlarmActivityLaunch(
+                    Notify.resolveAlertKind(fallbackAlertTypeId),
+                    customAlertId,
+                    "notification-snooze"
+                )
                 
                 // Get snooze duration (from intent or default from config)
                 val snoozeMinutes = if (intent.hasExtra(EXTRA_SNOOZE_MINUTES)) {
@@ -76,6 +86,11 @@ class AlarmActionReceiver : BroadcastReceiver() {
 
             ACTION_IGNORE -> {
                 Log.i(LOG_ID, "Ignore action received for alert type: $resolvedAlertType")
+                Notify.cancelQueuedAlarmActivityLaunch(
+                    Notify.resolveAlertKind(fallbackAlertTypeId),
+                    customAlertId,
+                    "notification-ignore"
+                )
                 Notify.stopalarm()
                 if (customAlertId != null) {
                     CustomAlertManager.ignoreAlert(customAlertId)

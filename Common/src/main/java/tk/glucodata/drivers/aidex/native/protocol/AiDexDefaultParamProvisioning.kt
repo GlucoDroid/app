@@ -317,7 +317,6 @@ object AiDexDefaultParamProvisioning {
             .sortedWith(
                 compareBy<Comparison> { it.diffByteCount }
                     .thenBy { if (it.current.headerSwapApplied) 1 else 0 }
-                    .thenBy { if (it.entry.source == CatalogSource.IMPORTED) 0 else 1 }
                     .thenBy { it.entry.version }
             )
             .toList()

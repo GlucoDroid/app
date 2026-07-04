@@ -127,10 +127,8 @@ class AiDexCommandBuilder(private val keyExchange: AiDexKeyExchange) {
 
     fun deleteBond() = buildEncrypted(AiDexOpcodes.DELETE_BOND)
 
+    /** Separate hardware-maintenance reset; lifecycle reset uses [clearStorage] only. */
     fun reset() = buildEncrypted(AiDexOpcodes.RESET)
-
-    /** Alias for [reset] — used by AiDexBleManager.resetSensor(). */
-    fun resetSensor() = reset()
 
     fun clearStorage() = buildEncrypted(AiDexOpcodes.CLEAR_STORAGE)
 

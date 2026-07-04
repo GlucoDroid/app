@@ -1,7 +1,7 @@
 <resources>
     <string name="language">be</string>
     <string name="languagename">мова</string>
-    <string name="app_name">GlucoDroid</string>
+    <string name="app_name">JugglucoNG</string>
 
     <string name="ok">OK</string>
     <string name="cancel">Адмяніць</string>
@@ -610,7 +610,7 @@
     <string name="volume_vibration_profile">Профіль гучнасці/вібрацыі</string>
     <string name="ICE">ICE</string>
     <string name="aaps_broadcast">Glucodata</string>
-    <string name="about_text">GPL-3.0 • Fork of JugglucoNG • glucodroid.cloud</string>
+    <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
     <string name="accuchek_scan_instruction">Адсканіруйце матрыцу дадзеных на датчыку Accu-Chek SmartGuide</string>
     <string name="accuchek_sensor">Accu-Chek SmartGuide</string>
     <string name="accuchek_sensor_desc">Матрыца дадзеных сканавання + Bluetooth</string>
@@ -1264,7 +1264,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">Недастаткова штодзённых даных для візуалізацыі трэнду.</string>
     <string name="report_no_readings_day">Няма чытанняў на гэты дзень.</string>
-    <string name="report_page1_title">Клінічная справаздача GlucoDroid CGM</string>
+    <string name="report_page1_title">Клінічная справаздача JugglucoNG CGM</string>
     <string name="report_page1_subtitle">Дыяпазон %1$s · Паказанні %2$d · Акно ад %3$s да %4$s</string>
     <string name="report_estimated_a1c">Прыблізны A1C</string>
     <string name="report_below_target">Ніжэй мэты</string>
@@ -1279,7 +1279,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_above_duration">Уверсе: %1$s</string>
     <string name="report_agp_section_title">Профіль глюкозы ў амбулаторных умовах (24-гадзінныя палосы працэнтыля)</string>
     <string name="report_reference_targets">Базавыя мэты: GMI &lt; 7,0%%, CV &lt;= 36%%, Час у дыяпазоне &gt;= 70%%.</string>
-    <string name="report_page2_title">Штодзённыя тэндэнцыі і інтэрпрэтацыя GlucoDroid CGM</string>
+    <string name="report_page2_title">Штодзённыя тэндэнцыі і інтэрпрэтацыя JugglucoNG CGM</string>
     <string name="report_page2_subtitle">Штодзённая зменлівасць, разбіўка паказчыкаў і нататкі па інтэрпрэтацыі</string>
     <string name="report_daily_average_trend">Сярэднясутачная тэндэнцыя</string>
     <string name="report_detailed_metrics">Падрабязныя паказчыкі</string>
@@ -1294,7 +1294,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_generated_insights_message">Ніякіх дадатковых папярэджанняў узораў для гэтага перыяду часу не стваралася.</string>
     <string name="report_agp_consensus_title">Спасылка на кансенсус AGP</string>
     <string name="report_agp_consensus_body">Мэтавыя паказчыкі, згаданыя ў гэтай справаздачы, прытрымліваюцца міжнароднага ўзгодненага тыпу AGP: TIR 70-180 мг/дл (3,9-10,0 ммоль/л), TBR &lt;70 і &lt;54 мг/дл, TAR &gt;180 і &gt;250 мг/дл, з мэтай CV &lt;=36%%.</string>
-    <string name="report_page3_title">GlucoDroid Дадатак I - AGP і штодзённыя табліцы</string>
+    <string name="report_page3_title">JugglucoNG Дадатак I - AGP і штодзённыя табліцы</string>
     <string name="report_page3_subtitle">Пагадзінныя працэнтылі і вынікі на ўзроўні дня</string>
     <string name="report_hourly_agp_table">Табліца пагадзіннага профілю AGP</string>
     <string name="report_hour">Гадзіна</string>
@@ -1303,7 +1303,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_hourly_agp">У гэтым дыяпазоне няма пагадзінных бункераў AGP.</string>
     <string name="report_daily_outcomes_table">Штодзённая табліца вынікаў</string>
     <string name="report_showing_latest_days">Паказаны апошнія %1$d з %2$d дзён.</string>
-    <string name="report_page4_title">GlucoDroid Дадатак II - Падзеі і штодзённыя профілі</string>
+    <string name="report_page4_title">JugglucoNG Дадатак II - Падзеі і штодзённыя профілі</string>
     <string name="report_page4_subtitle">Паказчыкі ўздзеяння гіпо/гіпер і дыяграмы профілю на дзённым узроўні</string>
     <string name="report_hypo_hyper_events">Падзеі гіпа/гіперпрамянення</string>
     <string name="report_hours_per_day">Гадзін/дзень</string>
@@ -1842,6 +1842,18 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">На ўзроўні %1$s %2$s або ніжэй</string>
     <string name="outbound_api_trigger_summary_high">На ўзроўні %1$s %2$s або вышэй</string>
     <string name="outbound_api_trigger_summary_range">На ўзроўні %1$s або ніжэй, ці на ўзроўні %2$s %3$s або вышэй</string>
+    <string name="outbound_api_bubble_title">Бурбалка Telegram</string>
+    <string name="outbound_api_bubble_refresh_title">Абнаўляць на месцы</string>
+    <string name="outbound_api_bubble_refresh_desc">У межах акна абнаўлення рэдагаваць тую ж бурбалку замест адпраўкі новай.</string>
+    <string name="outbound_api_bubble_refresh_window">Акно абнаўлення (хвіліны)</string>
+    <string name="outbound_api_bubble_suppress_title">Прапускаць, калі значэнне не змянілася</string>
+    <string name="outbound_api_bubble_suppress_desc">Не рэдагаваць бурбалку, калі апошняе паказанне супадае з апошнім адпраўленым значэннем.</string>
+    <string name="outbound_api_bubble_stale_title">Паказваць паведамленне пра прапушчанае паказанне пры цішыні</string>
+    <string name="outbound_api_bubble_stale_desc">Адпраўляць паведамленне пра састарэлае або прапушчанае паказанне, калі новае паказанне не прыйшло своечасова.</string>
+    <string name="outbound_api_bubble_stale_threshold">Парог састарэння (хвіліны)</string>
+    <string name="outbound_api_bubble_missed_threshold">Парог пропуску (хвіліны)</string>
+    <string name="outbound_api_decrease_value">Паменшыць значэнне</string>
+    <string name="outbound_api_increase_value">Павялічыць значэнне</string>
     <string name="outbound_api_send_test">Адправіць тэставае паведамленне</string>
     <string name="outbound_api_test_queued">Тэставае паведамленне пастаўлена ў чаргу</string>
     <string name="outbound_api_no_current_reading">Няма даступнага бягучага паказання</string>
@@ -1893,4 +1905,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_token">Токен Telegram-бота</string>
     <string name="api_source_telegram_chat_ids">Дазволеныя chat ID</string>
     <string name="api_source_telegram_note">Telegram захоўвае абнаўленні бота да 24 гадзін. Укажыце адзін або некалькі chat ID ці імёнаў карыстальнікаў, паведамленні якіх можна імпартаваць.</string>
+    <string name="sensor_display_select">Выбраць датчык для паказу</string>
+    <string name="sensor_display_selected">Датчык абраны для паказу</string>
 </resources>

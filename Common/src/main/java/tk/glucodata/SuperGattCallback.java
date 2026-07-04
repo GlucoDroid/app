@@ -35,9 +35,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import tk.glucodata.alerts.AlertConfig;
-import tk.glucodata.alerts.AlertRepository;
-import tk.glucodata.alerts.AlertType;
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver;
 
 import static android.bluetooth.BluetoothDevice.BOND_BONDED;
@@ -57,7 +54,6 @@ import static tk.glucodata.Log.showbytes;
 import static tk.glucodata.Natives.thresholdchange;
 import static tk.glucodata.SensorBluetooth.blueone;
 
-@SuppressLint("MissingPermission")
 public abstract class SuperGattCallback extends BluetoothGattCallback {
     volatile protected boolean stop = false;
     public static boolean doWearInt = false;
@@ -251,11 +247,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     }
 
     static final int mininterval = 55;
-    volatile static long nexttime = 0L; // secs
+    static long nexttime = 0L; // secs
     public static tk.glucodata.GlucoseAlarms glucosealarms = null;
-    public volatile static notGlucose previousglucose = null;
-    volatile static float previousglucosevalue = 0.0f;
-    public volatile static String previousglucosesensorid = null;
+    public static notGlucose previousglucose = null;
+    static float previousglucosevalue = 0.0f;
+    public static String previousglucosesensorid = null;
     private static final ConcurrentHashMap<String, Long> lastCollapsedExchangeTimeMs = new ConcurrentHashMap<>();
 
     private static boolean shouldEmitExchangeUpdate(String sensorId, long payloadTimeMs, boolean collapseChunks) {
@@ -486,7 +482,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         previousglucose = sglucose;
         previousglucosevalue = gl;
         previousglucosesensorid = SerialNumber;
-        Applic.app.sendBroadcast(new Intent("tk.glucodata.action.AOD_IMMEDIATE_REFRESH").setPackage(Applic.app.getPackageName()));
+        Applic.app.sendBroadcast(new Intent("tk.glucodata.action.AOD_IMMEDIATE_REFRESH"));
         final var fview = Floating.floatview;
         // MainActivity.showmessage=null;
         final boolean alarmSpeechStarted = glucoseAlertStarted && !DontTalk && Natives.speakalarms();
@@ -538,14 +534,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
         if (!DontTalk) {
             if (dotalk && !alarmSpeechStarted) {
-                long readingAgeMs = System.currentTimeMillis() - timmsec;
-                if (readingAgeMs > Notify.glucosetimeout) {
-                    if (AlertRepository.INSTANCE.loadConfig(AlertType.MISSED_READING).getEnabled()) {
-                        talker.selspeak(Applic.app.getString(R.string.tts_missed_readings));
-                    }
-                } else {
-                    talker.selspeak(sglucose.value);
-                }
+                talker.selspeak(sglucose.value);
             }
         }
         if (isWearable) {

@@ -302,7 +302,6 @@ public class UnifiedScanActivity extends AppCompatActivity {
         updateFlashButtonState();
     }
 
-    @androidx.camera.core.ExperimentalGetImage
     private void analyzeFrame(@NonNull ImageProxy imageProxy) {
         if (finished.get()) {
             imageProxy.close();

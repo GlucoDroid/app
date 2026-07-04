@@ -251,7 +251,6 @@ private fun String.capitalize(): String {
 @Composable
 fun SensorScreen(
     onNavigateToMqAccount: () -> Unit = {},
-    onNavigateToNightscout: () -> Unit = {},
     onNavigateToReadiness: () -> Unit = {},
     viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewModel(),
 ) {
@@ -303,7 +302,6 @@ fun SensorScreen(
                     tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                     tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                     tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
-                    tk.glucodata.ui.components.SensorType.NIGHTSCOUT -> onNavigateToNightscout()
                 }
             }
         )
@@ -463,7 +461,6 @@ fun SensorScreen(
                             tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                             tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                             tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
-                            tk.glucodata.ui.components.SensorType.NIGHTSCOUT -> onNavigateToNightscout()
                         }
                     }
                 )

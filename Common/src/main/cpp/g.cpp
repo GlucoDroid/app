@@ -32,12 +32,14 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
+#include <vector>
 extern "C" {
 typedef void (*sighandler_t)(int);
 
@@ -626,6 +628,7 @@ static SensorGlucoseData *ensureDirectStreamShellForId(const char *sensorId,
                                                        uint32_t startTimeSec);
 static void seedDirectStreamStateIfMissing(SensorGlucoseData *hist,
                                            time_t timestamp);
+static void syncListStarttime(SensorGlucoseData *hist, uint32_t start);
 static bool isManagedDirectStreamSensorId(JNIEnv *env, const char *sensorId);
 extern "C" JNIEXPORT jlong JNICALL fromjava(getdataptr)(JNIEnv *env, jclass cl,
                                                         jstring jsensor) {
@@ -1241,6 +1244,7 @@ extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseInjection)(
         if (!start && timestamp > 3600) {
           start = timestamp - 3600;
           info->starttime = start;
+          syncListStarttime(hist, start);
         }
 
         int lifeCount = 0;
@@ -1340,6 +1344,12 @@ static void seedDirectStreamStateIfMissing(SensorGlucoseData *hist,
   }
 }
 
+static void syncListStarttime(SensorGlucoseData *hist, uint32_t start) {
+  if (!hist || !sensors || !Sensoren::validSensorStarttime(start))
+    return;
+  sensors->setSensorStarttime(hist->sensorIndex, start);
+}
+
 static int compactRawMgdl(jfloat rawGlucose) {
   if (rawGlucose <= 0.0f)
     return 0;
@@ -1374,6 +1384,7 @@ static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
       if (!start && timestamp > 3600) {
         start = timestamp - 3600;
         info->starttime = start;
+        syncListStarttime(hist, start);
       }
 
       int lifeCount = 0;
@@ -1469,6 +1480,7 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
         (info->starttime == 0 ||
          static_cast<uint32_t>(startTimeSec) < info->starttime)) {
       info->starttime = static_cast<uint32_t>(startTimeSec);
+      syncListStarttime(hist, static_cast<uint32_t>(startTimeSec));
     }
   }
 
@@ -1521,6 +1533,7 @@ fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
       if (!start && timestamp > 3600) {
         start = timestamp - 3600;
         info->starttime = start;
+        syncListStarttime(hist, start);
       }
 
       int lifeCount = 0;
@@ -1835,6 +1848,22 @@ fromjava(getSensorEndTimeFromSensorptr)(JNIEnv *env, jclass cl, jlong sensorptr,
 
 extern std::vector<int> usedsensors;
 extern void setusedsensors();
+extern std::vector<int> usedsensorssnapshot();
+extern jclass JNIString;
+
+static jobjectArray sensorNamesToJavaArray(JNIEnv *env,
+                                           const std::vector<std::string> &names) {
+  jobjectArray sensjar = env->NewObjectArray(names.size(), JNIString, nullptr);
+  for (int i = 0; i < static_cast<int>(names.size()); i++) {
+    jstring name = env->NewStringUTF(names[i].c_str());
+    if (name) {
+      env->SetObjectArrayElement(sensjar, i, name);
+      env->DeleteLocalRef(name);
+    }
+  }
+  return sensjar;
+}
+
 /*
 extern "C" JNIEXPORT jboolean  JNICALL   fromjava(hasSibionics)(JNIEnv *env,
 jclass cl) { setusedsensors(); const int len= usedsensors.size(); for(int
@@ -1846,10 +1875,8 @@ i=0;i<len;i++) { const int index=usedsensors[i]; if(sensors->isSibionics(index))
 extern bool hasGlucoseMeters();
 extern "C" JNIEXPORT jboolean JNICALL fromjava(hasNeedScan)(JNIEnv *env,
                                                             jclass cl) {
-  setusedsensors();
-  const int len = usedsensors.size();
-  for (int i = 0; i < len; i++) {
-    const int index = usedsensors[i];
+  const auto active = usedsensorssnapshot();
+  for (const int index : active) {
     if (sensors->needsScan(index))
       return true;
   }
@@ -1858,17 +1885,18 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(hasNeedScan)(JNIEnv *env,
 #ifndef WEAROS
 extern "C" JNIEXPORT jlongArray JNICALL fromjava(activeSensorPtrs)(JNIEnv *env,
                                                                    jclass cl) {
-  setusedsensors();
-  const int len = usedsensors.size();
-  jlong longar[len];
+  const auto active = usedsensorssnapshot();
+  const int len = active.size();
+  std::vector<jlong> longar(len);
   LOGGER("activeSensorPtrs  len=%d\n", len);
   for (int i = 0; i < len; i++) {
-    int index = usedsensors[i];
+    int index = active[i];
     const SensorGlucoseData *sens = sensors->getSensorData(index);
     longar[i] = reinterpret_cast<jlong>(sens);
   }
   jlongArray ptrAr = env->NewLongArray(len);
-  env->SetLongArrayRegion(ptrAr, 0, len, longar);
+  if (len > 0)
+    env->SetLongArrayRegion(ptrAr, 0, len, longar.data());
   return ptrAr;
 }
 
@@ -1903,40 +1931,32 @@ fromjava(finishfromSensorptr)(JNIEnv *env, jclass cl, jlong sensorptr) {
   finishsensor(sens, sensorindex);
 }
 #endif
-extern jclass JNIString;
 #ifdef LIBRE3
 extern "C" JNIEXPORT jobjectArray JNICALL fromjava(activeSensors)(JNIEnv *env,
                                                                   jclass cl) {
-  setusedsensors();
-  const int len = usedsensors.size();
-  jobjectArray sensjar = env->NewObjectArray(len, JNIString, nullptr);
-
-  for (int i = 0; i < len; i++) {
-    int index = usedsensors[i];
+  const auto active = usedsensorssnapshot();
+  std::vector<std::string> names;
+  names.reserve(active.size());
+  for (const int index : active) {
     const char *name = sensors->shortsensorname_chars(index);
-    env->SetObjectArrayElement(sensjar, i, env->NewStringUTF(name));
+    if (name)
+      names.emplace_back(name);
   }
-
-  return sensjar;
+  return sensorNamesToJavaArray(env, names);
 }
 #else
 extern "C" JNIEXPORT jobjectArray JNICALL fromjava(activeSensors)(JNIEnv *env,
                                                                   jclass cl) {
-  setusedsensors();
-  const int len = usedsensors.size();
-  const char *names[len];
-  int uitlen = 0;
-  for (int i = 0; i < len; i++) {
-    int index = usedsensors[i];
+  const auto active = usedsensorssnapshot();
+  std::vector<std::string> names;
+  names.reserve(active.size());
+  for (const int index : active) {
     const SensorGlucoseData *sens = sensors->getSensorData(index);
-    if (sens && !sens->isLibre3())
-      names[uitlen++] = sensors->shortsensorname_chars(index);
+    const char *name = sensors->shortsensorname_chars(index);
+    if (sens && !sens->isLibre3() && name)
+      names.emplace_back(name);
   }
-  jobjectArray sensjar = env->NewObjectArray(uitlen, JNIString, nullptr);
-  for (int i = 0; i < uitlen; i++)
-    env->SetObjectArrayElement(sensjar, i, env->NewStringUTF(names[i]));
-
-  return sensjar;
+  return sensorNamesToJavaArray(env, names);
 }
 #endif
 

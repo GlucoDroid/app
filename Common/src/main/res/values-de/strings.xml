@@ -2,7 +2,7 @@
     <string name="language">de</string>
     <string name="languagename">Sprache</string>
 
-     <string name="app_name">GlucoDroid</string>
+     <string name="app_name">JugglucoNG</string>
      <string name="ok">OK</string>
      <string name="cancel">Abbrechen</string>
 
@@ -696,7 +696,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="volume_vibration_profile">Lautstarke-/Vibrationsprofil</string>
     <string name="ICE">ICE</string>
     <string name="aaps_broadcast">Glucodata</string>
-    <string name="about_text">GPL-3.0 • Fork of JugglucoNG • glucodroid.cloud</string>
+    <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
     <string name="accuchek_scan_instruction">Scannen Sie die Datenmatrix auf Ihrem Accu-Chek SmartGuide Sensor</string>
     <string name="accuchek_sensor">Accu-Chek SmartGuide</string>
     <string name="accuchek_sensor_desc">Scannen Sie Data Matrix + Bluetooth</string>
@@ -1303,7 +1303,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">Nicht genügend tägliche Daten, um einen Trend darzustellen.</string>
     <string name="report_no_readings_day">Für diesen Tag gibt es keine Lesungen.</string>
-    <string name="report_page1_title">Klinischer GlucoDroid CGM-Bericht</string>
+    <string name="report_page1_title">Klinischer JugglucoNG CGM-Bericht</string>
     <string name="report_page1_subtitle">Bereich %1$s · Messwerte %2$d · Fenster %3$s bis %4$s</string>
     <string name="report_estimated_a1c">Geschätzter A1C</string>
     <string name="report_below_target">Unterhalb des Ziels</string>
@@ -1318,7 +1318,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="report_above_duration">Oben: %1$s</string>
     <string name="report_agp_section_title">Ambulantes Glukoseprofil (24-Stunden-Perzentilbänder)</string>
     <string name="report_reference_targets">Referenzziele: GMI &lt; 7,0 %%, CV &lt;= 36 %%, Zeit im Bereich &gt;= 70 %%.</string>
-    <string name="report_page2_title">GlucoDroid CGM Tägliche Trends und Interpretation</string>
+    <string name="report_page2_title">JugglucoNG CGM Tägliche Trends und Interpretation</string>
     <string name="report_page2_subtitle">Tägliche Variabilität, metrische Aufschlüsselung und Interpretationshinweise</string>
     <string name="report_daily_average_trend">Täglicher durchschnittlicher Trend</string>
     <string name="report_detailed_metrics">Detaillierte Metriken</string>
@@ -1333,7 +1333,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="report_no_generated_insights_message">Für diesen Zeitraum wurden keine zusätzlichen Musterwarnungen generiert.</string>
     <string name="report_agp_consensus_title">AGP-Konsensreferenz</string>
     <string name="report_agp_consensus_body">Die in diesem Bericht genannten Ziele folgen dem internationalen AGP-Konsensstil: TIR 70–180 mg/dl (3,9–10,0 mmol/l), TBR &lt;70 und &lt;54 mg/dl, TAR &gt;180 und &gt;250 mg/dl, mit CV-Ziel &lt;= 36 %%.</string>
-    <string name="report_page3_title">GlucoDroid Anhang I – AGP und Tagestabellen</string>
+    <string name="report_page3_title">JugglucoNG Anhang I – AGP und Tagestabellen</string>
     <string name="report_page3_subtitle">Stündliche Perzentile und Ergebnisse auf Tagesebene</string>
     <string name="report_hourly_agp_table">Stündliche AGP-Profiltabelle</string>
     <string name="report_hour">Stunde</string>
@@ -1342,7 +1342,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="report_no_hourly_agp">In diesem Bereich sind keine stündlichen AGP-Behälter verfügbar.</string>
     <string name="report_daily_outcomes_table">Tägliche Ergebnistabelle</string>
     <string name="report_showing_latest_days">Zeigt die letzten %1$d von %2$d Tagen an.</string>
-    <string name="report_page4_title">GlucoDroid Anhang II – Ereignisse und Tagesprofile</string>
+    <string name="report_page4_title">JugglucoNG Anhang II – Ereignisse und Tagesprofile</string>
     <string name="report_page4_subtitle">Hypo-/Hyper-Expositionsmetriken und Profildiagramme auf Tagesebene</string>
     <string name="report_hypo_hyper_events">Hypo-/Hyperexpositionsereignisse</string>
     <string name="report_hours_per_day">Stunden/Tag</string>
@@ -1811,6 +1811,18 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="outbound_api_trigger_summary_low">Bei oder unter %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_high">Bei oder über %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_range">Bei oder unter %1$s oder bei oder über %2$s %3$s</string>
+    <string name="outbound_api_bubble_title">Telegram-Blase</string>
+    <string name="outbound_api_bubble_refresh_title">An Ort und Stelle aktualisieren</string>
+    <string name="outbound_api_bubble_refresh_desc">Innerhalb des Aktualisierungsfensters dieselbe Blase bearbeiten, statt eine neue Nachricht zu senden.</string>
+    <string name="outbound_api_bubble_refresh_window">Aktualisierungsfenster (Minuten)</string>
+    <string name="outbound_api_bubble_suppress_title">Überspringen, wenn Wert unverändert ist</string>
+    <string name="outbound_api_bubble_suppress_desc">Die Blase nicht bearbeiten, wenn die neueste Messung dem zuletzt gesendeten Wert entspricht.</string>
+    <string name="outbound_api_bubble_stale_title">Bei Stille Meldung zu verpasster Messung anzeigen</string>
+    <string name="outbound_api_bubble_stale_desc">Sendet eine Stale- oder Verpasst-Meldung, wenn rechtzeitig kein neuer Wert eintrifft.</string>
+    <string name="outbound_api_bubble_stale_threshold">Stale-Schwelle (Minuten)</string>
+    <string name="outbound_api_bubble_missed_threshold">Verpasst-Schwelle (Minuten)</string>
+    <string name="outbound_api_decrease_value">Wert verringern</string>
+    <string name="outbound_api_increase_value">Wert erhöhen</string>
     <string name="outbound_api_send_test">Testnachricht senden</string>
     <string name="outbound_api_test_queued">Testnachricht eingereiht</string>
     <string name="outbound_api_no_current_reading">Kein aktueller Wert verfügbar</string>
@@ -1864,4 +1876,6 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="api_source_telegram_note">Telegram speichert Bot-Updates bis zu 24 Stunden. Gib eine oder mehrere Chat-IDs oder Benutzernamen ein, deren Bot-Nachrichten importiert werden dürfen.</string>
     <string name="status_waiting_for_data">Verbunden, warte auf Daten...</string>
     <string name="status_raw_values_received">Verbunden, Rohwerte empfangen</string>
+    <string name="sensor_display_select">Sensor zur Anzeige auswählen</string>
+    <string name="sensor_display_selected">Sensor für Anzeige ausgewählt</string>
 </resources>

@@ -1636,7 +1636,10 @@ object CalibrationManager {
         }
     }
 
-    fun getCachedCalibrations(): List<CalibrationEntity> = _calibrations.value
+    fun getCachedCalibrations(): List<CalibrationEntity> {
+        ensureCalibrationStateLoaded()
+        return _calibrations.value
+    }
     
     // Kept for backward compatibility if needed, but redundant now
     fun getCalibrationsFlow(): Flow<List<CalibrationEntity>> = _calibrations

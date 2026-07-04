@@ -39,7 +39,6 @@ import kotlin.math.abs
  *
  * Converted to Kotlin to resolve compilation visibility issues.
  */
-@SuppressLint("MissingPermission")
 class AiDexProbe private constructor() {
 
     private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()

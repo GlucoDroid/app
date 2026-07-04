@@ -62,6 +62,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.ui.journal.JournalDoseProfile
@@ -74,7 +75,13 @@ import tk.glucodata.ui.viewmodel.DashboardViewModel
 
 sealed class CalibrationSheetState {
     object Hidden : CalibrationSheetState()
-    data class New(val auto: Float, val raw: Float, val timestamp: Long) : CalibrationSheetState()
+    data class New(
+        val auto: Float,
+        val raw: Float,
+        val timestamp: Long,
+        val sensorId: String? = null,
+        val viewModeOverride: Int? = null
+    ) : CalibrationSheetState()
     data class Edit(val entity: tk.glucodata.data.calibration.CalibrationEntity) : CalibrationSheetState()
 }
 
@@ -101,7 +108,6 @@ private fun DashboardRoute(
         onNavigateToCalibrations = { navController.navigate("calibrations") },
         onNavigateToHistory = { navController.navigate("history") },
         onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
-        onNavigateToNightscout = { navController.navigate("settings/nightscout") },
         onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") },
         onTriggerCalibration = onTriggerCalibration
     )
@@ -446,7 +452,7 @@ private fun CalibrationListRoute(
             val latest = glucoseHistory.firstOrNull()
             val autoVal = latest?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
             val rawVal = latest?.rawValue ?: autoVal
-            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, latest?.timestamp ?: System.currentTimeMillis()))
         },
         onEdit = { entity ->
             onTriggerCalibration(CalibrationSheetState.Edit(entity))
@@ -492,27 +498,63 @@ private fun CalibrationSheetHost(
     if (sheetState is CalibrationSheetState.Hidden) return
 
     val glucoseHistory by dashboardViewModel.glucoseHistory.collectAsStateWithLifecycle()
+    val multiSensorDisplay by dashboardViewModel.multiSensorDisplay.collectAsStateWithLifecycle()
     val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
     val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
+    val sensorViewModes by dashboardViewModel.sensorViewModes.collectAsStateWithLifecycle()
 
-    val (initAuto, initRaw, initTime) = when (sheetState) {
-        is CalibrationSheetState.New -> Triple(sheetState.auto, sheetState.raw, sheetState.timestamp)
-        is CalibrationSheetState.Edit -> Triple(
-            sheetState.entity.sensorValue,
-            sheetState.entity.sensorValueRaw,
-            sheetState.entity.timestamp
+    data class SheetInit(
+        val auto: Float,
+        val raw: Float,
+        val timestamp: Long,
+        val sensorId: String?,
+        val viewMode: Int
+    )
+
+    val init = when (sheetState) {
+        is CalibrationSheetState.New -> SheetInit(
+            auto = sheetState.auto,
+            raw = sheetState.raw,
+            timestamp = sheetState.timestamp,
+            sensorId = sheetState.sensorId?.takeIf { it.isNotBlank() },
+            viewMode = sheetState.viewModeOverride ?: viewMode
         )
-        CalibrationSheetState.Hidden -> Triple(0f, 0f, 0L)
+        is CalibrationSheetState.Edit -> SheetInit(
+            auto = sheetState.entity.sensorValue,
+            raw = sheetState.entity.sensorValueRaw,
+            timestamp = sheetState.entity.timestamp,
+            sensorId = sheetState.entity.sensorId.takeIf { it.isNotBlank() },
+            viewMode = if (sheetState.entity.isRawMode) 1 else 0
+        )
+        CalibrationSheetState.Hidden -> SheetInit(0f, 0f, 0L, null, viewMode)
+    }
+
+    val sheetHistory = remember(glucoseHistory, multiSensorDisplay, init.sensorId) {
+        val sensorId = init.sensorId
+        val source = if (sensorId.isNullOrBlank()) {
+            glucoseHistory
+        } else {
+            val primarySerial = glucoseHistory.lastOrNull()?.sensorSerial
+            if (SensorIdentity.matches(sensorId, primarySerial)) {
+                glucoseHistory
+            } else {
+                multiSensorDisplay.seriesFor(sensorId)?.points.orEmpty()
+            }
+        }
+        source.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }
     }
 
     tk.glucodata.ui.calibration.CalibrationBottomSheet(
         onDismiss = onDismiss,
-        initialValueAuto = initAuto,
-        initialValueRaw = initRaw,
-        initialTimestamp = initTime,
-        glucoseHistory = glucoseHistory.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) },
+        initialValueAuto = init.auto,
+        initialValueRaw = init.raw,
+        initialTimestamp = init.timestamp,
+        glucoseHistory = sheetHistory,
         isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
-        viewMode = viewMode,
+        viewMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+            init.sensorId != null && SensorIdentity.matches(sensorId, init.sensorId)
+        }?.value ?: init.viewMode,
+        sensorIdOverride = init.sensorId,
         onNavigateToHistory = {
             onDismiss()
             onNavigateToCalibrations()
@@ -596,22 +638,15 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     val onNavigate = { route: String ->
         val parentOfCurrent = getParentRoute(currentRoute)
         val isOnSubpageOf = parentOfCurrent == route
-        val startRoute = navController.graph.findStartDestination().route
 
         when {
             // If we're on a subpage of the clicked nav item, pop back to it
             isOnSubpageOf -> navController.popBackStack(route, inclusive = false)
-            currentRoute != route -> if (route == startRoute) {
-                // Navigating to the start destination (dashboard): pop cleanly.
-                // navigate() + launchSingleTop is a no-op when dashboard is already
-                // the top of the stack after popUpTo, so use popBackStack instead.
-                navController.popBackStack(route, inclusive = false, saveState = true)
-            } else {
-                navController.navigate(route) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
+            // If we're on a different top-level or subpage, navigate normally
+            currentRoute != route -> navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
             }
             // Already on the destination, do nothing
         }
@@ -691,7 +726,6 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("sensors") {
                         SensorScreen(
                             onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
-                            onNavigateToNightscout = { navController.navigate("settings/nightscout") },
                             onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") }
                         )
                     }
@@ -834,7 +868,6 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("sensors") {
                     SensorScreen(
                         onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
-                        onNavigateToNightscout = { navController.navigate("settings/nightscout") },
                         onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") }
                     )
                 }

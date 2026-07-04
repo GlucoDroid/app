@@ -67,8 +67,10 @@ import android.os.VibratorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.util.DisplayMetrics;
@@ -100,11 +102,18 @@ public class Notify {
     static public final long glucosetimeout = 1000L * glucosetimeoutSEC;
     static private final int FOREGROUND_GLUCOSE_NOTIFICATION_KIND = -1;
     static private final long INTERACTIVE_NOTIFICATION_REFRESH_DELAY_MS = 750L;
+    static private final long DATA_CHANGED_NOTIFICATION_REFRESH_DELAY_MS = 1000L;
     static private final long LOCKED_ALARM_ACTIVITY_DELAY_MS = 0L;
-    static private final Handler glucoseRefreshHandler = new Handler(Looper.getMainLooper());
+    static private final Handler glucoseRefreshHandler = makeGlucoseRefreshHandler();
 
     static final private String LOG_ID = "Notify";
     static Notify onenot = null;
+
+    private static Handler makeGlucoseRefreshHandler() {
+        HandlerThread thread = new HandlerThread("JugglucoNotifyRefresh", Process.THREAD_PRIORITY_BACKGROUND);
+        thread.start();
+        return new Handler(thread.getLooper());
+    }
 
     static void init(Context cont) {
         if (onenot == null) {
@@ -816,6 +825,9 @@ public class Notify {
     }
 
     boolean hasvalue = false;
+    private long lastForegroundGlucoseTimeMs = 0L;
+    private float lastForegroundGlucoseValue = Float.NaN;
+    private float lastForegroundGlucoseRate = Float.NaN;
 
     void showglucose(notGlucose strgl, float gl) {
         var message = format(usedlocale, glucoseformat, gl);
@@ -937,11 +949,38 @@ public class Notify {
         }
     }
 
+    private static final class AlarmLaunchResult {
+        final boolean directStarted;
+        final boolean queued;
+        final boolean needsNotificationTransport;
+
+        AlarmLaunchResult(boolean directStarted, boolean queued, boolean needsNotificationTransport) {
+            this.directStarted = directStarted;
+            this.queued = queued;
+            this.needsNotificationTransport = needsNotificationTransport;
+        }
+
+        boolean startedOrQueued() {
+            return directStarted || queued;
+        }
+    }
+
     private static notGlucose copyGlucoseSnapshot(notGlucose glucose, float fallbackValue) {
         if (glucose == null) {
             return new notGlucose(System.currentTimeMillis(), String.valueOf(fallbackValue), Float.NaN, 0);
         }
         return new notGlucose(glucose.time, glucose.value, glucose.rate, glucose.sensorgen2);
+    }
+
+    private static String alarmDisplayGlucoseValue(float glvalue, notGlucose glucose) {
+        if (Float.isFinite(glvalue) && glvalue > 0.1f) {
+            final String glucoseFormat = pureglucoseformat != null ? pureglucoseformat : "%.1f";
+            return format(usedlocale, glucoseFormat, glvalue);
+        }
+        if (glucose != null && glucose.value != null && !glucose.value.isBlank()) {
+            return glucose.value;
+        }
+        return "";
     }
 
     private static String resolveNotificationSensorSerial() {
@@ -1043,6 +1082,61 @@ public class Notify {
         }
     };
 
+    private final Runnable dataChangedGlucoseRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (!shouldKeepForegroundGlucoseNotification()) {
+                    return;
+                }
+                final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+                if (current == null || current.getPrimaryValue() < 2.0f) {
+                    return;
+                }
+                if (isSameForegroundGlucose(current)) {
+                    return;
+                }
+                BatteryTrace.bump("notify.glucose.data_changed", 20L, "source=" + current.getSource());
+                postForegroundGlucoseNotification(
+                        FOREGROUND_GLUCOSE_NOTIFICATION_KIND,
+                        current.getPrimaryValue(),
+                        format(usedlocale, glucoseformat, current.getPrimaryValue()),
+                        toLegacyGlucose(current));
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "dataChangedGlucoseRefreshRunnable", th);
+            }
+        }
+    };
+
+    private boolean shouldKeepForegroundGlucoseNotification() {
+        return !isWearable && (showalways || alertwatch || hasvalue || keeprunning.started);
+    }
+
+    private boolean isSameForegroundGlucose(CurrentDisplaySource.Snapshot current) {
+        if (current == null || current.getTimeMillis() <= 0L) {
+            return false;
+        }
+        return lastForegroundGlucoseTimeMs == current.getTimeMillis()
+                && Float.compare(lastForegroundGlucoseValue, current.getPrimaryValue()) == 0
+                && Float.compare(lastForegroundGlucoseRate, current.getRate()) == 0;
+    }
+
+    public static void scheduleDataChangedRefresh() {
+        final Notify noti = onenot;
+        if (noti == null) {
+            return;
+        }
+        noti.scheduleDataChangedNotificationRefresh();
+    }
+
+    private void scheduleDataChangedNotificationRefresh() {
+        if (!shouldKeepForegroundGlucoseNotification()) {
+            return;
+        }
+        glucoseRefreshHandler.removeCallbacks(dataChangedGlucoseRefreshRunnable);
+        glucoseRefreshHandler.postDelayed(dataChangedGlucoseRefreshRunnable, DATA_CHANGED_NOTIFICATION_REFRESH_DELAY_MS);
+    }
+
     private void scheduleInteractiveNotificationRefresh() {
         if (!isScreenInteractive()) {
             return;
@@ -1054,6 +1148,14 @@ public class Notify {
     private void postForegroundGlucoseNotification(int kind, float glvalue, String message, notGlucose glucose) {
         hasvalue = true;
         glucoseRefreshHandler.removeCallbacks(glucoseRefreshRunnable);
+        if (glucose != null && glucose.time > 0L) {
+            lastForegroundGlucoseTimeMs = glucose.time;
+            lastForegroundGlucoseRate = glucose.rate;
+        } else {
+            lastForegroundGlucoseTimeMs = 0L;
+            lastForegroundGlucoseRate = Float.NaN;
+        }
+        lastForegroundGlucoseValue = glvalue;
         fornotify(makearrownotification(kind, glvalue, message, glucose, GLUCOSENOTIFICATION, true));
     }
 
@@ -1104,6 +1206,9 @@ public class Notify {
     private static void cancelRetrySessionLocked(String reason) {
         if (activeRetrySession != null && doLog) {
             Log.i(LOG_ID, "Cancel retry session kind=" + activeRetrySession.kind + " reason=" + reason);
+        }
+        if (activeRetrySession != null) {
+            cancelQueuedAlarmActivityLaunch(activeRetrySession.kind, null, reason);
         }
         cancelRetryScheduleLocked();
         activeRetrySession = null;
@@ -1494,35 +1599,29 @@ public class Notify {
         synchronized (alertEffectLock) {
             cancelDelayedAlertEffectsLocked("stopalarm");
         }
-        if (!getisalarm()) {
-            {
-                if (doLog) {
-                    Log.d(LOG_ID, "stopalarm not is alarm");
-                }
-                ;
-            }
-            ;
-            return;
+        final int currentAlertKind = resolveAlertKind(-1);
+        if (currentAlertKind >= 0) {
+            cancelQueuedAlarmActivityLaunch(currentAlertKind, null, "stopalarm");
         }
-        {
-            if (doLog) {
-                Log.d(LOG_ID, "stopalarm is alarm");
-            }
-            ;
+        final boolean wasAlarm = getisalarm();
+        if (doLog) {
+            Log.d(LOG_ID, wasAlarm ? "stopalarm is alarm" : "stopalarm not is alarm");
         }
-        ;
         final var stopper = stopschedule;
         if (stopper != null) {
             stopper.cancel(false);
             stopschedule = null;
         }
         var runner = runstopalarm;
+        runstopalarm = null;
         if (runner != null) {
             if (!isWearable) {
-                if (send)
+                if (send && wasAlarm)
                     Applic.app.numdata.stopalarm();
             }
             runner.run();
+        } else if (!wasAlarm && onenot != null) {
+            onenot.stopvibratealarm();
         }
     }
     // static int alarmnr=0;
@@ -1556,6 +1655,13 @@ public class Notify {
                     .getDefaultVibrator();
         } else
             vibrator = (Vibrator) context.getSystemService(VIBRATOR_SERVICE);
+
+        if (vibrator == null) {
+            if (doLog) {
+                Log.w(LOG_ID, "vibratealarm: vibrator unavailable");
+            }
+            return;
+        }
 
         if (hapticProfileName == null)
             hapticProfileName = "STRONG";
@@ -1631,10 +1737,11 @@ public class Notify {
                         amplitudes[i] = 1; // Ensure non-zero if it was meant to be on
                 }
             }
-            vibrateWaveform(vibrator, timings, amplitudes, 0);
+            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
+            vibrateWaveform(vibrator, finitePattern.timings, finitePattern.amplitudes, -1);
         } else {
-            // Pre-Oreo fallback: repeat until the scheduled alarm stop cancels it.
-            vibrator.vibrate(timings, 0);
+            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
+            vibrator.vibrate(finitePattern.timings, -1);
         }
 
         if (doLog) {
@@ -1644,7 +1751,16 @@ public class Notify {
     }
 
     void stopvibratealarm() {
-        vibrator.cancel();
+        if (vibrator == null) {
+            return;
+        }
+        try {
+            vibrator.cancel();
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "stopvibratealarm", th);
+        } finally {
+            vibrator = null;
+        }
     }
 
     private static int lastalarm = -1;
@@ -1835,6 +1951,12 @@ public class Notify {
             } else {
                 if (sound && hasSoundHandle) {
                     soundHandle.stop();
+                }
+                if (!isWearable && flash) {
+                    Flash.stop();
+                }
+                if (vibrate) {
+                    stopvibratealarm();
                 }
                 if (doLog) {
                     {
@@ -2118,22 +2240,25 @@ public class Notify {
 
                 // Delivery Mode Logic
                 String mode = normalizeDeliveryMode(deliveryMode);
-                boolean alarmWindowQueued = false;
+                AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
 
                 // When the phone is idle/locked, background activity starts are not a
                 // reliable contract. Queue the AlarmActivity through AlarmManager so
                 // Alarm mode still wakes into the alarm screen instead of degrading to a
                 // plain heads-up notification.
                 if (AlertDeliveryPolicy.shouldAttemptAlarmWindow(mode)) {
-                    alarmWindowQueued = launchOrQueueAlarmActivity(glucoseStr.value, message, glucoseStr.rate, kind,
-                            customAlertId,
-                            mode);
-                    if (!alarmWindowQueued && doLog) {
+                    final String alarmGlucoseValue = alarmDisplayGlucoseValue(glucoseValue, glucoseStr);
+                    alarmLaunchResult = launchOrQueueAlarmActivityResult(alarmGlucoseValue, message, glucoseStr.rate,
+                            kind, customAlertId, mode);
+                    if (!alarmLaunchResult.startedOrQueued() && doLog) {
                         Log.i(LOG_ID, "Custom Alert: AlarmActivity launch failed, using notification fallback");
                     }
                 }
 
-                boolean skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(mode, alarmWindowQueued);
+                boolean skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
+                        mode,
+                        alarmLaunchResult.startedOrQueued(),
+                        alarmLaunchResult.needsNotificationTransport);
 
                 // 2. Heads-Up Notification (Separate) - This is what standard alerts do!
                 // Only if we shouldn't skip the banner (Notification mode, Both mode, or Alarm
@@ -2231,6 +2356,15 @@ public class Notify {
         return base + (alertTypeId * 257) + (customHash & 0x7FFF);
     }
 
+    private static Intent buildAlarmLaunchReceiverIntent(Intent alarmIntent) {
+        final Intent launchIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmLaunchReceiver.class);
+        launchIntent.setAction(tk.glucodata.receivers.AlarmLaunchReceiver.ACTION_LAUNCH_ALARM_ACTIVITY);
+        if (alarmIntent != null) {
+            launchIntent.putExtras(alarmIntent);
+        }
+        return launchIntent;
+    }
+
     private static boolean queueAlarmActivityLaunch(String glucoseValue, String alarmMessage, float rate,
             int alertTypeId, String customAlertId, String deliveryMode) {
         try {
@@ -2240,9 +2374,7 @@ public class Notify {
             }
             final Intent alarmIntent = buildAlarmActivityIntent(glucoseValue, alarmMessage, rate, alertTypeId,
                     customAlertId, deliveryMode);
-            final Intent launchIntent = new Intent(Applic.app, tk.glucodata.receivers.AlarmLaunchReceiver.class);
-            launchIntent.setAction(tk.glucodata.receivers.AlarmLaunchReceiver.ACTION_LAUNCH_ALARM_ACTIVITY);
-            launchIntent.putExtras(alarmIntent);
+            final Intent launchIntent = buildAlarmLaunchReceiverIntent(alarmIntent);
             final PendingIntent pendingIntent = PendingIntent.getBroadcast(Applic.app,
                     alarmPendingRequestCode(200_000, alertTypeId, customAlertId), launchIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | penmutable);
@@ -2257,8 +2389,8 @@ public class Notify {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     final PendingIntent showIntent = mkAlarmPendingIntent(glucoseValue, alarmMessage, rate, alertTypeId,
                             customAlertId, deliveryMode);
-                    alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAtMs, pendingIntent),
-                            showIntent);
+                    alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAtMs, showIntent),
+                            pendingIntent);
                 } else {
                     throw denied;
                 }
@@ -2275,13 +2407,42 @@ public class Notify {
         }
     }
 
-    private static boolean launchOrQueueAlarmActivity(String glucoseValue, String alarmMessage, float rate,
-            int alertTypeId, String customAlertId, String deliveryMode) {
-        if (shouldTryDirectAlarmActivity()) {
-            return showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
+    public static void cancelQueuedAlarmActivityLaunch(int alertTypeId, String customAlertId, String reason) {
+        if (alertTypeId < 0) {
+            return;
         }
-        showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
-        return queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
+        try {
+            final AlarmManager alarmManager = (AlarmManager) Applic.app.getSystemService(Context.ALARM_SERVICE);
+            final Intent launchIntent = buildAlarmLaunchReceiverIntent(null);
+            final PendingIntent pendingIntent = PendingIntent.getBroadcast(Applic.app,
+                    alarmPendingRequestCode(200_000, alertTypeId, customAlertId), launchIntent,
+                    PendingIntent.FLAG_NO_CREATE | penmutable);
+            if (pendingIntent == null) {
+                return;
+            }
+            if (alarmManager != null) {
+                alarmManager.cancel(pendingIntent);
+            }
+            pendingIntent.cancel();
+            if (doLog) {
+                Log.i(LOG_ID, "Cancelled queued AlarmActivity launch kind=" + alertTypeId
+                        + " reason=" + reason);
+            }
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "cancelQueuedAlarmActivityLaunch", th);
+        }
+    }
+
+    private static AlarmLaunchResult launchOrQueueAlarmActivityResult(String glucoseValue, String alarmMessage,
+            float rate, int alertTypeId, String customAlertId, String deliveryMode) {
+        if (shouldTryDirectAlarmActivity()) {
+            final boolean directStarted = showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId,
+                    customAlertId, deliveryMode);
+            return new AlarmLaunchResult(directStarted, false, false);
+        }
+        final boolean queued = queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId,
+                customAlertId, deliveryMode);
+        return new AlarmLaunchResult(false, queued, queued);
     }
 
     private static boolean showpopupalarm(String glucoseValue, String alarmMessage, float rate, int alertTypeId) {
@@ -2363,7 +2524,7 @@ public class Notify {
     }
 
     private void deliverTriggeredAlert(int kind, float glvalue, String message, notGlucose strglucose, String type) {
-        boolean alarmWindowQueued = false;
+        AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
         boolean skipBanner = false;
 
         if (!AlertType.Companion.isLegacyOnlyId(kind)) {
@@ -2378,16 +2539,23 @@ public class Notify {
 
             if (forceLaunch) {
                 float rate = (strglucose != null) ? strglucose.rate : Float.NaN;
-                alarmWindowQueued = launchOrQueueAlarmActivity(strglucose != null ? strglucose.value : message, message,
-                        rate, kind, null, deliveryMode);
+                final String alarmGlucoseValue = alarmDisplayGlucoseValue(glvalue, strglucose);
+                alarmLaunchResult = launchOrQueueAlarmActivityResult(alarmGlucoseValue, message, rate, kind, null,
+                        deliveryMode);
                 if (doLog)
-                    Log.i(LOG_ID, "Alert Debug: alarm window queued=" + alarmWindowQueued);
-                if (!alarmWindowQueued && doLog) {
+                    Log.i(LOG_ID, "Alert Debug: alarm window started=" + alarmLaunchResult.startedOrQueued()
+                            + " direct=" + alarmLaunchResult.directStarted
+                            + " queued=" + alarmLaunchResult.queued
+                            + " notificationTransport=" + alarmLaunchResult.needsNotificationTransport);
+                if (!alarmLaunchResult.startedOrQueued() && doLog) {
                     Log.i(LOG_ID, "Alert Debug: AlarmActivity launch failed, using notification fallback");
                 }
             }
 
-            skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(deliveryMode, alarmWindowQueued);
+            skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
+                    deliveryMode,
+                    alarmLaunchResult.startedOrQueued(),
+                    alarmLaunchResult.needsNotificationTransport);
             if (doLog)
                 Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
         }
@@ -2411,7 +2579,7 @@ public class Notify {
                 boolean isBoth = AlertDeliveryPolicy.BOTH.equals(deliveryMode);
 
                 if (isSystem || isBoth) {
-                    showpopupalarm(message, message, Float.NaN, kind, null, deliveryMode);
+                    launchOrQueueAlarmActivityResult(message, message, Float.NaN, kind, null, deliveryMode);
                 }
             }
         } else {
@@ -2660,13 +2828,14 @@ public class Notify {
                 String currentDeliveryMode = deliveryModeOverride != null
                         ? normalizeDeliveryMode(deliveryModeOverride)
                         : normalizeDeliveryMode(getDeliveryMode(alertTypeId));
+                final String alarmGlucoseValue = alarmDisplayGlucoseValue(glvalue, glucose);
                 // notificationManager.cancel(glucosealarmid); // Performance optimization:
                 // Don't cancel, just overwrite
                 PendingIntent intent;
                 if (AlertDeliveryPolicy.shouldAttemptAlarmWindow(currentDeliveryMode)) {
                     try {
-                        intent = mkAlarmPendingIntent(glucose.value, message, glucose.rate, alertTypeId, customAlertId,
-                                currentDeliveryMode);
+                        intent = mkAlarmPendingIntent(alarmGlucoseValue, message, glucose.rate, alertTypeId,
+                                customAlertId, currentDeliveryMode);
                     } catch (Throwable e) {
                         if (doLog) {
                             Log.e(LOG_ID, "alarm content intent setup failed: " + e.toString());
@@ -2694,7 +2863,7 @@ public class Notify {
                 GluNotBuilder.setDeleteIntent(swipeDismissPendingIntent);
                 {
                     if (doLog) {
-                        Log.i(LOG_ID, "makeseparatenotification " + glucose.value);
+                        Log.i(LOG_ID, "makeseparatenotification " + alarmGlucoseValue);
                     }
                     ;
                 }
@@ -2717,7 +2886,7 @@ public class Notify {
                     // Use Reflection for Intent creation to safe-guard against Missing Class on
                     // Wear
                     try {
-                        PendingIntent fullScreenPendingIntent = mkAlarmPendingIntent(glucose.value, message,
+                        PendingIntent fullScreenPendingIntent = mkAlarmPendingIntent(alarmGlucoseValue, message,
                                 glucose.rate, alertTypeId, customAlertId, currentDeliveryMode);
                         GluNotBuilder.setFullScreenIntent(fullScreenPendingIntent, true);
                     } catch (Throwable e) {
@@ -3166,9 +3335,25 @@ public class Notify {
 
         CharSequence valueText = buildFormattedGlucoseText(fallbackDisplay, glvalue);
         final float displayGlucoseValue = fallbackDisplay != null ? fallbackDisplay.getPrimaryValue() : glvalue;
+        // One snapshot resolution per peer per update; reused for the value row
+        // and (when enabled) the chart series below.
+        final java.util.List<NotificationMultiSensorSource.PeerCurrent> peerCurrents =
+                NotificationMultiSensorSource.peerCurrents(glucosetimeout, activeSensorSerial);
+        final java.util.List<NotificationChartDrawer.ValueItem> peerValueItems =
+                NotificationMultiSensorSource.valueItems(peerCurrents);
 
         // Semantic Color
         int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, displayGlucoseValue, isMmol);
+        // Multi-sensor: tint the primary value (and its inline arrow) with the
+        // primary sensor's identity color, matching the dashboard's subtle
+        // PRIMARY_TEXT_BLEND so the notification follows the same color scheme.
+        int primaryDisplayColor = glucoseColor;
+        if (!peerValueItems.isEmpty()) {
+            primaryDisplayColor = SensorVisuals.blendArgb(
+                    glucoseColor,
+                    SensorVisuals.colorArgb(activeSensorSerial),
+                    SensorVisuals.PRIMARY_TEXT_BLEND);
+        }
 
         // ========== READ NOTIFICATION PREFERENCES ==========
         android.content.SharedPreferences prefs = Applic.app
@@ -3185,9 +3370,14 @@ public class Notify {
         boolean showChartCollapsed = prefs.getBoolean("notification_chart_collapsed", false);
         boolean showTargetRange = prefs.getBoolean("notification_chart_target_range", true);
 
+        // Multi-sensor: arrows render inline next to each value inside the
+        // glucose bitmap; the standalone arrow view would otherwise sit after
+        // the peer values and look like it belongs to the last peer.
+        boolean inlineMultiArrows = showArrow && !peerValueItems.isEmpty();
+
         // Render Arrow (Color + Size from Preferences) - still bitmap for colored
         // vector
-        Bitmap arrowBitmap = showArrow
+        Bitmap arrowBitmap = (showArrow && !inlineMultiArrows)
                 ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, glucoseColor, arrowSize)
                 : null;
 
@@ -3242,8 +3432,9 @@ public class Notify {
         // Glucose Value - Render as Bitmap to support IBM Plex Font & Locale
         // consistency
         // Collapsed: Base size 24sp (scale 1.0 * fontSize)
-        Bitmap valueBitmap = NotificationChartDrawer.drawGlucoseText(Applic.app, valueText.toString(), glucoseColor,
-                fontSize, fontWeight, useSystemFont);
+        Bitmap valueBitmap = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(), primaryDisplayColor,
+                peerValueItems, fontSize, fontWeight, useSystemFont,
+                inlineMultiArrows ? rate : Float.NaN, isMmol, arrowSize);
         remoteViews.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViews.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);
         remoteViews.setImageViewBitmap(R.id.notification_glucose_image, valueBitmap);
@@ -3268,8 +3459,9 @@ public class Notify {
                 R.layout.notification_material_regular_expanded);
 
         // Glucose Value - Expanded: Size 28sp (scale ~1.17 * fontSize)
-        Bitmap valueBitmapExpanded = NotificationChartDrawer.drawGlucoseText(Applic.app, valueText.toString(),
-                glucoseColor, fontSize * 1.166f, fontWeight, useSystemFont);
+        Bitmap valueBitmapExpanded = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(),
+                primaryDisplayColor, peerValueItems, fontSize * 1.166f, fontWeight, useSystemFont,
+                inlineMultiArrows ? rate : Float.NaN, isMmol, arrowSize);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);
         remoteViewsExpanded.setImageViewBitmap(R.id.notification_glucose_image, valueBitmapExpanded);
@@ -3307,6 +3499,10 @@ public class Notify {
                 // fallback to app context if creation fails
             }
         }
+        final java.util.List<NotificationChartDrawer.PeerSeries> peerChartSeries =
+                (showChartCollapsed || showChart)
+                        ? NotificationMultiSensorSource.peerSeries(peerCurrents, startT, isMmol)
+                        : java.util.Collections.emptyList();
 
         if (showChartCollapsed) {
             // Collapsed chart: Limit height to 48dp based on SYSTEM density
@@ -3318,14 +3514,14 @@ public class Notify {
             // Use safeContext and explicit height
             chartBitmapCollapsed = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, collapsedHeight,
                     isMmol,
-                    viewMode, showTargetRange, hasCalibration, true, activeSensorSerial);
+                    viewMode, showTargetRange, hasCalibration, true, activeSensorSerial, peerChartSeries);
         }
 
         if (showChart) {
             // Expanded chart: Use safely resolved density context (default 0 ->
             // 256*density)
             chartBitmapExpanded = NotificationChartDrawer.drawChartWithPrediction(safeContext, chartPoints, 0, 0, isMmol,
-                    viewMode, showTargetRange, hasCalibration, false, activeSensorSerial);
+                    viewMode, showTargetRange, hasCalibration, false, activeSensorSerial, peerChartSeries);
         }
 
         if (showChartCollapsed && chartBitmapCollapsed != null) {
@@ -3688,7 +3884,6 @@ public class Notify {
 
     // static final private boolean alertseperate=true;
 
-    @SuppressLint("ForegroundServiceType")
     void fornotify(Notification notif) {
         {
             if (doLog) {
@@ -3824,7 +4019,6 @@ public class Notify {
         fornotify(getforgroundnotification());
         // notificationManager.notify(glucosenotificationid,getforgroundnotification());
     }
-    @SuppressLint("ForegroundServiceType")
     public void foregroundno(Service service) {
         Notification not = getforgroundnotification();
         if (Build.VERSION.SDK_INT >= 29) {

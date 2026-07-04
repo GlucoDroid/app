@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import tk.glucodata.Natives
 import tk.glucodata.R
@@ -69,6 +70,8 @@ import tk.glucodata.ui.theme.AppTypography
 import tk.glucodata.ui.util.rememberAdaptiveWindowMetrics
 
 enum class AlarmSeverity { LOW, HIGH, NEUTRAL }
+
+private const val ALARM_MOTION_ACTIVE_MS = 8_000L
 
 private enum class TrendDirection { UP, DOWN, FLAT, UNKNOWN }
 
@@ -126,19 +129,31 @@ private fun PixelAlarmContent(
     BackHandler(enabled = true) {}
 
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
+    var motionActive by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        visible = true
+        // This activity can sit on the lockscreen; keep frame-producing motion finite.
+        delay(ALARM_MOTION_ACTIVE_MS)
+        motionActive = false
+    }
 
     val compact = rememberAdaptiveWindowMetrics().isCompact
-    val infiniteTransition = rememberInfiniteTransition(label = "alarm-motion")
-    val arrowScale by infiniteTransition.animateFloat(
-        initialValue = if (compact) 4.6f else 5.6f,
-        targetValue = if (compact) 4.85f else 5.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1900),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alarm-arrow-scale"
-    )
+    val settledArrowScale = if (compact) 4.72f else 5.72f
+    val arrowScale = if (motionActive) {
+        val infiniteTransition = rememberInfiniteTransition(label = "alarm-motion")
+        val animatedArrowScale by infiniteTransition.animateFloat(
+            initialValue = if (compact) 4.6f else 5.6f,
+            targetValue = if (compact) 4.85f else 5.9f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1900),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "alarm-arrow-scale"
+        )
+        animatedArrowScale
+    } else {
+        settledArrowScale
+    }
     val heroOffsetY by animateFloatAsState(
         targetValue = if (visible) 0f else (-trend.verticalSign * 72f),
         animationSpec = spring(dampingRatio = 0.78f, stiffness = 210f),
@@ -191,6 +206,7 @@ private fun PixelAlarmContent(
                     trendResult = trendResult,
                     compact = compact,
                     typographyChoice = typographyChoice,
+                    motionActive = motionActive,
                     arrowScale = arrowScale,
                     modifier = Modifier.offset { IntOffset(0, heroOffsetY.roundToInt()) }
                 )
@@ -259,19 +275,25 @@ private fun HeroBlock(
     trendResult: TrendEngine.TrendResult,
     compact: Boolean,
     typographyChoice: AlarmTypographyChoice,
+    motionActive: Boolean,
     arrowScale: Float,
     modifier: Modifier = Modifier
 ) {
-    val motionTransition = rememberInfiniteTransition(label = "alarm-trend-motion")
-    val motionPhase by motionTransition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1450),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alarm-trend-phase"
-    )
+    val motionPhase = if (motionActive) {
+        val motionTransition = rememberInfiniteTransition(label = "alarm-trend-motion")
+        val animatedMotionPhase by motionTransition.animateFloat(
+            initialValue = -1f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1450),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "alarm-trend-phase"
+        )
+        animatedMotionPhase
+    } else {
+        0f
+    }
     val arrowOffsetX = when (trend.direction) {
         TrendDirection.FLAT -> motionPhase * if (compact) 6f else 8f
         TrendDirection.UNKNOWN -> 0f

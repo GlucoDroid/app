@@ -5,7 +5,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
@@ -30,8 +29,7 @@ enum class SensorType {
     AIDEX,
     ICANHEALTH,
     MQ,
-    ANYTIME,
-    NIGHTSCOUT
+    ANYTIME
 }
 
 /**
@@ -116,12 +114,6 @@ fun SensorTypePicker(
                 icon = Icons.Default.QrCodeScanner,
                 titleRes = R.string.caresens_air_sensor,
                 subtitleRes = R.string.caresens_air_sensor_picker_desc
-            ),
-            SensorTypeEntry(
-                type = SensorType.NIGHTSCOUT,
-                icon = Icons.Default.Cloud,
-                titleRes = R.string.nightscout_follow_title,
-                subtitleRes = R.string.nightscout_sensor_picker_desc
             ),
         )
     }

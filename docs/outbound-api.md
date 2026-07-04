@@ -376,15 +376,15 @@ multi-recipient configs don't collide.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `refreshInPlaceEnabled` | `Boolean` | `true` | Master switch. When off, every reading posts a new message (legacy behaviour). |
-| `refreshWindowMinutes` | `Int` | `5` | After this many minutes since the last send, the next reading posts a fresh message instead of editing. 1–60. |
-| `suppressDeltaBelowMgdl` | `Int` | `1` | 0 = never suppress; >0 = skip the edit if `|new_mgdl − last_mgdl| < threshold`. Default 1 ignores sensor noise within 1 mg/dL. |
-| `staleEnabled` | `Boolean` | `true` | Show "Stale" / "Missed reading." in the bubble when no new reading arrives in time. |
-| `staleThresholdMinutes` | `Int` | `10` | After this many minutes of silence, edit the bubble to "⚠️ Stale — waiting for next reading. (HH:mm)". |
-| `missedThresholdMinutes` | `Int` | `15` | After this many minutes of silence, edit the bubble to "⚪ Missed reading. (HH:mm)". Must be > `staleThresholdMinutes`. |
+| `refreshWindowMinutes` | `Int` | `15` | After this many minutes since the last send, the next reading posts a fresh message instead of editing. 1–60. |
+| `suppressDeltaBelowMgdl` | `Int` | `1` | 0 = never suppress; >0 = skip the edit if `|new_mgdl - last_mgdl| < threshold`. With integer mg/dL values, default 1 skips unchanged readings only. |
+| `staleEnabled` | `Boolean` | `true` | Post separate "Stale" / "Missed reading." Telegram messages when no new reading arrives in time. |
+| `staleThresholdMinutes` | `Int` | `10` | After this many minutes of silence, post "⚠️ Stale — waiting for next reading. (HH:mm)". |
+| `missedThresholdMinutes` | `Int` | `15` | After this many minutes of silence, post "⚪ Missed reading. (HH:mm)". Must be > `staleThresholdMinutes`. |
 | `lastMessageIdByRecipient` | `Map<String, Long>` | `{}` | Per-recipient last Telegram `message_id`, used as the `message_id` for `editMessageText`. |
 | `lastSentAtMsByRecipient` | `Map<String, Long>` | `{}` | Per-recipient timestamp of the last successful send. |
 | `lastSentMgdlByRecipient` | `Map<String, Int>` | `{}` | Per-recipient last sent mg/dL (for delta suppression). |
-| `lastStaleAtMsByRecipient` | `Map<String, Long>` | `{}` | Per-recipient timestamp of the last stale edit; used to throttle stale edits to 30 s. |
+| `lastStaleAtMsByRecipient` | `Map<String, Long>` | `{}` | Per-recipient timestamp of the last stale/missed post; used to throttle retry posts to 70 s. |
 
 ### 9.2 Send path
 
@@ -398,8 +398,9 @@ multi-recipient configs don't collide.
        return synthetic 200 response, no API call (suppressed)
 4. if withinWindow:
        response = editMessageText(chat_id, message_id, text)
-       if response.ok: return response
-       else: clearRecipientState()  // bubble gone; next send will be fresh
+       if response.ok or response is "not modified": return success
+       if response is retryable: return response  // preserve bubble state
+       else: clearRecipientState()  // bubble gone or inaccessible
 5. response = sendMessage(chat_id, text)  // fresh bubble
 6. on success: recordBubbleSent(msgId, now, mgdl)
               schedule stale-check Handler(delay = staleThresholdMinutes*60s + 10s)
@@ -408,9 +409,10 @@ multi-recipient configs don't collide.
 ### 9.3 Stale-check scheduler
 
 `TelegramStaleCheckWork` is a thin in-process Handler-based scheduler.
-After every successful `sendMessage` or `editMessageText`, the producer
-schedules a single Handler post-delayed by `staleThresholdMinutes*60_000
-+ 10_000` (the 10 s slack avoids firing on slightly-late deliveries).
+After every successful `sendMessage`, `editMessageText`, or suppressed
+unchanged reading, the producer schedules a single Handler post-delayed by
+`staleThresholdMinutes*60_000 + 10_000` (the 10 s slack avoids firing on
+slightly-late deliveries).
 
 When the post fires:
 
@@ -420,14 +422,16 @@ for each recipient in destination.recipients():
     status = missed if elapsed >= missedThresholdMs
            else stale if elapsed >= staleThresholdMs
            else continue
-    if lastStaleAt within last 30s: continue  // throttle
+    if lastStaleAt within last 70s: continue  // throttle retry cycle
     if lastMessageIdByRecipient[recipient] <= 0: continue
     text = "⚠️ Stale — waiting for next reading. (HH:mm)"   # if stale
          or "⚪ Missed reading. (HH:mm)"                    # if missed
-    if editMessageText(chat_id, message_id, text) returns 2xx:
+    if sendMessage(chat_id, text) returns 2xx:
         recordStaleAt(recipient, now)
-    else:
+    else if definitive 4xx:
         clearRecipientState(recipient)  // bubble deleted by user
+    else:
+        retry after 60s
 ```
 
 **Limitation:** in-process only. If Android kills the app between sends,
@@ -462,12 +466,11 @@ touched; only the default for new destinations changes.
 - **`SendResponse` extended** with `messageId: Long?` (parsed from
   `result.message_id` in the Telegram 2xx response) and `suppressed:
   Boolean` (true for the synthetic "no API call" path).
-- **Edit failures fall through to fresh send.** Common cases:
-  400 "message is not modified" (we re-send identical text — handled by
-  the suppression path), 400 "message to edit not found" (user deleted
-  the bubble), 429 (rate limit). In all of these we clear the cached
-  `lastMessageId` and post fresh on the next reading.
+- **Edit failures are split by class.** 400 "message is not modified" is
+  treated as success. Transient failures such as 429 and 5xx preserve the
+  cached message id so the next reading can retry the edit. Definitive
+  failures such as "message to edit not found" clear the cached recipient
+  state and the current reading posts a fresh message.
 - **Headers on the edit path:** any custom `headers` field on the
   destination is also applied to `editMessageText` so e.g.
   `Authorization: Bearer …` relays keep working.
-
