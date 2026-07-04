@@ -127,16 +127,21 @@ data class AlertConfig(
         if (!timeRangeEnabled || activeStartHour == null || activeEndHour == null) {
             return true  // No time restriction
         }
-        
+
         val now = java.util.Calendar.getInstance()
         val currentHour = now.get(java.util.Calendar.HOUR_OF_DAY)
         val currentMinute = now.get(java.util.Calendar.MINUTE)
-        
-        // Convert to minutes from midnight for easier comparison
-        val currentMins = currentHour * 60 + currentMinute
+        return isActiveAtMinutes(currentHour * 60 + currentMinute)
+    }
+
+    internal fun isActiveAtMinutes(currentMins: Int): Boolean {
+        if (!timeRangeEnabled || activeStartHour == null || activeEndHour == null) {
+            return true
+        }
+
         val startMins = activeStartHour * 60 + (activeStartMinute ?: 0)
         val endMins = activeEndHour * 60 + (activeEndMinute ?: 0)
-        
+
         return if (startMins <= endMins) {
             // Same day range: e.g., 9:00 AM to 5:00 PM
             currentMins in startMins until endMins

@@ -30,6 +30,7 @@ object UiRefreshBus {
     fun requestDataRefresh() {
         bumpRevision()
         _events.tryEmit(Event.DataChanged)
+        Notify.scheduleDataChangedRefresh()
         GlucoseUpdateBroadcaster.send(Applic.app)
     }
 

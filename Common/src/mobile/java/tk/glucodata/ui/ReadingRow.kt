@@ -53,10 +53,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import kotlinx.coroutines.delay
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.ui.journal.JournalInlineChip
+import tk.glucodata.ui.viewmodel.SensorColors
 
 @Composable
 fun ReadingRow(
@@ -66,6 +68,12 @@ fun ReadingRow(
     index: Int = 0,
     totalCount: Int = 1,
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
+    peerReadings: List<GlucosePoint> = emptyList(),
+    peerSeries: Map<String, PeerSensorSeries> = emptyMap(),
+    // True whenever the dashboard is in multi-sensor mode, even if THIS row has
+    // no peer reading yet (e.g. a just-arrived primary reading). Keeps the
+    // primary value's identity tint stable instead of flashing uncolored.
+    multiSensorActive: Boolean = false,
     sensorId: String? = null,
     calibrations: List<tk.glucodata.data.calibration.CalibrationEntity> = emptyList(),
     journalEntries: List<JournalEntry> = emptyList(),
@@ -78,6 +86,7 @@ fun ReadingRow(
     leadingActionEmphasis: Float = 1f,
     onLeadingActionClick: (() -> Unit)? = null,
     onValueClick: (() -> Unit)? = null,
+    onSensorValueClick: ((GlucosePoint) -> Unit)? = null,
     onDeleteReading: ((GlucosePoint) -> Unit)? = null,
     isGroupStart: Boolean = index == 0,
     isGroupEnd: Boolean = index == totalCount - 1,
@@ -97,6 +106,14 @@ fun ReadingRow(
         if (onDeleteReading != null) {
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             showDeleteDialog = true
+        }
+    }
+    val hasValueClick = onValueClick != null || onSensorValueClick != null
+    val handlePrimaryValueClick: () -> Unit = {
+        if (onSensorValueClick != null) {
+            onSensorValueClick(point)
+        } else {
+            onValueClick?.invoke()
         }
     }
 
@@ -201,15 +218,15 @@ fun ReadingRow(
             .fillMaxWidth()
             .then(
                 when {
-                    onDeleteReading != null && onValueClick != null -> Modifier.combinedClickable(
-                        onClick = onValueClick,
+                    onDeleteReading != null && hasValueClick -> Modifier.combinedClickable(
+                        onClick = handlePrimaryValueClick,
                         onLongClick = { openDeleteDialog() },
                         hapticFeedbackEnabled = false
                     )
                     onDeleteReading != null -> Modifier.pointerInput(point.timestamp, point.sensorSerial) {
                         detectTapGestures(onLongPress = { openDeleteDialog() })
                     }
-                    onValueClick != null -> Modifier.clickable(onClick = onValueClick)
+                    hasValueClick -> Modifier.clickable(onClick = handlePrimaryValueClick)
                     else -> Modifier
                 }
             ),
@@ -250,11 +267,33 @@ fun ReadingRow(
                 }
             } else null
             val dvs = getDisplayValues(point, viewMode, unit, calibratedValueRR)
-            val primaryColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            val primaryBaseColor = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            // Multi-sensor: every sensor's value carries a subtle identity tint
+            // (the primary a touch weaker than peers) so values pair with chart
+            // traces. Tint is driven by multi-sensor MODE, not this row's peers,
+            // so a freshly-arrived primary reading is tinted immediately.
+            val multiSensorRow = multiSensorActive || peerReadings.isNotEmpty()
+            val primaryColor = if (multiSensorRow) {
+                val primarySerial = point.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorId
+                androidx.compose.ui.graphics.lerp(
+                    primaryBaseColor,
+                    SensorColors.getColor(SensorIdentity.resolveAppSensorId(primarySerial) ?: primarySerial.orEmpty()),
+                    tk.glucodata.SensorVisuals.PRIMARY_TEXT_BLEND
+                )
+            } else {
+                primaryBaseColor
+            }
             val secondaryColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             val unitColor = secondaryColor.copy(alpha = 0.6f)
             val tertiaryColor = if (isActive) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             val valueStyle = MaterialTheme.typography.titleMedium
+            // Peers read as clearly subordinate to the main value.
+            val peerValueStyle = MaterialTheme.typography.bodySmall
+            val isMultiSensor = multiSensorRow
+            // In multi-sensor mode the arrow sits in a FlowRow next to peer
+            // chips: keep it tight against the main value (not floating in a
+            // wide right-aligned slot) and give it the primary identity tint.
+            val primaryTrendColor = if (isMultiSensor) primaryColor.copy(alpha = 0.7f) else tertiaryColor
 
             @Composable
             fun ReadingValueContent(modifier: Modifier = Modifier) {
@@ -277,15 +316,145 @@ fun ReadingRow(
                         style = valueStyle.copy(fontFeatureSettings = "tnum")
                     )
 
+                    if (isMultiSensor) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier.width(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            tk.glucodata.ui.components.TrendIndicator(
+                                trendResult = trendResult,
+                                color = primaryTrendColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier.width(trendSlotWidth),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            tk.glucodata.ui.components.TrendIndicator(
+                                trendResult = trendResult,
+                                color = tertiaryColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Peer serials are normalized to their logical sensor id by
+            // MultiSensorDisplay.buildDisplayData -> direct map hits.
+            fun seriesForSensor(serial: String?): PeerSensorSeries? =
+                serial?.let { peerSeries[it] }
+
+            @Composable
+            fun PeerReadingValue(peer: GlucosePoint) {
+                val peerSensorSeries = seriesForSensor(peer.sensorSerial)
+                val peerColor = peerSensorSeries?.let { Color(it.colorArgb) }
+                    ?: SensorColors.getColor(peer.sensorSerial.orEmpty())
+                val peerMode = peerSensorSeries?.viewMode ?: viewMode
+                val isRawModePeer = peerMode == 1 || peerMode == 3
+                val peerSensorId = peer.sensorSerial?.takeIf { it.isNotBlank() }
+                val peerCalibrationValue = remember(
+                    peer.value,
+                    peer.rawValue,
+                    peer.timestamp,
+                    peerSensorId,
+                    peerMode,
+                    calibrations
+                ) {
+                    if (!tk.glucodata.data.calibration.CalibrationManager.shouldOverwriteSensorValues() &&
+                        tk.glucodata.data.calibration.CalibrationManager.hasActiveCalibration(isRawModePeer, peerSensorId)
+                    ) {
+                        val baseValue = if (isRawModePeer) peer.rawValue else peer.value
+                        if (baseValue.isFinite() && baseValue > 0.1f) {
+                            tk.glucodata.data.calibration.CalibrationManager.getCalibratedValue(
+                                baseValue,
+                                peer.timestamp,
+                                isRawModePeer,
+                                sensorIdOverride = peerSensorId
+                            )
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }
+                val peerTrendResult = remember(peer.timestamp, peer.sensorSerial, peerSensorSeries, peerMode, unit) {
+                    val nativeList = MultiSensorDisplay.recentWindow(
+                        pointsAscending = peerSensorSeries?.points.orEmpty(),
+                        untilTimestamp = peer.timestamp,
+                        count = 24
+                    )
+                        .map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }
+                        .ifEmpty { listOf(tk.glucodata.GlucosePoint(peer.timestamp, peer.value, peer.rawValue)) }
+                    tk.glucodata.logic.TrendEngine.calculateTrend(
+                        nativeList,
+                        useRaw = isRawModePeer,
+                        isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
+                    )
+                }
+                val peerDvs = getDisplayValues(peer, peerMode, unit, calibratedValue = peerCalibrationValue)
+                val peerPrimaryColor = androidx.compose.ui.graphics.lerp(
+                    MaterialTheme.colorScheme.onSurface,
+                    peerColor,
+                    tk.glucodata.SensorVisuals.PEER_TEXT_BLEND
+                ).copy(alpha = if (isActive) 0.95f else 0.85f)
+                val peerSecondaryColor = secondaryColor.copy(alpha = if (isActive) 0.72f else 0.62f)
+                val peerUnitColor = unitColor.copy(alpha = 0.68f)
+                Row(
+                    modifier = Modifier.then(
+                        if (onSensorValueClick != null) {
+                            Modifier.clickable { onSensorValueClick(peer) }
+                        } else {
+                            Modifier
+                        }
+                    ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = buildGlucoseString(
+                            peerDvs,
+                            peerPrimaryColor,
+                            peerSecondaryColor,
+                            peerUnitColor,
+                            false,
+                            "",
+                            tertiaryColor.copy(alpha = 0.58f)
+                        ),
+                        style = peerValueStyle.copy(fontFeatureSettings = "tnum")
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Box(
-                        modifier = Modifier.width(trendSlotWidth),
+                        modifier = Modifier.width(16.dp),
                         contentAlignment = Alignment.CenterEnd
                     ) {
                         tk.glucodata.ui.components.TrendIndicator(
-                            trendResult = trendResult,
-                            color = tertiaryColor,
-                            modifier = Modifier.size(16.dp)
+                            trendResult = peerTrendResult,
+                            color = peerPrimaryColor.copy(alpha = 0.68f),
+                            modifier = Modifier.size(12.dp)
                         )
+                    }
+                }
+            }
+
+            @Composable
+            fun MultiSensorValueContent(modifier: Modifier = Modifier) {
+                if (peerReadings.isEmpty()) {
+                    ReadingValueContent(modifier)
+                    return
+                }
+                FlowRow(
+                    modifier = modifier,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically
+                ) {
+                    ReadingValueContent()
+                    peerReadings.forEach { peer ->
+                        PeerReadingValue(peer)
                     }
                 }
             }
@@ -351,7 +520,7 @@ fun ReadingRow(
                             .defaultMinSize(minWidth = valueMinWidth),
                         contentAlignment = Alignment.CenterEnd
                     ) {
-                        ReadingValueContent(
+                        MultiSensorValueContent(
                             modifier = Modifier.padding(start = 12.dp)
                         )
                     }
@@ -423,7 +592,7 @@ fun ReadingRow(
                                 .defaultMinSize(minHeight = rowMinHeight),
                             contentAlignment = Alignment.CenterEnd
                         ) {
-                            ReadingValueContent(
+                            MultiSensorValueContent(
                                 modifier = Modifier.padding(start = 12.dp, end = 16.dp)
                             )
                         }
@@ -435,7 +604,7 @@ fun ReadingRow(
                                 .defaultMinSize(minWidth = valueMinWidth, minHeight = rowMinHeight),
                             contentAlignment = Alignment.CenterEnd
                         ) {
-                            ReadingValueContent(
+                            MultiSensorValueContent(
                                 modifier = Modifier.padding(start = 12.dp, end = 16.dp)
                             )
                         }

@@ -4,6 +4,7 @@ import android.content.Context
 
 data class ManagedSensorCurrentSnapshot(
     val timeMillis: Long,
+    /** Glucose in the user's current display unit (mmol/L or mg/dL). */
     val glucoseValue: Float,
     val rawGlucoseValue: Float = Float.NaN,
     val calibratedGlucoseValue: Float = Float.NaN,
@@ -37,6 +38,7 @@ enum class ManagedSensorUiFamily {
     AIDEX,
     ICAN,
     ANYTIME,
+    OTTAI,
 }
 
 data class ManagedSensorUiSnapshot(

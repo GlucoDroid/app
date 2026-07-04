@@ -1788,10 +1788,16 @@ uint32_t getlastpolltime() const {
     return true;
   }
 
-  void savestreamonly(time_t tim, int id, int glu, int trend, float change,
+  bool savestreamonly(time_t tim, int id, int glu, int trend, float change,
                       int raw = 0, uint16_t temp = 0) {
+    if (getinfo()->pollcount) {
+      const int prev = getinfo()->pollcount - 1;
+      if (polls[prev].id >= id)
+        return false;
+    }
     saveglucosedata(polls, getinfo()->pollcount, tim, id, glu, trend, change,
                     raw, temp);
+    return true;
   }
 
   void savestream(time_t tim, int id, int glu, int trend, float change,
@@ -2819,7 +2825,7 @@ public:
   }
 
   bool sensorerror = false;
-  uint32_t sensorErrorTime;
+  uint32_t sensorErrorTime = 0;
   bool hasSensorError(uint32_t nu) const {
     return sensorerror &&
            ((nu - sensorErrorTime) < (60 * (isDexcom() ? 15 : 10)));

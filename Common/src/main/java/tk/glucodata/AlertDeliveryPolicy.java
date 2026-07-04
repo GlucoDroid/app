@@ -6,8 +6,8 @@ import java.util.Locale;
  * Pure alert delivery rules shared by the Java notification bridge and tests.
  *
  * Alarm mode is a full-screen alarm-window contract. A notification is only a
- * fallback when the alarm window cannot be started or queued. Both mode always
- * keeps the notification as the user's explicitly selected second surface.
+ * fallback when neither the direct launch nor queued backup can be established.
+ * Both mode always keeps the user's explicitly selected second surface.
  */
 public final class AlertDeliveryPolicy {
     public static final String NOTIFICATION_ONLY = "NOTIFICATION_ONLY";

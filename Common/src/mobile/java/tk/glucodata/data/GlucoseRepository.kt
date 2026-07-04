@@ -2,18 +2,18 @@ package tk.glucodata.data
 
 import tk.glucodata.Natives
 import tk.glucodata.ui.GlucosePoint
+import tk.glucodata.BatteryTrace
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import android.util.Log
 import android.os.SystemClock
 import tk.glucodata.Applic
-import tk.glucodata.BatteryTrace
 import tk.glucodata.SensorIdentity
 import tk.glucodata.ui.util.inDisplayUnit
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,9 +23,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
  * New readings are stored in Room for long-term history while still using native data for
  * real-time display and calibration.
  *
- * Multi-sensor: current/live reads stay pinned to the selected sensor. History/chart queries
- * prefer that same sensor's Room history directly; only when no current sensor is known do we
- * fall back to the broader merged display timeline.
+ * Multi-sensor: current/live reads stay pinned to the selected sensor. Dashboard history
+ * queries use that same sensor's Room history directly so the dashboard never switches to a
+ * broad merged timeline just because older data is visible.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class GlucoseRepository {
@@ -295,6 +295,30 @@ class GlucoseRepository {
         return _currentSerial.flatMapLatest { serial ->
             val preferredSerial = resolveDisplayPreferredSerial(serial)
             channelFlow {
+                launch {
+                    historyRepository.ensureBackfilled(preferredSerial, startTime)
+                }
+                observeDisplayHistory(preferredSerial, startTime).collect { points ->
+                    send(points)
+                }
+            }
+        }
+    }
+
+    /**
+     * Dashboard history follows the selected/current sensor directly. This keeps
+     * the dashboard out of the all-sensor merged timeline while still allowing
+     * date-picker/pan browsing across the full persisted history for that sensor.
+     */
+    fun getDashboardHistoryFlowRaw(startTime: Long): Flow<List<GlucosePoint>> {
+        return _currentSerial.flatMapLatest { serial ->
+            val preferredSerial = resolveDisplayPreferredSerial(serial)
+            channelFlow {
+                if (preferredSerial == null) {
+                    send(emptyList())
+                    return@channelFlow
+                }
+
                 launch {
                     historyRepository.ensureBackfilled(preferredSerial, startTime)
                 }

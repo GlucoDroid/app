@@ -2,7 +2,7 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
-    id 'com.google.devtools.ksp' version '2.3.9'
+    id 'com.google.devtools.ksp' version '2.2.21-2.0.4'
 //    id "io.freefair.lombok" version "8.0.0-rc2"
 }
 
@@ -32,10 +32,9 @@ else {
    CPPSTD = "-std=gnu++26"
        }
 
-CMAKEVERSION = "4.1.2"
+CMAKEVERSION = "3.22.1"
 android {
  buildFeatures.buildConfig = true
- buildFeatures.resValues = true
  namespace "tk.glucodata"
     externalNativeBuild {
         cmake {
@@ -89,8 +88,8 @@ android {
         //compileSdk 36
         applicationId "cloud.glucodroid"
 
-         versionName '0.2.4.6.1-alpha'
-        versionCode 82461
+versionName '0.3.0.0-alpha'
+        versionCode 83000
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -133,13 +132,13 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         nogoogle {
             dimension 'Google'
             versionNameSuffix '-nog'
-            minSdk 23
-            minSdkVersion 23
-            //targetSdk 28
+            minSdk MINSDK
+            minSdkVersion MINSDK
+            //targetSdk 28 
             targetSdk  TARGETSDK
             buildConfigField 'int', 'targetSDK', "$targetSdk"
             manifestPlaceholders["targetSDK"] = "$targetSdk"
-            buildConfigField 'int', 'minSDK', "23"
+            buildConfigField 'int', 'minSDK', "$minSdk"
             buildConfigField 'int', 'Google', '0'
             buildConfigField 'int', 'noZXing', '0'
              manifestPlaceholders["debuggable"] = "true"
@@ -167,7 +166,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         libreOld {
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode 1001 //LIBRE2ONLY
+            versionCode 1003 //LIBRE2ONLY
          //    versionName '10.3.10-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
@@ -181,6 +180,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //       minSdk 23
             dimension 'libreVersion'
         versionNameSuffix '-li3'
+        versionCode 1003 //LIBRE3
     //******  Zet op rollout op 100% ******
 
                buildConfigField 'int', 'libreVersion', '3'
@@ -195,6 +195,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         si {
       dimension 'SiBionics'
         versionNameSuffix '-si'
+        versionCode 1003
        buildConfigField 'int', 'SiBionics', '1'
        externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -203,7 +204,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
         nosi {
             dimension 'SiBionics'
-         versionCode 1001
+         versionCode 1003
          versionNameSuffix '-nosi'
           buildConfigField 'int', 'SiBionics', '0'
           externalNativeBuild.cmake {
@@ -221,7 +222,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         minSdkVersion 26
         buildConfigField 'int', 'minSDK', "$minSdk"
         manifestPlaceholders["minSDK"] = "$minSdk"
-        versionCode 1001 //WATCH
+        versionCode 1003 //WATCH
     //******  Zet op rollout op 100% ******
         //versionName '10.3.10-wear'
         versionNameSuffix '-wear'
@@ -362,24 +363,6 @@ buildTypes {
 
                 }
         }
-        releaser {
-            versionNameSuffix 'R'
-            resValue "string", "app_name", "GlucoDroid"
-            signingConfig signingConfigs.alg
-            minifyEnabled true
-        shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
-            jniDebuggable false
-            debuggable false
-
-        buildConfigField 'int', 'doLog', '1'
-            buildConfigField 'int', 'isRelease', '1'
-        buildConfigField 'int', 'isReleaseID', '1'
-            externalNativeBuild.cmake {
-                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
-                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
-                }
-        }
         debugdub {
          manifestPlaceholders["requireWatch"] = "false"
          manifestPlaceholders["debuggable"] = "true"
@@ -469,6 +452,7 @@ buildTypes {
          manifestPlaceholders["requireWatch"] = "false"
          manifestPlaceholders["debuggable"] = "true"
             versionNameSuffix 'releasedebug'
+            resValue "string", "app_name", "GlucoDroid"
             signingConfig signingConfigs.alg
             minifyEnabled true 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
@@ -573,11 +557,6 @@ buildTypes {
         aidl true
         compose true
     }
-    testOptions {
-        unitTests {
-            returnDefaultValues = true
-        }
-    }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.15" // Compatible with Kotlin 2.0.21 used in project? Actually project uses 2.0.21, so compose compiler is built-in.
         // Wait, for Kotlin 2.0+, we don't need kotlinCompilerExtensionVersion here if using the new plugin, but this project uses 'org.jetbrains.kotlin.android'.
@@ -631,7 +610,7 @@ android.applicationVariants.all { variant ->
         def variantName = variant.name
         def capName = variantName.capitalize()
         def mergeJniTaskName = "merge${capName}JniLibFolders"
-        def mergedLibPath = "${layout.buildDirectory.get().asFile}/intermediates/merged_jni_libs/${variantName}/${mergeJniTaskName}/out/armeabi-v7a/libdata-handle-lib.so"
+        def mergedLibPath = "${buildDir}/intermediates/merged_jni_libs/${variantName}/${mergeJniTaskName}/out/armeabi-v7a/libdata-handle-lib.so"
         def patchTask = tasks.register("patch${capName}SibionicsArmv7DataHandle") {
             dependsOn tasks.named(mergeJniTaskName)
             outputs.upToDateWhen { false }
@@ -697,23 +676,26 @@ dependencies {
 //    mobileImplementation 'com.github.lecho:hellocharts-library:1.5.8@aar'
 //    implementation 'com.github.lecho:hellocharts-library:1.5.8@aar' // Reverted to Canvas-based drawing
 
-    implementation("androidx.compose.material:material-icons-core:1.7.8")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    implementation("androidx.compose.ui:ui-text-google-fonts:1.11.1")
+    implementation("androidx.compose.material3:material3:1.4.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.material:material-icons-core:1.7.5")
+    implementation("androidx.compose.material:material-icons-extended:1.7.5")
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.7.5")
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.startup:startup-runtime:1.2.0'
-    implementation 'androidx.core:core-ktx:1.18.0'
+    implementation 'androidx.core:core-ktx:1.17.0'
   implementation 'com.android.support:support-annotations:28.0.0'
 
     implementation "androidx.appcompat:appcompat:$APPCOMPAT"
-    implementation 'androidx.activity:activity:1.13.0'
-    implementation 'androidx.core:core:1.18.0'
-   implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.3.21'
+    implementation 'androidx.activity:activity:1.11.0'
+    implementation 'androidx.core:core:1.17.0'
+   implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.21'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.21'
     implementation "com.google.android.gms:play-services-base:$GMSBASE"
 //    implementation "com.google.android.gms:play-services-base:18.8.0"
- implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0'
+ implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2'
   mobileImplementation 'androidx.health.connect:connect-client:1.1.0'
 //  mobileImplementation files('/n/ojka/Downloads/ciq-companion-app-sdk-2.0.3.aar');
   mobileImplementation 'com.garmin.connectiq:ciq-companion-app-sdk:2.3.0@aar'
@@ -723,11 +705,11 @@ dependencies {
   // implementation 'com.google.android.gms:play-services-wearable:10.2.0' Needed for China? https://developer.android.com/training/wearables/creating-app-china#data-layer
 
 
-    wearImplementation 'androidx.activity:activity-ktx:1.13.0'
+    wearImplementation 'androidx.activity:activity-ktx:1.11.0'
     wearImplementation 'androidx.constraintlayout:constraintlayout:2.2.1'
     wearImplementation 'com.google.android.material:material:1.13.0'
-    wearImplementation 'androidx.databinding:viewbinding:8.13.2'
-    wearImplementation 'androidx.core:core-ktx:1.18.0'
+    wearImplementation 'androidx.databinding:viewbinding:8.13.0'
+    wearImplementation 'androidx.core:core-ktx:1.17.0'
 
 
     wearImplementation 'androidx.wear:wear:1.3.0'
@@ -743,34 +725,34 @@ dependencies {
     wearImplementation 'androidx.wear.watchface:watchface:1.2.1'
     wearImplementation 'androidx.wear.watchface:watchface-complications-rendering:1.2.1'
     wearImplementation 'androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1'
-     wearImplementation 'androidx.core:core-splashscreen:1.2.0'
+     wearImplementation 'androidx.core:core-splashscreen:1.2.0-rc01'
      wearImplementation 'androidx.wear.protolayout:protolayout-external-protobuf:1.3.0'
     mobileImplementation 'com.google.android.material:material:1.13.0'
     
     // Room Database for independent history storage
-    def room_version = "2.8.4"
+    def room_version = "2.7.1"
     mobileImplementation "androidx.room:room-runtime:$room_version"
     mobileImplementation "androidx.room:room-ktx:$room_version"
     ksp "androidx.room:room-compiler:$room_version"
     
     // Compose Dependencies
-    def composeBom = platform('androidx.compose:compose-bom:2026.05.00')
+    def composeBom = platform('androidx.compose:compose-bom:2024.12.01')
     implementation composeBom
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3:1.4.0'
-    implementation 'androidx.activity:activity-compose:1.13.0'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.10.0'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
     implementation 'androidx.navigation:navigation-compose:2.8.5'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
     
     // Glance Support
-    implementation "androidx.glance:glance-appwidget:1.1.1"
-    implementation "androidx.glance:glance-material3:1.1.1"
-    implementation "androidx.work:work-runtime:2.11.2"
+    implementation "androidx.glance:glance-appwidget:1.1.0"
+    implementation "androidx.glance:glance-material3:1.1.0"
+    implementation "androidx.work:work-runtime:2.9.1"
     // OkHttp 4.12.0 is the latest stable that works with Kotlin 2.3.21 / AGP 9.2.0.
     // Used for outbound API HTTP (Telegram, etc.) with HTTP/2 PING-based keep-alive
     // to avoid the system-internal com.android.okhttp stale-connection bug.
@@ -778,9 +760,6 @@ dependencies {
 
     // Unit tests
     testImplementation 'junit:junit:4.13.2'
-    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0"
-    testImplementation 'app.cash.turbine:turbine:1.2.0'
-    testImplementation 'org.json:json:20231013'
 
 configurations {
 mobileLibre3SiDexGoogleImplementation {}

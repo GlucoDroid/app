@@ -8,6 +8,26 @@ import org.junit.Test;
 public class PhotoScanTest {
     private static final int REQUEST_BARCODE = 0x10;
     private static final String GS = "\u001D";
+    private static final String ACCUCHEK_COMPACT = "01040156300880101125040417260213211R000199040";
+
+    @Test
+    public void trimOuterScannerWhitespacePreservesLeadingGsSeparator() {
+        String raw = GS + ACCUCHEK_COMPACT;
+
+        assertEquals(raw, PhotoScan.trimOuterScannerWhitespace(raw));
+    }
+
+    @Test
+    public void normalizeAccuChekPayloadKeepsNativeExpectedLeadingSeparator() {
+        String raw = GS + ACCUCHEK_COMPACT;
+
+        assertEquals(raw, PhotoScan.normalizeScanPayload(raw, REQUEST_BARCODE));
+    }
+
+    @Test
+    public void normalizeAccuChekPayloadRestoresScannerStrippedLeadingSeparator() {
+        assertEquals(GS + ACCUCHEK_COMPACT, PhotoScan.normalizeScanPayload(ACCUCHEK_COMPACT, REQUEST_BARCODE));
+    }
 
     @Test
     public void normalizeSibionicsPayloadDoesNotSplitSerialInternal21() {

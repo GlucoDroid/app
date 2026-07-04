@@ -2,6 +2,7 @@ package tk.glucodata.drivers.aidex.native.ble
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -52,6 +53,22 @@ class AiDexHistoryPolicyTests {
         assertEquals(41, plan.rawNextIndex)
         assertEquals(20, plan.briefNextIndex)
         assertEquals(20, plan.requestOffset)
+    }
+
+    @Test
+    fun planInitialDownload_keepsExpiredRawCursorCaughtUpWhenBriefLags() {
+        val plan = AiDexHistoryPolicy.planInitialDownload(
+            briefStart = 1,
+            rawStart = 1,
+            newest = 22_039,
+            persistedRawNextIndex = 22_041,
+            persistedBriefNextIndex = 21_668,
+        )
+
+        assertEquals(AiDexHistoryPolicy.InitialAction.REQUEST_BRIEF, plan.action)
+        assertEquals(22_041, plan.rawNextIndex)
+        assertEquals(21_668, plan.briefNextIndex)
+        assertEquals(21_668, plan.requestOffset)
     }
 
     @Test
@@ -108,6 +125,108 @@ class AiDexHistoryPolicyTests {
     }
 
     @Test
+    fun wearDurationMinutes_usesDeclaredWearDays() {
+        assertNull(AiDexHistoryPolicy.wearDurationMinutes(null))
+        assertNull(AiDexHistoryPolicy.wearDurationMinutes(0))
+        assertEquals(14_400L, AiDexHistoryPolicy.wearDurationMinutes(10))
+        assertEquals(20_160L, AiDexHistoryPolicy.wearDurationMinutes(14))
+        assertEquals(21_600L, AiDexHistoryPolicy.wearDurationMinutes(15))
+        assertEquals(23_040L, AiDexHistoryPolicy.wearDurationMinutes(16))
+    }
+
+    @Test
+    fun isWithinWearDuration_rejectsPostExpiryOffsets() {
+        assertTrue(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 14_399,
+                wearDays = 10,
+            )
+        )
+        assertFalse(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 14_400,
+                wearDays = 10,
+            )
+        )
+        assertTrue(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 20_159,
+                wearDays = 14,
+            )
+        )
+        assertFalse(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 20_160,
+                wearDays = 14,
+            )
+        )
+        assertTrue(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 21_599,
+                wearDays = 15,
+            )
+        )
+        assertFalse(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 21_600,
+                wearDays = 15,
+            )
+        )
+        assertFalse(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 21_668,
+                wearDays = 15,
+            )
+        )
+        assertTrue(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 23_039,
+                wearDays = 16,
+            )
+        )
+        assertFalse(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 23_040,
+                wearDays = 16,
+            )
+        )
+        assertFalse(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = -1,
+                wearDays = 15,
+            )
+        )
+        assertTrue(
+            AiDexHistoryPolicy.isWithinWearDuration(
+                offsetMinutes = 21_668,
+                wearDays = null,
+            )
+        )
+    }
+
+    @Test
+    fun shouldQuarantinePostResetHistoryRange_detectsOldResidueAfterFreshReset() {
+        assertTrue(
+            AiDexHistoryPolicy.shouldQuarantinePostResetHistoryRange(
+                newestOffsetMinutes = 21_256,
+                resetRequestedAtMs = 1_000_000L,
+                nowMs = 1_060_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldQuarantinePostResetHistoryRange_allowsPlausibleNewSessionOffsets() {
+        assertFalse(
+            AiDexHistoryPolicy.shouldQuarantinePostResetHistoryRange(
+                newestOffsetMinutes = 12,
+                resetRequestedAtMs = 1_000_000L,
+                nowMs = 1_060_000L,
+            )
+        )
+    }
+
+    @Test
     fun resolveOffsetBackedTimestampMs_prefersAlignedTimestampWhenStartAndOffsetAreKnown() {
         val resolved = AiDexHistoryPolicy.resolveOffsetBackedTimestampMs(
             observedAtMs = 1_000_000L,
@@ -127,5 +246,21 @@ class AiDexHistoryPolicyTests {
         )
 
         assertEquals(1_000_000L, resolved)
+    }
+
+    @Test
+    fun shouldAcceptRealtimeTimestamp_rejectsObservedHistoryRegression() {
+        assertFalse(
+            AiDexHistoryPolicy.shouldAcceptRealtimeTimestamp(
+                candidateTimeMs = 1_782_006_372_000L,
+                latestAcceptedTimeMs = 1_782_133_332_000L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldAcceptRealtimeTimestamp_allowsDuplicateAndNewerLiveSamples() {
+        assertTrue(AiDexHistoryPolicy.shouldAcceptRealtimeTimestamp(2_000L, 2_000L))
+        assertTrue(AiDexHistoryPolicy.shouldAcceptRealtimeTimestamp(2_001L, 2_000L))
     }
 }

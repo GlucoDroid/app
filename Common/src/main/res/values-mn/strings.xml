@@ -1,7 +1,7 @@
 <resources>
     <string name="language">mn</string>
     <string name="languagename">Монгол хэл</string>
-    <string name="app_name">GlucoDroid</string>
+    <string name="app_name">JugglucoNG</string>
     <string name="ok">OK</string>
     <string name="cancel">Цуцлах</string>
     <string name="garmin_initialization_error">"Garmin Connect SDK эхлүүлэхэд алдаа гарлаа: "</string>
@@ -508,7 +508,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stream">Дамжуулалт</string>
     <string name="exchanges">Exchange data</string>
     <!-- Main UI Strings -->
-    <string name="dashboard">Dashboard</string>
+    <string name="dashboard">Нүүр</string>
     <string name="stats">Stats</string>
     <!-- sensors and settings might already exist, checking duplicates avoids error -->
     <!-- existing: <string name="settings">Settings</string> -->
@@ -803,7 +803,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="cannot_be_undone_critical">THIS CANNOT BE UNDONE!</string>
     <string name="reset_everything_button">RESET EVERYTHING</string>
     <string name="alert_sound">Alert Sound</string>
-    <string name="about_text">GPL-3.0 • Fork of JugglucoNG • glucodroid.cloud</string>
+    <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
     <string name="refreshing">Refreshing...</string>
     <!-- Missing UI Strings -->
     <string name="auto_calibration_mode">Auto-calibration mode</string>
@@ -816,6 +816,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_disconnected">Disconnected</string>
     <string name="status_waiting_for_data">Холбогдсон, өгөгдөл хүлээж байна...</string>
     <string name="status_raw_values_received">Холбогдсон, түүхий утгууд хүлээн авсан</string>
+    <string name="status_invalid_glucose_from_sensor">Сенсороос ирсэн глюкозын утга буруу</string>
     <string name="select_sensor_type">Select sensor type</string>
     <string name="choose_theme">Choose theme</string>
     <string name="sibionics_sensor_picker_desc">QR скан</string>
@@ -839,11 +840,39 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="caresens_air_sensor_desc">Scan code + Bluetooth</string>
     <string name="aidex_sensor">AiDex / LinX</string>
     <string name="aidex_sensor_desc">Configure AiDex or LinX CGM via Bluetooth</string>
-    <string name="icanhealth_sensor">iCan i3 / i6</string>
-    <string name="icanhealth_sensor_desc">Configure iCan i3/i6 CGM via Bluetooth</string>
+    <string name="icanhealth_sensor">iCan i3 / Sinocare</string>
+    <string name="icanhealth_sensor_desc">Configure iCan i3/i6/i7 CGM via Bluetooth</string>
     <string name="mq_sensor">MQ / Glutec</string>
     <string name="mq_sensor_desc">Pair a Glutec / MQ CGM transmitter via Bluetooth</string>
     <string name="anytime_sensor_desc">Pair an Anytime / Yuwell CT3 CGM transmitter via Bluetooth</string>
+    <string name="ottai_settings_desc">Холбогдсон Ottai мэдрэгчийн Ottai дансны хандалт, хадгалсан материал болон тохиргоог удирдана.</string>
+    <string name="ottai_account_sensors_title">Ottai дансны мэдрэгчүүд</string>
+    <string name="ottai_account_sensors_desc">Cloud ID-г бөглөхийн тулд хадгалсан эсвэл дансны мэдрэгчийг сонгоно уу. Connect товч дарсны дараа л холболт эхэлнэ.</string>
+    <string name="ottai_account_sensors_need_login">Ottai дансныхаа мэдрэгчүүдийг ачаалахын тулд эхлээд нэвтэрнэ үү.</string>
+    <string name="ottai_saved_credentials_title">Хадгалсан нэвтрэх мэдээлэл</string>
+    <string name="ottai_selected_sensor">%1$s сонгосон</string>
+    <string name="ottai_materials_missing_title">Материал ачаалагдаагүй</string>
+    <string name="ottai_materials_missing_desc">Холбогдохоос өмнө дансаар нэвтрэх эсвэл нэвтрэх мэдээллийн файл импортлоно уу.</string>
+    <string name="ottai_materials_loading">Материалыг данснаас ачаалж байна…</string>
+    <string name="ottai_connect_account_hint">Материалыг данснаас татна</string>
+    <string name="ottai_materials_partial_title">Томъёоны материал дутуу</string>
+    <string name="ottai_materials_partial_desc">Баталгаажуулалтын түлхүүрүүд байгаа боловч method/coefficient өгөгдөл дутуу байна. Глюкозын утга хүлээхээс өмнө бүрэн материалыг татах эсвэл импортлоно уу.</string>
+    <string name="ottai_state_not_activated">Идэвхжүүлэхэд бэлэн</string>
+    <string name="ottai_state_not_activated_desc">Энэ мэдрэгчид түлхүүрүүд байна, гэхдээ эхлэх цаг хараахан алга. Холбох үед баталгаажуулж, халаалтыг эхлүүлнэ.</string>
+    <string name="ottai_state_warmup">Халаалт явагдаж байна</string>
+    <string name="ottai_state_warmup_desc">Мэдрэгч эхлэх цагтай бөгөөд халаалтын дараа өгөгдөл дамжуулж эхлэх ёстой.</string>
+    <string name="ottai_state_active">Идэвхтэй мэдрэгч</string>
+    <string name="ottai_state_active_desc">Материал болон эхлэх цаг байна. Холбох үед дамжуулалт/түүхийг сэргээнэ.</string>
+    <string name="ottai_state_expired">Дууссан эсвэл хаагдсан</string>
+    <string name="ottai_state_expired_desc">Хадгалсан ажиллах хугацаа дууссан. Мэдрэгч идэвхжүүлэлтийг татгалзах эсвэл зөвхөн түүхэн өгөгдөл үзүүлж магадгүй.</string>
+    <string name="ottai_cloud_id_value">Cloud ID: %1$s</string>
+    <string name="ottai_connect_activate">Холбож халаалтыг эхлүүлэх</string>
+    <string name="ottai_connect_expired">Дууссан мэдрэгчийг холбох</string>
+    <string name="ottai_import_export_title">Нэвтрэх мэдээллийн файл</string>
+    <string name="ottai_import_export_ready">%1$s-д хадгалсан материал бэлэн.</string>
+    <string name="ottai_credentials_import">Импортлох</string>
+    <string name="ottai_credentials_replace">Солих</string>
+
     <!-- Anytime/Yuwell Setup Wizard Strings -->
     <string name="anytime_setup_title">Anytime / Yuwell Setup</string>
     <string name="anytime_searching_sensors">Searching for Anytime / Yuwell transmitters…</string>
@@ -1375,7 +1404,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_iqr_short">IQR</string>
     <string name="report_not_enough_daily_trend">Not enough daily data to render trend.</string>
     <string name="report_no_readings_day">No readings for this day.</string>
-    <string name="report_page1_title">GlucoDroid CGM Clinical Report</string>
+    <string name="report_page1_title">JugglucoNG CGM Clinical Report</string>
     <string name="report_page1_subtitle">Range %1$s · Readings %2$d · Window %3$s to %4$s</string>
     <string name="report_estimated_a1c">Estimated A1C</string>
     <string name="report_below_target">Below target</string>
@@ -1390,7 +1419,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_above_duration">Above: %1$s</string>
     <string name="report_agp_section_title">Ambulatory glucose profile (24h percentile bands)</string>
     <string name="report_reference_targets">Reference targets: GMI &lt; 7.0%%, CV &lt;= 36%%, Time in range &gt;= 70%%.</string>
-    <string name="report_page2_title">GlucoDroid CGM Daily Trends and Interpretation</string>
+    <string name="report_page2_title">JugglucoNG CGM Daily Trends and Interpretation</string>
     <string name="report_page2_subtitle">Daily variability, metric breakdown, and interpretation notes</string>
     <string name="report_daily_average_trend">Daily average trend</string>
     <string name="report_detailed_metrics">Detailed metrics</string>
@@ -1405,7 +1434,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_generated_insights_message">No additional pattern warnings were generated for this time range.</string>
     <string name="report_agp_consensus_title">AGP consensus reference</string>
     <string name="report_agp_consensus_body">Targets referenced in this report follow AGP international consensus style: TIR 70-180 mg/dL (3.9-10.0 mmol/L), TBR &lt;70 and &lt;54 mg/dL, TAR &gt;180 and &gt;250 mg/dL, with CV goal &lt;=36%%.</string>
-    <string name="report_page3_title">GlucoDroid Appendix I - AGP and Daily Tables</string>
+    <string name="report_page3_title">JugglucoNG Appendix I - AGP and Daily Tables</string>
     <string name="report_page3_subtitle">Hourly percentiles and day-level outcomes</string>
     <string name="report_hourly_agp_table">Hourly AGP profile table</string>
     <string name="report_hour">Hour</string>
@@ -1414,7 +1443,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="report_no_hourly_agp">No hourly AGP bins available in this range.</string>
     <string name="report_daily_outcomes_table">Daily outcomes table</string>
     <string name="report_showing_latest_days">Showing latest %1$d of %2$d days.</string>
-    <string name="report_page4_title">GlucoDroid Appendix II - Events and Daily Profiles</string>
+    <string name="report_page4_title">JugglucoNG Appendix II - Events and Daily Profiles</string>
     <string name="report_page4_subtitle">Hypo/hyper exposure metrics and day-level profile charts</string>
     <string name="report_hypo_hyper_events">Hypo / hyper exposure events</string>
     <string name="report_hours_per_day">Hours/day</string>
@@ -1886,6 +1915,18 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="outbound_api_trigger_summary_low">At or below %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_high">At or above %1$s %2$s</string>
     <string name="outbound_api_trigger_summary_range">At or below %1$s or at or above %2$s %3$s</string>
+    <string name="outbound_api_bubble_title">Telegram бөмбөлөг</string>
+    <string name="outbound_api_bubble_refresh_title">Байран дээр нь шинэчлэх</string>
+    <string name="outbound_api_bubble_refresh_desc">Шинэчлэх цонхны хугацаанд шинэ мессеж илгээхийн оронд ижил бөмбөлгийг засна.</string>
+    <string name="outbound_api_bubble_refresh_window">Шинэчлэх цонх (минут)</string>
+    <string name="outbound_api_bubble_suppress_title">Утга өөрчлөгдөөгүй бол алгасах</string>
+    <string name="outbound_api_bubble_suppress_desc">Хамгийн сүүлийн уншилт хамгийн сүүлд илгээсэн утгатай таарвал бөмбөлгийг засахгүй.</string>
+    <string name="outbound_api_bubble_stale_title">Чимээгүй үед уншилт алдагдсан тухай мессеж харуулах</string>
+    <string name="outbound_api_bubble_stale_desc">Шинэ уншилт хугацаандаа ирэхгүй бол хуучирсан эсвэл алдагдсан тухай мессеж илгээнэ.</string>
+    <string name="outbound_api_bubble_stale_threshold">Хуучирсан босго (минут)</string>
+    <string name="outbound_api_bubble_missed_threshold">Алдагдсан босго (минут)</string>
+    <string name="outbound_api_decrease_value">Утгыг багасгах</string>
+    <string name="outbound_api_increase_value">Утгыг нэмэх</string>
     <string name="outbound_api_send_test">Туршилтын мессеж илгээх</string>
     <string name="outbound_api_test_queued">Туршилтын мессеж дараалалд орлоо</string>
     <string name="outbound_api_no_current_reading">Одоогийн уншилт байхгүй</string>
@@ -1937,4 +1978,68 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_token">Telegram ботын токен</string>
     <string name="api_source_telegram_chat_ids">Зөвшөөрсөн chat ID</string>
     <string name="api_source_telegram_note">Telegram ботын шинэчлэлтийг 24 цаг хүртэл хадгална. Импортлох боломжтой ботын мессежтэй нэг эсвэл хэд хэдэн chat ID/хэрэглэгчийн нэр оруулна уу.</string>
+    <string name="sensor_display_select">Дэлгэцэд харуулах мэдрэгчийг сонгох</string>
+    <string name="sensor_display_selected">Дэлгэцэд харуулах мэдрэгч сонгогдсон</string>
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Ottai данс эсвэл нэвтрэх мэдээллийн файл + Bluetooth</string>
+    <string name="ottai_sensor_picker_desc">Хятадын зах зээлийн CGM - cloud нэвтрэлт + Bluetooth</string>
+    <string name="ottai_setup_title">Ottai тохиргоо</string>
+    <string name="ottai_login_title">Ottai-д нэвтрэх</string>
+    <string name="ottai_phone_hint">Утасны дугаар</string>
+    <string name="ottai_send_code">Код илгээх</string>
+    <string name="ottai_code_hint">SMS код</string>
+    <string name="ottai_code_sent">Код илгээгдлээ - доор оруулна уу (ref ...%1$s)</string>
+    <string name="ottai_login_button">Нэвтрэх</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Нэвтэрсэн</string>
+    <string name="ottai_sensor_mac_hint">Cloud төхөөрөмжийн ID (12 hex эсвэл QR)</string>
+    <string name="ottai_connect_saved">Холбох</string>
+    <string name="ottai_login_fail">Нэвтрэх амжилтгүй - утас/кодоо шалгана уу</string>
+    <string name="ottai_connect_saved_fail">Энэ cloud ID-д аккаунт эсвэл хадгалсан материал алга</string>
+    <string name="ottai_status_needs_ble_address">BLE хаяг хэрэгтэй</string>
+    <string name="ottai_status_warmup_provisional">Түр халаалт • %1$d мин үлдлээ</string>
+    <string name="ottai_ble_scan_title">Ойролцоох Ottai мэдрэгчүүд</string>
+    <string name="ottai_ble_scan_hint">Утсаа мэдрэгчид ойртуулна уу. Тогтвортой CGM дамжуулагчид энд гарна.</string>
+    <string name="ottai_ble_scan_empty">Ойролцоо Ottai мэдрэгч олдсонгүй. Ойртоод дахин уншуулна уу.</string>
+    <string name="ottai_ble_scan_selected">Ойролцоох мэдрэгч сонгогдлоо %1$s</string>
+    <string name="ottai_ble_scan_likely">Ottai байх магадлалтай</string>
+    <string name="ottai_ble_scan_possible">CGM байж магадгүй</string>
+    <string name="ottai_ble_scan_unknown">Бусад CGM</string>
+    <string name="ottai_account_hint">Имэйл эсвэл хэрэглэгчийн нэр</string>
+    <string name="ottai_account_note">Имэйл эсвэл бүртгэлийн хэрэглэгчийн нэрээрээ нэвтэрнэ үү.</string>
+    <string name="ottai_code_sent_email">Код %1$s руу илгээгдсэн</string>
+    <string name="ottai_creds_loaded">Нэвтрэх мэдээлэл ачааллаа. Бэлэн бол Холбох дээр дарна уу.</string>
+    <string name="ottai_device_version_label">Төхөөрөмжийн хувилбар: %1$s</string>
+    <string name="ottai_email_hint">Имэйл</string>
+    <string name="ottai_entry_import_desc">Хадгалсан .json ашиглах — бүртгэл, сүлжээ шаардлагагүй.</string>
+    <string name="ottai_entry_import_title">Мэдээллийн файл импортлох</string>
+    <string name="ottai_hide_ble_scan">Bluetooth хайлтыг нуух</string>
+    <string name="ottai_import_failed">Импорт амжилтгүй — Ottai-н хүчинтэй мэдээллийн файл биш.</string>
+    <string name="ottai_login_password">Нууц үг</string>
+    <string name="ottai_login_sms">SMS код</string>
+    <string name="ottai_nfc_dump">Ottai NFC унших</string>
+    <string name="ottai_nfc_dump_armed">NFC уншихад бэлэн — мэдрэгчийг утасны ар талд хавтгай барина уу.</string>
+    <string name="ottai_no_account_sensors">Энэ бүртгэлд одоогоор мэдрэгч алга — доор сканердах эсвэл мэдрэгчийн кодыг оруулна уу.</string>
+    <string name="ottai_password_hint">Нууц үг</string>
+    <string name="ottai_password_rule">8–20 тэмдэгт; үсэг, тоо, тусгай тэмдэгт.</string>
+    <string name="ottai_profile_hint">Харагдах нэр</string>
+    <string name="ottai_region_cn">Хятад</string>
+    <string name="ottai_region_global">Дэлхийн</string>
+    <string name="ottai_region_syai">Syai</string>
+    <string name="ottai_register_button">Бүртгүүлэх</string>
+    <string name="ottai_register_cta">Бүртгэл үүсгэх</string>
+    <string name="ottai_register_fail">Бүртгэл амжилтгүй</string>
+    <string name="ottai_register_title">Бүртгэл үүсгэх</string>
+    <string name="ottai_save_nothing">Хадгалах зүйл алга — эхлээд нэвтрэх мэдээлэл ачаална уу.</string>
+    <string name="ottai_save_ok">Мэдээлэл файлд хадгалагдсан.</string>
+    <string name="ottai_nfc_read_ok">NFC уншиж дууслаа. Дахин холбож үзнэ үү.</string>
+    <string name="ottai_search_ble">Bluetooth-ээр хайх</string>
+    <string name="ottai_sensor_active">Идэвхтэй</string>
+    <string name="ottai_sensor_past">Өмнө ашигласан</string>
+    <string name="ottai_sensor_saved">Хадгалсан</string>
+    <string name="ottai_sensors_loading">Таны мэдрэгчүүдийг ачаалж байна…</string>
+    <string name="ottai_sign_out">Гарах</string>
+    <string name="ottai_verify_code_hint">Баталгаажуулах код</string>
+    <string name="wrongcode">Wrong QR code</string>
 </resources>

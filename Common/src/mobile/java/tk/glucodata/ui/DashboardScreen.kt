@@ -82,6 +82,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.RectangleShape
+import tk.glucodata.SensorIdentity
 import tk.glucodata.ui.util.ConnectedButtonGroup
 import tk.glucodata.ui.util.AdaptiveLayoutDensity
 import tk.glucodata.ui.util.findActivity
@@ -264,7 +265,6 @@ fun DashboardScreen(
     onNavigateToCalibrations: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     onNavigateToMqAccount: () -> Unit = {},
-    onNavigateToNightscout: () -> Unit = {},
     onNavigateToReadiness: () -> Unit = {},
     onTriggerCalibration: (CalibrationSheetState) -> Unit = {}
 ) {
@@ -288,6 +288,13 @@ fun DashboardScreen(
     val sensorName by viewModel.sensorName.collectAsState()
     val daysRemaining by viewModel.daysRemaining.collectAsState()
     val glucoseHistory by viewModel.glucoseHistory.collectAsState()
+    val multiSensorDisplay by viewModel.multiSensorDisplay.collectAsState()
+    val peerCurrentReadings by viewModel.peerCurrentReadings.collectAsState()
+    val selectedSensorIds by viewModel.selectedSensorIds.collectAsState()
+    val sensorViewModes by viewModel.sensorViewModes.collectAsState()
+    // Multi-sensor mode is active whenever more than one sensor is selected —
+    // stable across new readings, so per-row tinting never flashes uncolored.
+    val multiSensorActive = selectedSensorIds.size > 1
     val unit by viewModel.unit.collectAsState()
     val graphLow by viewModel.graphLow.collectAsState()
     val graphHigh by viewModel.graphHigh.collectAsState()
@@ -322,8 +329,7 @@ fun DashboardScreen(
     val sensorHoursRemaining by viewModel.sensorHoursRemaining.collectAsState()
     val currentDay by viewModel.currentDay.collectAsState()
     val predictionCalibrationRefresh by UiRefreshBus.revision.collectAsState(initial = 0L)
-    val isRawEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForRaw.collectAsState()
-    val isAutoEnabled by tk.glucodata.data.calibration.CalibrationManager.isEnabledForAuto.collectAsState()
+    val calibrationRevision by tk.glucodata.data.calibration.CalibrationManager.revision.collectAsState()
 
     // Initialize Calibration Manager
     LaunchedEffect(Unit) {
@@ -340,6 +346,7 @@ fun DashboardScreen(
     var showICanHealthWizard by remember { mutableStateOf(false) }
     var showMQWizard by remember { mutableStateOf(false) }
     var showAnytimeWizard by remember { mutableStateOf(false) }
+    var showOttaiWizard by remember { mutableStateOf(false) }
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var journalActionTimestamp by rememberSaveable { mutableStateOf<Long?>(null) }
     var journalActionSuggestedGlucoseMgDl by remember { mutableStateOf<Float?>(null) }
@@ -427,6 +434,37 @@ fun DashboardScreen(
             viewMode = viewMode,
             settings = predictionSettings
         )
+    }
+    // Per-peer prediction series so the simulation extends every drawn line,
+    // not just the primary. Same journal/settings (same person), each peer's
+    // own points + view mode.
+    val peerPredictionSeries = remember(
+        multiSensorDisplay,
+        journalEnabled,
+        predictionSettings,
+        predictionCalibrationRefresh,
+        scopedJournalEntries,
+        journalPresetsById,
+        unit,
+        targetLow,
+        targetHigh
+    ) {
+        if (multiSensorDisplay.isEmpty || !predictionSettings.enabled) {
+            emptyMap()
+        } else {
+            multiSensorDisplay.series.associate { peer ->
+                peer.sensorId to buildPredictionSeriesForChart(
+                    points = peer.points,
+                    journalEntries = if (journalEnabled) scopedJournalEntries else emptyList(),
+                    insulinPresetsById = journalPresetsById,
+                    unit = unit,
+                    targetLow = targetLow,
+                    targetHigh = targetHigh,
+                    viewMode = peer.viewMode,
+                    settings = predictionSettings
+                )
+            }.filterValues { it.isNotEmpty() }
+        }
     }
     val journalEntriesById = remember(scopedJournalEntries) { scopedJournalEntries.associateBy { it.id } }
     val isMmolUnit = remember(unit) { tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit) }
@@ -611,6 +649,18 @@ fun DashboardScreen(
             onNavigateToReadiness = onNavigateToReadiness,
             onComplete = {
                 showAnytimeWizard = false
+                viewModel.refreshData()
+            },
+        )
+        return
+    }
+
+    // Ottai Setup Wizard
+    if (showOttaiWizard) {
+        tk.glucodata.ui.setup.OttaiSetupWizard(
+            onDismiss = { showOttaiWizard = false },
+            onComplete = {
+                showOttaiWizard = false
                 viewModel.refreshData()
             },
         )
@@ -999,14 +1049,32 @@ fun DashboardScreen(
             val recentReadings = remember(consumerHistory) {
                 buildDisplayReadings(consumerHistory, limit = 10)
             }
+            val recentReadingPeers = remember(recentReadings, multiSensorDisplay) {
+                recentReadings.map { reading -> multiSensorDisplay.peersAt(reading.timestamp) }
+            }
+            val peerSeriesById = remember(multiSensorDisplay) {
+                multiSensorDisplay.series.associateBy { it.sensorId }
+            }
             val recentReadingJournalEntries = remember(recentReadings, scopedJournalEntries) {
                 groupJournalEntriesByReading(recentReadings, scopedJournalEntries)
             }
             val hasVisibleReadingContent = dashboardDataState.isFresh || recentReadings.isNotEmpty()
 
-            val isManualCalibrationEnabled = if (viewMode == 1 || viewMode == 3) isRawEnabled else isAutoEnabled
             val triggerCalibrationIfEnabled: (CalibrationSheetState) -> Unit = { state ->
-                if (isManualCalibrationEnabled) {
+                val targetSensorId = when (state) {
+                    is CalibrationSheetState.New -> state.sensorId
+                    is CalibrationSheetState.Edit -> state.entity.sensorId
+                    CalibrationSheetState.Hidden -> ""
+                }
+                val targetRawMode = when (state) {
+                    is CalibrationSheetState.New -> {
+                        val targetMode = state.viewModeOverride ?: viewMode
+                        targetMode == 1 || targetMode == 3
+                    }
+                    is CalibrationSheetState.Edit -> state.entity.isRawMode
+                    CalibrationSheetState.Hidden -> false
+                }
+                if (tk.glucodata.data.calibration.CalibrationManager.isEnabledForMode(targetRawMode, targetSensorId)) {
                     onTriggerCalibration(state)
                 }
             }
@@ -1019,8 +1087,7 @@ fun DashboardScreen(
                 viewMode,
                 calibrationSensorId,
                 predictionCalibrationRefresh,
-                isRawEnabled,
-                isAutoEnabled
+                calibrationRevision
             ) {
                 if (latestPoint != null &&
                     !tk.glucodata.data.calibration.CalibrationManager.shouldOverwriteSensorValues() &&
@@ -1058,7 +1125,7 @@ fun DashboardScreen(
                     tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                     tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                     tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
-                    tk.glucodata.ui.components.SensorType.NIGHTSCOUT -> onNavigateToNightscout()
+                    tk.glucodata.ui.components.SensorType.OTTAI -> showOttaiWizard = true
                 }
             },
                 onImportHistory = {
@@ -1102,6 +1169,8 @@ fun DashboardScreen(
                             calibratedValue = calibratedValue,
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
+                            peerReadings = peerCurrentReadings,
+                            onPeerReadingClick = { viewModel.promoteSensorToPrimary(it) },
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
                             targetLow = targetLow,
                             targetHigh = targetHigh,
@@ -1110,7 +1179,14 @@ fun DashboardScreen(
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(
+                                    CalibrationSheetState.New(
+                                        autoVal,
+                                        rawVal,
+                                        latestPoint?.timestamp ?: System.currentTimeMillis(),
+                                        latestPoint?.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                    )
+                                )
                             }
                         )
                     }
@@ -1134,6 +1210,9 @@ fun DashboardScreen(
                                 index = index,
                                 totalCount = recentReadings.size,
                                 history = recentReadings,
+                                peerReadings = recentReadingPeers.getOrNull(index).orEmpty(),
+                                peerSeries = peerSeriesById,
+                                multiSensorActive = multiSensorActive,
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
@@ -1168,7 +1247,28 @@ fun DashboardScreen(
                                 onValueClick = {
                                     clearJournalAction()
                                     triggerCalibrationIfEnabled(
-                                        CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
+                                        CalibrationSheetState.New(
+                                            item.value,
+                                            item.rawValue,
+                                            item.timestamp,
+                                            item.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                        )
+                                    )
+                                },
+                                onSensorValueClick = { reading ->
+                                    clearJournalAction()
+                                    val readingSensorId = reading.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                    val readingViewMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+                                        SensorIdentity.matches(sensorId, readingSensorId)
+                                    }?.value ?: viewMode
+                                    triggerCalibrationIfEnabled(
+                                        CalibrationSheetState.New(
+                                            auto = reading.value,
+                                            raw = reading.rawValue,
+                                            timestamp = reading.timestamp,
+                                            sensorId = readingSensorId,
+                                            viewModeOverride = readingViewMode
+                                        )
                                     )
                                 },
                                 onDeleteReading = { point ->
@@ -1192,6 +1292,8 @@ fun DashboardScreen(
                                 DashboardChartSection(
                                     modifier = Modifier.fillMaxSize(),
                                     glucoseHistory = glucoseHistory,
+                                    multiSensorDisplay = multiSensorDisplay,
+                                    peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
                                     predictionSeries = predictionSeries,
@@ -1215,7 +1317,14 @@ fun DashboardScreen(
                                     onToggleExpanded = null,
                                     onPointClick = { point ->
                                         clearJournalAction()
-                                        triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                                        triggerCalibrationIfEnabled(
+                                            CalibrationSheetState.New(
+                                                point.value,
+                                                point.rawValue,
+                                                point.timestamp,
+                                                point.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                            )
+                                        )
                                     },
                                     onCalibrationClick = { cal ->
                                         clearJournalAction()
@@ -1295,6 +1404,8 @@ fun DashboardScreen(
                             calibratedValue = calibratedValue,
                             currentSnapshot = dashboardCurrentSnapshot,
                             dataState = dashboardDataState,
+                            peerReadings = peerCurrentReadings,
+                            onPeerReadingClick = { viewModel.promoteSensorToPrimary(it) },
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
                             targetLow = targetLow,
                             targetHigh = targetHigh,
@@ -1303,7 +1414,14 @@ fun DashboardScreen(
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(
+                                    CalibrationSheetState.New(
+                                        autoVal,
+                                        rawVal,
+                                        latestPoint?.timestamp ?: System.currentTimeMillis(),
+                                        latestPoint?.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                    )
+                                )
                             }
                         )
                     }
@@ -1353,6 +1471,8 @@ fun DashboardScreen(
                                         .fillMaxSize()
                                         .padding(bottom = 0.dp),
                                     glucoseHistory = glucoseHistory,
+                                    multiSensorDisplay = multiSensorDisplay,
+                                    peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
                                     predictionSeries = predictionSeries,
@@ -1377,7 +1497,14 @@ fun DashboardScreen(
                                     chartBoostProgress = chartBoostProgress,
                                     onPointClick = { point ->
                                         clearJournalAction()
-                                        triggerCalibrationIfEnabled(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+                                        triggerCalibrationIfEnabled(
+                                            CalibrationSheetState.New(
+                                                point.value,
+                                                point.rawValue,
+                                                point.timestamp,
+                                                point.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                            )
+                                        )
                                     },
                                     onCalibrationClick = { cal ->
                                         clearJournalAction()
@@ -1445,6 +1572,9 @@ fun DashboardScreen(
                                 index = index,
                                 totalCount = recentReadings.size,
                                 history = recentReadings,
+                                peerReadings = recentReadingPeers.getOrNull(index).orEmpty(),
+                                peerSeries = peerSeriesById,
+                                multiSensorActive = multiSensorActive,
                                 sensorId = sensorName,
                                 calibrations = calibrations,
                                 journalEntries = recentReadingJournalEntries[item.timestamp].orEmpty(),
@@ -1479,7 +1609,28 @@ fun DashboardScreen(
                                 onValueClick = {
                                     clearJournalAction()
                                     triggerCalibrationIfEnabled(
-                                        CalibrationSheetState.New(item.value, item.rawValue, item.timestamp)
+                                        CalibrationSheetState.New(
+                                            item.value,
+                                            item.rawValue,
+                                            item.timestamp,
+                                            item.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                        )
+                                    )
+                                },
+                                onSensorValueClick = { reading ->
+                                    clearJournalAction()
+                                    val readingSensorId = reading.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                    val readingViewMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
+                                        SensorIdentity.matches(sensorId, readingSensorId)
+                                    }?.value ?: viewMode
+                                    triggerCalibrationIfEnabled(
+                                        CalibrationSheetState.New(
+                                            auto = reading.value,
+                                            raw = reading.rawValue,
+                                            timestamp = reading.timestamp,
+                                            sensorId = readingSensorId,
+                                            viewModeOverride = readingViewMode
+                                        )
                                     )
                                 },
                                 onDeleteReading = { point ->
@@ -1505,11 +1656,19 @@ fun DashboardScreen(
                         CalibrationsCard(
                             viewMode = viewMode,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
+                            sensorId = sensorName,
                             showEmptyAction = hasVisibleReadingContent,
                             onAddCalibration = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
-                                triggerCalibrationIfEnabled(CalibrationSheetState.New(autoVal, rawVal, System.currentTimeMillis()))
+                                triggerCalibrationIfEnabled(
+                                    CalibrationSheetState.New(
+                                        autoVal,
+                                        rawVal,
+                                        latestPoint?.timestamp ?: System.currentTimeMillis(),
+                                        latestPoint?.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                                    )
+                                )
                             },
                             onEditCalibration = { cal ->
                                 triggerCalibrationIfEnabled(CalibrationSheetState.Edit(cal))

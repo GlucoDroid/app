@@ -51,15 +51,6 @@ int sitrend2abbott(int sitrend) {
   return sitrend + 3;
 }
 float sitrend2RateOfChange(int sitrend) { return sitrend * 1.3f; }
-uint32_t makestarttime(int index, uint32_t eventTime) {
-  const uint32_t starttime = eventTime - index * 60;
-#ifndef NOLOG
-  time_t tim = starttime;
-  LOGGER("makestarttime(%d,%d)=%d %s", index, eventTime, starttime,
-         ctime(&tim));
-#endif
-  return starttime;
-}
 #ifdef MAIN
 #define savejson(sens, name, index, alg, getjson) x
 #define glucoseback(glval, drate, hist)
@@ -97,6 +88,8 @@ static bool saveRawOnlyPoll(SensorGlucoseData *sens, time_t eventTime,
     return false;
   }
   sens->savestream(eventTime, streamIndex, 0, 0, 0.0f, rawCurrent, rawTemp);
+  sens->sensorerror = false;
+  sens->sensorErrorTime = 0;
   LOGGER("SIprocess raw-only: index=%d raw=%d temp=%u itime=%ld\n",
          streamIndex, rawCurrent, rawTemp, (long)eventTime);
   if (backup) {
@@ -105,6 +98,73 @@ static bool saveRawOnlyPoll(SensorGlucoseData *sens, time_t eventTime,
   extern void wakewithcurrent();
   wakewithcurrent();
   return true;
+}
+
+static void updateStartTimeFromAcceptedPacket(SensorGlucoseData *sens,
+                                              sensor *sensor, int index,
+                                              time_t eventTime, int maxid,
+                                              int numOfUnreceived) {
+  if (!sens || !sensor || index < 0 || eventTime <= 1598911200) {
+    return;
+  }
+  auto *info = sens->getinfo();
+  if (!info) {
+    return;
+  }
+
+  const uint64_t packetAgeSeconds = static_cast<uint64_t>(index) * 60ULL;
+  if (packetAgeSeconds > static_cast<uint64_t>(eventTime)) {
+    return;
+  }
+  const uint32_t packetStart =
+      static_cast<uint32_t>(eventTime - packetAgeSeconds);
+  if (!Sensoren::validSensorStarttime(packetStart) ||
+      packetStart > (uint32_t)eventTime) {
+    return;
+  }
+
+  constexpr uint32_t startDriftTolerance = 30;
+  const bool currentPacket = numOfUnreceived == 0;
+  const bool earlyPacket = index <= 9;
+  if (!currentPacket && !earlyPacket) {
+    return;
+  }
+
+  const uint32_t oldInfoStart = info->starttime;
+  const uint32_t infoDiff = oldInfoStart > packetStart
+                                ? oldInfoStart - packetStart
+                                : packetStart - oldInfoStart;
+  const bool validInfoStart = Sensoren::validSensorStarttime(oldInfoStart);
+  const bool updateInfo =
+      !validInfoStart ||
+      (infoDiff > startDriftTolerance &&
+       (currentPacket || packetStart > oldInfoStart + startDriftTolerance));
+
+  const uint32_t oldListStart = sensor->starttime;
+  const uint32_t listDiff = oldListStart > packetStart
+                                ? oldListStart - packetStart
+                                : packetStart - oldListStart;
+  const bool validListStart = Sensoren::validSensorStarttime(oldListStart);
+  const bool updateList =
+      !validListStart ||
+      (listDiff > startDriftTolerance &&
+       (currentPacket || packetStart > oldListStart + startDriftTolerance));
+
+  if (!updateInfo && !updateList) {
+    return;
+  }
+
+  if (updateInfo)
+    info->starttime = packetStart;
+  if (updateList)
+    sensor->starttime = packetStart;
+  sensors->setindices();
+  if (backup)
+    backup->resendResetDevices(&updateone::sendstream);
+  LOGGER("SIprocess updated starttime from packet old=%u/%u new=%u index=%d "
+         "maxid=%d numOfUnreceived=%d itime=%ld\n",
+         oldInfoStart, oldListStart, packetStart, index, maxid,
+         numOfUnreceived, (long)eventTime);
 }
 
 jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
@@ -171,14 +231,6 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
              "temp=%f value=%f numOfUnreceived=%d\n",
              offtime, addtime, index, temp, value, numOfUnreceived);
       eventTime = nowsecs;
-    } else {
-      if (maxid < 10) {
-        auto starttime = makestarttime(index, eventTime);
-        sens->getinfo()->starttime = starttime;
-        sensor->starttime = starttime;
-        sensors->setindices();
-        backup->resendResetDevices(&updateone::sendstream);
-      }
     }
     // Original Juggluco logic - process3 result goes directly into newvalue
     // check
@@ -261,7 +313,12 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
                "numOfUnreceived=%d\n",
                index, temp, value, numOfUnreceived);
       }
-      sens->savestream(eventTime, index, mgdL, abbotttrend, change, rawCurrent, rawTemp);
+      sens->savestream(eventTime, index, mgdL, abbotttrend, change, rawCurrent,
+                       rawTemp);
+      if (!infuture) {
+        updateStartTimeFromAcceptedPacket(sens, sensor, index, eventTime, maxid,
+                                          numOfUnreceived);
+      }
       sens->setSiIndex(index + 1);
       sens->retried = 0;
       saveSi3(sens, index, eventTime, !infuture, value, temp, !numOfUnreceived);
@@ -307,6 +364,10 @@ jlong SiContext::processData(SensorGlucoseData *sens, time_t nowsecs,
              index, temp, value, numOfUnreceived);
       const bool savedRawOnly =
           saveRawOnlyPoll(sens, eventTime, index, rawCurrent, rawTemp);
+      if (!infuture && savedRawOnly) {
+        updateStartTimeFromAcceptedPacket(sens, sensor, index, eventTime, maxid,
+                                          numOfUnreceived);
+      }
       if (!numOfUnreceived && savedRawOnly) {
         sens->receivehistory = nowsecs;
         return 11LL;

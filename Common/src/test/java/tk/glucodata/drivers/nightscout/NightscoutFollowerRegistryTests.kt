@@ -74,7 +74,6 @@ class NightscoutFollowerRegistryTests {
 
     @Test
     fun applyAuth_39charHex_hashed() {
-        // One char short → not a raw SHA1 → must be hashed
         val notSha1 = "a".repeat(39)
         val headers = applyAuthToMock(notSha1)
         assertNotEquals(notSha1, headers["api-secret"])
@@ -83,7 +82,6 @@ class NightscoutFollowerRegistryTests {
 
     @Test
     fun applyAuth_40charNonHex_hashed() {
-        // Right length but contains non-hex char → must be hashed
         val notHex = "a".repeat(39) + "g"
         val headers = applyAuthToMock(notHex)
         assertNotEquals(notHex, headers["api-secret"])

@@ -70,7 +70,6 @@ import java.util.concurrent.TimeUnit;
 
 import static tk.glucodata.util.sleep;
 
-@SuppressLint("MissingPermission")
 public class AccuGattCallback extends SuperGattCallback {
 static private final String LOG_ID="AccuGattCallback";
 //See: https://gist.github.com/sam016/4abe921b5a9ee27f67b3686910293026
@@ -153,7 +152,7 @@ private boolean discover(BluetoothGatt bluetoothGatt) {
         }
     if(success)  {
         if(doLog)
-           Log.i(LOG_ID,"discover succesfull");
+           Log.i(LOG_ID,"discover successfull");
         if(isBonded) {
             tryer(()->enableNotification(bluetoothGatt, CGMMeasurementChar));
             }
@@ -437,15 +436,19 @@ private int phase=0;
         showCharacter("onCharacteristicWrite " + bluetoothGatt.getDevice().getAddress() + " status:" + status + " ", bluetoothGattCharacteristic);
     }
 
+/*
     @SuppressWarnings("unused")
     public void onConnectionUpdated(BluetoothGatt gatt, int interval, int latency, int timeout, int status) {
         {if(doLog) {Log.i(LOG_ID, "onConnectionUpdated interval=" + interval + " latency=" + latency + " timeout=" + timeout + " status=" + status);};};
     }
-
+*/
+private int redrawer=0;
 private  void    processChanged(byte[] value) {
   long timmsec=System.currentTimeMillis();
   long res=Natives.accuProcessData(dataptr, value,timmsec);
   if(res==1L) {
+      if(redrawer++%15==13)
+            Applic.app.redraw();
      return;
     };
   handleGlucoseResult(res,timmsec);
@@ -537,4 +540,3 @@ public UUID getService() {
    return CGMserviceUUID;
    }
 }
-

@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.format.DateFormat
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -26,6 +28,10 @@ import tk.glucodata.logic.CustomAlertManager
 import tk.glucodata.logic.TrendEngine
 
 class AlarmActivity : ComponentActivity() {
+    private val wakeHoldHandler = Handler(Looper.getMainLooper())
+    private val releaseWakeHold = Runnable {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +56,8 @@ class AlarmActivity : ComponentActivity() {
 
     override fun onStop() {
         Notify.setAlarmUiVisible(false)
+        wakeHoldHandler.removeCallbacks(releaseWakeHold)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         super.onStop()
     }
 
@@ -57,6 +65,11 @@ class AlarmActivity : ComponentActivity() {
         val model = buildUiModel(intent)
         val customAlertId = intent.getStringExtra(Notify.EXTRA_CUSTOM_ALERT_ID)
         val deliveryMode = intent.getStringExtra(Notify.EXTRA_ALERT_DELIVERY_MODE)
+        Notify.cancelQueuedAlarmActivityLaunch(
+            Notify.resolveAlertKind(model.alertType?.id ?: -1),
+            customAlertId,
+            "alarm-activity-visible"
+        )
 
         if (deliveryMode == "SYSTEM_ALARM") {
             cancelAlarmNotification()
@@ -72,30 +85,48 @@ class AlarmActivity : ComponentActivity() {
                 trendResult = model.trendResult,
                 timeText = model.timeText,
                 onSnooze = {
+                    Notify.cancelQueuedAlarmActivityLaunch(
+                        Notify.resolveAlertKind(model.alertType?.id ?: -1),
+                        customAlertId,
+                        "alarm-activity-snooze"
+                    )
+                    var productionAction = true
                     if (customAlertId != null) {
                         CustomAlertManager.snoozeAlert(customAlertId, model.snoozeMinutes)
                         Notify.cancelCurrentRetrySession("alarm-activity-snooze-custom-before-stop")
                     } else {
-                        AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))?.let {
-                            SnoozeManager.snooze(it, model.snoozeMinutes)
-                            AlertStateTracker.resetState(it)
+                        val alertType = AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))
+                        productionAction = alertType?.let { !AlertStateTracker.consumeManualTestAction(it) } ?: true
+                        if (productionAction) {
+                            alertType?.let {
+                                SnoozeManager.snooze(it, model.snoozeMinutes)
+                                AlertStateTracker.resetState(it)
+                            }
+                            Notify.cancelCurrentRetrySession("alarm-activity-snooze-before-stop")
                         }
-                        Notify.cancelCurrentRetrySession("alarm-activity-snooze-before-stop")
                     }
                     Notify.stopalarm()
-                    Notify.cancelCurrentRetrySession("alarm-activity-snooze-after-stop")
+                    if (productionAction) {
+                        Notify.cancelCurrentRetrySession("alarm-activity-snooze-after-stop")
+                    }
                     cancelAlarmNotification()
                     finish()
                 },
                 onDismiss = {
+                    Notify.cancelQueuedAlarmActivityLaunch(
+                        Notify.resolveAlertKind(model.alertType?.id ?: -1),
+                        customAlertId,
+                        "alarm-activity-dismiss"
+                    )
                     Notify.stopalarm()
                     if (customAlertId != null) {
                         CustomAlertManager.dismissAlert(customAlertId)
                     } else {
-                        Notify.cancelCurrentRetrySession("alarm-activity-dismiss")
                         AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))?.let {
-                            SnoozeManager.clearSnooze(it)
-                            AlertStateTracker.onAlertDismissed(it)
+                            if (AlertStateTracker.onAlertDismissed(it)) {
+                                SnoozeManager.clearSnooze(it)
+                                Notify.cancelCurrentRetrySession("alarm-activity-dismiss")
+                            }
                         }
                     }
                     cancelAlarmNotification()
@@ -300,6 +331,8 @@ class AlarmActivity : ComponentActivity() {
 
     private fun turnScreenOnAndKeyguard() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        wakeHoldHandler.removeCallbacks(releaseWakeHold)
+        wakeHoldHandler.postDelayed(releaseWakeHold, ALARM_SCREEN_WAKE_HOLD_MS)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -332,6 +365,7 @@ class AlarmActivity : ComponentActivity() {
         const val EXTRA_ALARM_MESSAGE = "EXTRA_ALARM_MESSAGE"
         const val EXTRA_ALERT_TYPE_ID = "EXTRA_ALERT_TYPE_ID"
         const val EXTRA_RATE = "EXTRA_RATE"
+        private const val ALARM_SCREEN_WAKE_HOLD_MS = 45_000L
 
         fun createIntent(
             context: Context,

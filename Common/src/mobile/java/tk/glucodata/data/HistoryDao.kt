@@ -81,6 +81,14 @@ interface HistoryDao {
     
     @Query("SELECT * FROM history_readings WHERE timestamp >= :startTime ORDER BY timestamp ASC")
     suspend fun getReadingsSince(startTime: Long): List<HistoryReading>
+
+    @Query("""
+        SELECT * FROM history_readings
+        WHERE timestamp >= :startTime
+          AND timestamp <= :endTime
+        ORDER BY timestamp ASC
+    """)
+    suspend fun getReadingsBetween(startTime: Long, endTime: Long): List<HistoryReading>
     
     @Query("SELECT * FROM history_readings ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatestReading(): HistoryReading?

@@ -43,11 +43,11 @@ class AlertEpisodeStateTests {
     }
 
     @Test
-    fun pendingAfterSnoozeFiresOnceWhileConditionRemainsActive() {
+    fun pendingDeliveryFiresOnceWhileConditionRemainsActive() {
         val episodes = AlertEpisodeState<AlertType>()
 
         episodes.update(setOf(AlertType.HIGH))
-        episodes.markPendingAfterSnooze(AlertType.HIGH)
+        episodes.markPendingDelivery(AlertType.HIGH)
 
         val afterSnooze = episodes.update(setOf(AlertType.HIGH))
         assertTrue(afterSnooze.shouldTryFire(AlertType.HIGH))
@@ -55,5 +55,32 @@ class AlertEpisodeStateTests {
         episodes.clearPending(AlertType.HIGH)
         val repeated = episodes.update(setOf(AlertType.HIGH))
         assertFalse(repeated.shouldTryFire(AlertType.HIGH))
+    }
+
+    @Test
+    fun conditionCanFireAgainAfterClearingAndReEntering() {
+        val episodes = AlertEpisodeState<AlertType>()
+
+        assertTrue(episodes.update(setOf(AlertType.HIGH)).shouldTryFire(AlertType.HIGH))
+
+        val cleared = episodes.update(emptySet())
+        assertTrue(AlertType.HIGH in cleared.cleared)
+
+        val reentered = episodes.update(setOf(AlertType.HIGH))
+        assertTrue(reentered.shouldTryFire(AlertType.HIGH))
+    }
+
+    @Test
+    fun pendingDeliveryIsIgnoredAfterConditionClears() {
+        val episodes = AlertEpisodeState<AlertType>()
+
+        episodes.update(setOf(AlertType.HIGH))
+        episodes.markPendingDelivery(AlertType.HIGH)
+
+        episodes.update(emptySet())
+        val reentered = episodes.update(setOf(AlertType.HIGH))
+
+        assertTrue(reentered.shouldTryFire(AlertType.HIGH))
+        assertFalse(AlertType.HIGH in reentered.pendingDelivery)
     }
 }

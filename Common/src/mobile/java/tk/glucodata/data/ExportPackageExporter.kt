@@ -310,16 +310,37 @@ object ExportPackageExporter {
 
     private suspend fun buildCalibrationSection(context: Context): Pair<JSONObject, Int> {
         CalibrationManager.init(context)
+        CalibrationManager.getCachedCalibrations()
         val rows = CalibrationDatabase.getInstance(context)
             .calibrationDao()
             .getAllSync()
             .sortedByDescending { it.timestamp }
+        val currentSensorId = CalibrationManager.getResolvedCurrentSensorId()
 
         return JSONObject()
-            .put("version", 1)
+            .put("version", 2)
             .put("createdAtEpochMillis", System.currentTimeMillis())
-            .put("rawEnabled", CalibrationManager.isEnabledForRaw.value)
-            .put("autoEnabled", CalibrationManager.isEnabledForAuto.value)
+            .put(
+                "rawEnabled",
+                CalibrationManager.isEnabledForMode(isRawMode = true, sensorIdOverride = currentSensorId)
+            )
+            .put(
+                "autoEnabled",
+                CalibrationManager.isEnabledForMode(isRawMode = false, sensorIdOverride = currentSensorId)
+            )
+            .put(
+                "sensorEnablement",
+                JSONArray().also { array ->
+                    CalibrationManager.getSensorEnablementSnapshot().forEach { state ->
+                        array.put(
+                            JSONObject()
+                                .put("sensorId", state.sensorId)
+                                .put("rawEnabled", state.rawEnabled)
+                                .put("autoEnabled", state.autoEnabled)
+                        )
+                    }
+                }
+            )
             .put("hideInitialWhenCalibrated", CalibrationManager.hideInitialWhenCalibrated.value)
             .put("applyToPast", CalibrationManager.applyToPast.value)
             .put("lockPastHistory", CalibrationManager.lockPastHistory.value)
@@ -378,14 +399,43 @@ object ExportPackageExporter {
             CalibrationDatabase.getInstance(context).calibrationDao().insertAll(rows)
         }
 
-        CalibrationManager.setEnabledForMode(
-            isRawMode = true,
-            enabled = calibrations.optBoolean("rawEnabled", CalibrationManager.isEnabledForRaw.value)
-        )
-        CalibrationManager.setEnabledForMode(
-            isRawMode = false,
-            enabled = calibrations.optBoolean("autoEnabled", CalibrationManager.isEnabledForAuto.value)
-        )
+        val sensorEnablement = calibrations.optJSONArray("sensorEnablement")
+        if (sensorEnablement != null) {
+            for (index in 0 until sensorEnablement.length()) {
+                val state = sensorEnablement.optJSONObject(index) ?: continue
+                val sensorId = state.optString("sensorId", "").takeIf { it.isNotBlank() } ?: continue
+                CalibrationManager.setEnabledForMode(
+                    isRawMode = true,
+                    enabled = state.optBoolean("rawEnabled", true),
+                    sensorIdOverride = sensorId
+                )
+                CalibrationManager.setEnabledForMode(
+                    isRawMode = false,
+                    enabled = state.optBoolean("autoEnabled", true),
+                    sensorIdOverride = sensorId
+                )
+            }
+        } else {
+            val currentSensorId = CalibrationManager.getResolvedCurrentSensorId()
+            if (currentSensorId.isNotBlank()) {
+                CalibrationManager.setEnabledForMode(
+                    isRawMode = true,
+                    enabled = calibrations.optBoolean(
+                        "rawEnabled",
+                        CalibrationManager.isEnabledForMode(true, currentSensorId)
+                    ),
+                    sensorIdOverride = currentSensorId
+                )
+                CalibrationManager.setEnabledForMode(
+                    isRawMode = false,
+                    enabled = calibrations.optBoolean(
+                        "autoEnabled",
+                        CalibrationManager.isEnabledForMode(false, currentSensorId)
+                    ),
+                    sensorIdOverride = currentSensorId
+                )
+            }
+        }
         CalibrationManager.setHideInitialWhenCalibrated(
             calibrations.optBoolean(
                 "hideInitialWhenCalibrated",

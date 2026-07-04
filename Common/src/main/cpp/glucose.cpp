@@ -21,6 +21,7 @@
 #include "datbackup.hpp"
 #include "secs.h"
 #include "settings/settings.hpp"
+#include <mutex>
 
 void SensorGlucoseData::backhistory(int pos) {
   const int maxind = backup->getupdatedata()->sendnr;
@@ -594,9 +595,16 @@ int writeStartime(crypt_t *pass, Connect *connect, const int sensorindex) {
 }
 
 std::vector<int> usedsensors;
-void setusedsensors(uint32_t nu) {
+static std::mutex usedsensorsmutex;
+
+static void setusedsensors_unlocked(uint32_t nu) {
   uint32_t recent = nu - daysecs;
   usedsensors = sensors->bluetoothactive(recent, nu);
+}
+
+void setusedsensors(uint32_t nu) {
+  std::lock_guard<std::mutex> lock(usedsensorsmutex);
+  setusedsensors_unlocked(nu);
 }
 
 extern void setusedsensors();
@@ -604,6 +612,17 @@ void setusedsensors() {
   uint32_t nu = time(nullptr);
   setusedsensors(nu);
 }
+
+std::vector<int> usedsensorssnapshot(uint32_t nu) {
+  std::lock_guard<std::mutex> lock(usedsensorsmutex);
+  setusedsensors_unlocked(nu);
+  return usedsensors;
+}
+
+std::vector<int> usedsensorssnapshot() {
+  return usedsensorssnapshot(time(nullptr));
+}
+
 extern std::vector<int> usedsensors;
 uint32_t sendstreamfrom() {
   extern void setusedsensors();

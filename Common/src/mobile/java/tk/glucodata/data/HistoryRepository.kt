@@ -605,6 +605,26 @@ class HistoryRepository(context: Context = Applic.app) {
     }
 
     /**
+     * Display/history UI query for a bounded set of live sensors. This keeps
+     * peer dashboard charts off the all-sensor Room stream while preserving
+     * each sensor's rows for per-minute grouping and tooltips.
+     */
+    fun getHistoryFlowForDisplaySensors(
+        sensorIds: List<String>,
+        startTime: Long = 0L
+    ): kotlinx.coroutines.flow.Flow<List<GlucosePoint>> {
+        val serials = sensorIds
+            .flatMap { resolveDisplayQuerySensorSerials(it) }
+            .distinct()
+        if (serials.isEmpty()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        return dao.getHistoryFlowForSensors(serials, startTime).map { readings ->
+            mapReadings(readings)
+        }.flowOn(Dispatchers.IO)
+    }
+
+    /**
      * Stats-only flow optimized for large datasets:
      * - No per-point time formatting
      * - No extra sorting/distinct pass (DAO already returns ASC by timestamp)

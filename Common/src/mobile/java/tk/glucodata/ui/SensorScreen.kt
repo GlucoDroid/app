@@ -251,7 +251,6 @@ private fun String.capitalize(): String {
 @Composable
 fun SensorScreen(
     onNavigateToMqAccount: () -> Unit = {},
-    onNavigateToNightscout: () -> Unit = {},
     onNavigateToReadiness: () -> Unit = {},
     viewModel: tk.glucodata.ui.viewmodel.SensorViewModel = viewModel(),
 ) {
@@ -286,6 +285,7 @@ fun SensorScreen(
     var showICanHealthWizard by remember { mutableStateOf(false) }
     var showMQWizard by remember { mutableStateOf(false) }
     var showAnytimeWizard by remember { mutableStateOf(false) }
+    var showOttaiWizard by remember { mutableStateOf(false) }
 
     // Sensor Type Picker Bottom Sheet
     if (showSensorPicker) {
@@ -303,7 +303,7 @@ fun SensorScreen(
                     tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                     tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                     tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
-                    tk.glucodata.ui.components.SensorType.NIGHTSCOUT -> onNavigateToNightscout()
+                    tk.glucodata.ui.components.SensorType.OTTAI -> showOttaiWizard = true
                 }
             }
         )
@@ -431,6 +431,18 @@ fun SensorScreen(
         return
     }
 
+    // Ottai Setup Wizard
+    if (showOttaiWizard) {
+        tk.glucodata.ui.setup.OttaiSetupWizard(
+            onDismiss = { showOttaiWizard = false },
+            onComplete = {
+                showOttaiWizard = false
+                viewModel.refreshSensors()
+            },
+        )
+        return
+    }
+
     // Use Box instead of Scaffold to avoid double padding from parent nav
     Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         if (sensors.isEmpty()) {
@@ -463,7 +475,7 @@ fun SensorScreen(
                             tk.glucodata.ui.components.SensorType.ICANHEALTH -> showICanHealthWizard = true
                             tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                             tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
-                            tk.glucodata.ui.components.SensorType.NIGHTSCOUT -> onNavigateToNightscout()
+                            tk.glucodata.ui.components.SensorType.OTTAI -> showOttaiWizard = true
                         }
                     }
                 )

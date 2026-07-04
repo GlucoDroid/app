@@ -24,6 +24,49 @@ public class NotificationChartDrawer {
     private static final long DEFAULT_CHART_DURATION_MS = 3 * 60 * 60 * 1000L;
     private static final String AOD_OVERLAY_SERVICE_NAME =
             "tk.glucodata.accessibility.AODOverlayService";
+    private static final float DASHBOARD_PRIMARY_IDENTITY_TINT = 0.22f;
+    private static final float DASHBOARD_PRIMARY_LINE_ALPHA = 1.0f;
+    private static final float DASHBOARD_PRIMARY_THRESHOLD_ALPHA = 0.96f;
+    private static final float DASHBOARD_PRIMARY_STROKE_SCALE = 1.12f;
+    private static final float DASHBOARD_SECONDARY_LINE_ALPHA = 0.82f;
+    private static final float DASHBOARD_SECONDARY_STROKE_SCALE = 0.68f;
+    private static final float DASHBOARD_PEER_NEUTRAL_BLEND = 0.46f;
+    private static final float DASHBOARD_PEER_LINE_ALPHA = 0.88f;
+    private static final float DASHBOARD_PEER_THRESHOLD_ALPHA = 0.84f;
+    private static final float DASHBOARD_PEER_EXTREME_ALPHA = 0.86f;
+    private static final float DASHBOARD_PEER_AUTO_PASS_ALPHA = 1.0f;
+    private static final float DASHBOARD_PEER_RAW_PASS_ALPHA = 0.82f;
+
+    public static class PeerSeries {
+        public final String sensorId;
+        public final int viewMode;
+        public final int color;
+        public final List<GlucosePoint> points;
+
+        public PeerSeries(String sensorId, int viewMode, int color, List<GlucosePoint> points) {
+            this.sensorId = sensorId;
+            this.viewMode = viewMode;
+            this.color = color;
+            this.points = points != null ? points : Collections.emptyList();
+        }
+    }
+
+    public static class ValueItem {
+        public final String text;
+        public final int color;
+        /** Trend rate for the inline arrow; NaN when unknown. */
+        public final float rate;
+
+        public ValueItem(String text, int color) {
+            this(text, color, Float.NaN);
+        }
+
+        public ValueItem(String text, int color, float rate) {
+            this.text = text != null ? text : "";
+            this.color = color;
+            this.rate = rate;
+        }
+    }
 
     private static int resolveThresholdPointColor(
             float value,
@@ -82,7 +125,241 @@ public class NotificationChartDrawer {
                 veryHighThreshold,
                 isMmol,
                 inRangeColor,
-                true);
+                true,
+                0,
+                1f,
+                1f);
+    }
+
+    private static boolean showsAuto(int viewMode) {
+        return viewMode == 0 || viewMode == 2 || viewMode == 3;
+    }
+
+    private static boolean showsRaw(int viewMode) {
+        return viewMode == 1 || viewMode == 2 || viewMode == 3;
+    }
+
+    private static int notificationPrimaryLineColor(boolean isDark) {
+        return isDark ? 0xFFF2F0EA : 0xFF1D1B20;
+    }
+
+    private static int dashboardPrimaryLineColor(boolean isDark, String sensorId, boolean multiSensor) {
+        int base = notificationPrimaryLineColor(isDark);
+        if (!multiSensor || sensorId == null || sensorId.trim().isEmpty()) {
+            return base;
+        }
+        return SensorVisuals.blendArgb(
+                base,
+                SensorVisuals.colorArgb(sensorId),
+                DASHBOARD_PRIMARY_IDENTITY_TINT);
+    }
+
+    private static int dashboardPrimaryIdentityColor(String sensorId, boolean multiSensor) {
+        if (!multiSensor || sensorId == null || sensorId.trim().isEmpty()) {
+            return 0;
+        }
+        return SensorVisuals.colorArgb(sensorId);
+    }
+
+    public static int notificationChartPrimaryValueColor(
+            Context context,
+            float value,
+            boolean isMmol,
+            String sensorId,
+            boolean multiSensor) {
+        boolean isDark = useLightOnTransparentPalette(context);
+        return notificationPrimaryLineColor(isDark);
+    }
+
+    public static int notificationChartSecondaryValueColor(Context context) {
+        return defaultSecondaryValueTextColor(context);
+    }
+
+    public static int notificationChartTertiaryValueColor(Context context) {
+        boolean isDark = useLightOnTransparentPalette(context);
+        return isDark ? 0x73FFFFFF : 0x73000000;
+    }
+
+    private static int dashboardPeerLineBase(int sensorColor, boolean isDark) {
+        int neutral = DashboardChartColors.onSurfaceVariant(isDark);
+        return SensorVisuals.blendArgb(sensorColor, neutral, DASHBOARD_PEER_NEUTRAL_BLEND);
+    }
+
+    private static int resolvePrimaryPointColor(
+            float value,
+            float targetLow,
+            float targetHigh,
+            float veryLowThreshold,
+            float veryHighThreshold,
+            int inRangeColor,
+            int thresholdTintColor,
+            boolean isMmol,
+            float lineAlpha,
+            float thresholdAlpha) {
+        int color = resolveThresholdPointColor(
+                value,
+                targetLow,
+                targetHigh,
+                veryLowThreshold,
+                veryHighThreshold,
+                inRangeColor,
+                isMmol);
+        boolean inRange = (color & 0x00FFFFFF) == (inRangeColor & 0x00FFFFFF);
+        if (!inRange && thresholdTintColor != 0) {
+            color = SensorVisuals.blendArgb(color, thresholdTintColor, DASHBOARD_PRIMARY_IDENTITY_TINT);
+        }
+        return withAlpha(color, inRange ? lineAlpha : thresholdAlpha);
+    }
+
+    private static int resolveSubtlePeerPointColor(
+            float value,
+            float targetLow,
+            float targetHigh,
+            float veryLowThreshold,
+            float veryHighThreshold,
+            int sensorColor,
+            boolean isMmol,
+            boolean isDark,
+            float passAlpha) {
+        // Match the dashboard peer-trace treatment: identity color blended
+        // toward onSurfaceVariant, then rendered at dashboard-like opacity.
+        int toned = dashboardPeerLineBase(sensorColor, isDark);
+        int thresholdColor = resolveThresholdPointColor(
+                value,
+                targetLow,
+                targetHigh,
+                veryLowThreshold,
+                veryHighThreshold,
+                sensorColor,
+                isMmol);
+        if ((thresholdColor & 0x00FFFFFF) == (sensorColor & 0x00FFFFFF)) {
+            return withAlpha(toned, DASHBOARD_PEER_LINE_ALPHA * passAlpha);
+        }
+        boolean extreme = value <= veryLowThreshold || value >= veryHighThreshold;
+        float blendFraction = extreme ? 0.58f : 0.48f;
+        float alpha = (extreme ? DASHBOARD_PEER_EXTREME_ALPHA : DASHBOARD_PEER_THRESHOLD_ALPHA) * passAlpha;
+        return withAlpha(GlucoseRangeColors.blend(toned, thresholdColor, blendFraction), alpha);
+    }
+
+    private static float peerPassAlpha(boolean drawRaw, boolean drawAuto, boolean rawPass) {
+        if (!drawRaw || !drawAuto) {
+            return DASHBOARD_PEER_AUTO_PASS_ALPHA;
+        }
+        return rawPass ? DASHBOARD_PEER_RAW_PASS_ALPHA : DASHBOARD_PEER_AUTO_PASS_ALPHA;
+    }
+
+    private static float notificationLineAlpha(int color, int primaryColor, int secondaryColor) {
+        if (color == primaryColor) {
+            return DASHBOARD_PRIMARY_LINE_ALPHA;
+        }
+        if (color == secondaryColor) {
+            return DASHBOARD_SECONDARY_LINE_ALPHA;
+        }
+        return 1f;
+    }
+
+    private static float notificationThresholdAlpha(int color, int primaryColor, int secondaryColor) {
+        if (color == primaryColor) {
+            return DASHBOARD_PRIMARY_THRESHOLD_ALPHA;
+        }
+        return notificationLineAlpha(color, primaryColor, secondaryColor);
+    }
+
+    private static float notificationStrokeScale(int color, int primaryColor, int secondaryColor) {
+        if (color == primaryColor) {
+            return DASHBOARD_PRIMARY_STROKE_SCALE;
+        }
+        if (color == secondaryColor) {
+            return DASHBOARD_SECONDARY_STROKE_SCALE;
+        }
+        return 1f;
+    }
+
+    private static void drawSubtlePeerSeries(
+            Canvas canvas,
+            Paint linePaint,
+            List<Long> timestamps,
+            List<Float> values,
+            long startTime,
+            long duration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange,
+            float targetLow,
+            float targetHigh,
+            float veryLowThreshold,
+            float veryHighThreshold,
+            boolean isMmol,
+            int sensorColor,
+            boolean isDark,
+            float passAlpha) {
+        int size = Math.min(timestamps.size(), values.size());
+        if (size < 2) {
+            return;
+        }
+
+        long previousTimestamp = 0L;
+        float previousValue = 0f;
+        boolean hasPrevious = false;
+
+        for (int index = 0; index < size; index++) {
+            float currentValue = values.get(index);
+            long currentTimestamp = timestamps.get(index);
+            boolean valid = Float.isFinite(currentValue) && currentValue > 0.1f;
+            if (!valid) {
+                hasPrevious = false;
+                continue;
+            }
+
+            if (hasPrevious) {
+                float startX = chartLeft + ((previousTimestamp - startTime) / (float) duration) * chartWidth;
+                float startY = chartBottom - ((previousValue - minY) / yRange) * chartHeight;
+                float endX = chartLeft + ((currentTimestamp - startTime) / (float) duration) * chartWidth;
+                float endY = chartBottom - ((currentValue - minY) / yRange) * chartHeight;
+                int startColor = resolveSubtlePeerPointColor(
+                        previousValue,
+                        targetLow,
+                        targetHigh,
+                        veryLowThreshold,
+                        veryHighThreshold,
+                        sensorColor,
+                        isMmol,
+                        isDark,
+                        passAlpha);
+                int endColor = resolveSubtlePeerPointColor(
+                        currentValue,
+                        targetLow,
+                        targetHigh,
+                        veryLowThreshold,
+                        veryHighThreshold,
+                        sensorColor,
+                        isMmol,
+                        isDark,
+                        passAlpha);
+                if (startColor == endColor) {
+                    linePaint.setShader(null);
+                    linePaint.setColor(startColor);
+                } else {
+                    linePaint.setShader(new LinearGradient(
+                            startX,
+                            startY,
+                            endX,
+                            endY,
+                            startColor,
+                            endColor,
+                            Shader.TileMode.CLAMP));
+                }
+                canvas.drawLine(startX, startY, endX, endY, linePaint);
+                linePaint.setShader(null);
+            }
+
+            previousTimestamp = currentTimestamp;
+            previousValue = currentValue;
+            hasPrevious = true;
+        }
     }
 
     private static void drawSeries(
@@ -104,7 +381,10 @@ public class NotificationChartDrawer {
             float veryHighThreshold,
             boolean isMmol,
             int inRangeColor,
-            boolean useThresholdColors) {
+            boolean useThresholdColors,
+            int thresholdTintColor,
+            float lineAlpha,
+            float thresholdAlpha) {
         int size = Math.min(timestamps.size(), values.size());
         if (size < 2) {
             return;
@@ -129,22 +409,49 @@ public class NotificationChartDrawer {
                 float endX = chartLeft + ((currentTimestamp - startTime) / (float) duration) * chartWidth;
                 float endY = chartBottom - ((currentValue - minY) / yRange) * chartHeight;
                 if (useThresholdColors) {
-                    int startColor = resolveThresholdPointColor(
-                            previousValue,
-                            targetLow,
-                            targetHigh,
-                            veryLowThreshold,
-                            veryHighThreshold,
-                            inRangeColor,
-                            isMmol);
-                    int endColor = resolveThresholdPointColor(
-                            currentValue,
-                            targetLow,
-                            targetHigh,
-                            veryLowThreshold,
-                            veryHighThreshold,
-                            inRangeColor,
-                            isMmol);
+                    int startColor;
+                    int endColor;
+                    if (lineAlpha < 1f || thresholdAlpha < 1f || thresholdTintColor != 0) {
+                        startColor = resolvePrimaryPointColor(
+                                previousValue,
+                                targetLow,
+                                targetHigh,
+                                veryLowThreshold,
+                                veryHighThreshold,
+                                inRangeColor,
+                                thresholdTintColor,
+                                isMmol,
+                                lineAlpha,
+                                thresholdAlpha);
+                        endColor = resolvePrimaryPointColor(
+                                currentValue,
+                                targetLow,
+                                targetHigh,
+                                veryLowThreshold,
+                                veryHighThreshold,
+                                inRangeColor,
+                                thresholdTintColor,
+                                isMmol,
+                                lineAlpha,
+                                thresholdAlpha);
+                    } else {
+                        startColor = resolveThresholdPointColor(
+                                previousValue,
+                                targetLow,
+                                targetHigh,
+                                veryLowThreshold,
+                                veryHighThreshold,
+                                inRangeColor,
+                                isMmol);
+                        endColor = resolveThresholdPointColor(
+                                currentValue,
+                                targetLow,
+                                targetHigh,
+                                veryLowThreshold,
+                                veryHighThreshold,
+                                inRangeColor,
+                                isMmol);
+                    }
                     if (startColor == endColor) {
                         linePaint.setShader(null);
                         linePaint.setColor(startColor);
@@ -160,7 +467,7 @@ public class NotificationChartDrawer {
                     }
                 } else {
                     linePaint.setShader(null);
-                    linePaint.setColor(inRangeColor);
+                    linePaint.setColor(lineAlpha < 1f ? withAlpha(inRangeColor, lineAlpha) : inRangeColor);
                 }
                 canvas.drawLine(startX, startY, endX, endY, linePaint);
                 linePaint.setShader(null);
@@ -170,6 +477,58 @@ public class NotificationChartDrawer {
             previousValue = currentValue;
             hasPrevious = true;
         }
+    }
+
+    private static void drawNotificationSourceSeries(
+            Canvas canvas,
+            Paint linePaint,
+            List<Long> timestamps,
+            List<Float> values,
+            long startTime,
+            long duration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange,
+            float targetLow,
+            float targetHigh,
+            float veryLowThreshold,
+            float veryHighThreshold,
+            boolean isMmol,
+            int inRangeColor,
+            boolean useThresholdColors,
+            int thresholdTintColor,
+            float lineAlpha,
+            float thresholdAlpha,
+            float strokeScale) {
+        float baseStrokeWidth = linePaint.getStrokeWidth();
+        linePaint.setStrokeWidth(baseStrokeWidth * strokeScale);
+        drawSeries(
+                canvas,
+                linePaint,
+                timestamps,
+                values,
+                startTime,
+                duration,
+                chartLeft,
+                chartBottom,
+                chartWidth,
+                chartHeight,
+                minY,
+                yRange,
+                targetLow,
+                targetHigh,
+                veryLowThreshold,
+                veryHighThreshold,
+                isMmol,
+                inRangeColor,
+                useThresholdColors,
+                thresholdTintColor,
+                lineAlpha,
+                thresholdAlpha);
+        linePaint.setStrokeWidth(baseStrokeWidth);
     }
 
     private static long predictionLeadMillis(long durationMs) {
@@ -182,6 +541,16 @@ public class NotificationChartDrawer {
     private static int withAlpha(int color, float alpha) {
         int resolvedAlpha = Math.max(0, Math.min(255, Math.round(alpha * 255f)));
         return (color & 0x00FFFFFF) | (resolvedAlpha << 24);
+    }
+
+    private static int defaultSecondaryValueTextColor(Context context) {
+        boolean isDark = useLightOnTransparentPalette(context);
+        return isDark ? 0xB3FFFFFF : 0xB3000000;
+    }
+
+    private static int defaultTertiaryValueTextColor(Context context) {
+        boolean isDark = useLightOnTransparentPalette(context);
+        return isDark ? 0x80FFFFFF : 0x80000000;
     }
 
     private static float predictionUncertainty(NotificationPredictionPoint point, boolean isMmol) {
@@ -293,12 +662,44 @@ public class NotificationChartDrawer {
             float chartHeight,
             float minY,
             float yRange) {
+        drawPredictionSeries(canvas, baseLinePaint, dm, series, isMmol, viewMode, hasCalibration,
+                lineColor, lineColorSecondary, lineColorTertiary, startTime, chartDuration, chartLeft,
+                chartBottom, chartWidth, chartHeight, minY, yRange, false);
+    }
+
+    /**
+     * @param forcePeer when true, render as a subtle peer prediction: no
+     *                  uncertainty band, [lineColor] used directly as the tint
+     *                  (already desaturated by the caller), thinner stroke.
+     */
+    private static void drawPredictionSeries(
+            Canvas canvas,
+            Paint baseLinePaint,
+            DisplayMetrics dm,
+            NotificationPredictionSeries series,
+            boolean isMmol,
+            int viewMode,
+            boolean hasCalibration,
+            int lineColor,
+            int lineColorSecondary,
+            int lineColorTertiary,
+            long startTime,
+            long chartDuration,
+            float chartLeft,
+            float chartBottom,
+            float chartWidth,
+            float chartHeight,
+            float minY,
+            float yRange,
+            boolean forcePeer) {
         if (series == null || series.points == null || series.points.size() < 2 || yRange <= 0f) {
             return;
         }
 
-        boolean isPrimary = isPrimaryPrediction(series, viewMode);
-        int tint = predictionTint(series, viewMode, hasCalibration, lineColor, lineColorSecondary, lineColorTertiary);
+        boolean isPrimary = !forcePeer && isPrimaryPrediction(series, viewMode);
+        int tint = forcePeer
+                ? lineColor
+                : predictionTint(series, viewMode, hasCalibration, lineColor, lineColorSecondary, lineColorTertiary);
         ArrayList<PointF> lineSamples = new ArrayList<>(series.points.size());
         ArrayList<PointF> upperSamples = new ArrayList<>(series.points.size());
         ArrayList<PointF> lowerSamples = new ArrayList<>(series.points.size());
@@ -615,6 +1016,26 @@ public class NotificationChartDrawer {
 
     public static Bitmap drawGlucoseText(Context context, String text, int color, float fontSizeScale, int fontWeight,
             boolean useSystemFont) {
+        return drawGlucoseText(
+                context,
+                text,
+                color,
+                fontSizeScale,
+                fontWeight,
+                useSystemFont,
+                defaultSecondaryValueTextColor(context),
+                defaultTertiaryValueTextColor(context));
+    }
+
+    public static Bitmap drawGlucoseText(
+            Context context,
+            String text,
+            int color,
+            float fontSizeScale,
+            int fontWeight,
+            boolean useSystemFont,
+            int secondaryColor,
+            int tertiaryColor) {
         float density = context.getResources().getDisplayMetrics().density * 2.0f; // 2x Resolution (Safe for Binder)
         float textSize = 22f * density * fontSizeScale;
 
@@ -714,30 +1135,166 @@ public class NotificationChartDrawer {
         canvas.drawText(part1, currentX, y, paint);
         currentX += width1;
 
-        // Draw Part 2 (Secondary) - 0.7 alpha gray
+        // Draw Part 2 (Secondary)
         if (!part2.isEmpty()) {
-            paint2.setColor(0xB3FFFFFF); // ~70% white (for dark mode)
-            int uiMode = context.getResources().getConfiguration().uiMode
-                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-            if (uiMode != android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                paint2.setColor(0xB3000000); // ~70% black (for light mode)
-            }
+            paint2.setColor(secondaryColor);
             canvas.drawText(part2, currentX, y, paint2);
             currentX += width2;
         }
 
-        // Draw Part 3 (Tertiary) - 0.5 alpha gray
+        // Draw Part 3 (Tertiary)
         if (!part3.isEmpty()) {
-            paint3.setColor(0x80FFFFFF); // ~50% white
-            int uiMode = context.getResources().getConfiguration().uiMode
-                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-            if (uiMode != android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                paint3.setColor(0x80000000); // ~50% black
-            }
+            paint3.setColor(tertiaryColor);
             canvas.drawText(part3, currentX, y, paint3);
         }
 
         return bitmap;
+    }
+
+    public static Bitmap drawMultiGlucoseText(
+            Context context,
+            String primaryText,
+            int primaryColor,
+            List<ValueItem> peerValues,
+            float fontSizeScale,
+            int fontWeight,
+            boolean useSystemFont) {
+        return drawMultiGlucoseText(context, primaryText, primaryColor, peerValues, fontSizeScale, fontWeight,
+                useSystemFont, Float.NaN, true, 1.0f);
+    }
+
+    /**
+     * Renders "primary value [arrow] peer value [arrow] ..." into one bitmap.
+     *
+     * When peers exist every value carries its own inline trend arrow (the
+     * external arrow view must then be hidden by the caller); peer values use
+     * the shared subtle identity tint from {@link SensorVisuals} instead of the
+     * raw palette color so they read as secondary to the primary value.
+     *
+     * @param primaryArrowRate rate for the primary value's inline arrow; pass
+     *                         NaN to omit inline arrows for the primary value.
+     * @param arrowSizeFactor  user arrow size preference multiplier.
+     */
+    public static Bitmap drawMultiGlucoseText(
+            Context context,
+            String primaryText,
+            int primaryColor,
+            List<ValueItem> peerValues,
+            float fontSizeScale,
+            int fontWeight,
+            boolean useSystemFont,
+            float primaryArrowRate,
+            boolean isMmol,
+            float arrowSizeFactor) {
+        return drawMultiGlucoseText(
+                context,
+                primaryText,
+                primaryColor,
+                defaultSecondaryValueTextColor(context),
+                defaultTertiaryValueTextColor(context),
+                peerValues,
+                fontSizeScale,
+                fontWeight,
+                useSystemFont,
+                primaryArrowRate,
+                isMmol,
+                arrowSizeFactor);
+    }
+
+    public static Bitmap drawMultiGlucoseText(
+            Context context,
+            String primaryText,
+            int primaryColor,
+            int secondaryColor,
+            int tertiaryColor,
+            List<ValueItem> peerValues,
+            float fontSizeScale,
+            int fontWeight,
+            boolean useSystemFont,
+            float primaryArrowRate,
+            boolean isMmol,
+            float arrowSizeFactor) {
+        if (peerValues == null || peerValues.isEmpty()) {
+            return drawGlucoseText(context, primaryText, primaryColor, fontSizeScale, fontWeight, useSystemFont,
+                    secondaryColor, tertiaryColor);
+        }
+
+        float density = context.getResources().getDisplayMetrics().density;
+        boolean isDark = useLightOnTransparentPalette(context);
+        int baseTextColor = isDark ? Color.WHITE : Color.BLACK;
+        boolean drawArrows = !Float.isNaN(primaryArrowRate);
+        float safeArrowFactor = arrowSizeFactor > 0f ? arrowSizeFactor : 1.0f;
+
+        ArrayList<Bitmap> bitmaps = new ArrayList<>();
+        ArrayList<Boolean> isArrow = new ArrayList<>();
+
+        Bitmap primaryBitmap = drawGlucoseText(context, primaryText, primaryColor, fontSizeScale, fontWeight,
+                useSystemFont, secondaryColor, tertiaryColor);
+        bitmaps.add(primaryBitmap);
+        isArrow.add(false);
+        if (drawArrows) {
+            // drawArrow renders at 20dp * scale; size the arrow relative to the
+            // value bitmap (text renders at 2x density internally).
+            float arrowScale = (primaryBitmap.getHeight() * 0.56f * safeArrowFactor) / (20f * density);
+            bitmaps.add(drawArrow(context, primaryArrowRate, isMmol, primaryColor, arrowScale));
+            isArrow.add(true);
+        }
+
+        for (ValueItem item : peerValues) {
+            if (item == null || item.text == null || item.text.isEmpty()) {
+                continue;
+            }
+            // ValueItem.color carries the identity color; blend it here where the
+            // light/dark base is known so all surfaces share the same treatment.
+            int subtleColor = SensorVisuals.blendArgb(baseTextColor, item.color, SensorVisuals.PEER_TEXT_BLEND);
+            Bitmap peerBitmap = drawGlucoseText(
+                    context,
+                    item.text,
+                    subtleColor,
+                    fontSizeScale * 0.72f,
+                    fontWeight,
+                    useSystemFont);
+            bitmaps.add(peerBitmap);
+            isArrow.add(false);
+            if (drawArrows && !Float.isNaN(item.rate)) {
+                float arrowScale = (peerBitmap.getHeight() * 0.56f * safeArrowFactor) / (20f * density);
+                bitmaps.add(drawArrow(context, item.rate, isMmol, subtleColor, arrowScale));
+                isArrow.add(true);
+            }
+        }
+        if (bitmaps.size() <= 1) {
+            return bitmaps.get(0);
+        }
+
+        float layoutDensity = density * 2.0f;
+        int gap = Math.max(1, (int) (8f * layoutDensity * fontSizeScale));
+        int arrowGap = Math.max(1, (int) (2.5f * layoutDensity * fontSizeScale));
+        int totalWidth = 0;
+        int maxHeight = 1;
+        for (int i = 0; i < bitmaps.size(); i++) {
+            Bitmap bitmap = bitmaps.get(i);
+            totalWidth += bitmap.getWidth();
+            if (i > 0) {
+                totalWidth += isArrow.get(i) ? arrowGap : gap;
+            }
+            maxHeight = Math.max(maxHeight, bitmap.getHeight());
+        }
+        Bitmap output = Bitmap.createBitmap(Math.max(1, totalWidth), maxHeight, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(output);
+        int x = 0;
+        for (int i = 0; i < bitmaps.size(); i++) {
+            Bitmap bitmap = bitmaps.get(i);
+            if (i > 0) {
+                x += isArrow.get(i) ? arrowGap : gap;
+            }
+            float y = (maxHeight - bitmap.getHeight()) / 2.0f;
+            canvas.drawBitmap(bitmap, x, y, null);
+            x += bitmap.getWidth();
+            if (!bitmap.isRecycled()) {
+                bitmap.recycle();
+            }
+        }
+        return output;
     }
 
     /**
@@ -853,9 +1410,24 @@ public class NotificationChartDrawer {
                 hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS, true);
     }
 
+    public static Bitmap drawChartWithPrediction(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
+            String calibrationSensorId, List<PeerSeries> peerSeries) {
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
+                hasCalibration, compactMode, calibrationSensorId, DEFAULT_CHART_DURATION_MS, true, peerSeries);
+    }
+
     private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
             String calibrationSensorId, long durationMs, boolean showPredictionOverlay) {
+        return drawChartInternal(context, data, widthHint, heightHint, isMmol, viewMode, showTargetRange,
+                hasCalibration, compactMode, calibrationSensorId, durationMs, showPredictionOverlay,
+                Collections.emptyList());
+    }
+
+    private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
+            boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
+            String calibrationSensorId, long durationMs, boolean showPredictionOverlay, List<PeerSeries> peerSeries) {
         // Get display metrics for proper sizing
         DisplayMetrics dm = context.getResources().getDisplayMetrics();
         int width = (widthHint > 0) ? widthHint : dm.widthPixels;
@@ -864,7 +1436,9 @@ public class NotificationChartDrawer {
         // Theme detection
         boolean isDark = useLightOnTransparentPalette(context);
 
-        int lineColor = isDark ? Color.WHITE : Color.BLACK;
+        boolean hasPeerSeries = peerSeries != null && !peerSeries.isEmpty();
+        int lineColor = dashboardPrimaryLineColor(isDark, calibrationSensorId, hasPeerSeries);
+        int primaryIdentityColor = dashboardPrimaryIdentityColor(calibrationSensorId, hasPeerSeries);
         int lineColorSecondary = isDark ? 0xFF9E9E9E : 0xFF757575;
         // Tertiary: Lighter Gray (match ComposeHost tertiaryColor: alpha 0.45 of
         // content)
@@ -917,6 +1491,33 @@ public class NotificationChartDrawer {
             for (GlucosePoint p : renderSource) {
                 if (p.timestamp >= startTime) {
                     visibleRenderPoints.add(p);
+                }
+            }
+        }
+        List<PeerSeries> visiblePeerSeries = new ArrayList<>();
+        if (peerSeries != null) {
+            for (PeerSeries series : peerSeries) {
+                if (series == null || series.points == null || series.points.size() < 2) {
+                    continue;
+                }
+                List<GlucosePoint> renderPeer = DataSmoothing.smoothNativePoints(
+                        series.points,
+                        smoothingMinutes,
+                        smoothingMinutes > 0 && DataSmoothing.collapseChunks(context));
+                ArrayList<GlucosePoint> visiblePeerPoints = new ArrayList<>();
+                if (renderPeer != null) {
+                    for (GlucosePoint p : renderPeer) {
+                        if (p.timestamp >= startTime) {
+                            visiblePeerPoints.add(p);
+                        }
+                    }
+                }
+                if (visiblePeerPoints.size() >= 2) {
+                    visiblePeerSeries.add(new PeerSeries(
+                            series.sensorId,
+                            series.viewMode,
+                            series.color,
+                            visiblePeerPoints));
                 }
             }
         }
@@ -997,6 +1598,20 @@ public class NotificationChartDrawer {
                         targetLow,
                         targetHigh)
                 : Collections.emptyList();
+        // Peer prediction overlays — one per peer series, so the simulation
+        // extends every drawn line (matching the dashboard), not just the primary.
+        java.util.List<List<NotificationPredictionSeries>> peerPredictionSeries = new ArrayList<>();
+        if (showPredictionOverlay && peerSeries != null) {
+            for (PeerSeries ps : peerSeries) {
+                if (ps == null || ps.points == null || ps.points.size() < 2) {
+                    peerPredictionSeries.add(Collections.emptyList());
+                    continue;
+                }
+                peerPredictionSeries.add(resolvePredictionOverlay(
+                        context, ps.points, isMmol, ps.viewMode, false, ps.sensorId, targetLow, targetHigh));
+            }
+        }
+
         long chartEndTime = now;
         long predictionEnd = 0L;
         for (NotificationPredictionSeries series : predictionSeries) {
@@ -1006,6 +1621,17 @@ public class NotificationChartDrawer {
             NotificationPredictionPoint last = series.points.get(series.points.size() - 1);
             if (last != null) {
                 predictionEnd = Math.max(predictionEnd, last.timestamp);
+            }
+        }
+        for (List<NotificationPredictionSeries> peerList : peerPredictionSeries) {
+            for (NotificationPredictionSeries series : peerList) {
+                if (series == null || series.points == null || series.points.isEmpty()) {
+                    continue;
+                }
+                NotificationPredictionPoint last = series.points.get(series.points.size() - 1);
+                if (last != null) {
+                    predictionEnd = Math.max(predictionEnd, last.timestamp);
+                }
             }
         }
         if (predictionEnd > now) {
@@ -1068,6 +1694,20 @@ public class NotificationChartDrawer {
             if (showRaw && p.rawValue > 0) {
                 minY = Math.min(minY, p.rawValue);
                 maxY = Math.max(maxY, p.rawValue);
+            }
+        }
+        for (PeerSeries series : visiblePeerSeries) {
+            boolean peerAuto = showsAuto(series.viewMode);
+            boolean peerRaw = showsRaw(series.viewMode);
+            for (GlucosePoint p : series.points) {
+                if (peerAuto && p.value > 0) {
+                    minY = Math.min(minY, p.value);
+                    maxY = Math.max(maxY, p.value);
+                }
+                if (peerRaw && p.rawValue > 0) {
+                    minY = Math.min(minY, p.rawValue);
+                    maxY = Math.max(maxY, p.rawValue);
+                }
             }
         }
         for (NotificationPredictionSeries series : visiblePredictionSeries) {
@@ -1279,19 +1919,107 @@ public class NotificationChartDrawer {
             cal.add(Calendar.HOUR_OF_DAY, 1);
         }
 
-        // Draw auto line
-        if (showAuto && !visibleRenderPoints.isEmpty()) {
-            ArrayList<Long> timestamps = new ArrayList<>(visibleRenderPoints.size());
-            ArrayList<Float> values = new ArrayList<>(visibleRenderPoints.size());
-            for (GlucosePoint p : visibleRenderPoints) {
-                timestamps.add(p.timestamp);
-                values.add(p.value);
+        if (!visiblePeerSeries.isEmpty()) {
+            float primaryStrokeWidth = linePaint.getStrokeWidth();
+            linePaint.setStrokeWidth(primaryStrokeWidth * 0.78f);
+            for (PeerSeries series : visiblePeerSeries) {
+                boolean peerAuto = showsAuto(series.viewMode);
+                boolean peerRaw = showsRaw(series.viewMode);
+                if (peerRaw) {
+                    ArrayList<Long> timestamps = new ArrayList<>(series.points.size());
+                    ArrayList<Float> values = new ArrayList<>(series.points.size());
+                    for (GlucosePoint p : series.points) {
+                        timestamps.add(p.timestamp);
+                        values.add(p.rawValue);
+                    }
+                    drawSubtlePeerSeries(
+                            canvas,
+                            linePaint,
+                            timestamps,
+                            values,
+                            startTime,
+                            chartDuration,
+                            chartLeft,
+                            chartBottom,
+                            chartWidth,
+                            chartHeight,
+                            minY,
+                            yRange,
+                            targetLow,
+                            targetHigh,
+                            veryLowThreshold,
+                            veryHighThreshold,
+                            isMmol,
+                            series.color,
+                            isDark,
+                            peerPassAlpha(peerRaw, peerAuto, true));
+                }
+                if (peerAuto) {
+                    ArrayList<Long> timestamps = new ArrayList<>(series.points.size());
+                    ArrayList<Float> values = new ArrayList<>(series.points.size());
+                    for (GlucosePoint p : series.points) {
+                        timestamps.add(p.timestamp);
+                        values.add(p.value);
+                    }
+                    drawSubtlePeerSeries(
+                            canvas,
+                            linePaint,
+                            timestamps,
+                            values,
+                            startTime,
+                            chartDuration,
+                            chartLeft,
+                            chartBottom,
+                            chartWidth,
+                            chartHeight,
+                            minY,
+                            yRange,
+                            targetLow,
+                            targetHigh,
+                            veryLowThreshold,
+                            veryHighThreshold,
+                            isMmol,
+                            series.color,
+                            isDark,
+                            peerPassAlpha(peerRaw, peerAuto, false));
+                }
             }
-            drawSeries(
+            linePaint.setStrokeWidth(primaryStrokeWidth);
+        }
+
+        ArrayList<Long> autoTimestamps = null;
+        ArrayList<Float> autoValues = null;
+        ArrayList<Long> rawTimestamps = null;
+        ArrayList<Float> rawValues = null;
+        boolean drawAutoLine = showAuto && !visibleRenderPoints.isEmpty();
+        boolean drawRawLine = showRaw && !visibleRenderPoints.isEmpty();
+        boolean autoIsPrimary = autoColor == lineColor;
+        boolean rawIsPrimary = rawColor == lineColor;
+
+        if (drawAutoLine) {
+            autoTimestamps = new ArrayList<>(visibleRenderPoints.size());
+            autoValues = new ArrayList<>(visibleRenderPoints.size());
+            for (GlucosePoint p : visibleRenderPoints) {
+                autoTimestamps.add(p.timestamp);
+                autoValues.add(p.value);
+            }
+        }
+        if (drawRawLine) {
+            rawTimestamps = new ArrayList<>(visibleRenderPoints.size());
+            rawValues = new ArrayList<>(visibleRenderPoints.size());
+            for (GlucosePoint p : visibleRenderPoints) {
+                rawTimestamps.add(p.timestamp);
+                rawValues.add(p.rawValue);
+            }
+        }
+
+        // Draw companion auto/raw lines first so the primary line stays visually dominant.
+        if (drawAutoLine && !autoIsPrimary) {
+            drawNotificationSourceSeries(
                     canvas,
                     linePaint,
-                    timestamps,
-                    values,
+                    autoTimestamps,
+                    autoValues,
                     startTime,
                     chartDuration,
                     chartLeft,
@@ -1306,22 +2034,18 @@ public class NotificationChartDrawer {
                     veryHighThreshold,
                     isMmol,
                     autoColor,
-                    thresholdColorAuto);
+                    thresholdColorAuto,
+                    autoColor == lineColor ? primaryIdentityColor : 0,
+                    notificationLineAlpha(autoColor, lineColor, lineColorSecondary),
+                    notificationThresholdAlpha(autoColor, lineColor, lineColorSecondary),
+                    notificationStrokeScale(autoColor, lineColor, lineColorSecondary));
         }
-
-        // Draw raw line
-        if (showRaw && !visibleRenderPoints.isEmpty()) {
-            ArrayList<Long> timestamps = new ArrayList<>(visibleRenderPoints.size());
-            ArrayList<Float> values = new ArrayList<>(visibleRenderPoints.size());
-            for (GlucosePoint p : visibleRenderPoints) {
-                timestamps.add(p.timestamp);
-                values.add(p.rawValue);
-            }
-            drawSeries(
+        if (drawRawLine && !rawIsPrimary) {
+            drawNotificationSourceSeries(
                     canvas,
                     linePaint,
-                    timestamps,
-                    values,
+                    rawTimestamps,
+                    rawValues,
                     startTime,
                     chartDuration,
                     chartLeft,
@@ -1336,7 +2060,64 @@ public class NotificationChartDrawer {
                     veryHighThreshold,
                     isMmol,
                     rawColor,
-                    thresholdColorRaw);
+                    thresholdColorRaw,
+                    rawColor == lineColor ? primaryIdentityColor : 0,
+                    notificationLineAlpha(rawColor, lineColor, lineColorSecondary),
+                    notificationThresholdAlpha(rawColor, lineColor, lineColorSecondary),
+                    notificationStrokeScale(rawColor, lineColor, lineColorSecondary));
+        }
+
+        if (drawAutoLine && autoIsPrimary) {
+            drawNotificationSourceSeries(
+                    canvas,
+                    linePaint,
+                    autoTimestamps,
+                    autoValues,
+                    startTime,
+                    chartDuration,
+                    chartLeft,
+                    chartBottom,
+                    chartWidth,
+                    chartHeight,
+                    minY,
+                    yRange,
+                    targetLow,
+                    targetHigh,
+                    veryLowThreshold,
+                    veryHighThreshold,
+                    isMmol,
+                    autoColor,
+                    thresholdColorAuto,
+                    primaryIdentityColor,
+                    notificationLineAlpha(autoColor, lineColor, lineColorSecondary),
+                    notificationThresholdAlpha(autoColor, lineColor, lineColorSecondary),
+                    notificationStrokeScale(autoColor, lineColor, lineColorSecondary));
+        }
+        if (drawRawLine && rawIsPrimary) {
+            drawNotificationSourceSeries(
+                    canvas,
+                    linePaint,
+                    rawTimestamps,
+                    rawValues,
+                    startTime,
+                    chartDuration,
+                    chartLeft,
+                    chartBottom,
+                    chartWidth,
+                    chartHeight,
+                    minY,
+                    yRange,
+                    targetLow,
+                    targetHigh,
+                    veryLowThreshold,
+                    veryHighThreshold,
+                    isMmol,
+                    rawColor,
+                    thresholdColorRaw,
+                    primaryIdentityColor,
+                    notificationLineAlpha(rawColor, lineColor, lineColorSecondary),
+                    notificationThresholdAlpha(rawColor, lineColor, lineColorSecondary),
+                    notificationStrokeScale(rawColor, lineColor, lineColorSecondary));
         }
 
         // Draw Calibrated Line (Primary)
@@ -1359,7 +2140,7 @@ public class NotificationChartDrawer {
                 values.add(val);
             }
 
-            drawSeries(
+            drawNotificationSourceSeries(
                     canvas,
                     linePaint,
                     timestamps,
@@ -1378,7 +2159,11 @@ public class NotificationChartDrawer {
                     veryHighThreshold,
                     isMmol,
                     lineColor,
-                    thresholdColorCalibrated);
+                    thresholdColorCalibrated,
+                    primaryIdentityColor,
+                    DASHBOARD_PRIMARY_LINE_ALPHA,
+                    DASHBOARD_PRIMARY_THRESHOLD_ALPHA,
+                    DASHBOARD_PRIMARY_STROKE_SCALE);
         }
 
         for (NotificationPredictionSeries series : visiblePredictionSeries) {
@@ -1401,6 +2186,38 @@ public class NotificationChartDrawer {
                     chartHeight,
                     minY,
                     yRange);
+        }
+
+        // Peer prediction lines (subtle, desaturated peer color, no band).
+        for (int peerIdx = 0; peerIdx < peerPredictionSeries.size(); peerIdx++) {
+            if (peerSeries == null || peerIdx >= peerSeries.size()) {
+                break;
+            }
+            int peerColor = withAlpha(
+                    dashboardPeerLineBase(peerSeries.get(peerIdx).color, isDark),
+                    DASHBOARD_PEER_LINE_ALPHA);
+            for (NotificationPredictionSeries series : peerPredictionSeries.get(peerIdx)) {
+                drawPredictionSeries(
+                        canvas,
+                        linePaint,
+                        dm,
+                        series,
+                        isMmol,
+                        peerSeries.get(peerIdx).viewMode,
+                        false,
+                        peerColor,
+                        peerColor,
+                        peerColor,
+                        startTime,
+                        chartDuration,
+                        chartLeft,
+                        chartBottom,
+                        chartWidth,
+                        chartHeight,
+                        minY,
+                        yRange,
+                        true);
+            }
         }
 
         return bitmap;

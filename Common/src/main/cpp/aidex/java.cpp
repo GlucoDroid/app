@@ -26,6 +26,11 @@ static bool prepareAidexStore(jlong dataptr, jlong mmsec, jfloat glucose,
     LOGAR("aidex store SensorGlucoseData==null");
     return false;
   }
+  auto *info = sens->getinfo();
+  if (!info) {
+    LOGAR("aidex store info==null");
+    return false;
+  }
 
   timsec = mmsec / 1000L;
   internalVal = (glucose > 0) ? (int)std::round(glucose) : 0;
@@ -36,11 +41,22 @@ static bool prepareAidexStore(jlong dataptr, jlong mmsec, jfloat glucose,
   }
 
   id = 0;
-  uint32_t start = sens->getinfo()->starttime;
+  uint32_t start = info->starttime;
   if (start > 0 && timsec >= start) {
     id = (timsec - start + 30) / 60;
   } else {
-    id = sens->getinfo()->pollcount;
+    id = info->pollcount;
+  }
+  return true;
+}
+
+static bool aidexStoreIndexInRange(const char *caller, SensorGlucoseData *sens,
+                                   int id, uint32_t timsec) {
+  const int maxpos = sens ? sens->maxstreampos() : 0;
+  if (id < 0 || id >= maxpos) {
+    LOGGER("%s: rejected id=%d timsec=%u max=%d\n", caller, id, timsec,
+           maxpos);
+    return false;
   }
   return true;
 }
@@ -74,6 +90,9 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
 
   // Unified persistence: store in both stream and history
   // Using 60 seconds interval for AiDex
+  if (!aidexStoreIndexInRange("aidexProcessData", sens, id, timsec)) {
+    return 0LL;
+  }
   sens->savepollallIDs<60>(timsec, id, internalVal, 0, change, rawVal);
 
   // Trigger UI and Notification sync
@@ -108,6 +127,9 @@ extern "C" JNIEXPORT void JNICALL fromjava(aidexStoreHistoryData)(
     return;
   }
 
+  if (!aidexStoreIndexInRange("aidexStoreHistoryData", sens, id, timsec)) {
+    return;
+  }
   sens->savepollallIDsQuiet<60>(timsec, id, internalVal, 0, NAN, rawVal);
 }
 
@@ -130,11 +152,11 @@ extern "C" JNIEXPORT void JNICALL fromjava(aidexSetStartTime)(JNIEnv *env,
     } else {
       info->starttime = newstart;
     }
-    if (info->days < 10 || info->days > maxdays) {
-      info->days = 15;
-    }
-    if (!info->wearduration2) {
+    if (info->days >= 10 && info->days <= maxdays && !info->wearduration2) {
       info->wearduration2 = static_cast<uint16_t>(info->days * 24 * 60);
+    } else if (info->days < 10 || info->days > maxdays) {
+      LOGGER("aidexSetStartTime: wear days unknown days=%u wear=%u\n",
+             info->days, info->wearduration2);
     }
     LOGGER("aidexSetStartTime: %ld -> starttime=%u days=%u wear=%u\n", timeMs,
            info->starttime, info->days, info->wearduration2);

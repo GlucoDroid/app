@@ -33,6 +33,7 @@ import tk.glucodata.GlucosePoint
 import tk.glucodata.Natives
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.NotificationChartDrawer
+import tk.glucodata.NotificationMultiSensorSource
 import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
@@ -56,7 +57,6 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var currentLuxAlpha = 1.0f // Default to full brightness
     private var cachedBaseOpacity = 1.0f // Cached from preferences
-    private var prefs: android.content.SharedPreferences? = null
 
     // State for AOD behavior
     private var isScreenOn = true
@@ -110,16 +110,46 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     isScreenOn = true
+                    // Immediately check keyguard state - faster than waiting for USER_PRESENT
                     checkAndUpdateLockState()
+                    // Also schedule quick rechecks to catch unlock faster
+                    scheduleQuickLockCheck()
                 }
                 Intent.ACTION_USER_PRESENT -> {
+                    // User fully unlocked - guaranteed hide
                     isLocked = false
                     updateVisibility()
+                    cancelQuickLockCheck()
                 }
             }
         }
     }
     
+    private val quickLockCheckRunnable = object : Runnable {
+        private var checkCount = 0
+        override fun run() {
+            checkAndUpdateLockState()
+            checkCount++
+            // Keep checking for up to 2 seconds after screen on (20 checks @ 100ms)
+            if (isLocked && checkCount < 20) {
+                handler.postDelayed(this, 100L)
+            } else {
+                checkCount = 0
+            }
+        }
+        fun reset() { checkCount = 0 }
+    }
+    
+    private fun scheduleQuickLockCheck() {
+        quickLockCheckRunnable.reset()
+        handler.removeCallbacks(quickLockCheckRunnable)
+        handler.postDelayed(quickLockCheckRunnable, 100L)
+    }
+    
+    private fun cancelQuickLockCheck() {
+        handler.removeCallbacks(quickLockCheckRunnable)
+    }
+
     private fun resolveDeviceLocked(): Boolean {
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
         return keyguardManager.isDeviceLocked || keyguardManager.isKeyguardLocked
@@ -248,8 +278,8 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             } catch (e: Exception) {}
             chooseOverlayPosition()
         }
-        prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
-        cachedBaseOpacity = prefs!!.getFloat("aod_opacity", 1.0f)
+        val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+        cachedBaseOpacity = prefs.getFloat("aod_opacity", 1.0f)
         updateOverlayContent()
         applyBurnInProtection(force = true)
         handler.removeCallbacks(updateRunnable)
@@ -285,7 +315,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     }
 
     private fun chooseOverlayPosition() {
-        val prefs = prefs ?: getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
         val positions = prefs.getStringSet("aod_positions", setOf("TOP")) ?: setOf("TOP")
         val activePositions = if (positions.isNotEmpty()) positions.toList() else listOf("TOP")
         currentOverlayPosition = activePositions.random()
@@ -299,7 +329,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val view = overlayView ?: return
         val p = params ?: return
         
-        val prefs = prefs ?: getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
         val opacity = prefs.getFloat("aod_opacity", 1.0f)
         val textScale = prefs.getFloat("aod_text_scale", 1.0f)
         val chartScale = prefs.getFloat("aod_chart_scale", 1.5f)
@@ -414,7 +444,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             }
         }
 
-        val prefs = prefs ?: getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
         val showSecondary = prefs.getBoolean("aod_show_secondary", false)
         // Current Value
         var glvalue = 0f
@@ -447,6 +477,21 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         val displayRate = DisplayTrendSource.resolveArrowRate(overlayChartPoints, resolvedDisplay, viewMode, isMmol)
 
         val glucoseColor = NotificationChartDrawer.getGlucoseColor(this, glvalue, isMmol)
+        val peerCurrents = NotificationMultiSensorSource.peerCurrents(
+            tk.glucodata.Notify.glucosetimeout,
+            activeSensorSerial
+        )
+        val peerValueItems = NotificationMultiSensorSource.valueItems(peerCurrents)
+        // Match the dashboard: tint the primary value/arrow with its identity color.
+        val primaryDisplayColor = if (peerValueItems.isNotEmpty()) {
+            tk.glucodata.SensorVisuals.blendArgb(
+                glucoseColor,
+                tk.glucodata.SensorVisuals.colorArgb(activeSensorSerial),
+                tk.glucodata.SensorVisuals.PRIMARY_TEXT_BLEND
+            )
+        } else {
+            glucoseColor
+        }
 
         // Draw Components
         val fontSource = prefs.getString("aod_font_source", "APP") ?: "APP"
@@ -458,22 +503,35 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
         // Arrow Settings
         val showArrow = prefs.getBoolean("aod_show_arrow", true)
         val arrowScale = prefs.getFloat("aod_arrow_scale", 2.0f)
+        // Multi-sensor: arrows render inline next to each value; the external
+        // arrow view would visually attach to the last peer value otherwise.
+        val inlineMultiArrows = showArrow && peerValueItems.isNotEmpty()
 
         // Use textScale here for high-res bitmap generation
-        val textBitmap = NotificationChartDrawer.drawGlucoseText(this, valStr, glucoseColor, textScale, fontWeight, useSystemFont)
+        val textBitmap = NotificationChartDrawer.drawMultiGlucoseText(
+            this,
+            valStr,
+            primaryDisplayColor,
+            peerValueItems,
+            textScale,
+            fontWeight,
+            useSystemFont,
+            if (inlineMultiArrows) displayRate else Float.NaN,
+            isMmol,
+            1.0f
+        )
         val textImg = view.findViewById<ImageView>(R.id.notification_glucose)
         textImg?.setImageBitmap(textBitmap)
 
         // Pass combined scale to arrow
         val arrowImg = view.findViewById<ImageView>(R.id.notification_arrow)
-        if (showArrow) {
+        if (showArrow && !inlineMultiArrows) {
             val arrowBitmap = NotificationChartDrawer.drawArrow(
                 this,
                 displayRate,
                 isMmol,
                 glucoseColor,
-                textScale * arrowScale,
-                true
+                textScale * arrowScale
             )
             arrowImg?.setImageBitmap(arrowBitmap)
             arrowImg?.visibility = View.VISIBLE
@@ -491,6 +549,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             val baseChartHeightPx = (200 * dm.density).toInt()
             val renderWidth = (dm.widthPixels * 1.5f).toInt()
             val renderHeight = (baseChartHeightPx * 1.5f).toInt()
+            val peerChartSeries = NotificationMultiSensorSource.peerSeries(peerCurrents, startT, isMmol)
 
             val chartBitmap = NotificationChartDrawer.drawChartWithPrediction(
                 this,
@@ -501,7 +560,9 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
                 viewMode,
                 true,
                 hasCalibration,
-                activeSensorSerial
+                false,
+                activeSensorSerial,
+                peerChartSeries
             )
             if (chartImg != null) {
                 chartImg.layoutParams = chartImg.layoutParams?.also { params ->
@@ -542,6 +603,7 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
             val packageName = event.packageName?.toString()
             if (isScreenOn && packageName != null && !isLockscreenPackage(packageName)) {
                 isLocked = false
+                cancelQuickLockCheck()
                 updateVisibility()
             } else {
                 checkAndUpdateLockState()

@@ -33,14 +33,20 @@ class AlarmActionReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_DISMISS -> {
                 Log.i(LOG_ID, "Dismiss action received for alert type: $resolvedAlertType")
+                Notify.cancelQueuedAlarmActivityLaunch(
+                    Notify.resolveAlertKind(fallbackAlertTypeId),
+                    customAlertId,
+                    "notification-dismiss"
+                )
                 Notify.stopalarm()
                 if (customAlertId != null) {
                     CustomAlertManager.dismissAlert(customAlertId)
                 } else {
-                    Notify.cancelCurrentRetrySession("notification-dismiss")
                     resolvedAlertType?.let {
-                        SnoozeManager.clearSnooze(it)
-                        AlertStateTracker.onAlertDismissed(it)
+                        if (AlertStateTracker.onAlertDismissed(it)) {
+                            SnoozeManager.clearSnooze(it)
+                            Notify.cancelCurrentRetrySession("notification-dismiss")
+                        }
                     }
                 }
                 Notify.cancelAlertNotification()
@@ -48,6 +54,11 @@ class AlarmActionReceiver : BroadcastReceiver() {
             
             ACTION_SNOOZE -> {
                 Log.i(LOG_ID, "Snooze action received for alert type: $resolvedAlertType")
+                Notify.cancelQueuedAlarmActivityLaunch(
+                    Notify.resolveAlertKind(fallbackAlertTypeId),
+                    customAlertId,
+                    "notification-snooze"
+                )
                 
                 // Get snooze duration (from intent or default from config)
                 val snoozeMinutes = if (intent.hasExtra(EXTRA_SNOOZE_MINUTES)) {
@@ -58,24 +69,37 @@ class AlarmActionReceiver : BroadcastReceiver() {
                     resolvedAlertType?.let { AlertRepository.loadConfig(it).defaultSnoozeMinutes } ?: 15
                 }
                 
+                var productionAction = true
                 if (customAlertId != null) {
                     CustomAlertManager.snoozeAlert(customAlertId, snoozeMinutes)
                     Notify.cancelCurrentRetrySession("notification-snooze-custom-before-stop")
                 } else {
-                    resolvedAlertType?.let {
-                        SnoozeManager.snooze(it, snoozeMinutes)
-                        AlertStateTracker.resetState(it)
-                        Log.i(LOG_ID, "Snoozed ${it.name} for $snoozeMinutes minutes")
+                    productionAction = resolvedAlertType?.let {
+                        !AlertStateTracker.consumeManualTestAction(it)
+                    } ?: true
+                    if (productionAction) {
+                        resolvedAlertType?.let {
+                            SnoozeManager.snooze(it, snoozeMinutes)
+                            AlertStateTracker.resetState(it)
+                            Log.i(LOG_ID, "Snoozed ${it.name} for $snoozeMinutes minutes")
+                        }
+                        Notify.cancelCurrentRetrySession("notification-snooze-before-stop")
                     }
-                    Notify.cancelCurrentRetrySession("notification-snooze-before-stop")
                 }
                 Notify.stopalarm()
-                Notify.cancelCurrentRetrySession("notification-snooze-after-stop")
+                if (productionAction) {
+                    Notify.cancelCurrentRetrySession("notification-snooze-after-stop")
+                }
                 Notify.cancelAlertNotification()
             }
 
             ACTION_IGNORE -> {
                 Log.i(LOG_ID, "Ignore action received for alert type: $resolvedAlertType")
+                Notify.cancelQueuedAlarmActivityLaunch(
+                    Notify.resolveAlertKind(fallbackAlertTypeId),
+                    customAlertId,
+                    "notification-ignore"
+                )
                 Notify.stopalarm()
                 if (customAlertId != null) {
                     CustomAlertManager.ignoreAlert(customAlertId)

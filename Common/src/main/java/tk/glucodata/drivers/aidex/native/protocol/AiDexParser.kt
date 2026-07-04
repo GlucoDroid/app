@@ -274,6 +274,17 @@ object AiDexParser {
         )
     }
 
+    fun parseStartupDeviceInfoFrame(
+        frame: ByteArray,
+        payloadEndExclusive: Int = frame.size,
+    ): StartupDeviceInfo? {
+        if (payloadEndExclusive <= 1 || payloadEndExclusive > frame.size) return null
+        val payload = frame.copyOfRange(1, payloadEndExclusive)
+        parseStartupDeviceInfoPayload(payload)?.let { return it }
+        if (payloadEndExclusive <= 2) return null
+        return parseStartupDeviceInfoPayload(frame.copyOfRange(2, payloadEndExclusive))
+    }
+
     /**
      * Parse a local/session start-time payload.
      *

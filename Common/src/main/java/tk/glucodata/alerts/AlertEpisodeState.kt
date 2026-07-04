@@ -10,48 +10,50 @@ package tk.glucodata.alerts
  */
 internal class AlertEpisodeState<T> {
     private val active = mutableSetOf<T>()
-    private val pendingAfterSnooze = mutableSetOf<T>()
+    private val pendingDelivery = mutableSetOf<T>()
 
     fun update(activeNow: Set<T>): AlertEpisodeTransition<T> {
         val entered = activeNow.filterTo(mutableSetOf()) { it !in active }
         val cleared = active.filterTo(mutableSetOf()) { it !in activeNow }
         active.clear()
         active.addAll(activeNow)
-        pendingAfterSnooze.retainAll(active)
+        pendingDelivery.retainAll(active)
         return AlertEpisodeTransition(
             entered = entered,
             cleared = cleared,
-            pendingAfterSnooze = pendingAfterSnooze.toSet()
+            pendingDelivery = pendingDelivery.toSet()
         )
     }
 
-    fun markPendingAfterSnooze(key: T) {
+    fun markPendingDelivery(key: T) {
         if (key in active) {
-            pendingAfterSnooze.add(key)
+            pendingDelivery.add(key)
         }
     }
 
     fun clearPending(key: T) {
-        pendingAfterSnooze.remove(key)
+        pendingDelivery.remove(key)
     }
 
     fun clear(key: T) {
         active.remove(key)
-        pendingAfterSnooze.remove(key)
+        pendingDelivery.remove(key)
     }
 
     fun clearAll() {
         active.clear()
-        pendingAfterSnooze.clear()
+        pendingDelivery.clear()
     }
+
+    fun isActive(key: T): Boolean = key in active
 }
 
 internal data class AlertEpisodeTransition<T>(
     val entered: Set<T>,
     val cleared: Set<T>,
-    val pendingAfterSnooze: Set<T>
+    val pendingDelivery: Set<T>
 ) {
     fun shouldTryFire(key: T): Boolean {
-        return key in entered || key in pendingAfterSnooze
+        return key in entered || key in pendingDelivery
     }
 }

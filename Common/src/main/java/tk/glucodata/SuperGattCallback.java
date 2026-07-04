@@ -35,9 +35,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import tk.glucodata.alerts.AlertConfig;
-import tk.glucodata.alerts.AlertRepository;
-import tk.glucodata.alerts.AlertType;
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver;
 
 import static android.bluetooth.BluetoothDevice.BOND_BONDED;
@@ -57,7 +54,6 @@ import static tk.glucodata.Log.showbytes;
 import static tk.glucodata.Natives.thresholdchange;
 import static tk.glucodata.SensorBluetooth.blueone;
 
-@SuppressLint("MissingPermission")
 public abstract class SuperGattCallback extends BluetoothGattCallback {
     volatile protected boolean stop = false;
     public static boolean doWearInt = false;
@@ -202,8 +198,44 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     long showtime = Notify.glucosetimeout;
     static long lastfoundL = 0L;
 
+    private static final Object realtimeReadingOrderLock = new Object();
+    private static String realtimeReadingSensorId = null;
+    private static long realtimeReadingTimeMs = 0L;
+
     static long lastfound() {
         return lastfoundL;
+    }
+
+    private static boolean acceptRealtimeReading(String sensorId, long readingTimeMs) {
+        synchronized (realtimeReadingOrderLock) {
+            final boolean sameInMemorySensor = realtimeReadingSensorId != null
+                    && SensorIdentity.matches(sensorId, realtimeReadingSensorId);
+            final long inMemoryHighWaterMs = sameInMemorySensor ? realtimeReadingTimeMs : 0L;
+
+            long nativeHighWaterMs = 0L;
+            try {
+                final String nativeMainSensor = Natives.lastsensorname();
+                if (nativeMainSensor != null && SensorIdentity.matches(sensorId, nativeMainSensor)) {
+                    nativeHighWaterMs = Natives.lastglucosetime();
+                }
+            } catch (Throwable error) {
+                Log.stack(LOG_ID, "acceptRealtimeReading", error);
+            }
+
+            if (!RealtimeReadingPolicy.shouldDispatch(readingTimeMs, inMemoryHighWaterMs, nativeHighWaterMs)) {
+                if (doLog) {
+                    Log.w(LOG_ID, "Ignoring stale realtime callback sensor=" + sensorId
+                            + " time=" + readingTimeMs
+                            + " inMemoryHighWater=" + inMemoryHighWaterMs
+                            + " nativeHighWater=" + nativeHighWaterMs);
+                }
+                return false;
+            }
+
+            realtimeReadingSensorId = sensorId;
+            realtimeReadingTimeMs = Math.max(readingTimeMs, inMemoryHighWaterMs);
+            return true;
+        }
     }
 
     private static long[] nextalarm = new long[10];
@@ -251,11 +283,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     }
 
     static final int mininterval = 55;
-    volatile static long nexttime = 0L; // secs
+    static long nexttime = 0L; // secs
     public static tk.glucodata.GlucoseAlarms glucosealarms = null;
-    public volatile static notGlucose previousglucose = null;
-    volatile static float previousglucosevalue = 0.0f;
-    public volatile static String previousglucosesensorid = null;
+    public static notGlucose previousglucose = null;
+    static float previousglucosevalue = 0.0f;
+    public static String previousglucosesensorid = null;
     private static final ConcurrentHashMap<String, Long> lastCollapsedExchangeTimeMs = new ConcurrentHashMap<>();
 
     private static boolean shouldEmitExchangeUpdate(String sensorId, long payloadTimeMs, boolean collapseChunks) {
@@ -474,6 +506,14 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             return;
         }
 
+        // History/replay rows are already persisted before this method. They must not
+        // move notifications, glucose alerts, or the signal-loss deadline backwards.
+        if (!acceptRealtimeReading(SerialNumber, timmsec)) {
+            Applic.updatescreen();
+            UiRefreshBus.requestDataRefresh();
+            return;
+        }
+
         glucosealarms.setagealarm(timmsec, showtime);
         final var alertEvaluation = tk.glucodata.alerts.AlertRuntimeManager.INSTANCE.onNewReading(SerialNumber,
                 gl, rate, timmsec, sensorgen);
@@ -486,7 +526,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         previousglucose = sglucose;
         previousglucosevalue = gl;
         previousglucosesensorid = SerialNumber;
-        Applic.app.sendBroadcast(new Intent("tk.glucodata.action.AOD_IMMEDIATE_REFRESH").setPackage(Applic.app.getPackageName()));
+        Applic.app.sendBroadcast(new Intent("tk.glucodata.action.AOD_IMMEDIATE_REFRESH"));
         final var fview = Floating.floatview;
         // MainActivity.showmessage=null;
         final boolean alarmSpeechStarted = glucoseAlertStarted && !DontTalk && Natives.speakalarms();
@@ -538,14 +578,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
         if (!DontTalk) {
             if (dotalk && !alarmSpeechStarted) {
-                long readingAgeMs = System.currentTimeMillis() - timmsec;
-                if (readingAgeMs > Notify.glucosetimeout) {
-                    if (AlertRepository.INSTANCE.loadConfig(AlertType.MISSED_READING).getEnabled()) {
-                        talker.selspeak(Applic.app.getString(R.string.tts_missed_readings));
-                    }
-                } else {
-                    talker.selspeak(sglucose.value);
-                }
+                talker.selspeak(sglucose.value);
             }
         }
         if (isWearable) {

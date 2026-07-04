@@ -95,7 +95,9 @@ object ICanHealthConstants {
     /** mmol/L to mg/dL conversion factor (exact) */
     const val MMOL_TO_MGDL: Float = 18.0182f
     const val MIN_VALID_GLUCOSE_MGDL = 10f
-    const val MAX_VALID_GLUCOSE_MGDL = 500f
+    // Keep iCan aligned with the native stream validator (<552 mg/dL). Values
+    // above the normal display maximum still render as HI instead of no data.
+    const val MAX_VALID_GLUCOSE_MGDL = 551f
 
     private enum class BundledKeyFamily {
         OLD,
@@ -203,11 +205,7 @@ object ICanHealthConstants {
 
     @JvmStatic
     fun normalizeOnboardingDeviceSn(source: String?): String {
-        val sanitized = source
-            ?.trim()
-            ?.uppercase(Locale.US)
-            ?.filter { it.isLetterOrDigit() }
-            .orEmpty()
+        val sanitized = sanitizeSensorIdentity(source)
         if (sanitized.isEmpty()) {
             return ""
         }
@@ -216,6 +214,41 @@ object ICanHealthConstants {
         }
         return sanitized
     }
+
+    /**
+     * The launcher QR and DIS serial are different representations of the same
+     * physical sensor identity. The vendor launcher uses the leading 8 or 9
+     * characters as its short serial, depending on the active-code family.
+     */
+    @JvmStatic
+    fun onboardingIdentityPrefix(source: String?): String {
+        val normalized = normalizeOnboardingDeviceSn(source)
+        return deriveShortSnFromActiveCode(normalized)
+    }
+
+    @JvmStatic
+    fun matchesOnboardingIdentity(onboardingDeviceSn: String?, deviceSerial: String?): Boolean {
+        val expected = normalizeOnboardingDeviceSn(onboardingDeviceSn)
+        val observed = sanitizeSensorIdentity(deviceSerial)
+        if (expected.isEmpty() || observed.isEmpty()) {
+            return false
+        }
+        val prefix = deriveShortSnFromActiveCode(expected)
+        if (prefix.length < 8) {
+            return false
+        }
+        if (expected == observed) {
+            return true
+        }
+        return observed.startsWith(prefix)
+    }
+
+    private fun sanitizeSensorIdentity(source: String?): String =
+        source
+            ?.trim()
+            ?.uppercase(Locale.US)
+            ?.filter { it.isLetterOrDigit() }
+            .orEmpty()
 
     private fun deriveShortSnFromActiveCode(activeCode: String): String {
         if (activeCode.length < 12) {
@@ -261,6 +294,27 @@ object ICanHealthConstants {
     fun isEndedStatusSequenceCap(state: Int, sequenceNumber: Int): Boolean =
         state == LAUNCHER_STATE_ENDED &&
             sequenceNumber >= LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES
+
+    internal fun endedStatusEndTimestampMs(sessionStartEpochMs: Long, sequenceNumber: Int): Long? {
+        if (sessionStartEpochMs <= 0L || sequenceNumber < LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES) {
+            return null
+        }
+        val endedSequence = sequenceNumber.coerceAtLeast(LAUNCHER_ENDED_STATUS_SEQUENCE_CAP_MINUTES)
+        return sessionStartEpochMs + endedSequence.toLong() * 60_000L
+    }
+
+    internal fun hasCompleteEndedStatusHistory(
+        sessionStartEpochMs: Long,
+        sequenceNumber: Int,
+        tailTimestampMs: Long,
+        toleranceMs: Long,
+    ): Boolean {
+        if (tailTimestampMs <= 0L) {
+            return false
+        }
+        val endTimestampMs = endedStatusEndTimestampMs(sessionStartEpochMs, sequenceNumber) ?: return false
+        return tailTimestampMs >= endTimestampMs - toleranceMs.coerceAtLeast(0L)
+    }
 
     const val RACP_RESULT_SUCCESS = 0x01
     const val RACP_RESULT_NOT_SUPPORTED = 0x02
