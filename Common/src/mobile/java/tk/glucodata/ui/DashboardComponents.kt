@@ -107,6 +107,7 @@ import androidx.compose.ui.unit.lerp
 import kotlin.math.cos
 import kotlin.math.sin
 import tk.glucodata.R
+import tk.glucodata.SensorIdentity
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.DisplayDataState
@@ -649,6 +650,7 @@ fun DashboardCombinedHeader(
                         if (peerReadings.isNotEmpty()) {
                             DashboardHeroPeerStrip(
                                 peerReadings = peerReadings,
+                                selectedSensorIds = activeSensors,
                                 contentColor = glucoseContentColor,
                                 onPeerClick = onPeerReadingClick,
                                 modifier = Modifier.padding(top = 4.dp)
@@ -697,6 +699,7 @@ fun DashboardCombinedHeader(
                         if (peerReadings.isNotEmpty()) {
                             DashboardHeroPeerStrip(
                                 peerReadings = peerReadings,
+                                selectedSensorIds = activeSensors,
                                 contentColor = glucoseContentColor,
                                 onPeerClick = onPeerReadingClick,
                                 modifier = Modifier.padding(top = 4.dp)
@@ -803,12 +806,22 @@ fun DashboardCombinedHeader(
                             // Active Indicators (Dots) - Right of Name
                             // Hidden if only 1 active sensor
                             if (activeSensors.size > 1) {
+                                val selectedSensorColors = remember(activeSensors) {
+                                    tk.glucodata.SensorVisuals.distinctColorArgbMap(activeSensors)
+                                }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 activeSensors.forEach { serial ->
                                      Box(
                                          modifier = Modifier
                                              .size(6.dp)
-                                             .background(tk.glucodata.ui.viewmodel.SensorColors.getColor(serial), androidx.compose.foundation.shape.CircleShape)
+                                             .background(
+                                                 Color(
+                                                     selectedSensorColors.entries.firstOrNull { (selected, _) ->
+                                                         tk.glucodata.SensorIdentity.matches(selected, serial)
+                                                     }?.value ?: tk.glucodata.SensorVisuals.colorArgb(serial)
+                                                 ),
+                                                 androidx.compose.foundation.shape.CircleShape
+                                             )
                                      )
                                      Spacer(modifier = Modifier.width(4.dp))
                                 }
@@ -939,6 +952,7 @@ private fun DashboardHeroPrimaryText(
 @Composable
 private fun DashboardHeroPeerStrip(
     peerReadings: List<tk.glucodata.ui.viewmodel.DashboardViewModel.PeerCurrentReading>,
+    selectedSensorIds: List<String>,
     contentColor: Color,
     onPeerClick: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -948,8 +962,17 @@ private fun DashboardHeroPeerStrip(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val selectedColors = remember(selectedSensorIds, peerReadings) {
+            tk.glucodata.SensorVisuals.distinctColorArgbMap(
+                selectedSensorIds.ifEmpty { peerReadings.map { it.sensorId } }
+            )
+        }
         peerReadings.forEach { peer ->
-            val identityColor = tk.glucodata.ui.viewmodel.SensorColors.getColor(peer.sensorId)
+            val identityColor = Color(
+                selectedColors.entries.firstOrNull { (selected, _) ->
+                    tk.glucodata.SensorIdentity.matches(selected, peer.sensorId)
+                }?.value ?: tk.glucodata.SensorVisuals.colorArgb(peer.sensorId)
+            )
             val textColor = lerpColor(contentColor, identityColor, tk.glucodata.SensorVisuals.PEER_TEXT_BLEND)
             val velocity = if (peer.rate.isFinite()) peer.rate else 0f
             val peerTrend = remember(peer.sensorId, velocity) {
@@ -1538,6 +1561,7 @@ private fun SwipeableDeleteRow(
 fun CalibrationsCard(
     viewMode: Int,
     isMmol: Boolean,
+    sensorId: String,
     showEmptyAction: Boolean = true,
     onAddCalibration: () -> Unit,
     onEditCalibration: (tk.glucodata.data.calibration.CalibrationEntity) -> Unit,
@@ -1549,14 +1573,17 @@ fun CalibrationsCard(
     // Collect calibrations and enable state
     val allCalibrations by tk.glucodata.data.calibration.CalibrationManager.getCalibrationsFlow()?.collectAsState(initial = tk.glucodata.data.calibration.CalibrationManager.getCachedCalibrations())
         ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(tk.glucodata.data.calibration.CalibrationManager.getCachedCalibrations()) }
-    val currentSensor = tk.glucodata.Natives.lastsensorname() ?: ""
+    val currentSensor = SensorIdentity.resolveAppSensorId(sensorId) ?: sensorId
     val calibrations = allCalibrations.filter {
-        it.isRawMode == isRawMode && (it.sensorId == currentSensor || it.sensorId.isEmpty())
+        currentSensor.isNotBlank() &&
+            it.isRawMode == isRawMode &&
+            tk.glucodata.data.calibration.CalibrationManager.calibrationMatchesSensor(it.sensorId, currentSensor)
     }
     
-    val isEnabledForRaw by tk.glucodata.data.calibration.CalibrationManager.isEnabledForRaw.collectAsState()
-    val isEnabledForAuto by tk.glucodata.data.calibration.CalibrationManager.isEnabledForAuto.collectAsState()
-    val isCalibrationEnabled = if (isRawMode) isEnabledForRaw else isEnabledForAuto
+    val calibrationRevision by tk.glucodata.data.calibration.CalibrationManager.revision.collectAsState()
+    val isCalibrationEnabled = remember(isRawMode, currentSensor, calibrationRevision) {
+        tk.glucodata.data.calibration.CalibrationManager.isEnabledForMode(isRawMode, currentSensor)
+    }
     
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val dateFormatter = androidx.compose.runtime.remember { java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()) }
@@ -1679,7 +1706,7 @@ fun CalibrationsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { 
-                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, !isCalibrationEnabled) 
+                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, !isCalibrationEnabled, currentSensor)
                     }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1701,7 +1728,7 @@ fun CalibrationsCard(
                 androidx.compose.material3.Switch(
                     checked = isCalibrationEnabled,
                     onCheckedChange = { enabled ->
-                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, enabled)
+                        tk.glucodata.data.calibration.CalibrationManager.setEnabledForMode(isRawMode, enabled, currentSensor)
                     },
                     thumbContent = if (isCalibrationEnabled) {
                         {

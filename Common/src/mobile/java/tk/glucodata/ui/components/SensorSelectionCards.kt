@@ -151,6 +151,15 @@ fun SensorSelectionCards(
                 onClick = { onSensorSelected(SensorType.MQ) },
                 compact = compact
             )
+            SensorCard(
+                icon = Icons.Default.Bluetooth,
+                title = stringResource(R.string.ottai_sensor),
+                subtitle = stringResource(R.string.ottai_sensor_desc),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                onClick = { onSensorSelected(SensorType.OTTAI) },
+                compact = compact
+            )
 
 
             // Accu-Chek SmartGuide

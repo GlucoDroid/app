@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
+import tk.glucodata.DashboardChartColors
 
 enum class ThemeMode {
     SYSTEM, LIGHT, DARK
@@ -68,6 +69,13 @@ fun JugglucoTheme(
     }
 
     val view = LocalView.current
+    SideEffect {
+        DashboardChartColors.update(
+            darkTheme = darkTheme,
+            primary = colorScheme.primary.toArgb(),
+            onSurfaceVariant = colorScheme.onSurfaceVariant.toArgb()
+        )
+    }
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window

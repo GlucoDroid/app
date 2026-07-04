@@ -1010,9 +1010,6 @@ private fun AlertCard(
                         isMmol = isMmol,
                         onConfigChange = onConfigChange,
                         onTest = {
-                            // Explicitly reset state for TEST to ensure it always fires
-                            // (ignoring previous triggers or suppressed state)
-                            AlertStateTracker.resetState(config.type)
                             // Use Notify.testTrigger to simulate real alarm flow
                             Notify.testTrigger(config.type.id)
                         },

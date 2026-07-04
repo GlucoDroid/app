@@ -25,6 +25,7 @@ import tk.glucodata.UiRefreshBus
 import tk.glucodata.data.HistoryRepository
 import tk.glucodata.data.calibration.CalibrationManager
 import tk.glucodata.drivers.ManagedSensorRuntime
+import tk.glucodata.drivers.ManagedSensorViewModeStore
 import tk.glucodata.drivers.anytime.AnytimeRegistry
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.DisplayValueResolver
@@ -61,6 +62,7 @@ class StatsViewModel : ViewModel() {
     private data class StatsDisplayHistoryCacheKey(
         val historySignature: StatsHistorySignature,
         val viewMode: Int,
+        val sensorModesHash: Long,
         val unit: GlucoseUnit,
         val calibrationRevision: Long,
         val activeSerial: String?
@@ -69,6 +71,7 @@ class StatsViewModel : ViewModel() {
     private data class StatsRangeProjectionCacheKey(
         val historySignature: StatsHistorySignature,
         val viewMode: Int,
+        val sensorModesHash: Long,
         val unit: GlucoseUnit,
         val calibrationRevision: Long,
         val activeSerial: String?,
@@ -109,6 +112,7 @@ class StatsViewModel : ViewModel() {
     private var historyWindowStartMs: Long = Long.MAX_VALUE
     private var cachedTemperatureSerial: String? = null
     private var cachedTemperaturePoints: List<TemperaturePoint> = emptyList()
+    private var cachedTemperatureHistoryStartMs: Long = Long.MAX_VALUE
     private var lastTemperatureRefreshMs: Long = 0L
     private var availableRangeJob: Job? = null
     @Volatile private var statsDisplayHistoryCacheKey: StatsDisplayHistoryCacheKey? = null
@@ -264,6 +268,10 @@ class StatsViewModel : ViewModel() {
                 _viewMode.value = 0
                 activeSerial = null
                 historyWindowStartMs = Long.MAX_VALUE
+                cachedTemperatureSerial = null
+                cachedTemperaturePoints = emptyList()
+                cachedTemperatureHistoryStartMs = Long.MAX_VALUE
+                lastTemperatureRefreshMs = 0L
                 historyJob?.cancel()
                 availableRangeJob?.cancel()
                 return@launch
@@ -380,19 +388,28 @@ class StatsViewModel : ViewModel() {
         )
     }
 
-    private fun resolveViewMode(serial: String): Int {
+    private fun resolveViewModeOrNull(serial: String): Int? {
         ManagedSensorRuntime.resolveUiSnapshot(serial, serial)?.let { managedSnapshot ->
             return managedSnapshot.viewMode
         }
-        if (!SensorIdentity.hasNativeSensorBacking(serial)) {
-            return 0
+        if (SensorIdentity.hasNativeSensorBacking(serial)) {
+            val nativeMode = try {
+                val snapshot = Natives.getSensorUiSnapshot(serial)
+                if (snapshot != null && snapshot.size >= 2) snapshot[1].toInt() else null
+            } catch (_: Throwable) {
+                null
+            }
+            if (nativeMode != null) return nativeMode.coerceIn(0, 3)
         }
-        return try {
-            val snapshot = Natives.getSensorUiSnapshot(serial)
-            if (snapshot != null && snapshot.size >= 2) snapshot[1].toInt() else 0
-        } catch (_: Throwable) {
-            0
-        }
+        return SensorIdentity.resolveRoomQuerySensorIds(serial)
+            .asSequence()
+            .mapNotNull { candidate -> ManagedSensorViewModeStore.readOrNull(Applic.app, candidate) }
+            .firstOrNull()
+            ?: ManagedSensorViewModeStore.readOrNull(Applic.app, serial)
+    }
+
+    private fun resolveViewMode(serial: String): Int {
+        return resolveViewModeOrNull(serial) ?: 0
     }
 
     private fun resolveViewModeForStats(serial: String): Int {
@@ -508,10 +525,13 @@ class StatsViewModel : ViewModel() {
     ): List<GlucosePoint> {
         if (history.isEmpty()) return emptyList()
 
+        val sensorViewModes = resolveHistoricalSensorViewModes(history, viewMode)
+        val sensorModesHash = sensorViewModesHash(sensorViewModes)
         val calibrationRevision = CalibrationManager.getRevision()
         val cacheKey = StatsDisplayHistoryCacheKey(
             historySignature = historySignature,
             viewMode = viewMode,
+            sensorModesHash = sensorModesHash,
             unit = unit,
             calibrationRevision = calibrationRevision,
             activeSerial = activeSerial
@@ -520,7 +540,6 @@ class StatsViewModel : ViewModel() {
             return statsDisplayHistoryCacheValue
         }
 
-        val isRawMode = viewMode == 1 || viewMode == 3
         val isMmol = unit == GlucoseUnit.MMOL
         val overwriteSensorValues = CalibrationManager.shouldOverwriteSensorValues()
         val hideInitialWhenCalibrated = CalibrationManager.shouldHideInitialWhenCalibrated()
@@ -531,6 +550,8 @@ class StatsViewModel : ViewModel() {
             history.withIndex()
                 .groupBy { indexedPoint -> indexedPoint.value.sensorSerial ?: sensorSerial }
                 .forEach { (pointSensorSerial, indexedPoints) ->
+                    val pointViewMode = sensorViewModes[pointSensorSerial] ?: viewMode
+                    val isRawMode = pointViewMode == 1 || pointViewMode == 3
                     if (pointSensorSerial == null || !CalibrationManager.hasActiveCalibration(isRawMode, pointSensorSerial)) {
                         return@forEach
                     }
@@ -558,6 +579,8 @@ class StatsViewModel : ViewModel() {
         }
 
         val resolved = history.mapIndexedNotNull { index, point ->
+            val pointSensorSerial = point.sensorSerial ?: sensorSerial
+            val pointViewMode = sensorViewModes[pointSensorSerial] ?: viewMode
             val displayAutoValue = GlucoseFormatter.displayFromMgDl(point.value, isMmol)
             val displayRawValue = GlucoseFormatter.displayFromMgDl(point.rawValue, isMmol)
             val calibratedDisplayValue = calibratedDisplayValues[index]
@@ -565,7 +588,7 @@ class StatsViewModel : ViewModel() {
             val primaryValueMgDl = resolvePrimaryStatsValueMgDl(
                 displayAutoValue = displayAutoValue,
                 displayRawValue = displayRawValue,
-                viewMode = viewMode,
+                viewMode = pointViewMode,
                 unit = unit,
                 calibratedDisplayValue = calibratedDisplayValue,
                 hideInitialWhenCalibrated = calibratedDisplayValue != null && hideInitialWhenCalibrated
@@ -579,6 +602,50 @@ class StatsViewModel : ViewModel() {
         statsDisplayHistoryCacheKey = cacheKey
         statsDisplayHistoryCacheValue = resolved
         return resolved
+    }
+
+    private fun resolveHistoricalSensorViewModes(
+        history: List<GlucosePoint>,
+        activeViewMode: Int
+    ): Map<String?, Int> {
+        val sensorIds = LinkedHashSet<String?>()
+        history.forEach { point -> sensorIds.add(point.sensorSerial ?: activeSerial) }
+        return sensorIds.associateWith { sensorId ->
+            resolveHistoricalSensorViewMode(sensorId, activeViewMode)
+        }
+    }
+
+    private fun resolveHistoricalSensorViewMode(sensorId: String?, activeViewMode: Int): Int {
+        if (sensorId.isNullOrBlank()) return activeViewMode.coerceIn(0, 3)
+        val isImported = isImportedHistoryOnlySerial(sensorId) ||
+            sensorId == "imported" || sensorId == "unknown"
+        val hasRawCalibration = CalibrationManager.hasCalibrationPointsForMode(
+            isRawMode = true,
+            sensorIdOverride = sensorId
+        )
+        val hasAutoCalibration = CalibrationManager.hasCalibrationPointsForMode(
+            isRawMode = false,
+            sensorIdOverride = sensorId
+        )
+        return HistoricalSensorModePolicy.resolve(
+            activeViewMode = activeViewMode,
+            isImported = isImported,
+            resolvedStoredMode = if (isImported) null else resolveViewModeOrNull(sensorId),
+            hasRawCalibration = hasRawCalibration,
+            hasAutoCalibration = hasAutoCalibration,
+            matchesActiveSensor = !activeSerial.isNullOrBlank() && SensorIdentity.matches(sensorId, activeSerial)
+        )
+    }
+
+    private fun sensorViewModesHash(sensorViewModes: Map<String?, Int>): Long {
+        var hash = 1125899906842597L
+        sensorViewModes.entries
+            .sortedBy { it.key.orEmpty() }
+            .forEach { (sensorId, mode) ->
+                hash = 31L * hash + (sensorId?.hashCode()?.toLong() ?: 0L)
+                hash = 31L * hash + mode.toLong()
+            }
+        return hash
     }
 
     private fun resolveRangeProjection(
@@ -604,9 +671,11 @@ class StatsViewModel : ViewModel() {
         }
 
         val historySignature = historySignature(rawHistory)
+        val sensorModesHash = sensorViewModesHash(resolveHistoricalSensorViewModes(rawHistory, viewMode))
         val cacheKey = StatsRangeProjectionCacheKey(
             historySignature = historySignature,
             viewMode = viewMode,
+            sensorModesHash = sensorModesHash,
             unit = unit,
             calibrationRevision = CalibrationManager.getRevision(),
             activeSerial = activeSerial,
@@ -748,7 +817,10 @@ class StatsViewModel : ViewModel() {
 
     private fun maybeRefreshTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
         val now = System.currentTimeMillis()
+        val historyStartMs = history.firstOrNull()?.timestamp ?: Long.MAX_VALUE
+        val historyWindowExpanded = historyStartMs < cachedTemperatureHistoryStartMs
         val shouldRefresh = serial != cachedTemperatureSerial ||
+            historyWindowExpanded ||
             (cachedTemperaturePoints.isEmpty() && history.isNotEmpty()) ||
             now - lastTemperatureRefreshMs > TEMPERATURE_REFRESH_INTERVAL_MS
 
@@ -759,6 +831,7 @@ class StatsViewModel : ViewModel() {
         val refreshed = readTemperaturePoints(serial, history)
         cachedTemperatureSerial = serial
         cachedTemperaturePoints = refreshed
+        cachedTemperatureHistoryStartMs = historyStartMs
         lastTemperatureRefreshMs = now
         return refreshed
     }

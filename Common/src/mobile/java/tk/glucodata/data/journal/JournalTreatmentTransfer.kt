@@ -21,7 +21,6 @@ object JournalTreatmentTransfer {
     private const val SOURCE_KIND_NOTE = "note"
     private const val MIN_VALID_EPOCH_MS = 946_684_800_000L
     private const val MGDL_PER_MMOLL = 18.0182f
-    private const val JUGGLUCO_REMOTE_ID_PREFIX = "jng-j-"
 
     private val allKinds = listOf(
         SOURCE_KIND_CARBS,
@@ -156,7 +155,7 @@ object JournalTreatmentTransfer {
         val eventKey = eventType.orEmpty().lowercase(Locale.US)
         val safeTimestamp = timestamp ?: return null
 
-        val carbs = treatment.optFiniteFloat("carbs", "carb", "enteredCarbs", "grams", "carbsGrams")
+        val carbs = treatment.optFiniteFloat("carbs", "carb", "enteredCarbs", "enteredcarbs", "grams", "carbsGrams")
             ?: treatment.optFiniteFloat("amount").takeIf {
                 explicitType == JournalEntryType.CARBS || eventKey.contains("carb")
             }
@@ -178,7 +177,7 @@ object JournalTreatmentTransfer {
             )
         }
 
-        val insulin = treatment.optPositiveFloat("insulin", "enteredInsulin", "bolus")
+        val insulin = treatment.optPositiveFloat("insulin", "enteredInsulin", "enteredinsulin", "bolus")
             ?: treatment.optPositiveFloat("amount").takeIf { explicitType == JournalEntryType.INSULIN }
         if (insulin != null) {
             val preset = chooseInsulinPreset(insulinPresets, treatment)
@@ -261,16 +260,6 @@ object JournalTreatmentTransfer {
         )
     }
 
-    fun isJugglucoUpload(treatment: JSONObject): Boolean {
-        val remoteId = treatment.optRemoteId()
-        if (remoteId?.startsWith(JUGGLUCO_REMOTE_ID_PREFIX, ignoreCase = true) == true) {
-            return true
-        }
-        val app = treatment.optNonBlankString("app", "enteredBy", "device") ?: return false
-        return app.equals("JugglucoNG", ignoreCase = true) ||
-            app.equals("Juggluco", ignoreCase = true)
-    }
-
     fun hasAnyRemoteIdentifier(treatment: JSONObject, remoteIds: Set<String>): Boolean {
         if (remoteIds.isEmpty()) return false
         return treatment.remoteIdentifiers().any { id -> id in remoteIds }
@@ -291,7 +280,8 @@ object JournalTreatmentTransfer {
         val text = listOfNotNull(
             treatment.optNonBlankString("eventType", "eventtype"),
             treatment.optNonBlankString("notes", "note"),
-            treatment.optNonBlankString("insulinType", "type")
+            treatment.optNonBlankString("insulinType", "type"),
+            treatment.optNonBlankString("enteredBy", "device", "app")
         ).joinToString(" ").lowercase(Locale.US)
         val isBasal = treatment.optBoolean("isBasalInsulin", false) ||
             text.contains("basal") ||
@@ -326,8 +316,8 @@ object JournalTreatmentTransfer {
         val fingerprint = listOf(
             timestamp,
             optNonBlankString("eventType", "eventtype", "type").orEmpty(),
-            optFiniteFloat("carbs", "carb", "enteredCarbs", "grams", "amount")?.toString().orEmpty(),
-            optPositiveFloat("insulin", "enteredInsulin", "bolus", "amount")?.toString().orEmpty(),
+            optFiniteFloat("carbs", "carb", "enteredCarbs", "enteredcarbs", "grams", "amount")?.toString().orEmpty(),
+            optPositiveFloat("insulin", "enteredInsulin", "enteredinsulin", "bolus", "amount")?.toString().orEmpty(),
             optGlucoseMgdl()?.toString().orEmpty(),
             optNonBlankString("notes", "note").orEmpty()
         ).joinToString("|")

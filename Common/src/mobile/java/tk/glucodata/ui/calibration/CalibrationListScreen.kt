@@ -64,7 +64,6 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorIdentity
 import tk.glucodata.data.HistoryRepository
@@ -103,6 +102,7 @@ fun CalibrationListScreen(
     navController: NavController,
     isMmol: Boolean,
     viewMode: Int = 0, // Default to 0 (Auto)
+    sensorId: String,
     onAdd: () -> Unit,
     onEdit: (CalibrationEntity) -> Unit,
     onOpenModelTable: () -> Unit
@@ -114,20 +114,24 @@ fun CalibrationListScreen(
     val allCalibrations by CalibrationManager
         .getCalibrationsFlow()
         .collectAsState(initial = CalibrationManager.getCachedCalibrations())
-    val currentSensor = Natives.lastsensorname() ?: ""
+    val currentSensor = SensorIdentity.resolveAppSensorId(sensorId) ?: sensorId
     
     // Filter by mode and current sensor
     val calibrations = allCalibrations
         .asSequence()
         .filter { it.isRawMode == isRawMode }
-        .filter { it.sensorId.isEmpty() || SensorIdentity.matches(it.sensorId, currentSensor) }
+        .filter {
+            currentSensor.isNotBlank() &&
+                CalibrationManager.calibrationMatchesSensor(it.sensorId, currentSensor)
+        }
         .sortedByDescending { it.timestamp }
         .toList()
 
     // Toggle State
-    val isEnabledForRaw by CalibrationManager.isEnabledForRaw.collectAsState()
-    val isEnabledForAuto by CalibrationManager.isEnabledForAuto.collectAsState()
-    val isCalibrationEnabled = if (isRawMode) isEnabledForRaw else isEnabledForAuto
+    val calibrationRevision by CalibrationManager.revision.collectAsState()
+    val isCalibrationEnabled = remember(isRawMode, currentSensor, calibrationRevision) {
+        CalibrationManager.isEnabledForMode(isRawMode, currentSensor)
+    }
     val algorithmForRaw by CalibrationManager.algorithmForRaw.collectAsState()
     val algorithmForAuto by CalibrationManager.algorithmForAuto.collectAsState()
     val selectedAlgorithm = if (isRawMode) algorithmForRaw else algorithmForAuto
@@ -356,7 +360,7 @@ fun CalibrationListScreen(
                             overwriteSensorValues = overwriteSensorValues,
                             visualContinuity = visualContinuity,
                             onToggle = { enabled ->
-                                CalibrationManager.setEnabledForMode(isRawMode, enabled)
+                                CalibrationManager.setEnabledForMode(isRawMode, enabled, currentSensor)
                                 if (enabled && overwriteSensorValues && currentSensor.isNotBlank()) {
                                     scope.launch {
                                         historyRepository.rewriteSensorValuesWithCalibration(currentSensor, isRawMode)

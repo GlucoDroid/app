@@ -1,6 +1,7 @@
 package tk.glucodata.ui
 
 import tk.glucodata.SensorIdentity
+import tk.glucodata.SensorVisuals
 
 /**
  * One peer sensor's display-ready history.
@@ -13,6 +14,7 @@ import tk.glucodata.SensorIdentity
 data class PeerSensorSeries(
     val sensorId: String,
     val viewMode: Int,
+    val colorArgb: Int,
     val points: List<GlucosePoint>
 )
 
@@ -58,6 +60,7 @@ object MultiSensorDisplay {
         points: List<GlucosePoint>,
         selectedPeerIds: List<String>,
         sensorViewModes: Map<String, Int>,
+        selectedSensorIdsForColors: List<String> = selectedPeerIds,
         fallbackViewMode: Int = 0
     ): MultiSensorDisplayData {
         if (points.isEmpty() || selectedPeerIds.isEmpty()) return MultiSensorDisplayData.EMPTY
@@ -80,6 +83,7 @@ object MultiSensorDisplay {
         }
         if (grouped.isEmpty()) return MultiSensorDisplayData.EMPTY
 
+        val colorBySensorId = SensorVisuals.distinctColorArgbMap(selectedSensorIdsForColors)
         val series = selectedPeerIds.mapNotNull { sensorId ->
             val sensorPoints = grouped[sensorId] ?: return@mapNotNull null
             sensorPoints.sortBy { it.timestamp }
@@ -88,6 +92,9 @@ object MultiSensorDisplay {
                 viewMode = sensorViewModes[sensorId]
                     ?: sensorViewModes.entries.firstOrNull { SensorIdentity.matches(it.key, sensorId) }?.value
                     ?: fallbackViewMode,
+                colorArgb = colorBySensorId.entries.firstOrNull { (selected, _) ->
+                    SensorIdentity.matches(selected, sensorId)
+                }?.value ?: SensorVisuals.colorArgb(sensorId),
                 points = sensorPoints
             )
         }

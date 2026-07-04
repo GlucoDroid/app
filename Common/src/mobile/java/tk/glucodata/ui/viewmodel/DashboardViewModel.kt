@@ -82,11 +82,12 @@ class DashboardViewModel(
 
     /** Display-unit peer history plus the peer ids it covers. */
     private data class PeerRawHistory(
+        val selectedSensorIds: List<String>,
         val peerIds: List<String>,
         val points: List<tk.glucodata.ui.GlucosePoint>
     ) {
         companion object {
-            val EMPTY = PeerRawHistory(emptyList(), emptyList())
+            val EMPTY = PeerRawHistory(emptyList(), emptyList(), emptyList())
         }
     }
 
@@ -105,7 +106,6 @@ class DashboardViewModel(
         const val DASHBOARD_HISTORY_COALESCE_MS = 300L
         const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
         const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
-        const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val DASHBOARD_PEER_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
@@ -615,6 +615,12 @@ class DashboardViewModel(
             availableSensorIds = availableDisplaySensors,
             primarySensorId = sName
         )
+        selectedDisplaySensors.firstOrNull()?.let { selectedPrimary ->
+            if (!SensorIdentity.matches(sName, selectedPrimary)) {
+                SensorBluetooth.setCurrentSensorSelection(selectedPrimary)
+                sName = selectedPrimary
+            }
+        }
         _selectedSensorIds.value = selectedDisplaySensors
         _activeSensorList.value = selectedDisplaySensors
         _sensorViewModes.value = resolveSelectedSensorViewModes(selectedDisplaySensors)
@@ -712,12 +718,14 @@ class DashboardViewModel(
         primarySensorId: String?
     ): List<String> {
         val candidates = ArrayList<String?>()
-        candidates.add(primarySensorId)
         activeSensors?.forEach { candidates.add(it) }
         runCatching {
             SensorBluetooth.mygatts()?.forEach { callback ->
                 candidates.add(callback.SerialNumber)
             }
+        }
+        if (candidates.isEmpty()) {
+            candidates.add(primarySensorId)
         }
         return SensorIdentity.distinctLogicalSensorIds(candidates)
     }
@@ -740,12 +748,12 @@ class DashboardViewModel(
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
+            CollectionMode.DASHBOARD -> 0L
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
+            CollectionMode.DASHBOARD -> 0L
             CollectionMode.FULL_HISTORY -> 0L
         }
         activeHistoryStartTimeMs = recoveryStartTimeMs
@@ -783,10 +791,7 @@ class DashboardViewModel(
             var lastRecoveryRequestSerial: String? = null
             var hasSeenHistoryEmission = false
             val rawHistoryFlow = when (mode) {
-                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(
-                    startTime = queryStartTimeMs,
-                    fallbackWindowMs = DASHBOARD_HISTORY_WINDOW_MS
-                )
+                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(startTime = queryStartTimeMs)
                 CollectionMode.FULL_HISTORY -> glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
                 CollectionMode.INACTIVE -> return@launch
             }
@@ -855,7 +860,8 @@ class DashboardViewModel(
                                 tk.glucodata.ui.MultiSensorDisplay.buildDisplayData(
                                     points = raw.points,
                                     selectedPeerIds = raw.peerIds,
-                                    sensorViewModes = modes
+                                    sensorViewModes = modes,
+                                    selectedSensorIdsForColors = raw.selectedSensorIds
                                 )
                             }
                         }
@@ -906,7 +912,7 @@ class DashboardViewModel(
                         val converted = withContext(Dispatchers.Default) {
                             rawHistory.inDisplayUnit(config.unit)
                         }
-                        _multiSensorRawHistory.value = PeerRawHistory(peerSensors, converted)
+                        _multiSensorRawHistory.value = PeerRawHistory(config.selectedSensorIds, peerSensors, converted)
                         refreshPeerCurrentReadings(peerSensors)
                     }
                 }

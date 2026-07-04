@@ -198,8 +198,44 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     long showtime = Notify.glucosetimeout;
     static long lastfoundL = 0L;
 
+    private static final Object realtimeReadingOrderLock = new Object();
+    private static String realtimeReadingSensorId = null;
+    private static long realtimeReadingTimeMs = 0L;
+
     static long lastfound() {
         return lastfoundL;
+    }
+
+    private static boolean acceptRealtimeReading(String sensorId, long readingTimeMs) {
+        synchronized (realtimeReadingOrderLock) {
+            final boolean sameInMemorySensor = realtimeReadingSensorId != null
+                    && SensorIdentity.matches(sensorId, realtimeReadingSensorId);
+            final long inMemoryHighWaterMs = sameInMemorySensor ? realtimeReadingTimeMs : 0L;
+
+            long nativeHighWaterMs = 0L;
+            try {
+                final String nativeMainSensor = Natives.lastsensorname();
+                if (nativeMainSensor != null && SensorIdentity.matches(sensorId, nativeMainSensor)) {
+                    nativeHighWaterMs = Natives.lastglucosetime();
+                }
+            } catch (Throwable error) {
+                Log.stack(LOG_ID, "acceptRealtimeReading", error);
+            }
+
+            if (!RealtimeReadingPolicy.shouldDispatch(readingTimeMs, inMemoryHighWaterMs, nativeHighWaterMs)) {
+                if (doLog) {
+                    Log.w(LOG_ID, "Ignoring stale realtime callback sensor=" + sensorId
+                            + " time=" + readingTimeMs
+                            + " inMemoryHighWater=" + inMemoryHighWaterMs
+                            + " nativeHighWater=" + nativeHighWaterMs);
+                }
+                return false;
+            }
+
+            realtimeReadingSensorId = sensorId;
+            realtimeReadingTimeMs = Math.max(readingTimeMs, inMemoryHighWaterMs);
+            return true;
+        }
     }
 
     private static long[] nextalarm = new long[10];
@@ -465,6 +501,14 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         + ", selectedMain=" + Natives.lastsensorname() + ")");
             }
             // Still update the screen so charts/history reflect all sensors
+            Applic.updatescreen();
+            UiRefreshBus.requestDataRefresh();
+            return;
+        }
+
+        // History/replay rows are already persisted before this method. They must not
+        // move notifications, glucose alerts, or the signal-loss deadline backwards.
+        if (!acceptRealtimeReading(SerialNumber, timmsec)) {
             Applic.updatescreen();
             UiRefreshBus.requestDataRefresh();
             return;

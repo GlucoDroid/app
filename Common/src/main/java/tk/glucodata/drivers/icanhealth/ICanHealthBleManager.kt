@@ -26,7 +26,9 @@ import android.os.Handler
 import android.os.HandlerThread
 import java.util.ArrayDeque
 import java.util.LinkedHashMap
+import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.math.abs
 import kotlin.math.round
 import tk.glucodata.Applic
@@ -205,6 +207,7 @@ class ICanHealthBleManager(
     @Volatile private var vendorSoftwareVersion: String = ""
     private val pendingHistoryBatch = LinkedHashMap<Int, PendingHistoryReading>()
     private val recentLiveGlucoseMgdl = ArrayDeque<Float>(RECENT_GLUCOSE_WINDOW_SIZE)
+    private val rejectedOnboardingAddresses = CopyOnWriteArraySet<String>()
 
     private var provisionalSensorIdForAdoption: String? =
         serial.takeIf { ICanHealthConstants.isProvisionalSensorId(it) }
@@ -222,6 +225,7 @@ class ICanHealthBleManager(
         WAITING_FOR_NEXT_READING,
         SYNCING,
         NO_DATA_TIMEOUT,
+        INVALID_GLUCOSE,
         CUSTOM,
     }
 
@@ -396,6 +400,11 @@ class ICanHealthBleManager(
             .getOrDefault("Connected, waiting for data...")
     }
 
+    private fun invalidGlucoseStatus(): String {
+        return runCatching { Applic.app.getString(tk.glucodata.R.string.status_invalid_glucose_from_sensor) }
+            .getOrDefault("Invalid glucose from sensor")
+    }
+
     private fun isPassiveUiStatus(kind: UiStatusKind): Boolean {
         return when (kind) {
             UiStatusKind.NONE,
@@ -410,6 +419,7 @@ class ICanHealthBleManager(
             UiStatusKind.WAITING_FOR_NEXT_READING -> true
             UiStatusKind.SYNCING,
             UiStatusKind.NO_DATA_TIMEOUT,
+            UiStatusKind.INVALID_GLUCOSE,
             UiStatusKind.CUSTOM -> false
         }
     }
@@ -429,8 +439,17 @@ class ICanHealthBleManager(
             UiStatusKind.WAITING_FOR_NEXT_READING,
             UiStatusKind.NO_DATA_TIMEOUT -> waitingForDataStatus()
             UiStatusKind.SYNCING -> syncingStatus()
+            UiStatusKind.INVALID_GLUCOSE -> invalidGlucoseStatus()
             UiStatusKind.CUSTOM -> customStatus.orEmpty()
         }
+    }
+
+    private fun reportInvalidGlucoseFromSensor(valueMgdl: Float, source: String) {
+        Log.w(TAG, "Discarding invalid $source glucose $valueMgdl mg/dL")
+        setUiStatus(UiStatusKind.INVALID_GLUCOSE)
+        UiRefreshBus.requestStatusRefresh()
+        scheduleForegroundNotificationRefresh()
+        scheduleNoDataWatchdogIfNeeded()
     }
 
     private fun refreshHistorySyncProgressStatus() {
@@ -795,8 +814,12 @@ class ICanHealthBleManager(
     }
 
     fun setOnboardingDeviceSn(deviceSnOrCode: String?) {
-        onboardingDeviceSn = ICanHealthConstants.normalizeOnboardingDeviceSn(deviceSnOrCode)
+        val normalized = ICanHealthConstants.normalizeOnboardingDeviceSn(deviceSnOrCode)
             .takeIf { it.isNotBlank() }
+        if (normalized != onboardingDeviceSn) {
+            rejectedOnboardingAddresses.clear()
+        }
+        onboardingDeviceSn = normalized
     }
 
     fun setConfiguredAuthUserId(userId: String?) {
@@ -1056,9 +1079,13 @@ class ICanHealthBleManager(
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
         val trimmedName = deviceName?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        val candidateAddress = address?.trim()?.uppercase(Locale.US)
+        if (candidateAddress != null && candidateAddress in rejectedOnboardingAddresses) {
+            return false
+        }
         val knownAddress = mActiveDeviceAddress?.takeIf { it.isNotBlank() }
-        if (knownAddress != null && address != null && address.equals(knownAddress, ignoreCase = true)) {
-            return true
+        if (knownAddress != null) {
+            return address != null && address.equals(knownAddress, ignoreCase = true)
         }
         val expectedDisplayName = mygetDeviceName().trim().takeIf { it.isNotEmpty() }
         if (expectedDisplayName != null && trimmedName.equals(expectedDisplayName, ignoreCase = true)) {
@@ -1070,9 +1097,6 @@ class ICanHealthBleManager(
         }
         if (serialFromDevice != null && advertisedCanonical.equals(serialFromDevice, ignoreCase = true)) {
             return true
-        }
-        if (knownAddress != null) {
-            return false
         }
         return ICanHealthConstants.isICanHealthDevice(trimmedName)
     }
@@ -1098,6 +1122,16 @@ class ICanHealthBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         if (stop) return
+        val stateAddress = gatt.device?.address?.trim()?.uppercase(Locale.US)
+        if (stateAddress != null && stateAddress in rejectedOnboardingAddresses) {
+            Log.d(TAG, "Ignoring GATT state=$newState from rejected onboarding candidate $stateAddress")
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                runCatching { gatt.disconnect() }
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                runCatching { gatt.close() }
+            }
+            return
+        }
         val currentGatt = mBluetoothGatt
         if (currentGatt != null && currentGatt !== gatt) {
             Log.d(TAG, "Ignoring stale GATT state=$newState status=$status for $SerialNumber")
@@ -1319,6 +1353,9 @@ class ICanHealthBleManager(
                 val rawSerial = ICanHealthParser.parseRawDeviceSerial(data)
                 val resolvedSerial = ICanHealthParser.parseDeviceSerial(data)
                 if (resolvedSerial.isNotEmpty()) {
+                    if (rejectMismatchedOnboardingCandidate(gatt, rawSerial, resolvedSerial)) {
+                        return
+                    }
                     rawSerialFromDevice = rawSerial.takeIf { it.isNotBlank() }
                     applyBundledGlucoseKey(rawSerialFromDevice, vendorSoftwareVersion)
                     Log.i(TAG, "Device serial: $resolvedSerial")
@@ -1390,6 +1427,51 @@ class ICanHealthBleManager(
         }
 
         finishGattOp()
+    }
+
+    private fun rejectMismatchedOnboardingCandidate(
+        gatt: BluetoothGatt,
+        rawSerial: String,
+        resolvedSerial: String,
+    ): Boolean {
+        val expectedOnboardingSn = onboardingDeviceSn ?: return false
+        val isAwaitingIdentity = provisionalSensorIdForAdoption != null ||
+            ICanHealthConstants.isProvisionalSensorId(SerialNumber)
+        if (!isAwaitingIdentity) {
+            return false
+        }
+        val identityMatches =
+            ICanHealthConstants.matchesOnboardingIdentity(expectedOnboardingSn, rawSerial) ||
+                ICanHealthConstants.matchesOnboardingIdentity(expectedOnboardingSn, resolvedSerial)
+        if (identityMatches) {
+            rejectedOnboardingAddresses.clear()
+            return false
+        }
+
+        val address = gatt.device?.address?.trim()?.uppercase(Locale.US)
+        if (address != null) {
+            rejectedOnboardingAddresses.add(address)
+        }
+        Log.w(
+            TAG,
+            "Rejected iCan candidate address=${address ?: "unknown"}: " +
+                "onboarding=${ICanHealthConstants.onboardingIdentityPrefix(expectedOnboardingSn)} " +
+                "device=$resolvedSerial"
+        )
+
+        rawSerialFromDevice = null
+        serialFromDevice = null
+        close()
+        setDevice(null)
+        searchforDeviceAddress()
+        setUiStatus(UiStatusKind.PREPARING)
+        UiRefreshBus.requestStatusRefresh()
+        handler.postDelayed({
+            if (!stop && !uiPaused && ICanHealthConstants.isProvisionalSensorId(SerialNumber)) {
+                SensorBluetooth.startscan()
+            }
+        }, 250L)
+        return true
     }
 
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
@@ -1499,7 +1581,7 @@ class ICanHealthBleManager(
                 return
             }
         if (reading.glucoseMgdl !in ICanHealthConstants.MIN_VALID_GLUCOSE_MGDL..ICanHealthConstants.MAX_VALID_GLUCOSE_MGDL) {
-            Log.w(TAG, "Discarding out-of-range glucose ${reading.glucoseMgdl} mg/dL")
+            reportInvalidGlucoseFromSensor(reading.glucoseMgdl, "live")
             return
         }
 

@@ -90,18 +90,25 @@ class AlarmActivity : ComponentActivity() {
                         customAlertId,
                         "alarm-activity-snooze"
                     )
+                    var productionAction = true
                     if (customAlertId != null) {
                         CustomAlertManager.snoozeAlert(customAlertId, model.snoozeMinutes)
                         Notify.cancelCurrentRetrySession("alarm-activity-snooze-custom-before-stop")
                     } else {
-                        AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))?.let {
-                            SnoozeManager.snooze(it, model.snoozeMinutes)
-                            AlertStateTracker.resetState(it)
+                        val alertType = AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))
+                        productionAction = alertType?.let { !AlertStateTracker.consumeManualTestAction(it) } ?: true
+                        if (productionAction) {
+                            alertType?.let {
+                                SnoozeManager.snooze(it, model.snoozeMinutes)
+                                AlertStateTracker.resetState(it)
+                            }
+                            Notify.cancelCurrentRetrySession("alarm-activity-snooze-before-stop")
                         }
-                        Notify.cancelCurrentRetrySession("alarm-activity-snooze-before-stop")
                     }
                     Notify.stopalarm()
-                    Notify.cancelCurrentRetrySession("alarm-activity-snooze-after-stop")
+                    if (productionAction) {
+                        Notify.cancelCurrentRetrySession("alarm-activity-snooze-after-stop")
+                    }
                     cancelAlarmNotification()
                     finish()
                 },
@@ -115,10 +122,11 @@ class AlarmActivity : ComponentActivity() {
                     if (customAlertId != null) {
                         CustomAlertManager.dismissAlert(customAlertId)
                     } else {
-                        Notify.cancelCurrentRetrySession("alarm-activity-dismiss")
                         AlertType.fromId(Notify.resolveAlertKind(model.alertType?.id ?: -1))?.let {
-                            SnoozeManager.clearSnooze(it)
-                            AlertStateTracker.onAlertDismissed(it)
+                            if (AlertStateTracker.onAlertDismissed(it)) {
+                                SnoozeManager.clearSnooze(it)
+                                Notify.cancelCurrentRetrySession("alarm-activity-dismiss")
+                            }
                         }
                     }
                     cancelAlarmNotification()

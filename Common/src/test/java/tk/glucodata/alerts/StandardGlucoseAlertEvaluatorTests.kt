@@ -116,6 +116,126 @@ class StandardGlucoseAlertEvaluatorTests {
     }
 
     @Test
+    fun forecastDoesNotEnterAfterCurrentValueAlreadyCrossedForecastThreshold() {
+        val configs = mapOf(
+            AlertType.PRE_LOW to AlertConfig(
+                type = AlertType.PRE_LOW,
+                enabled = true,
+                threshold = 3.9f,
+                forecastMinutes = 20
+            )
+        )
+
+        val active = StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = 3.85f,
+            rate = -1.0f,
+            configs = configs,
+            alertTypes = listOf(AlertType.PRE_LOW),
+            isMmol = true,
+            isConfigActive = activeConfig
+        )
+
+        assertTrue(active.isEmpty())
+    }
+
+    @Test
+    fun activeForecastSurvivesBoundaryJitterUntilMeaningfulRecovery() {
+        val configs = mapOf(
+            AlertType.PRE_LOW to AlertConfig(
+                type = AlertType.PRE_LOW,
+                enabled = true,
+                threshold = 3.9f,
+                forecastMinutes = 20
+            )
+        )
+
+        val jitter = StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = 4.0f,
+            rate = 0.05f,
+            configs = configs,
+            alertTypes = listOf(AlertType.PRE_LOW),
+            isMmol = true,
+            isConfigActive = activeConfig,
+            wasConditionActive = { true }
+        )
+        val recovered = StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = 4.2f,
+            rate = 0f,
+            configs = configs,
+            alertTypes = listOf(AlertType.PRE_LOW),
+            isMmol = true,
+            isConfigActive = activeConfig,
+            wasConditionActive = { true }
+        )
+
+        assertTrue(AlertType.PRE_LOW in jitter)
+        assertTrue(recovered.isEmpty())
+    }
+
+    @Test
+    fun forecastJitterDoesNotCreateASecondEpisodeEntry() {
+        val episodes = AlertEpisodeState<AlertType>()
+        val config = AlertConfig(
+            type = AlertType.PRE_LOW,
+            enabled = true,
+            threshold = 3.9f,
+            forecastMinutes = 20
+        )
+
+        fun evaluate(glucose: Float, rate: Float): AlertEpisodeTransition<AlertType> {
+            val active = StandardGlucoseAlertEvaluator.resolveActive(
+                glucoseValue = glucose,
+                rate = rate,
+                configs = mapOf(AlertType.PRE_LOW to config),
+                alertTypes = listOf(AlertType.PRE_LOW),
+                isMmol = true,
+                isConfigActive = activeConfig,
+                wasConditionActive = episodes::isActive
+            )
+            return episodes.update(active.keys)
+        }
+
+        assertTrue(evaluate(4.2f, -1.0f).shouldTryFire(AlertType.PRE_LOW))
+        assertFalse(evaluate(4.0f, 0.05f).shouldTryFire(AlertType.PRE_LOW))
+        assertTrue(AlertType.PRE_LOW in evaluate(4.2f, 0f).cleared)
+        assertTrue(evaluate(4.2f, -1.0f).shouldTryFire(AlertType.PRE_LOW))
+    }
+
+    @Test
+    fun highForecastUsesSymmetricSafeSideAndRecoveryRules() {
+        assertFalse(
+            ForecastThresholdPolicy.isActive(
+                type = AlertType.PRE_HIGH,
+                currentValue = 9.1f,
+                projectedValue = 10.0f,
+                threshold = 9.0f,
+                wasActive = false,
+                isMmol = true
+            )
+        )
+        assertTrue(
+            ForecastThresholdPolicy.isActive(
+                type = AlertType.PRE_HIGH,
+                currentValue = 8.8f,
+                projectedValue = 9.3f,
+                threshold = 9.0f,
+                wasActive = false,
+                isMmol = true
+            )
+        )
+        assertFalse(
+            ForecastThresholdPolicy.isActive(
+                type = AlertType.PRE_HIGH,
+                currentValue = 8.7f,
+                projectedValue = 8.7f,
+                threshold = 9.0f,
+                wasActive = true,
+                isMmol = true
+            )
+        )
+    }
+
+    @Test
     fun disabledInactiveAndInvalidThresholdConfigsAreIgnored() {
         val configs = mapOf(
             AlertType.LOW to AlertConfig(AlertType.LOW, enabled = false, threshold = 4.0f),
@@ -133,5 +253,32 @@ class StandardGlucoseAlertEvaluatorTests {
         )
 
         assertTrue(active.isEmpty())
+    }
+
+    @Test
+    fun conditionBeyondThresholdEntersWhenTimeWindowOpens() {
+        val episodes = AlertEpisodeState<AlertType>()
+        val config = AlertConfig(AlertType.HIGH, enabled = true, threshold = 6.4f)
+
+        val inactive = StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = 6.5f,
+            rate = 0f,
+            configs = mapOf(AlertType.HIGH to config),
+            alertTypes = listOf(AlertType.HIGH),
+            isMmol = true,
+            isConfigActive = { false }
+        )
+        episodes.update(inactive.keys)
+
+        val active = StandardGlucoseAlertEvaluator.resolveActive(
+            glucoseValue = 6.5f,
+            rate = 0f,
+            configs = mapOf(AlertType.HIGH to config),
+            alertTypes = listOf(AlertType.HIGH),
+            isMmol = true,
+            isConfigActive = { true }
+        )
+
+        assertTrue(episodes.update(active.keys).shouldTryFire(AlertType.HIGH))
     }
 }

@@ -42,10 +42,11 @@ class AlarmActionReceiver : BroadcastReceiver() {
                 if (customAlertId != null) {
                     CustomAlertManager.dismissAlert(customAlertId)
                 } else {
-                    Notify.cancelCurrentRetrySession("notification-dismiss")
                     resolvedAlertType?.let {
-                        SnoozeManager.clearSnooze(it)
-                        AlertStateTracker.onAlertDismissed(it)
+                        if (AlertStateTracker.onAlertDismissed(it)) {
+                            SnoozeManager.clearSnooze(it)
+                            Notify.cancelCurrentRetrySession("notification-dismiss")
+                        }
                     }
                 }
                 Notify.cancelAlertNotification()
@@ -68,19 +69,27 @@ class AlarmActionReceiver : BroadcastReceiver() {
                     resolvedAlertType?.let { AlertRepository.loadConfig(it).defaultSnoozeMinutes } ?: 15
                 }
                 
+                var productionAction = true
                 if (customAlertId != null) {
                     CustomAlertManager.snoozeAlert(customAlertId, snoozeMinutes)
                     Notify.cancelCurrentRetrySession("notification-snooze-custom-before-stop")
                 } else {
-                    resolvedAlertType?.let {
-                        SnoozeManager.snooze(it, snoozeMinutes)
-                        AlertStateTracker.resetState(it)
-                        Log.i(LOG_ID, "Snoozed ${it.name} for $snoozeMinutes minutes")
+                    productionAction = resolvedAlertType?.let {
+                        !AlertStateTracker.consumeManualTestAction(it)
+                    } ?: true
+                    if (productionAction) {
+                        resolvedAlertType?.let {
+                            SnoozeManager.snooze(it, snoozeMinutes)
+                            AlertStateTracker.resetState(it)
+                            Log.i(LOG_ID, "Snoozed ${it.name} for $snoozeMinutes minutes")
+                        }
+                        Notify.cancelCurrentRetrySession("notification-snooze-before-stop")
                     }
-                    Notify.cancelCurrentRetrySession("notification-snooze-before-stop")
                 }
                 Notify.stopalarm()
-                Notify.cancelCurrentRetrySession("notification-snooze-after-stop")
+                if (productionAction) {
+                    Notify.cancelCurrentRetrySession("notification-snooze-after-stop")
+                }
                 Notify.cancelAlertNotification()
             }
 

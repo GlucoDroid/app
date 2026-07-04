@@ -105,11 +105,22 @@ interface AiDexDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
         } else {
             0L
         }
-        val officialEndMs = if (dataptr != 0L) {
+        val sensorWearDays = runCatching { getSensorReportedWearDays() }.getOrDefault(-1)
+        val reportedOfficialEndMs = if (startMs > 0L && sensorWearDays > 0) {
+            startMs + (sensorWearDays.toLong() * 24L * 3600_000L)
+        } else {
+            0L
+        }
+        val nativeOfficialEndMs = if (
+            reportedOfficialEndMs <= 0L &&
+            shouldUseNativeOfficialEndFallback() &&
+            dataptr != 0L
+        ) {
             runCatching { tk.glucodata.Natives.getSensorEndTime(dataptr, true) }.getOrDefault(0L)
         } else {
             0L
         }
+        val officialEndMs = reportedOfficialEndMs.takeIf { it > startMs } ?: nativeOfficialEndMs
         val calibrations = runCatching {
             getCalibrationRecords().map { record ->
                 ManagedSensorCalibrationRecord(
@@ -189,6 +200,12 @@ interface AiDexDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
 
     /** Hours since sensor activation (-1 = unknown). */
     fun getSensorAgeHours(): Int
+
+    /** Sensor-reported wear duration in days (-1 = unknown). */
+    fun getSensorReportedWearDays(): Int = -1
+
+    /** Whether legacy native expiry may be used when the driver has no sensor-reported wear days. */
+    fun shouldUseNativeOfficialEndFallback(): Boolean = true
 
     /** Firmware version string from startup metadata / vendor device-info. */
     val vendorFirmwareVersion: String

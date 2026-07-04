@@ -49,6 +49,20 @@ class AlertConfigTimeRangeTests {
     }
 
     @Test
+    fun midnightToOneRangeIncludesThirtyMinutesPastMidnight() {
+        val config = AlertConfig(
+            type = AlertType.HIGH,
+            timeRangeEnabled = true,
+            activeStartHour = 0,
+            activeStartMinute = 0,
+            activeEndHour = 1,
+            activeEndMinute = 0
+        )
+
+        assertTrue(config.isActiveAtMinutes(30))
+    }
+
+    @Test
     fun overnightRangeWrapsAcrossMidnight() {
         val config = AlertConfig(
             type = AlertType.HIGH,

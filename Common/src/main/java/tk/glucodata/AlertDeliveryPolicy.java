@@ -5,10 +5,9 @@ import java.util.Locale;
 /**
  * Pure alert delivery rules shared by the Java notification bridge and tests.
  *
- * Alarm mode is a full-screen alarm-window contract. When Android will not let
- * us start that window immediately, the alert notification becomes the full
- * screen intent transport. Both mode always keeps the notification as the
- * user's explicitly selected second surface.
+ * Alarm mode is a full-screen alarm-window contract. A notification is only a
+ * fallback when neither the direct launch nor queued backup can be established.
+ * Both mode always keeps the user's explicitly selected second surface.
  */
 public final class AlertDeliveryPolicy {
     public static final String NOTIFICATION_ONLY = "NOTIFICATION_ONLY";
@@ -41,16 +40,6 @@ public final class AlertDeliveryPolicy {
     }
 
     public static boolean shouldPostAlertNotification(String normalizedMode, boolean alarmWindowQueued) {
-        return shouldPostAlertNotification(normalizedMode, alarmWindowQueued, false);
-    }
-
-    public static boolean shouldPostAlertNotification(
-            String normalizedMode,
-            boolean alarmWindowQueued,
-            boolean needsNotificationTransport) {
-        if (needsNotificationTransport) {
-            return true;
-        }
         if (BOTH.equals(normalizedMode) || NOTIFICATION_ONLY.equals(normalizedMode)) {
             return true;
         }

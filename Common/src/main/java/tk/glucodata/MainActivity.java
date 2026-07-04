@@ -887,6 +887,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     long nexttime = 0L;
 
     synchronized void startnfc(Tag tag) {
+        // Ottai debug ISO15693 dump (read-only): consumes the tap only when the
+        // setup wizard's NFC-dump mode is active; otherwise falls through to Libre.
+        if (tk.glucodata.drivers.ottai.OttaiNfc.onTag(tag))
+            return;
         long nu = System.currentTimeMillis();
         if (nu < nexttime)
             return;

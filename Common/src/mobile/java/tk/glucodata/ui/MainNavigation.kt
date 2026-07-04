@@ -79,7 +79,7 @@ sealed class CalibrationSheetState {
         val auto: Float,
         val raw: Float,
         val timestamp: Long,
-        val sensorId: String? = null,
+        val sensorId: String,
         val viewModeOverride: Int? = null
     ) : CalibrationSheetState()
     data class Edit(val entity: tk.glucodata.data.calibration.CalibrationEntity) : CalibrationSheetState()
@@ -181,7 +181,14 @@ private fun HistoryRoute(
         journalFoods = journalFoods,
         onBack = onBack,
         onPointClick = { point ->
-            onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+            onTriggerCalibration(
+                CalibrationSheetState.New(
+                    point.value,
+                    point.rawValue,
+                    point.timestamp,
+                    point.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                )
+            )
         },
         onDeleteReading = { point ->
             dashboardViewModel.deleteHistoryReading(point, sensorName)
@@ -334,7 +341,14 @@ private fun JournalRoute(
         journalFoods = journalFoods,
         sensorId = sensorName,
         onPointClick = { point ->
-            onTriggerCalibration(CalibrationSheetState.New(point.value, point.rawValue, point.timestamp))
+            onTriggerCalibration(
+                CalibrationSheetState.New(
+                    point.value,
+                    point.rawValue,
+                    point.timestamp,
+                    point.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                )
+            )
         },
         onJournalEntryClick = { entry ->
             lastJournalType = entry.type
@@ -441,6 +455,7 @@ private fun CalibrationListRoute(
     val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
     val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
     val currentGlucose by dashboardViewModel.currentGlucose.collectAsStateWithLifecycle()
+    val sensorName by dashboardViewModel.sensorName.collectAsStateWithLifecycle()
 
     val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
 
@@ -448,11 +463,19 @@ private fun CalibrationListRoute(
         navController = navController,
         isMmol = isMmol,
         viewMode = viewMode,
+        sensorId = sensorName,
         onAdd = {
             val latest = glucoseHistory.firstOrNull()
             val autoVal = latest?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
             val rawVal = latest?.rawValue ?: autoVal
-            onTriggerCalibration(CalibrationSheetState.New(autoVal, rawVal, latest?.timestamp ?: System.currentTimeMillis()))
+            onTriggerCalibration(
+                CalibrationSheetState.New(
+                    autoVal,
+                    rawVal,
+                    latest?.timestamp ?: System.currentTimeMillis(),
+                    latest?.sensorSerial?.takeIf { it.isNotBlank() } ?: sensorName
+                )
+            )
         },
         onEdit = { entity ->
             onTriggerCalibration(CalibrationSheetState.Edit(entity))
@@ -477,11 +500,13 @@ private fun CalibrationModelTableRoute(
 ) {
     val unit by dashboardViewModel.unit.collectAsStateWithLifecycle()
     val viewMode by dashboardViewModel.viewMode.collectAsStateWithLifecycle()
+    val sensorName by dashboardViewModel.sensorName.collectAsStateWithLifecycle()
 
     tk.glucodata.ui.calibration.CalibrationModelTableScreen(
         navController = navController,
         isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
         viewMode = viewMode,
+        sensorId = sensorName,
         onEdit = { entity ->
             onTriggerCalibration(CalibrationSheetState.Edit(entity))
         }
@@ -516,7 +541,7 @@ private fun CalibrationSheetHost(
             auto = sheetState.auto,
             raw = sheetState.raw,
             timestamp = sheetState.timestamp,
-            sensorId = sheetState.sensorId?.takeIf { it.isNotBlank() },
+            sensorId = sheetState.sensorId.takeIf { it.isNotBlank() },
             viewMode = sheetState.viewModeOverride ?: viewMode
         )
         is CalibrationSheetState.Edit -> SheetInit(
@@ -554,7 +579,9 @@ private fun CalibrationSheetHost(
         viewMode = sensorViewModes.entries.firstOrNull { (sensorId, _) ->
             init.sensorId != null && SensorIdentity.matches(sensorId, init.sensorId)
         }?.value ?: init.viewMode,
-        sensorIdOverride = init.sensorId,
+        sensorId = init.sensorId
+            ?: SensorIdentity.resolveMainSensor()
+            ?: return,
         onNavigateToHistory = {
             onDismiss()
             onNavigateToCalibrations()
@@ -734,6 +761,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                     composable("settings/mq-account") { MQAccountSettingsScreen(navController) }
                     composable("settings/mq-follower") { MQFollowerSettingsScreen(navController) }
+                    composable("settings/ottai") { tk.glucodata.ui.setup.OttaiSettingsScreen(navController) }
                     composable("settings/mirror") { MirrorSettingsScreen(navController) }
                     composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                     composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
@@ -876,6 +904,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/libreview") { LibreViewSettingsScreen(navController) }
                 composable("settings/mq-account") { MQAccountSettingsScreen(navController) }
                 composable("settings/mq-follower") { MQFollowerSettingsScreen(navController) }
+                composable("settings/ottai") { tk.glucodata.ui.setup.OttaiSettingsScreen(navController) }
                 composable("settings/mirror") { MirrorSettingsScreen(navController) }
                 composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                 composable("settings/api-source") { ApiSourceSettingsScreen(navController) }

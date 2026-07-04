@@ -123,9 +123,15 @@ internal object AiDexRuntimePolicy {
         startupMetadataComplete: Boolean,
         hasModelMetadata: Boolean,
         hasAuthoritativeSessionStart: Boolean,
+        hasSensorReportedWearDays: Boolean,
     ): Boolean {
-        if (startupMetadataComplete && hasModelMetadata && hasAuthoritativeSessionStart) return false
-        return !hasModelMetadata || !hasAuthoritativeSessionStart
+        if (
+            startupMetadataComplete &&
+            hasModelMetadata &&
+            hasAuthoritativeSessionStart &&
+            hasSensorReportedWearDays
+        ) return false
+        return !hasModelMetadata || !hasAuthoritativeSessionStart || !hasSensorReportedWearDays
     }
 
     fun shouldRequestRoutineCalibrationRefresh(

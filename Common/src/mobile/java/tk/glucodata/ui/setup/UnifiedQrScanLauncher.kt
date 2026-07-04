@@ -27,7 +27,7 @@ fun rememberUnifiedQrScanLauncher(
     ) { result ->
         val data = result.data
         val scanText = if (result.resultCode == Activity.RESULT_OK) {
-            data?.getStringExtra(UnifiedScanActivity.EXTRA_SCAN_TEXT)?.trim()
+            PhotoScan.trimOuterScannerWhitespace(data?.getStringExtra(UnifiedScanActivity.EXTRA_SCAN_TEXT))
         } else {
             null
         }

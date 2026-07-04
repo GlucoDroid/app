@@ -900,6 +900,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="status_disconnected">Disconnected</string>
     <string name="status_waiting_for_data">Connected, waiting for data...</string>
     <string name="status_raw_values_received">Connected, raw values received</string>
+    <string name="status_invalid_glucose_from_sensor">Invalid glucose from sensor</string>
     
     <string name="select_sensor_type">Select sensor type</string>
     <string name="choose_theme">Choose theme</string>
@@ -930,6 +931,96 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_sensor_desc">Pair a Glutec / MQ CGM transmitter via Bluetooth</string>
     <string name="anytime_sensor">Anytime / Yuwell 4 / 4H / 5</string>
     <string name="anytime_sensor_desc">Pair an Anytime / Yuwell CT3 CGM transmitter via Bluetooth</string>
+    <string name="ottai_sensor">Ottai CGM</string>
+    <string name="ottai_sensor_desc">Ottai account or credentials file + Bluetooth</string>
+    <string name="ottai_sensor_picker_desc">Chinese-market CGM - cloud sign-in + Bluetooth</string>
+
+    <!-- Ottai Setup Wizard -->
+    <string name="ottai_setup_title">Ottai Setup</string>
+    <string name="ottai_login_title">Sign in to Ottai</string>
+    <string name="ottai_phone_hint">Phone number</string>
+    <string name="ottai_send_code">Send code</string>
+    <string name="ottai_code_hint">SMS code</string>
+    <string name="ottai_code_sent">Code sent - enter it below (ref ...%1$s)</string>
+    <string name="ottai_login_button">Sign in</string>
+    <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
+    <string name="ottai_already_signed_in">Signed in</string>
+    <string name="ottai_sensor_mac_hint">Cloud device ID (12 hex or QR)</string>
+    <string name="ottai_connect_saved">Connect</string>
+    <string name="ottai_login_fail">Sign-in failed — check phone/code</string>
+    <string name="ottai_connect_saved_fail">No account or saved materials for this cloud ID</string>
+    <string name="ottai_status_needs_ble_address">Needs BLE address</string>
+    <string name="ottai_status_warmup_provisional">Provisional warmup • %1$dm left</string>
+    <string name="ottai_ble_scan_title">Nearby Ottai sensors</string>
+    <string name="ottai_ble_scan_hint">Move the phone close to the sensor. Stable CGM advertisers appear here.</string>
+    <string name="ottai_ble_scan_empty">No nearby Ottai sensor found. Move closer and scan again.</string>
+    <string name="ottai_ble_scan_selected">Selected nearby sensor %1$s</string>
+    <string name="ottai_ble_scan_likely">Likely Ottai</string>
+    <string name="ottai_ble_scan_possible">Possible CGM</string>
+    <string name="ottai_ble_scan_unknown">Other CGM</string>
+    <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
+    <string name="ottai_entry_import_title">Import credentials file</string>
+    <string name="ottai_entry_import_desc">Use a saved .json — no account or network needed.</string>
+    <string name="ottai_login_sms">SMS code</string>
+    <string name="ottai_login_password">Password</string>
+    <string name="ottai_account_hint">Email or username</string>
+    <string name="ottai_account_note">Sign in with your email, or your account username.</string>
+    <string name="ottai_password_hint">Password</string>
+    <string name="ottai_region_cn">China</string>
+    <string name="ottai_region_global">Global</string>
+    <string name="ottai_region_syai">Syai</string>
+    <string name="ottai_register_cta">Create account</string>
+    <string name="ottai_register_title">Create account</string>
+    <string name="ottai_email_hint">Email</string>
+    <string name="ottai_profile_hint">Display name</string>
+    <string name="ottai_password_rule">8–20 characters, with a letter, a number, and a special character.</string>
+    <string name="ottai_register_button">Sign up</string>
+    <string name="ottai_register_fail">Sign-up failed</string>
+    <string name="ottai_code_sent_email">Code sent to %1$s</string>
+    <string name="ottai_verify_code_hint">Verification code</string>
+    <string name="ottai_sign_out">Sign out</string>
+    <string name="ottai_sensor_saved">Saved</string>
+    <string name="ottai_sensor_active">Active</string>
+    <string name="ottai_sensor_past">Previously used</string>
+    <string name="ottai_sensors_loading">Loading your sensors…</string>
+    <string name="ottai_no_account_sensors">No sensors on this account yet — scan or enter the sensor code below.</string>
+    <string name="ottai_creds_loaded">Credentials loaded. Press Connect when ready.</string>
+    <string name="ottai_import_failed">Import failed — not a valid Ottai credentials file.</string>
+    <string name="ottai_search_ble">Search over Bluetooth</string>
+    <string name="ottai_hide_ble_scan">Hide Bluetooth scan</string>
+    <string name="ottai_device_version_label">Device version: %1$s</string>
+    <string name="ottai_nfc_dump">Scan Ottai NFC</string>
+    <string name="ottai_nfc_dump_armed">NFC scan ready — hold the sensor flat against the back of the phone.</string>
+    <string name="ottai_save_ok">Credentials saved to file.</string>
+    <string name="ottai_nfc_read_ok">NFC read complete. Try Connect again.</string>
+    <string name="ottai_save_nothing">Nothing to save — load credentials first.</string>
+    <string name="ottai_settings_desc">Manage Ottai account access, saved materials, and setup for the connected Ottai sensor.</string>
+    <string name="ottai_account_sensors_title">Ottai account sensors</string>
+    <string name="ottai_account_sensors_desc">Pick a saved or account sensor to fill the cloud ID. It will not connect until you press Connect.</string>
+    <string name="ottai_account_sensors_need_login">Sign in first to load sensors from your Ottai account.</string>
+    <string name="ottai_saved_credentials_title">Saved credentials</string>
+    <string name="ottai_selected_sensor">Selected %1$s</string>
+    <string name="ottai_materials_missing_title">Materials not loaded</string>
+    <string name="ottai_materials_missing_desc">Use a signed-in account or import a credentials file before connecting.</string>
+    <string name="ottai_materials_loading">Loading materials from account…</string>
+    <string name="ottai_connect_account_hint">Will fetch materials from account</string>
+    <string name="ottai_materials_partial_title">Formula materials incomplete</string>
+    <string name="ottai_materials_partial_desc">Authentication keys are present, but method/coefficient data is missing. Fetch or import full materials before expecting glucose values.</string>
+    <string name="ottai_state_not_activated">Ready to activate</string>
+    <string name="ottai_state_not_activated_desc">This sensor has keys but no start time yet. Connect will authenticate and start warmup.</string>
+    <string name="ottai_state_warmup">Warmup in progress</string>
+    <string name="ottai_state_warmup_desc">The sensor has a start time and should begin streaming after warmup.</string>
+    <string name="ottai_state_active">Active sensor</string>
+    <string name="ottai_state_active_desc">Materials and start time are present. Connect will resume streaming/history.</string>
+    <string name="ottai_state_expired">Expired or ended</string>
+    <string name="ottai_state_expired_desc">The saved lifetime is over. The sensor may refuse activation or only expose historical data.</string>
+    <string name="ottai_cloud_id_value">Cloud ID: %1$s</string>
+    <string name="ottai_connect_activate">Connect and start warmup</string>
+    <string name="ottai_connect_expired">Connect ended sensor</string>
+    <string name="ottai_import_export_title">Credentials file</string>
+    <string name="ottai_import_export_ready">Saved materials for %1$s are ready.</string>
+    <string name="ottai_credentials_import">Import</string>
+    <string name="ottai_credentials_replace">Replace</string>
 
     <!-- Anytime/Yuwell Setup Wizard Strings -->
     <string name="anytime_setup_title">Anytime / Yuwell Setup</string>
@@ -2058,4 +2149,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="voice_schedule_until">Until</string>
     <string name="sensor_display_select">Select display sensor</string>
     <string name="sensor_display_selected">Display sensor selected</string>
+    <string name="wrongcode">Wrong QR code</string>
 </resources>

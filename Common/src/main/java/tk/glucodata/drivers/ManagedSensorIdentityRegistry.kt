@@ -9,6 +9,7 @@ import tk.glucodata.drivers.api.ApiGlucoseSourceIdentityAdapter
 import tk.glucodata.drivers.anytime.AnytimeManagedSensorIdentityAdapter
 import tk.glucodata.drivers.icanhealth.ICanHealthManagedSensorIdentityAdapter
 import tk.glucodata.drivers.mq.MQManagedSensorIdentityAdapter
+import tk.glucodata.drivers.ottai.OttaiManagedSensorIdentityAdapter
 import tk.glucodata.drivers.nightscout.NightscoutFollowerIdentityAdapter
 
 object ManagedSensorIdentityRegistry {
@@ -17,6 +18,7 @@ object ManagedSensorIdentityRegistry {
         AnytimeManagedSensorIdentityAdapter,
         ICanHealthManagedSensorIdentityAdapter,
         MQManagedSensorIdentityAdapter,
+        OttaiManagedSensorIdentityAdapter,
         NightscoutFollowerIdentityAdapter,
         ApiGlucoseSourceIdentityAdapter,
     )

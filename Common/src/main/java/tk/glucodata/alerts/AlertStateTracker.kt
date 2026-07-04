@@ -22,9 +22,9 @@ object AlertStateTracker {
     // It stays suppressed until the condition clears and resetState() is called.
     private val dismissedAlerts = mutableSetOf<AlertType>()
 
-    // Manual test should bypass snooze / time-range / retry gating once.
-    private val manualTestBypass = mutableSetOf<AlertType>()
-    private val manualTestTrigger = mutableSetOf<AlertType>()
+    // Manual tests use the real delivery surface, but must never acknowledge,
+    // snooze, or cool down the corresponding production alert episode.
+    private val manualTests = ManualAlertTestState<AlertType>()
 
     /**
      * Determine if the runtime should fire an alert now.
@@ -33,10 +33,10 @@ object AlertStateTracker {
      * by subsequent glucose readings, so repeated live readings stay suppressed
      * until resetState() is called.
      */
+    @Synchronized
     fun shouldTrigger(type: AlertType, config: AlertConfig): Boolean {
-        if (manualTestBypass.remove(type)) {
+        if (manualTests.consumeBypassAndActivate(type)) {
             Log.i(LOG_ID, "${type.name}: Manual test bypass")
-            manualTestTrigger.add(type)
             return true
         }
 
@@ -49,10 +49,12 @@ object AlertStateTracker {
 
         // 1. Snooze Check (Global priority)
         if (SnoozeManager.isSnoozed(type)) {
+            Log.i(LOG_ID, "${type.name}: Suppressed by snooze")
             return false
         }
 
         if (dismissedAlerts.contains(type)) {
+            Log.i(LOG_ID, "${type.name}: Suppressed by episode dismissal")
             return false
         }
 
@@ -65,6 +67,8 @@ object AlertStateTracker {
 
         val lastTime = lastTriggerTime[type] ?: 0L
         if (lastTime == 0L) {
+            // Only an accepted real trigger supersedes an unacknowledged test surface.
+            manualTests.supersede(type)
             Log.i(LOG_ID, "${type.name}: First trigger")
             return true
         }
@@ -76,41 +80,90 @@ object AlertStateTracker {
      * Call this when the alert ACTUALLY fires (sound/notification played).
      * Updates timestamps and counters.
      */
-    fun onAlertTriggered(type: AlertType) {
-        if (manualTestTrigger.remove(type)) {
-            return
+    @Synchronized
+    fun onAlertTriggered(type: AlertType): Boolean {
+        if (manualTests.isActive(type)) {
+            return false
         }
         dismissedAlerts.remove(type)
         lastTriggerTime[type] = System.currentTimeMillis()
         cooldownUntilTime[type] = lastTriggerTime.getValue(type) + DEFAULT_REARM_COOLDOWN_MS
+        return true
     }
 
-    fun onAlertDismissed(type: AlertType) {
+    @Synchronized
+    fun onAlertDismissed(type: AlertType): Boolean {
+        if (manualTests.consumeAction(type)) {
+            return false
+        }
         dismissedAlerts.add(type)
         Log.i(LOG_ID, "Dismissed ${type.name} for current episode")
+        return true
     }
 
+    @Synchronized
+    fun consumeManualTestAction(type: AlertType): Boolean {
+        return manualTests.consumeAction(type)
+    }
+
+    @Synchronized
+    fun isWaitingForRearmCooldown(type: AlertType): Boolean {
+        return type !in dismissedAlerts &&
+            (cooldownUntilTime[type] ?: 0L) > System.currentTimeMillis()
+    }
+
+    @Synchronized
     fun allowNextTriggerForTest(type: AlertType) {
-        manualTestBypass.add(type)
+        manualTests.arm(type)
     }
 
     /**
      * Reset state for an alert type.
      * Call this when:
-     * - Alert is Dismissed by user
-     * - Glucose returns to normal (handled by Notify logic usually?)
+     * - Glucose returns to normal.
+     * - The alert's active time window closes.
      */
+    @Synchronized
     fun resetState(type: AlertType) {
         if (
             lastTriggerTime.containsKey(type) ||
             dismissedAlerts.contains(type) ||
-            manualTestBypass.contains(type)
+            manualTests.isPending(type)
         ) {
             Log.i(LOG_ID, "Resetting state for ${type.name}")
         }
         lastTriggerTime.remove(type)
         dismissedAlerts.remove(type)
-        manualTestBypass.remove(type)
-        manualTestTrigger.remove(type)
+        manualTests.clearPending(type)
     }
+}
+
+/** Keeps manual-test actions separate from production alert episode state. */
+internal class ManualAlertTestState<T> {
+    private val pending = mutableSetOf<T>()
+    private val active = mutableSetOf<T>()
+
+    fun arm(key: T) {
+        pending.add(key)
+    }
+
+    fun consumeBypassAndActivate(key: T): Boolean {
+        if (!pending.remove(key)) return false
+        active.add(key)
+        return true
+    }
+
+    fun supersede(key: T) {
+        active.remove(key)
+    }
+
+    fun consumeAction(key: T): Boolean = active.remove(key)
+
+    fun clearPending(key: T) {
+        pending.remove(key)
+    }
+
+    fun isPending(key: T): Boolean = key in pending
+
+    fun isActive(key: T): Boolean = key in active
 }

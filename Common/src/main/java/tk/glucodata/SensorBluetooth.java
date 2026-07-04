@@ -810,7 +810,12 @@ public class SensorBluetooth {
             return;
         }
         if (SensorIdentity.hasNativeSensorBacking(serial)) {
-            ManagedCurrentSensor.clearIfMatches(serial);
+            // The managed-current slot is only for sensors that cannot be
+            // represented by native lastsensorname. Selecting any native-backed
+            // sensor must clear a previous managed primary, otherwise
+            // SensorIdentity.resolveMainSensor() keeps returning that stale
+            // managed id ahead of the native current sensor.
+            ManagedCurrentSensor.clear();
             final String nativeSerial = SensorIdentity.resolveNativeSensorName(serial);
             Natives.setcurrentsensor(nativeSerial != null && !nativeSerial.isEmpty() ? nativeSerial : serial);
         } else {

@@ -911,7 +911,7 @@ fun InteractiveGlucoseChart(
             PeerSensorChartSeries(
                 sensorId = series.sensorId,
                 viewMode = series.viewMode,
-                color = SensorColors.getColor(series.sensorId),
+                color = Color(series.colorArgb),
                 points = buildSmoothedChartData(series.points, graphSmoothingMinutes, collapseSmoothedData)
             )
         }
@@ -921,7 +921,7 @@ fun InteractiveGlucoseChart(
     // cursor/tooltip hot paths instead of SensorIdentity.matches per frame.
     val peerDrawAttrs = remember(multiSensorDisplay) {
         multiSensorDisplay.series.associate { series ->
-            series.sensorId to (SensorColors.getColor(series.sensorId) to series.viewMode)
+            series.sensorId to (Color(series.colorArgb) to series.viewMode)
         }
     }
     val primarySerial = fullData.lastOrNull()?.sensorSerial
@@ -1063,6 +1063,52 @@ fun InteractiveGlucoseChart(
     var lastInteractionTimestamp by rememberSaveable { mutableLongStateOf(0L) }
     var suppressDoubleTapUntil by rememberSaveable { mutableLongStateOf(0L) }
 
+    // Limits
+    val minDuration = 10L * 60 * 1000
+    val maxDuration = remember(earliestDataTimestamp, latestDataTimestamp) {
+        val fullSpan = (latestDataTimestamp - earliestDataTimestamp).coerceAtLeast(0L)
+        maxOf(72L * 60L * 60L * 1000L, fullSpan + (2L * 60L * 60L * 1000L))
+    }
+    fun maxAllowedCenterTime(durationMillis: Long): Long {
+        val journalAwareEnd = maxOf(System.currentTimeMillis(), latestDataTimestamp, latestJournalTimelineTimestamp)
+        return if (hasPredictionOverlay && predictionEndTimestamp > journalAwareEnd) {
+            predictionEndTimestamp - durationMillis / 2L
+        } else {
+            journalAwareEnd + (2L * 60L * 1000L)
+        }
+    }
+
+    val maxAllowedTime = maxAllowedCenterTime(visibleDuration)
+
+    fun isViewportAtLiveEdge(durationMillis: Long): Boolean {
+        val latestOrNow = latestDataTimestamp.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val viewportEnd = centerTime + durationMillis / 2L
+        val liveEnd = liveEndTimeFor(latestOrNow, durationMillis)
+        return abs(viewportEnd - liveEnd) <= 10L * 60L * 1000L
+    }
+
+    fun applyTimeRangeDuration(durationMillis: Long) {
+        val keepLiveEdge = isViewportAtLiveEdge(visibleDuration)
+        val latestOrNow = latestDataTimestamp.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val targetCenter = if (keepLiveEdge) {
+            liveCenterTimeFor(latestOrNow, durationMillis)
+        } else {
+            centerTime
+        }.coerceAtMost(maxAllowedCenterTime(durationMillis))
+
+        visibleDuration = durationMillis
+        centerTime = targetCenter
+        previewCenterTime = if (keepLiveEdge) {
+            previewCenterTimeForWindowEnd(targetCenter + durationMillis / 2L)
+        } else {
+            previewCenterTimeContainingViewport(
+                previewCenterTime = previewCenterTime,
+                viewportCenterTime = targetCenter,
+                visibleDuration = durationMillis
+            )
+        }
+    }
+
     // TRACKING INACTIVITY FOR GRAPH RESET
     var lastActiveTime by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
     val currentLatestDataTimestamp by rememberUpdatedState(latestDataTimestamp)
@@ -1100,26 +1146,16 @@ fun InteractiveGlucoseChart(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // FIX: React to Time Range Selection explicitly.
-    // Ensure we don't clobber the user's manual zoom if they just navigated away and back.
-    // 'lastAppliedRangeName' tracks the last *user-selected* time range applied to this chart.
-    // If 'selectedTimeRange' (prop) matches what we last applied, we do nothing (preserve zoom).
-    // If it differs (user clicked a button in parent), we update.
+    // React to parent range state only when it represents a new range button choice.
+    // Range changes alter the visible duration inside the current frame; tapping the
+    // already-active range button is the explicit "back to now" action.
     var lastAppliedRangeName by rememberSaveable { mutableStateOf(selectedTimeRange?.name) }
 
     LaunchedEffect(selectedTimeRange) {
         if (selectedTimeRange != null && selectedTimeRange.name != lastAppliedRangeName) {
             lastAppliedRangeName = selectedTimeRange.name
             val target = selectedTimeRange.hours * 60 * 60 * 1000L
-            if (visibleDuration != target) {
-                visibleDuration = target
-            }
-            // Snap to latest data when changing range for immediate feedback.
-            if (latestDataTimestamp > 0) {
-                val targetCenter = liveCenterTimeFor(latestDataTimestamp, target)
-                centerTime = targetCenter
-                previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + target / 2L)
-            }
+            applyTimeRangeDuration(target)
         }
     }
 
@@ -1282,23 +1318,6 @@ fun InteractiveGlucoseChart(
     val coroutineScope = rememberCoroutineScope()
     val velocityTracker = remember { VelocityTracker() }
     val inertiaAnim = remember { Animatable(0f) }
-
-    // Limits
-    val minDuration = 10L * 60 * 1000
-    val maxDuration = remember(earliestDataTimestamp, latestDataTimestamp) {
-        val fullSpan = (latestDataTimestamp - earliestDataTimestamp).coerceAtLeast(0L)
-        maxOf(72L * 60L * 60L * 1000L, fullSpan + (2L * 60L * 60L * 1000L))
-    }
-    fun maxAllowedCenterTime(durationMillis: Long): Long {
-        val journalAwareEnd = maxOf(System.currentTimeMillis(), latestDataTimestamp, latestJournalTimelineTimestamp)
-        return if (hasPredictionOverlay && predictionEndTimestamp > journalAwareEnd) {
-            predictionEndTimestamp - durationMillis / 2L
-        } else {
-            journalAwareEnd + (2L * 60L * 1000L)
-        }
-    }
-
-    val maxAllowedTime = maxAllowedCenterTime(visibleDuration)
 
     fun cancelAutoScroll() {
         autoScrollJob?.cancel()
@@ -4144,14 +4163,8 @@ fun InteractiveGlucoseChart(
                                         )
                                     )
                                 } else {
-                                    visibleDuration = rangeDur
+                                    applyTimeRangeDuration(rangeDur)
                                     onTimeRangeSelected?.invoke(range)
-                                    val targetCenter = liveCenterTimeFor(
-                                        latestDataTimestamp.takeIf { it > 0L } ?: now,
-                                        rangeDur
-                                    )
-                                    centerTime = targetCenter
-                                    previewCenterTime = previewCenterTimeForWindowEnd(targetCenter + rangeDur / 2L)
                                 }
                             },
                         contentAlignment = Alignment.Center

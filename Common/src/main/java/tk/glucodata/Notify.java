@@ -952,12 +952,10 @@ public class Notify {
     private static final class AlarmLaunchResult {
         final boolean directStarted;
         final boolean queued;
-        final boolean needsNotificationTransport;
 
-        AlarmLaunchResult(boolean directStarted, boolean queued, boolean needsNotificationTransport) {
+        AlarmLaunchResult(boolean directStarted, boolean queued) {
             this.directStarted = directStarted;
             this.queued = queued;
-            this.needsNotificationTransport = needsNotificationTransport;
         }
 
         boolean startedOrQueued() {
@@ -1287,13 +1285,18 @@ public class Notify {
             return;
         }
         final int kind = resolveAlertKind(-1);
-        cancelCurrentRetrySession("notification-open");
+        boolean productionAction = true;
         if (kind >= 0) {
             final AlertType type = AlertType.Companion.fromId(kind);
             if (type != null) {
-                SnoozeManager.INSTANCE.clearSnooze(type);
-                AlertStateTracker.INSTANCE.onAlertDismissed(type);
+                productionAction = AlertStateTracker.INSTANCE.onAlertDismissed(type);
+                if (productionAction) {
+                    SnoozeManager.INSTANCE.clearSnooze(type);
+                }
             }
+        }
+        if (productionAction) {
+            cancelCurrentRetrySession("notification-open");
         }
         cancelAlertNotification();
         stopalarm();
@@ -2129,38 +2132,25 @@ public class Notify {
         // Run on main thread to be safe with UI/Toasts
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             boolean isMmol = tk.glucodata.Applic.unit == 1;
-            float dummyValue;
-            String typeStr;
-            String message;
-
-            // Determine appropriate dummy values based on kind
-            switch (kind) {
-                case 0: // Low
-                    dummyValue = isMmol ? 3.5f : 63f;
-                    typeStr = alertChannelForKind(kind);
-                    message = isMmol ? "LOW 3.5" : "LOW 63";
-                    break;
-                case 1: // High
-                    dummyValue = isMmol ? 12.0f : 216f;
-                    typeStr = alertChannelForKind(kind);
-                    message = isMmol ? "HIGH 12.0" : "HIGH 216";
-                    break;
-                case 4: // Loss (AlertType.LOSS.id = 4)
-                    dummyValue = 0f;
-                    typeStr = alertChannelForKind(kind);
-                    message = "Signal Loss";
-                    break;
-                default:
-                    dummyValue = isMmol ? 3.5f : 63f;
-                    typeStr = alertChannelForKind(kind);
-                    message = "Test Alert";
-            }
+            final AlertType alertType = AlertType.Companion.fromId(kind);
+            final AlertConfig config = alertType != null ? AlertRepository.INSTANCE.loadConfig(alertType) : null;
+            final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
+            final float currentDisplayValue = current != null ? current.getPrimaryValue() : Float.NaN;
+            final float dummyValue = AlertTestValuePolicy.resolve(
+                    alertType,
+                    config,
+                    isMmol,
+                    currentDisplayValue);
+            final String typeStr = alertChannelForKind(kind);
+            final String label = alertType != null
+                    ? Applic.app.getString(alertType.getNameResId())
+                    : "Test Alert";
+            final String message = alertType == AlertType.LOSS
+                    ? label
+                    : label + " " + glucosestr(dummyValue);
 
             if (onenot != null) {
-                // Reset state so test always plays sound
-                AlertType alertType = AlertType.Companion.fromId(kind);
                 if (alertType != null) {
-                    AlertStateTracker.INSTANCE.resetState(alertType);
                     AlertStateTracker.INSTANCE.allowNextTriggerForTest(alertType);
                 }
                 allowNextAlertEffectsForTest();
@@ -2218,14 +2208,6 @@ public class Notify {
             if (onenot != null) {
                 int kind = isHigh ? 1 : 0;
 
-                // For test scenarios, reset tracker state so sound always plays
-                if (isTest) {
-                    AlertType alertType = AlertType.Companion.fromId(kind);
-                    if (alertType != null) {
-                        AlertStateTracker.INSTANCE.resetState(alertType);
-                    }
-                }
-
                 final String defaultName = isTest
                         ? ("Test Custom " + (isHigh ? "High" : "Low"))
                         : (isHigh ? "Custom High" : "Custom Low");
@@ -2240,7 +2222,7 @@ public class Notify {
 
                 // Delivery Mode Logic
                 String mode = normalizeDeliveryMode(deliveryMode);
-                AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
+                AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false);
 
                 // When the phone is idle/locked, background activity starts are not a
                 // reliable contract. Queue the AlarmActivity through AlarmManager so
@@ -2257,8 +2239,7 @@ public class Notify {
 
                 boolean skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
                         mode,
-                        alarmLaunchResult.startedOrQueued(),
-                        alarmLaunchResult.needsNotificationTransport);
+                        alarmLaunchResult.startedOrQueued());
 
                 // 2. Heads-Up Notification (Separate) - This is what standard alerts do!
                 // Only if we shouldn't skip the banner (Notification mode, Both mode, or Alarm
@@ -2435,14 +2416,15 @@ public class Notify {
 
     private static AlarmLaunchResult launchOrQueueAlarmActivityResult(String glucoseValue, String alarmMessage,
             float rate, int alertTypeId, String customAlertId, String deliveryMode) {
-        if (shouldTryDirectAlarmActivity()) {
-            final boolean directStarted = showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId,
-                    customAlertId, deliveryMode);
-            return new AlarmLaunchResult(directStarted, false, false);
+        final boolean directStartIsReliable = shouldTryDirectAlarmActivity();
+        final boolean directStarted = AlarmLaunchStrategy.shouldAttemptDirectStart()
+                && showpopupalarm(glucoseValue, alarmMessage, rate, alertTypeId, customAlertId, deliveryMode);
+        if (!AlarmLaunchStrategy.shouldQueueBackup(directStartIsReliable)) {
+            return new AlarmLaunchResult(directStarted, false);
         }
         final boolean queued = queueAlarmActivityLaunch(glucoseValue, alarmMessage, rate, alertTypeId,
                 customAlertId, deliveryMode);
-        return new AlarmLaunchResult(false, queued, queued);
+        return new AlarmLaunchResult(directStarted, queued);
     }
 
     private static boolean showpopupalarm(String glucoseValue, String alarmMessage, float rate, int alertTypeId) {
@@ -2524,7 +2506,7 @@ public class Notify {
     }
 
     private void deliverTriggeredAlert(int kind, float glvalue, String message, notGlucose strglucose, String type) {
-        AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false, false);
+        AlarmLaunchResult alarmLaunchResult = new AlarmLaunchResult(false, false);
         boolean skipBanner = false;
 
         if (!AlertType.Companion.isLegacyOnlyId(kind)) {
@@ -2545,8 +2527,7 @@ public class Notify {
                 if (doLog)
                     Log.i(LOG_ID, "Alert Debug: alarm window started=" + alarmLaunchResult.startedOrQueued()
                             + " direct=" + alarmLaunchResult.directStarted
-                            + " queued=" + alarmLaunchResult.queued
-                            + " notificationTransport=" + alarmLaunchResult.needsNotificationTransport);
+                            + " queued=" + alarmLaunchResult.queued);
                 if (!alarmLaunchResult.startedOrQueued() && doLog) {
                     Log.i(LOG_ID, "Alert Debug: AlarmActivity launch failed, using notification fallback");
                 }
@@ -2554,8 +2535,7 @@ public class Notify {
 
             skipBanner = !AlertDeliveryPolicy.shouldPostAlertNotification(
                     deliveryMode,
-                    alarmLaunchResult.startedOrQueued(),
-                    alarmLaunchResult.needsNotificationTransport);
+                    alarmLaunchResult.startedOrQueued());
             if (doLog)
                 Log.i(LOG_ID, "Alert Debug: skipBanner=" + skipBanner);
         }
@@ -2653,11 +2633,13 @@ public class Notify {
 
                     if (!AlertStateTracker.INSTANCE.shouldTrigger(alertType, config)) {
                         if (doLog)
-                            Log.i(LOG_ID, "Alert Suppressed (Snoozed or Retry Logic): kind=" + kind);
+                            Log.i(LOG_ID, "Alert suppressed by alert state: kind=" + kind);
                         alarm = false;
                     } else {
-                        AlertStateTracker.INSTANCE.onAlertTriggered(alertType);
-                        syncRetrySession(kind, glvalue, message, strglucose, type, config, true);
+                        final boolean productionTrigger = AlertStateTracker.INSTANCE.onAlertTriggered(alertType);
+                        if (productionTrigger) {
+                            syncRetrySession(kind, glvalue, message, strglucose, type, config, true);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -3342,18 +3324,15 @@ public class Notify {
         final java.util.List<NotificationChartDrawer.ValueItem> peerValueItems =
                 NotificationMultiSensorSource.valueItems(peerCurrents);
 
-        // Semantic Color
-        int glucoseColor = NotificationChartDrawer.getGlucoseColor(Applic.app, displayGlucoseValue, isMmol);
-        // Multi-sensor: tint the primary value (and its inline arrow) with the
-        // primary sensor's identity color, matching the dashboard's subtle
-        // PRIMARY_TEXT_BLEND so the notification follows the same color scheme.
-        int primaryDisplayColor = glucoseColor;
-        if (!peerValueItems.isEmpty()) {
-            primaryDisplayColor = SensorVisuals.blendArgb(
-                    glucoseColor,
-                    SensorVisuals.colorArgb(activeSensorSerial),
-                    SensorVisuals.PRIMARY_TEXT_BLEND);
-        }
+        boolean hasSelectedPeerSensors = !peerCurrents.isEmpty();
+        int primaryDisplayColor = NotificationChartDrawer.notificationChartPrimaryValueColor(
+                Applic.app,
+                displayGlucoseValue,
+                isMmol,
+                activeSensorSerial,
+                hasSelectedPeerSensors);
+        int secondaryDisplayColor = NotificationChartDrawer.notificationChartSecondaryValueColor(Applic.app);
+        int tertiaryDisplayColor = NotificationChartDrawer.notificationChartTertiaryValueColor(Applic.app);
 
         // ========== READ NOTIFICATION PREFERENCES ==========
         android.content.SharedPreferences prefs = Applic.app
@@ -3378,7 +3357,7 @@ public class Notify {
         // Render Arrow (Color + Size from Preferences) - still bitmap for colored
         // vector
         Bitmap arrowBitmap = (showArrow && !inlineMultiArrows)
-                ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, glucoseColor, arrowSize)
+                ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, primaryDisplayColor, arrowSize)
                 : null;
 
         // 3a. Construct RemoteViews (Collapsed)
@@ -3432,8 +3411,9 @@ public class Notify {
         // Glucose Value - Render as Bitmap to support IBM Plex Font & Locale
         // consistency
         // Collapsed: Base size 24sp (scale 1.0 * fontSize)
-        Bitmap valueBitmap = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(), primaryDisplayColor,
-                peerValueItems, fontSize, fontWeight, useSystemFont,
+        Bitmap valueBitmap = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(),
+                primaryDisplayColor, secondaryDisplayColor, tertiaryDisplayColor, peerValueItems,
+                fontSize, fontWeight, useSystemFont,
                 inlineMultiArrows ? rate : Float.NaN, isMmol, arrowSize);
         remoteViews.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViews.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);
@@ -3460,7 +3440,8 @@ public class Notify {
 
         // Glucose Value - Expanded: Size 28sp (scale ~1.17 * fontSize)
         Bitmap valueBitmapExpanded = NotificationChartDrawer.drawMultiGlucoseText(Applic.app, valueText.toString(),
-                primaryDisplayColor, peerValueItems, fontSize * 1.166f, fontWeight, useSystemFont,
+                primaryDisplayColor, secondaryDisplayColor, tertiaryDisplayColor, peerValueItems,
+                fontSize * 1.166f, fontWeight, useSystemFont,
                 inlineMultiArrows ? rate : Float.NaN, isMmol, arrowSize);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose, View.GONE);
         remoteViewsExpanded.setViewVisibility(R.id.notification_glucose_image, View.VISIBLE);
