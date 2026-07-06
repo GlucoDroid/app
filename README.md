@@ -1,43 +1,5 @@
-![Logo-icon](Common/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp)
-# JugglucoNG
-  ![Screenshot](https://github.com/ctqwa/JugglucoNG/blob/primary/alpha0.3.1.png?raw=true)
+![App Icon](Common/src/main/res/mipmap-hdpi/ic_launcher_round.png)
 
-## 0.9.0-Alpha
-Journal/IOB/Predictive simulation WIP
-iCan and MQ/Glutec sensors support
-Voice speak for Glucose and Alarms
-Custom chart range
-Nightscout follower (untested)
-Settings export
-Permissions monitoring
+Vibe-coded fork from https://github.com/ctqvva/JugglucoNG to try and help provide enhancements, specifically optimized for and meant to be used in conjunction with https://glucodroid.cloud/.
 
-## 0.8.4-Alpha
-History screen redesign, Statistics screen refinement, improved reconnect/recovery for Aidex, various Alarms and alerts fixes, notification trendarrow unstuck, Dashboard hero card initial connect status and stale value handling.
-
-## 0.8.3-Alpha
-
-<…>
-
-## 0.3.1-Alpha
-- New landings page, redesigned sensors and settings menus
-- Sibionics connection options (QR from photo, manual QR, fake QR and transmitter BT auto-connect for Sibionics 2)
-- AOD, Floating glucose
-- Notification shade charts
-- Noise levels (xdrip-like) algorithm
-- Sensor-independent DB with export/import
-- Custom alarms system 
-- Trending arrow endgine
-- App restart/clear/reset 
-- Basic calibration
-## 0.2.0-Alpha
-Initial build with Material 3 UI.
-Sibionics 2 Auto Reset, more buttons.
-Only tested with Sibionics 2.
-
-## 0.1.20
-1. Sibionics 2 reset error fixes
-2. Sibionics calibration algorithm options (Auto, Raw, Auto + Raw), "Clear" (calibration reset) and "Clear all" (full reset) buttons
-3. Basic bottom navigation bar
-4. Portrait mode enabled
-5. Automatic dark mode
-
+Disclaimer: this is only meant to be used as infrastructure relay, not intended for medical therapy or other medical use. Always use offical and approved methods to keep an eye on blood glucose levels.

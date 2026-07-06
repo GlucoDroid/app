@@ -54,13 +54,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -69,6 +70,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import tk.glucodata.Log
 import tk.glucodata.R
 
 private fun Context.hasCameraPermission(): Boolean {
@@ -77,6 +79,7 @@ private fun Context.hasCameraPermission(): Boolean {
 
 @Composable
 @SuppressLint("ClickableViewAccessibility")
+@androidx.camera.core.ExperimentalGetImage
 fun InlineQrScannerCard(
     modifier: Modifier = Modifier,
     scannerEnabled: Boolean = true,
@@ -129,7 +132,7 @@ fun InlineQrScannerCard(
             )
             .build()
     }
-    val barcodeScanner = remember { BarcodeScanning.getClient(scannerOptions) }
+    var barcodeScanner by remember { mutableStateOf<BarcodeScanner?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -143,6 +146,23 @@ fun InlineQrScannerCard(
         }
     }
 
+    // Defer BarcodeScanning.getClient() out of the measure pass into a coroutine.
+    // Doing this in `remember { }` races the lib's static <clinit> with Compose
+    // measure on cold start and can NPE on the `zzi` field of the internal
+    // `zzg` holder (see "standalone-MLKit initialization race" in
+    // ~/.config/kilo/agent/glucodroid.md). MainActivity warm-up runs once at
+    // process start; this LaunchedEffect is the per-composable safety net that
+    // also recovers from a warm-up failure by surfacing it to `scannerError`.
+    LaunchedEffect(Unit) {
+        if (barcodeScanner != null) return@LaunchedEffect
+        runCatching { BarcodeScanning.getClient(scannerOptions) }
+            .onSuccess { barcodeScanner = it }
+            .onFailure { t ->
+                scannerError = t.message ?: t.javaClass.simpleName
+                Log.e("InlineQrScannerCard", "Failed to acquire ML Kit barcode scanner: ${t.message}")
+            }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             if (touchActive) {
@@ -152,7 +172,8 @@ fun InlineQrScannerCard(
             camera = null
             torchEnabled = false
             analyzerExecutor.shutdown()
-            barcodeScanner.close()
+            barcodeScanner?.close()
+            barcodeScanner = null
         }
     }
 
@@ -209,7 +230,8 @@ fun InlineQrScannerCard(
                             .also { imageAnalysis ->
                                 imageAnalysis.setAnalyzer(analyzerExecutor) { imageProxy ->
                                     val mediaImage = imageProxy.image
-                                    if (mediaImage == null || consumed) {
+                                    val scanner = barcodeScanner
+                                    if (mediaImage == null || consumed || scanner == null) {
                                         imageProxy.close()
                                         return@setAnalyzer
                                     }
@@ -223,7 +245,7 @@ fun InlineQrScannerCard(
                                         imageProxy.imageInfo.rotationDegrees
                                     )
 
-                                    barcodeScanner.process(inputImage)
+                                    scanner.process(inputImage)
                                         .addOnSuccessListener(mainExecutor) { barcodes ->
                                             val rawValue = barcodes
                                                 .firstNotNullOfOrNull { barcode ->
