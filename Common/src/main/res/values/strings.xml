@@ -2149,4 +2149,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sensor_display_select">Select display sensor</string>
     <string name="sensor_display_selected">Display sensor selected</string>
     <string name="wrongcode">Wrong QR code</string>
+    <!-- v0.3.0.2-alpha: rebase regression fix -->
+    <string name="copy_log">Copy log</string>
+    <string name="share_log">Share log</string>
+    <string name="about_upstream">Fork of JugglucoNG v1.0.0-Alpha • GPL-3.0</string>
+    <string name="about_cloud">Made for glucodroid.cloud</string>
+    <string name="nightscout_sensor_desc">Follow a Nightscout site as a read-only glucose source</string>
+    <string name="nightscout_mode_label">Mode</string>
+    <string name="nightscout_mode_off">Off</string>
+    <string name="nightscout_test_server_ok">Server: HTTP %1$d ✓</string>
+    <string name="nightscout_test_server_err">Server: HTTP %1$d ✗</string>
+    <string name="nightscout_test_entries_ok">Entries: HTTP %1$d ✓</string>
+    <string name="nightscout_test_entries_auth_err">Entries: HTTP %1$d — check API secret</string>
+    <string name="nightscout_test_entries_err">Entries: HTTP %1$d</string>
+    <string name="nightscout_test_last_upload_ok">Last upload: %1$s — HTTP %2$d ✓</string>
+    <string name="nightscout_test_last_upload_err">Last upload: %1$s — HTTP %2$d</string>
+    <string name="outbound_api_preset_glucodroid_cloud">Stream to glucodroid.cloud</string>
+    <string name="outbound_api_preset_glucodroid_cloud_desc">Stream readings to your glucodroid.cloud account.</string>
+    <string name="outbound_api_glucodroid_subdomain">Subdomain</string>
+    <string name="outbound_api_glucodroid_ingest_token">API secret</string>
+    <string name="export_raw_csv">Export Raw Data (CSV)</string>
 </resources>

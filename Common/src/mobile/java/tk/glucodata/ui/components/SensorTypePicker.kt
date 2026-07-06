@@ -30,7 +30,8 @@ enum class SensorType {
     ICANHEALTH,
     MQ,
     ANYTIME,
-    OTTAI
+    OTTAI,
+    NIGHTSCOUT
 }
 
 /**

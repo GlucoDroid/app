@@ -582,8 +582,15 @@ private fun DeliverySection(
     destination: OutboundApiSettings.Destination,
     onChange: (OutboundApiSettings.Destination) -> Unit
 ) {
-    SettingsSubsectionTitle(stringResource(R.string.outbound_api_delivery))
-    Surface(
+    val preset = destination.normalizedPreset()
+    val isTelegram = preset == OutboundApiSettings.PRESET_TELEGRAM_BOT
+    val isGlucodroid = preset == OutboundApiSettings.PRESET_GLUCODROID_CLOUD
+SettingsSubsectionTitle(stringResource(R.string.outbound_api_delivery))
+    OutlinedTextField(
+        value = destination.minIntervalMinutes.toString(),
+        onValueChange = { raw ->
+            onChange(destination.copy(minIntervalMinutes = raw.filter { it.isDigit() }.toIntOrNull() ?: 0))
+        },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         label = { Text(stringResource(R.string.outbound_api_min_interval)) },

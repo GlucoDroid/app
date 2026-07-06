@@ -108,7 +108,6 @@ private fun DashboardRoute(
         onNavigateToCalibrations = { navController.navigate("calibrations") },
         onNavigateToHistory = { navController.navigate("history") },
         onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
-        onNavigateToNightscout = { navController.navigate("settings/nightscout") },
         onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") },
         onTriggerCalibration = onTriggerCalibration
     )

@@ -1126,6 +1126,7 @@ fun DashboardScreen(
                     tk.glucodata.ui.components.SensorType.MQ -> showMQWizard = true
                     tk.glucodata.ui.components.SensorType.ANYTIME -> showAnytimeWizard = true
                     tk.glucodata.ui.components.SensorType.OTTAI -> showOttaiWizard = true
+                    tk.glucodata.ui.components.SensorType.NIGHTSCOUT -> { /* navigate via outer handler */ }
                 }
             },
                 onImportHistory = {
