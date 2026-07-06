@@ -731,7 +731,7 @@ fun OttaiSetupWizard(
 
 
 
-                        InlineQrScannerCard(
+                        OttaiInlineQrScannerCard(
                             modifier = Modifier.fillMaxWidth().height(180.dp),
                             onScanResult = { raw ->
                                 OttaiConstants.extractMacFromQr(raw)?.let {
@@ -1413,4 +1413,16 @@ private fun LaunchedScreenComplete(onComplete: () -> Unit) {
         delay(SENSOR_SETUP_SUCCESS_AUTO_ADVANCE_MS)
         onComplete()
     }
+}
+
+@androidx.annotation.OptIn(markerClass = [androidx.camera.core.ExperimentalGetImage::class])
+@Composable
+private fun OttaiInlineQrScannerCard(
+    modifier: Modifier = Modifier,
+    onScanResult: (String) -> Unit,
+) {
+    InlineQrScannerCard(
+        modifier = modifier,
+        onScanResult = onScanResult,
+    )
 }
