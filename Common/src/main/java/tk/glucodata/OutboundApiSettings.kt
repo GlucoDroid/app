@@ -1,6 +1,7 @@
 package tk.glucodata
 
 import android.content.Context
+import android.net.Uri
 import androidx.annotation.Keep
 import org.json.JSONArray
 import org.json.JSONObject
@@ -13,6 +14,7 @@ object OutboundApiSettings {
     const val PRESET_TELEGRAM_BOT = "telegram_bot"
     const val PRESET_GLUCO_WATCH_VK = "glucowatch_vk"
     const val PRESET_VK_MESSAGES = "vk_messages"
+    const val PRESET_GLUCODROID_CLOUD = "glucodroid_cloud"
 
     private const val LEGACY_PROVIDER_WEBHOOK_JSON = "webhook_json"
     private const val LEGACY_PROVIDER_VK = "vk"
@@ -64,6 +66,9 @@ object OutboundApiSettings {
         "{value} {unit} {trend_arrow} RAW:{raw} ({rate_mgdl} mg/dL/min) IOB:{iob} COB:{cob} {time}"
     const val DEFAULT_CHAT_TEMPLATE =
         "{status_emoji} {value} {unit} {trend_arrow} {time}"
+    // Alternative with emoji trend arrows (renders as white arrows on grey squares)
+    const val DEFAULT_CHAT_TEMPLATE_EMOJI_ARROWS =
+        "{status_emoji} {value} {unit} {trend_arrow_emoji} {time}"
     // Old default before status tokens were added — used to migrate stored templates on load.
     private const val LEGACY_CHAT_TEMPLATE = "{value} {unit} {trend_arrow} {time}"
     const val DEFAULT_GLUCO_WATCH_TEMPLATE =
@@ -113,13 +118,19 @@ object OutboundApiSettings {
         val lastMessageIdByRecipient: Map<String, Long> = emptyMap(),
         val lastSentAtMsByRecipient: Map<String, Long> = emptyMap(),
         val lastSentMgdlByRecipient: Map<String, Int> = emptyMap(),
-        val lastStaleAtMsByRecipient: Map<String, Long> = emptyMap()
+        val lastStaleAtMsByRecipient: Map<String, Long> = emptyMap(),
+        val settingsVersion: Int = 0
     ) {
         fun normalizedPreset(): String = normalizePreset(preset)
 
         fun normalizedTriggerMode(): String = normalizeTriggerMode(triggerMode)
 
         fun resolvedUrl(): String {
+            if (normalizedPreset() == PRESET_GLUCODROID_CLOUD) {
+                val subdomain = url.trim()
+                if (subdomain.isBlank()) return ""
+                return "https://$subdomain.glucodroid.cloud/api/v1/entries?token=${Uri.encode(token.trim())}"
+            }
             val trimmed = url.trim()
             val replacementToken = if (normalizedPreset() == PRESET_TELEGRAM_BOT) {
                 token.trim().removePrefix("bot")
@@ -162,6 +173,7 @@ object OutboundApiSettings {
                 PRESET_GLUCO_WATCH_VK,
                 PRESET_VK_MESSAGES -> token.isNotBlank() && recipients().isNotEmpty() &&
                     recipients().all(::isVkRecipient)
+                PRESET_GLUCODROID_CLOUD -> url.isNotBlank() && token.isNotBlank()
                 else -> true
             }
         }
@@ -197,7 +209,11 @@ object OutboundApiSettings {
             val oldDefaultName = defaultName(oldPreset)
             return copy(
                 preset = normalized,
-                url = if (url.isBlank() || url == oldDefaultUrl) defaultUrl(normalized, token) else url,
+                url = if (oldPreset == PRESET_GLUCODROID_CLOUD || url.isBlank() || url == oldDefaultUrl) {
+                    defaultUrl(normalized, token)
+                } else {
+                    url
+                },
                 messageTemplate = if (messageTemplate.isBlank() || messageTemplate == oldDefaultTemplate) {
                     defaultTemplate(normalized)
                 } else {
@@ -227,10 +243,16 @@ object OutboundApiSettings {
         if (!stored.isNullOrBlank()) {
             val enabled = prefs.getBoolean(KEY_ENABLED, true)
             val destinations = runCatching { decodeDestinations(stored) }.getOrDefault(emptyList())
-            return Config(
+            val config = Config(
                 enabled = true,
                 destinations = if (enabled) destinations else destinations.map { it.copy(enabled = false) }
             )
+            // If any destination has settingsVersion==1, it came from PR #45's broken migration.
+            // Re-save to persist the in-memory healing and prevent the migration from re-running every load.
+            if (destinations.any { it.settingsVersion == 1 }) {
+                save(context, config)
+            }
+            return config
         }
 
         val migrated = migrateLegacy(context)
@@ -268,7 +290,7 @@ object OutboundApiSettings {
             apiVersion = DEFAULT_VK_API_VERSION,
             headers = "",
             messageTemplate = defaultTemplate(normalized),
-            minIntervalMinutes = DEFAULT_MIN_INTERVAL_MINUTES,
+            minIntervalMinutes = if (normalized == PRESET_GLUCODROID_CLOUD) 0 else DEFAULT_MIN_INTERVAL_MINUTES,
             triggerMode = TRIGGER_ALWAYS,
             triggerLowMgdl = DEFAULT_TRIGGER_LOW_MGDL,
             triggerHighMgdl = DEFAULT_TRIGGER_HIGH_MGDL,
@@ -287,7 +309,8 @@ object OutboundApiSettings {
             lastMessageIdByRecipient = emptyMap(),
             lastSentAtMsByRecipient = emptyMap(),
             lastSentMgdlByRecipient = emptyMap(),
-            lastStaleAtMsByRecipient = emptyMap()
+            lastStaleAtMsByRecipient = emptyMap(),
+            settingsVersion = 1
         )
     }
 
@@ -315,6 +338,7 @@ object OutboundApiSettings {
             PRESET_TELEGRAM_BOT -> "Telegram bot"
             PRESET_GLUCO_WATCH_VK -> "VK direct message"
             PRESET_VK_MESSAGES -> "VK text message"
+            PRESET_GLUCODROID_CLOUD -> "glucodroid.cloud"
             else -> "Custom JSON webhook"
         }
 
@@ -353,6 +377,10 @@ object OutboundApiSettings {
                 lastError = null
             )
         }
+        val dest = load(context).findDestination(destinationId)
+        if (dest != null && dest.normalizedPreset() == PRESET_TELEGRAM_BOT) {
+            TelegramKeepAliveScheduler.schedule(context.applicationContext)
+        }
     }
 
     fun recordReadingArrived(
@@ -362,10 +390,9 @@ object OutboundApiSettings {
         arrivedAtMs: Long
     ) {
         updateDestination(context, destinationId) { dest ->
-            // Only update the timestamp; leave messageId and lastSentMgdl unchanged
-            // so suppression delta is still computed from the last-sent value.
             dest.copy(
-                lastSentAtMsByRecipient = dest.lastSentAtMsByRecipient + (recipient to arrivedAtMs)
+                lastSentAtMsByRecipient = dest.lastSentAtMsByRecipient + (recipient to arrivedAtMs),
+                lastStaleAtMsByRecipient = dest.lastStaleAtMsByRecipient - recipient
             )
         }
     }
@@ -420,7 +447,6 @@ object OutboundApiSettings {
             )
         }
     }
-
     fun updateDestination(
         context: Context,
         destinationId: String,
@@ -492,7 +518,8 @@ object OutboundApiSettings {
         when (preset) {
             PRESET_TELEGRAM_BOT,
             PRESET_GLUCO_WATCH_VK,
-            PRESET_VK_MESSAGES -> preset
+            PRESET_VK_MESSAGES,
+            PRESET_GLUCODROID_CLOUD -> preset
             else -> PRESET_CUSTOM_JSON
         }
 
@@ -558,6 +585,7 @@ object OutboundApiSettings {
                             "lastStaleAtMsByRecipient",
                             encodeLongMap(destination.lastStaleAtMsByRecipient)
                         )
+                        .put("settingsVersion", maxOf(1, destination.settingsVersion))
                 )
             }
         }
@@ -568,6 +596,9 @@ object OutboundApiSettings {
         for (index in 0 until array.length()) {
             val item = array.optJSONObject(index) ?: continue
             val preset = normalizePreset(item.optString("preset", PRESET_CUSTOM_JSON))
+            val itemSettingsVersion = item.optInt("settingsVersion", 0)
+            val staleThreshold = item.optInt("staleThresholdMinutes", DEFAULT_STALE_THRESHOLD_MINUTES)
+                .coerceIn(1, 120)
             destinations += Destination(
                 id = item.optString("id").ifBlank { UUID.randomUUID().toString() },
                 enabled = item.optBoolean("enabled", false),
@@ -602,32 +633,34 @@ object OutboundApiSettings {
                 refreshInPlaceEnabled = item.optBoolean(
                     "refreshInPlaceEnabled",
                     DEFAULT_REFRESH_IN_PLACE_ENABLED
-                ),
+                ).let { stored ->
+                    // Restore edit-in-place that was incorrectly forced false by PR #45.
+                    // PR #45 migrated users' data and wrote version=1 when forcing false.
+                    // So we check for the broken pattern: false && version==1
+                    if (stored == false && itemSettingsVersion == 1) true else stored
+                },
                 refreshWindowMinutes = item.optInt(
                     "refreshWindowMinutes",
                     DEFAULT_REFRESH_WINDOW_MINUTES
-                ).coerceIn(1, 60),
+                ).let { stored ->
+                    // Migrate the old 5-minute default: too tight for a 5-min CGM interval.
+                    if (stored == 5) DEFAULT_REFRESH_WINDOW_MINUTES else stored
+                }.coerceIn(1, 60),
                 suppressDeltaBelowMgdl = item.optInt(
                     "suppressDeltaBelowMgdl",
                     DEFAULT_SUPPRESS_DELTA_BELOW_MGDL
                 ).coerceIn(0, 100),
                 staleEnabled = item.optBoolean("staleEnabled", DEFAULT_STALE_ENABLED),
-                staleThresholdMinutes = item.optInt(
-                    "staleThresholdMinutes",
-                    DEFAULT_STALE_THRESHOLD_MINUTES
-                ).coerceIn(1, 120),
+                staleThresholdMinutes = staleThreshold,
                 missedThresholdMinutes = item.optInt(
                     "missedThresholdMinutes",
                     DEFAULT_MISSED_THRESHOLD_MINUTES
-                ).coerceIn(
-                    item.optInt("staleThresholdMinutes", DEFAULT_STALE_THRESHOLD_MINUTES)
-                        .coerceIn(1, 120) + 1,
-                    240
-                ),
+                ).coerceIn(staleThreshold + 1, 240),
                 lastMessageIdByRecipient = decodeLongMap(item.optJSONObject("lastMessageIdByRecipient")),
                 lastSentAtMsByRecipient = decodeLongMap(item.optJSONObject("lastSentAtMsByRecipient")),
                 lastSentMgdlByRecipient = decodeIntMap(item.optJSONObject("lastSentMgdlByRecipient")),
-                lastStaleAtMsByRecipient = decodeLongMap(item.optJSONObject("lastStaleAtMsByRecipient"))
+                lastStaleAtMsByRecipient = decodeLongMap(item.optJSONObject("lastStaleAtMsByRecipient")),
+                settingsVersion = maxOf(1, itemSettingsVersion)
             )
         }
         return destinations.distinctBy { it.id.lowercase(Locale.US) }

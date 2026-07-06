@@ -11,6 +11,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import tk.glucodata.Applic
 import tk.glucodata.Log
+import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorIdentity
 import tk.glucodata.SuperGattCallback
@@ -57,6 +58,7 @@ class NightscoutFollowerManager(
     @Volatile private var latestReadingTimeMs: Long = 0L
     @Volatile private var latestReadingMgdl: Float = Float.NaN
     @Volatile private var latestRateMgdlPerMin: Float = 0f
+    @Volatile private var nativeMirroredUpToMs: Long = 0L
 
     init {
         mActiveDeviceAddress = url
@@ -217,6 +219,7 @@ class NightscoutFollowerManager(
             }
             importHistory(readings)
             publishLatest(readings)
+            mirrorToNative(readings)
             setStatus(Phase.FOLLOWING, localizedString(R.string.nightscout_follow_status_following, "Following Nightscout"))
             Log.i(
                 TAG,
@@ -233,6 +236,14 @@ class NightscoutFollowerManager(
         } catch (t: Throwable) {
             Log.stack(TAG, "refresh($reason)", t)
             setStatus(Phase.IDLE, localizedString(R.string.nightscout_follow_status_sync_failed, "Nightscout sync failed"))
+            // Reset recording guards so the next successful poll unconditionally re-runs
+            // importHistory and mirrorToNative. Without this, both guards fire when the
+            // retry returns the same set of readings (no new Nightscout point in 30 s),
+            // and if a second exception fires on the following cycle the stall becomes
+            // permanent — polls.dat stops receiving writes while the display path keeps
+            // working because publishLatest has no deduplication guard of its own.
+            lastImportedHistoryTailMs = 0L
+            nativeMirroredUpToMs = 0L
             scheduleRefresh(RETRY_INTERVAL_MS)
         }
     }
@@ -280,22 +291,26 @@ class NightscoutFollowerManager(
             setRequestProperty("User-Agent", "JugglucoNG Nightscout follower")
             NightscoutFollowerRegistry.applyAuth(this, secret)
         }
-        val code = connection.responseCode
-        val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
-            ?.bufferedReader()
-            ?.use { it.readText() }
-            .orEmpty()
-        if (code !in 200..299) {
-            throw IllegalStateException("Nightscout HTTP $code: ${body.take(160)}")
+        try {
+            val code = connection.responseCode
+            val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+            if (code !in 200..299) {
+                throw IllegalStateException("Nightscout HTTP $code: ${body.take(160)}")
+            }
+            val array = JSONArray(body)
+            val readings = ArrayList<VirtualGlucoseSensorBridge.Reading>(array.length())
+            for (index in 0 until array.length()) {
+                parseEntry(array.optJSONObject(index))?.let(readings::add)
+            }
+            return readings
+                .distinctBy { it.timestampMs }
+                .sortedBy { it.timestampMs }
+        } finally {
+            connection.disconnect()
         }
-        val array = JSONArray(body)
-        val readings = ArrayList<VirtualGlucoseSensorBridge.Reading>(array.length())
-        for (index in 0 until array.length()) {
-            parseEntry(array.optJSONObject(index))?.let(readings::add)
-        }
-        return readings
-            .distinctBy { it.timestampMs }
-            .sortedBy { it.timestampMs }
     }
 
     private fun importRemoteTreatments(): Int =
@@ -340,6 +355,21 @@ class NightscoutFollowerManager(
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun mirrorToNative(readings: List<VirtualGlucoseSensorBridge.Reading>) {
+        if (readings.isEmpty() || SerialNumber.isBlank()) return
+        val newReadings = readings.filter { it.timestampMs > nativeMirroredUpToMs }
+        if (newReadings.isEmpty()) return
+        runCatching {
+            val startSec = readings.minOf { it.timestampMs } / 1000L
+            Natives.ensureSensorShell(SerialNumber, startSec)
+            newReadings.forEach { reading ->
+                Natives.addGlucoseStream(reading.timestampMs / 1000L, reading.glucoseMgdl / 10f, SerialNumber)
+            }
+            nativeMirroredUpToMs = newReadings.maxOf { it.timestampMs }
+            Natives.wakebackup()
+        }.onFailure { Log.stack(TAG, "mirrorToNative", it) }
     }
 
     private fun parseEntry(entry: JSONObject?): VirtualGlucoseSensorBridge.Reading? {
