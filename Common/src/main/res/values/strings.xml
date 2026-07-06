@@ -2152,7 +2152,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- v0.3.0.2-alpha: rebase regression fix -->
     <string name="copy_log">Copy log</string>
     <string name="share_log">Share log</string>
-    <string name="about_upstream">Fork of JugglucoNG v1.0.0-Alpha • GPL-3.0</string>
+    <string name="about_upstream">Fork of JugglucoNG v1.0.3-Alpha • GPL-3.0</string>
     <string name="about_cloud">Made for glucodroid.cloud</string>
     <string name="nightscout_sensor_desc">Follow a Nightscout site as a read-only glucose source</string>
     <string name="nightscout_mode_label">Mode</string>
