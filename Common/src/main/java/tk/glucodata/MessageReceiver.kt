@@ -61,6 +61,30 @@ class MessageReceiver: WearableListenerService() {
             MessageSender.DATA_PATH   -> {
                 Natives.message(data);
             }
+            MessageSender.SENSOR_HANDOFF_PATH -> {
+                if (isWearable) {
+                    val context = if (MainActivity.thisone == null) Applic.app else MainActivity.thisone
+                    val ok = ManagedSensorHandoff.applyIncoming(context, data)
+                    if (ok && context != null) {
+                        Applic.setbluetooth(context, true)
+                        Applic.updateDevices()
+                        SensorBluetooth.reconnectall()
+                        SensorBluetooth.startscan()
+                        keeprunning.start(context)
+                    }
+                    Log.i(LOG_ID, "sensor handoff applied=$ok")
+                }
+            }
+            MessageSender.CALIBRATE_PATH -> {
+                // Watch-relayed fingerstick calibration; applied to the local
+                // driver that owns the BLE connection.
+                if (data != null && data.size >= 4) {
+                    val mgdl = java.nio.ByteBuffer.wrap(data).int
+                    MessageSender.scope.launch {
+                        tk.glucodata.drivers.ManagedCalibration.applyFingerstickCalibration(mgdl)
+                    }
+                }
+            }
             MessageSender.NET_PATH   -> {
                 val sender = tk.glucodata.MessageSender.getMessageSender()
                 if (sender == null) {

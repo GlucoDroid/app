@@ -65,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,6 +85,9 @@ import java.net.NetworkInterface
 import java.text.DateFormat
 import java.util.Collections
 import java.util.Date
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tk.glucodata.Applic
 import tk.glucodata.GoogleServices
 import tk.glucodata.Natives
@@ -299,19 +303,42 @@ fun WatchSettingsScreen(navController: NavController) {
 fun WearOsConfigScreen(navController: NavController) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
 
-    var nodes by remember { mutableStateOf(WatchInterop.getWearNodes()) }
-    var selectedNodeId by rememberSaveable { mutableStateOf(nodes.firstOrNull()?.id ?: "") }
+    var nodes by remember { mutableStateOf<List<WatchInterop.WearNodeInfo>>(emptyList()) }
+    var selectedNodeId by rememberSaveable { mutableStateOf("") }
     var directOnWatch by rememberSaveable { mutableStateOf(false) }
     var enterOnWatch by rememberSaveable { mutableStateOf(false) }
+    var refreshingNodes by remember { mutableStateOf(false) }
 
-    fun refreshNodes() {
-        WatchInterop.refreshWearNodes()
-        val latest = WatchInterop.getWearNodes()
+    fun applyNodes(latest: List<WatchInterop.WearNodeInfo>) {
         nodes = latest
         if (latest.none { it.id == selectedNodeId }) {
             selectedNodeId = latest.firstOrNull()?.id ?: ""
         }
+    }
+
+    suspend fun refreshNodesNow() {
+        refreshingNodes = true
+        try {
+            val latest = withContext(Dispatchers.IO) {
+                WatchInterop.refreshWearNodes()
+                WatchInterop.getWearNodes()
+            }
+            applyNodes(latest)
+        } finally {
+            refreshingNodes = false
+        }
+    }
+
+    fun refreshNodes() {
+        scope.launch {
+            refreshNodesNow()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshNodesNow()
     }
 
     LaunchedEffect(selectedNodeId, nodes) {
@@ -325,8 +352,9 @@ fun WearOsConfigScreen(navController: NavController) {
     }
 
     val selected = nodes.firstOrNull { it.id == selectedNodeId }
-    val canSetDirect = selected?.directSensorMode?.let { it >= 0 } == true
-    val canSetNums = selected?.watchNumsMode?.let { it >= 0 } == true
+    val selectedAppInstalled = selected?.appInstalled == true
+    val canSetDirect = selectedAppInstalled && (selected?.directSensorMode?.let { it >= 0 } == true)
+    val canSetNums = selectedAppInstalled && (selected?.watchNumsMode?.let { it >= 0 } == true)
 
     Scaffold(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
@@ -339,7 +367,7 @@ fun WearOsConfigScreen(navController: NavController) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { refreshNodes() }) {
+                    IconButton(onClick = { refreshNodes() }, enabled = !refreshingNodes) {
                         Icon(Icons.Filled.Refresh, contentDescription = null)
                     }
                 }
@@ -372,11 +400,25 @@ fun WearOsConfigScreen(navController: NavController) {
                                 else -> CardPosition.MIDDLE
                             }
                             val isSelected = node.id == selectedNodeId
+                            val appStatus = if (node.appInstalled) {
+                                stringResource(R.string.watchappinstalled)
+                            } else {
+                                stringResource(R.string.wear_watch_app_missing)
+                            }
+                            val appSubtitle = if (node.appInstalled) {
+                                "$appStatus • ${node.id}"
+                            } else {
+                                "$appStatus • ${node.id}\n${stringResource(R.string.wear_watch_app_missing_hint)}"
+                            }
                             SettingsItem(
                                 title = node.displayName,
-                                subtitle = node.id,
+                                subtitle = appSubtitle,
                                 icon = if (node.isGalaxy) Icons.Filled.Watch else Icons.Filled.Devices,
-                                iconTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                                iconTint = when {
+                                    !node.appInstalled -> MaterialTheme.colorScheme.error
+                                    isSelected -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.tertiary
+                                },
                                 position = position,
                                 onClick = { selectedNodeId = node.id },
                                 trailingContent = {
@@ -398,11 +440,11 @@ fun WearOsConfigScreen(navController: NavController) {
                 SectionLabel("Routing", topPadding = 0.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     SettingsItem(
-                        title = "Direct sensor connection",
+                        title = stringResource(R.string.wear_direct_sensor_on_watch),
                         subtitle = if (directOnWatch) {
-                            "Watch connects directly"
+                            stringResource(R.string.wear_direct_sensor_watch_desc)
                         } else {
-                            "Phone connects directly"
+                            stringResource(R.string.wear_direct_sensor_phone_desc)
                         },
                         icon = if (directOnWatch) Icons.Filled.Watch else Icons.Filled.PhoneAndroid,
                         iconTint = MaterialTheme.colorScheme.primary,
@@ -461,7 +503,7 @@ fun WearOsConfigScreen(navController: NavController) {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                val ok = WatchInterop.applyWearNodeRouting(
+                                val ok = WatchInterop.applyStandaloneSensorMode(
                                     nodeId = selected.id,
                                     isGalaxy = selected.isGalaxy,
                                     directOnWatch = directOnWatch,
@@ -475,7 +517,7 @@ fun WearOsConfigScreen(navController: NavController) {
                                 refreshNodes()
                             }
                         },
-                        enabled = selected != null,
+                        enabled = selectedAppInstalled,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Filled.Sync, contentDescription = null)
@@ -495,7 +537,7 @@ fun WearOsConfigScreen(navController: NavController) {
                                 ).show()
                             }
                         },
-                        enabled = selected != null,
+                        enabled = selectedAppInstalled,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null)
@@ -515,7 +557,7 @@ fun WearOsConfigScreen(navController: NavController) {
                                 ).show()
                             }
                         },
-                        enabled = selected != null,
+                        enabled = selectedAppInstalled,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Filled.Settings, contentDescription = null)

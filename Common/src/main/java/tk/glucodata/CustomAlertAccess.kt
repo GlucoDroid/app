@@ -55,4 +55,31 @@ object CustomAlertAccess {
             }
         }
     }
+
+    private val dismissAlertMethod by lazy {
+        runCatching { holder?.getMethod("dismissAlert", String::class.java) }.getOrNull()
+    }
+    private val snoozeAlertMethod by lazy {
+        runCatching {
+            holder?.getMethod("snoozeAlert", String::class.java, Int::class.javaPrimitiveType)
+        }.getOrNull()
+    }
+    private val ignoreAlertMethod by lazy {
+        runCatching { holder?.getMethod("ignoreAlert", String::class.java) }.getOrNull()
+    }
+
+    @JvmStatic
+    fun dismissAlert(alertId: String) {
+        runCatching { dismissAlertMethod?.invoke(instance, alertId) }
+    }
+
+    @JvmStatic
+    fun snoozeAlert(alertId: String, snoozeMinutes: Int) {
+        runCatching { snoozeAlertMethod?.invoke(instance, alertId, snoozeMinutes) }
+    }
+
+    @JvmStatic
+    fun ignoreAlert(alertId: String?) {
+        runCatching { ignoreAlertMethod?.invoke(instance, alertId) }
+    }
 }

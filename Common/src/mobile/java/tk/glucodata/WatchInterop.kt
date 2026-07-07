@@ -7,8 +7,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.view.View
+import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Node
+import com.google.android.gms.wearable.Wearable
 import tk.glucodata.nums.AllData
+import java.util.concurrent.TimeUnit
 
 object WatchInterop {
     data class WearNodeInfo(
@@ -16,7 +20,8 @@ object WatchInterop {
         val displayName: String,
         val isGalaxy: Boolean,
         val directSensorMode: Int,
-        val watchNumsMode: Int
+        val watchNumsMode: Int,
+        val appInstalled: Boolean
     )
 
     data class GarminSnapshot(
@@ -68,23 +73,62 @@ object WatchInterop {
 
     @JvmStatic
     fun refreshWearNodes() {
-        MessageSender.getMessageSender()?.finddevices()
+        getWearMessageSender()?.finddevices()
     }
 
     @JvmStatic
     fun getWearNodes(): List<WearNodeInfo> {
-        val sender = MessageSender.getMessageSender() ?: return emptyList()
-        val nodes = sender.nodes?.toList() ?: emptyList()
-        return nodes.map { node ->
+        val appNodes = getWearNodesWithApp()
+            .ifEmpty { getWearMessageSender()?.nodes?.toList() ?: emptyList() }
+        val appNodeIds = appNodes.mapTo(HashSet()) { it.id }
+        val nodesById = LinkedHashMap<String, Node>()
+        getConnectedWearNodes().forEach { node -> nodesById[node.id] = node }
+        appNodes.forEach { node -> nodesById[node.id] = node }
+
+        return nodesById.values.map { node ->
             val id = node.id
+            val appInstalled = id in appNodeIds
             WearNodeInfo(
                 id = id,
                 displayName = node.displayName ?: id,
                 isGalaxy = MessageSender.isGalaxy(node),
-                directSensorMode = try { Natives.directsensorwatch(id) } catch (_: Throwable) { -1 },
-                watchNumsMode = try { Natives.hasWatchNums(id) } catch (_: Throwable) { -1 }
+                directSensorMode = if (appInstalled) try { Natives.directsensorwatch(id) } catch (_: Throwable) { -1 } else -1,
+                watchNumsMode = if (appInstalled) try { Natives.hasWatchNums(id) } catch (_: Throwable) { -1 } else -1,
+                appInstalled = appInstalled
             )
         }
+    }
+
+    private fun getConnectedWearNodes(): List<Node> {
+        val app = Applic.app ?: return emptyList()
+        if (!GoogleServices.isPlayServicesAvailable(app)) return emptyList()
+        return try {
+            Tasks.await(Wearable.getNodeClient(app).connectedNodes, 2, TimeUnit.SECONDS)
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    private fun getWearNodesWithApp(): List<Node> {
+        val app = Applic.app ?: return emptyList()
+        if (!GoogleServices.isPlayServicesAvailable(app)) return emptyList()
+        return try {
+            Tasks.await(
+                Wearable.getCapabilityClient(app).getCapability(Applic.JUGGLUCOIDENT, CapabilityClient.FILTER_REACHABLE),
+                2,
+                TimeUnit.SECONDS
+            ).nodes.toList()
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    private fun getWearMessageSender(): MessageSender? {
+        MessageSender.getMessageSender()?.let { return it }
+        val app = Applic.app ?: return null
+        if (!isWearOsEnabled()) return null
+        MessageSender.initwearos(app)
+        return MessageSender.getMessageSender()
     }
 
     @JvmStatic
@@ -101,7 +145,7 @@ object WatchInterop {
             null
         } ?: return false
 
-        val sender = MessageSender.getMessageSender() ?: return false
+        val sender = getWearMessageSender() ?: return false
         return try {
             sender.sendnetinfo(nodeId, netInfo)
             sender.sendbluetooth(nodeId, directOnWatch)
@@ -114,9 +158,25 @@ object WatchInterop {
     }
 
     @JvmStatic
+    fun applyStandaloneSensorMode(nodeId: String, isGalaxy: Boolean, directOnWatch: Boolean, enterOnWatch: Boolean): Boolean {
+        val sender = getWearMessageSender() ?: return false
+        if (directOnWatch) {
+            val context = Applic.app ?: MainActivity.thisone ?: return false
+            val payload = ManagedSensorHandoff.createOutgoingPayload(context)
+            if (!sender.sendSensorHandoff(nodeId, payload)) {
+                return false
+            }
+        }
+        return applyWearNodeRouting(nodeId, isGalaxy, directOnWatch, enterOnWatch)
+    }
+
+    @JvmStatic
     fun applyWearDefaults(nodeId: String, isGalaxy: Boolean): Boolean {
-        val sender = MessageSender.getMessageSender() ?: return false
-        val node: Node = sender.nodes?.firstOrNull { it.id == nodeId } ?: return false
+        val sender = getWearMessageSender() ?: return false
+        val node: Node = sender.nodes?.firstOrNull { it.id == nodeId }
+            ?: getWearNodesWithApp().firstOrNull { it.id == nodeId }
+            ?: getConnectedWearNodes().firstOrNull { it.id == nodeId }
+            ?: return false
         return try {
             sender.toDefaults(node)
             Natives.setWearosdefaults(nodeId, isGalaxy)
@@ -130,7 +190,7 @@ object WatchInterop {
 
     @JvmStatic
     fun startWearApp(nodeId: String, isGalaxy: Boolean): Boolean {
-        val sender = MessageSender.getMessageSender() ?: return false
+        val sender = getWearMessageSender() ?: return false
         return try {
             Natives.resetbylabel(nodeId, isGalaxy)
             sender.startWearOSActivity(nodeId)

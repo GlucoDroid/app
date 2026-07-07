@@ -3878,6 +3878,7 @@ public class Notify {
         }
         ;
         if (isWearable) {
+            WearOngoingActivity.updateStatus(Applic.app, glucosenotificationid);
             notificationManager.notify(glucosealarmid, notif);
         } else {
             if (keeprunning.theservice != null) {
@@ -4002,6 +4003,9 @@ public class Notify {
     }
     public void foregroundno(Service service) {
         Notification not = getforgroundnotification();
+        if (isWearable) {
+            not = WearOngoingActivity.attach(service, not, glucosenotificationid);
+        }
         if (Build.VERSION.SDK_INT >= 29) {
             service.startForeground(glucosenotificationid, not,
                     android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);

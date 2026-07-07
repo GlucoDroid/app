@@ -628,6 +628,54 @@ public class PhotoScan {
         return SIBIONICS_GTIN + "0".repeat(paddingLen) + namePart;
     }
 
+    private static String buildSibionicsSensorPayload(String input) {
+        if (input == null) {
+            return null;
+        }
+        final String trimmedInput = input.trim();
+        if (trimmedInput.length() < 3 || countChar(trimmedInput, '/') > 2) {
+            return null;
+        }
+        final String compactRaw = trimmedInput.replaceAll("\\s+", "");
+        final int gtinPos = compactRaw.indexOf(SIBIONICS_GTIN);
+        if (gtinPos >= 0 && gtinPos <= 4 && compactRaw.length() - gtinPos >= 55) {
+            return compactRaw;
+        }
+        final String codeToUse;
+        if (trimmedInput.contains("/")) {
+            final int slash = trimmedInput.lastIndexOf('/');
+            final String extracted = sanitizeAlnumUpper(trimmedInput.substring(slash + 1));
+            codeToUse = extracted.length() >= 3 ? extracted : sanitizeAlnumUpper(trimmedInput);
+        } else {
+            codeToUse = sanitizeAlnumUpper(trimmedInput);
+        }
+        if (codeToUse.isEmpty()) {
+            return null;
+        }
+        if (codeToUse.length() <= 11) {
+            final String shortName = (codeToUse.substring(Math.max(0, codeToUse.length() - 4)) + codeToUse);
+            final String paddedShort = (shortName + "00000000000").substring(0, 11);
+            final String syntheticName16 = "00000" + paddedShort;
+            final String suffix = "X";
+            final int desiredLen = 70;
+            final int prefixLen = desiredLen - syntheticName16.length() - suffix.length();
+            final int prefixPaddingLen = Math.max(0, prefixLen - SIBIONICS_GTIN.length());
+            return SIBIONICS_GTIN + "0".repeat(prefixPaddingLen) + syntheticName16 + suffix;
+        }
+        final int minPrefixLen = 53 - SIBIONICS_GTIN.length();
+        return SIBIONICS_GTIN + "0".repeat(Math.max(0, minPrefixLen)) + codeToUse;
+    }
+
+    private static int countChar(String value, char target) {
+        int count = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) == target) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     static String normalizeScanPayload(String scanText, int request) {
         if (scanText == null) {
             return "";
@@ -675,6 +723,48 @@ public class PhotoScan {
             return delimited;
         }
         return normalized;
+    }
+
+    public static boolean applyManualPairingCode(Context context, String rawCode) {
+        final String normalizedTag = normalizeScanPayload(rawCode, REQUEST_BARCODE);
+        String name = parseSensorName(normalizedTag);
+        if (name == null || name.isEmpty()) {
+            final String fakeSibionics = buildSibionicsSensorPayload(rawCode);
+            if (fakeSibionics != null && !fakeSibionics.equals(normalizedTag)) {
+                name = parseSensorName(normalizeScanPayload(fakeSibionics, REQUEST_BARCODE));
+            }
+        }
+        if (name == null || name.isEmpty()) {
+            return false;
+        }
+        return finishManualPairing(context, name);
+    }
+
+    private static String parseSensorName(String normalizedTag) {
+        if (normalizedTag == null || normalizedTag.isEmpty() || isLikelyMirrorPayload(normalizedTag)) {
+            return null;
+        }
+        int[] indexptr = { -1 };
+        String name = Natives.addSIscangetName(normalizedTag, indexptr);
+        if ((name == null || name.isEmpty()) && indexptr[0] < 0 && looksLikeSibionicsPayload(normalizedTag)) {
+            String canonical = buildCanonicalSibionicsPayload(normalizedTag);
+            if (canonical != null && !canonical.equals(normalizedTag)) {
+                int[] canonicalIndexptr = { -1 };
+                name = Natives.addSIscangetName(canonical, canonicalIndexptr);
+            }
+        }
+        return name;
+    }
+
+    private static boolean finishManualPairing(Context context, String name) {
+        if (Natives.getusebluetooth()) {
+            Applic.updateDevices();
+            SuperGattCallback.glucosealarms.setLossAlarm();
+        } else {
+            Natives.updateUsedSensors();
+        }
+        Applic.wakemirrors();
+        return true;
     }
 
     public static void connectSensor(final String scantag, MainActivity act, int request, long sensorptr2) {

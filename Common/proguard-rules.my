@@ -126,3 +126,11 @@
 -keep class com.sdk.** { *; }
 -keepclassmembers class com.sdk.** { *; }
 -keepnames class com.sdk.**
+
+# Keep the Compose UI entry point stable. MainActivity resolves
+# tk.glucodata.ui.ComposeHostKt#setComposeContent by name (mobile and wear each
+# provide their own implementation); without this the reflective lookup fails
+# only in minified builds and the app silently falls back to the legacy View UI.
+-keep class tk.glucodata.ui.ComposeHostKt {
+    public static void setComposeContent(androidx.appcompat.app.AppCompatActivity, android.view.View);
+}

@@ -1342,6 +1342,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">Додаток для годинника відсутній</string>
+    <string name="wear_watch_app_missing_hint">Установіть Juggluco на цей годинник, потім натисніть оновити.</string>
+    <string name="wear_direct_sensor_on_watch">Прямий датчик на годиннику</string>
+    <string name="wear_direct_sensor_watch_desc">Автономний режим: годинник сканує датчик.</string>
+    <string name="wear_direct_sensor_phone_desc">Режим компаньйона: телефон сканує й надсилає показання.</string>
     <string name="web_server_desc">Вебсервер, сумісний із Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Очікування підключення</string>
@@ -1431,6 +1436,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="manual_calibration">Ручне калібрування</string>
     <string name="mirrorscansucces">Успішно додано з\u2019єднання до лівого середнього меню→Дзеркало.</string>
     <string name="no_sensors_found">Сенсори не знайдено</string>
+    <string name="wear_libre_nfc_caveat">Сенсори Libre спочатку активуються через NFC телефона. Після активації цей годинник може взяти роботу на себе.</string>
     <string name="overwrite">Перезаписати?</string>
     <string name="photomessage">Відскануйте матрицю даних сенсора Dexcom G7/ONE+ або Sibionics GS1 чи QR-код дзеркала.</string>
     <string name="refreshing">Оновлення…</string>

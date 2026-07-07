@@ -236,6 +236,9 @@ private fun nodeSendmessage(node:Node,path:String,data:ByteArray) {
     public fun sendbluetooth( name:String,on:Boolean) {
         sendbool(BLUETOOTH_PATH,name,on)
      }
+    public fun sendSensorHandoff(name:String, data:ByteArray): Boolean {
+        return nameSendMessageResult(name, SENSOR_HANDOFF_PATH, data)
+     }
     private fun sendOnmessages( node:String,on:Boolean) {
         if(doLog) {Log.i(LOG_ID,"sendNameMessageOn($node,$on)");}
         sendbool(MESSAGES_PATH,node,on)
@@ -290,6 +293,8 @@ companion object {
     const val BLUETOOTH_PATH = "/bluetooth"
     const val DATA_PATH = "/data"
     const val MESSAGES_PATH = "/messages"
+    const val CALIBRATE_PATH = "/calibrate"
+    const val SENSOR_HANDOFF_PATH = "/sensorhandoff"
     val scope = CoroutineScope(Dispatchers.IO+SupervisorJob()  )
     private var messagesender: MessageSender? = null
     @Volatile private var wearableApiUnavailable = false
@@ -327,6 +332,21 @@ companion object {
         val ar = byteArrayOf(0);
         sender.sendmessage(ASKFORSTART_PATH, ar)
       }
+
+    // Watch → phone: relay a fingerstick calibration (mg/dL) to the side that
+    // owns the BLE connection in companion mode.
+    @JvmStatic
+    public fun sendcalibrate(glucoseMgDl: Int) {
+        val sender = messagesender ?: return
+        val data = java.nio.ByteBuffer.allocate(4).putInt(glucoseMgDl).array()
+        sender.sendmessage(CALIBRATE_PATH, data)
+    }
+
+    @JvmStatic
+    public fun sendsensorhandoff(nodeId: String, data: ByteArray): Boolean {
+        val sender = messagesender ?: return false
+        return sender.sendSensorHandoff(nodeId, data)
+    }
 
     @JvmStatic
     public fun sendwake() {

@@ -1366,6 +1366,11 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">Watch-App fehlt</string>
+    <string name="wear_watch_app_missing_hint">Installieren Sie Juggluco auf dieser Watch und tippen Sie dann auf Aktualisieren.</string>
+    <string name="wear_direct_sensor_on_watch">Direkter Sensor auf der Watch</string>
+    <string name="wear_direct_sensor_watch_desc">Standalone-Modus: Die Watch scannt den Sensor.</string>
+    <string name="wear_direct_sensor_phone_desc">Begleitmodus: Das Smartphone scannt und sendet Messwerte.</string>
     <string name="web_server_desc">Nightscout-kompatibler Webserver</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Wartet auf Verbindung</string>
@@ -1968,4 +1973,5 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_import_export_ready">Gespeicherte Materialien für %1$s sind bereit.</string>
     <string name="ottai_credentials_import">Importieren</string>
     <string name="ottai_credentials_replace">Ersetzen</string>
+    <string name="wear_libre_nfc_caveat">Libre-Sensoren werden zuerst per NFC des Telefons aktiviert. Nach der Aktivierung kann diese Uhr übernehmen.</string>
 </resources>

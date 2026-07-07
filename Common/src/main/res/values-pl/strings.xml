@@ -1363,6 +1363,11 @@
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">Brak aplikacji na zegarku</string>
+    <string name="wear_watch_app_missing_hint">Zainstaluj Juggluco na tym zegarku, a potem stuknij odśwież.</string>
+    <string name="wear_direct_sensor_on_watch">Bezpośredni sensor na zegarku</string>
+    <string name="wear_direct_sensor_watch_desc">Tryb samodzielny: zegarek skanuje sensor.</string>
+    <string name="wear_direct_sensor_phone_desc">Tryb towarzyszący: telefon skanuje i wysyła odczyty.</string>
     <string name="web_server_desc">Serwer WWW zgodny z Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Oczekiwanie na połączenie</string>
@@ -1965,4 +1970,5 @@
     <string name="ottai_import_export_ready">Zapisane materiały dla %1$s są gotowe.</string>
     <string name="ottai_credentials_import">Importuj</string>
     <string name="ottai_credentials_replace">Zastąp</string>
+    <string name="wear_libre_nfc_caveat">Sensory Libre aktywuje się najpierw przez NFC telefonu. Po aktywacji ten zegarek może przejąć połączenie.</string>
 </resources>

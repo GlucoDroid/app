@@ -1,0 +1,70 @@
+package tk.glucodata.ui.screens
+
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.TimeText
+import tk.glucodata.Applic
+import tk.glucodata.BuildConfig
+import tk.glucodata.R
+
+@Composable
+fun SettingsScreen(
+    onOpenAlerts: () -> Unit,
+    onOpenSensor: () -> Unit,
+) {
+    val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
+
+    ScreenScaffold(timeText = { TimeText() }) {
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 22.dp),
+        ) {
+            item {
+                Text(
+                    text = stringResource(R.string.settings),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            item {
+                Button(
+                    onClick = onOpenAlerts,
+                    label = { Text(stringResource(R.string.alarms)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                Button(
+                    onClick = onOpenSensor,
+                    label = { Text(stringResource(R.string.sensor)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                // Unit follows the shared app setting (changed from the phone).
+                Text(
+                    text = if (isMmol) "mmol/L" else "mg/dL",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            item {
+                Text(
+                    text = BuildConfig.VERSION_NAME,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}

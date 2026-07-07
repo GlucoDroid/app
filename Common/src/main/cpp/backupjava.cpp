@@ -495,13 +495,21 @@ extern "C" JNIEXPORT jstring JNICALL fromjava(getICElabel)(JNIEnv *env,
 extern int makeICEBackupSender();
 extern "C" JNIEXPORT jint JNICALL fromjava(makeICESender)(JNIEnv *env,
                                                           jclass cl) {
+#if !defined(WEAROS) && __NDK_MAJOR__ >= 26
   return makeICEBackupSender();
+#else
+  return -1;
+#endif
 }
 
 extern int makeICEBackupReceiver();
 extern "C" JNIEXPORT jint JNICALL fromjava(makeICEReceiver)(JNIEnv *env,
                                                             jclass cl) {
+#if !defined(WEAROS) && __NDK_MAJOR__ >= 26
   return makeICEBackupReceiver();
+#else
+  return -1;
+#endif
 }
 
 extern int makeHomeBackupSender();
@@ -518,7 +526,11 @@ extern "C" JNIEXPORT jint JNICALL fromjava(makeHomeSender)(JNIEnv *env,
 extern int makeHomeBackupReceiver();
 extern "C" JNIEXPORT jint JNICALL fromjava(makeHomeReceiver)(JNIEnv *env,
                                                              jclass cl) {
+#if !defined(WEAROS) && __NDK_MAJOR__ >= 26
   return makeHomeBackupReceiver();
+#else
+  return -1;
+#endif
 }
 /*    networkpresent=false;
       if(backup) {

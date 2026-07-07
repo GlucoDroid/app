@@ -112,6 +112,11 @@ android {
     //buildToolsVersion '33.0.0'
     }
 
+// Single source of truth for the app version; bump here only.
+// Wear releases use appVersionCode + 1_000_000 so Play accepts both APKs
+// in one release (distinct versionCodes per form factor).
+def appVersionCode = 1003
+
 flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //    flavorDimensions 'wearos','libreVersion','SiBionics', 'DexCom'
 
@@ -165,7 +170,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         libreOld {
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode 1003 //LIBRE2ONLY
+            versionCode appVersionCode //LIBRE2ONLY
          //    versionName '10.3.10-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
@@ -179,7 +184,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //       minSdk 23
             dimension 'libreVersion'
         versionNameSuffix '-li3'
-        versionCode 1003 //LIBRE3
+        versionCode appVersionCode //LIBRE3
     //******  Zet op rollout op 100% ******
 
                buildConfigField 'int', 'libreVersion', '3'
@@ -194,7 +199,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         si {
       dimension 'SiBionics'
         versionNameSuffix '-si'
-        versionCode 1003
+        versionCode appVersionCode
        buildConfigField 'int', 'SiBionics', '1'
        externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -203,7 +208,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
         nosi {
             dimension 'SiBionics'
-         versionCode 1003
+         versionCode appVersionCode
          versionNameSuffix '-nosi'
           buildConfigField 'int', 'SiBionics', '0'
           externalNativeBuild.cmake {
@@ -211,17 +216,14 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
 
         wear {
-          // targetSdk 26
-//           targetSdk 31
-
-            // targetSdk 30
+            targetSdk 34
 
             dimension 'wearos'
         minSdk 26
         minSdkVersion 26
         buildConfigField 'int', 'minSDK', "$minSdk"
         manifestPlaceholders["minSDK"] = "$minSdk"
-        versionCode 1003 //WATCH
+        versionCode 1000000 + appVersionCode //WATCH: mobile versionCode + 1M offset
     //******  Zet op rollout op 100% ******
         //versionName '10.3.10-wear'
         versionNameSuffix '-wear'
@@ -722,6 +724,11 @@ dependencies {
     wearImplementation 'androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1'
      wearImplementation 'androidx.core:core-splashscreen:1.2.0-rc01'
      wearImplementation 'androidx.wear.protolayout:protolayout-external-protobuf:1.3.0'
+    // Wear Compose Material 3 (Expressive) UI
+    wearImplementation 'androidx.wear.compose:compose-material3:1.6.2'
+    wearImplementation 'androidx.wear.compose:compose-foundation:1.6.2'
+    wearImplementation 'androidx.wear.compose:compose-navigation:1.6.2'
+    wearImplementation 'androidx.wear:wear-ongoing:1.0.0'
     mobileImplementation 'com.google.android.material:material:1.13.0'
     
     // Room Database for independent history storage

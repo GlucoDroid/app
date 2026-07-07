@@ -157,7 +157,7 @@ static bool ensureNightscoutBaseUrl() {
     return true;
     }
 
-extern std::string sha1encode(const char *secret, int len);
+#include "datestring.hpp"
 static void makeuploadsecret(JNIEnv *env) {
         const bool useV3=settings->data()->nightscoutV3;
         if(useV3) {

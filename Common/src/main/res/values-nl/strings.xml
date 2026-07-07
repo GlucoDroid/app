@@ -1371,6 +1371,11 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">Horloge-app ontbreekt</string>
+    <string name="wear_watch_app_missing_hint">Installeer Juggluco op dit horloge en tik daarna op vernieuwen.</string>
+    <string name="wear_direct_sensor_on_watch">Directe sensor op horloge</string>
+    <string name="wear_direct_sensor_watch_desc">Zelfstandige modus: het horloge scant de sensor.</string>
+    <string name="wear_direct_sensor_phone_desc">Companion-modus: de telefoon scant en stuurt metingen.</string>
     <string name="web_server_desc">Nightscout-compatibele webserver</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Wachten op verbinding</string>
@@ -1973,4 +1978,5 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_import_export_ready">Opgeslagen materialen voor %1$s zijn klaar.</string>
     <string name="ottai_credentials_import">Importeren</string>
     <string name="ottai_credentials_replace">Vervangen</string>
+    <string name="wear_libre_nfc_caveat">Libre-sensoren worden eerst met de NFC van de telefoon geactiveerd. Na activering kan dit horloge overnemen.</string>
 </resources>
