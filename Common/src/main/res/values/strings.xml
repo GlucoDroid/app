@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="language">en</string>
     <string name="languagename">Language</string>
 
@@ -2164,9 +2164,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_test_entries_err">Entries: HTTP %1$d</string>
     <string name="nightscout_test_last_upload_ok">Last upload: %1$s — HTTP %2$d ✓</string>
     <string name="nightscout_test_last_upload_err">Last upload: %1$s — HTTP %2$d</string>
-    <string name="outbound_api_preset_glucodroid_cloud">Stream to glucodroid.cloud</string>
-    <string name="outbound_api_preset_glucodroid_cloud_desc">Stream readings to your glucodroid.cloud account.</string>
-    <string name="outbound_api_glucodroid_subdomain">Subdomain</string>
-    <string name="outbound_api_glucodroid_ingest_token">API secret</string>
+    <string name="outbound_api_preset_glucodroid_cloud" tools:ignore="MissingTranslation">Stream to glucodroid.cloud</string>
+    <string name="outbound_api_preset_glucodroid_cloud_desc" tools:ignore="MissingTranslation">Stream readings to your glucodroid.cloud account.</string>
+    <string name="outbound_api_glucodroid_subdomain" tools:ignore="MissingTranslation">Subdomain</string>
+    <string name="outbound_api_glucodroid_ingest_token" tools:ignore="MissingTranslation">API secret</string>
     <string name="export_raw_csv">Export Raw Data (CSV)</string>
 </resources>

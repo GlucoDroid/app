@@ -5,7 +5,7 @@ import androidx.annotation.Keep
 
 @Keep
 object CalibrationProfileAccess {
-    private const val TAG = "CalibrationProfileAccess"
+    private const val TAG = "CalibProfileAccess"
     private const val CLASS_NAME = "tk.glucodata.data.calibration.CalibrationManager"
 
     private val holder by lazy { runCatching { Class.forName(CLASS_NAME) }.getOrNull() }

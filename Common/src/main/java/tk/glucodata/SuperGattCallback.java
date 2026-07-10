@@ -1051,7 +1051,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             }
             try {
                 if (isWearable) {
-                    cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb, BluetoothDevice.TRANSPORT_LE);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb, BluetoothDevice.TRANSPORT_LE);
+                    } else {
+                        cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb);
+                    }
                     cb.setGattOptions(cb.mBluetoothGatt);
                 } else {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

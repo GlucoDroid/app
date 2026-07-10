@@ -1516,7 +1516,13 @@ public class Notify {
                 return false;
             }
             final KeyguardManager keyguardManager = (KeyguardManager) Applic.app.getSystemService(Context.KEYGUARD_SERVICE);
-            return keyguardManager == null || !keyguardManager.isDeviceLocked();
+            if (keyguardManager == null) {
+                return true;
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                return !keyguardManager.isDeviceLocked();
+            }
+            return !keyguardManager.isKeyguardLocked();
         } catch (Throwable th) {
             Log.stack(LOG_ID, "isDeviceInteractiveAndUnlocked", th);
             return false;

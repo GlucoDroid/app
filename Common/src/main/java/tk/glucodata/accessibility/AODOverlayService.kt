@@ -123,7 +123,12 @@ class AODOverlayService : AccessibilityService(), SensorEventListener {
     
     private fun resolveDeviceLocked(): Boolean {
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-        return keyguardManager.isDeviceLocked || keyguardManager.isKeyguardLocked
+        val deviceLocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            keyguardManager.isDeviceLocked
+        } else {
+            false
+        }
+        return deviceLocked || keyguardManager.isKeyguardLocked
     }
 
     private fun checkAndUpdateLockState() {

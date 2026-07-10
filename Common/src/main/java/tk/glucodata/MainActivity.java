@@ -1301,7 +1301,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             return;
         }
         locationPermissionRequestInFlight = true;
-        requestPermissions(permissions, LOCATION_PERMISSION_REQUEST_CODE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(permissions, LOCATION_PERMISSION_REQUEST_CODE);
+        }
     }
 
     boolean finepermission() {

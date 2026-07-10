@@ -6,6 +6,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -258,10 +259,10 @@ fun FloatingGlucoseSettingsScreen(
     val verticalOffset by repository.islandVerticalOffset.collectAsState(initial = FloatingSettingsRepository.DEFAULT_ISLAND_VERTICAL_OFFSET)
     val manualGap by repository.islandGap.collectAsState(initial = 0f)
     val useSubtleOutline by repository.useSubtleOutline.collectAsState(initial = false)
-    var hasPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var hasPermission by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else false) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        hasPermission = Settings.canDrawOverlays(context)
+        hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else false
     }
 
     LegacySettingsScaffold(navController = navController, title = stringResource(R.string.floatglucose)) {

@@ -123,6 +123,9 @@ public class StatusIcon {
 
         canvas.drawText(value, x, y, paint);
 
-        return Icon.createWithBitmap(bitmap);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return Icon.createWithBitmap(bitmap);
+        }
+        return null;
     }
 }
