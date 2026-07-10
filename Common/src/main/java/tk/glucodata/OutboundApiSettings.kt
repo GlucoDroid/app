@@ -137,10 +137,24 @@ object OutboundApiSettings {
             } else {
                 token.trim()
             }
-            if (trimmed.isNotEmpty()) {
-                return trimmed.replace("{token}", replacementToken)
+            val raw = if (trimmed.isNotEmpty()) {
+                trimmed.replace("{token}", replacementToken)
+            } else {
+                defaultUrl(normalizedPreset(), token).replace("{token}", replacementToken)
             }
-            return defaultUrl(normalizedPreset(), token).replace("{token}", replacementToken)
+            // Defensive: if the user pasted a bare host/subdomain into the URL field
+            // (e.g. "robster" instead of "https://robster.glucodroid.cloud/..."), prepend
+            // https://. OkHttp and java.net.URL both reject a URL with no scheme, so
+            // the user gets a "Expected URL scheme 'http' or 'https' but no scheme was
+            // found for <url>" error and the destination can't send.
+            return if (raw.isNotEmpty() &&
+                !raw.startsWith("http://", ignoreCase = true) &&
+                !raw.startsWith("https://", ignoreCase = true)
+            ) {
+                "https://$raw"
+            } else {
+                raw
+            }
         }
 
         fun resolvedTemplate(): String {
@@ -476,16 +490,39 @@ object OutboundApiSettings {
         }
 
         val provider = prefs.getString(KEY_PROVIDER, LEGACY_PROVIDER_WEBHOOK_JSON) ?: LEGACY_PROVIDER_WEBHOOK_JSON
-        val preset = if (provider == LEGACY_PROVIDER_VK) PRESET_GLUCO_WATCH_VK else PRESET_CUSTOM_JSON
+        var preset = if (provider == LEGACY_PROVIDER_VK) PRESET_GLUCO_WATCH_VK else PRESET_CUSTOM_JSON
+        var legacyUrl = prefs.getString(KEY_URL, defaultUrl(preset)).orEmpty()
+        var legacyName = defaultName(preset)
+        // Detect legacy glucodroid.cloud custom-JSON destinations and migrate them to
+        // the dedicated PRESET_GLUCODROID_CLOUD (which prepends https:// and encodes
+        // the token into the path). The legacy URL looked like
+        // "https://robster.glucodroid.cloud/api/v1/entries?token=ABC" — extract the
+        // subdomain as the new url field and the token from the query string.
+        val glucodroidMatch = Regex("^https?://([A-Za-z0-9.-]+)\\.glucodroid\\.cloud/api/v1/entries(?:\\?(.*))?$")
+            .matchEntire(legacyUrl)
+        if (glucodroidMatch != null && preset == PRESET_CUSTOM_JSON) {
+            val subdomain = glucodroidMatch.groupValues[1]
+            val tokenParam = glucodroidMatch.groupValues[2]
+                .split('&')
+                .firstOrNull { it.startsWith("token=", ignoreCase = true) }
+                ?.substringAfter('=')
+                ?.let { Uri.decode(it) }
+                ?: prefs.getString(KEY_TOKEN, "").orEmpty()
+            legacyUrl = subdomain
+            preset = PRESET_GLUCODROID_CLOUD
+            legacyName = defaultName(preset)
+            // Also migrate the token field to the new token storage.
+            prefs.edit().putString(KEY_TOKEN, tokenParam).apply()
+        }
         return Config(
             enabled = true,
             destinations = listOf(
                 Destination(
                     id = UUID.randomUUID().toString(),
                     enabled = prefs.getBoolean(KEY_ENABLED, false),
-                    name = defaultName(preset),
+                    name = legacyName,
                     preset = preset,
-                    url = prefs.getString(KEY_URL, defaultUrl(preset)).orEmpty(),
+                    url = legacyUrl,
                     token = prefs.getString(KEY_TOKEN, "").orEmpty(),
                     chatId = prefs.getString(KEY_CHAT_ID, "").orEmpty(),
                     apiVersion = prefs.getString(KEY_API_VERSION, DEFAULT_VK_API_VERSION).orEmpty()
@@ -595,7 +632,28 @@ object OutboundApiSettings {
         val destinations = ArrayList<Destination>(array.length())
         for (index in 0 until array.length()) {
             val item = array.optJSONObject(index) ?: continue
-            val preset = normalizePreset(item.optString("preset", PRESET_CUSTOM_JSON))
+            var preset = normalizePreset(item.optString("preset", PRESET_CUSTOM_JSON))
+            var url = item.optString("url", defaultUrl(preset))
+            // Detect legacy custom-JSON destinations whose URL points at glucodroid.cloud
+            // and migrate them to the dedicated PRESET_GLUCODROID_CLOUD. This handles
+            // destinations saved before PRESET_GLUCODROID_CLOUD existed.
+            if (preset == PRESET_CUSTOM_JSON) {
+                val m = Regex("^https?://([A-Za-z0-9.-]+)\\.glucodroid\\.cloud/api/v1/entries(?:\\?(.*))?$")
+                    .matchEntire(url)
+                if (m != null) {
+                    val subdomain = m.groupValues[1]
+                    val tokenFromQuery = m.groupValues[2]
+                        .split('&')
+                        .firstOrNull { it.startsWith("token=", ignoreCase = true) }
+                        ?.substringAfter('=')
+                        ?.let { Uri.decode(it) }
+                    preset = PRESET_GLUCODROID_CLOUD
+                    url = subdomain
+                    if (tokenFromQuery != null && item.optString("token", "").isBlank()) {
+                        item.put("token", tokenFromQuery)
+                    }
+                }
+            }
             val itemSettingsVersion = item.optInt("settingsVersion", 0)
             val staleThreshold = item.optInt("staleThresholdMinutes", DEFAULT_STALE_THRESHOLD_MINUTES)
                 .coerceIn(1, 120)
@@ -604,7 +662,7 @@ object OutboundApiSettings {
                 enabled = item.optBoolean("enabled", false),
                 name = item.optString("name", defaultName(preset)),
                 preset = preset,
-                url = item.optString("url", defaultUrl(preset)),
+                url = url,
                 token = item.optString("token", ""),
                 chatId = item.optString("chatId", ""),
                 apiVersion = item.optString("apiVersion", DEFAULT_VK_API_VERSION)
