@@ -1321,6 +1321,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_probe_empty">Прылад Sibionics FF30 пакуль не знойдзена.</string>
     <string name="sibionics_ble_selected">Выбрана: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Выкарыстаць фэйкавы QR з гэтай BLE-назвы</string>
+    <string name="sibionics_use_ble_device">Выкарыстаць гэту Bluetooth-прыладу</string>
+    <string name="sibionics_managed_driver_title">Кіраваны драйвер без lib</string>
+    <string name="sibionics_managed_driver_desc">Выкарыстоўваць Kotlin BLE/пратакольны драйвер замест старой натыўнай бібліятэкі Sibionics. Эксперыментальна; пакіньце выключаным, калі датчык ужо працуе ў старым рэжыме.</string>
+    <string name="sibionics_managed_sensor_added">Кіраваны датчык Sibionics дададзены: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>

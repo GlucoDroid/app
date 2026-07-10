@@ -1365,6 +1365,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="sibionics_ble_probe_empty">Nog geen Sibionics-FF30-apparaten gevonden.</string>
     <string name="sibionics_ble_selected">Geselecteerd: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Gebruik nep-QR-info van deze BLE-naam</string>
+    <string name="sibionics_use_ble_device">Gebruik dit Bluetooth-apparaat</string>
+    <string name="sibionics_managed_driver_title">Beheerde lib-vrije driver</string>
+    <string name="sibionics_managed_driver_desc">Gebruik de Kotlin BLE/protocoldriver in plaats van de oude native Sibionics-bibliotheek. Experimenteel; laat dit uit als deze sensor al werkt in legacy-modus.</string>
+    <string name="sibionics_managed_sensor_added">Beheerde Sibionics-sensor toegevoegd: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>

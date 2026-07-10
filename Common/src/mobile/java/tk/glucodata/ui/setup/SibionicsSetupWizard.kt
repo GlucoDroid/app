@@ -53,13 +53,19 @@ import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import tk.glucodata.drivers.sibionics.SibionicsConstants
+import tk.glucodata.drivers.sibionics.SibionicsRegistry
 
 enum class SibionicsType(val displayNameRes: Int, val subtype: Int) {
     EU(R.string.eusibionics, 0),
     HEMATONIX(R.string.hematonix, 1),
     CHINESE(R.string.chsibionics, 2),
-    SIBIONICS2(R.string.sibionics2, 3)
+    SIBIONICS2(R.string.sibionics2, 3),
+    GS3(R.string.gs3, 4),
 }
+
+private fun SibionicsType.toManagedVariant(): SibionicsConstants.Variant =
+    SibionicsConstants.Variant.fromLegacySubtype(subtype)
 
 enum class SibionicsSetupStep {
     SELECT_TYPE,
@@ -367,8 +373,10 @@ fun SibionicsSetupWizard(
     onComplete: () -> Unit
 ) {
     val ui = rememberWizardUiMetrics()
+    val context = LocalContext.current
     var currentStep by remember { mutableStateOf(SibionicsSetupStep.SELECT_TYPE) }
     var selectedType by remember { mutableStateOf(SibionicsType.EU) }
+    var useManagedDriver by remember { mutableStateOf(false) }
     var sensorPtr by remember { mutableStateOf(0L) }
     var sensorName by remember { mutableStateOf("") }
     var resetTransmitter by remember { mutableStateOf(false) } // Default false as requested
@@ -471,9 +479,13 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SELECT_TYPE -> SelectTypeStep(
                     compact = ui.compact,
                     selectedType = selectedType,
+                    useManagedDriver = useManagedDriver,
                     onNavigateToReadiness = onNavigateToReadiness,
                     onTypeSelected = { type ->
                         selectedType = type
+                    },
+                    onManagedDriverChanged = { enabled ->
+                        useManagedDriver = enabled
                     },
                     onNext = {
                         // Always go to SCAN_SENSOR to ensure sensor structure is created.
@@ -488,6 +500,7 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SCAN_SENSOR -> ScanSensorStep(
                     compact = ui.compact,
                     selectedType = selectedType,
+                    useManagedDriver = useManagedDriver,
                     onInlineScanResult = { raw ->
                         tk.glucodata.MainActivity.handleInlineQrScan(
                             raw,
@@ -508,6 +521,24 @@ fun SibionicsSetupWizard(
                                 tk.glucodata.MainActivity.REQUEST_BARCODE,
                                 0L
                             )
+                        }
+                    },
+                    onManagedEntry = { raw, device ->
+                        val record = SibionicsRegistry.addSensorAndStart(
+                            context = context.applicationContext,
+                            rawInput = raw,
+                            address = device?.address,
+                            displayName = device?.name?.takeIf { it.isNotBlank() } ?: raw,
+                            variant = selectedType.toManagedVariant(),
+                        )
+                        sensorName = record.displayName
+                        currentStep = SibionicsSetupStep.CONNECTING
+                        tk.glucodata.Applic.Toaster(
+                            tk.glucodata.Applic.app.getString(R.string.sibionics_managed_sensor_added, record.displayName)
+                        )
+                        scope.launch {
+                            kotlinx.coroutines.delay(1500)
+                            onComplete()
                         }
                     },
                     onScannerTouchInteractionChanged = { active ->
@@ -603,8 +634,10 @@ fun SibionicsSetupWizard(
 fun ScanSensorStep(
     compact: Boolean,
     selectedType: SibionicsType,
+    useManagedDriver: Boolean,
     onInlineScanResult: (String) -> Unit,
     onManualEntry: (String) -> Unit,
+    onManagedEntry: (String, BleDeviceScanner.SibionicsBleDevice?) -> Unit,
     onScannerTouchInteractionChanged: (Boolean) -> Unit
 ) {
     val contentPadding = if (compact) 12.dp else 16.dp
@@ -628,7 +661,11 @@ fun ScanSensorStep(
         onScanResult = { raw ->
             if (!handledScan) {
                 handledScan = true
-                onInlineScanResult(raw)
+                if (useManagedDriver) {
+                    onManagedEntry(raw, null)
+                } else {
+                    onInlineScanResult(raw)
+                }
             }
         }
     )
@@ -672,7 +709,11 @@ fun ScanSensorStep(
                 try {
                     val decoded = decodeBitmapQr(context, uri)
                     if (decoded != null) {
-                        onManualEntry(decoded)
+                        if (useManagedDriver) {
+                            onManagedEntry(decoded, null)
+                        } else {
+                            onManualEntry(decoded)
+                        }
                     } else {
                         tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.no_qr_found))
                     }
@@ -691,7 +732,11 @@ fun ScanSensorStep(
             onDismiss = { showManualEntry = false },
             onConfirm = { code ->
                 showManualEntry = false
-                onManualEntry(code)
+                if (useManagedDriver) {
+                    onManagedEntry(code, null)
+                } else {
+                    onManualEntry(code)
+                }
             }
         )
     }
@@ -713,7 +758,11 @@ fun ScanSensorStep(
                 onScanResult = { raw ->
                     if (!handledScan) {
                         handledScan = true
-                        onInlineScanResult(raw)
+                        if (useManagedDriver) {
+                            onManagedEntry(raw, null)
+                        } else {
+                            onInlineScanResult(raw)
+                        }
                     }
                 },
                 onManualFallback = launchFullscreenScan,
@@ -820,7 +869,7 @@ fun ScanSensorStep(
                         }
                     }
 
-                    if (selectedType != SibionicsType.SIBIONICS2 && selectedBleDevice != null) {
+                    if ((selectedType != SibionicsType.SIBIONICS2 || useManagedDriver) && selectedBleDevice != null) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = stringResource(R.string.sibionics_ble_selected, selectedBleDevice.name),
@@ -829,12 +878,23 @@ fun ScanSensorStep(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedButton(
-                            onClick = { onManualEntry(selectedBleDevice.name) },
+                            onClick = {
+                                if (useManagedDriver) {
+                                    onManagedEntry(selectedBleDevice.name, selectedBleDevice)
+                                } else {
+                                    onManualEntry(selectedBleDevice.name)
+                                }
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(buttonHeight)
                         ) {
-                            Text(stringResource(R.string.sibionics_use_fake_qr_from_ble))
+                            Text(
+                                stringResource(
+                                    if (useManagedDriver) R.string.sibionics_use_ble_device
+                                    else R.string.sibionics_use_fake_qr_from_ble
+                                )
+                            )
                         }
                     }
                 }
@@ -860,7 +920,7 @@ fun ScanSensorStep(
 
             // Skip Button for Sibionics 2 - allows bypassing sensor scan since it uses Bluetooth connection
             // We pass a randomly generated valid-looking sensor code.
-            if (SibionicsType.SIBIONICS2 == selectedType) {
+            if (!useManagedDriver && SibionicsType.SIBIONICS2 == selectedType) {
                 Spacer(modifier = Modifier.height(sectionGap))
                 OutlinedButton(
                     onClick = {
@@ -896,8 +956,10 @@ fun ScanSensorStep(
 fun SelectTypeStep(
     compact: Boolean,
     selectedType: SibionicsType,
+    useManagedDriver: Boolean,
     onNavigateToReadiness: () -> Unit,
     onTypeSelected: (SibionicsType) -> Unit,
+    onManagedDriverChanged: (Boolean) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -1005,6 +1067,41 @@ fun SelectTypeStep(
                         }
                     }
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(if (compact) 18.dp else 20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 1.dp,
+            onClick = { onManagedDriverChanged(!useManagedDriver) },
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(cardPadding),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.sibionics_managed_driver_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.sibionics_managed_driver_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                StyledSwitch(
+                    checked = useManagedDriver,
+                    onCheckedChange = onManagedDriverChanged
+                )
             }
         }
 

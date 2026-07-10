@@ -1328,6 +1328,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_probe_empty">Aucun appareil Sibionics FF30 trouvé pour le moment.</string>
     <string name="sibionics_ble_selected">Sélectionné : %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Utiliser de fausses infos QR depuis ce nom BLE</string>
+    <string name="sibionics_use_ble_device">Utiliser cet appareil Bluetooth</string>
+    <string name="sibionics_managed_driver_title">Pilote géré sans lib</string>
+    <string name="sibionics_managed_driver_desc">Utiliser le pilote Kotlin BLE/protocole au lieu de l’ancienne bibliothèque native Sibionics. Expérimental ; laissez désactivé si ce capteur fonctionne déjà en mode historique.</string>
+    <string name="sibionics_managed_sensor_added">Capteur Sibionics géré ajouté : %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>

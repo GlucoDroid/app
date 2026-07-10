@@ -1,0 +1,150 @@
+package tk.glucodata.drivers.sibionics
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class SibionicsExactV115GCoreTest {
+    @Test
+    fun driverEmitsOneReadingForEveryValidOneMinuteSample() {
+        val algorithm = SibionicsAlgorithmContext("one-minute-cadence")
+        algorithm.configure(shortCode = "", sensitivity = 1.40f)
+        val outputs = replayRows().associate { row ->
+            row.index to algorithm.process(
+                rawMmol = row.rawMmol,
+                temperatureC = row.temperatureC,
+                index = row.index,
+                mode = SibionicsAlgorithmMode.REPLAY,
+            )
+        }
+
+        assertEquals(replayRows().size, outputs.size)
+        assertTrue(outputs.values.all { it.isFinite() && it > 0f })
+        assertEquals(29.0f, outputs.getValue(25), 0.0001f)
+        assertEquals(16.8f, outputs.getValue(30), 0.0001f)
+        assertEquals(16.7f, outputs.getValue(31), 0.0001f)
+        assertEquals(6.1f, outputs.getValue(35), 0.0001f)
+        assertEquals(6.0f, outputs.getValue(36), 0.0001f)
+    }
+
+    @Test
+    fun driverSnapshotPreservesOneMinuteContinuation() {
+        val rows = replayRows()
+        val uninterrupted = SibionicsAlgorithmContext("uninterrupted")
+        val restored = SibionicsAlgorithmContext("restored")
+        uninterrupted.configure(shortCode = "", sensitivity = 1.40f)
+        restored.configure(shortCode = "", sensitivity = 1.40f)
+        val splitAt = rows.indexOfFirst { it.index == 7_500 }
+        require(splitAt > 0)
+
+        rows.take(splitAt).forEach { row ->
+            uninterrupted.process(row.rawMmol, row.temperatureC, row.index, SibionicsAlgorithmMode.REPLAY)
+        }
+        assertTrue(restored.restore(uninterrupted.snapshot()))
+
+        rows.drop(splitAt).forEach { row ->
+            val expected = uninterrupted.process(row.rawMmol, row.temperatureC, row.index, SibionicsAlgorithmMode.REPLAY)
+            val actual = restored.process(row.rawMmol, row.temperatureC, row.index, SibionicsAlgorithmMode.REPLAY)
+            assertEquals("one-minute output after restore at ${row.index}", expected, actual, 0.0001f)
+        }
+    }
+
+    @Test
+    fun liveOneMinuteReadingsReuseTheLatestReplayCorrection() {
+        val rows = replayRows().associateBy { it.index }
+        val algorithm = SibionicsAlgorithmContext("history-to-live")
+        algorithm.configure(shortCode = "", sensitivity = 1.40f)
+
+        (25..30).forEach { index ->
+            val row = rows.getValue(index)
+            algorithm.process(row.rawMmol, row.temperatureC, row.index, SibionicsAlgorithmMode.REPLAY)
+        }
+        val firstLive = rows.getValue(31)
+        val secondLive = rows.getValue(32)
+
+        assertEquals(
+            16.7f,
+            algorithm.process(firstLive.rawMmol, firstLive.temperatureC, firstLive.index, SibionicsAlgorithmMode.LIVE),
+            0.0001f,
+        )
+        assertEquals(
+            16.6f,
+            algorithm.process(secondLive.rawMmol, secondLive.temperatureC, secondLive.index, SibionicsAlgorithmMode.LIVE),
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun replayMatchesProprietaryV115GOutput() {
+        val core = SibionicsExactV115GCore(decodedSensitivity = 1.40f)
+        var displayCount = 0
+        replayRows().forEach { row ->
+            val actual = core.process(row.rawMmol, row.temperatureC, row.index)
+            if (row.exactMmol == null) {
+                assertNull("unexpected display at index ${row.index}", actual)
+            } else {
+                displayCount++
+                assertNotNull("missing display at index ${row.index}", actual)
+                assertEquals("display at index ${row.index}", row.exactMmol, actual!!, 0.0001f)
+            }
+        }
+        assertEquals(3_153, displayCount)
+    }
+
+    @Test
+    fun snapshotRestoresExactStateMidReplay() {
+        val rows = replayRows()
+        val uninterrupted = SibionicsExactV115GCore(decodedSensitivity = 1.40f)
+        val restored = SibionicsExactV115GCore(decodedSensitivity = 1.40f)
+        val splitAt = rows.indexOfFirst { it.index == 7_500 }
+        require(splitAt > 0)
+
+        rows.take(splitAt).forEach { row ->
+            uninterrupted.process(row.rawMmol, row.temperatureC, row.index)
+        }
+        assertTrue(restored.restore(uninterrupted.snapshot()))
+
+        rows.drop(splitAt).forEach { row ->
+            val expected = uninterrupted.process(row.rawMmol, row.temperatureC, row.index)
+            val actual = restored.process(row.rawMmol, row.temperatureC, row.index)
+            if (expected == null) {
+                assertNull("restored non-display index ${row.index}", actual)
+            } else {
+                assertNotNull("restored missing display index ${row.index}", actual)
+                assertEquals("restored display index ${row.index}", expected, actual!!, 0.0001f)
+            }
+        }
+    }
+
+    private fun replayRows(): List<ReplayRow> =
+        resourceLines("sibionics_exact_v115g_replay.csv")
+            .asSequence()
+            .drop(1)
+            .map { line ->
+                val fields = line.split(',')
+                val index = fields[0].toInt()
+                ReplayRow(
+                    index = index,
+                    rawMmol = fields[1].toFloat(),
+                    temperatureC = fields[2].toFloat(),
+                    exactMmol = fields[3].toFloat().takeIf { index % 5 == 0 },
+                )
+            }
+            .toList()
+
+    private fun resourceLines(name: String): List<String> =
+        javaClass.classLoader!!
+            .getResourceAsStream(name)
+            ?.bufferedReader()
+            ?.use { it.readLines() }
+            ?: error("missing Sibionics exact fixture $name")
+
+    private data class ReplayRow(
+        val index: Int,
+        val rawMmol: Float,
+        val temperatureC: Float,
+        val exactMmol: Float?,
+    )
+}

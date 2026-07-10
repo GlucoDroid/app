@@ -39,6 +39,7 @@ enum class ManagedSensorUiFamily {
     ICAN,
     ANYTIME,
     OTTAI,
+    SIBIONICS,
 }
 
 data class ManagedSensorUiSnapshot(

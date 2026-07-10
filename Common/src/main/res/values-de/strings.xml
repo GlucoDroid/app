@@ -1360,6 +1360,10 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="sibionics_ble_probe_empty">Noch keine Sibionics-FF30-Geräte gefunden.</string>
     <string name="sibionics_ble_selected">Ausgewählt: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Gefälschte QR-Daten aus diesem BLE-Namen verwenden</string>
+    <string name="sibionics_use_ble_device">Dieses Bluetooth-Gerät verwenden</string>
+    <string name="sibionics_managed_driver_title">Verwalteter lib-freier Treiber</string>
+    <string name="sibionics_managed_driver_desc">Verwendet den Kotlin-BLE/Protokolltreiber statt der alten nativen Sibionics-Bibliothek. Experimentell; ausgeschaltet lassen, wenn dieser Sensor im Legacy-Modus bereits funktioniert.</string>
+    <string name="sibionics_managed_sensor_added">Verwalteter Sibionics-Sensor hinzugefügt: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
