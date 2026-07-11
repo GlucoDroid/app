@@ -937,6 +937,9 @@ fun InteractiveGlucoseChart(
     val calibratedValueResolver = remember(renderData, calibrationRevision, uiRefreshRevision) {
         CalibratedValueResolver(renderData)
     }
+    val primaryIntegratesCalibration = remember(primarySerial, uiRefreshRevision) {
+        tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(primarySerial)
+    }
 
     // --- FORMATTERS & TOOLS (Hoisted for Performance) ---
     val cal = remember { java.util.Calendar.getInstance() }
@@ -2285,7 +2288,8 @@ fun InteractiveGlucoseChart(
                 val isRawModeChart = viewMode == 1 || viewMode == 3
                 val hasCalibration = calibratedValueResolver.hasCalibration(isRawModeChart)
                 val hideInitialWhenCalibrated = hasCalibration &&
-                    tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
+                    (tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated() ||
+                        primaryIntegratesCalibration)
 
                 if (peerChartSeries.isNotEmpty()) {
                     val peerGapThreshold = 900000L // 15 mins

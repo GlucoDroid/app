@@ -90,6 +90,12 @@ class SibionicsBleManager(
     @Volatile private var pendingResetCommand: Boolean = false
     @Volatile private var uiPaused: Boolean = false
     @Volatile private var pendingMatchedBleName: String = ""
+    @Volatile private var autoResetDays: Int = 300
+    @Volatile private var autoResetScheduled: Boolean = false
+    @Volatile private var customAlgorithmEnabled: Boolean = false
+    @Volatile private var historyReceivedCount: Int = 0
+    @Volatile private var historyTotalCount: Int = 0
+    private val historySeenIndices = HashSet<Int>()
 
     @Volatile private var lastIndex: Int = 0
     @Volatile private var lastIndexDirty: Boolean = false
@@ -134,6 +140,8 @@ class SibionicsBleManager(
         }
         shortCode = SibionicsRegistry.loadShortCode(context, SerialNumber)
         sensitivity = SibionicsSensitivity.sensitivityFor(shortCode)
+        autoResetDays = SibionicsRegistry.loadAutoResetDays(context, SerialNumber)
+        customAlgorithmEnabled = SibionicsRegistry.loadCustomAlgorithmEnabled(context, SerialNumber)
         algorithm.configure(shortCode, sensitivity, variant)
         lastIndex = SibionicsRegistry.loadLastIndex(context, SerialNumber)
         val algorithmState = SibionicsRegistry.loadAlgorithmState(context, SerialNumber)
@@ -170,6 +178,18 @@ class SibionicsBleManager(
 
     override fun supportsManualCalibration(): Boolean = false
 
+    override fun integratesUserCalibration(): Boolean = customAlgorithmEnabled
+
+    override fun integrateUserCalibration(
+        baseDisplayValue: Float,
+        calibratedDisplayValue: Float,
+        timestampMs: Long,
+    ): Float {
+        val baseMgdl = if (Applic.unit == 1) baseDisplayValue * SibionicsConstants.MGDL_PER_MMOLL else baseDisplayValue
+        val targetMgdl = if (Applic.unit == 1) calibratedDisplayValue * SibionicsConstants.MGDL_PER_MMOLL else calibratedDisplayValue
+        return toDisplay(SibionicsAdaptiveCalibration.fuseMgdl(baseMgdl, targetMgdl))
+    }
+
     override fun shouldShowSearchingStatusWhenIdle(): Boolean = true
 
     override fun matchesManagedSensorId(sensorId: String?): Boolean =
@@ -178,10 +198,11 @@ class SibionicsBleManager(
             SibionicsRegistry.findRecord(Applic.app, sensorId)?.matchesId(SerialNumber) == true
 
     override fun mygetDeviceName(): String =
-        record?.displayName?.takeIf { it.isNotBlank() }
-            ?: SibionicsRegistry.findRecord(Applic.app, SerialNumber)?.displayName?.takeIf { it.isNotBlank() }
-            ?: SibionicsConstants.stripManagedPrefix(SerialNumber)
-            ?: SerialNumber
+        SibionicsConstants.stripManagedPrefix(
+            record?.displayName?.takeIf { it.isNotBlank() }
+                ?: SibionicsRegistry.findRecord(Applic.app, SerialNumber)?.displayName?.takeIf { it.isNotBlank() }
+                ?: SerialNumber
+        )
 
     @Synchronized
     override fun connectDevice(delayMillis: Long): Boolean {
@@ -457,6 +478,7 @@ class SibionicsBleManager(
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
                 phase = Phase.STREAMING
+                updateChineseHistoryProgress(result.entries)
                 processChineseEntries(result.entries)
                 scheduleChinesePoll()
                 scheduleStreamingTimeout()
@@ -479,6 +501,7 @@ class SibionicsBleManager(
             is SibionicsProtocol.ParseResult.V120Data -> {
                 handler.removeCallbacks(handshakeTimeoutRunnable)
                 phase = Phase.STREAMING
+                updateV120HistoryProgress(result.entries)
                 processV120Entries(result.entries)
                 scheduleStreamingTimeout()
             }
@@ -622,6 +645,7 @@ class SibionicsBleManager(
             }
         flushAlgorithmCheckpointIfDirty()
         storeAndPublish(emitted)
+        updateHistoryStatus(resultHasLive = entries.any { it.isLive })
     }
 
     private fun processV120Entries(entries: List<SibionicsProtocol.V120Entry>) {
@@ -629,6 +653,7 @@ class SibionicsBleManager(
             setStatus(waitingForDataStatus())
             return
         }
+        val now = System.currentTimeMillis()
         val emitted = entries
             .sortedBy { it.index }
             .mapNotNull { entry ->
@@ -639,11 +664,51 @@ class SibionicsBleManager(
                     temperatureC = entry.temperatureC,
                     impedance = entry.rawImpedance.toFloat(),
                     eventMs = sanitizeSampleTime(entry.eventTimeMs),
-                    live = entry.isLive,
+                    live = isV120Current(entry, now),
                 )
             }
         flushAlgorithmCheckpointIfDirty()
         storeAndPublish(emitted)
+        updateHistoryStatus(resultHasLive = entries.any { isV120Current(it, now) })
+    }
+
+    private fun updateChineseHistoryProgress(entries: List<SibionicsProtocol.ChineseEntry>) {
+        if (entries.isEmpty()) return
+        historySeenIndices.addAll(entries.map { it.index })
+        historyReceivedCount = historySeenIndices.size
+        historyTotalCount = SibionicsProtocol.estimateChineseHistoryTotal(
+            previousTotal = historyTotalCount,
+            receivedCount = historyReceivedCount,
+            entries = entries,
+        )
+    }
+
+    private fun updateV120HistoryProgress(entries: List<SibionicsProtocol.V120Entry>) {
+        if (entries.isEmpty()) return
+        val now = System.currentTimeMillis()
+        historySeenIndices.addAll(entries.map { it.index })
+        historyReceivedCount = historySeenIndices.size
+        val estimates = entries.mapNotNull { entry ->
+            val candidateStart = entry.eventTimeMs - entry.index * SibionicsConstants.READING_INTERVAL_MS
+            if (candidateStart <= 0L || candidateStart > now) null
+            else ((now - candidateStart) / SibionicsConstants.READING_INTERVAL_MS).toInt()
+        }
+        historyTotalCount = maxOf(
+            historyTotalCount,
+            estimates.maxOrNull() ?: historyReceivedCount,
+            historyReceivedCount,
+        )
+    }
+
+    private fun isV120Current(entry: SibionicsProtocol.V120Entry, now: Long): Boolean =
+        entry.eventTimeMs in (now - 90_000L)..(now + MAX_FUTURE_DRIFT_MS)
+
+    private fun updateHistoryStatus(resultHasLive: Boolean) {
+        if (historyTotalCount > historyReceivedCount && historyReceivedCount > 0) {
+            setStatus(historyProgressStatus())
+        } else if (resultHasLive) {
+            setStatus(connectedStatus())
+        }
     }
 
     private fun processEntry(
@@ -842,6 +907,7 @@ class SibionicsBleManager(
                 reading.temperatureC,
             ),
         )
+        maybeScheduleAutoReset()
     }
 
     private fun sanitizeSampleTime(timeMs: Long): Long {
@@ -900,7 +966,12 @@ class SibionicsBleManager(
     }
 
     private fun writeResetCommand(reason: String): Boolean {
-        val ok = writeCommand(SibionicsProtocol.buildResetPacket(0), "reset-$reason")
+        val packet = if (variant.legacySubtype <= SibionicsConstants.Variant.CHINESE.legacySubtype) {
+            SibionicsProtocol.buildGs1ResetPacket()
+        } else {
+            SibionicsProtocol.buildResetPacket(0)
+        }
+        val ok = writeCommand(packet, "reset-$reason")
         if (ok) markResetSent()
         return ok
     }
@@ -919,6 +990,10 @@ class SibionicsBleManager(
         latestReadingTimeMs = 0L
         latestGlucoseMgdl = Float.NaN
         latestRawMgdl = Float.NaN
+        historyReceivedCount = 0
+        historyTotalCount = 0
+        historySeenIndices.clear()
+        autoResetScheduled = false
         Applic.app?.let {
             SibionicsRegistry.saveAlgorithmCheckpoint(it, SerialNumber, lastIndex, algorithm.snapshot())
             SibionicsRegistry.clearStartTimeMs(it, SerialNumber)
@@ -931,6 +1006,42 @@ class SibionicsBleManager(
     }
 
     override fun supportsClearCalibrationAction(): Boolean = true
+
+    override fun supportsAutoReset(): Boolean = true
+
+    override fun getAutoResetDays(): Int = autoResetDays
+
+    override fun setAutoResetDays(days: Int): Boolean {
+        autoResetDays = days.coerceIn(1, 300)
+        autoResetScheduled = false
+        Applic.app?.let { SibionicsRegistry.saveAutoResetDays(it, SerialNumber, autoResetDays) }
+        UiRefreshBus.requestStatusRefresh()
+        return true
+    }
+
+    override fun supportsCustomAlgorithm(): Boolean = true
+
+    override fun isCustomAlgorithmEnabled(): Boolean = customAlgorithmEnabled
+
+    override fun setCustomAlgorithmEnabled(enabled: Boolean): Boolean {
+        if (customAlgorithmEnabled == enabled) return true
+        customAlgorithmEnabled = enabled
+        Applic.app?.let { SibionicsRegistry.saveCustomAlgorithmEnabled(it, SerialNumber, enabled) }
+        tk.glucodata.CalibrationAccess.notifyExternalCalibrationPipelineChanged()
+        UiRefreshBus.requestStatusRefresh()
+        UiRefreshBus.requestDataRefresh()
+        return true
+    }
+
+    private fun maybeScheduleAutoReset() {
+        val days = autoResetDays
+        if (autoResetScheduled || pendingResetCommand || days !in 1..24 || startTimeMs <= 0L) return
+        val thresholdMs = days * SibionicsConstants.DAY_MS
+        if (System.currentTimeMillis() - startTimeMs < thresholdMs) return
+        autoResetScheduled = true
+        Log.i(SibionicsConstants.TAG, "auto reset due at day=$days serial=$SerialNumber")
+        handler.post { resetSensor() }
+    }
 
     override fun clearSensorCalibration(): Boolean {
         val previousIndex = lastIndex
@@ -959,11 +1070,22 @@ class SibionicsBleManager(
         } else {
             Float.NaN
         }
+        val calibratedDisplay = if (customAlgorithmEnabled) {
+            tk.glucodata.CalibrationAccess.getCalibratedValue(
+                displayGlucose,
+                time,
+                false,
+                false,
+                SerialNumber,
+            ).takeIf { it.isFinite() && it > 0f } ?: Float.NaN
+        } else {
+            Float.NaN
+        }
         return ManagedSensorCurrentSnapshot(
             timeMillis = time,
             glucoseValue = displayGlucose,
             rawGlucoseValue = displayRaw,
-            calibratedGlucoseValue = Float.NaN,
+            calibratedGlucoseValue = calibratedDisplay,
             rate = displayRate,
             sensorGen = SibionicsConstants.SENSOR_GEN,
         )
@@ -987,6 +1109,8 @@ class SibionicsBleManager(
             rssi = readrssi,
             dataptr = 0L,
             viewMode = viewMode,
+            autoResetDays = autoResetDays,
+            customAlgorithmEnabled = customAlgorithmEnabled,
             supportsDisplayModes = supportsDisplayModes(),
             supportsManualCalibration = supportsManualCalibration(),
             supportsHardwareReset = supportsResetAction(),
@@ -1012,7 +1136,11 @@ class SibionicsBleManager(
             Phase.ACTIVATING -> "Activating"
             Phase.SYNCING_TIME -> "Syncing time"
             Phase.REQUESTING_DATA -> "Requesting data"
-            Phase.STREAMING -> if (latestReadingTimeMs > 0L) connectedStatus() else waitingForDataStatus()
+            Phase.STREAMING -> when {
+                historyTotalCount > historyReceivedCount && historyReceivedCount > 0 -> historyProgressStatus()
+                latestReadingTimeMs > 0L -> connectedStatus()
+                else -> waitingForDataStatus()
+            }
             Phase.ERROR -> constatstatusstr.orEmpty().ifBlank { "Error" }
         }
     }
@@ -1037,16 +1165,11 @@ class SibionicsBleManager(
         }
 
     private fun officialEndMs(): Long =
-        if (startTimeMs > 0L) startTimeMs + SibionicsConstants.DEFAULT_EXPECTED_LIFETIME_MS else 0L
+        if (startTimeMs > 0L) startTimeMs + variant.officialLifetimeMs else 0L
 
     private fun expectedEndMs(): Long {
         if (startTimeMs <= 0L) return 0L
-        val duration = if (protocolMode == SibionicsConstants.ProtocolMode.CHINESE) {
-            SibionicsConstants.EXTENDED_CHINESE_LIFETIME_MS
-        } else {
-            SibionicsConstants.DEFAULT_EXPECTED_LIFETIME_MS
-        }
-        return startTimeMs + duration
+        return startTimeMs + variant.expectedLifetimeMs
     }
 
     private fun remainingHours(): Int {
@@ -1073,6 +1196,11 @@ class SibionicsBleManager(
 
     private fun waitingForDataStatus(): String =
         runCatching { Applic.app.getString(R.string.status_waiting_for_data) }.getOrDefault("Connected, waiting for data...")
+
+    private fun historyProgressStatus(): String {
+        val label = runCatching { Applic.app.getString(R.string.historyname) }.getOrDefault("History")
+        return "$label ${historyReceivedCount.coerceAtLeast(0)}/${historyTotalCount.coerceAtLeast(historyReceivedCount)}"
+    }
 
     private fun setStatus(status: String) {
         constatstatusstr = status

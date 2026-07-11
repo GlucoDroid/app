@@ -891,6 +891,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="refreshing">Refreshing...</string>
     <!-- Missing UI Strings -->
     <string name="auto_calibration_mode">Auto-calibration mode</string>
+    <string name="sibionics_custom_algorithm">Adaptive calibrated algorithm</string>
+    <string name="sibionics_custom_algorithm_desc">Exact QR-aware sensor algorithm with bounded finger-stick calibration</string>
+    <string name="sibionics_stock_algorithm_desc">Exact QR-aware sensor algorithm</string>
+    <string name="sibionics_restart_algorithm_desc">Rebuild the one-minute algorithm state from saved sensor history</string>
     <string name="juggluco_native">Juggluco native</string>
     <string name="window_label">window</string>
     <string name="auto_restart_algorithm">Auto restart algorithm</string>

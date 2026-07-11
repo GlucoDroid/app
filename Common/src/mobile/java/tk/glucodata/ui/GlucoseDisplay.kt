@@ -105,7 +105,8 @@ fun getDisplayValues(
 ): DisplayValues {
     val isMmol = if (unit.isNotEmpty()) tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit) else tk.glucodata.ui.util.GlucoseFormatter.isMmolApp()
     val hideInitialWhenCalibrated = calibratedValue != null &&
-        tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
+        (tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated() ||
+            tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(point.sensorSerial))
     return DisplayValueResolver.resolve(
         autoValue = point.value,
         rawValue = point.rawValue,

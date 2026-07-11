@@ -530,6 +530,10 @@
     <string name="master">Майстар</string>
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Рэжым аўтакаліброўкі</string>
+    <string name="sibionics_custom_algorithm">Адаптыўны алгарытм з каліброўкай</string>
+    <string name="sibionics_custom_algorithm_desc">Дакладны алгарытм датчыка з данымі QR і абмежаванай каліброўкай па глюкометры</string>
+    <string name="sibionics_stock_algorithm_desc">Дакладны алгарытм датчыка з данымі QR</string>
+    <string name="sibionics_restart_algorithm_desc">Аднавіць стан хвіліннага алгарытму з захаванай гісторыі датчыка</string>
     <string name="juggluco_native">Родны Juggluco</string>
     <string name="window_label">акно</string>
     <string name="auto_restart_algorithm">Перазапуск алгарытму</string>

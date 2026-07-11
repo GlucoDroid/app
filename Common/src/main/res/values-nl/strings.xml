@@ -618,6 +618,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="libre_nfc_instruction">Houd je telefoon bij de sensor om te scannen</string>
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Auto-kalisbratiemodus</string>
+    <string name="sibionics_custom_algorithm">Adaptief gekalibreerd algoritme</string>
+    <string name="sibionics_custom_algorithm_desc">Exact QR-gestuurd sensoralgoritme met begrensde vingerprikkalibratie</string>
+    <string name="sibionics_stock_algorithm_desc">Exact QR-gestuurd sensoralgoritme</string>
+    <string name="sibionics_restart_algorithm_desc">Bouw de minuutstatus opnieuw op uit de opgeslagen sensorgeschiedenis</string>
     <string name="juggluco_native">Juggluco natief</string>
     <string name="window_label">venster</string>
     <string name="auto_restart_algorithm">Algoritme herstarten</string>

@@ -46,4 +46,26 @@ object ManagedSensorRuntime {
         return resolveDriver(resolvedSensorId)
             ?.let { driver -> runCatching { driver.getManagedCurrentSnapshot(maxAgeMillis) }.getOrNull() }
     }
+
+    @JvmStatic
+    fun integratesUserCalibration(sensorId: String?): Boolean =
+        resolveDriver(sensorId)?.let { driver ->
+            runCatching { driver.integratesUserCalibration() }.getOrDefault(false)
+        } ?: false
+
+    @JvmStatic
+    fun integrateUserCalibration(
+        sensorId: String?,
+        baseDisplayValue: Float,
+        calibratedDisplayValue: Float,
+        timestampMs: Long,
+    ): Float {
+        val driver = resolveDriver(sensorId) ?: return calibratedDisplayValue
+        if (!runCatching { driver.integratesUserCalibration() }.getOrDefault(false)) {
+            return calibratedDisplayValue
+        }
+        return runCatching {
+            driver.integrateUserCalibration(baseDisplayValue, calibratedDisplayValue, timestampMs)
+        }.getOrDefault(baseDisplayValue)
+    }
 }

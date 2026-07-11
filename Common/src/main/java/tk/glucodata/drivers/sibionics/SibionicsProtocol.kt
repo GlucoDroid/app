@@ -176,6 +176,22 @@ object SibionicsProtocol {
         return encrypt(p)
     }
 
+    /** Direct FF32 reset command observed on GS1/V120 firmware. */
+    fun buildGs1ResetPacket(): ByteArray = byteArrayOf(0x24, 0xE7.toByte(), 0x6F, 0x34)
+
+    fun estimateChineseHistoryTotal(
+        previousTotal: Int,
+        receivedCount: Int,
+        entries: List<ChineseEntry>,
+    ): Int {
+        if (entries.isEmpty()) return maxOf(previousTotal, receivedCount)
+        return maxOf(
+            previousTotal,
+            receivedCount + entries.minOf { it.numOfUnreceived },
+            receivedCount,
+        )
+    }
+
     fun buildChineseDataRequest(lastIndex: Int, macAddress: ByteArray?): ByteArray {
         val mac = macAddress.takeIf { it?.size == 6 } ?: ByteArray(6)
         val p = ByteArray(20)

@@ -541,6 +541,10 @@
     <string name="libre_nfc_instruction">Håll telefonen mot sensorn för att skanna</string>
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Autokalibrering</string>
+    <string name="sibionics_custom_algorithm">Adaptiv kalibrerad algoritm</string>
+    <string name="sibionics_custom_algorithm_desc">Exakt QR-baserad sensoralgoritm med begränsad blodsockerkalibrering</string>
+    <string name="sibionics_stock_algorithm_desc">Exakt QR-baserad sensoralgoritm</string>
+    <string name="sibionics_restart_algorithm_desc">Återskapa minutalgoritmens tillstånd från sparad sensorhistorik</string>
     <string name="juggluco_native">Juggluco inbyggd</string>
     <string name="window_label">fönster</string>
     <string name="auto_restart_algorithm">Starta om algoritm</string>

@@ -487,6 +487,10 @@
     <string name="libre_nfc_instruction">Tenez votre téléphone contre le capteur pour scanner</string>
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Mode auto-calibration</string>
+    <string name="sibionics_custom_algorithm">Algorithme adaptatif étalonné</string>
+    <string name="sibionics_custom_algorithm_desc">Algorithme exact basé sur le QR avec étalonnage glycémique limité</string>
+    <string name="sibionics_stock_algorithm_desc">Algorithme exact du capteur basé sur le QR</string>
+    <string name="sibionics_restart_algorithm_desc">Reconstruire l’état minute par minute depuis l’historique du capteur</string>
     <string name="juggluco_native">Juggluco natif</string>
     <string name="window_label">fenêtre</string>
     <string name="auto_restart_algorithm">Redémarrer l\'algorithme</string>

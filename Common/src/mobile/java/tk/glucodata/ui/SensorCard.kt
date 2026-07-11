@@ -30,7 +30,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.material3.Slider
 import tk.glucodata.ui.components.StyledSwitch
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -593,22 +592,24 @@ fun SensorCard(
             text = { 
                 Column {
                     Text(stringResource(R.string.unified_reset_desc))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { keepAutoCalChecked = !keepAutoCalChecked }
-                    ) {
-                        Checkbox(
-                            checked = keepAutoCalChecked,
-                            onCheckedChange = { keepAutoCalChecked = it }
-                        )
-                        Text(stringResource(R.string.keep_auto_calibration))
+                    if (sensor.dataptr != 0L) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { keepAutoCalChecked = !keepAutoCalChecked }
+                        ) {
+                            Checkbox(
+                                checked = keepAutoCalChecked,
+                                onCheckedChange = { keepAutoCalChecked = it }
+                            )
+                            Text(stringResource(R.string.keep_auto_calibration))
+                        }
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (keepAutoCalChecked) {
+                    if (sensor.dataptr == 0L || keepAutoCalChecked) {
                         viewModel.resetSensor(sensor.serial)  // Hardware reset only
                     } else {
                         viewModel.clearAll(sensor.serial)     // Full reset
@@ -782,9 +783,8 @@ fun SensorCard(
         }
     }
 
-    // Auto-Calibration Settings bottom sheet — redesigned with master switch
-    // Master switch guards advanced controls (slider + daily restart).
-    // Restart button available in both modes (native restart in OFF, windowed in ON).
+    // Sibionics algorithm mode. The managed custom mode keeps the exact QR-aware
+    // sensor algorithm as its base and integrates bounded user calibration.
     if (showSibionicsCalSheet && sensor.isSibionics && sensor.viewMode != 1) {
         @OptIn(ExperimentalMaterial3Api::class)
         ModalBottomSheet(
@@ -806,49 +806,21 @@ fun SensorCard(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- Master switch: Advanced auto-calibration (prominent card) ---
-                var advancedEnabled by remember(sensor.customCalEnabled) { mutableStateOf(sensor.customCalEnabled) }
-                // Track whether settings were changed but not yet applied (dirty state)
-                var settingsDirty by remember { mutableStateOf(false) }
-                val windowLabels = remember { listOf("12H", "1D", "2D", "3D", "5D", "7D", "10D", "14D", "18D", "MAX") }
-                val maxSliderPos = windowLabels.lastIndex
-                var sliderPos by remember(sensor.customCalEnabled, sensor.customCalIndex) {
-                    mutableStateOf(
-                        if (sensor.customCalEnabled) {
-                            sensor.customCalIndex.coerceIn(0, maxSliderPos).toFloat()
-                        } else {
-                            maxSliderPos.toFloat()
-                        }
-                    )
+                var customEnabled by remember(sensor.customCalEnabled) {
+                    mutableStateOf(sensor.customCalEnabled)
                 }
-                var customAutoReset by remember(sensor.customCalEnabled, sensor.customCalAutoReset) {
-                    mutableStateOf(if (sensor.customCalEnabled) sensor.customCalAutoReset else true)
-                }
-                fun applyAdvancedToggle(targetEnabled: Boolean) {
-                    if (advancedEnabled == targetEnabled) return
-                    advancedEnabled = targetEnabled
-                    if (!targetEnabled) {
-                        viewModel.disableCustomCalAndReplay(sensor.serial)
-                        settingsDirty = false
-                    } else {
-                        val defaultPos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                        viewModel.updateCustomCalibration(sensor.serial, true, defaultPos, customAutoReset)
-                        settingsDirty = true
-                    }
-                }
-                fun applyDailyRestartToggle(targetEnabled: Boolean) {
-                    if (customAutoReset == targetEnabled) return
-                    customAutoReset = targetEnabled
-                    val pos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                    viewModel.updateCustomCalibration(sensor.serial, true, pos, targetEnabled)
-                    settingsDirty = true
+
+                fun setCustomEnabled(enabled: Boolean) {
+                    if (customEnabled == enabled) return
+                    customEnabled = enabled
+                    viewModel.setSibionicsCustomAlgorithm(sensor.serial, enabled)
                 }
 
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = if (advancedEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    color = if (customEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                             else MaterialTheme.colorScheme.surfaceContainerHighest,
-                    border = if (advancedEnabled)
+                    border = if (customEnabled)
                         BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                     else null,
                     modifier = Modifier.fillMaxWidth()
@@ -856,138 +828,48 @@ fun SensorCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                applyAdvancedToggle(!advancedEnabled)
-                            }
+                            .clickable { setCustomEnabled(!customEnabled) }
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = null,
-                            tint = if (advancedEnabled) MaterialTheme.colorScheme.primary
+                            tint = if (customEnabled) MaterialTheme.colorScheme.primary
                                    else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Advanced auto-calibration",
+                                stringResource(R.string.sibionics_custom_algorithm),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                if (advancedEnabled) "Custom calibration window active"
-                                else "Standard Juggluco algorithm",
+                                if (customEnabled) stringResource(R.string.sibionics_custom_algorithm_desc)
+                                else stringResource(R.string.sibionics_stock_algorithm_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         StyledSwitch(
-                            checked = advancedEnabled,
-                            onCheckedChange = { checked -> applyAdvancedToggle(checked) }
+                            checked = customEnabled,
+                            onCheckedChange = { setCustomEnabled(it) }
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // --- Advanced controls (slider + daily restart) — visible when master switch ON ---
-                AnimatedVisibility(visible = advancedEnabled) {
-                    Column {
-                        val currentPos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                        val currentLabel = windowLabels[currentPos]
-
-                        // Current mode label
-                        Text(
-                            currentLabel,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (currentLabel == "MAX") MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            if (currentLabel == "MAX") "Use all available sensor data"
-                            else "$currentLabel calibration window",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-
-                        Slider(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                            value = sliderPos,
-                            onValueChange = { sliderPos = it },
-                            valueRange = 0f..maxSliderPos.toFloat(),
-                            steps = maxSliderPos - 1,
-                            onValueChangeFinished = {
-                                val pos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                                viewModel.updateCustomCalibration(sensor.serial, true, pos, customAutoReset)
-                                settingsDirty = true
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // --- Restart daily toggle (full-row touch target) ---
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    applyDailyRestartToggle(!customAutoReset)
-                                }
-                                .padding(horizontal = 4.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Restart daily",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    "Automatically restart algorithm once per day",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            StyledSwitch(
-                                checked = customAutoReset,
-                                onCheckedChange = { checked -> applyDailyRestartToggle(checked) }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-                }
-
-                // --- Restart algorithm button (always visible) ---
-                // Visual: RED when dirty (unapplied changes), subtle otherwise
-                val restartButtonColor = if (settingsDirty)
-                    MaterialTheme.colorScheme.errorContainer
-                else
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                val restartIconColor = MaterialTheme.colorScheme.error
-                val restartTextColor = MaterialTheme.colorScheme.error
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Surface(
                     onClick = {
-                        if (advancedEnabled) {
-                            viewModel.localReplay(sensor.serial)
-                        } else {
-                            viewModel.restartSibionicsNativeFresh(sensor.serial)
-                        }
-                        settingsDirty = false
+                        viewModel.restartSibionicsAlgorithm(sensor.serial)
                         showSibionicsCalSheet = false
                     },
                     shape = RoundedCornerShape(12.dp),
-                    color = restartButtonColor,
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -997,21 +879,18 @@ fun SensorCard(
                         Icon(
                             imageVector = Icons.Default.RestartAlt,
                             contentDescription = null,
-                            tint = restartIconColor
+                            tint = MaterialTheme.colorScheme.error
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                if (settingsDirty) stringResource(R.string.restart_algorithm_to_apply)
-                                else stringResource(R.string.restart_algorithm),
+                                stringResource(R.string.restart_algorithm),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Medium,
-                                color = restartTextColor
+                                color = MaterialTheme.colorScheme.error
                             )
                             Text(
-                                if (settingsDirty) stringResource(R.string.settings_changed_press_to_apply)
-                                else if (advancedEnabled) stringResource(R.string.restart_with_current_window)
-                                else stringResource(R.string.restart_with_standard_algorithm),
+                                stringResource(R.string.sibionics_restart_algorithm_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1387,7 +1266,7 @@ fun SensorCard(
                             // Title with optional "Active" badge
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = sensor.serial,
+                                    text = sensor.displayName.ifBlank { sensor.serial },
                                     style = serialTextStyle,
                                     maxLines = 1,
                                     softWrap = false,
@@ -1733,11 +1612,9 @@ fun SensorCard(
                 // Auto-calibration entry — Sibionics only, hidden when Raw mode selected (viewMode == 1)
                 if (sensor.isSibionics && sensor.viewMode != 1) {
                     val calSubtitle = if (sensor.customCalEnabled) {
-                        val calLabels = listOf("12H", "1D", "2D", "3D", "5D", "7D", "10D", "14D", "18D", "MAX")
-                        val label = calLabels.getOrElse(sensor.customCalIndex) { "12H" }
-                        "$label ${stringResource(R.string.window_label)}"
+                        stringResource(R.string.sibionics_custom_algorithm)
                     } else {
-                        stringResource(R.string.juggluco_native)
+                        stringResource(R.string.sibionics_stock_algorithm_desc)
                     }
                     Surface(
                         onClick = { showSibionicsCalSheet = true },
@@ -2024,7 +1901,7 @@ fun SensorCard(
             }
 
             // Row 1: Unified Reset Button (Sibionics only - full width, styled like "Previous calibrations")
-            if (sensor.isSibionics2) {
+            if (sensor.isSibionics) {
                 FilledTonalButton(
                     onClick = { showUnifiedResetDialog = true },
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -2369,7 +2246,7 @@ fun SensorCard(
                 }
             }
 
-            if (!sensor.isAidex && !sensor.isSibionics2 && sensor.supportsHardwareReset) {
+            if (!sensor.isAidex && !sensor.isSibionics && sensor.supportsHardwareReset) {
                 FilledTonalButton(
                     onClick = { showResetDialog = true },
                     enabled = sensor.isVendorConnected,

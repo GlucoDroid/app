@@ -1523,7 +1523,8 @@ public class NotificationChartDrawer {
         }
 
         boolean hideInitialWhenCalibrated = hasCalibration &&
-                CalibrationAccess.shouldHideInitialWhenCalibrated();
+                (CalibrationAccess.shouldHideInitialWhenCalibrated() ||
+                        tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(calibrationSensorId));
         boolean isRawModeForCal = (viewMode == 1 || viewMode == 3);
         // Determine which lines to show
         boolean hideRawSource = hideInitialWhenCalibrated && isRawModeForCal;

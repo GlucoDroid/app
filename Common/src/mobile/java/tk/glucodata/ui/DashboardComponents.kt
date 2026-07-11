@@ -363,6 +363,12 @@ fun DashboardCombinedHeader(
         )
     }
     val sensorPresent = sensorName.isNotBlank() || activeSensors.isNotEmpty()
+    val sensorDisplayName = remember(refreshRevision, sensorName) {
+        tk.glucodata.drivers.ManagedSensorRuntime.resolveUiSnapshot(sensorName)
+            ?.displayName
+            ?.takeIf { it.isNotBlank() }
+            ?: sensorName
+    }
     val resolvedDataState = dataState ?: remember(
         resolvedCurrentSnapshot?.timeMillis,
         latestPoint?.timestamp,
@@ -792,10 +798,10 @@ fun DashboardCombinedHeader(
                     }
                     
                     // 1. Sensor Name (Top Label)
-                    if (sensorName.isNotEmpty()) {
+                    if (sensorDisplayName.isNotEmpty()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = sensorName,
+                                text = sensorDisplayName,
                                 style = MaterialTheme.typography.labelMedium, // M3 Standard
                                 color = sensorContentColor.copy(alpha = 0.7f),
                                 maxLines = 1,

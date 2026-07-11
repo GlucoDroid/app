@@ -149,6 +149,7 @@ object CalibrationManager {
         val isRawMode: Boolean,
         val sensorId: String,
         val algorithm: CalibrationAlgorithm,
+        val managedIntegration: Boolean,
         val timestamp: Long,
         val quantizedValue: Int,
         val revision: Long
@@ -320,6 +321,13 @@ object CalibrationManager {
     }
 
     fun getRevision(): Long = calibrationRevision
+
+    @JvmStatic
+    fun notifyExternalCalibrationPipelineChanged() {
+        ensureInitialized()
+        invalidateComputationCache("externalCalibrationPipeline")
+        requestUiRefreshAfterCalibrationChange()
+    }
 
     private fun normalizeSensorId(sensorId: String?): String {
         val normalized = sensorId?.trim()?.takeIf { it.isNotEmpty() } ?: return ""
@@ -1107,6 +1115,7 @@ object CalibrationManager {
             isRawMode = isRawMode,
             sensorId = currentSensor,
             algorithm = algorithm,
+            managedIntegration = tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(currentSensor),
             timestamp = timestamp,
             quantizedValue = java.lang.Float.floatToRawIntBits(value),
             revision = calibrationRevision
@@ -1134,13 +1143,19 @@ object CalibrationManager {
         )
         if (points.isEmpty()) return value
 
-        val finalValue = computeCalibratedValue(
+        val modelValue = computeCalibratedValue(
             originalValue = value,
             targetTimestamp = timestamp,
             isRawMode = isRawMode,
             points = points,
             algorithm = algorithm,
             emitDiagnostics = emitDiagnostics
+        )
+        val finalValue = tk.glucodata.drivers.ManagedSensorRuntime.integrateUserCalibration(
+            sensorId = currentSensor,
+            baseDisplayValue = value,
+            calibratedDisplayValue = modelValue,
+            timestampMs = timestamp,
         )
         synchronized(calibrationCache) {
             calibrationCache[cacheKey] = finalValue
@@ -1161,12 +1176,20 @@ object CalibrationManager {
         if (context == null) {
             return FloatArray(samples.size) { index -> samples[index].value }
         }
+        val integrationDriver = tk.glucodata.drivers.ManagedSensorRuntime.resolveDriver(context.sensorId)
+            ?.takeIf { driver -> runCatching { driver.integratesUserCalibration() }.getOrDefault(false) }
+        fun integrate(sample: CalibrationSample, modelValue: Float): Float {
+            val driver = integrationDriver ?: return modelValue
+            return runCatching {
+                driver.integrateUserCalibration(sample.value, modelValue, sample.timestamp)
+            }.getOrDefault(sample.value)
+        }
 
         val results = FloatArray(samples.size)
         if (!_lockPastHistory.value) {
             val points = context.allPoints.filter { it.isEnabled }
             samples.forEachIndexed { index, sample ->
-                results[index] = if (points.isEmpty()) {
+                val modelValue = if (points.isEmpty()) {
                     sample.value
                 } else {
                     computeCalibratedValue(
@@ -1178,6 +1201,7 @@ object CalibrationManager {
                         emitDiagnostics = emitDiagnostics && index == samples.lastIndex
                     )
                 }
+                results[index] = integrate(sample, modelValue)
             }
             return results
         }
@@ -1191,7 +1215,7 @@ object CalibrationManager {
                 targetTimestamp = sample.timestamp,
                 earliestPoint = context.earliestPoint
             )
-            results[indexedSample.index] = if (points.isEmpty()) {
+            val modelValue = if (points.isEmpty()) {
                 sample.value
             } else {
                 computeCalibratedValue(
@@ -1203,6 +1227,7 @@ object CalibrationManager {
                     emitDiagnostics = emitDiagnostics && sortedIndex == indexedSamples.lastIndex
                 )
             }
+            results[indexedSample.index] = integrate(sample, modelValue)
         }
 
         return results

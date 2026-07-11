@@ -23,6 +23,8 @@ object SibionicsRegistry {
     private const val PREF_LAST_RAW_MGDL_PREFIX = "sibionics_managed_last_raw_mgdl_"
     private const val PREF_LAST_READING_TIME_PREFIX = "sibionics_managed_last_reading_time_"
     private const val PREF_ALGORITHM_STATE_PREFIX = "sibionics_managed_algorithm_state_"
+    private const val PREF_AUTO_RESET_DAYS_PREFIX = "sibionics_managed_auto_reset_days_"
+    private const val PREF_CUSTOM_ALGORITHM_PREFIX = "sibionics_managed_custom_algorithm_"
 
     data class SensorRecord(
         val sensorId: String,
@@ -214,6 +216,8 @@ object SibionicsRegistry {
             remove(PREF_LAST_RAW_MGDL_PREFIX + id)
             remove(PREF_LAST_READING_TIME_PREFIX + id)
             remove(PREF_ALGORITHM_STATE_PREFIX + id)
+            remove(PREF_AUTO_RESET_DAYS_PREFIX + id)
+            remove(PREF_CUSTOM_ALGORITHM_PREFIX + id)
         }.apply()
         ManagedSensorUiSignals.markDeviceListDirty()
         SensorIdentity.invalidateCaches()
@@ -241,6 +245,22 @@ object SibionicsRegistry {
 
     fun clearAlgorithmState(context: Context, sensorId: String) {
         prefs(context).edit().remove(PREF_ALGORITHM_STATE_PREFIX + sensorId).apply()
+    }
+
+    fun loadAutoResetDays(context: Context, sensorId: String): Int =
+        prefs(context).getInt(PREF_AUTO_RESET_DAYS_PREFIX + sensorId, 300)
+
+    fun saveAutoResetDays(context: Context, sensorId: String, days: Int) {
+        prefs(context).edit()
+            .putInt(PREF_AUTO_RESET_DAYS_PREFIX + sensorId, days.coerceIn(1, 300))
+            .apply()
+    }
+
+    fun loadCustomAlgorithmEnabled(context: Context, sensorId: String): Boolean =
+        prefs(context).getBoolean(PREF_CUSTOM_ALGORITHM_PREFIX + sensorId, false)
+
+    fun saveCustomAlgorithmEnabled(context: Context, sensorId: String, enabled: Boolean) {
+        prefs(context).edit().putBoolean(PREF_CUSTOM_ALGORITHM_PREFIX + sensorId, enabled).apply()
     }
 
     fun loadStartTimeMs(context: Context, sensorId: String): Long =

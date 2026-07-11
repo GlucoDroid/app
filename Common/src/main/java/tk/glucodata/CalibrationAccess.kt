@@ -25,6 +25,9 @@ object CalibrationAccess {
     private val shouldHideInitialMethod by lazy {
         runCatching { holder?.getMethod("shouldHideInitialWhenCalibrated") }.getOrNull()
     }
+    private val notifyExternalPipelineMethod by lazy {
+        runCatching { holder?.getMethod("notifyExternalCalibrationPipelineChanged") }.getOrNull()
+    }
     private val shouldOverwriteSensorValuesMethod by lazy {
         runCatching { holder?.getMethod("shouldOverwriteSensorValues") }.getOrNull()
     }
@@ -65,6 +68,11 @@ object CalibrationAccess {
         return runCatching {
             shouldHideInitialMethod?.invoke(instance) as? Boolean
         }.getOrNull() ?: false
+    }
+
+    @JvmStatic
+    fun notifyExternalCalibrationPipelineChanged() {
+        runCatching { notifyExternalPipelineMethod?.invoke(instance) }
     }
 
     @JvmStatic

@@ -9,6 +9,18 @@ interface ManagedSensorMaintenanceDriver {
 
     fun resetSensor(): Boolean = false
 
+    fun supportsAutoReset(): Boolean = false
+
+    fun getAutoResetDays(): Int = 300
+
+    fun setAutoResetDays(days: Int): Boolean = false
+
+    fun supportsCustomAlgorithm(): Boolean = false
+
+    fun isCustomAlgorithmEnabled(): Boolean = false
+
+    fun setCustomAlgorithmEnabled(enabled: Boolean): Boolean = false
+
     fun supportsClearCalibrationAction(): Boolean = false
 
     fun clearSensorCalibration(): Boolean = false

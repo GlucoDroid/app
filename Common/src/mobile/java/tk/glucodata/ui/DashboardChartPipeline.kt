@@ -124,8 +124,13 @@ internal fun buildPredictionSeriesForChart(
 
     val isRawMode = viewMode == 1 || viewMode == 3
     val hasCalibration = hasAnyActiveCalibrationForPrediction(predictionHistory, isRawMode)
+    val customCalibrationIntegrated = predictionHistory.asSequence()
+        .map { it.sensorSerial }
+        .distinct()
+        .any { tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(it) }
     val hideInitialWhenCalibrated = hasCalibration &&
-        tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
+        (tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated() ||
+            customCalibrationIntegrated)
     val drawRaw = !(hideInitialWhenCalibrated && isRawMode) && (viewMode == 1 || viewMode == 2 || viewMode == 3)
     val drawAuto = !(hideInitialWhenCalibrated && !isRawMode) && (viewMode == 0 || viewMode == 2 || viewMode == 3)
 
