@@ -106,6 +106,13 @@ object SibionicsConstants {
             .uppercase(Locale.US)
             .filter { it.isLetterOrDigit() }
 
+    fun isSibionics2TransmitterName(raw: String?): Boolean {
+        val name = normalizeBleName(raw)
+        return name.length in 8..16 &&
+            name.startsWith('P') &&
+            name.substring(1, 4).all(Char::isDigit)
+    }
+
     fun isValidAlgorithmGlucoseMgdl(value: Float): Boolean =
         value.isFinite() && value > 0f && value <= MAX_ALGORITHM_GLUCOSE_MGDL
 

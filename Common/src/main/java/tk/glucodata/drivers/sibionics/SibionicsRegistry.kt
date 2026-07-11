@@ -58,20 +58,20 @@ object SibionicsRegistry {
         val normalizedBle = SibionicsConstants.normalizeBleName(bleName)
         val normalizedRaw = SibionicsConstants.normalizeBleName(rawInput)
         val source = when {
-            normalizedBle.isNotBlank() -> normalizedBle
             normalizedRaw.isNotBlank() -> normalizedRaw
+            normalizedBle.isNotBlank() -> normalizedBle
             else -> variant.displayLabel
         }
         val qrName = deriveNativeQrName(source)
         val qrShortView = qrName?.takeLast(11)?.takeIf { it.length == 11 }
-        val bleName = deriveBleName(source).orEmpty()
+        val resolvedBleName = deriveBleName(normalizedBle.takeIf { it.isNotBlank() } ?: source).orEmpty()
         val display = qrShortView ?: deriveDisplayName(source, variant)
         val fallback = variant.fallbackShortCode
         val shortCode = qrShortView
             ?.take(8)
             ?.takeIf { it.length == 8 }
             ?: SibionicsSensitivity.deriveShortCode(
-                bleName.takeIf { it.isNotBlank() } ?: source.takeIf { it.isNotBlank() } ?: rawInput,
+                resolvedBleName.takeIf { it.isNotBlank() } ?: source.takeIf { it.isNotBlank() } ?: rawInput,
                 fallback,
             )
         val idBase = if (display.isNotBlank()) display else shortCode
@@ -79,7 +79,7 @@ object SibionicsRegistry {
             sensorId = SibionicsConstants.canonicalSensorId(idBase),
             displayName = display.ifBlank { "${variant.displayLabel} $shortCode" },
             shortCode = shortCode,
-            bleName = bleName,
+            bleName = resolvedBleName,
         )
     }
 
@@ -91,8 +91,9 @@ object SibionicsRegistry {
         displayName: String?,
         variant: SibionicsConstants.Variant,
         shortCodeOverride: String? = null,
+        bleNameOverride: String? = null,
     ): SensorRecord {
-        val identity = buildIdentity(rawInput, displayName, variant)
+        val identity = buildIdentity(rawInput, bleNameOverride ?: displayName, variant)
         val sensorId = identity.sensorId
         val shortCode = shortCodeOverride
             ?.let { SibionicsConstants.normalizeBleName(it) }
@@ -110,7 +111,9 @@ object SibionicsRegistry {
         val visible = usableDisplayName(displayName)
             ?: usableDisplayName(existing?.displayName)
             ?: identity.displayName
-        val bleName = identity.bleName
+        val bleName = deriveBleName(bleNameOverride)
+            .orEmpty()
+            .ifBlank { identity.bleName }
             .ifBlank { deriveBleName(displayName) ?: "" }
             .ifBlank { existing?.bleName.orEmpty() }
         val record = SensorRecord(sensorId, normalizedAddress, visible, variant, shortCode, bleName)
@@ -130,8 +133,16 @@ object SibionicsRegistry {
         address: String?,
         displayName: String?,
         variant: SibionicsConstants.Variant,
+        bleName: String? = null,
     ): SensorRecord {
-        val record = ensureSensorRecord(context, rawInput, address, displayName, variant)
+        val record = ensureSensorRecord(
+            context = context,
+            rawInput = rawInput,
+            address = address,
+            displayName = displayName,
+            variant = variant,
+            bleNameOverride = bleName,
+        )
         runCatching {
             if (tk.glucodata.Natives.getusebluetooth()) {
                 SensorBluetooth.updateDevices()
@@ -162,6 +173,26 @@ object SibionicsRegistry {
                 stripped.isNotBlank() && display.endsWith(stripped.takeLast(6), ignoreCase = true)
             }
             .singleOrNull()
+    }
+
+    internal fun canClaimUnboundSibionics2Device(
+        record: SensorRecord,
+        records: List<SensorRecord>,
+        deviceName: String?,
+        address: String?,
+    ): Boolean {
+        if (record.variant != SibionicsConstants.Variant.SIBIONICS2 || record.address.isNotBlank()) return false
+        if (!SibionicsConstants.isSibionics2TransmitterName(deviceName)) return false
+        val normalizedAddress = SibionicsConstants.normalizeBleAddress(address) ?: return false
+        if (records.any {
+                !it.matchesId(record.sensorId) &&
+                    SibionicsConstants.normalizeBleAddress(it.address)?.equals(normalizedAddress, ignoreCase = true) == true
+            }
+        ) return false
+        val unbound = records.filter {
+            it.variant == SibionicsConstants.Variant.SIBIONICS2 && it.address.isBlank()
+        }
+        return unbound.size == 1 && unbound.single().matchesId(record.sensorId)
     }
 
     @JvmStatic

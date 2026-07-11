@@ -89,6 +89,7 @@ class SibionicsBleManager(
     @Volatile private var keyGroupIndex: Int = 0
     @Volatile private var pendingResetCommand: Boolean = false
     @Volatile private var uiPaused: Boolean = false
+    @Volatile private var pendingMatchedBleName: String = ""
 
     @Volatile private var lastIndex: Int = 0
     @Volatile private var lastIndexDirty: Boolean = false
@@ -239,6 +240,18 @@ class SibionicsBleManager(
         val name = SibionicsConstants.normalizeBleName(deviceName)
         if (name.isBlank()) return false
         val rec = record ?: SibionicsRegistry.findRecord(Applic.app, SerialNumber)
+        val ctx = Applic.app
+        if (rec != null && ctx != null && SibionicsRegistry.canClaimUnboundSibionics2Device(
+                record = rec,
+                records = SibionicsRegistry.persistedRecords(ctx),
+                deviceName = name,
+                address = scanned,
+            )
+        ) {
+            Log.i(SibionicsConstants.TAG, "binding unbound Sibionics 2 ${rec.sensorId} to $name/$scanned")
+            pendingMatchedBleName = name
+            return true
+        }
         val bleAlias = SibionicsConstants.normalizeBleName(rec?.bleName)
         if (matchesBleNameAlias(name, bleAlias)) return true
         val embeddedBle = SibionicsRegistry.deriveBleName(rec?.displayName)
@@ -290,6 +303,7 @@ class SibionicsBleManager(
                 displayName = rec.displayName,
                 variant = variant,
                 shortCodeOverride = shortCode,
+                bleNameOverride = pendingMatchedBleName.takeIf { it.isNotBlank() } ?: rec.bleName,
             )
         }
     }

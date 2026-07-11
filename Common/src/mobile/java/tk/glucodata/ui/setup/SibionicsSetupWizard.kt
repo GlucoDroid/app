@@ -528,8 +528,9 @@ fun SibionicsSetupWizard(
                             context = context.applicationContext,
                             rawInput = raw,
                             address = device?.address,
-                            displayName = device?.name?.takeIf { it.isNotBlank() } ?: raw,
+                            displayName = null,
                             variant = selectedType.toManagedVariant(),
+                            bleName = device?.name,
                         )
                         sensorName = record.displayName
                         currentStep = SibionicsSetupStep.CONNECTING
@@ -662,7 +663,7 @@ fun ScanSensorStep(
             if (!handledScan) {
                 handledScan = true
                 if (useManagedDriver) {
-                    onManagedEntry(raw, null)
+                    onManagedEntry(raw, selectedBleDevice)
                 } else {
                     onInlineScanResult(raw)
                 }
@@ -710,7 +711,7 @@ fun ScanSensorStep(
                     val decoded = decodeBitmapQr(context, uri)
                     if (decoded != null) {
                         if (useManagedDriver) {
-                            onManagedEntry(decoded, null)
+                            onManagedEntry(decoded, selectedBleDevice)
                         } else {
                             onManualEntry(decoded)
                         }
@@ -733,7 +734,7 @@ fun ScanSensorStep(
             onConfirm = { code ->
                 showManualEntry = false
                 if (useManagedDriver) {
-                    onManagedEntry(code, null)
+                    onManagedEntry(code, selectedBleDevice)
                 } else {
                     onManualEntry(code)
                 }
@@ -759,7 +760,7 @@ fun ScanSensorStep(
                     if (!handledScan) {
                         handledScan = true
                         if (useManagedDriver) {
-                            onManagedEntry(raw, null)
+                            onManagedEntry(raw, selectedBleDevice)
                         } else {
                             onInlineScanResult(raw)
                         }
