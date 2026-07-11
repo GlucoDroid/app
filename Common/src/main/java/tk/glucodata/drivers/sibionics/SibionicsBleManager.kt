@@ -133,7 +133,7 @@ class SibionicsBleManager(
         }
         shortCode = SibionicsRegistry.loadShortCode(context, SerialNumber)
         sensitivity = SibionicsSensitivity.sensitivityFor(shortCode)
-        algorithm.configure(shortCode, sensitivity)
+        algorithm.configure(shortCode, sensitivity, variant)
         lastIndex = SibionicsRegistry.loadLastIndex(context, SerialNumber)
         val algorithmState = SibionicsRegistry.loadAlgorithmState(context, SerialNumber)
         if (algorithmState != null && algorithm.restore(algorithmState)) {
@@ -489,6 +489,7 @@ class SibionicsBleManager(
         }
         when (response) {
             SibionicsProtocol.ResponseType.AUTH_ACCEPTED -> {
+                algorithm.configure(shortCode, sensitivity, variant)
                 setStatus("Authenticated")
                 phase = Phase.ACTIVATING
                 writeCommand(SibionicsProtocol.buildActivationPacket(), "activation")

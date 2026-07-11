@@ -6,6 +6,7 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import kotlin.math.abs
 import kotlin.math.max
+import tk.glucodata.drivers.sibionics.v116a.SibionicsExactV116ACore
 
 enum class SibionicsAlgorithmMode {
     LIVE,
@@ -23,16 +24,35 @@ enum class SibionicsAlgorithmMode {
 class SibionicsAlgorithmContext(
     @Suppress("unused") private val sensorId: String,
 ) {
-    private val core = SibionicsExactV115GCore()
+    private var family = AlgorithmFamily.V115G
+    private val v115Core = SibionicsExactV115GCore()
+    private val v116Core = SibionicsExactV116ACore()
     private var liveDeltaMmol = Float.NaN
     private var replayDeltaMmol = Float.NaN
 
-    fun configure(@Suppress("unused") shortCode: String, sensitivity: Float) {
-        core.configure(sensitivity)
+    fun configure(
+        @Suppress("unused") shortCode: String,
+        sensitivity: Float,
+        variant: SibionicsConstants.Variant = SibionicsConstants.Variant.CHINESE,
+    ) {
+        val configuredFamily = if (variant.usesV116AAlgorithm) {
+            AlgorithmFamily.V116A
+        } else {
+            AlgorithmFamily.V115G
+        }
+        if (configuredFamily != family) {
+            family = configuredFamily
+            resetWrapperState()
+        }
+        when (family) {
+            AlgorithmFamily.V115G -> v115Core.configure(sensitivity)
+            AlgorithmFamily.V116A -> v116Core.configure(sensitivity)
+        }
     }
 
     fun reset() {
-        core.reset()
+        v115Core.reset()
+        v116Core.reset()
         resetWrapperState()
     }
 
@@ -44,7 +64,10 @@ class SibionicsAlgorithmContext(
     ): Float {
         if (!rawMmol.isFinite() || rawMmol <= 0f) return Float.NaN
 
-        val candidate = core.process(rawMmol, temperatureC, index)
+        val candidate = when (family) {
+            AlgorithmFamily.V115G -> v115Core.process(rawMmol, temperatureC, index)
+            AlgorithmFamily.V116A -> v116Core.process(rawMmol, temperatureC, index)
+        }
         val display = when (mode) {
             SibionicsAlgorithmMode.LIVE -> liveValue(rawMmol, candidate)
             SibionicsAlgorithmMode.REPLAY -> replayValue(rawMmol, candidate)
@@ -62,9 +85,13 @@ class SibionicsAlgorithmContext(
         DataOutputStream(bytes).use { output ->
             output.writeInt(SNAPSHOT_MAGIC)
             output.writeInt(SNAPSHOT_VERSION)
+            output.writeInt(family.snapshotId)
             output.writeFloat(liveDeltaMmol)
             output.writeFloat(replayDeltaMmol)
-            val coreState = core.snapshot()
+            val coreState = when (family) {
+                AlgorithmFamily.V115G -> v115Core.snapshot()
+                AlgorithmFamily.V116A -> v116Core.snapshot()
+            }
             output.writeInt(coreState.size)
             output.write(coreState)
         }
@@ -78,7 +105,11 @@ class SibionicsAlgorithmContext(
             DataInputStream(ByteArrayInputStream(snapshot)).use { input ->
                 val magic = input.readInt()
                 if (magic != SNAPSHOT_MAGIC) return@use restoreLegacyCoreSnapshot(snapshot)
-                if (input.readInt() != SNAPSHOT_VERSION) return@use false
+                when (input.readInt()) {
+                    SNAPSHOT_VERSION -> if (input.readInt() != family.snapshotId) return@use false
+                    LEGACY_WRAPPER_SNAPSHOT_VERSION -> if (family != AlgorithmFamily.V115G) return@use false
+                    else -> return@use false
+                }
 
                 val savedLiveDelta = input.readFloat()
                 val savedReplayDelta = input.readFloat()
@@ -88,7 +119,7 @@ class SibionicsAlgorithmContext(
 
                 val coreState = ByteArray(coreSize)
                 input.readFully(coreState)
-                if (input.available() != 0 || !core.restore(coreState)) return@use false
+                if (input.available() != 0 || !restoreCore(coreState)) return@use false
 
                 liveDeltaMmol = savedLiveDelta
                 replayDeltaMmol = savedReplayDelta
@@ -129,9 +160,14 @@ class SibionicsAlgorithmContext(
     }
 
     private fun restoreLegacyCoreSnapshot(snapshot: ByteArray): Boolean {
-        if (!core.restore(snapshot)) return false
+        if (!restoreCore(snapshot)) return false
         resetWrapperState()
         return true
+    }
+
+    private fun restoreCore(snapshot: ByteArray): Boolean = when (family) {
+        AlgorithmFamily.V115G -> v115Core.restore(snapshot)
+        AlgorithmFamily.V116A -> v116Core.restore(snapshot)
     }
 
     private fun clearDelta(mode: SibionicsAlgorithmMode) {
@@ -162,10 +198,16 @@ class SibionicsAlgorithmContext(
 
     private companion object {
         private const val SNAPSHOT_MAGIC = 0x5349_4234
-        private const val SNAPSHOT_VERSION = 2
+        private const val SNAPSHOT_VERSION = 3
+        private const val LEGACY_WRAPPER_SNAPSHOT_VERSION = 2
         private const val MAX_CORE_SNAPSHOT_BYTES = 64 * 1024
         private const val MIN_ALGORITHM_MMOL = 1f
         private const val MAX_VALID_MMOL = SibionicsConstants.MAX_ALGORITHM_GLUCOSE_MMOL
         private const val MAX_DELTA_MMOL = 40f
+    }
+
+    private enum class AlgorithmFamily(val snapshotId: Int) {
+        V115G(115),
+        V116A(116),
     }
 }

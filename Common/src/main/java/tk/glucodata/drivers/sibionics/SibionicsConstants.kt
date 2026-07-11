@@ -78,6 +78,9 @@ object SibionicsConstants {
         val prefersChineseProbe: Boolean
             get() = this == CHINESE
 
+        val usesV116AAlgorithm: Boolean
+            get() = this == EU || this == HEMATONIX || this == SIBIONICS2
+
         companion object {
             fun fromId(raw: String?): Variant {
                 val normalized = raw?.trim()?.lowercase(Locale.US).orEmpty()
