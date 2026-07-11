@@ -12,7 +12,6 @@ import tk.glucodata.ui.screens.AlertsScreen
 import tk.glucodata.ui.screens.CalibrationScreen
 import tk.glucodata.ui.screens.ChartScreen
 import tk.glucodata.ui.screens.MainScreen
-import tk.glucodata.ui.screens.PairCodeScreen
 import tk.glucodata.ui.screens.SensorScreen
 import tk.glucodata.ui.screens.SettingsScreen
 
@@ -21,7 +20,6 @@ object WearRoutes {
     const val CHART = "chart"
     const val ALERTS = "alerts"
     const val SENSOR = "sensor"
-    const val PAIR_CODE = "paircode"
     const val CALIBRATE = "calibrate"
     const val SETTINGS = "settings"
 }
@@ -56,11 +54,7 @@ fun WearApp() {
             composable(WearRoutes.SENSOR) {
                 SensorScreen(
                     onCalibrate = { navController.navigate(WearRoutes.CALIBRATE) },
-                    onPairCode = { navController.navigate(WearRoutes.PAIR_CODE) },
                 )
-            }
-            composable(WearRoutes.PAIR_CODE) {
-                PairCodeScreen(onDone = { navController.popBackStack() })
             }
             composable(WearRoutes.CALIBRATE) {
                 CalibrationScreen(onDone = { navController.popBackStack() })

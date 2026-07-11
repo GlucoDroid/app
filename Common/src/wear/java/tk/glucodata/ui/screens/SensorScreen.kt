@@ -30,7 +30,7 @@ private fun loadSensors(): List<SensorRow> = runCatching {
 }.getOrDefault(emptyList())
 
 @Composable
-fun SensorScreen(onCalibrate: () -> Unit, onPairCode: () -> Unit) {
+fun SensorScreen(onCalibrate: () -> Unit) {
     val sensors = remember { loadSensors() }
     val canCalibrate = remember {
         findCalibratableDriver() != null ||
@@ -74,13 +74,6 @@ fun SensorScreen(onCalibrate: () -> Unit, onPairCode: () -> Unit) {
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item {
-                Button(
-                    onClick = onPairCode,
-                    label = { Text(stringResource(R.string.enter_code_manually)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
