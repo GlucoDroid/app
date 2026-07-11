@@ -392,12 +392,12 @@ class SibionicsBleManager(
     private fun startProtocolProbe() {
         when (protocolMode) {
             SibionicsConstants.ProtocolMode.CHINESE -> {
-                sendChineseDataRequest()
-                scheduleChineseProbeTimeout()
+                sendChineseDataRequest(probing = false)
+                scheduleChineseDataTimeout()
             }
             SibionicsConstants.ProtocolMode.V120 -> sendAuthPacket()
             SibionicsConstants.ProtocolMode.UNKNOWN -> {
-                sendChineseDataRequest()
+                sendChineseDataRequest(probing = true)
                 scheduleChineseProbeTimeout()
             }
         }
@@ -426,10 +426,13 @@ class SibionicsBleManager(
                     protocolMode = SibionicsConstants.ProtocolMode.CHINESE
                     Applic.app?.let { SibionicsRegistry.saveProtocolMode(it, SerialNumber, protocolMode) }
                 }
-                setStatus(waitingForDataStatus())
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
-                handler.postDelayed(chineseDataTimeoutRunnable, CHINESE_DATA_TIMEOUT_MS)
+                if (phase != Phase.STREAMING) {
+                    phase = Phase.REQUESTING_DATA
+                    setStatus(waitingForDataStatus())
+                    scheduleChineseDataTimeout()
+                }
             }
 
             is SibionicsProtocol.ParseResult.ChineseData -> {
@@ -565,14 +568,19 @@ class SibionicsBleManager(
         ).distinctBy { it.appId + it.registrationKeyHex }
     }
 
-    private fun sendChineseDataRequest() {
+    private fun sendChineseDataRequest(probing: Boolean) {
         protocolMode = if (protocolMode == SibionicsConstants.ProtocolMode.UNKNOWN) {
             SibionicsConstants.ProtocolMode.UNKNOWN
         } else {
             SibionicsConstants.ProtocolMode.CHINESE
         }
-        phase = Phase.PROBING_CHINESE
-        setStatus("Probing")
+        if (probing) {
+            phase = Phase.PROBING_CHINESE
+            setStatus("Probing")
+        } else if (phase != Phase.STREAMING) {
+            phase = Phase.REQUESTING_DATA
+            setStatus(waitingForDataStatus())
+        }
         val packet = SibionicsProtocol.buildChineseDataRequest(lastIndex.coerceAtLeast(1), SibionicsConstants.macBytes(mActiveDeviceAddress))
         writeCommand(packet, "chinese-data-request")
     }
@@ -667,7 +675,7 @@ class SibionicsBleManager(
         }
         if (wasRehydrating && !live) return null
         val glucoseMgdl = displayMmol * SibionicsConstants.MGDL_PER_MMOLL
-        if (!glucoseMgdl.isFinite() || glucoseMgdl <= 0f || glucoseMgdl >= 500f) {
+        if (!SibionicsConstants.isValidAlgorithmGlucoseMgdl(glucoseMgdl)) {
             Log.w(SibionicsConstants.TAG, "skip invalid glucose idx=$index display=$glucoseMgdl raw=$rawMgdl")
             return null
         }
@@ -1004,7 +1012,7 @@ class SibionicsBleManager(
             if (shortCode.isNotBlank()) {
                 append(" • ")
                 append(shortCode)
-                append(" sens=")
+                append(if (SibionicsSensitivity.tryDecode(shortCode) != null) " qrSens=" else " fallbackSens=")
                 append("%.2f".format(sensitivity))
             }
             if (latestTemperatureC.isFinite()) {
@@ -1104,14 +1112,19 @@ class SibionicsBleManager(
         handler.postDelayed(chineseProbeTimeoutRunnable, CHINESE_PROBE_TIMEOUT_MS)
     }
 
+    private fun scheduleChineseDataTimeout() {
+        handler.removeCallbacks(chineseDataTimeoutRunnable)
+        handler.postDelayed(chineseDataTimeoutRunnable, CHINESE_DATA_TIMEOUT_MS)
+    }
+
     private val chineseProbeTimeoutRunnable = Runnable {
         if (phase == Phase.PROBING_CHINESE) switchToV120("Chinese probe timeout")
     }
 
     private val chineseDataTimeoutRunnable = Runnable {
-        if (phase == Phase.PROBING_CHINESE || protocolMode == SibionicsConstants.ProtocolMode.CHINESE) {
-            sendChineseDataRequest()
-            scheduleChineseProbeTimeout()
+        if (protocolMode == SibionicsConstants.ProtocolMode.CHINESE) {
+            sendChineseDataRequest(probing = false)
+            scheduleChineseDataTimeout()
         }
     }
 
@@ -1122,7 +1135,7 @@ class SibionicsBleManager(
 
     private val chinesePollRunnable = Runnable {
         if (!stop && protocolMode == SibionicsConstants.ProtocolMode.CHINESE) {
-            sendChineseDataRequest()
+            sendChineseDataRequest(probing = false)
             scheduleChinesePoll()
         }
     }

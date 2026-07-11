@@ -165,7 +165,7 @@ class SibionicsAlgorithmContext(
         private const val SNAPSHOT_VERSION = 2
         private const val MAX_CORE_SNAPSHOT_BYTES = 64 * 1024
         private const val MIN_ALGORITHM_MMOL = 1f
-        private const val MAX_VALID_MMOL = 50f
+        private const val MAX_VALID_MMOL = SibionicsConstants.MAX_ALGORITHM_GLUCOSE_MMOL
         private const val MAX_DELTA_MMOL = 40f
     }
 }

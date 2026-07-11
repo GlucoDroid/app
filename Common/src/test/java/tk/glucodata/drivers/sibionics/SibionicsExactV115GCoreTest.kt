@@ -1,12 +1,43 @@
 package tk.glucodata.drivers.sibionics
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SibionicsExactV115GCoreTest {
+    @Test
+    fun qrContainsSensitivityThatIsMissingFromTheBleName() {
+        assertEquals(1.40f, SibionicsSensitivity.tryDecode("46HU804E")!!, 0.0001f)
+        assertNull(SibionicsSensitivity.tryDecode("LT260346HU"))
+    }
+
+    @Test
+    fun thisReplayConvergesToTheSameOutputWithFallbackSensitivity() {
+        val qrCore = SibionicsExactV115GCore(decodedSensitivity = 1.40f)
+        val fallbackCore = SibionicsExactV115GCore(decodedSensitivity = 1.27f)
+        var compared = 0
+        replayRows().forEach { row ->
+            val qrValue = qrCore.process(row.rawMmol, row.temperatureC, row.index)
+            val fallbackValue = fallbackCore.process(row.rawMmol, row.temperatureC, row.index)
+            if (qrValue != null || fallbackValue != null) {
+                compared++
+                assertEquals("fallback output at ${row.index}", qrValue, fallbackValue)
+            }
+        }
+
+        assertEquals(3_153, compared)
+    }
+
+    @Test
+    fun storageRangeMatchesTheProprietaryAlgorithmRange() {
+        assertTrue(SibionicsConstants.isValidAlgorithmGlucoseMgdl(29.2f * SibionicsConstants.MGDL_PER_MMOLL))
+        assertTrue(SibionicsConstants.isValidAlgorithmGlucoseMgdl(50.0f * SibionicsConstants.MGDL_PER_MMOLL))
+        assertFalse(SibionicsConstants.isValidAlgorithmGlucoseMgdl(50.1f * SibionicsConstants.MGDL_PER_MMOLL))
+    }
+
     @Test
     fun driverEmitsOneReadingForEveryValidOneMinuteSample() {
         val algorithm = SibionicsAlgorithmContext("one-minute-cadence")

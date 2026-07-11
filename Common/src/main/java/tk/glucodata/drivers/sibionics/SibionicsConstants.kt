@@ -8,6 +8,8 @@ object SibionicsConstants {
     const val SENSOR_GEN = 0
     const val MGDL_PER_MMOLL = 18.0f
     const val READING_INTERVAL_MS = 60_000L
+    const val MAX_ALGORITHM_GLUCOSE_MMOL = 50.0f
+    const val MAX_ALGORITHM_GLUCOSE_MGDL = MAX_ALGORITHM_GLUCOSE_MMOL * MGDL_PER_MMOLL
     const val DEFAULT_EXPECTED_LIFETIME_MS = 14L * 24L * 60L * 60L * 1000L
     const val EXTENDED_CHINESE_LIFETIME_MS = 572L * 60L * 60L * 1000L - 19L * 60L * 1000L
 
@@ -100,6 +102,9 @@ object SibionicsConstants {
             .trim()
             .uppercase(Locale.US)
             .filter { it.isLetterOrDigit() }
+
+    fun isValidAlgorithmGlucoseMgdl(value: Float): Boolean =
+        value.isFinite() && value > 0f && value <= MAX_ALGORITHM_GLUCOSE_MGDL
 
     fun canonicalSensorId(raw: String?): String {
         val normalized = normalizeToken(raw)
