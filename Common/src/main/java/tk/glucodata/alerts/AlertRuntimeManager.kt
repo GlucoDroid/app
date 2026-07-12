@@ -224,7 +224,7 @@ object AlertRuntimeManager {
         }
 
         if (!isSustainedLowSatisfiedLocked(type, configs[type], nowMs)) {
-            // Keep the episode eligible on the next evaluation; suppress fire only.
+            standardEpisodes.markPendingDelivery(type)
             return AlertRuntimeEvaluation(standardGlucoseAlertHandled = true)
         }
 
