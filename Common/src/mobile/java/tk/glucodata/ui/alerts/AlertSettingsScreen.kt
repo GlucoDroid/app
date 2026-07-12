@@ -1083,10 +1083,55 @@ private fun AlertSettingsExpanded(
                         }
                     }
                 }
+
+                // === Sustained Low Toggle (LOW / VERY_LOW only) ===
+                if (config.type == AlertType.LOW || config.type == AlertType.VERY_LOW) {
+                    val sustainedEnabled = config.durationMinutes != null
+                    val otherDurationActive = config.forecastMinutes != null
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    stringResource(R.string.sustained_low_toggle),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    stringResource(R.string.sustained_low_toggle_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            StyledSwitch(
+                                checked = sustainedEnabled,
+                                onCheckedChange = { on ->
+                                    if (on) {
+                                        val seed = config.durationMinutes ?: 10
+                                        onConfigChange(config.copy(durationMinutes = seed))
+                                    } else if (!otherDurationActive) {
+                                        onConfigChange(config.copy(durationMinutes = null))
+                                    }
+                                }
+                            )
+                        }
+                        if (sustainedEnabled) {
+                            DurationSlider(
+                                label = stringResource(R.string.sustained_low_duration),
+                                value = config.durationMinutes ?: 10,
+                                range = 5..30,
+                                stepSize = 5,
+                                onValueChange = { v -> onConfigChange(config.copy(durationMinutes = v)) }
+                            )
+                        }
+                    }
+                }
             }
         )
     }
-}    
+}
         
 //        HorizontalDivider()
         
