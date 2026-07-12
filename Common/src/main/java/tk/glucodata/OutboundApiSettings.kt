@@ -560,6 +560,15 @@ object OutboundApiSettings {
             else -> PRESET_CUSTOM_JSON
         }
 
+    private fun isBareSubdomain(s: String): Boolean {
+        val trimmed = s.trim()
+        if (trimmed.isEmpty()) return false
+        if (trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+        ) return false
+        return trimmed.matches(Regex("^[A-Za-z0-9-]+$"))
+    }
+
     fun normalizeTriggerMode(mode: String): String =
         when (mode) {
             TRIGGER_AT_OR_BELOW,
@@ -635,8 +644,17 @@ object OutboundApiSettings {
             var preset = normalizePreset(item.optString("preset", PRESET_CUSTOM_JSON))
             var url = item.optString("url", defaultUrl(preset))
             // Detect legacy custom-JSON destinations whose URL points at glucodroid.cloud
-            // and migrate them to the dedicated PRESET_GLUCODROID_CLOUD. This handles
-            // destinations saved before PRESET_GLUCODROID_CLOUD existed.
+            // and migrate them to the dedicated PRESET_GLUCODROID_CLOUD. Two shapes match:
+            //
+            //   (a) full URL with scheme and path, e.g.
+            //       "https://robster.glucodroid.cloud/api/v1/entries?token=ABC"
+            //       — extract subdomain into url, token into token.
+            //   (b) bare subdomain only, e.g. "robster", combined with the default name
+            //       for PRESET_GLUCODROID_CLOUD. The user's domain UI shows the subdomain
+            //       without a scheme, so this is the shape a partially-migrated destination
+            //       ends up in if it was created before the preset was wired up. We require
+            //       the name match as a strong signal so we don't accidentally upgrade an
+            //       unrelated custom webhook whose host happens to be a single token.
             if (preset == PRESET_CUSTOM_JSON) {
                 val m = Regex("^https?://([A-Za-z0-9.-]+)\\.glucodroid\\.cloud/api/v1/entries(?:\\?(.*))?$")
                     .matchEntire(url)
@@ -652,6 +670,10 @@ object OutboundApiSettings {
                     if (tokenFromQuery != null && item.optString("token", "").isBlank()) {
                         item.put("token", tokenFromQuery)
                     }
+                } else if (isBareSubdomain(url) &&
+                    item.optString("name", "") == defaultName(PRESET_GLUCODROID_CLOUD)
+                ) {
+                    preset = PRESET_GLUCODROID_CLOUD
                 }
             }
             val itemSettingsVersion = item.optInt("settingsVersion", 0)
