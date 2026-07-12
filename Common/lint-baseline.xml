@@ -1155,5 +1155,17 @@
     <issue id="UnsafeImplicitIntentLaunch" message="The intent action `tk.glucodata.action.AOD_IMMEDIATE_REFRESH (used to send a broadcast)` matches the intent filter of a non-exported receiver, registered via a call to `Context.registerReceiver`, or similar. If you are trying to invoke this specific receiver via the action then you should use `Intent.setPackage(&lt;APPLICATION_ID&gt;)`.">
         <location file="Common/src/mobile/java/tk/glucodata/ui/viewmodel/DashboardViewModel.kt" line="1119" column="13"/>
     </issue>
+    <issue id="MissingTranslation" message="&quot;sustained_low_toggle&quot; is not translated in &quot;de&quot; (German), &quot;mn&quot; (Mongolian), &quot;be&quot; (Belarusian), &quot;ru&quot; (Russian), &quot;sv&quot; (Swedish), &quot;pt&quot; (Portuguese), &quot;it&quot; (Italian), &quot;fr&quot; (French), &quot;zh&quot; (Chinese), &quot;uk&quot; (Ukrainian), &quot;pl&quot; (Polish), &quot;tr&quot; (Turkish)">
+        <location file="Common/src/main/res/values/strings.xml" line="808" column="13"/>
+    </issue>
+    <issue id="MissingTranslation" message="&quot;sustained_low_duration&quot; is not translated in &quot;de&quot; (German), &quot;mn&quot; (Mongolian), &quot;be&quot; (Belarusian), &quot;ru&quot; (Russian), &quot;sv&quot; (Swedish), &quot;pt&quot; (Portuguese), &quot;it&quot; (Italian), &quot;fr&quot; (French), &quot;zh&quot; (Chinese), &quot;uk&quot; (Ukrainian), &quot;pl&quot; (Polish), &quot;tr&quot; (Turkish)">
+        <location file="Common/src/main/res/values/strings.xml" line="809" column="13"/>
+    </issue>
+    <issue id="MissingTranslation" message="&quot;sustained_low_toggle_desc&quot; is not translated in &quot;de&quot; (German), &quot;mn&quot; (Mongolian), &quot;be&quot; (Belarusian), &quot;ru&quot; (Russian), &quot;sv&quot; (Swedish), &quot;pt&quot; (Portuguese), &quot;it&quot; (Italian), &quot;fr&quot; (French), &quot;zh&quot; (Chinese), &quot;uk&quot; (Ukrainian), &quot;pl&quot; (Polish), &quot;tr&quot; (Turkish)">
+        <location file="Common/src/main/res/values/strings.xml" line="810" column="13"/>
+    </issue>
+    <issue id="MissingTranslation" message="&quot;sustained_low_alert_suffix&quot; is not translated in &quot;de&quot; (German), &quot;mn&quot; (Mongolian), &quot;be&quot; (Belarusian), &quot;ru&quot; (Russian), &quot;sv&quot; (Swedish), &quot;pt&quot; (Portuguese), &quot;it&quot; (Italian), &quot;fr&quot; (French), &quot;zh&quot; (Chinese), &quot;uk&quot; (Ukrainian), &quot;pl&quot; (Polish), &quot;tr&quot; (Turkish)">
+        <location file="Common/src/main/res/values/strings.xml" line="811" column="13"/>
+    </issue>
 </issues>
 
