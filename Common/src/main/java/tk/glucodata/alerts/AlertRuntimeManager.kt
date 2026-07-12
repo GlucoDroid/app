@@ -223,7 +223,7 @@ object AlertRuntimeManager {
             return AlertRuntimeEvaluation(standardGlucoseAlertHandled = true)
         }
 
-        if (!isSustainedLowSatisfiedLocked(type, configs[type])) {
+        if (!isSustainedLowSatisfiedLocked(type, configs[type], nowMs)) {
             // Keep the episode eligible on the next evaluation; suppress fire only.
             return AlertRuntimeEvaluation(standardGlucoseAlertHandled = true)
         }
@@ -271,12 +271,12 @@ object AlertRuntimeManager {
         }
     }
 
-    private fun isSustainedLowSatisfiedLocked(type: AlertType, config: AlertConfig?): Boolean {
+    private fun isSustainedLowSatisfiedLocked(type: AlertType, config: AlertConfig?, nowMs: Long): Boolean {
         if (type !in sustainedLowEligible) return true
         val minutes = config?.durationMinutes ?: return true
         if (minutes <= 0) return true
         val started = sustainedLowStartedAtMs[type] ?: return true
-        return System.currentTimeMillis() - started >= minutes * 60_000L
+        return nowMs - started >= minutes * 60_000L
     }
 
     private fun resolveActiveStandardGlucoseAlerts(
