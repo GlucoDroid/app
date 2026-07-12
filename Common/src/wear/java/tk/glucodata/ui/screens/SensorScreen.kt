@@ -67,7 +67,7 @@ fun SensorScreen(onCalibrate: () -> Unit) {
             }
             items(sensors) { row ->
                 Text(
-                    text = row.serial,
+                    text = displaySensorName(row.serial),
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (row.isCurrent) {
                         MaterialTheme.colorScheme.primary

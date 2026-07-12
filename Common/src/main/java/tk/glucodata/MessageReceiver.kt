@@ -63,16 +63,16 @@ class MessageReceiver: WearableListenerService() {
             }
             MessageSender.SENSOR_HANDOFF_PATH -> {
                 if (isWearable) {
+                    // Persist the identity only. Do NOT flip the watch into
+                    // "I own the sensor" here: the watch advertises that in
+                    // netinfo, and the phone answers by dropping its own BLE
+                    // and stopping the stream (netinfo.cpp) — so claiming it
+                    // before a real local connection exists kills data on both
+                    // devices. The watch starts owning the sensor only once it
+                    // actually connects.
                     val context = if (MainActivity.thisone == null) Applic.app else MainActivity.thisone
                     val ok = ManagedSensorHandoff.applyIncoming(context, data)
-                    if (ok && context != null) {
-                        Applic.setbluetooth(context, true)
-                        Applic.updateDevices()
-                        SensorBluetooth.reconnectall()
-                        SensorBluetooth.startscan()
-                        keeprunning.start(context)
-                    }
-                    Log.i(LOG_ID, "sensor handoff applied=$ok")
+                    Log.i(LOG_ID, "sensor handoff stored=$ok")
                 }
             }
             MessageSender.CALIBRATE_PATH -> {

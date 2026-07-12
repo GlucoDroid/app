@@ -44,7 +44,6 @@ import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.UiRefreshBus
-import tk.glucodata.drivers.ManagedSensorLifecycleSummary
 import tk.glucodata.drivers.ManagedSensorStatusPolicy
 
 private const val TICK_MS = 30_000L
@@ -90,18 +89,34 @@ internal fun trendArrow(rate: Float): String = runCatching {
     }
 }.getOrDefault("")
 
-// Same lifecycle math as the phone dashboard: native ui-snapshot longs
-// [2]=startMsec [3]=expectedEnd [4]=officialEnd → shared policy.
-private fun sensorLifecycle(sensorId: String?): ManagedSensorLifecycleSummary? =
+// Managed drivers key native records with a canonical prefix ("SIBI:", …);
+// the phone strips it for display and so do we. Display-only — never feed
+// the stripped form back into lookups.
+internal fun displaySensorName(id: String): String =
+    id.replace(Regex("^[A-Z0-9]{2,6}:"), "")
+
+// Lifecycle from the same native ui-snapshot the phone dashboard uses
+// ([2]=startMs [3]=expectedEnd [4]=officialEnd). On the watch the record is
+// whatever the mirror synced; when it carries no real end-times the shared
+// policy would invent a default total, so show plain age instead of a
+// fabricated "x / y".
+private fun sensorLifecycleText(sensorId: String?, nowMs: Long): String? =
     runCatching {
         val name = sensorId ?: Natives.lastsensorname() ?: return null
         val snap = Natives.getSensorUiSnapshot(name) ?: return null
         if (snap.size < 5 || snap[2] <= 0L) return null
-        ManagedSensorStatusPolicy.resolveLifecycleSummary(
-            startTimeMs = snap[2],
-            officialEndMs = snap[4],
-            expectedEndMs = snap[3],
-        )
+        val hasRealEnd = snap[3] > snap[2] || snap[4] > snap[2]
+        if (hasRealEnd) {
+            ManagedSensorStatusPolicy.resolveLifecycleSummary(
+                startTimeMs = snap[2],
+                officialEndMs = snap[4],
+                expectedEndMs = snap[3],
+                nowMs = nowMs,
+            ).daysText.takeIf { it.isNotEmpty() }
+        } else {
+            val days = ((nowMs - snap[2]) / 86_400_000L).coerceAtLeast(0L)
+            "${days}d"
+        }
     }.getOrNull()
 
 @Composable
@@ -199,7 +214,9 @@ fun MainScreen(
                 // Sensor chip — serial + day progress, phone's status card in
                 // one line; tap for details.
                 val sensorId = snap.sensorId
-                val lifecycle = remember(sensorId, now / 600_000L) { sensorLifecycle(sensorId) }
+                val lifecycleText = remember(sensorId, now / 600_000L) {
+                    sensorLifecycleText(sensorId, now)
+                }
                 if (sensorId != null) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -225,12 +242,12 @@ fun MainScreen(
                                 ),
                         )
                         Text(
-                            text = sensorId,
+                            text = displaySensorName(sensorId),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 6.dp),
                         )
-                        lifecycle?.daysText?.takeIf { it.isNotEmpty() }?.let { days ->
+                        lifecycleText?.let { days ->
                             Text(
                                 text = "  $days",
                                 style = MaterialTheme.typography.labelSmall,

@@ -548,7 +548,14 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                     return
                 }
             val netinfo: ByteArray?
-            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, 0,true,0) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode),0) }
+            // watchHasSensor: 1 = watch owns the sensor, -1 = it does not,
+            // 0 = keep whatever was persisted. The watch must never claim the
+            // sensor unless it actually holds a live BLE connection: the phone
+            // reacts to watchsensor=1 by setting nobluetooth=true and
+            // sendstream=false (netinfo.cpp), i.e. it drops its own sensor AND
+            // stops feeding the watch. A stale persisted flag (0) therefore
+            // strands both devices with no data.
+            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, watchOwnsSensor(),true,0) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode),0) }
             if(netinfo == null) {
                 Log.e(LOG_ID,"netinfo=null")
                 return
@@ -556,6 +563,19 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
             if(doLog) {Log.i(LOG_ID, "sender.sendnetinfo($id, netinfo)");};
             sender.sendnetinfo(id, netinfo)
             times[it] = nu + netwait
+        }
+
+        /**
+         * Does this watch really own a direct sensor connection right now?
+         * Truthful answer only — see the netinfo call site for why lying here
+         * strands both devices.
+         */
+        private fun watchOwnsSensor(): Int {
+            if (!isWearable) return 0
+            val hasLocalGatt = runCatching {
+                SensorBluetooth.mygatts()?.isNotEmpty() == true
+            }.getOrDefault(false)
+            return if (hasLocalGatt) 1 else -1
         }
 
         @JvmStatic     public fun sendnetinfo(id: String) {

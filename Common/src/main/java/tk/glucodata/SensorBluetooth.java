@@ -1531,7 +1531,15 @@ public class SensorBluetooth {
         ;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
         }
-        return blueone.updateDevicers();
+        // blueone is null until BLE init completes; callers include Compose
+        // view models built at first frame and the wear handoff receiver, so
+        // this must never throw.
+        final SensorBluetooth one = blueone;
+        if (one == null) {
+            Log.i(LOG_ID, "updateDevices before bluetooth init — skipped");
+            return false;
+        }
+        return one.updateDevicers();
     }
 
     boolean checkandconnect(SuperGattCallback cb, long delay) {
