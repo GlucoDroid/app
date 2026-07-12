@@ -503,18 +503,23 @@ fun WearOsConfigScreen(navController: NavController) {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                val ok = WatchInterop.applyStandaloneSensorMode(
-                                    nodeId = selected.id,
-                                    isGalaxy = selected.isGalaxy,
-                                    directOnWatch = directOnWatch,
-                                    enterOnWatch = enterOnWatch
-                                )
-                                Toast.makeText(
-                                    context,
-                                    if (ok) context.getString(R.string.saved) else context.getString(R.string.wentwrong),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                refreshNodes()
+                                // Blocking Data Layer awaits inside — never on main.
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        WatchInterop.applyStandaloneSensorMode(
+                                            nodeId = selected.id,
+                                            isGalaxy = selected.isGalaxy,
+                                            directOnWatch = directOnWatch,
+                                            enterOnWatch = enterOnWatch
+                                        )
+                                    }
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) context.getString(R.string.saved) else context.getString(R.string.wentwrong),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    refreshNodes()
+                                }
                             }
                         },
                         enabled = selectedAppInstalled,
@@ -529,12 +534,16 @@ fun WearOsConfigScreen(navController: NavController) {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                val ok = WatchInterop.startWearApp(selected.id, selected.isGalaxy)
-                                Toast.makeText(
-                                    context,
-                                    if (ok) "Start command sent to watch" else context.getString(R.string.wentwrong),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        WatchInterop.startWearApp(selected.id, selected.isGalaxy)
+                                    }
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "Start command sent to watch" else context.getString(R.string.wentwrong),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         },
                         enabled = selectedAppInstalled,
@@ -549,12 +558,16 @@ fun WearOsConfigScreen(navController: NavController) {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                val ok = WatchInterop.applyWearDefaults(selected.id, selected.isGalaxy)
-                                Toast.makeText(
-                                    context,
-                                    if (ok) "Defaults sent" else context.getString(R.string.wentwrong),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        WatchInterop.applyWearDefaults(selected.id, selected.isGalaxy)
+                                    }
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "Defaults sent" else context.getString(R.string.wentwrong),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         },
                         enabled = selectedAppInstalled,
