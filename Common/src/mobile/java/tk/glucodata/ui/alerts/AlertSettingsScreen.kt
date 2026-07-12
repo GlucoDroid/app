@@ -1057,17 +1057,21 @@ private fun AlertSettingsExpanded(
                 }
                 
                 // === Durations Section (If applicable) ===
-                if (config.durationMinutes != null || config.forecastMinutes != null) {
+                val showGenericDuration = config.durationMinutes != null &&
+                    config.type != AlertType.LOW && config.type != AlertType.VERY_LOW
+                if (showGenericDuration || config.forecastMinutes != null) {
                      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        config.durationMinutes?.let {
-                            Box(Modifier.weight(1f)) {
-                                DurationSlider(
-                                    label = stringResource(R.string.alert_after),
-                                    value = it,
-                                    range = 5..120,
-                                    stepSize = 5,
-                                    onValueChange = { v -> onConfigChange(config.copy(durationMinutes = v)) }
-                                )
+                        if (showGenericDuration) {
+                            config.durationMinutes?.let {
+                                Box(Modifier.weight(1f)) {
+                                    DurationSlider(
+                                        label = stringResource(R.string.alert_after),
+                                        value = it,
+                                        range = 5..120,
+                                        stepSize = 5,
+                                        onValueChange = { v -> onConfigChange(config.copy(durationMinutes = v)) }
+                                    )
+                                }
                             }
                         }
                         config.forecastMinutes?.let {
