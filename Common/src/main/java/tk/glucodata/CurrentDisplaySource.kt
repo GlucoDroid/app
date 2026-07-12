@@ -333,7 +333,7 @@ object CurrentDisplaySource {
         val importedCalibratedValue = liveCalibratedValue
             .takeIf { it.isFinite() && it > 0.1f }
         val displayValues = exactMatch?.let { point ->
-            val hideInitialWhenCalibrated = shouldHideInitialWhenCalibrated(sensorId)
+            val hideInitialWhenCalibrated = shouldHideInitialWhenCalibrated()
             if (importedCalibratedValue != null) {
                 DisplayValueResolver.resolve(
                     autoValue = point.value,
@@ -353,7 +353,7 @@ object CurrentDisplaySource {
                 )
             }
         } ?: run {
-            val hideInitialWhenCalibrated = shouldHideInitialWhenCalibrated(sensorId)
+            val hideInitialWhenCalibrated = shouldHideInitialWhenCalibrated()
             val calibratedValue = importedCalibratedValue ?: resolveCalibratedValue(
                 liveValue = liveValue,
                 autoValue = autoValue,
@@ -485,7 +485,7 @@ object CurrentDisplaySource {
             isMmol = isMmol,
             unitLabel = "",
             calibratedValue = calibratedValue,
-            hideInitialWhenCalibrated = calibratedValue != null && shouldHideInitialWhenCalibrated(sensorId)
+            hideInitialWhenCalibrated = calibratedValue != null && shouldHideInitialWhenCalibrated()
         )
     }
 
@@ -577,9 +577,8 @@ object CurrentDisplaySource {
         }
     }
 
-    private fun shouldHideInitialWhenCalibrated(sensorId: String?): Boolean {
-        return CalibrationAccess.shouldHideInitialWhenCalibrated() ||
-            tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(sensorId)
+    private fun shouldHideInitialWhenCalibrated(): Boolean {
+        return CalibrationAccess.shouldHideInitialWhenCalibrated()
     }
 
     private fun shouldApplyDisplayCalibration(isRawMode: Boolean, sensorId: String?): Boolean {

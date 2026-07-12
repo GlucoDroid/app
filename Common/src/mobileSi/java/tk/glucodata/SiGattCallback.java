@@ -425,8 +425,7 @@ public class SiGattCallback extends SuperGattCallback {
    }
 
    private boolean writeReset() {
-      final int subtype = Natives.getSiSubtype(dataptr);
-      if (subtype > 2) {
+      if (hasNotChinese) {
          if (write2(Natives.getSIResetBytes())) {
             Log.i(LOG_ID, "writeReset successful");
             return true;
@@ -435,12 +434,7 @@ public class SiGattCallback extends SuperGattCallback {
             return false;
          }
       }
-      final byte[] directReset = new byte[] {
-            (byte) 0x24, (byte) 0xE7, (byte) 0x6F, (byte) 0x34
-      };
-      final boolean sent = write2(directReset);
-      Log.i(LOG_ID, "writeReset direct GS1 subtype=" + subtype + " successful=" + sent);
-      return sent;
+      return true;
    }
 
    private void tryer(Supplier<Boolean> worked) {

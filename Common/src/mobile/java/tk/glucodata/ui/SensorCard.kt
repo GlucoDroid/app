@@ -783,8 +783,9 @@ fun SensorCard(
         }
     }
 
-    // Sibionics algorithm mode. The managed custom mode keeps the exact QR-aware
-    // sensor algorithm as its base and integrates bounded user calibration.
+    // Both managed modes keep the exact sensor chemistry model and integrate
+    // calibration in the driver. Adaptive mode additionally maintains quality-
+    // weighted glucose and velocity state.
     if (showSibionicsCalSheet && sensor.isSibionics && sensor.viewMode != 1) {
         @OptIn(ExperimentalMaterial3Api::class)
         ModalBottomSheet(
@@ -806,96 +807,70 @@ fun SensorCard(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                var customEnabled by remember(sensor.customCalEnabled) {
-                    mutableStateOf(sensor.customCalEnabled)
+                var algorithmFeatures by remember(sensor.customCalIndex) {
+                    mutableIntStateOf(sensor.customCalIndex.coerceIn(0, 3))
                 }
 
-                fun setCustomEnabled(enabled: Boolean) {
-                    if (customEnabled == enabled) return
-                    customEnabled = enabled
-                    viewModel.setSibionicsCustomAlgorithm(sensor.serial, enabled)
+                fun setFeature(bit: Int, enabled: Boolean) {
+                    val updated = if (enabled) algorithmFeatures or bit else algorithmFeatures and bit.inv()
+                    if (algorithmFeatures == updated) return
+                    algorithmFeatures = updated
+                    viewModel.setSibionicsAlgorithmMode(sensor.serial, updated)
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (customEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            else MaterialTheme.colorScheme.surfaceContainerHighest,
-                    border = if (customEnabled)
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
-                    else null,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { setCustomEnabled(!customEnabled) }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                listOf(1, 2).forEachIndexed { optionIndex, featureBit ->
+                    val adaptive = featureBit == 2
+                    val enabled = algorithmFeatures and featureBit != 0
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (enabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.surfaceContainerHighest,
+                        border = if (enabled)
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                        else null,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = if (customEnabled) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.sibionics_custom_algorithm),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { setFeature(featureBit, !enabled) }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (adaptive) Icons.Default.Tune else Icons.Default.Science,
+                                contentDescription = null,
+                                tint = if (enabled) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(28.dp)
                             )
-                            Text(
-                                if (customEnabled) stringResource(R.string.sibionics_custom_algorithm_desc)
-                                else stringResource(R.string.sibionics_stock_algorithm_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        StyledSwitch(
-                            checked = customEnabled,
-                            onCheckedChange = { setCustomEnabled(it) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Surface(
-                    onClick = {
-                        viewModel.restartSibionicsAlgorithm(sensor.serial)
-                        showSibionicsCalSheet = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.RestartAlt,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.restart_algorithm),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                stringResource(R.string.sibionics_restart_algorithm_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(
+                                        if (adaptive) R.string.sibionics_custom_algorithm
+                                        else R.string.calibration
+                                    ),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    stringResource(
+                                        if (adaptive) R.string.sibionics_custom_algorithm_desc
+                                        else R.string.sibionics_stock_algorithm_detail
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            StyledSwitch(
+                                checked = enabled,
+                                onCheckedChange = { setFeature(featureBit, it) },
                             )
                         }
                     }
+                    if (optionIndex == 0) Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1611,11 +1586,15 @@ fun SensorCard(
 
                 // Auto-calibration entry — Sibionics only, hidden when Raw mode selected (viewMode == 1)
                 if (sensor.isSibionics && sensor.viewMode != 1) {
-                    val calSubtitle = if (sensor.customCalEnabled) {
-                        stringResource(R.string.sibionics_custom_algorithm)
-                    } else {
-                        stringResource(R.string.sibionics_stock_algorithm_desc)
-                    }
+                    val calibrationEnabled = sensor.customCalIndex and 1 != 0
+                    val adaptiveEnabled = sensor.customCalIndex and 2 != 0
+                    val baseAlgorithm = stringResource(
+                        if (adaptiveEnabled) R.string.sibionics_custom_algorithm
+                        else R.string.sibionics_stock_algorithm_desc
+                    )
+                    val calSubtitle = if (calibrationEnabled) {
+                        "$baseAlgorithm • ${stringResource(R.string.calibration)}"
+                    } else baseAlgorithm
                     Surface(
                         onClick = { showSibionicsCalSheet = true },
                         shape = RoundedCornerShape(12.dp),
@@ -1641,7 +1620,7 @@ fun SensorCard(
                                 Text(
                                     calSubtitle,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (sensor.customCalEnabled) MaterialTheme.colorScheme.tertiary
+                                    color = if (sensor.customCalIndex != 0) MaterialTheme.colorScheme.tertiary
                                            else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }

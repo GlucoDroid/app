@@ -542,8 +542,8 @@ class StatsViewModel : ViewModel() {
 
         val isMmol = unit == GlucoseUnit.MMOL
         val overwriteSensorValues = CalibrationManager.shouldOverwriteSensorValues()
+        val hideInitialWhenCalibrated = CalibrationManager.shouldHideInitialWhenCalibrated()
         val sensorSerial = activeSerial ?: history.firstOrNull()?.sensorSerial
-        val integratedCalibrationBySensor = HashMap<String?, Boolean>()
         val calibratedDisplayValues = arrayOfNulls<Float>(history.size)
 
         if (!overwriteSensorValues) {
@@ -584,11 +584,6 @@ class StatsViewModel : ViewModel() {
             val displayAutoValue = GlucoseFormatter.displayFromMgDl(point.value, isMmol)
             val displayRawValue = GlucoseFormatter.displayFromMgDl(point.rawValue, isMmol)
             val calibratedDisplayValue = calibratedDisplayValues[index]
-            val hideInitialWhenCalibrated = CalibrationManager.shouldHideInitialWhenCalibrated() ||
-                integratedCalibrationBySensor.getOrPut(pointSensorSerial) {
-                    tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(pointSensorSerial)
-                }
-
             val primaryValueMgDl = resolvePrimaryStatsValueMgDl(
                 displayAutoValue = displayAutoValue,
                 displayRawValue = displayRawValue,

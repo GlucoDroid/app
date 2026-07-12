@@ -347,7 +347,7 @@ class SensorViewModel : ViewModel() {
             officialEndMs = snapshot.officialEndMs,
             expectedEndMs = snapshot.expectedEndMs,
             customCalEnabled = snapshot.customAlgorithmEnabled,
-            customCalIndex = 0,
+            customCalIndex = snapshot.customAlgorithmMode,
             customCalAutoReset = false,
             supportsDisplayModes = snapshot.supportsDisplayModes,
             supportsManualCalibration = snapshot.supportsManualCalibration,
@@ -579,6 +579,17 @@ class SensorViewModel : ViewModel() {
         if (gatt.dataptr != 0L) {
             if (enabled) updateCustomCalibration(serial, true, 9, false)
             else disableCustomCalAndReplay(serial)
+        }
+    }
+
+    fun setSibionicsAlgorithmMode(serial: String, mode: Int) {
+        val gatt = findGatt(serial) ?: return
+        if (gatt is ManagedSensorMaintenanceDriver && gatt.supportsCustomAlgorithm()) {
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val success = runCatching { gatt.setCustomAlgorithmMode(mode) }.getOrDefault(false)
+                android.util.Log.i("SensorVM", "Managed Sibionics algorithm mode=$mode result=$success serial=$serial")
+                refreshSensors()
+            }
         }
     }
 

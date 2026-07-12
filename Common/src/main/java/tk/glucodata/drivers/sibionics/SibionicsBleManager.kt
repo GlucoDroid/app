@@ -11,11 +11,15 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
+import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
+import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
@@ -60,6 +64,12 @@ class SibionicsBleManager(
         val live: Boolean,
     )
 
+    private data class AlgorithmRebuildResult(
+        val context: SibionicsAlgorithmContext,
+        val readings: List<EmittedReading>,
+        val sourceSamples: List<SibionicsSourceSample>,
+    )
+
     companion object {
         private const val RECONNECT_DELAY_MS = 8_000L
         private const val CHINESE_PROBE_TIMEOUT_MS = 5_000L
@@ -70,15 +80,30 @@ class SibionicsBleManager(
         private const val CURRENT_FRESH_MS = 180_000L
         private const val MAX_FUTURE_DRIFT_MS = 10L * 60L * 1000L
         private const val MIN_REASONABLE_TIME_MS = 946_684_800_000L
+        private const val ALGORITHM_REBUILD_DEBOUNCE_MS = 600L
+        private const val LOCAL_REBUILD_FORMAT_VERSION = 1
+
+        private fun sampleJournalFile(context: Context, sensorId: String): File {
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(sensorId.toByteArray(Charsets.UTF_8))
+                .take(12)
+                .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+            return File(context.filesDir, "sibionics-managed/$digest/source-samples-v1.bin")
+        }
     }
 
     @Volatile private var phase = Phase.IDLE
     private val handlerThread = HandlerThread("Sibionics-$serial").also { it.start() }
     private val handler = Handler(handlerThread.looper)
+    private val rebuildExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "Sibionics-rebuild-$serial").apply { isDaemon = true }
+    }
+    private val algorithmLock = Any()
 
     private var service: BluetoothGattService? = null
     private var notifyChar: BluetoothGattCharacteristic? = null
     private var writeChar: BluetoothGattCharacteristic? = null
+    @Volatile private var retiredGatt: BluetoothGatt? = null
 
     @Volatile private var record: SibionicsRegistry.SensorRecord? = null
     @Volatile private var variant: SibionicsConstants.Variant = SibionicsConstants.Variant.EU
@@ -92,7 +117,7 @@ class SibionicsBleManager(
     @Volatile private var pendingMatchedBleName: String = ""
     @Volatile private var autoResetDays: Int = 300
     @Volatile private var autoResetScheduled: Boolean = false
-    @Volatile private var customAlgorithmEnabled: Boolean = false
+    @Volatile private var algorithmSelection: SibionicsAlgorithmSelection = SibionicsAlgorithmSelection.STOCK
     @Volatile private var historyReceivedCount: Int = 0
     @Volatile private var historyTotalCount: Int = 0
     private val historySeenIndices = HashSet<Int>()
@@ -112,9 +137,19 @@ class SibionicsBleManager(
     @Volatile private var latestRateMgdlPerMin: Float = Float.NaN
     @Volatile private var latestTemperatureC: Float = Float.NaN
     @Volatile private var latestImpedance: Float = Float.NaN
+    @Volatile private var sampleJournal: SibionicsSampleJournal? = null
+    @Volatile private var rebuildGeneration: Long = 0L
+    @Volatile private var calibrationRevision: Long = 0L
+    @Volatile private var rebuildAfterNextSourceSample: Boolean = false
 
-    private val algorithm = SibionicsAlgorithmContext(serial)
+    @Volatile private var algorithm = SibionicsAlgorithmContext(serial)
     private val authTimeoutRunnable = Runnable { tryNextKeyGroup("auth timeout") }
+    private val rebuildLaunchRunnable = Runnable {
+        val generation = rebuildGeneration
+        if (!rebuildExecutor.isShutdown) {
+            rebuildExecutor.execute { rebuildAlgorithmLocally(generation) }
+        }
+    }
 
     @Volatile private var viewModeValue: Int = ManagedSensorViewModeStore.read(Applic.app, serial, 0)
 
@@ -127,6 +162,8 @@ class SibionicsBleManager(
         }
 
     fun restoreFromPersistence(context: Context) {
+        sampleJournal = SibionicsSampleJournal(sampleJournalFile(context, SerialNumber))
+        calibrationRevision = tk.glucodata.CalibrationAccess.getRevision()
         val restored = SibionicsRegistry.findRecord(context, SerialNumber)
         record = restored
         restored?.let {
@@ -141,11 +178,13 @@ class SibionicsBleManager(
         shortCode = SibionicsRegistry.loadShortCode(context, SerialNumber)
         sensitivity = SibionicsSensitivity.sensitivityFor(shortCode)
         autoResetDays = SibionicsRegistry.loadAutoResetDays(context, SerialNumber)
-        customAlgorithmEnabled = SibionicsRegistry.loadCustomAlgorithmEnabled(context, SerialNumber)
-        algorithm.configure(shortCode, sensitivity, variant)
+        algorithmSelection = SibionicsRegistry.loadAlgorithmSelection(context, SerialNumber)
+        synchronized(algorithmLock) {
+            algorithm.configure(shortCode, sensitivity, variant, algorithmSelection)
+        }
         lastIndex = SibionicsRegistry.loadLastIndex(context, SerialNumber)
         val algorithmState = SibionicsRegistry.loadAlgorithmState(context, SerialNumber)
-        if (algorithmState != null && algorithm.restore(algorithmState)) {
+        if (algorithmState != null && synchronized(algorithmLock) { algorithm.restore(algorithmState) }) {
             lastLiveAlgorithmIndexSeen = lastIndex - 1
             Log.i(SibionicsConstants.TAG, "restored exact algorithm state idx=$lastIndex")
         } else if (lastIndex > 1) {
@@ -157,6 +196,7 @@ class SibionicsBleManager(
         latestGlucoseMgdl = glucose
         latestRawMgdl = raw
         sessionKey = SibionicsProtocol.deriveSessionKey(variant)
+        rebuildAfterNextSourceSample = algorithmSelection != SibionicsAlgorithmSelection.STOCK
         constatstatusstr = disconnectedStatus()
     }
 
@@ -178,17 +218,8 @@ class SibionicsBleManager(
 
     override fun supportsManualCalibration(): Boolean = false
 
-    override fun integratesUserCalibration(): Boolean = customAlgorithmEnabled
-
-    override fun integrateUserCalibration(
-        baseDisplayValue: Float,
-        calibratedDisplayValue: Float,
-        timestampMs: Long,
-    ): Float {
-        val baseMgdl = if (Applic.unit == 1) baseDisplayValue * SibionicsConstants.MGDL_PER_MMOLL else baseDisplayValue
-        val targetMgdl = if (Applic.unit == 1) calibratedDisplayValue * SibionicsConstants.MGDL_PER_MMOLL else calibratedDisplayValue
-        return toDisplay(SibionicsAdaptiveCalibration.fuseMgdl(baseMgdl, targetMgdl))
-    }
+    override fun integratesUserCalibration(isRawMode: Boolean): Boolean =
+        !isRawMode && algorithmSelection.calibrationEnabled
 
     override fun shouldShowSearchingStatusWhenIdle(): Boolean = true
 
@@ -208,6 +239,14 @@ class SibionicsBleManager(
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
         uiPaused = false
+        // Startup can request the same persisted sensor several times while the
+        // first GATT is already connecting or discovering services. The shared
+        // connector treats any existing GATT as stale, so coalesce every active
+        // handshake/streaming phase. Explicit retry preparation returns to IDLE.
+        if (phase != Phase.IDLE && phase != Phase.ERROR) {
+            Log.d(SibionicsConstants.TAG, "connect coalesced phase=$phase serial=$SerialNumber")
+            return true
+        }
         if (mActiveBluetoothDevice == null) {
             hydrateBluetoothDeviceFromAddress()
         }
@@ -239,16 +278,21 @@ class SibionicsBleManager(
 
     override fun terminateManagedSensor(wipeData: Boolean) {
         softDisconnect()
+        rebuildGeneration++
+        sampleJournal?.clear()
         Applic.app?.let { SibionicsRegistry.removeSensor(it, SerialNumber) }
         SensorBluetooth.updateDevices()
     }
 
     override fun removeManagedPersistence(context: Context) {
+        SibionicsSampleJournal(sampleJournalFile(context, SerialNumber)).clear()
         SibionicsRegistry.removeSensor(context, SerialNumber)
     }
 
     override fun close() {
         handler.removeCallbacksAndMessages(null)
+        rebuildGeneration++
+        rebuildExecutor.shutdownNow()
         runCatching { handlerThread.quitSafely() }
         super.close()
     }
@@ -331,6 +375,17 @@ class SibionicsBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         if (stop) return
+        if (gatt === retiredGatt) {
+            retiredGatt = null
+            Log.d(SibionicsConstants.TAG, "ignore retired GATT callback state=$newState serial=$SerialNumber")
+            runCatching { gatt.close() }
+            return
+        }
+        if (mBluetoothGatt != null && gatt !== mBluetoothGatt) {
+            Log.d(SibionicsConstants.TAG, "ignore stale GATT callback state=$newState serial=$SerialNumber")
+            runCatching { gatt.close() }
+            return
+        }
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
                 mBluetoothGatt = gatt
@@ -526,7 +581,9 @@ class SibionicsBleManager(
         }
         when (response) {
             SibionicsProtocol.ResponseType.AUTH_ACCEPTED -> {
-                algorithm.configure(shortCode, sensitivity, variant)
+                synchronized(algorithmLock) {
+                    algorithm.configure(shortCode, sensitivity, variant, algorithmSelection)
+                }
                 setStatus("Authenticated")
                 phase = Phase.ACTIVATING
                 writeCommand(SibionicsProtocol.buildActivationPacket(), "activation")
@@ -628,11 +685,24 @@ class SibionicsBleManager(
             setStatus(waitingForDataStatus())
             return
         }
+        observeCalibrationRevision()
         val now = System.currentTimeMillis()
-        val emitted = entries
-            .sortedBy { it.index }
-            .mapNotNull { entry ->
-                val eventMs = sanitizeSampleTime(entry.eventTimeMs(now))
+        val ordered = entries.sortedBy { it.index }.map { entry ->
+            entry to sanitizeSampleTime(entry.eventTimeMs(now))
+        }
+        prepareSourceBatchForJournal(ordered.first().first.index)
+        sampleJournal?.appendAll(ordered.map { (entry, eventMs) ->
+            SibionicsSourceSample(
+                index = entry.index,
+                timestampMs = eventMs,
+                rawMmol = entry.rawMmol,
+                temperatureC = entry.temperatureC,
+                impedance = entry.rawImpedance.toFloat(),
+                variantId = variant.ordinal,
+            )
+        })
+        val emitted = ordered
+            .mapNotNull { (entry, eventMs) ->
                 processEntry(
                     index = entry.index,
                     rawMmol = entry.rawMmol,
@@ -645,6 +715,7 @@ class SibionicsBleManager(
             }
         flushAlgorithmCheckpointIfDirty()
         storeAndPublish(emitted)
+        maybeScheduleInitialLocalRebuild()
         updateHistoryStatus(resultHasLive = entries.any { it.isLive })
     }
 
@@ -653,9 +724,21 @@ class SibionicsBleManager(
             setStatus(waitingForDataStatus())
             return
         }
+        observeCalibrationRevision()
         val now = System.currentTimeMillis()
-        val emitted = entries
-            .sortedBy { it.index }
+        val ordered = entries.sortedBy { it.index }
+        prepareSourceBatchForJournal(ordered.first().index)
+        sampleJournal?.appendAll(ordered.map { entry ->
+            SibionicsSourceSample(
+                index = entry.index,
+                timestampMs = sanitizeSampleTime(entry.eventTimeMs),
+                rawMmol = entry.rawMmol,
+                temperatureC = entry.temperatureC,
+                impedance = entry.rawImpedance.toFloat(),
+                variantId = variant.ordinal,
+            )
+        })
+        val emitted = ordered
             .mapNotNull { entry ->
                 processEntry(
                     index = entry.index,
@@ -669,7 +752,14 @@ class SibionicsBleManager(
             }
         flushAlgorithmCheckpointIfDirty()
         storeAndPublish(emitted)
+        maybeScheduleInitialLocalRebuild()
         updateHistoryStatus(resultHasLive = entries.any { isV120Current(it, now) })
+    }
+
+    private fun prepareSourceBatchForJournal(firstIndex: Int) {
+        if (!algorithmRehydrating && firstIndex <= 1 && lastIndex > 1) {
+            resetForSensorRestart()
+        }
     }
 
     private fun updateChineseHistoryProgress(entries: List<SibionicsProtocol.ChineseEntry>) {
@@ -720,10 +810,9 @@ class SibionicsBleManager(
         eventMs: Long,
         live: Boolean,
     ): EmittedReading? {
-        if (!rawMmol.isFinite() || rawMmol <= 0f || eventMs <= 0L) return null
-        if (!algorithmRehydrating && index <= 1 && lastIndex > 1) {
-            resetForSensorRestart()
-        }
+        if (index < 0 || eventMs <= 0L) return null
+        if (!algorithmRehydrating && index <= 1 && lastIndex > 1) resetForSensorRestart()
+        if (!rawMmol.isFinite() || rawMmol <= 0f) return null
         if (!live && lastIndex > 0 && index < lastIndex) return null
         if (live && lastLiveAlgorithmIndexSeen >= 0 && index <= lastLiveAlgorithmIndexSeen) return null
         if (!algorithmRehydrating && lastIndex > 0 && index > lastIndex) {
@@ -737,13 +826,25 @@ class SibionicsBleManager(
             startTimeMs = eventMs - index * SibionicsConstants.READING_INTERVAL_MS
             Applic.app?.let { SibionicsRegistry.saveStartTimeMs(it, SerialNumber, startTimeMs) }
         }
-        if (index <= 1) algorithm.reset()
-        val displayMmol = algorithm.process(
-            rawMmol = rawMmol,
-            temperatureC = temperatureC,
-            index = index,
-            mode = if (live) SibionicsAlgorithmMode.LIVE else SibionicsAlgorithmMode.REPLAY,
-        )
+        val displayMmol = synchronized(algorithmLock) {
+            if (index <= 1) algorithm.reset()
+            val stockMmol = algorithm.processStock(
+                rawMmol = rawMmol,
+                temperatureC = temperatureC,
+                index = index,
+                mode = if (live) SibionicsAlgorithmMode.LIVE else SibionicsAlgorithmMode.REPLAY,
+            )
+            val measurementMmol = integratedCalibratedMmol(stockMmol, eventMs)
+            algorithm.processPreparedMeasurement(
+                stockMmol = stockMmol,
+                measurementMmol = measurementMmol,
+                rawMmol = rawMmol,
+                temperatureC = temperatureC,
+                index = index,
+                impedance = impedance,
+                eventTimeMs = eventMs,
+            )
+        }
         if (live) lastLiveAlgorithmIndexSeen = index
         algorithmStateDirty = true
         advanceLastIndex(index)
@@ -752,6 +853,7 @@ class SibionicsBleManager(
             rehydrationExpectedIndex = -1
             rehydrationTargetIndex = 0
             Log.i(SibionicsConstants.TAG, "exact algorithm rehydrated through idx=$index")
+            scheduleAlgorithmRebuild("source history recovered", delayMs = 0L)
         }
         if (wasRehydrating && !live) return null
         val glucoseMgdl = displayMmol * SibionicsConstants.MGDL_PER_MMOLL
@@ -761,6 +863,241 @@ class SibionicsBleManager(
         }
 
         return EmittedReading(eventMs, glucoseMgdl, rawMgdl, temperatureC, impedance, index, live)
+    }
+
+    private fun integratedCalibratedMmol(stockMmol: Float, eventMs: Long): Float {
+        if (!algorithmSelection.calibrationEnabled || !stockMmol.isFinite() || stockMmol <= 0f) {
+            return stockMmol
+        }
+        val input = if (Applic.unit == 1) {
+            stockMmol
+        } else {
+            stockMmol * SibionicsConstants.MGDL_PER_MMOLL
+        }
+        val calibrated = tk.glucodata.CalibrationAccess.getIntegratedCalibratedSeries(
+            values = floatArrayOf(input),
+            timestamps = longArrayOf(eventMs),
+            isRawMode = false,
+            sensorIdOverride = SerialNumber,
+        ).firstOrNull() ?: input
+        if (!calibrated.isFinite() || calibrated <= 0f) return stockMmol
+        return if (Applic.unit == 1) calibrated else calibrated / SibionicsConstants.MGDL_PER_MMOLL
+    }
+
+    private fun observeCalibrationRevision() {
+        val revision = tk.glucodata.CalibrationAccess.getRevision()
+        if (revision != calibrationRevision) onUserCalibrationRevisionChanged(revision)
+    }
+
+    private fun maybeScheduleInitialLocalRebuild() {
+        if (!rebuildAfterNextSourceSample) return
+        rebuildAfterNextSourceSample = false
+        val currentFingerprint = algorithmRebuildFingerprint(algorithmSelection)
+        val savedFingerprint = Applic.app?.let {
+            SibionicsRegistry.loadLocalRebuildFingerprint(it, SerialNumber)
+        }.orEmpty()
+        if (savedFingerprint == currentFingerprint) return
+        scheduleAlgorithmRebuild("initialize persisted algorithm selection")
+    }
+
+    private fun algorithmRebuildFingerprint(selection: SibionicsAlgorithmSelection): String {
+        val calibrationFingerprint = if (selection.calibrationEnabled) {
+            tk.glucodata.CalibrationAccess.getIntegratedCalibrationFingerprint(SerialNumber, false)
+        } else {
+            0L
+        }
+        return "$LOCAL_REBUILD_FORMAT_VERSION:${selection.storageId}:$calibrationFingerprint"
+    }
+
+    override fun onUserCalibrationRevisionChanged(revision: Long) {
+        if (revision == calibrationRevision) return
+        calibrationRevision = revision
+        if (algorithmSelection.calibrationEnabled) {
+            val currentFingerprint = algorithmRebuildFingerprint(algorithmSelection)
+            val savedFingerprint = Applic.app?.let {
+                SibionicsRegistry.loadLocalRebuildFingerprint(it, SerialNumber)
+            }.orEmpty()
+            if (currentFingerprint == savedFingerprint) return
+            scheduleAlgorithmRebuild("calibration revision $revision")
+        }
+    }
+
+    @Synchronized
+    private fun scheduleAlgorithmRebuild(
+        reason: String,
+        delayMs: Long = ALGORITHM_REBUILD_DEBOUNCE_MS,
+    ) {
+        if (rebuildExecutor.isShutdown) return
+        rebuildGeneration++
+        handler.removeCallbacks(rebuildLaunchRunnable)
+        handler.postDelayed(rebuildLaunchRunnable, delayMs.coerceAtLeast(0L))
+        Log.i(SibionicsConstants.TAG, "algorithm rebuild scheduled: $reason generation=$rebuildGeneration")
+    }
+
+    private fun rebuildAlgorithmLocally(generation: Long) {
+        if (generation != rebuildGeneration) return
+        val journal = sampleJournal ?: return
+        val selection = algorithmSelection
+        val variantSnapshot = variant
+        val shortCodeSnapshot = shortCode
+        val sensitivitySnapshot = sensitivity
+        val rebuildFingerprint = algorithmRebuildFingerprint(selection)
+        if (generation != rebuildGeneration) return
+        val sourceSamples = journal.snapshot().filter { it.variantId == variantSnapshot.ordinal }
+        if (!SibionicsAlgorithmRebuilder.isContiguousFromSensorStart(sourceSamples)) {
+            requestSourceJournalBackfill(generation, sourceSamples)
+            return
+        }
+
+        val result = runCatching {
+            buildAlgorithmRebuild(
+                sourceSamples = sourceSamples,
+                selection = selection,
+                variantSnapshot = variantSnapshot,
+                shortCodeSnapshot = shortCodeSnapshot,
+                sensitivitySnapshot = sensitivitySnapshot,
+            )
+        }.onFailure {
+            Log.stack(SibionicsConstants.TAG, "local algorithm rebuild", it)
+        }.getOrNull() ?: return
+        if (result.readings.isEmpty() || generation != rebuildGeneration || selection != algorithmSelection ||
+            variantSnapshot != variant || shortCodeSnapshot != shortCode || sensitivitySnapshot != sensitivity
+        ) return
+
+        val timestamps = LongArray(result.readings.size) { result.readings[it].sampleMs }
+        val values = FloatArray(result.readings.size) { result.readings[it].glucoseMgdl }
+        val raws = FloatArray(result.readings.size) { result.readings[it].rawMgdl }
+        if (!HistorySyncAccess.storeSensorHistoryBatchBlocking(SerialNumber, timestamps, values, raws)) {
+            Log.w(SibionicsConstants.TAG, "local algorithm rebuild could not replace Room history")
+            return
+        }
+
+        val committed = synchronized(algorithmLock) {
+            val currentSources = journal.snapshot().filter { it.variantId == variantSnapshot.ordinal }
+            if (generation != rebuildGeneration || selection != algorithmSelection ||
+                variantSnapshot != variant || shortCodeSnapshot != shortCode || sensitivitySnapshot != sensitivity ||
+                currentSources != result.sourceSamples
+            ) {
+                false
+            } else {
+                algorithm = result.context
+                val last = result.readings.last()
+                val previous = result.readings.getOrNull(result.readings.lastIndex - 1)
+                lastIndex = last.index + 1
+                lastLiveIndexSeen = last.index
+                lastLiveAlgorithmIndexSeen = last.index
+                algorithmRehydrating = false
+                rehydrationExpectedIndex = -1
+                rehydrationTargetIndex = 0
+                latestReadingTimeMs = last.sampleMs
+                latestGlucoseMgdl = last.glucoseMgdl
+                latestRawMgdl = last.rawMgdl
+                latestTemperatureC = last.temperatureC
+                latestImpedance = last.impedance
+                latestRateMgdlPerMin = previous?.let {
+                    val elapsedMinutes = (last.sampleMs - it.sampleMs) / 60_000f
+                    if (elapsedMinutes > 0f) (last.glucoseMgdl - it.glucoseMgdl) / elapsedMinutes else Float.NaN
+                } ?: Float.NaN
+                if (startTimeMs <= 0L) {
+                    startTimeMs = last.sampleMs - last.index * SibionicsConstants.READING_INTERVAL_MS
+                }
+                lastIndexDirty = false
+                algorithmStateDirty = false
+                true
+            }
+        }
+        if (!committed) {
+            scheduleAlgorithmRebuild("source/settings changed during rebuild")
+            return
+        }
+
+        Applic.app?.let { context ->
+            synchronized(algorithmLock) {
+                SibionicsRegistry.saveAlgorithmCheckpoint(context, SerialNumber, lastIndex, algorithm.snapshot())
+                SibionicsRegistry.saveStartTimeMs(context, SerialNumber, startTimeMs)
+                SibionicsRegistry.saveLastReading(
+                    context,
+                    SerialNumber,
+                    latestReadingTimeMs,
+                    latestGlucoseMgdl,
+                    latestRawMgdl,
+                )
+                SibionicsRegistry.saveLocalRebuildFingerprint(
+                    context,
+                    SerialNumber,
+                    rebuildFingerprint,
+                )
+            }
+        }
+        result.readings.forEach(::mirrorReadingIntoNative)
+        val last = result.readings.last()
+        HistorySyncAccess.storeCurrentReadingAsync(
+            last.sampleMs,
+            last.glucoseMgdl,
+            last.rawMgdl,
+            latestRateMgdlPerMin.takeIf { it.isFinite() } ?: 0f,
+            SerialNumber,
+        )
+        UiRefreshBus.requestDataRefresh()
+        UiRefreshBus.requestStatusRefresh()
+        Log.i(
+            SibionicsConstants.TAG,
+            "local algorithm rebuild committed samples=${result.readings.size} " +
+                "selection=${selection.name} revision=$calibrationRevision",
+        )
+    }
+
+    private fun buildAlgorithmRebuild(
+        sourceSamples: List<SibionicsSourceSample>,
+        selection: SibionicsAlgorithmSelection,
+        variantSnapshot: SibionicsConstants.Variant,
+        shortCodeSnapshot: String,
+        sensitivitySnapshot: Float,
+    ): AlgorithmRebuildResult {
+        val replay = SibionicsAlgorithmRebuilder.rebuild(
+            sensorId = SerialNumber,
+            sourceSamples = sourceSamples,
+            selection = selection,
+            variant = variantSnapshot,
+            shortCode = shortCodeSnapshot,
+            sensitivity = sensitivitySnapshot,
+            unitIsMmol = Applic.unit == 1,
+        ) { displayStock, timestamps ->
+            tk.glucodata.CalibrationAccess.getIntegratedCalibratedSeries(
+                values = displayStock,
+                timestamps = timestamps,
+                isRawMode = false,
+                sensorIdOverride = SerialNumber,
+            )
+        }
+        return AlgorithmRebuildResult(
+            context = replay.context,
+            readings = replay.readings.map { reading ->
+                EmittedReading(
+                    sampleMs = reading.sampleMs,
+                    glucoseMgdl = reading.glucoseMgdl,
+                    rawMgdl = reading.rawMgdl,
+                    temperatureC = reading.temperatureC,
+                    impedance = reading.impedance,
+                    index = reading.index,
+                    live = false,
+                )
+            },
+            sourceSamples = replay.sourceSamples,
+        )
+    }
+
+    private fun requestSourceJournalBackfill(
+        generation: Long,
+        samples: List<SibionicsSourceSample>,
+    ) {
+        handler.post {
+            if (generation != rebuildGeneration || algorithmRehydrating || stop || uiPaused) return@post
+            val previousIndex = maxOf(lastIndex, (samples.lastOrNull()?.index ?: 0) + 1)
+            beginAlgorithmRehydration(previousIndex, "local source journal incomplete")
+            setStatus(waitingForDataStatus())
+            scheduleReconnect("local algorithm source backfill")
+        }
     }
 
     private fun advanceLastIndex(index: Int) {
@@ -778,7 +1115,8 @@ class SibionicsBleManager(
         algorithmStateDirty = false
         Applic.app?.let { context ->
             if (stateDirty) {
-                SibionicsRegistry.saveAlgorithmCheckpoint(context, SerialNumber, lastIndex, algorithm.snapshot())
+                val snapshot = synchronized(algorithmLock) { algorithm.snapshot() }
+                SibionicsRegistry.saveAlgorithmCheckpoint(context, SerialNumber, lastIndex, snapshot)
             } else if (indexDirty) {
                 SibionicsRegistry.saveLastIndex(context, SerialNumber, lastIndex)
             }
@@ -786,7 +1124,7 @@ class SibionicsBleManager(
     }
 
     private fun beginAlgorithmRehydration(previousIndex: Int, reason: String) {
-        algorithm.reset()
+        synchronized(algorithmLock) { algorithm.reset() }
         algorithmStateDirty = false
         algorithmRehydrating = true
         rehydrationExpectedIndex = -1
@@ -802,7 +1140,9 @@ class SibionicsBleManager(
 
     private fun resetForSensorRestart() {
         Log.i(SibionicsConstants.TAG, "sensor index restarted; clearing exact algorithm state")
-        algorithm.reset()
+        rebuildGeneration++
+        synchronized(algorithmLock) { algorithm.reset() }
+        sampleJournal?.clear()
         lastIndex = 0
         lastIndexDirty = true
         algorithmStateDirty = true
@@ -859,10 +1199,46 @@ class SibionicsBleManager(
             val values = FloatArray(history.size) { history[it].glucoseMgdl }
             val raws = FloatArray(history.size) { history[it].rawMgdl }
             HistorySyncAccess.storeSensorHistoryBatchAsync(SerialNumber, timestamps, values, raws)
+            // Native stream writes are minute-index-addressed and idempotent,
+            // so replayed backfill batches are safe. Without this the sensor
+            // never exists in the native store — invisible to the watch
+            // mirror, /data stream, and phone↔phone followers.
+            history.forEach { mirrorReadingIntoNative(it) }
         }
 
         live?.let { publishLiveReading(it) }
         UiRefreshBus.requestDataRefresh()
+    }
+
+    // Same native mirroring the Anytime driver does (AnytimeBleManager
+    // .mirrorReadingIntoNative): shell + stream write keyed by SerialNumber.
+    // Native scales glucose ×10 internally; callers pass mgdl/10 by
+    // convention (verified against g.cpp addGlucoseStreamInternal).
+    private fun mirrorReadingIntoNative(reading: EmittedReading) {
+        val name = SerialNumber ?: return
+        val sampleSec = reading.sampleMs / 1000L
+        if (sampleSec <= 0L || !reading.glucoseMgdl.isFinite() || reading.glucoseMgdl <= 0f) return
+        runCatching {
+            val startSec = when {
+                startTimeMs > 0L -> startTimeMs / 1000L
+                sampleSec > 3600L -> sampleSec - 3600L
+                else -> 1L
+            }.coerceAtLeast(1L)
+            Natives.ensureSensorShell(name, startSec)
+            val temperatureC = reading.temperatureC
+                .takeIf { it.isFinite() && it > -20f && it < 80f }
+                ?: 0f
+            val rawMgdl = reading.rawMgdl
+                .takeIf { it.isFinite() && it > 0f }
+                ?: reading.glucoseMgdl
+            Natives.addGlucoseStreamWithRawTemp(
+                sampleSec,
+                reading.glucoseMgdl / 10f,
+                rawMgdl,
+                temperatureC,
+                name,
+            )
+        }.onFailure { Log.stack(SibionicsConstants.TAG, "mirrorReadingIntoNative", it) }
     }
 
     private fun publishLiveReading(reading: EmittedReading) {
@@ -882,6 +1258,7 @@ class SibionicsBleManager(
         Applic.app?.let {
             SibionicsRegistry.saveLastReading(it, SerialNumber, reading.sampleMs, reading.glucoseMgdl, reading.rawMgdl)
         }
+        mirrorReadingIntoNative(reading)
         HistorySyncAccess.storeCurrentReadingAsync(
             reading.sampleMs,
             reading.glucoseMgdl,
@@ -977,7 +1354,9 @@ class SibionicsBleManager(
     }
 
     private fun markResetSent() {
-        algorithm.reset()
+        rebuildGeneration++
+        synchronized(algorithmLock) { algorithm.reset() }
+        sampleJournal?.clear()
         lastIndex = 1
         lastIndexDirty = true
         algorithmStateDirty = true
@@ -995,7 +1374,8 @@ class SibionicsBleManager(
         historySeenIndices.clear()
         autoResetScheduled = false
         Applic.app?.let {
-            SibionicsRegistry.saveAlgorithmCheckpoint(it, SerialNumber, lastIndex, algorithm.snapshot())
+            val snapshot = synchronized(algorithmLock) { algorithm.snapshot() }
+            SibionicsRegistry.saveAlgorithmCheckpoint(it, SerialNumber, lastIndex, snapshot)
             SibionicsRegistry.clearStartTimeMs(it, SerialNumber)
             HistorySyncAccess.markSensorReset(SerialNumber)
         }
@@ -1005,7 +1385,7 @@ class SibionicsBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
-    override fun supportsClearCalibrationAction(): Boolean = true
+    override fun supportsClearCalibrationAction(): Boolean = false
 
     override fun supportsAutoReset(): Boolean = true
 
@@ -1021,13 +1401,30 @@ class SibionicsBleManager(
 
     override fun supportsCustomAlgorithm(): Boolean = true
 
-    override fun isCustomAlgorithmEnabled(): Boolean = customAlgorithmEnabled
+    override fun isCustomAlgorithmEnabled(): Boolean =
+        algorithmSelection.adaptiveEnabled
 
     override fun setCustomAlgorithmEnabled(enabled: Boolean): Boolean {
-        if (customAlgorithmEnabled == enabled) return true
-        customAlgorithmEnabled = enabled
-        Applic.app?.let { SibionicsRegistry.saveCustomAlgorithmEnabled(it, SerialNumber, enabled) }
+        return setCustomAlgorithmMode(
+            if (enabled) algorithmSelection.storageId or 2
+            else algorithmSelection.storageId and 2.inv(),
+        )
+    }
+
+    override fun getCustomAlgorithmMode(): Int = algorithmSelection.storageId
+
+    override fun setCustomAlgorithmMode(mode: Int): Boolean {
+        val selection = SibionicsAlgorithmSelection.fromStorage(mode)
+        if (algorithmSelection == selection) return true
+        rebuildAfterNextSourceSample = false
+        synchronized(algorithmLock) {
+            algorithmSelection = selection
+            algorithm.setSelection(selection)
+        }
+        algorithmStateDirty = true
+        Applic.app?.let { SibionicsRegistry.saveAlgorithmSelection(it, SerialNumber, selection) }
         tk.glucodata.CalibrationAccess.notifyExternalCalibrationPipelineChanged()
+        scheduleAlgorithmRebuild("algorithm selection ${selection.name}", delayMs = 0L)
         UiRefreshBus.requestStatusRefresh()
         UiRefreshBus.requestDataRefresh()
         return true
@@ -1044,16 +1441,7 @@ class SibionicsBleManager(
     }
 
     override fun clearSensorCalibration(): Boolean {
-        val previousIndex = lastIndex
-        beginAlgorithmRehydration(previousIndex, "manual algorithm reset")
-        Applic.app?.let {
-            SibionicsRegistry.clearAlgorithmState(it, SerialNumber)
-            SibionicsRegistry.saveLastIndex(it, SerialNumber, lastIndex)
-        }
-        lastIndexDirty = false
-        scheduleReconnect("manual algorithm reset")
-        setStatus("Replaying algorithm")
-        UiRefreshBus.requestStatusRefresh()
+        scheduleAlgorithmRebuild("manual local rebuild", delayMs = 0L)
         return true
     }
 
@@ -1070,22 +1458,11 @@ class SibionicsBleManager(
         } else {
             Float.NaN
         }
-        val calibratedDisplay = if (customAlgorithmEnabled) {
-            tk.glucodata.CalibrationAccess.getCalibratedValue(
-                displayGlucose,
-                time,
-                false,
-                false,
-                SerialNumber,
-            ).takeIf { it.isFinite() && it > 0f } ?: Float.NaN
-        } else {
-            Float.NaN
-        }
         return ManagedSensorCurrentSnapshot(
             timeMillis = time,
             glucoseValue = displayGlucose,
             rawGlucoseValue = displayRaw,
-            calibratedGlucoseValue = calibratedDisplay,
+            calibratedGlucoseValue = Float.NaN,
             rate = displayRate,
             sensorGen = SibionicsConstants.SENSOR_GEN,
         )
@@ -1110,7 +1487,8 @@ class SibionicsBleManager(
             dataptr = 0L,
             viewMode = viewMode,
             autoResetDays = autoResetDays,
-            customAlgorithmEnabled = customAlgorithmEnabled,
+            customAlgorithmEnabled = algorithmSelection.adaptiveEnabled,
+            customAlgorithmMode = algorithmSelection.storageId,
             supportsDisplayModes = supportsDisplayModes(),
             supportsManualCalibration = supportsManualCalibration(),
             supportsHardwareReset = supportsResetAction(),
@@ -1232,7 +1610,24 @@ class SibionicsBleManager(
     }
 
     private val reconnectRunnable = Runnable {
-        if (!stop && !uiPaused) connectDevice(0)
+        if (!stop && !uiPaused) {
+            prepareForReconnect()
+            connectDevice(0)
+        }
+    }
+
+    @Synchronized
+    private fun prepareForReconnect() {
+        val staleGatt = mBluetoothGatt
+        service = null
+        notifyChar = null
+        writeChar = null
+        mBluetoothGatt = null
+        mActiveBluetoothDevice = null
+        phase = Phase.IDLE
+        retiredGatt = staleGatt
+        runCatching { staleGatt?.disconnect() }
+        runCatching { staleGatt?.close() }
     }
 
     private fun scheduleAuthTimeout() {

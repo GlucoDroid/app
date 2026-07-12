@@ -592,10 +592,11 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="scan_libre_sensor">Libre Sensörü Tara</string>
     <string name="libre_nfc_instruction">Taramak için telefonu sensöre tutun</string>
     <!-- New Code Translations -->
-    <string name="auto_calibration_mode">Otomatik kalibrasyon</string>
-    <string name="sibionics_custom_algorithm">Uyarlanabilir kalibre algoritma</string>
-    <string name="sibionics_custom_algorithm_desc">QR verili kesin sensör algoritması ve sınırlı parmak ölçümü kalibrasyonu</string>
-    <string name="sibionics_stock_algorithm_desc">QR verili kesin sensör algoritması</string>
+    <string name="auto_calibration_mode">Sensör algoritması</string>
+    <string name="sibionics_custom_algorithm">Uyarlanabilir sensör modeli (deneysel)</string>
+    <string name="sibionics_custom_algorithm_desc">Durumlu filtreleme, sinyal kalitesi ağırlığı ve aykırı değer reddi</string>
+    <string name="sibionics_stock_algorithm_desc">Standart sensör modeli</string>
+    <string name="sibionics_stock_algorithm_detail">Ölçüm kalibrasyonlarını sensör algoritması içinde kullan</string>
     <string name="sibionics_restart_algorithm_desc">Dakikalık algoritma durumunu kayıtlı sensör geçmişinden yeniden oluştur</string>
     <string name="juggluco_native">Juggluco yerel</string>
     <string name="window_label">pencere</string>

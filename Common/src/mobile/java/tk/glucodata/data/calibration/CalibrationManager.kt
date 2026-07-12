@@ -42,7 +42,9 @@ object CalibrationManager {
     private const val KEY_WEIGHT_MODE = "calibration_weight_mode"
     private const val HOUR_MS = 3_600_000.0
     private const val PAST_BLEND_WINDOW_MS = 30L * 60L * 1000L
+    private const val INTEGRATED_ANCHOR_MATCH_MS = 2L * 60L * 1000L
     private const val LEGACY_SENSOR_RESOLUTION_WINDOW_MS = 15L * 60L * 1000L
+    private const val MAX_MANAGED_CALIBRATION_ANCHORS = 12
 
     enum class CalibrationAlgorithm(
         val storageValue: String,
@@ -149,7 +151,6 @@ object CalibrationManager {
         val isRawMode: Boolean,
         val sensorId: String,
         val algorithm: CalibrationAlgorithm,
-        val managedIntegration: Boolean,
         val timestamp: Long,
         val quantizedValue: Int,
         val revision: Long
@@ -166,6 +167,13 @@ object CalibrationManager {
         val algorithm: CalibrationAlgorithm,
         val allPoints: List<CalPoint>,
         val earliestPoint: CalPoint?
+    )
+
+    private data class IntegratedContextCacheKey(
+        val sensorId: String,
+        val isRawMode: Boolean,
+        val revision: Long,
+        val unit: Int,
     )
     
     private lateinit var database: CalibrationDatabase
@@ -238,6 +246,7 @@ object CalibrationManager {
             return size > 128
         }
     }
+    private val integratedContextCache = LinkedHashMap<IntegratedContextCacheKey, CalibrationContext>()
 
     fun init(context: Context) {
         synchronized(initLock) {
@@ -317,10 +326,73 @@ object CalibrationManager {
         synchronized(validPointsCache) {
             validPointsCache.clear()
         }
+        synchronized(integratedContextCache) {
+            integratedContextCache.clear()
+        }
         Log.d(TAG, "Calibration cache invalidated: $reason")
+        runCatching {
+            tk.glucodata.drivers.ManagedSensorRuntime.notifyUserCalibrationRevisionChanged(calibrationRevision)
+        }
     }
 
     fun getRevision(): Long = calibrationRevision
+
+    @JvmStatic
+    fun getIntegratedCalibrationFingerprint(sensorIdOverride: String?, isRawMode: Boolean): Long {
+        val sensorId = resolveSensorId(sensorIdOverride)
+        val enabled = isEnabledForMode(isRawMode, sensorId)
+        ensureCalibrationStateLoaded()
+        var hash = 1_125_899_906_842_597L
+        fun mix(value: Long) {
+            hash = hash * 31L + value
+        }
+        mix(sensorId.hashCode().toLong())
+        mix(if (isRawMode) 1L else 0L)
+        mix(if (enabled) 1L else 0L)
+        mix(Applic.unit.toLong())
+        mix(getAlgorithmForMode(isRawMode).storageValue.hashCode().toLong())
+        mix(_weightMode.value.storageValue.hashCode().toLong())
+        mix(if (_applyToPast.value) 1L else 0L)
+        mix(if (_lockPastHistory.value) 1L else 0L)
+        mix(if (_keepDisabledHistory.value) 1L else 0L)
+        _calibrations.value
+            .asSequence()
+            .filter { it.isRawMode == isRawMode && sensorMatches(it.sensorId, sensorId) }
+            .sortedWith(compareBy<CalibrationEntity> { it.timestamp }.thenBy { it.id })
+            .forEach { point ->
+                mix(point.id.toLong())
+                mix(point.timestamp)
+                mix(java.lang.Float.floatToRawIntBits(point.sensorValue).toLong())
+                mix(java.lang.Float.floatToRawIntBits(point.sensorValueRaw).toLong())
+                mix(java.lang.Float.floatToRawIntBits(point.userValue).toLong())
+                mix(if (point.isEnabled) 1L else 0L)
+            }
+        return hash
+    }
+
+    @JvmStatic
+    fun getActiveCalibrationAnchors(sensorIdOverride: String?, isRawMode: Boolean): DoubleArray {
+        val sensorId = resolveSensorId(sensorIdOverride)
+        if (!isEnabledForMode(isRawMode, sensorId)) return DoubleArray(0)
+        ensureCalibrationStateLoaded()
+        val rows = _calibrations.value
+            .asSequence()
+            .filter { row ->
+                row.isEnabled &&
+                    row.isRawMode == isRawMode &&
+                    sensorMatches(row.sensorId, sensorId)
+            }
+            .sortedBy { it.timestamp }
+            .toList()
+            .takeLast(MAX_MANAGED_CALIBRATION_ANCHORS)
+        return DoubleArray(rows.size * 3).also { packed ->
+            rows.forEachIndexed { index, row ->
+                packed[index * 3] = (if (isRawMode) row.sensorValueRaw else row.sensorValue).toDouble()
+                packed[index * 3 + 1] = row.userValue.toDouble()
+                packed[index * 3 + 2] = row.timestamp.toDouble()
+            }
+        }
+    }
 
     @JvmStatic
     fun notifyExternalCalibrationPipelineChanged() {
@@ -1109,13 +1181,15 @@ object CalibrationManager {
         if (!value.isFinite() || value <= 0f) {
             return value
         }
+        if (tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(currentSensor, isRawMode)) {
+            return value
+        }
 
         val algorithm = getAlgorithmForMode(isRawMode)
         val cacheKey = CalibrationCacheKey(
             isRawMode = isRawMode,
             sensorId = currentSensor,
             algorithm = algorithm,
-            managedIntegration = tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(currentSensor),
             timestamp = timestamp,
             quantizedValue = java.lang.Float.floatToRawIntBits(value),
             revision = calibrationRevision
@@ -1143,19 +1217,13 @@ object CalibrationManager {
         )
         if (points.isEmpty()) return value
 
-        val modelValue = computeCalibratedValue(
+        val finalValue = computeCalibratedValue(
             originalValue = value,
             targetTimestamp = timestamp,
             isRawMode = isRawMode,
             points = points,
             algorithm = algorithm,
             emitDiagnostics = emitDiagnostics
-        )
-        val finalValue = tk.glucodata.drivers.ManagedSensorRuntime.integrateUserCalibration(
-            sensorId = currentSensor,
-            baseDisplayValue = value,
-            calibratedDisplayValue = modelValue,
-            timestampMs = timestamp,
         )
         synchronized(calibrationCache) {
             calibrationCache[cacheKey] = finalValue
@@ -1170,21 +1238,78 @@ object CalibrationManager {
         emitDiagnostics: Boolean = false,
         sensorIdOverride: String? = null
     ): FloatArray {
-        if (samples.isEmpty()) return FloatArray(0)
+        return getCalibratedSeriesInternal(
+            samples = samples,
+            isRawMode = isRawMode,
+            emitDiagnostics = emitDiagnostics,
+            sensorIdOverride = sensorIdOverride,
+            respectManagedOwnership = true,
+        )
+    }
 
-        val context = resolveCalibrationContext(isRawMode, sensorIdOverride)
+    /**
+     * Evaluates the selected Juggluco calibration model for a managed driver.
+     * Values are in the user's current display unit, exactly like stored
+     * calibration points. This deliberately bypasses the managed-driver
+     * ownership guard; callers must store the returned values themselves.
+     */
+    @JvmStatic
+    fun getIntegratedCalibratedSeries(
+        values: FloatArray,
+        timestamps: LongArray,
+        isRawMode: Boolean,
+        sensorIdOverride: String?,
+    ): FloatArray {
+        if (values.size != timestamps.size) return values.copyOf()
+        val samples = List(values.size) { index ->
+            CalibrationSample(value = values[index], timestamp = timestamps[index])
+        }
+        if (samples.isEmpty()) return FloatArray(0)
+        val resolvedSensor = resolveSensorId(sensorIdOverride)
+        val cacheKey = IntegratedContextCacheKey(resolvedSensor, isRawMode, calibrationRevision, Applic.unit)
+        val storedContext = resolveCalibrationContext(isRawMode, resolvedSensor)
+            ?: return values.copyOf()
+        val context = if (samples.size > 1) {
+            rebaseIntegratedContext(storedContext, samples).also { rebased ->
+                synchronized(integratedContextCache) {
+                    integratedContextCache[cacheKey] = rebased
+                }
+            }
+        } else {
+            synchronized(integratedContextCache) { integratedContextCache[cacheKey] }
+                ?: rebaseIntegratedContext(storedContext, samples)
+        }
+        return evaluateCalibratedSeries(samples, isRawMode, emitDiagnostics = false, context = context)
+    }
+
+    private fun getCalibratedSeriesInternal(
+        samples: List<CalibrationSample>,
+        isRawMode: Boolean,
+        emitDiagnostics: Boolean,
+        sensorIdOverride: String?,
+        respectManagedOwnership: Boolean,
+    ): FloatArray {
+        if (samples.isEmpty()) return FloatArray(0)
+        val resolvedSensor = resolveSensorId(sensorIdOverride)
+        if (respectManagedOwnership &&
+            tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(resolvedSensor, isRawMode)
+        ) {
+            return FloatArray(samples.size) { index -> samples[index].value }
+        }
+
+        val context = resolveCalibrationContext(isRawMode, resolvedSensor)
         if (context == null) {
             return FloatArray(samples.size) { index -> samples[index].value }
         }
-        val integrationDriver = tk.glucodata.drivers.ManagedSensorRuntime.resolveDriver(context.sensorId)
-            ?.takeIf { driver -> runCatching { driver.integratesUserCalibration() }.getOrDefault(false) }
-        fun integrate(sample: CalibrationSample, modelValue: Float): Float {
-            val driver = integrationDriver ?: return modelValue
-            return runCatching {
-                driver.integrateUserCalibration(sample.value, modelValue, sample.timestamp)
-            }.getOrDefault(sample.value)
-        }
+        return evaluateCalibratedSeries(samples, isRawMode, emitDiagnostics, context)
+    }
 
+    private fun evaluateCalibratedSeries(
+        samples: List<CalibrationSample>,
+        isRawMode: Boolean,
+        emitDiagnostics: Boolean,
+        context: CalibrationContext,
+    ): FloatArray {
         val results = FloatArray(samples.size)
         if (!_lockPastHistory.value) {
             val points = context.allPoints.filter { it.isEnabled }
@@ -1201,7 +1326,7 @@ object CalibrationManager {
                         emitDiagnostics = emitDiagnostics && index == samples.lastIndex
                     )
                 }
-                results[index] = integrate(sample, modelValue)
+                results[index] = modelValue
             }
             return results
         }
@@ -1227,10 +1352,36 @@ object CalibrationManager {
                     emitDiagnostics = emitDiagnostics && sortedIndex == indexedSamples.lastIndex
                 )
             }
-            results[indexedSample.index] = integrate(sample, modelValue)
+            results[indexedSample.index] = modelValue
         }
 
         return results
+    }
+
+    private fun rebaseIntegratedContext(
+        context: CalibrationContext,
+        stockSamples: List<CalibrationSample>,
+    ): CalibrationContext {
+        if (stockSamples.isEmpty()) return context
+        val ordered = stockSamples
+            .asSequence()
+            .filter { it.timestamp > 0L && it.value.isFinite() && it.value > 0f }
+            .sortedBy { it.timestamp }
+            .toList()
+        if (ordered.isEmpty()) return context
+
+        val rebasedPoints = context.allPoints.map { point ->
+            val nearest = ordered.minByOrNull { sample -> kotlin.math.abs(sample.timestamp - point.timestamp) }
+            if (nearest != null && kotlin.math.abs(nearest.timestamp - point.timestamp) <= INTEGRATED_ANCHOR_MATCH_MS) {
+                point.copy(x = nearest.value.toDouble())
+            } else {
+                point
+            }
+        }
+        return context.copy(
+            allPoints = rebasedPoints,
+            earliestPoint = rebasedPoints.filter { it.isEnabled }.minByOrNull { it.timestamp },
+        )
     }
 
     private fun resolveCalibrationContext(
@@ -1867,6 +2018,7 @@ object CalibrationManager {
     fun hasActiveCalibration(isRawMode: Boolean, sensorIdOverride: String? = null): Boolean {
         val sensorId = resolveSensorId(sensorIdOverride)
         if (!isEnabledForMode(isRawMode, sensorId)) return false
+        if (tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(sensorId, isRawMode)) return false
 
         return getValidPointsForSensor(isRawMode, sensorId).isNotEmpty()
     }

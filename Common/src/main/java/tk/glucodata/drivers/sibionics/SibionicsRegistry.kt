@@ -25,6 +25,8 @@ object SibionicsRegistry {
     private const val PREF_ALGORITHM_STATE_PREFIX = "sibionics_managed_algorithm_state_"
     private const val PREF_AUTO_RESET_DAYS_PREFIX = "sibionics_managed_auto_reset_days_"
     private const val PREF_CUSTOM_ALGORITHM_PREFIX = "sibionics_managed_custom_algorithm_"
+    private const val PREF_ALGORITHM_SELECTION_PREFIX = "sibionics_managed_algorithm_selection_"
+    private const val PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX = "sibionics_managed_rebuild_fingerprint_"
 
     data class SensorRecord(
         val sensorId: String,
@@ -218,6 +220,8 @@ object SibionicsRegistry {
             remove(PREF_ALGORITHM_STATE_PREFIX + id)
             remove(PREF_AUTO_RESET_DAYS_PREFIX + id)
             remove(PREF_CUSTOM_ALGORITHM_PREFIX + id)
+            remove(PREF_ALGORITHM_SELECTION_PREFIX + id)
+            remove(PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX + id)
         }.apply()
         ManagedSensorUiSignals.markDeviceListDirty()
         SensorIdentity.invalidateCaches()
@@ -261,6 +265,45 @@ object SibionicsRegistry {
 
     fun saveCustomAlgorithmEnabled(context: Context, sensorId: String, enabled: Boolean) {
         prefs(context).edit().putBoolean(PREF_CUSTOM_ALGORITHM_PREFIX + sensorId, enabled).apply()
+    }
+
+    fun loadAlgorithmSelection(context: Context, sensorId: String): SibionicsAlgorithmSelection {
+        val preferences = prefs(context)
+        val selectionKey = PREF_ALGORITHM_SELECTION_PREFIX + sensorId
+        if (preferences.contains(selectionKey)) {
+            return SibionicsAlgorithmSelection.fromStorage(
+                preferences.getInt(selectionKey, SibionicsAlgorithmSelection.STOCK.storageId),
+            )
+        }
+        val legacyKey = PREF_CUSTOM_ALGORITHM_PREFIX + sensorId
+        return if (preferences.contains(legacyKey)) {
+            if (preferences.getBoolean(legacyKey, false)) {
+                SibionicsAlgorithmSelection.ADAPTIVE_CALIBRATED
+            } else {
+                SibionicsAlgorithmSelection.STOCK_CALIBRATED
+            }
+        } else {
+            SibionicsAlgorithmSelection.STOCK
+        }
+    }
+
+    fun saveAlgorithmSelection(
+        context: Context,
+        sensorId: String,
+        selection: SibionicsAlgorithmSelection,
+    ) {
+        prefs(context).edit()
+            .putInt(PREF_ALGORITHM_SELECTION_PREFIX + sensorId, selection.storageId)
+            .apply()
+    }
+
+    fun loadLocalRebuildFingerprint(context: Context, sensorId: String): String =
+        prefs(context).getString(PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX + sensorId, "").orEmpty()
+
+    fun saveLocalRebuildFingerprint(context: Context, sensorId: String, fingerprint: String) {
+        prefs(context).edit()
+            .putString(PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX + sensorId, fingerprint)
+            .apply()
     }
 
     fun loadStartTimeMs(context: Context, sensorId: String): Long =

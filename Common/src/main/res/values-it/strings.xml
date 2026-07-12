@@ -412,10 +412,11 @@
     <string name="scan_libre_sensor">Scansiona Sensore Libre</string>
     <string name="libre_nfc_instruction">Tieni il telefono contro il sensore per scansionare</string>
     <!-- New Code Translations -->
-    <string name="auto_calibration_mode">Mod. auto-calibrazione</string>
-    <string name="sibionics_custom_algorithm">Algoritmo adattivo calibrato</string>
-    <string name="sibionics_custom_algorithm_desc">Algoritmo esatto basato sul QR con calibrazione glicemica limitata</string>
-    <string name="sibionics_stock_algorithm_desc">Algoritmo esatto del sensore basato sul QR</string>
+    <string name="auto_calibration_mode">Algoritmo del sensore</string>
+    <string name="sibionics_custom_algorithm">Modello adattivo del sensore (sperimentale)</string>
+    <string name="sibionics_custom_algorithm_desc">Filtro con stato, ponderazione della qualità del segnale e rifiuto delle anomalie</string>
+    <string name="sibionics_stock_algorithm_desc">Modello standard del sensore</string>
+    <string name="sibionics_stock_algorithm_detail">Usa le calibrazioni del misuratore nell’algoritmo del sensore</string>
     <string name="sibionics_restart_algorithm_desc">Ricostruisci lo stato minuto per minuto dalla cronologia del sensore</string>
     <string name="juggluco_native">Juggluco nativo</string>
     <string name="window_label">finestra</string>

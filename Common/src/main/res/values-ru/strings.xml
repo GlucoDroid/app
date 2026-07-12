@@ -634,10 +634,11 @@
     <string name="about_text">GPL-3.0 • Форк Juggluco</string>
     <string name="refreshing">Обновление...</string>
     <!-- Missing UI Translations -->
-    <string name="auto_calibration_mode">Алгоритм автокалибровки</string>
-    <string name="sibionics_custom_algorithm">Адаптивный алгоритм с калибровкой</string>
-    <string name="sibionics_custom_algorithm_desc">Точный алгоритм датчика с данными QR и ограниченной калибровкой по глюкометру</string>
-    <string name="sibionics_stock_algorithm_desc">Точный алгоритм датчика с данными QR</string>
+    <string name="auto_calibration_mode">Алгоритм датчика</string>
+    <string name="sibionics_custom_algorithm">Адаптивная модель датчика (экспериментальная)</string>
+    <string name="sibionics_custom_algorithm_desc">Фильтрация с состоянием, оценка качества сигнала и подавление выбросов</string>
+    <string name="sibionics_stock_algorithm_desc">Штатная модель датчика</string>
+    <string name="sibionics_stock_algorithm_detail">Использовать калибровки по глюкометру внутри алгоритма датчика</string>
     <string name="sibionics_restart_algorithm_desc">Восстановить минутное состояние алгоритма из сохранённой истории датчика</string>
     <string name="juggluco_native">Нативный Juggluco</string>
     <string name="window_label">окно</string>

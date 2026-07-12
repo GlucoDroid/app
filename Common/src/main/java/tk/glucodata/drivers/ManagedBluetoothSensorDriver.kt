@@ -61,6 +61,7 @@ data class ManagedSensorUiSnapshot(
     val viewMode: Int = 0,
     val autoResetDays: Int = 300,
     val customAlgorithmEnabled: Boolean = false,
+    val customAlgorithmMode: Int = if (customAlgorithmEnabled) 2 else 0,
     val supportsDisplayModes: Boolean = false,
     val supportsManualCalibration: Boolean = false,
     val supportsHardwareReset: Boolean = false,
@@ -130,13 +131,10 @@ interface ManagedBluetoothSensorDriver {
 
     fun supportsManualCalibration(): Boolean = false
 
-    /** True when this driver consumes user calibration inside its own output pipeline. */
-    fun integratesUserCalibration(): Boolean = false
+    /** True when this driver consumes calibration for the requested display mode. */
+    fun integratesUserCalibration(isRawMode: Boolean): Boolean = false
 
-    fun integrateUserCalibration(
-        baseDisplayValue: Float,
-        calibratedDisplayValue: Float,
-        timestampMs: Long,
-    ): Float = calibratedDisplayValue
+    /** Calibration points or policy changed; stateful managed models may rebuild locally. */
+    fun onUserCalibrationRevisionChanged(revision: Long) {}
 
 }

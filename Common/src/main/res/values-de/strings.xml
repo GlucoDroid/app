@@ -615,10 +615,11 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="scan_libre_sensor">Libre Sensor scannen</string>
     <string name="libre_nfc_instruction">Halten Sie Ihr Telefon an den Sensor zum Scannen</string>
     <!-- New Code Translations -->
-    <string name="auto_calibration_mode">Automatische Kalibrierung</string>
-    <string name="sibionics_custom_algorithm">Adaptiver kalibrierter Algorithmus</string>
-    <string name="sibionics_custom_algorithm_desc">Exakter QR-basierter Sensoralgorithmus mit begrenzter Blutzuckerkalibrierung</string>
-    <string name="sibionics_stock_algorithm_desc">Exakter QR-basierter Sensoralgorithmus</string>
+    <string name="auto_calibration_mode">Sensoralgorithmus</string>
+    <string name="sibionics_custom_algorithm">Adaptives Sensormodell (experimentell)</string>
+    <string name="sibionics_custom_algorithm_desc">Zustandsfilterung, Signalqualitätsbewertung und Ausreißerunterdrückung</string>
+    <string name="sibionics_stock_algorithm_desc">Standard-Sensormodell</string>
+    <string name="sibionics_stock_algorithm_detail">Messgerätekalibrierungen innerhalb des Sensoralgorithmus verwenden</string>
     <string name="sibionics_restart_algorithm_desc">Minütlichen Algorithmuszustand aus dem gespeicherten Sensorverlauf neu aufbauen</string>
     <string name="juggluco_native">Juggluco nativ</string>
     <string name="window_label">Fenster</string>

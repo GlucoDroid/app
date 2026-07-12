@@ -48,24 +48,20 @@ object ManagedSensorRuntime {
     }
 
     @JvmStatic
-    fun integratesUserCalibration(sensorId: String?): Boolean =
+    fun integratesUserCalibration(sensorId: String?, isRawMode: Boolean): Boolean =
         resolveDriver(sensorId)?.let { driver ->
-            runCatching { driver.integratesUserCalibration() }.getOrDefault(false)
+            runCatching { driver.integratesUserCalibration(isRawMode) }.getOrDefault(false)
         } ?: false
 
     @JvmStatic
-    fun integrateUserCalibration(
-        sensorId: String?,
-        baseDisplayValue: Float,
-        calibratedDisplayValue: Float,
-        timestampMs: Long,
-    ): Float {
-        val driver = resolveDriver(sensorId) ?: return calibratedDisplayValue
-        if (!runCatching { driver.integratesUserCalibration() }.getOrDefault(false)) {
-            return calibratedDisplayValue
+    fun notifyUserCalibrationRevisionChanged(revision: Long) {
+        runCatching {
+            SensorBluetooth.mygatts()
+                .asSequence()
+                .mapNotNull { it as? ManagedBluetoothSensorDriver }
+                .forEach { driver ->
+                    runCatching { driver.onUserCalibrationRevisionChanged(revision) }
+                }
         }
-        return runCatching {
-            driver.integrateUserCalibration(baseDisplayValue, calibratedDisplayValue, timestampMs)
-        }.getOrDefault(baseDisplayValue)
     }
 }

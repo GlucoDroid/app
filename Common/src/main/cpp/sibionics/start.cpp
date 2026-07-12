@@ -1396,26 +1396,25 @@ fromjava(SIprocessData)(JNIEnv *envin, jclass cl, jlong dataptr,
            sens->siSubtype(), sens->notchinese() ? 1 : 0);
     return 10LL;
   }
-  if (info->autoResetDays > 0) {
-    if (timsec > info->starttime) {
-      float age_days = (timsec - info->starttime) / (24.0f * 3600.0f);
-      if (age_days >= info->autoResetDays) {
-        if (info->siBetween == 0) {
-          info->reset = true;
-          info->siBetween = 1;
-          if (sens->notchinese()) {
+  if (sens->notchinese()) {
+    if (info->autoResetDays > 0) {
+      if (timsec > info->starttime) {
+        float age_days = (timsec - info->starttime) / (24.0f * 3600.0f);
+        if (age_days >= info->autoResetDays) {
+          if (info->siBetween == 0) {
+            info->reset = true;
+            info->siBetween = 1;
             sdata->sicontext.prepareHardwareReset(sens);
+            LOGGER("Auto Reset triggered: age=%.2f days limit=%d\n", age_days,
+                   info->autoResetDays);
+            return 10LL;
           }
-          LOGGER("Auto Reset triggered: age=%.2f days limit=%d subtype=%u\n",
-                 age_days, info->autoResetDays, sens->siSubtype());
-          return 10LL;
+        } else {
+          if (info->siBetween != 0)
+            info->siBetween = 0;
         }
-      } else if (info->siBetween != 0) {
-        info->siBetween = 0;
       }
     }
-  }
-  if (sens->notchinese()) {
     // Daily auto-replay: when autoResetAlgorithm ("Restart daily") is enabled
     // AND custom calibration is active, trigger a localReplay every 24 hours.
     // This is independent of autoResetDays (hardware reset cycle).
