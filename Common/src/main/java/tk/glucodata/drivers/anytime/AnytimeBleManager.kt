@@ -2821,8 +2821,9 @@ class AnytimeBleManager(
             )
         }
         // Native polls are the current/live lane used by Nightscout and the web
-        // server. Bulk backfill stays in Room; mirroring every historical point
-        // into native storage makes reconnect recovery quadratic and floods logs.
+        // server. Bulk backfill is queued for Room here and mirrored into native
+        // storage in one ascending batch at flushPendingHistoryRoomImports —
+        // per-point mirroring on this callback would flood logs and resend churn.
         if (!skipHistoryImport) {
             var importedImmediateRoomPoint = false
             if (history && !live) {
@@ -2860,9 +2861,17 @@ class AnytimeBleManager(
         live || !history
 
     private fun mirrorReadingIntoNative(sampleMs: Long, result: AnytimeAlgorithm.Result) {
+        mirrorValuesIntoNative(sampleMs, result.mgdl, result.rawMgdl, result.temperatureC)
+    }
+
+    private fun mirrorValuesIntoNative(
+        sampleMs: Long,
+        glucoseMgdl: Float,
+        rawMgdlIn: Float,
+        temperatureCIn: Float,
+    ) {
         val name = SerialNumber ?: return
         val sampleSec = sampleMs / 1000L
-        val glucoseMgdl = result.mgdl
         if (sampleSec <= 0L || !glucoseMgdl.isFinite() || glucoseMgdl <= 0f) return
         runCatching {
             val startSec = when {
@@ -2871,10 +2880,10 @@ class AnytimeBleManager(
                 else -> 1L
             }.coerceAtLeast(1L)
             Natives.ensureSensorShell(name, startSec)
-            val temperatureC = result.temperatureC
+            val temperatureC = temperatureCIn
                 .takeIf { it.isFinite() && it > -20f && it < 80f }
                 ?: 0f
-            val rawMgdl = if (result.rawMgdl.isNaN()) glucoseMgdl else result.rawMgdl
+            val rawMgdl = if (rawMgdlIn.isNaN()) glucoseMgdl else rawMgdlIn
                 .takeIf { it.isFinite() && it > 0f }
                 ?: glucoseMgdl
             Natives.addGlucoseStreamWithRawTemp(sampleSec, glucoseMgdl / 10f, rawMgdl, temperatureC, name)
@@ -2980,6 +2989,20 @@ class AnytimeBleManager(
                                 "(ids=$firstId..$lastId rawLast=${"%.1f".format(raw)} mg/dL)"
                     )
                     historyRoomImportBuffer.markImported(imports)
+                    // Mirror the accepted batch into native storage so history
+                    // reaches the watch mirror and phone↔phone followers.
+                    // Ascending order keeps the mirror-cursor rewind to a single
+                    // pass (backstream/backhistory only ever move backward), so
+                    // this stays linear — the reconnect-recovery cost that used
+                    // to justify skipping native for history entirely.
+                    imports.sortedBy { it.reading.timestampMs }.forEach { item ->
+                        mirrorValuesIntoNative(
+                            item.reading.timestampMs,
+                            item.reading.storageGlucoseMgdl,
+                            item.rawMgdl,
+                            item.temperatureC,
+                        )
+                    }
                 }
             }.onFailure { Log.stack(TAG, "flushPendingHistoryRoomImports", it) }
         }

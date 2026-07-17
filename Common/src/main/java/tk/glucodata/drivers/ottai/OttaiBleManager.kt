@@ -1203,6 +1203,7 @@ class OttaiBleManager(
         if (live && toPersist.size == 1) {
             val reading = toPersist.single()
             HistorySyncAccess.storeCurrentReadingAsync(reading.sampleMs, reading.mgdl, 0f, 0f, id)
+            mirrorReadingIntoNative(reading)
             return
         }
         val timestamps = LongArray(toPersist.size) { index -> toPersist[index].sampleMs }
@@ -1210,6 +1211,25 @@ class OttaiBleManager(
         // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
         val rawValues = FloatArray(toPersist.size) { 0f }
         HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
+        toPersist.forEach { mirrorReadingIntoNative(it) }
+    }
+
+    // Same native mirroring as SibionicsBleManager.mirrorReadingIntoNative: without
+    // it the sensor only ever gets a bare shell in the native store — its readings
+    // are invisible to the watch mirror, /data stream, and phone↔phone followers.
+    // Native stream writes are minute-index-addressed and idempotent, so replayed
+    // batches are safe; callers pass mgdl/10 by convention (g.cpp scales ×10).
+    // Ottai has no raw glucose channel, so only the auto value is written.
+    private fun mirrorReadingIntoNative(reading: EmittedReading) {
+        val id = SerialNumber ?: return
+        val sampleSec = reading.sampleMs / 1000L
+        if (sampleSec <= 0L || !reading.mgdl.isFinite() || reading.mgdl <= 0f) return
+        runCatching {
+            val startSec = (nativePresenceStartTimeMs() / 1000L).takeIf { it > 0L }
+                ?: (sampleSec - 3600L)
+            Natives.ensureSensorShell(id, startSec.coerceAtLeast(1L))
+            Natives.addGlucoseStream(sampleSec, reading.mgdl / 10f, id)
+        }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
     }
 
     private fun publishCurrentReading(reading: EmittedReading) {

@@ -801,6 +801,18 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
         // Force notification update on resume/launch
         Notify.showoldglucose();
+        if (Applic.isWearable && Applic.Nativesloaded) {
+            // The companion stream routinely stalls while the watch app is
+            // backgrounded/dozed; ask the phone for the stream immediately on
+            // open instead of showing minutes-old data until the next push.
+            try {
+                MessageSender.sendwakestream();
+                Natives.wakestreamsender();
+                UiRefreshBus.requestDataRefresh();
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "onResume wakestream", th);
+            }
+        }
         return;
     }
 

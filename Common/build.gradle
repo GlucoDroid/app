@@ -115,7 +115,7 @@ android {
 // Single source of truth for the app version; bump here only.
 // Wear releases use appVersionCode + 1_000_000 so Play accepts both APKs
 // in one release (distinct versionCodes per form factor).
-def appVersionCode = 1003
+def appVersionCode = 1004
 
 flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //    flavorDimensions 'wearos','libreVersion','SiBionics', 'DexCom'
@@ -247,7 +247,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 
 //        minSdk 19
             dimension 'wearos'
-        versionCode 820 //WATCH
+        versionCode 821 //WATCH
         //versionName '10.3.10-small'
         versionNameSuffix '-small'
         signingConfig signingConfigs.alg

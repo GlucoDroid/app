@@ -46,7 +46,7 @@ internal fun findCalibratableDriver() = ManagedCalibration.findCalibratableDrive
 // applied locally in standalone mode, relayed to the phone over /calibrate
 // in companion mode.
 @Composable
-fun CalibrationScreen(onDone: () -> Unit) {
+fun CalibrationEntryScreen(onDone: () -> Unit) {
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     val hasLocalDriver = remember { findCalibratableDriver() != null }
     val canRelay = remember { MessageSender.isWearTransportAvailable() && MessageSender.getMessageSender() != null }

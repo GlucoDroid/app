@@ -565,7 +565,16 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
     passhost_t *host=getwearoshost(true,id,galaxy);
     if(!host) return false;
    networkpresent=false;
-    destruct _niets {[]() { networkpresent=true;}};
+    // closeallsocks() below kills the wear Data Layer pumps too; over TCP the
+    // network stack re-triggers a connect, but the tunnel has no such nudge —
+    // without this wake the stream stays dead until the watch's next /wake
+    // (loss alarm, ~10min). Wake AFTER networkpresent is restored, or the
+    // reconnect bails on !networkpresent.
+    destruct _niets {[]() {
+        networkpresent=true;
+        if(backup)
+            backup->wakebackup(wakestream|wakereconnect);
+        }};
    backup->closeallsocks();
    struct updatedata *update=backup->getupdatedata();
     passhost_t *allhosts=update->allhosts;
@@ -695,7 +704,7 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
 
         }
     }
-    else { 
+    else {
         LOGGER("is no watch watchsensor=%d sendstream=%d\n",info->watchsensor,host->isSender()&&getsendto(host).sendstream);
         if(info->watchsensor) {
             settings->data()->nobluetooth=true;
@@ -705,6 +714,26 @@ extern "C" JNIEXPORT jboolean  JNICALL   fromjava(setmynetinfo)(JNIEnv *env, jcl
                 }
             host->receivefrom= host->receivefrom|2;
             LOGGER("sendstream(%d)=false\n",index);
+            }
+        else {
+            // Peer explicitly does not own the sensor: restore the phone to
+            // the companion baseline. Without this the poisoned state set in
+            // the branch above (nobluetooth=true, sendstream=false) persisted
+            // forever — the phone never reconnected to its own sensor and
+            // never resumed streaming, even after the watch stopped claiming.
+            // Phone-only: on the watch nobluetooth=true and receivefrom|2 are
+            // the normal companion state, not poison — clearing them here
+            // killed the watch's subscription to the phone's stream.
+            if constexpr(!iswatchapp()) {
+                if(settings->data()->nobluetooth || (host->isSender() && !getsendto(host).sendstream)) {
+                    settings->data()->nobluetooth=false;
+                    if(host->isSender()) {
+                        getsendto(host).sendstream=true;
+                        }
+                    host->receivefrom = host->receivefrom & ~2;
+                    LOGGER("watchsensor cleared: restore bluetooth + sendstream(%d)=true\n",index);
+                    }
+                }
             }
         }
     return true;

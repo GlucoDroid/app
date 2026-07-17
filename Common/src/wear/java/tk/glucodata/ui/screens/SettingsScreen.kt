@@ -17,6 +17,8 @@ import androidx.wear.compose.material3.TimeText
 import tk.glucodata.Applic
 import tk.glucodata.BuildConfig
 import tk.glucodata.R
+import tk.glucodata.ui.WearNavigationRow
+import tk.glucodata.ui.WearSectionTitle
 
 @Composable
 fun SettingsScreen(
@@ -31,24 +33,13 @@ fun SettingsScreen(
             contentPadding = PaddingValues(horizontal = 22.dp),
         ) {
             item {
-                Text(
-                    text = stringResource(R.string.settings),
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                WearSectionTitle(stringResource(R.string.settings))
             }
             item {
-                Button(
-                    onClick = onOpenAlerts,
-                    label = { Text(stringResource(R.string.alarms)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                WearNavigationRow(stringResource(R.string.alarms), onClick = onOpenAlerts)
             }
             item {
-                Button(
-                    onClick = onOpenSensor,
-                    label = { Text(stringResource(R.string.sensor)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                WearNavigationRow(stringResource(R.string.sensor), onClick = onOpenSensor)
             }
             item {
                 // Unit follows the shared app setting (changed from the phone).

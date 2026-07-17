@@ -25,6 +25,7 @@ import tk.glucodata.R
 import tk.glucodata.alerts.AlertRepository
 import tk.glucodata.alerts.AlertType
 import tk.glucodata.alerts.SnoozeManager
+import tk.glucodata.ui.WearSectionTitle
 
 // Alert enable/disable + threshold display + snooze cancel. Threshold *editing*
 // stays on the phone for now; configs are shared via AlertRepository.
@@ -39,10 +40,7 @@ fun AlertsScreen() {
             contentPadding = PaddingValues(horizontal = 22.dp),
         ) {
             item {
-                Text(
-                    text = stringResource(R.string.alarms),
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                WearSectionTitle(stringResource(R.string.alarms))
             }
             items(AlertType.settingsEntries) { type ->
                 val config = remember(type, revision) {

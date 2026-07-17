@@ -12,6 +12,7 @@ import tk.glucodata.ui.screens.AlertsScreen
 import tk.glucodata.ui.screens.CalibrationScreen
 import tk.glucodata.ui.screens.ChartScreen
 import tk.glucodata.ui.screens.MainScreen
+import tk.glucodata.ui.screens.RecentReadingsScreen
 import tk.glucodata.ui.screens.SensorScreen
 import tk.glucodata.ui.screens.SettingsScreen
 
@@ -21,6 +22,8 @@ object WearRoutes {
     const val ALERTS = "alerts"
     const val SENSOR = "sensor"
     const val CALIBRATE = "calibrate"
+    const val CALIBRATIONS = "calibrations"
+    const val READINGS = "readings"
     const val SETTINGS = "settings"
 }
 
@@ -48,17 +51,25 @@ fun WearApp() {
                     onOpenChart = { navController.navigate(WearRoutes.CHART) },
                     onOpenSettings = { navController.navigate(WearRoutes.SETTINGS) },
                     onOpenSensor = { navController.navigate(WearRoutes.SENSOR) },
+                    onOpenReadings = { navController.navigate(WearRoutes.READINGS) },
+                    onOpenCalibrations = { navController.navigate(WearRoutes.CALIBRATIONS) },
                 )
             }
             composable(WearRoutes.CHART) { ChartScreen() }
+            composable(WearRoutes.READINGS) { RecentReadingsScreen() }
             composable(WearRoutes.ALERTS) { AlertsScreen() }
             composable(WearRoutes.SENSOR) {
                 SensorScreen(
                     onCalibrate = { navController.navigate(WearRoutes.CALIBRATE) },
                 )
             }
+            composable(WearRoutes.CALIBRATIONS) {
+                CalibrationScreen(
+                    onCalibrate = { navController.navigate(WearRoutes.CALIBRATE) },
+                )
+            }
             composable(WearRoutes.CALIBRATE) {
-                CalibrationScreen(onDone = { navController.popBackStack() })
+                tk.glucodata.ui.screens.CalibrationEntryScreen(onDone = { navController.popBackStack() })
             }
             composable(WearRoutes.SETTINGS) {
                 SettingsScreen(
