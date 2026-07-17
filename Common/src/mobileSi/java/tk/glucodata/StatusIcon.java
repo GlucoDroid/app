@@ -8,6 +8,7 @@ import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Icon;
 import android.os.Build;
+import java.util.List;
 import tk.glucodata.Log;
 
 public class StatusIcon {
@@ -124,5 +125,86 @@ public class StatusIcon {
         canvas.drawText(value, x, y, paint);
 
         return Icon.createWithBitmap(bitmap);
+    }
+
+    Icon getIcon(String primaryValue, List<String> peerValues) {
+        if (peerValues == null || peerValues.isEmpty()) {
+            return getIcon(primaryValue);
+        }
+
+        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        Paint paint = createTextPaint();
+
+        int lineCount = 1 + peerValues.size();
+        float peerScale = 0.80f;
+        float totalWeight = 1.0f + peerScale * peerValues.size();
+        float lineGap = Math.max(1f, size * 0.025f);
+        float availableHeight = size - lineGap * (lineCount - 1);
+        float primaryLineHeight = availableHeight / totalWeight;
+        float top = 0f;
+
+        top = drawCenteredLine(canvas, paint, primaryValue, top, primaryLineHeight);
+        for (String peerValue : peerValues) {
+            top += lineGap;
+            top = drawCenteredLine(canvas, paint, peerValue, top, primaryLineHeight * peerScale);
+        }
+
+        return Icon.createWithBitmap(bitmap);
+    }
+
+    private Paint createTextPaint() {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(Color.WHITE);
+        paint.setTextAlign(Paint.Align.LEFT);
+
+        android.content.SharedPreferences prefs = mContext.getSharedPreferences("tk.glucodata_preferences",
+                android.content.Context.MODE_PRIVATE);
+        int fontFamily = prefs.getInt("notification_font_family", 0);
+        int fontWeight = prefs.getInt("notification_font_weight", 400);
+        int effectiveWeight = Math.min(1000, fontWeight + 200);
+        try {
+            if (fontFamily == 0) {
+                Typeface tf = androidx.core.content.res.ResourcesCompat.getFont(mContext, R.font.ibm_plex_sans_var);
+                paint.setTypeface(tf);
+                if (Build.VERSION.SDK_INT >= 26) {
+                    paint.setFontVariationSettings("'wght' " + effectiveWeight + ", 'wdth' 100");
+                }
+            } else {
+                String familyName = effectiveWeight >= 500 ? "google-sans-medium" : "google-sans";
+                Typeface tf = Typeface.create(familyName, Typeface.NORMAL);
+                if (tf == Typeface.DEFAULT && !familyName.equals("google-sans")) {
+                    tf = Typeface.create("google-sans", Typeface.NORMAL);
+                }
+                if (tf == Typeface.DEFAULT) {
+                    tf = Typeface.create("sans-serif", Typeface.NORMAL);
+                }
+                paint.setTypeface(tf);
+                if (Build.VERSION.SDK_INT >= 26) {
+                    paint.setFontVariationSettings("'wght' " + effectiveWeight);
+                }
+            }
+        } catch (Throwable t) {
+            paint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        }
+        return paint;
+    }
+
+    private float drawCenteredLine(Canvas canvas, Paint paint, String text, float top, float lineHeight) {
+        String safeText = text != null ? text : "";
+        float testSize = 100f;
+        paint.setTextSize(testSize);
+        Rect bounds = new Rect();
+        paint.getTextBounds(safeText, 0, safeText.length(), bounds);
+        float measuredWidth = Math.max(1f, bounds.width());
+        float measuredHeight = Math.max(1f, bounds.height());
+        float textSize = testSize * Math.min((size * 0.96f) / measuredWidth, (lineHeight * 0.92f) / measuredHeight);
+        paint.setTextSize(textSize);
+        paint.getTextBounds(safeText, 0, safeText.length(), bounds);
+
+        float x = (size - bounds.width()) / 2f - bounds.left;
+        float y = top + (lineHeight - bounds.height()) / 2f - bounds.top;
+        canvas.drawText(safeText, x, y, paint);
+        return top + lineHeight;
     }
 }

@@ -2,6 +2,8 @@
 
 package tk.glucodata.drivers.sibionics.v116a
 
+import tk.glucodata.drivers.sibionics.SibionicsChemicalSignal
+
 private data class Ptr(val bytes: ByteArray, val off: Int = 0) {
     fun plus(delta: Int): Ptr = Ptr(bytes, off + delta)
 }
@@ -27234,6 +27236,9 @@ internal class SibionicsExactV116ACore(decodedSensitivity: Float = 1.27f) {
     private var decodedSensitivity = decodedSensitivity
     private var context = newContext(decodedSensitivity)
 
+    var latestChemicalSignal: SibionicsChemicalSignal? = null
+        private set
+
     fun configure(value: Float) {
         val normalized = value.takeIf { it.isFinite() } ?: 1.27f
         if (normalized.toRawBits() == decodedSensitivity.toRawBits()) return
@@ -27243,16 +27248,47 @@ internal class SibionicsExactV116ACore(decodedSensitivity: Float = 1.27f) {
 
     fun reset() {
         context = newContext(decodedSensitivity)
+        latestChemicalSignal = null
     }
 
     fun process(rawMmol: Float, temperatureC: Float, index: Int): Float? {
-        if (!rawMmol.isFinite() || rawMmol <= 0f || !temperatureC.isFinite() || index < 1) return null
+        if (!rawMmol.isFinite() || rawMmol <= 0f || !temperatureC.isFinite() || index < 1) {
+            latestChemicalSignal = null
+            return null
+        }
         val trend = Ptr(ByteArray(4))
         val output = algorithm_convert_process(
             Ptr(context), rawMmol.toDouble(), temperatureC.toDouble(), 0.0,
             index, trend, 4.4, 11.1,
         ).toFloat()
+        val pointer = Ptr(context)
+        val filtered = readF32(pointer.plus(0x158)).toFloat()
+        val averageTemperature = readF32(pointer.plus(0x9a0)).toFloat()
+        val compensated = temperatureCompensatedValue(filtered, averageTemperature)
+        val activeSensitivity = readF32(pointer.plus(0xdc)).toFloat()
+        latestChemicalSignal = SibionicsChemicalSignal(
+            mmol = if (activeSensitivity.isFinite() && activeSensitivity > 0f) {
+                (compensated / activeSensitivity).coerceAtLeast(0f)
+            } else {
+                Float.NaN
+            },
+            qualityFlags = readI32(pointer.plus(0x34)),
+        )
         return output.takeIf { it.isFinite() && it > 0f }
+    }
+
+    private fun temperatureCompensatedValue(input: Float, averageTemperature: Float): Float {
+        if (!input.isFinite() || !averageTemperature.isFinite()) return Float.NaN
+        val x = averageTemperature.toDouble()
+        val polynomial =
+            x * -0.03786363 +
+                x * x * -0.7637396454811096 +
+                Math.pow(x, 3.0) * 0.061271119862794876 +
+                Math.pow(x, 4.0) * -0.0019132299348711967 +
+                Math.pow(x, 5.0) * 0.00002677628435776569 +
+                Math.pow(x, 6.0) * -0.00000013804908860493015 +
+                65.21018525
+        return ((input - 0.5) * (34.2 - polynomial) * 0.04 + input).toFloat()
     }
 
     fun snapshot(): ByteArray {

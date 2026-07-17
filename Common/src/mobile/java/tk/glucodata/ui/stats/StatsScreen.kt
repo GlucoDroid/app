@@ -2,7 +2,12 @@
 
 package tk.glucodata.ui.stats
 
+import android.content.ClipData
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.toArgb
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -52,6 +57,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -60,6 +66,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Info
@@ -85,6 +92,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -145,6 +153,7 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.ui.theme.labelLargeExpressive
 
@@ -223,6 +232,8 @@ fun StatsScreen(
     val selectedReportStyle = StatsReportExporter.PdfVisualStyle.fromPref(reportStylePref)
     var selectedTirBand by remember(uiState.summary.tir) { mutableStateOf<TirBand?>(null) }
     var pendingPatientInfo by remember { mutableStateOf<StatsReportExporter.PatientInfo?>(null) }
+    var exportedReportUri by remember { mutableStateOf<Uri?>(null) }
+
     var isPublishing by remember { mutableStateOf(false) }
     var showDateRangePicker by rememberSaveable { mutableStateOf(false) }
     val clearSelectionInteraction = remember { MutableInteractionSource() }
@@ -263,16 +274,25 @@ fun StatsScreen(
                 patientInfo = pendingPatientInfo,
                 reportStyle = StatsReportExporter.PdfVisualStyle.fromPref(pendingReportStylePref)
             )
-            Toast.makeText(
-                context,
-                if (result.isSuccess) context.getString(R.string.export_successful)
-                else context.getString(
-                    R.string.export_failed_with_error,
-                    result.exceptionOrNull()?.message ?: context.getString(R.string.unknown_error)
-                ),
-                Toast.LENGTH_LONG
-            ).show()
+            result.onSuccess {
+                exportedReportUri = uri
+            }.onFailure { throwable ->
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.export_failed_with_error,
+                        throwable.message ?: context.getString(R.string.unknown_error)
+                    ),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
+    }
+
+    LaunchedEffect(exportedReportUri) {
+        val shownUri = exportedReportUri ?: return@LaunchedEffect
+        delay(12_000L)
+        if (exportedReportUri == shownUri) exportedReportUri = null
     }
 
     Box(
@@ -657,6 +677,125 @@ fun StatsScreen(
                 )
             }
         }
+
+        AnimatedVisibility(
+            visible = exportedReportUri != null,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { it / 2 },
+            exit = fadeOut(tween(140)) + slideOutVertically(tween(180)) { it / 2 }
+        ) {
+            ReportExportConfirmation(
+                onOpen = {
+                    exportedReportUri?.let { openPdfReport(context, it) }
+                    exportedReportUri = null
+                },
+                onShare = {
+                    exportedReportUri?.let { sharePdfReport(context, it) }
+                    exportedReportUri = null
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportExportConfirmation(
+    onOpen: () -> Unit,
+    onShare: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.inversePrimary,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                text = stringResource(R.string.export_successful),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Surface(
+                    onClick = onOpen,
+                    shape = RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50),
+                    color = MaterialTheme.colorScheme.inversePrimary,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .height(48.dp)
+                            .padding(horizontal = 18.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.open),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+                Surface(
+                    onClick = onShare,
+                    shape = RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 50),
+                    color = MaterialTheme.colorScheme.inversePrimary,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Box(
+                        modifier = Modifier.size(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Share,
+                            contentDescription = stringResource(R.string.share),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun openPdfReport(context: Context, uri: Uri) {
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/pdf")
+        clipData = ClipData.newUri(context.contentResolver, "CGM report", uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(intent) }
+        .onFailure {
+            Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+        }
+}
+
+private fun sharePdfReport(context: Context, uri: Uri) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/pdf"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        clipData = ClipData.newUri(context.contentResolver, "CGM report", uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching {
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.share)))
+    }.onFailure {
+        Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+
     }
 }
 
@@ -2118,6 +2257,12 @@ private fun AgpChart(
     val minY = minOf(values.minOrNull() ?: lowAnchor, lowAnchor - yPadding)
     val maxY = maxOf(values.maxOrNull() ?: highAnchor, highAnchor + yPadding).coerceAtLeast(minY + 10f)
 
+    val chartContext = LocalContext.current
+    val trafficLineColors = remember(chartContext) {
+        chartContext.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+            .getBoolean("glucose_app_chart_range_colors_enabled", false)
+    }
+    val isDarkTheme = isSystemInDarkTheme()
     val targetBandColor = TirInRangeColor.copy(alpha = 0.16f)
     val iqrBandColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
     val p10P90Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
@@ -2222,6 +2367,9 @@ private fun AgpChart(
             var p90Started = false
             val medianPath = Path()
             var medianStarted = false
+            var prevMedianPoint: Offset? = null
+            var prevMedianValue = 0f
+            val medianSegments = mutableListOf<Triple<Offset, Offset, Float>>()
 
             val upperIqr = mutableListOf<Offset>()
             val lowerIqr = mutableListOf<Offset>()
@@ -2264,8 +2412,15 @@ private fun AgpChart(
                     } else {
                         medianPath.lineTo(x, y)
                     }
+                    val point = Offset(x, y)
+                    prevMedianPoint?.let { previous ->
+                        medianSegments += Triple(previous, point, (median + prevMedianValue) / 2f)
+                    }
+                    prevMedianPoint = point
+                    prevMedianValue = median
                 } else {
                     medianStarted = false
+                    prevMedianPoint = null
                 }
 
                 bin.p75MgDl?.let { upperIqr += Offset(x, yFor(it)) }
@@ -2291,11 +2446,35 @@ private fun AgpChart(
                 color = p10P90Color,
                 style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round)
             )
-            drawPath(
-                path = medianPath,
-                color = medianColor,
-                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-            )
+            if (trafficLineColors) {
+                val medianFallbackArgb = medianColor.toArgb()
+                medianSegments.forEach { (segmentStart, segmentEnd, valueMg) ->
+                    drawLine(
+                        color = Color(
+                            tk.glucodata.GlucoseRangeColors.trafficColorForValue(
+                                valueMg,
+                                targets.lowMgDl,
+                                targets.highMgDl,
+                                targets.veryLowMgDl,
+                                targets.veryHighMgDl,
+                                isDarkTheme,
+                                false,
+                                medianFallbackArgb
+                            )
+                        ),
+                        start = segmentStart,
+                        end = segmentEnd,
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            } else {
+                drawPath(
+                    path = medianPath,
+                    color = medianColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
 
             tickHours.forEach { hour ->
                 val x = xForHour(hour)

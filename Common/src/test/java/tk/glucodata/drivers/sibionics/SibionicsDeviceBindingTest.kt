@@ -1,6 +1,7 @@
 package tk.glucodata.drivers.sibionics
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,6 +23,24 @@ class SibionicsDeviceBindingTest {
     }
 
     @Test
+    fun sibionics2StartsWithItsKnownV120ProtocolInsteadOfUnknown() {
+        assertEquals(
+            SibionicsConstants.ProtocolMode.V120,
+            SibionicsConstants.initialProtocolMode(
+                SibionicsConstants.Variant.SIBIONICS2,
+                SibionicsConstants.ProtocolMode.UNKNOWN,
+            ),
+        )
+        assertEquals(
+            SibionicsConstants.ProtocolMode.V120,
+            SibionicsConstants.initialProtocolMode(
+                SibionicsConstants.Variant.SIBIONICS2,
+                SibionicsConstants.ProtocolMode.CHINESE,
+            ),
+        )
+    }
+
+    @Test
     fun sensorQrIdentityWinsWhileBleNameIsRetainedAsAlias() {
         val qr = "\u001D0106972831641476112512161727061510LT46251211C" +
             "\u001D21P2251211237GDR75"
@@ -34,6 +53,22 @@ class SibionicsDeviceBindingTest {
         assertFalse(identity.sensorId.equals("SIBI:P225043JMV", ignoreCase = true))
         assertFalse(identity.displayName.equals("P225043JMV", ignoreCase = true))
         assertTrue(identity.bleName.equals("P225043JMV", ignoreCase = true))
+    }
+
+    @Test
+    fun v120FramedQrMatchesOfficialIdentityWindowExactly() {
+        val qr = "\u001D0106972831641476112507301726072910LT46250683C" +
+            "\u001D21P2250683013AQT98"
+        val identity = SibionicsRegistry.buildIdentity(
+            rawInput = qr,
+            bleName = "P225043JMV",
+            variant = SibionicsConstants.Variant.SIBIONICS2,
+        )
+
+        assertEquals("0683013AQT9", identity.displayName)
+        assertEquals("SIBI:0683013AQT9", identity.sensorId)
+        assertEquals("0683013A", identity.shortCode)
+        assertEquals("P225043JMV", identity.bleName)
     }
 
     @Test

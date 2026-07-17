@@ -49,6 +49,33 @@ class SibionicsAlgorithmRebuilderTest {
         assertFalse(SibionicsAlgorithmRebuilder.isContiguousFromSensorStart(listOf(sample(1), sample(3))))
     }
 
+    @Test
+    fun persistsStockModelValuesNearestToCalibrationAnchors() {
+        val start = 1_700_000_000_000L
+        val baseline = SibionicsAlgorithmRebuilder.calibrationBaselineAtAnchors(
+            displayStock = floatArrayOf(8f, 8.2f, 8.4f, 8.6f),
+            timestamps = longArrayOf(start, start + 60_000L, start + 120_000L, start + 180_000L),
+            packedAnchors = doubleArrayOf(13.0, 10.0, (start + 70_000L).toDouble()),
+        )
+
+        requireNotNull(baseline)
+        assertEquals(1, baseline.values.size)
+        assertEquals(8.2f, baseline.values[0], 0.001f)
+        assertEquals(start + 60_000L, baseline.timestamps[0])
+    }
+
+    @Test
+    fun doesNotSeedBaselineFromUnrelatedHistory() {
+        val start = 1_700_000_000_000L
+        val baseline = SibionicsAlgorithmRebuilder.calibrationBaselineAtAnchors(
+            displayStock = floatArrayOf(8f, 8.2f),
+            timestamps = longArrayOf(start, start + 60_000L),
+            packedAnchors = doubleArrayOf(13.0, 10.0, (start + 12L * 60_000L).toDouble()),
+        )
+
+        assertEquals(null, baseline)
+    }
+
     private fun sample(index: Int) = SibionicsSourceSample(
         index = index,
         timestampMs = 1_700_000_000_000L + index * 60_000L,

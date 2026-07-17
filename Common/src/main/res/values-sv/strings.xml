@@ -161,6 +161,7 @@
   <string name="addsensorenddate">Lägg till sensorns slutdatum i kalenderappen</string>
   <string name="enddatesensor">"Sensorns slutdatum "</string>
   <string name="open">Öppna</string>
+  <string name="share">Dela</string>
   <string name="withoutsensor">Utan sensor</string>
   <string name="wronglibrary">Programbiblioteket fungerar inte korrekt. Prova ett annat.</string>
   <string name="installedlibrary">Installerat bibliotek</string>
@@ -542,9 +543,9 @@
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Sensoralgoritm</string>
     <string name="sibionics_custom_algorithm">Adaptiv sensormodell (experimentell)</string>
-    <string name="sibionics_custom_algorithm_desc">Tillståndsfiltrering, viktning av signalkvalitet och avvikelsefiltrering</string>
+    <string name="sibionics_custom_algorithm_desc">Kompensation för sensordrift, fysiologisk fördröjning och artefakter</string>
     <string name="sibionics_stock_algorithm_desc">Standardmodell för sensor</string>
-    <string name="sibionics_stock_algorithm_detail">Använd mätarkalibreringar i sensoralgoritmen</string>
+    <string name="sibionics_stock_algorithm_detail">Använd kalibreringar i sensoralgoritmen</string>
     <string name="sibionics_restart_algorithm_desc">Återskapa minutalgoritmens tillstånd från sparad sensorhistorik</string>
     <string name="juggluco_native">Juggluco inbyggd</string>
     <string name="window_label">fönster</string>
@@ -1944,5 +1945,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_import_export_ready">Sparat material för %1$s är redo.</string>
     <string name="ottai_credentials_import">Importera</string>
     <string name="ottai_credentials_replace">Ersätt</string>
+    <string name="sibionics_glucose_model">Glukosmodell</string>
+    <string name="sibionics_stock_model_detail">Exakt Sibionics-sensoralgoritm</string>
+    <string name="sibionics_responsive_algorithm">Responsiv skattare</string>
+    <string name="sibionics_responsive_algorithm_desc">Ursprunglig trendstyrd skattare för glukos och hastighet</string>
+    <string name="sibionics_balanced_algorithm">Balanserad spårning</string>
+    <string name="sibionics_balanced_algorithm_desc">Begränsad brusreducering nära standardmodellen</string>
+    <string name="sibionics_state_algorithm">Kemisk tillståndsmodell</string>
+    <string name="sibionics_state_algorithm_desc">Kompensation för sensordrift, fysiologisk fördröjning och artefakter</string>
     <string name="wear_libre_nfc_caveat">Libre-sensorer aktiveras först med telefonens NFC. Efter aktivering kan den här klockan ta över.</string>
 </resources>

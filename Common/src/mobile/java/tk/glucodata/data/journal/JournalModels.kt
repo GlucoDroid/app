@@ -179,7 +179,9 @@ data class JournalActiveInsulinSummary(
     val activeEntryCount: Int,
     val totalUnits: Float,
     val weightedActivityPercent: Int,
-    val nextEndingAt: Long?
+    val nextEndingAt: Long?,
+    val iobUnits: Float = 0f,
+    val eiobUnits: Float = 0f
 )
 
 enum class JournalBuiltInCurveProfile {

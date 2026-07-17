@@ -165,6 +165,7 @@
  <string name="addsensorenddate">Takvime sensör bitiş tarihi ekle</string>
  <string name="enddatesensor">"Sensör bitiş tarihi"</string>
  <string name="open">Aç</string>
+ <string name="share">Paylaş</string>
  <string name="withoutsensor">Sensör olmadan</string>
  <string name="wronglibrary">Kütüphane düzgün çalışmıyor, farklı bir tane deneyin.</string>
  <string name="installedlibrary">Yüklü kütüphane</string>
@@ -594,7 +595,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Sensör algoritması</string>
     <string name="sibionics_custom_algorithm">Uyarlanabilir sensör modeli (deneysel)</string>
-    <string name="sibionics_custom_algorithm_desc">Durumlu filtreleme, sinyal kalitesi ağırlığı ve aykırı değer reddi</string>
+    <string name="sibionics_custom_algorithm_desc">Sensör kayması, fizyolojik gecikme ve artefakt telafisi</string>
     <string name="sibionics_stock_algorithm_desc">Standart sensör modeli</string>
     <string name="sibionics_stock_algorithm_detail">Ölçüm kalibrasyonlarını sensör algoritması içinde kullan</string>
     <string name="sibionics_restart_algorithm_desc">Dakikalık algoritma durumunu kayıtlı sensör geçmişinden yeniden oluştur</string>
@@ -1973,4 +1974,12 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_credentials_import">İçe aktar</string>
     <string name="ottai_credentials_replace">Değiştir</string>
     <string name="wear_libre_nfc_caveat">Libre sensörleri önce telefonun NFC\'siyle etkinleştirilir. Etkinleştirmeden sonra bu saat devralabilir.</string>
+    <string name="sibionics_glucose_model">Glikoz modeli</string>
+    <string name="sibionics_stock_model_detail">Tam Sibionics sensör algoritması</string>
+    <string name="sibionics_responsive_algorithm">Hızlı tahminleyici</string>
+    <string name="sibionics_responsive_algorithm_desc">Özgün eğilim duyarlı glikoz ve hız tahminleyicisi</string>
+    <string name="sibionics_balanced_algorithm">Dengeli izleyici</string>
+    <string name="sibionics_balanced_algorithm_desc">Standart modele yakın, sınırlı gürültü azaltma</string>
+    <string name="sibionics_state_algorithm">Kimyasal durum modeli</string>
+    <string name="sibionics_state_algorithm_desc">Sensör kayması, fizyolojik gecikme ve artefakt telafisi</string>
 </resources>

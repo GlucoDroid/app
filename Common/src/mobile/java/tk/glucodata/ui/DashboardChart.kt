@@ -644,6 +644,8 @@ fun DashboardChartSection(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    showEiob: Boolean = true,
+    appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
     graphSmoothingMinutes: Int = 0,
@@ -684,6 +686,8 @@ fun DashboardChartSection(
                         peerPredictionSeries = peerPredictionSeries,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
+                        showEiob = showEiob,
+                        appChartRangeColors = appChartRangeColors,
                         predictionPoints = predictionPoints,
                         predictionSeries = predictionSeries,
                         graphSmoothingMinutes = graphSmoothingMinutes,
@@ -747,6 +751,8 @@ fun InteractiveGlucoseChart(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    showEiob: Boolean = true,
+    appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
     graphSmoothingMinutes: Int = 0,
@@ -2022,6 +2028,7 @@ fun InteractiveGlucoseChart(
             // Multi-sensor: the primary trace carries a subtle identity tint so
             // it pairs with its (tinted) values, like the peer traces do.
             val primaryLineTintFraction = if (peerChartSeries.isNotEmpty()) 0.22f else 0f
+            val appTrafficDark = isSystemInDarkTheme()
             val gradientBrush = remember(
                 limitYVeryHigh,
                 limitYHigh,
@@ -2032,7 +2039,9 @@ fun InteractiveGlucoseChart(
                 highOutOfRangeTintBase,
                 lowOutOfRangeTintBase,
                 primaryLineTintFraction,
-                primaryIdentityColor
+                primaryIdentityColor,
+                appChartRangeColors,
+                appTrafficDark
             ) {
                 if (chartHeightPx <= 0f) {
                     Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
@@ -2044,11 +2053,28 @@ fun InteractiveGlucoseChart(
                             color
                         }
 
-                    val veryHighTint = identityTinted(Color(GlucoseRangeColors.VERY_HIGH))
-                    val highTint = identityTinted(highOutOfRangeTintBase)
-                    val lowTint = identityTinted(lowOutOfRangeTintBase)
-                    val veryLowTint = identityTinted(Color(GlucoseRangeColors.VERY_LOW))
-                    val inRangeTint = identityTinted(primaryColor)
+                    // Traffic mode swaps the muted tints for the same palette
+                    // the value/notification coloring uses, incl. green in range.
+                    val veryHighTint = identityTinted(
+                        if (appChartRangeColors) Color(GlucoseRangeColors.valueOut(appTrafficDark))
+                        else Color(GlucoseRangeColors.VERY_HIGH)
+                    )
+                    val highTint = identityTinted(
+                        if (appChartRangeColors) Color(GlucoseRangeColors.valueBorderline(appTrafficDark))
+                        else highOutOfRangeTintBase
+                    )
+                    val lowTint = identityTinted(
+                        if (appChartRangeColors) Color(GlucoseRangeColors.valueBorderline(appTrafficDark))
+                        else lowOutOfRangeTintBase
+                    )
+                    val veryLowTint = identityTinted(
+                        if (appChartRangeColors) Color(GlucoseRangeColors.valueOut(appTrafficDark))
+                        else Color(GlucoseRangeColors.VERY_LOW)
+                    )
+                    val inRangeTint = identityTinted(
+                        if (appChartRangeColors) Color(GlucoseRangeColors.valueInRange(appTrafficDark))
+                        else primaryColor
+                    )
                     val fadePx = 18f
                     val stops = mutableListOf<Pair<Float, Color>>()
 
@@ -3393,11 +3419,14 @@ fun InteractiveGlucoseChart(
                 }
 
             activeInsulinSummary?.let { summary ->
-                val totalUnitsLabel = if (summary.totalUnits % 1f < 0.05f) {
-                    summary.totalUnits.roundToInt().toString()
-                } else {
-                    String.format(java.util.Locale.getDefault(), "%.1f", summary.totalUnits)
+                val unitsLabel = { units: Float ->
+                    if (units % 1f < 0.05f) {
+                        units.roundToInt().toString()
+                    } else {
+                        String.format(java.util.Locale.getDefault(), "%.1f", units)
+                    }
                 }
+                val totalUnitsLabel = unitsLabel(summary.totalUnits)
                 val remainingLabel = summary.nextEndingAt
                     ?.let { formatRemainingDuration(it - System.currentTimeMillis()) }
                     ?.takeIf { it.isNotBlank() }
@@ -3418,16 +3447,18 @@ fun InteractiveGlucoseChart(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "${totalUnitsLabel}U",
+                                text = "IOB ${unitsLabel(summary.iobUnits)}U",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "${summary.weightedActivityPercent}%",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            if (showEiob) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "eIOB ${unitsLabel(summary.eiobUnits)}U",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             remainingLabel?.let { label ->
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Icon(
@@ -3451,6 +3482,16 @@ fun InteractiveGlucoseChart(
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = buildString {
+                                        append(stringResource(R.string.journal_iob_expanded, unitsLabel(summary.iobUnits)))
+                                        if (showEiob) {
+                                            append(" · ")
+                                            append(stringResource(R.string.journal_eiob_expanded, unitsLabel(summary.eiobUnits)))
+                                        }
+                                    },
+                                    style = MaterialTheme.typography.titleSmall
                                 )
                                 Text(
                                     text = stringResource(

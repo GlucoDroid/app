@@ -166,6 +166,7 @@
 <string name="addsensorenddate">Adicionar data de término do sensor à aplicação de calendário</string>
 <string name="enddatesensor">"Sensor de data final "</string>
 <string name="open">Abrir</string>
+<string name="share">Partilhar</string>
 <string name="withoutsensor">Sem sensor</string>
 <string name="wronglibrary">A biblioteca não está funcionando corretamente, tente outra</string>
 <string name="installedlibrary">Biblioteca instalada</string>
@@ -441,7 +442,7 @@
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Algoritmo do sensor</string>
     <string name="sibionics_custom_algorithm">Modelo adaptativo do sensor (experimental)</string>
-    <string name="sibionics_custom_algorithm_desc">Filtragem com estado, ponderação da qualidade do sinal e rejeição de anomalias</string>
+    <string name="sibionics_custom_algorithm_desc">Compensação da deriva do sensor, atraso fisiológico e artefactos</string>
     <string name="sibionics_stock_algorithm_desc">Modelo padrão do sensor</string>
     <string name="sibionics_stock_algorithm_detail">Usar calibrações do medidor dentro do algoritmo do sensor</string>
     <string name="sibionics_restart_algorithm_desc">Reconstruir o estado minuto a minuto a partir do histórico guardado</string>
@@ -1946,4 +1947,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_import">Importar</string>
     <string name="ottai_credentials_replace">Substituir</string>
     <string name="wear_libre_nfc_caveat">Os sensores Libre são ativados primeiro pelo NFC do telefone. Depois da ativação, este relógio pode assumir.</string>
+    <string name="sibionics_glucose_model">Modelo de glicose</string>
+    <string name="sibionics_stock_model_detail">Algoritmo exato do sensor Sibionics</string>
+    <string name="sibionics_responsive_algorithm">Estimador responsivo</string>
+    <string name="sibionics_responsive_algorithm_desc">Estimador original de glicose e velocidade orientado pela tendência</string>
+    <string name="sibionics_balanced_algorithm">Rastreador equilibrado</string>
+    <string name="sibionics_balanced_algorithm_desc">Redução limitada de ruído próxima do modelo padrão</string>
+    <string name="sibionics_state_algorithm">Modelo de estado químico</string>
+    <string name="sibionics_state_algorithm_desc">Compensação da deriva do sensor, atraso fisiológico e artefactos</string>
 </resources>

@@ -3,6 +3,7 @@
 package tk.glucodata.ui.journal
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,7 +32,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,10 +49,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
+import kotlinx.coroutines.delay
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.journal.JournalIobCalculator
 import tk.glucodata.ui.ChartViewportSnapshot
 import tk.glucodata.ui.DashboardChartSection
 import tk.glucodata.ui.GlucosePoint
@@ -101,7 +106,9 @@ fun JournalScreen(
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
     useStatusBarsPadding: Boolean = true,
-    bottomContentPadding: Dp = 104.dp
+    bottomContentPadding: Dp = 104.dp,
+    showEiob: Boolean = true,
+    chartRangeColors: Boolean = false
 ) {
     val view = LocalView.current
     val sortedHistory = remember(glucoseHistory) { glucoseHistory.sortedBy { it.timestamp } }
@@ -169,7 +176,8 @@ fun JournalScreen(
             item(key = "journal-metrics") {
                 JournalMetricsPanel(
                     entries = journalEntries,
-                    presetsById = presetsById
+                    presetsById = presetsById,
+                    showEiob = showEiob
                 )
             }
 
@@ -183,6 +191,7 @@ fun JournalScreen(
                     ) {
                         DashboardChartSection(
                             modifier = Modifier.matchParentSize(),
+                            appChartRangeColors = chartRangeColors,
                             glucoseHistory = sortedHistory,
                             journalMarkers = markers,
                             graphSmoothingMinutes = graphSmoothingMinutes,
@@ -423,9 +432,19 @@ private fun JournalHeader(
 @Composable
 private fun JournalMetricsPanel(
     entries: List<JournalEntry>,
-    presetsById: Map<Long, JournalInsulinPreset>
+    presetsById: Map<Long, JournalInsulinPreset>,
+    showEiob: Boolean
 ) {
-    val nowMillis = remember(entries) { System.currentTimeMillis() }
+    // Tick the clock so IOB/eIOB keep decaying while the screen stays open
+    // (mirrors the dashboard's journalNow ticker).
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(entries) {
+        nowMillis = System.currentTimeMillis()
+        while (true) {
+            delay(30_000L)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
     val zone = remember { ZoneId.systemDefault() }
     val startOfDayMillis = remember(nowMillis, zone) {
         LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -434,18 +453,25 @@ private fun JournalMetricsPanel(
         entries.filter { it.timestamp in startOfDayMillis..nowMillis }
     }
     val activeInsulin = remember(entries, presetsById, nowMillis) {
-        buildActiveInsulinSummary(entries, presetsById, nowMillis)
+        JournalIobCalculator.buildActiveInsulinSummary(entries, presetsById, nowMillis)
     }
-    val activeInsulinUnits = activeInsulin
-        ?.let { it.totalUnits * (it.weightedActivityPercent / 100f) }
-        ?.coerceAtLeast(0f)
-        ?: 0f
+    val iobUnits = activeInsulin?.iobUnits?.coerceAtLeast(0f) ?: 0f
+    val eiobUnits = activeInsulin?.eiobUnits?.coerceAtLeast(0f) ?: 0f
     val activeUntilFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val activeInsulinDetail = activeInsulin?.nextEndingAt?.let { endingAt ->
+    val eiobText = if (showEiob) {
+        stringResource(R.string.journal_metric_eiob, formatJournalMetric(eiobUnits))
+    } else {
+        null
+    }
+    val untilText = activeInsulin?.nextEndingAt?.let { endingAt ->
         stringResource(R.string.journal_active_insulin_until, activeUntilFormatter.format(Date(endingAt)))
-    } ?: activeInsulin?.let {
-        stringResource(R.string.journal_active_now_percent, it.weightedActivityPercent)
-    } ?: stringResource(R.string.journal_no_active_insulin)
+    }
+    val activeInsulinDetail = if (activeInsulin == null) {
+        stringResource(R.string.journal_no_active_insulin)
+    } else {
+        listOfNotNull(eiobText, untilText).joinToString(" · ")
+            .ifEmpty { stringResource(R.string.journal_active_now_percent, activeInsulin.weightedActivityPercent) }
+    }
     val foodToday = todaysEntries
         .filter { it.type == JournalEntryType.CARBS }
         .sumOf { (it.amount ?: 0f).toDouble() }
@@ -458,15 +484,21 @@ private fun JournalMetricsPanel(
         .filter { it.type == JournalEntryType.ACTIVITY }
         .sumOf { (it.durationMinutes ?: 0).toInt() }
 
+    var iobDetailsExpanded by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             JournalMetricCard(
-                title = stringResource(R.string.journal_active_insulin),
-                value = "${formatJournalMetric(activeInsulinUnits)} U",
+                title = stringResource(R.string.journal_metric_iob),
+                value = "${formatJournalMetric(iobUnits)} U",
                 detail = activeInsulinDetail,
                 icon = Icons.Default.Vaccines,
                 type = JournalEntryType.INSULIN,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = if (activeInsulin != null) {
+                    { iobDetailsExpanded = !iobDetailsExpanded }
+                } else {
+                    null
+                }
             )
             JournalMetricCard(
                 title = stringResource(R.string.journal_type_food),
@@ -479,6 +511,63 @@ private fun JournalMetricsPanel(
                 type = JournalEntryType.CARBS,
                 modifier = Modifier.weight(1f)
             )
+        }
+        AnimatedVisibility(visible = iobDetailsExpanded && activeInsulin != null) {
+            activeInsulin?.let { summary ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = journalTypeSelectedContainerColor(
+                        JournalEntryType.INSULIN,
+                        MaterialTheme.colorScheme.surfaceContainerHighest
+                    ).copy(alpha = 0.68f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = buildString {
+                                append(
+                                    stringResource(
+                                        R.string.journal_iob_expanded,
+                                        formatJournalMetric(summary.iobUnits.coerceAtLeast(0f))
+                                    )
+                                )
+                                if (showEiob) {
+                                    append(" · ")
+                                    append(
+                                        stringResource(
+                                            R.string.journal_eiob_expanded,
+                                            formatJournalMetric(summary.eiobUnits.coerceAtLeast(0f))
+                                        )
+                                    )
+                                }
+                            },
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.journal_active_insulin_summary,
+                                summary.activeEntryCount,
+                                formatJournalMetric(summary.totalUnits),
+                                summary.weightedActivityPercent
+                            ),
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        summary.nextEndingAt?.let { endingAt ->
+                            Text(
+                                text = stringResource(
+                                    R.string.journal_active_insulin_until,
+                                    activeUntilFormatter.format(Date(endingAt))
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             JournalMetricCard(
@@ -508,10 +597,13 @@ private fun JournalMetricCard(
     detail: String,
     icon: ImageVector,
     type: JournalEntryType,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     val tint = journalTypeColor(type)
     Surface(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
         modifier = modifier.heightIn(min = 74.dp),
         shape = RoundedCornerShape(18.dp),
         color = journalTypeSelectedContainerColor(

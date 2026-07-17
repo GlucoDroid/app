@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
@@ -143,7 +144,8 @@ fun SettingsSwitchItem(
     iconTint: Color? = null,
     position: CardPosition = CardPosition.SINGLE,
     enabled: Boolean = true,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitleStyle: TextStyle = MaterialTheme.typography.bodySmall
 ) {
     SettingsItem(
         title = title,

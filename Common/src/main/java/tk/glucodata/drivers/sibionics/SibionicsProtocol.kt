@@ -179,6 +179,10 @@ object SibionicsProtocol {
     /** Direct FF32 reset command observed on GS1/V120 firmware. */
     fun buildGs1ResetPacket(): ByteArray = byteArrayOf(0x24, 0xE7.toByte(), 0x6F, 0x34)
 
+    /** Direct FF32 reset command used by Chinese AA55 firmware. */
+    fun buildChineseResetPacket(): ByteArray =
+        byteArrayOf(0xAA.toByte(), 0x55, 0x10, 0xF1.toByte())
+
     fun estimateChineseHistoryTotal(
         previousTotal: Int,
         receivedCount: Int,

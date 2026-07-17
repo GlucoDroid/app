@@ -159,6 +159,7 @@
 <string name="addsensorenddate">Aggiungi il sensore e aggiungi la data di fine al calendario</string>
 <string name="enddatesensor">"Data di fine sensore "</string>
 <string name="open">Apri</string>
+<string name="share">Condividi</string>
 <string name="withoutsensor">Senza sensore</string>
 <string name="wronglibrary">Libreria non funzionante, prova con un\'altra</string>
 <string name="installedlibrary">Libreria installata</string>
@@ -414,9 +415,9 @@
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Algoritmo del sensore</string>
     <string name="sibionics_custom_algorithm">Modello adattivo del sensore (sperimentale)</string>
-    <string name="sibionics_custom_algorithm_desc">Filtro con stato, ponderazione della qualità del segnale e rifiuto delle anomalie</string>
+    <string name="sibionics_custom_algorithm_desc">Compensazione della deriva del sensore, del ritardo fisiologico e degli artefatti</string>
     <string name="sibionics_stock_algorithm_desc">Modello standard del sensore</string>
-    <string name="sibionics_stock_algorithm_detail">Usa le calibrazioni del misuratore nell’algoritmo del sensore</string>
+    <string name="sibionics_stock_algorithm_detail">Usa le calibrazioni nell’algoritmo del sensore</string>
     <string name="sibionics_restart_algorithm_desc">Ricostruisci lo stato minuto per minuto dalla cronologia del sensore</string>
     <string name="juggluco_native">Juggluco nativo</string>
     <string name="window_label">finestra</string>
@@ -1935,4 +1936,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_import">Importa</string>
     <string name="ottai_credentials_replace">Sostituisci</string>
     <string name="wear_libre_nfc_caveat">I sensori Libre si attivano prima con l\'NFC del telefono. Dopo l\'attivazione, questo orologio può prenderli in carico.</string>
+    <string name="sibionics_glucose_model">Modello glicemico</string>
+    <string name="sibionics_stock_model_detail">Algoritmo esatto del sensore Sibionics</string>
+    <string name="sibionics_responsive_algorithm">Stimatore reattivo</string>
+    <string name="sibionics_responsive_algorithm_desc">Stimatore originale di glicemia e velocità basato sulla tendenza</string>
+    <string name="sibionics_balanced_algorithm">Tracciamento bilanciato</string>
+    <string name="sibionics_balanced_algorithm_desc">Riduzione limitata del rumore vicina al modello standard</string>
+    <string name="sibionics_state_algorithm">Modello di stato chimico</string>
+    <string name="sibionics_state_algorithm_desc">Compensazione della deriva del sensore, del ritardo fisiologico e degli artefatti</string>
 </resources>

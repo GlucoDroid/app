@@ -30,6 +30,14 @@ object SibionicsConstants {
         V120,
     }
 
+    internal fun initialProtocolMode(variant: Variant, persisted: ProtocolMode): ProtocolMode =
+        when {
+            variant == Variant.SIBIONICS2 -> ProtocolMode.V120
+            persisted != ProtocolMode.UNKNOWN -> persisted
+            variant.prefersChineseProbe -> ProtocolMode.CHINESE
+            else -> ProtocolMode.UNKNOWN
+        }
+
     enum class Variant(
         val id: String,
         val legacySubtype: Int,

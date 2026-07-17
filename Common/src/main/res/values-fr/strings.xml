@@ -165,6 +165,7 @@
 <string name="addsensorenddate">Ajouter date de fin de capteur dans le calendrier par l\'appli</string>
 <string name="enddatesensor">"Date de fin du capteur "</string>
 <string name="open">Ouvrir</string>
+<string name="share">Partager</string>
 <string name="withoutsensor">Sans capteur</string>
 <string name="wronglibrary">La librairie ne fonctionne pas correctement, essayez une autre</string>
 <string name="installedlibrary">Librairie installée</string>
@@ -488,7 +489,7 @@
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Algorithme du capteur</string>
     <string name="sibionics_custom_algorithm">Modèle adaptatif du capteur (expérimental)</string>
-    <string name="sibionics_custom_algorithm_desc">Filtrage avec état, pondération de la qualité du signal et rejet des anomalies</string>
+    <string name="sibionics_custom_algorithm_desc">Compensation de la dérive du capteur, du retard physiologique et des artefacts</string>
     <string name="sibionics_stock_algorithm_desc">Modèle standard du capteur</string>
     <string name="sibionics_stock_algorithm_detail">Utiliser les étalonnages du lecteur dans l’algorithme du capteur</string>
     <string name="sibionics_restart_algorithm_desc">Reconstruire l’état minute par minute depuis l’historique du capteur</string>
@@ -1951,4 +1952,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_import">Importer</string>
     <string name="ottai_credentials_replace">Remplacer</string>
     <string name="wear_libre_nfc_caveat">Les capteurs Libre s\'activent d\'abord avec le NFC du téléphone. Après l\'activation, cette montre peut prendre le relais.</string>
+    <string name="sibionics_glucose_model">Modèle de glucose</string>
+    <string name="sibionics_stock_model_detail">Algorithme exact du capteur Sibionics</string>
+    <string name="sibionics_responsive_algorithm">Estimateur réactif</string>
+    <string name="sibionics_responsive_algorithm_desc">Estimateur original de la glycémie et de sa vitesse</string>
+    <string name="sibionics_balanced_algorithm">Suivi équilibré</string>
+    <string name="sibionics_balanced_algorithm_desc">Réduction du bruit limitée, proche du modèle standard</string>
+    <string name="sibionics_state_algorithm">Modèle d’état chimique</string>
+    <string name="sibionics_state_algorithm_desc">Compensation de la dérive du capteur, du retard physiologique et des artefacts</string>
 </resources>

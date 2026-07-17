@@ -68,6 +68,11 @@ public class NotificationChartDrawer {
         }
     }
 
+    // Optional GDH-style traffic coloring of the chart line, resolved from
+    // prefs at each drawChartInternal entry (single funnel for all charts).
+    private static volatile boolean sTrafficLineColors = false;
+    private static volatile boolean sTrafficLineDark = false;
+
     private static int resolveThresholdPointColor(
             float value,
             float targetLow,
@@ -76,6 +81,17 @@ public class NotificationChartDrawer {
             float veryHighThreshold,
             int inRangeColor,
             boolean isMmol) {
+        if (sTrafficLineColors) {
+            return GlucoseRangeColors.trafficColorForValue(
+                    value,
+                    targetLow,
+                    targetHigh,
+                    veryLowThreshold,
+                    veryHighThreshold,
+                    sTrafficLineDark,
+                    isMmol,
+                    inRangeColor);
+        }
         return GlucoseRangeColors.colorForValue(
                 value,
                 targetLow,
@@ -1428,6 +1444,9 @@ public class NotificationChartDrawer {
     private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
             String calibrationSensorId, long durationMs, boolean showPredictionOverlay, List<PeerSeries> peerSeries) {
+        sTrafficLineColors = context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+                .getBoolean("glucose_chart_range_colors_enabled", false);
+        sTrafficLineDark = useLightOnTransparentPalette(context);
         // Get display metrics for proper sizing
         DisplayMetrics dm = context.getResources().getDisplayMetrics();
         int width = (widthHint > 0) ? widthHint : dm.widthPixels;

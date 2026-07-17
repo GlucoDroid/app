@@ -1741,6 +1741,26 @@ class AiDexBleManager(
     // GATT Callbacks
     // =========================================================================
 
+    // Consecutive GATT_CONNECTING failures (status 133 / CONNECTION_FAILED_ESTABLISHMENT).
+    // A hard-to-reach sensor retried every few seconds can wedge the Bluetooth stack, so
+    // these are backed off progressively. Reset on a successful connection.
+    private var consecutiveConnectFailures = 0
+
+    /**
+     * Clear the Android GATT service cache for this connection via the hidden
+     * BluetoothGatt.refresh() (reflection). Helps recover from the stale connection
+     * state that causes persistent status-133 connect failures.
+     */
+    private fun refreshDeviceCache(gatt: BluetoothGatt?) {
+        if (gatt == null) return
+        try {
+            val ok = gatt.javaClass.getMethod("refresh").invoke(gatt) as? Boolean ?: false
+            Log.i(TAG, "refreshDeviceCache: gatt.refresh()=$ok")
+        } catch (t: Throwable) {
+            Log.w(TAG, "refreshDeviceCache: refresh() failed: ${t.message}")
+        }
+    }
+
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         super.onConnectionStateChange(gatt, status, newState)
         if (newState == BluetoothProfile.STATE_CONNECTED || newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -1764,6 +1784,7 @@ class AiDexBleManager(
             }
             connectTime = now
             constatstatusstr = "Connected"
+            consecutiveConnectFailures = 0  // link established — clear the 133 backoff streak
             _isPaused = false  // Clear paused flag — connection is active
             cancelBroadcastScan()
             liveOffsetCutoff = 0  // Reset live offset cutoff for this connection session
@@ -1984,8 +2005,20 @@ class AiDexBleManager(
                 Log.i(TAG, "Paused (stop=true) — not scheduling reconnect")
                 close()
             } else if (!reconnect.isBroadcastOnlyMode) {
-                val delay = reconnect.nextReconnectDelayMs()
-                Log.i(TAG, "Scheduling reconnect in ${delay}ms (attempt ${reconnect.softAttempts})")
+                // status 133 (GATT_ERROR / CONNECTION_FAILED_ESTABLISHMENT) is a hard
+                // link-layer connect failure; retrying every few seconds can wedge the
+                // Bluetooth stack (as seen in the field). Back off progressively and clear
+                // the stale GATT cache before retrying. Other statuses use the normal delay.
+                val extraDelay = if (status == 133) {
+                    consecutiveConnectFailures += 1
+                    refreshDeviceCache(gatt)
+                    (consecutiveConnectFailures.toLong() * 3_000L).coerceAtMost(30_000L)
+                } else {
+                    consecutiveConnectFailures = 0
+                    0L
+                }
+                val delay = reconnect.nextReconnectDelayMs() + extraDelay
+                Log.i(TAG, "Scheduling reconnect in ${delay}ms (attempt ${reconnect.softAttempts}, connectFailures=$consecutiveConnectFailures)")
                 close()
                 handler.postDelayed({ connectDevice(0) }, delay)
             } else {

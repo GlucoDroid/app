@@ -165,6 +165,7 @@
  <string name="addsensorenddate">Додайте кінцеву дату датчика до календаря</string>
  <string name="enddatesensor">"Датчик кінцевої дати "</string>
  <string name="open">Відкрити</string>
+ <string name="share">Поділитися</string>
  <string name="withoutsensor">Без датчика</string>
  <string name="wronglibrary">Бібліотека не працює належним чином, спробуйте іншу</string>
  <string name="installedlibrary">Встановлена бібліотека</string>
@@ -553,9 +554,9 @@
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">Алгоритм датчика</string>
     <string name="sibionics_custom_algorithm">Адаптивна модель датчика (експериментальна)</string>
-    <string name="sibionics_custom_algorithm_desc">Фільтрація зі станом, оцінка якості сигналу та відхилення аномалій</string>
+    <string name="sibionics_custom_algorithm_desc">Компенсація дрейфу датчика, фізіологічної затримки й артефактів</string>
     <string name="sibionics_stock_algorithm_desc">Штатна модель датчика</string>
-    <string name="sibionics_stock_algorithm_detail">Використовувати калібрування за глюкометром усередині алгоритму датчика</string>
+    <string name="sibionics_stock_algorithm_detail">Використовувати калібрування усередині алгоритму датчика</string>
     <string name="sibionics_restart_algorithm_desc">Відновити хвилинний стан алгоритму зі збереженої історії датчика</string>
     <string name="juggluco_native">Рідний Juggluco</string>
     <string name="window_label">вікно</string>
@@ -2017,4 +2018,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_import_export_ready">Збережені матеріали для %1$s готові.</string>
     <string name="ottai_credentials_import">Імпорт</string>
     <string name="ottai_credentials_replace">Замінити</string>
+    <string name="sibionics_glucose_model">Модель глюкози</string>
+    <string name="sibionics_stock_model_detail">Точний штатний алгоритм Sibionics</string>
+    <string name="sibionics_responsive_algorithm">Швидка модель</string>
+    <string name="sibionics_responsive_algorithm_desc">Початкова модель рівня та швидкості зміни глюкози</string>
+    <string name="sibionics_balanced_algorithm">Збалансована модель</string>
+    <string name="sibionics_balanced_algorithm_desc">Обмежене приглушення шуму з близьким слідуванням штатній моделі</string>
+    <string name="sibionics_state_algorithm">Хімічна модель стану</string>
+    <string name="sibionics_state_algorithm_desc">Компенсація дрейфу датчика, фізіологічної затримки й артефактів</string>
 </resources>

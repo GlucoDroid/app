@@ -59,14 +59,24 @@ object ExportPackageExporter {
         val journalFoods: Int,
         val insulinPresets: Int,
         val calibrations: Int,
-        val restartRequired: Boolean
+        val restartRequired: Boolean,
+        // Serial to display on the dashboard for the imported glucose (may be a
+        // synthetic "imported"/"__imported_csv__" id when the file had no serial).
+        val historyDisplaySerial: String? = null
+    )
+
+    // Result of importing only the glucose/history section.
+    data class HistoryOnlyImport(
+        val readings: Int,
+        val displaySerial: String?
     )
 
     private data class HistoryImportSummary(
         val readings: Int = 0,
         val journalEntries: Int = 0,
         val journalFoods: Int = 0,
-        val insulinPresets: Int = 0
+        val insulinPresets: Int = 0,
+        val displaySerial: String? = null
     )
 
     suspend fun exportToUri(
@@ -127,8 +137,31 @@ object ExportPackageExporter {
                     journalFoods = historySummary.journalFoods,
                     insulinPresets = historySummary.insulinPresets,
                     calibrations = calibrationCount,
-                    restartRequired = settingsResult != null
+                    restartRequired = settingsResult != null,
+                    historyDisplaySerial = historySummary.displaySerial
                 )
+            }
+        }
+    }
+
+    /**
+     * Import only the glucose/history section from an export package, ignoring
+     * settings and calibrations. Returns the number of imported glucose readings,
+     * or null when the package contains no history section at all.
+     */
+    suspend fun importHistoryFromPackage(context: Context, uri: Uri): Result<HistoryOnlyImport?> {
+        val appContext = context.applicationContext
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val payload = readPayload(appContext, uri)
+                require(payload.optString("schema") == SCHEMA) { "Unsupported export package" }
+                val schemaVersion = payload.optInt("schemaVersion", 0)
+                require(schemaVersion in 1..SCHEMA_VERSION) {
+                    "Unsupported export package version: $schemaVersion"
+                }
+                val history = payload.optJSONObject("history") ?: return@runCatching null
+                val summary = importHistorySection(appContext, history)
+                HistoryOnlyImport(readings = summary.readings, displaySerial = summary.displaySerial)
             }
         }
     }
@@ -381,11 +414,16 @@ object ExportPackageExporter {
             database.journalDao().upsertEntries(entries)
         }
 
+        // Serial to key the dashboard on: the newest reading's serial (already
+        // normalized to "imported" by toHistoryReadings() when the file had none).
+        val displaySerial = readings.maxByOrNull { it.timestamp }?.sensorSerial
+
         return HistoryImportSummary(
             readings = readings.size,
             journalEntries = entries.size,
             journalFoods = foods.size,
-            insulinPresets = insulinPresets.size
+            insulinPresets = insulinPresets.size,
+            displaySerial = displaySerial
         )
     }
 

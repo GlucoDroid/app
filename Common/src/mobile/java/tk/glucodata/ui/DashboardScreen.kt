@@ -161,7 +161,7 @@ import tk.glucodata.ui.journal.JournalEntrySheet
 import tk.glucodata.ui.journal.JournalFloatingActionMenu
 import tk.glucodata.ui.journal.JournalInlineChip
 import tk.glucodata.ui.journal.JournalSettingsScreen
-import tk.glucodata.ui.journal.buildActiveInsulinSummary
+import tk.glucodata.data.journal.JournalIobCalculator
 import tk.glucodata.ui.journal.buildJournalChartMarkers
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 import tk.glucodata.ui.theme.displayLargeExpressive
@@ -309,6 +309,10 @@ fun DashboardScreen(
     val visualSmoothingMinutes = if (dataSmoothingExchangeOnly) 0 else chartSmoothingMinutes
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
+    val journalEiobDisplayEnabled by viewModel.journalEiobDisplayEnabled.collectAsState()
+    val glucoseRangeColorsDisplayEnabled by viewModel.glucoseValueRangeColorsEnabled.collectAsState()
+    val glucoseArrowForecastEnabled by viewModel.glucoseArrowForecastColorsEnabled.collectAsState()
+    val appChartRangeColorsEnabled by viewModel.glucoseAppChartRangeColorsEnabled.collectAsState()
     val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
     val journalFoodMacrosEnabled by viewModel.journalFoodMacrosEnabled.collectAsState()
     val journalFoodLibraryEnabled by viewModel.journalFoodLibraryEnabled.collectAsState()
@@ -376,7 +380,7 @@ fun DashboardScreen(
         if (!journalEnabled || scopedJournalEntries.isEmpty()) {
             null
         } else {
-            buildActiveInsulinSummary(scopedJournalEntries, journalPresetsById, journalNow)
+            JournalIobCalculator.buildActiveInsulinSummary(scopedJournalEntries, journalPresetsById, journalNow)
         }
     }
     val predictionSettings = remember(
@@ -513,26 +517,48 @@ fun DashboardScreen(
         }
     }
 
-    // Import launcher for CSV files
+    // Import launcher for glucose history. Accepts a JugglucoNG export package
+    // (JSON) — from which ONLY the glucose section is imported — and history CSV
+    // files. Settings/calibrations in a package are intentionally ignored here.
+    fun toast(message: String) {
+        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+    }
     val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             coroutineScope.launch {
-                val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
-                if (result.success) {
-                    android.widget.Toast.makeText(
-                        context,
-                        context.getString(R.string.imported_readings_count, result.successCount),
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                    viewModel.refreshData()
-                } else {
-                    android.widget.Toast.makeText(
-                        context,
-                        context.getString(R.string.import_failed_with_error, result.errorMessage ?: ""),
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
+                when {
+                    tk.glucodata.data.ExportPackageExporter.isExportPackage(context, uri) -> {
+                        tk.glucodata.data.ExportPackageExporter.importHistoryFromPackage(context, uri)
+                            .onSuccess { outcome ->
+                                if (outcome == null || outcome.readings == 0) {
+                                    // Valid package, but it has no glucose (e.g. settings-only export)
+                                    toast(context.getString(R.string.import_no_glucose))
+                                } else {
+                                    toast(context.getString(R.string.imported_readings_count, outcome.readings))
+                                    viewModel.onHistoryImported(outcome.displaySerial)
+                                }
+                            }
+                            .onFailure { throwable ->
+                                toast(context.getString(R.string.import_failed_with_error, throwable.localizedMessage ?: ""))
+                            }
+                    }
+                    tk.glucodata.data.SettingsExporter.isSettingsExport(context, uri) -> {
+                        // A valid JugglucoNG settings export contains no glucose data
+                        toast(context.getString(R.string.import_no_glucose))
+                    }
+                    else -> {
+                        val result = tk.glucodata.data.HistoryExporter.importFromCsv(context, uri)
+                        when {
+                            result.success && result.successCount > 0 -> {
+                                toast(context.getString(R.string.imported_readings_count, result.successCount))
+                                viewModel.onHistoryImported(tk.glucodata.data.HistoryRepository.IMPORTED_SENSOR_SERIAL)
+                            }
+                            result.success -> toast(context.getString(R.string.import_no_glucose))
+                            else -> toast(context.getString(R.string.import_unsupported_file))
+                        }
+                    }
                 }
             }
         }
@@ -1129,7 +1155,7 @@ fun DashboardScreen(
                 }
             },
                 onImportHistory = {
-                    importLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
+                    importLauncher.launch(arrayOf("application/json", "text/csv", "text/comma-separated-values", "*/*"))
                 },
                 modifier = Modifier
                     .padding(padding),
@@ -1176,6 +1202,8 @@ fun DashboardScreen(
                             targetHigh = targetHigh,
                             veryLowThreshold = veryLowThreshold,
                             veryHighThreshold = veryHighThreshold,
+                            valueRangeColorsEnabled = glucoseRangeColorsDisplayEnabled,
+                            arrowForecastColorsEnabled = glucoseArrowForecastEnabled,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1296,6 +1324,8 @@ fun DashboardScreen(
                                     peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    showEiob = journalEiobDisplayEnabled,
+                                    appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,
                                     collapseSmoothedData = dataSmoothingCollapseChunks,
@@ -1411,6 +1441,8 @@ fun DashboardScreen(
                             targetHigh = targetHigh,
                             veryLowThreshold = veryLowThreshold,
                             veryHighThreshold = veryHighThreshold,
+                            valueRangeColorsEnabled = glucoseRangeColorsDisplayEnabled,
+                            arrowForecastColorsEnabled = glucoseArrowForecastEnabled,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1475,6 +1507,8 @@ fun DashboardScreen(
                                     peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    showEiob = journalEiobDisplayEnabled,
+                                    appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,
                                     collapseSmoothedData = dataSmoothingCollapseChunks,

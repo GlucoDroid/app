@@ -392,6 +392,9 @@ internal class SibionicsExactV115GCore(
     var debug: DebugState? = null
         private set
 
+    var latestChemicalSignal: SibionicsChemicalSignal? = null
+        private set
+
     fun configure(decodedSensitivity: Float) {
         val normalized = decodedSensitivity.takeIf { it.isFinite() } ?: DEFAULT_DECODED_SENSITIVITY
         if (this.decodedSensitivity == normalized) return
@@ -418,16 +421,27 @@ internal class SibionicsExactV115GCore(
         temperatureUpSum = 0f
         temperatureDownSum = 0f
         debug = null
+        latestChemicalSignal = null
     }
 
     fun process(rawMmol: Float, temperatureC: Float, index: Int): Float? {
-        if (!rawMmol.isFinite() || rawMmol <= 0f) return null
+        if (!rawMmol.isFinite() || rawMmol <= 0f) {
+            latestChemicalSignal = null
+            return null
+        }
         val indexMinusOne = max(index - 1, 0)
         val flags = abnormal.evaluate(rawMmol, temperatureC, indexMinusOne)
         val corrected = correction.update(sensitivity, rawMmol, indexMinusOne)
-        if ((flags and 0x30) != 0) return null
+        if ((flags and 0x30) != 0) {
+            latestChemicalSignal = null
+            return null
+        }
         val filtered = kalman.update(corrected, index)
         val compensated = temperature.update(temperatureC, filtered, indexMinusOne)
+        latestChemicalSignal = SibionicsChemicalSignal(
+            mmol = (compensated / sensitivity).coerceAtLeast(0f),
+            qualityFlags = flags,
+        )
         lastIg = ig
         if (index % 5 != 0) return null
 

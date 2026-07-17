@@ -175,6 +175,12 @@ object CalibrationManager {
         val revision: Long,
         val unit: Int,
     )
+
+    private data class IntegratedBaselineCacheKey(
+        val sensorId: String,
+        val isRawMode: Boolean,
+        val unit: Int,
+    )
     
     private lateinit var database: CalibrationDatabase
     private lateinit var dao: CalibrationDao
@@ -247,6 +253,7 @@ object CalibrationManager {
         }
     }
     private val integratedContextCache = LinkedHashMap<IntegratedContextCacheKey, CalibrationContext>()
+    private val integratedBaselineCache = LinkedHashMap<IntegratedBaselineCacheKey, List<CalibrationSample>>()
 
     fun init(context: Context) {
         synchronized(initLock) {
@@ -1065,6 +1072,7 @@ object CalibrationManager {
                 migrateCalibrationSensorIdsIfPossible()
                 dao.getAllSync()
             }
+            if (calibrationStateLoaded && _calibrations.value == list) return
             _calibrations.value = list
             calibrationStateLoaded = true
             invalidateComputationCache("loadCalibrations")
@@ -1267,9 +1275,14 @@ object CalibrationManager {
         if (samples.isEmpty()) return FloatArray(0)
         val resolvedSensor = resolveSensorId(sensorIdOverride)
         val cacheKey = IntegratedContextCacheKey(resolvedSensor, isRawMode, calibrationRevision, Applic.unit)
+        val baselineKey = IntegratedBaselineCacheKey(resolvedSensor, isRawMode, Applic.unit)
         val storedContext = resolveCalibrationContext(isRawMode, resolvedSensor)
             ?: return values.copyOf()
         val context = if (samples.size > 1) {
+            val baseline = integratedBaselineSamples(storedContext, samples)
+            if (baseline.isNotEmpty()) synchronized(integratedBaselineCache) {
+                integratedBaselineCache[baselineKey] = baseline
+            }
             rebaseIntegratedContext(storedContext, samples).also { rebased ->
                 synchronized(integratedContextCache) {
                     integratedContextCache[cacheKey] = rebased
@@ -1277,9 +1290,43 @@ object CalibrationManager {
             }
         } else {
             synchronized(integratedContextCache) { integratedContextCache[cacheKey] }
-                ?: rebaseIntegratedContext(storedContext, samples)
+                ?: synchronized(integratedBaselineCache) { integratedBaselineCache[baselineKey] }
+                    ?.let { baseline -> rebaseIntegratedContext(storedContext, baseline) }
+                ?: storedContext
         }
         return evaluateCalibratedSeries(samples, isRawMode, emitDiagnostics = false, context = context)
+    }
+
+    /** Restores stock-model values at calibration timestamps for a managed driver. */
+    @JvmStatic
+    fun seedIntegratedCalibrationBaseline(
+        values: FloatArray,
+        timestamps: LongArray,
+        isRawMode: Boolean,
+        sensorIdOverride: String?,
+    ) {
+        if (values.size != timestamps.size || values.isEmpty()) return
+        val resolvedSensor = resolveSensorId(sensorIdOverride)
+        if (resolvedSensor.isBlank()) return
+        val samples = values.indices.mapNotNull { index ->
+            val value = values[index]
+            val timestamp = timestamps[index]
+            if (value.isFinite() && value > 0f && timestamp > 0L) {
+                CalibrationSample(value, timestamp)
+            } else {
+                null
+            }
+        }
+        if (samples.isEmpty()) return
+        val baselineKey = IntegratedBaselineCacheKey(resolvedSensor, isRawMode, Applic.unit)
+        synchronized(integratedBaselineCache) {
+            integratedBaselineCache[baselineKey] = samples
+        }
+        synchronized(integratedContextCache) {
+            integratedContextCache.keys.removeAll { key ->
+                key.sensorId == resolvedSensor && key.isRawMode == isRawMode && key.unit == Applic.unit
+            }
+        }
     }
 
     private fun getCalibratedSeriesInternal(
@@ -1382,6 +1429,26 @@ object CalibrationManager {
             allPoints = rebasedPoints,
             earliestPoint = rebasedPoints.filter { it.isEnabled }.minByOrNull { it.timestamp },
         )
+    }
+
+    private fun integratedBaselineSamples(
+        context: CalibrationContext,
+        stockSamples: List<CalibrationSample>,
+    ): List<CalibrationSample> {
+        val ordered = stockSamples
+            .asSequence()
+            .filter { it.timestamp > 0L && it.value.isFinite() && it.value > 0f }
+            .sortedBy { it.timestamp }
+            .toList()
+        if (ordered.isEmpty()) return emptyList()
+        return context.allPoints
+            .mapNotNull { point ->
+                ordered.minByOrNull { sample -> kotlin.math.abs(sample.timestamp - point.timestamp) }
+                    ?.takeIf { nearest ->
+                        kotlin.math.abs(nearest.timestamp - point.timestamp) <= INTEGRATED_ANCHOR_MATCH_MS
+                    }
+            }
+            .distinctBy { it.timestamp }
     }
 
     private fun resolveCalibrationContext(

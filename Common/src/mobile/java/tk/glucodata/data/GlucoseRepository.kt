@@ -61,7 +61,18 @@ class GlucoseRepository {
             _currentSerial.value = resolved
         }
     }
-    
+
+    /**
+     * Fold overlapping imported history into the current real sensor immediately.
+     * Used for the "import after the sensor is already connected" order; the
+     * backfill path handles the opposite order. No-op when there is no current
+     * sensor (nothing to fold into yet).
+     */
+    suspend fun reconcileImportedIntoCurrentSensor() {
+        val serial = SensorIdentity.resolveMainSensor()?.takeIf { it.isNotBlank() } ?: return
+        historyRepository.reconcileImportedIntoSensor(serial)
+    }
+
     companion object {
         private const val TAG = "GlucoseRepo"
         private const val ONE_SHOT_SYNC_MIN_INTERVAL_MS = 5_000L

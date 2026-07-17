@@ -2,6 +2,7 @@ package tk.glucodata
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -104,6 +105,42 @@ class SensorIdentityTests {
                 activeSensors = emptyArray()
             )
         )
+    }
+
+    @Test
+    fun placeholderIdentity_neverBecomesASensorOrMainSelection() {
+        ManagedCurrentSensor.set("?")
+
+        assertNull(SensorIdentity.resolveAppSensorId("?"))
+        assertNull(
+            SensorIdentity.resolveAvailableMainSensor(
+                selectedMain = "?",
+                preferredSensorId = null,
+                activeSensors = arrayOf("?")
+            )
+        )
+        assertEquals(
+            "real-sensor",
+            SensorIdentity.resolveAvailableMainSensor(
+                selectedMain = "?",
+                preferredSensorId = null,
+                activeSensors = arrayOf("?", "real-sensor")
+            )
+        )
+    }
+
+    @Test
+    fun usableIdentity_acceptsVendorFormatsButRejectsPlaceholdersAndControls() {
+        listOf(
+            "SIBI:0683013AQT9",
+            "ICN-8760080A2604",
+            "X-222227JR7C",
+            "P225043JMV",
+            "46HU804EBJ4",
+        ).forEach { assertTrue(SensorIdentity.isUsableSensorId(it)) }
+
+        assertFalse(SensorIdentity.isUsableSensorId("?"))
+        assertFalse(SensorIdentity.isUsableSensorId("bad\u001Didentity"))
     }
 
     @Test

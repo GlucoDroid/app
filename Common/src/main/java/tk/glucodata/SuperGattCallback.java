@@ -26,6 +26,7 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -259,6 +260,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     onScanRecord(bytes);
             }
         }
+    }
+
+    /** Optional metadata match for advertisements without a usable local name. */
+    public boolean matchScanResult(ScanResult result) {
+        return false;
     }
 
     public void onScanRecord(byte[] scanRecord) {

@@ -922,12 +922,38 @@ public class Applic extends Application implements androidx.work.Configuration.P
     @Override
     public void onCreate() {
         super.onCreate();
+        enlargeCursorWindow();
         updateWearMessageReceiverComponent();
         if (DiskSpace.check(this)) {
             initproc();
         } else {
             android.util.Log.e(LOG_ID, "Stop program");
             stopprogram = 1;
+        }
+    }
+
+    /**
+     * Raise the global {@link android.database.CursorWindow} size (default 2 MB).
+     *
+     * The glucose history Room table is read in a few places with an unbounded
+     * {@code SELECT * FROM history_readings} that returns the whole table as a
+     * single list. {@code SELECT *} fetches all 8 physical columns (including the
+     * dead customValue/customRate columns left over from an old migration), so a
+     * row is ~330-350 bytes and the 2 MB window overflows at ~6000 readings,
+     * crashing with "Couldn't read row N, col 0 from CursorWindow" — most visibly
+     * right after importing history/settings, which pushes the table over that
+     * threshold. Bumping the ceiling to 16 MB (ashmem is committed lazily, so this
+     * does not reserve 16 MB up front) covers ~48k readings. Best-effort: the
+     * field is hidden, so any failure is logged and ignored.
+     */
+    private static void enlargeCursorWindow() {
+        try {
+            java.lang.reflect.Field field =
+                    android.database.CursorWindow.class.getDeclaredField("sCursorWindowSize");
+            field.setAccessible(true);
+            field.setInt(null, 16 * 1024 * 1024);
+        } catch (Throwable t) {
+            android.util.Log.w(LOG_ID, "Could not enlarge CursorWindow size", t);
         }
     }
 

@@ -546,6 +546,72 @@ class HistoryRepository(context: Context = Applic.app) {
         return deleted
     }
 
+    /**
+     * Physically fold imported readings into a real sensor once that sensor's
+     * native history has been backfilled. Scoped to the sensor's coverage
+     * window so unrelated imported data (different time period) is left alone.
+     *
+     * Within the window:
+     *  - imported readings whose minute bucket the sensor already covers are
+     *    dropped (the live sensor is authoritative on overlap);
+     *  - imported readings that fill gaps are retagged to the sensor serial so
+     *    they become part of that sensor's history.
+     *
+     * This mirrors the display-time merge in [HistoryDisplayMerge] but makes it
+     * durable in the database.
+     */
+    suspend fun reconcileImportedIntoSensor(serial: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                val nativeSerials = resolveQuerySensorSerials(serial)
+                if (nativeSerials.isEmpty()) return@withContext
+                val importedSerials = IMPORTED_HISTORY_SENSOR_SERIALS.filterNot { it in nativeSerials }
+                if (importedSerials.isEmpty()) return@withContext
+
+                // Cheap guard: nothing to reconcile if there are no imported rows at all.
+                if (dao.getCountForSensors(importedSerials) == 0) return@withContext
+
+                val oldest = dao.getOldestTimestampForSensors(nativeSerials) ?: return@withContext
+                val latest = dao.getLatestReadingForSensors(nativeSerials)?.timestamp ?: return@withContext
+                if (oldest <= 0L || latest < oldest) return@withContext
+
+                val importedInWindow = dao.getReadingsSinceForSensors(importedSerials, oldest)
+                    .filter { it.timestamp <= latest }
+                if (importedInWindow.isEmpty()) return@withContext
+
+                val nativeBuckets = HashSet<Long>()
+                dao.getTimestampsForSensors(nativeSerials, oldest, latest)
+                    .forEach { nativeBuckets.add(it / SENSOR_MINUTE_BUCKET_MS) }
+
+                val roomSerial = SensorIdentity.resolveRoomStorageSensorId(serial) ?: serial
+                val gapFillers = importedInWindow
+                    .filter { (it.timestamp / SENSOR_MINUTE_BUCKET_MS) !in nativeBuckets }
+                    .map { it.copy(id = 0L, sensorSerial = roomSerial) }
+                val retagReadings = filterDeletedReadings(gapFillers)
+
+                database.withTransaction {
+                    for (importedSerial in importedSerials) {
+                        dao.deleteSensorRowsInTimeRange(
+                            sensorSerial = importedSerial,
+                            startTimeInclusive = oldest,
+                            endTimeExclusive = latest + 1L
+                        )
+                    }
+                    if (retagReadings.isNotEmpty()) {
+                        dao.insertAll(retagReadings)
+                    }
+                }
+                Log.d(
+                    TAG,
+                    "Reconciled imported history into $roomSerial: retagged ${retagReadings.size}, " +
+                        "dropped ${importedInWindow.size - gapFillers.size}, window=$oldest..$latest"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reconciling imported history into $serial", e)
+            }
+        }
+    }
+
     private suspend fun filterDeletedReadings(readings: List<HistoryReading>): List<HistoryReading> {
         if (readings.isEmpty()) return emptyList()
 
@@ -1032,6 +1098,10 @@ class HistoryRepository(context: Context = Applic.app) {
                         }
                     }
                     backfillFinished.signalAll()
+                }
+                if (success) {
+                    // Fold any overlapping imported history into this real sensor.
+                    reconcileImportedIntoSensor(serial)
                 }
             }
         }

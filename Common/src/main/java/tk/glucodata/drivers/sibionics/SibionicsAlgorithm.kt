@@ -13,18 +13,50 @@ enum class SibionicsAlgorithmMode {
     REPLAY,
 }
 
+internal data class SibionicsChemicalSignal(
+    val mmol: Float,
+    val qualityFlags: Int,
+)
+
 enum class SibionicsAlgorithmSelection(val storageId: Int) {
     STOCK(0),
     STOCK_CALIBRATED(1),
-    ADAPTIVE(2),
-    ADAPTIVE_CALIBRATED(3);
+    STATE_MODEL(2),
+    STATE_MODEL_CALIBRATED(3),
+    BALANCED_TRACKER(4),
+    BALANCED_TRACKER_CALIBRATED(5),
+    RESPONSIVE_ESTIMATOR(6),
+    RESPONSIVE_ESTIMATOR_CALIBRATED(7);
 
     val calibrationEnabled: Boolean get() = storageId and 1 != 0
-    val adaptiveEnabled: Boolean get() = storageId and 2 != 0
+    val model: SibionicsCustomAlgorithmModel
+        get() = SibionicsCustomAlgorithmModel.fromStorage(storageId and MODEL_MASK)
+    val customModelEnabled: Boolean get() = model != SibionicsCustomAlgorithmModel.STOCK
+
+    fun withCalibration(enabled: Boolean): SibionicsAlgorithmSelection =
+        fromStorage(if (enabled) storageId or CALIBRATION_BIT else storageId and CALIBRATION_BIT.inv())
+
+    fun withModel(model: SibionicsCustomAlgorithmModel): SibionicsAlgorithmSelection =
+        fromStorage(model.storageBase or (storageId and CALIBRATION_BIT))
 
     companion object {
+        private const val CALIBRATION_BIT = 1
+        private const val MODEL_MASK = 6
+
         fun fromStorage(value: Int): SibionicsAlgorithmSelection =
             entries.firstOrNull { it.storageId == value } ?: STOCK
+    }
+}
+
+enum class SibionicsCustomAlgorithmModel(val storageBase: Int) {
+    STOCK(0),
+    STATE_MODEL(2),
+    BALANCED_TRACKER(4),
+    RESPONSIVE_ESTIMATOR(6);
+
+    companion object {
+        fun fromStorage(value: Int): SibionicsCustomAlgorithmModel =
+            entries.firstOrNull { it.storageBase == value } ?: STOCK
     }
 }
 
@@ -43,6 +75,8 @@ class SibionicsAlgorithmContext(
     private val v115Core = SibionicsExactV115GCore()
     private val v116Core = SibionicsExactV116ACore()
     private val adaptiveCore = SibionicsAdaptiveAlgorithmContext()
+    private val balancedCore = SibionicsBalancedAlgorithmContext()
+    private val responsiveCore = SibionicsResponsiveAlgorithmContext()
     private var liveDeltaMmol = Float.NaN
     private var replayDeltaMmol = Float.NaN
     private var selection = SibionicsAlgorithmSelection.STOCK
@@ -67,19 +101,23 @@ class SibionicsAlgorithmContext(
             AlgorithmFamily.V116A -> v116Core.configure(sensitivity)
         }
         adaptiveCore.configure(sensitivity)
+        balancedCore.configure(sensitivity)
+        responsiveCore.configure(sensitivity)
         this.selection = selection
     }
 
     fun setSelection(selection: SibionicsAlgorithmSelection) {
         if (this.selection == selection) return
         this.selection = selection
-        adaptiveCore.reset()
+        resetCustomModels()
     }
 
     fun reset() {
         v115Core.reset()
         v116Core.reset()
         adaptiveCore.reset()
+        balancedCore.reset()
+        responsiveCore.reset()
         resetWrapperState()
     }
 
@@ -141,7 +179,7 @@ class SibionicsAlgorithmContext(
      * The exact core is not advanced here, which makes a two-pass historical
      * calibration rebuild deterministic.
      */
-    fun processPreparedMeasurement(
+    internal fun processPreparedMeasurement(
         stockMmol: Float,
         measurementMmol: Float,
         rawMmol: Float,
@@ -149,11 +187,25 @@ class SibionicsAlgorithmContext(
         index: Int,
         impedance: Float = Float.NaN,
         eventTimeMs: Long = 0L,
+        chemicalSignal: SibionicsChemicalSignal? = latestChemicalSignal(),
     ): Float {
         if (!stockMmol.isFinite() || stockMmol <= 0f) return Float.NaN
         val measurement = measurementMmol.takeIf { it.isFinite() && it > 0f } ?: stockMmol
-        return if (selection.adaptiveEnabled) {
-            adaptiveCore.process(
+        return when (selection.model) {
+            SibionicsCustomAlgorithmModel.STOCK -> nativeRound(measurement)
+            SibionicsCustomAlgorithmModel.STATE_MODEL -> adaptiveCore.process(
+                stockMmol = measurement,
+                vendorStockMmol = stockMmol,
+                rawMmol = rawMmol,
+                chemicalMmol = chemicalSignal?.mmol ?: Float.NaN,
+                chemicalQualityFlags = chemicalSignal?.qualityFlags ?: 0,
+                temperatureC = temperatureC,
+                impedance = impedance,
+                index = index,
+                eventTimeMs = eventTimeMs,
+                anchors = emptyList(),
+            )
+            SibionicsCustomAlgorithmModel.BALANCED_TRACKER -> balancedCore.process(
                 stockMmol = measurement,
                 rawMmol = rawMmol,
                 temperatureC = temperatureC,
@@ -162,9 +214,21 @@ class SibionicsAlgorithmContext(
                 eventTimeMs = eventTimeMs,
                 anchors = emptyList(),
             )
-        } else {
-            nativeRound(measurement)
+            SibionicsCustomAlgorithmModel.RESPONSIVE_ESTIMATOR -> responsiveCore.process(
+                stockMmol = measurement,
+                rawMmol = rawMmol,
+                temperatureC = temperatureC,
+                impedance = impedance,
+                index = index,
+                eventTimeMs = eventTimeMs,
+                anchors = emptyList(),
+            )
         }
+    }
+
+    internal fun latestChemicalSignal(): SibionicsChemicalSignal? = when (family) {
+        AlgorithmFamily.V115G -> v115Core.latestChemicalSignal
+        AlgorithmFamily.V116A -> v116Core.latestChemicalSignal
     }
 
     fun snapshot(): ByteArray = ByteArrayOutputStream().use { bytes ->
@@ -180,9 +244,10 @@ class SibionicsAlgorithmContext(
             }
             output.writeInt(coreState.size)
             output.write(coreState)
-            val adaptiveState = adaptiveCore.snapshot()
-            output.writeInt(adaptiveState.size)
-            output.write(adaptiveState)
+            output.writeInt(selection.model.storageBase)
+            val customState = activeCustomSnapshot()
+            output.writeInt(customState.size)
+            output.write(customState)
         }
         bytes.toByteArray()
     }
@@ -197,6 +262,7 @@ class SibionicsAlgorithmContext(
                 val version = input.readInt()
                 when (version) {
                     SNAPSHOT_VERSION,
+                    CHEMICAL_STATE_SNAPSHOT_VERSION,
                     EXACT_ONLY_SNAPSHOT_VERSION -> if (input.readInt() != family.snapshotId) return@use false
                     LEGACY_WRAPPER_SNAPSHOT_VERSION -> if (family != AlgorithmFamily.V115G) return@use false
                     else -> return@use false
@@ -213,13 +279,31 @@ class SibionicsAlgorithmContext(
                 if (!restoreCore(coreState)) return@use false
 
                 if (version == SNAPSHOT_VERSION) {
+                    val savedModel = SibionicsCustomAlgorithmModel.fromStorage(input.readInt())
                     val adaptiveSize = input.readInt()
                     if (adaptiveSize !in 1..MAX_ADAPTIVE_SNAPSHOT_BYTES) return@use false
                     val adaptiveState = ByteArray(adaptiveSize)
                     input.readFully(adaptiveState)
-                    if (!adaptiveCore.restore(adaptiveState)) return@use false
+                    if (savedModel == selection.model) {
+                        if (!restoreActiveCustomSnapshot(adaptiveState)) return@use false
+                    } else {
+                        // Rebuilds intentionally transfer the fully advanced exact core from a
+                        // temporary stock context, then replay prepared measurements through the
+                        // newly selected custom model. A model mismatch invalidates only custom
+                        // state; rejecting the whole snapshot would also discard the exact core.
+                        resetCustomModels()
+                    }
+                } else if (version == CHEMICAL_STATE_SNAPSHOT_VERSION) {
+                    val adaptiveSize = input.readInt()
+                    if (adaptiveSize !in 1..MAX_ADAPTIVE_SNAPSHOT_BYTES) return@use false
+                    val adaptiveState = ByteArray(adaptiveSize)
+                    input.readFully(adaptiveState)
+                    if (selection.model == SibionicsCustomAlgorithmModel.STATE_MODEL &&
+                        !adaptiveCore.restore(adaptiveState)
+                    ) return@use false
+                    if (selection.model != SibionicsCustomAlgorithmModel.STATE_MODEL) resetCustomModels()
                 } else {
-                    adaptiveCore.reset()
+                    resetCustomModels()
                 }
                 if (input.available() != 0) return@use false
 
@@ -264,8 +348,30 @@ class SibionicsAlgorithmContext(
     private fun restoreLegacyCoreSnapshot(snapshot: ByteArray): Boolean {
         if (!restoreCore(snapshot)) return false
         adaptiveCore.reset()
+        balancedCore.reset()
+        responsiveCore.reset()
         resetWrapperState()
         return true
+    }
+
+    private fun resetCustomModels() {
+        adaptiveCore.reset()
+        balancedCore.reset()
+        responsiveCore.reset()
+    }
+
+    private fun activeCustomSnapshot(): ByteArray = when (selection.model) {
+        SibionicsCustomAlgorithmModel.STOCK -> ByteArray(1)
+        SibionicsCustomAlgorithmModel.STATE_MODEL -> adaptiveCore.snapshot()
+        SibionicsCustomAlgorithmModel.BALANCED_TRACKER -> balancedCore.snapshot()
+        SibionicsCustomAlgorithmModel.RESPONSIVE_ESTIMATOR -> responsiveCore.snapshot()
+    }
+
+    private fun restoreActiveCustomSnapshot(snapshot: ByteArray): Boolean = when (selection.model) {
+        SibionicsCustomAlgorithmModel.STOCK -> snapshot.size == 1
+        SibionicsCustomAlgorithmModel.STATE_MODEL -> adaptiveCore.restore(snapshot)
+        SibionicsCustomAlgorithmModel.BALANCED_TRACKER -> balancedCore.restore(snapshot)
+        SibionicsCustomAlgorithmModel.RESPONSIVE_ESTIMATOR -> responsiveCore.restore(snapshot)
     }
 
     private fun restoreCore(snapshot: ByteArray): Boolean = when (family) {
@@ -301,7 +407,8 @@ class SibionicsAlgorithmContext(
 
     private companion object {
         private const val SNAPSHOT_MAGIC = 0x5349_4234
-        private const val SNAPSHOT_VERSION = 4
+        private const val SNAPSHOT_VERSION = 5
+        private const val CHEMICAL_STATE_SNAPSHOT_VERSION = 4
         private const val EXACT_ONLY_SNAPSHOT_VERSION = 3
         private const val LEGACY_WRAPPER_SNAPSHOT_VERSION = 2
         private const val MAX_CORE_SNAPSHOT_BYTES = 64 * 1024

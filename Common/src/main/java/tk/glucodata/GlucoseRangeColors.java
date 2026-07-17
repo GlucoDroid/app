@@ -66,6 +66,58 @@ public final class GlucoseRangeColors {
         return isMmol ? DEFAULT_VERY_HIGH_MMOL : DEFAULT_VERY_HIGH_MGDL;
     }
 
+    // Traffic-light palette for coloring the current value itself (GDH-style):
+    // green inside the target range, yellow between target and alarm bounds,
+    // red beyond the alarms. Dark variants are lighter for dark backgrounds.
+    public static final int VALUE_IN_RANGE = 0xFF2E7D32;
+    public static final int VALUE_IN_RANGE_DARK = 0xFF81C784;
+    public static final int VALUE_BORDERLINE = 0xFFF9A825;
+    public static final int VALUE_BORDERLINE_DARK = 0xFFFFD54F;
+    public static final int VALUE_OUT = 0xFFC62828;
+    public static final int VALUE_OUT_DARK = 0xFFE57373;
+
+    public static int valueInRange(boolean darkTheme) {
+        return darkTheme ? VALUE_IN_RANGE_DARK : VALUE_IN_RANGE;
+    }
+
+    public static int valueBorderline(boolean darkTheme) {
+        return darkTheme ? VALUE_BORDERLINE_DARK : VALUE_BORDERLINE;
+    }
+
+    public static int valueOut(boolean darkTheme) {
+        return darkTheme ? VALUE_OUT_DARK : VALUE_OUT;
+    }
+
+    public static int trafficColorForValue(
+            float value,
+            float targetLow,
+            float targetHigh,
+            float alarmLow,
+            float alarmHigh,
+            boolean darkTheme,
+            boolean isMmol,
+            int fallbackColor) {
+        if (!Float.isFinite(value) || value <= 0.0f) {
+            return fallbackColor;
+        }
+
+        float low = Float.isFinite(targetLow) && targetLow > 0.0f ? targetLow : defaultLow(isMmol);
+        float highCandidate = Float.isFinite(targetHigh) && targetHigh > low ? targetHigh : defaultHigh(isMmol);
+        float high = Math.max(highCandidate, low + 0.1f);
+        float redLow = Float.isFinite(alarmLow) && alarmLow > 0.0f ? alarmLow : defaultVeryLow(isMmol);
+        redLow = Math.min(redLow, low - 0.1f);
+        float redHigh = Float.isFinite(alarmHigh) && alarmHigh > 0.0f ? alarmHigh : defaultVeryHigh(isMmol);
+        redHigh = Math.max(redHigh, high + 0.1f);
+
+        if (value <= redLow || value >= redHigh) {
+            return valueOut(darkTheme);
+        }
+        if (value < low || value > high) {
+            return valueBorderline(darkTheme);
+        }
+        return valueInRange(darkTheme);
+    }
+
     public static int blend(int startColor, int endColor, float fraction) {
         float safeFraction = Math.max(0.0f, Math.min(1.0f, fraction));
         float inverse = 1.0f - safeFraction;

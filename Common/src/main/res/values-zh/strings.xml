@@ -166,6 +166,7 @@
  <string name="addsensorenddate">将传感器结束日期添加到日历应用程序</string>
  <string name="enddatesensor">"传感器结束日期 "</string>
  <string name="open">打开</string>
+ <string name="share">分享</string>
  <string name="withoutsensor">没有传感器</string>
  <string name="wronglibrary">库功能不正常，请尝试另一个</string>
  <string name="installedlibrary">已安装库</string>
@@ -553,7 +554,7 @@
     <!-- New Code Translations -->
     <string name="auto_calibration_mode">传感器算法</string>
     <string name="sibionics_custom_algorithm">自适应传感器模型（实验性）</string>
-    <string name="sibionics_custom_algorithm_desc">状态滤波、信号质量加权和异常值抑制</string>
+    <string name="sibionics_custom_algorithm_desc">补偿传感器漂移、生理延迟和信号伪影</string>
     <string name="sibionics_stock_algorithm_desc">原厂传感器模型</string>
     <string name="sibionics_stock_algorithm_detail">在传感器算法内部使用血糖仪校准</string>
     <string name="sibionics_restart_algorithm_desc">从已保存的传感器历史重建每分钟算法状态</string>
@@ -1961,4 +1962,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_import">导入</string>
     <string name="ottai_credentials_replace">替换</string>
     <string name="wear_libre_nfc_caveat">Libre 传感器需先用手机 NFC 激活。激活后，这块手表可以接管。</string>
+    <string name="sibionics_glucose_model">葡萄糖模型</string>
+    <string name="sibionics_stock_model_detail">精确的 Sibionics 原厂算法</string>
+    <string name="sibionics_responsive_algorithm">快速估算模型</string>
+    <string name="sibionics_responsive_algorithm_desc">原始的趋势感知葡萄糖与变化速度估算模型</string>
+    <string name="sibionics_balanced_algorithm">均衡跟踪模型</string>
+    <string name="sibionics_balanced_algorithm_desc">紧随原厂模型的有限降噪</string>
+    <string name="sibionics_state_algorithm">化学状态模型</string>
+    <string name="sibionics_state_algorithm_desc">补偿传感器漂移、生理延迟和信号伪影</string>
 </resources>

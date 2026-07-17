@@ -368,6 +368,7 @@ fun HistoryBrowseScreen(
     title: String,
     browseMode: TimelineBrowseMode = TimelineBrowseMode.HISTORY,
     journalEnabled: Boolean = false,
+    chartRangeColors: Boolean = false,
     journalEntries: List<JournalEntry> = emptyList(),
     journalInsulinPresets: List<JournalInsulinPreset> = emptyList(),
     journalFoods: List<JournalFood> = emptyList(),
@@ -603,6 +604,7 @@ fun HistoryBrowseScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(420.dp),
+                            appChartRangeColors = chartRangeColors,
                             glucoseHistory = activeHistory,
                             journalMarkers = journalMarkers,
                             graphSmoothingMinutes = graphSmoothingMinutes,

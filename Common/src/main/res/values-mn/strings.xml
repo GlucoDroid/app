@@ -161,6 +161,7 @@
     <string name="addsensorenddate">Мэдрэгчийн дуусах огноог календарьт нэмэх</string>
     <string name="enddatesensor">"Мэдрэгчийн дуусах огноо "</string>
     <string name="open">Нээх</string>
+    <string name="share">Хуваалцах</string>
     <string name="withoutsensor">Мэдрэгчгүй</string>
     <string name="wronglibrary">Library зөв ажиллахгүй байна. Өөрийг туршина уу.</string>
     <string name="installedlibrary">Суулгасан library</string>
@@ -809,7 +810,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- Missing UI Strings -->
     <string name="auto_calibration_mode">Мэдрэгчийн алгоритм</string>
     <string name="sibionics_custom_algorithm">Дасан зохицох мэдрэгчийн загвар (туршилтын)</string>
-    <string name="sibionics_custom_algorithm_desc">Төлөвт шүүлтүүр, дохионы чанарын жинлэлт ба гажилтыг дарах</string>
+    <string name="sibionics_custom_algorithm_desc">Мэдрэгчийн хазайлт, физиологийн хоцролт ба артефактын нөхөн олговор</string>
     <string name="sibionics_stock_algorithm_desc">Мэдрэгчийн үндсэн загвар</string>
     <string name="sibionics_stock_algorithm_detail">Глюкометрийн тохируулгыг мэдрэгчийн алгоритмд ашиглах</string>
     <string name="sibionics_restart_algorithm_desc">Хадгалсан мэдрэгчийн түүхээс минутын алгоритмын төлөвийг сэргээнэ</string>
@@ -2057,4 +2058,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_sign_out">Гарах</string>
     <string name="ottai_verify_code_hint">Баталгаажуулах код</string>
     <string name="wrongcode">Wrong QR code</string>
+    <string name="sibionics_glucose_model">Глюкозын загвар</string>
+    <string name="sibionics_stock_model_detail">Sibionics мэдрэгчийн нарийн алгоритм</string>
+    <string name="sibionics_responsive_algorithm">Хурдан үнэлэгч</string>
+    <string name="sibionics_responsive_algorithm_desc">Глюкоз ба өөрчлөлтийн хурдыг чиг хандлагаар үнэлэх анхны загвар</string>
+    <string name="sibionics_balanced_algorithm">Тэнцвэртэй хянагч</string>
+    <string name="sibionics_balanced_algorithm_desc">Үндсэн загварыг ойроос дагасан хязгаарлагдмал шуугиан бууруулалт</string>
+    <string name="sibionics_state_algorithm">Химийн төлөвийн загвар</string>
+    <string name="sibionics_state_algorithm_desc">Мэдрэгчийн хазайлт, физиологийн хоцролт ба артефактын нөхөн олговор</string>
 </resources>

@@ -86,12 +86,22 @@ class ICanHealthConstantsTests {
     }
 
     @Test
-    fun onboardingIdentityPrefix_usesExtendedVendorPrefixRule() {
-        assertEquals("G760080A2", ICanHealthConstants.onboardingIdentityPrefix("G760080A2604"))
+    fun onboardingIdentityPrefix_mapsChineseI6CodeToObservedDisPrefix() {
+        assertEquals("01OV04NA", ICanHealthConstants.onboardingIdentityPrefix("ZP1OV04NA550"))
         assertTrue(
             ICanHealthConstants.matchesOnboardingIdentity(
-                "G760080A2604",
-                "G760080A200070000"
+                "ZP1OV04NA550",
+                "01OV04NA0003010100000000"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsAnotherChineseI6() {
+        assertFalse(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "ZP1OV04NA550",
+                "01R9089R0003010100000000"
             )
         )
     }
