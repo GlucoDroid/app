@@ -11,6 +11,7 @@ package tk.glucodata.drivers.icanhealth
 
 import java.util.UUID
 import java.util.Locale
+import tk.glucodata.Log
 
 object ICanHealthConstants {
     private val FULL_CANONICAL_HEX_SENSOR_ID_REGEX = Regex("^[0-9A-Z]{16}$", RegexOption.IGNORE_CASE)
@@ -243,7 +244,8 @@ object ICanHealthConstants {
         return observed.startsWith(prefix)
     }
 
-    private fun sanitizeSensorIdentity(source: String?): String =
+    @JvmStatic
+    fun sanitizeSensorIdentity(source: String?): String =
         source
             ?.trim()
             ?.uppercase(Locale.US)

@@ -1353,9 +1353,6 @@ class ICanHealthBleManager(
                 val rawSerial = ICanHealthParser.parseRawDeviceSerial(data)
                 val resolvedSerial = ICanHealthParser.parseDeviceSerial(data)
                 if (resolvedSerial.isNotEmpty()) {
-                    if (rejectMismatchedOnboardingCandidate(gatt, rawSerial, resolvedSerial)) {
-                        return
-                    }
                     rawSerialFromDevice = rawSerial.takeIf { it.isNotBlank() }
                     applyBundledGlucoseKey(rawSerialFromDevice, vendorSoftwareVersion)
                     Log.i(TAG, "Device serial: $resolvedSerial")
@@ -1427,51 +1424,6 @@ class ICanHealthBleManager(
         }
 
         finishGattOp()
-    }
-
-    private fun rejectMismatchedOnboardingCandidate(
-        gatt: BluetoothGatt,
-        rawSerial: String,
-        resolvedSerial: String,
-    ): Boolean {
-        val expectedOnboardingSn = onboardingDeviceSn ?: return false
-        val isAwaitingIdentity = provisionalSensorIdForAdoption != null ||
-            ICanHealthConstants.isProvisionalSensorId(SerialNumber)
-        if (!isAwaitingIdentity) {
-            return false
-        }
-        val identityMatches =
-            ICanHealthConstants.matchesOnboardingIdentity(expectedOnboardingSn, rawSerial) ||
-                ICanHealthConstants.matchesOnboardingIdentity(expectedOnboardingSn, resolvedSerial)
-        if (identityMatches) {
-            rejectedOnboardingAddresses.clear()
-            return false
-        }
-
-        val address = gatt.device?.address?.trim()?.uppercase(Locale.US)
-        if (address != null) {
-            rejectedOnboardingAddresses.add(address)
-        }
-        Log.w(
-            TAG,
-            "Rejected iCan candidate address=${address ?: "unknown"}: " +
-                "onboarding=${ICanHealthConstants.onboardingIdentityPrefix(expectedOnboardingSn)} " +
-                "device=$resolvedSerial"
-        )
-
-        rawSerialFromDevice = null
-        serialFromDevice = null
-        close()
-        setDevice(null)
-        searchforDeviceAddress()
-        setUiStatus(UiStatusKind.PREPARING)
-        UiRefreshBus.requestStatusRefresh()
-        handler.postDelayed({
-            if (!stop && !uiPaused && ICanHealthConstants.isProvisionalSensorId(SerialNumber)) {
-                SensorBluetooth.startscan()
-            }
-        }, 250L)
-        return true
     }
 
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
