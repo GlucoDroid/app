@@ -808,6 +808,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             try {
                 MessageSender.sendwakestream();
                 Natives.wakestreamsender();
+                WearSync2.requestSync();
                 UiRefreshBus.requestDataRefresh();
             } catch (Throwable th) {
                 Log.stack(LOG_ID, "onResume wakestream", th);

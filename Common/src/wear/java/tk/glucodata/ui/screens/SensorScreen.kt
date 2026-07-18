@@ -3,18 +3,20 @@ package tk.glucodata.ui.screens
 import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -33,12 +35,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import tk.glucodata.ManagedCurrentSensor
 import tk.glucodata.Natives
-import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.UiRefreshBus
-import tk.glucodata.drivers.ManagedSensorRuntime
-import tk.glucodata.drivers.ManagedSensorStatusPolicy
 import tk.glucodata.ui.WearNavigationRow
 import tk.glucodata.ui.WearSectionTitle
 
@@ -46,69 +45,12 @@ private const val SENSOR_TICK_MS = 60_000L
 
 private data class SensorRow(val serial: String, val isCurrent: Boolean, val isConnected: Boolean)
 
-private data class SensorDetails(
-    val connectionStatus: String,
-    val detailedStatus: String,
-    val dayText: String,
-    val startTimeMs: Long,
-    val lastReadingMs: Long,
-)
-
 private fun loadSensors(): List<SensorRow> = runCatching {
     val current = ManagedCurrentSensor.get() ?: Natives.lastsensorname()
     val active = Natives.activeSensors()?.toList().orEmpty()
     val connected = SensorBluetooth.mygatts()?.mapNotNull { it.SerialNumber }.orEmpty()
     (active + connected).distinct().map { SensorRow(it, it == current, it in connected) }
 }.getOrDefault(emptyList())
-
-private fun loadSensorDetails(row: SensorRow, now: Long): SensorDetails {
-    val managed = runCatching { ManagedSensorRuntime.resolveUiSnapshot(row.serial, row.serial) }.getOrNull()
-    val nativeStart = if (managed == null) {
-        runCatching { Natives.getSensorUiSnapshot(row.serial) }
-            .getOrNull()
-            ?.takeIf { it.size >= 3 }
-            ?.get(2)
-            ?.takeIf { it > 0L }
-            ?: 0L
-    } else {
-        0L
-    }
-    val startTime = managed?.startTimeMs?.takeIf { it > 0L } ?: nativeStart
-    val lifecycle = ManagedSensorStatusPolicy.resolveLifecycleSummary(
-        startTimeMs = startTime,
-        officialEndMs = managed?.officialEndMs ?: 0L,
-        expectedEndMs = managed?.expectedEndMs ?: 0L,
-        sensorRemainingHours = managed?.sensorRemainingHours ?: -1,
-        sensorAgeHours = managed?.sensorAgeHours ?: -1,
-        nowMs = now,
-    )
-    val hasKnownTotal = managed != null && (
-        managed.expectedEndMs > startTime ||
-            managed.officialEndMs > startTime ||
-            (managed.sensorAgeHours >= 0 && managed.sensorRemainingHours >= 0)
-        )
-    val dayText = when {
-        lifecycle.daysText.isEmpty() -> ""
-        hasKnownTotal -> lifecycle.daysText
-        lifecycle.currentDay > 0 -> lifecycle.currentDay.toString()
-        else -> ""
-    }
-    val managedReading = runCatching {
-        ManagedSensorRuntime.resolveCurrentSnapshot(row.serial, Long.MAX_VALUE)?.timeMillis
-    }.getOrNull()?.takeIf { it > 0L }
-    val lastReading = managedReading ?: runCatching {
-        NotificationHistorySource.getDisplayHistory(now - 30L * DateUtils.DAY_IN_MILLIS, false, row.serial)
-            .lastOrNull()
-            ?.timestamp
-    }.getOrNull()?.takeIf { it > 0L } ?: 0L
-    return SensorDetails(
-        connectionStatus = managed?.connectionStatus?.trim().orEmpty(),
-        detailedStatus = managed?.detailedStatus?.trim().orEmpty(),
-        dayText = dayText,
-        startTimeMs = startTime,
-        lastReadingMs = lastReading,
-    )
-}
 
 @Composable
 fun SensorScreen(onCalibrate: () -> Unit) {
@@ -151,14 +93,16 @@ fun SensorScreen(onCalibrate: () -> Unit) {
                 }
             }
             items(sensors, key = { it.serial }) { row ->
-                val details = remember(row, revision, now / SENSOR_TICK_MS) { loadSensorDetails(row, now) }
+                val details = remember(row, revision, now / SENSOR_TICK_MS) {
+                    loadWearSensorPresentation(row.serial, now)
+                }
                 Column(
                     Modifier.fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(20.dp))
                         .padding(horizontal = 14.dp, vertical = 13.dp),
                 ) {
                     Text(
-                        text = row.serial,
+                        text = details.serial,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (row.isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -172,8 +116,33 @@ fun SensorScreen(onCalibrate: () -> Unit) {
                     details.detailedStatus
                         .takeIf { it.isNotEmpty() && !it.equals(connection, ignoreCase = true) }
                         ?.let { SensorDetailRow(stringResource(R.string.status), it) }
-                    details.dayText.takeIf { it.isNotEmpty() }?.let {
-                        SensorDetailRow(stringResource(R.string.days), it)
+                    details.dayValueText.takeIf { it.isNotEmpty() }?.let {
+                        SensorDetailRow(
+                            stringResource(R.string.wear_sensor_day_label),
+                            it,
+                        )
+                    }
+                    details.lifecycleProgress?.let { progress ->
+                        val progressColor = when {
+                            progress >= 0.95f -> MaterialTheme.colorScheme.error
+                            progress >= 0.80f -> MaterialTheme.colorScheme.tertiary
+                            else -> androidx.compose.ui.graphics.Color(0xFF66BB6A)
+                        }
+                        Box(
+                            Modifier.fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .height(5.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                    RoundedCornerShape(3.dp),
+                                ),
+                        ) {
+                            Box(
+                                Modifier.fillMaxWidth(progress.coerceIn(0f, 1f))
+                                    .fillMaxHeight()
+                                    .background(progressColor, RoundedCornerShape(3.dp)),
+                            )
+                        }
                     }
                     details.startTimeMs.takeIf { it > 0L }?.let {
                         SensorDetailRow(stringResource(R.string.sensor_started), dateFormat.format(Date(it)))

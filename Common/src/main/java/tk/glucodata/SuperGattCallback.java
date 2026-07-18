@@ -631,6 +631,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
             GlucoseWidget.update();
+            WearSync2.pushTail();
         }
         if (shouldBroadcastMinuteUpdate) {
             nexttime = tim + mininterval;

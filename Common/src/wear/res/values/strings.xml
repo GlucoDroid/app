@@ -25,6 +25,8 @@
 
     <string name="title_activity_watch_face_config">Configuration</string>
     <string name="talkhelp" />
+    <string name="wear_sensor_day_label">Day</string>
+    <string name="wear_sensor_day_format">Day %1$s</string>
 
 
 </resources>

@@ -61,6 +61,12 @@ class MessageReceiver: WearableListenerService() {
             MessageSender.DATA_PATH   -> {
                 Natives.message(data);
             }
+            MessageSender.SYNC2_REQ_PATH -> {
+                if (!isWearable) WearSync2.onRequest(data)
+            }
+            MessageSender.SYNC2_CHUNK_PATH -> {
+                if (isWearable) WearSync2.onChunk(data)
+            }
             MessageSender.SENSOR_HANDOFF_PATH -> {
                 if (isWearable) {
                     // Persist the identity only. Do NOT flip the watch into
@@ -152,6 +158,9 @@ class MessageReceiver: WearableListenerService() {
                 }
              MessageSender.ASKFORSTART_PATH -> {
                  if(!isWearable) {
+                     // Fresh watch: serve the full sync2 backfill alongside the
+                     // legacy start flow.
+                     WearSync2.serveAll()
                      val sender = tk.glucodata.MessageSender.getMessageSender()
                      if (sender == null) {
                          Log.d(LOG_ID, "3: messagesender==null")

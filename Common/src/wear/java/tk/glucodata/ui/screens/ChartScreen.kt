@@ -4,9 +4,13 @@ import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +38,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -53,7 +58,6 @@ import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.Natives
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
-import tk.glucodata.TrendAccess
 import tk.glucodata.UiRefreshBus
 
 internal val CHART_RANGES = intArrayOf(3, 6, 12, 24)
@@ -116,8 +120,21 @@ private fun clampedViewport(data: WearChartData, start: Long, end: Long): Pair<L
 
 @Composable
 fun ChartScreen() {
+    ScreenScaffold(timeText = { TimeText() }) {
+        InteractiveWearChartPanel(
+            modifier = Modifier.fillMaxSize().padding(top = 22.dp),
+        )
+    }
+}
+
+@Composable
+internal fun InteractiveWearChartPanel(
+    modifier: Modifier = Modifier,
+    initialRangeIndex: Int = 1,
+    requestInitialFocus: Boolean = true,
+) {
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
-    var rangeIndex by remember { mutableIntStateOf(1) }
+    var rangeIndex by remember { mutableIntStateOf(initialRangeIndex.coerceIn(CHART_RANGES.indices)) }
     var data by remember { mutableStateOf(loadChart(CHART_RANGES[rangeIndex], isMmol)) }
     var viewportStart by remember { mutableLongStateOf(data.start) }
     var viewportEnd by remember { mutableLongStateOf(data.end) }
@@ -169,7 +186,7 @@ fun ChartScreen() {
     LaunchedEffect(Unit) {
         launch { UiRefreshBus.revision.collect { updateData() } }
         launch { while (true) { kotlinx.coroutines.delay(60_000L); updateData() } }
-        requester.requestFocus()
+        if (requestInitialFocus) requester.requestFocus()
     }
 
     val lineColor = data.points.lastOrNull()?.let { rangeColor(it.value, isMmol) }
@@ -180,15 +197,25 @@ fun ChartScreen() {
     val alarmColor = MaterialTheme.colorScheme.error
     val selectionColor = MaterialTheme.colorScheme.primary
 
-    ScreenScaffold(timeText = { TimeText() }) {
-        Box(
-            Modifier.fillMaxSize()
-                .onRotaryScrollEvent { event ->
-                    zoomViewport(if (event.verticalScrollPixels < 0f) 1.16f else 1f / 1.16f)
-                    true
+    Box(
+        modifier
+            .onRotaryScrollEvent { event ->
+                zoomViewport(if (event.verticalScrollPixels < 0f) 1.16f else 1f / 1.16f)
+                true
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    requester.requestFocus()
+                    var hasPressedPointers: Boolean
+                    do {
+                        hasPressedPointers = awaitPointerEvent().changes.any { it.pressed }
+                    } while (hasPressedPointers)
                 }
-                .focusRequester(requester).focusable(),
-        ) {
+            }
+            .focusRequester(requester)
+            .focusable(),
+    ) {
             WearChart(
                 data = data,
                 viewportStart = viewportStart,
@@ -212,11 +239,11 @@ fun ChartScreen() {
                     selected = null
                 },
                 onReset = { resetViewport() },
-                modifier = Modifier.fillMaxSize().padding(top = 30.dp, bottom = 29.dp, start = 10.dp, end = 10.dp),
+                modifier = Modifier.fillMaxSize().padding(top = 24.dp, bottom = 25.dp),
             )
             Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f), CircleShape),
             ) {
                 Text(
                     "${CHART_RANGES[rangeIndex]}h",
@@ -245,12 +272,9 @@ fun ChartScreen() {
                     formatWearGlucose(it.value, isMmol)
                 }
                 "$values  ${timeFormat.format(Date(it.timestamp))}"
-            } ?: data.points.lastOrNull()?.let {
-                val velocity = TrendAccess.calculateVelocity(data.points.takeLast(8), false, isMmol)
-                "${formatWearGlucose(it.value, isMmol)} ${trendArrow(velocity)}"
             }
             headline?.let {
-                Text(it, style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.TopCenter).padding(top = 26.dp))
+                Text(it, style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.TopCenter).padding(top = 3.dp))
             }
             if (data.points.isEmpty()) {
                 Text(
@@ -259,6 +283,42 @@ fun ChartScreen() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center),
                 )
+            }
+    }
+}
+
+private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectChartTransforms(
+    onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
+) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        var accumulatedPan = Offset.Zero
+        var chartOwnsGesture = false
+        while (true) {
+            val event = awaitPointerEvent()
+            val pressedCount = event.changes.count { it.pressed }
+            if (pressedCount == 0) break
+            if (!chartOwnsGesture && event.changes.any { it.isConsumed }) break
+
+            val pan = event.calculatePan()
+            val zoom = event.calculateZoom()
+            accumulatedPan += pan
+            if (!chartOwnsGesture) {
+                chartOwnsGesture = pressedCount >= 2 ||
+                    (accumulatedPan.getDistance() > viewConfiguration.touchSlop &&
+                        abs(accumulatedPan.x) > abs(accumulatedPan.y))
+                if (!chartOwnsGesture &&
+                    accumulatedPan.getDistance() > viewConfiguration.touchSlop &&
+                    abs(accumulatedPan.y) >= abs(accumulatedPan.x)
+                ) {
+                    break
+                }
+            }
+            if (chartOwnsGesture) {
+                onTransform(event.calculateCentroid(), pan, zoom)
+                event.changes.forEach { change ->
+                    if (change.positionChanged()) change.consume()
+                }
             }
         }
     }
@@ -298,7 +358,7 @@ internal fun WearChart(
     } else {
         Modifier
             .pointerInput(data.historyStart, data.end, viewportStart, viewportEnd) {
-                detectTransformGestures { centroid, pan, zoom, _ ->
+                detectChartTransforms { centroid, pan, zoom ->
                     val width = size.width.toFloat().coerceAtLeast(1f)
                     val oldDuration = viewportEnd - viewportStart
                     val duration = (oldDuration / zoom).toLong()
@@ -328,8 +388,17 @@ internal fun WearChart(
     Box(
         modifier.then(gestures).drawWithCache {
             val floor = if (data.isMmol) 2.2f else 40f
-            var minValue = minOf(data.thresholds.veryLow, viewportPoints.minOfOrNull { it.value } ?: data.thresholds.low)
-            var maxValue = maxOf(data.thresholds.veryHigh, viewportPoints.maxOfOrNull { it.value } ?: data.thresholds.high)
+            // Fit the value range to the visible data, not the alarm limits —
+            // forcing veryLow..veryHigh into view squashed a flat curve into a
+            // sliver. Threshold/target lines simply clip when out of range.
+            var minValue = viewportPoints.minOfOrNull { it.value } ?: data.thresholds.low
+            var maxValue = viewportPoints.maxOfOrNull { it.value } ?: data.thresholds.high
+            val minSpan = if (data.isMmol) 3f else 54f
+            if (maxValue - minValue < minSpan) {
+                val mid = (maxValue + minValue) / 2f
+                minValue = mid - minSpan / 2f
+                maxValue = mid + minSpan / 2f
+            }
             if (showRaw) {
                 viewportPoints.forEach { point ->
                     if (point.rawValue.isFinite() && point.rawValue > 0f) {
@@ -338,13 +407,16 @@ internal fun WearChart(
                     }
                 }
             }
-            val padding = ((maxValue - minValue) * 0.08f).coerceAtLeast(if (data.isMmol) 0.3f else 6f)
+            val padding = ((maxValue - minValue) * 0.12f).coerceAtLeast(if (data.isMmol) 0.4f else 8f)
             minValue = (minValue - padding).coerceAtLeast(floor)
             maxValue += padding
             val valueRange = (maxValue - minValue).coerceAtLeast(0.1f)
             val timeRange = (viewportEnd - viewportStart).toFloat().coerceAtLeast(1f)
+            val plotTop = 8.dp.toPx()
+            val plotBottom = (size.height - 10.dp.toPx()).coerceAtLeast(plotTop + 1f)
+            val plotHeight = plotBottom - plotTop
             fun x(time: Long) = ((time - viewportStart).toFloat() / timeRange) * size.width
-            fun y(value: Float) = size.height - ((value - minValue) / valueRange) * size.height
+            fun y(value: Float) = plotBottom - ((value - minValue) / valueRange) * plotHeight
 
             fun buildCurve(raw: Boolean): Path {
                 val curve = Path()

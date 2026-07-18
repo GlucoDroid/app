@@ -546,7 +546,11 @@ extern "C" JNIEXPORT void JNICALL fromjava(wakestreamsender)(JNIEnv *env,
 extern "C" JNIEXPORT void JNICALL fromjava(wakestreamhereonly)(JNIEnv *env,
                                                                jclass cl) {
   if (backup) {
-    backup->wakebackup(Backup::wakestream);
+    // wakereconnect included: the watch's periodic /wakestream is the only
+    // self-heal signal after the wear tunnel pumps die, and a bare wakestream
+    // cannot re-open closed connections — the stream stayed dead until a
+    // /netinfo happened to arrive (user poking the phone's watch page).
+    backup->wakebackup(Backup::wakestream | wakereconnect);
   }
 }
 /*

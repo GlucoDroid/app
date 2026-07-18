@@ -132,16 +132,10 @@ class AlarmActivity : ComponentActivity() {
             .ifBlank { intent.getStringExtra(EXTRA_ALARM_MESSAGE).orEmpty() }
         val match = GLUCOSE_VALUE_REGEX.find(source)
         if (match == null) {
-            return FallbackGlucose(primary = "---", secondary = Notify.unitlabel)
+            return FallbackGlucose(primary = "---", secondary = null)
         }
         val value = match.value.trim()
-        val unit = when {
-            source.contains("mmol", ignoreCase = true) -> "mmol/L"
-            source.contains("mg/d", ignoreCase = true) -> "mg/dL"
-            Notify.unitlabel.isNotBlank() -> Notify.unitlabel
-            else -> null
-        }
-        return FallbackGlucose(primary = value, secondary = unit)
+        return FallbackGlucose(primary = value, secondary = null)
     }
 
     private fun sendAlarmAction(action: String, snoozeMinutes: Int? = null) {

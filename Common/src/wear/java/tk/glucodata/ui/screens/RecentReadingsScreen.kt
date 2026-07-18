@@ -35,7 +35,6 @@ import tk.glucodata.Natives
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
 import tk.glucodata.UiRefreshBus
-import tk.glucodata.ui.WearSectionTitle
 
 private fun recentReadings(isMmol: Boolean): List<GlucosePoint> = runCatching {
     NotificationHistorySource.getDisplayHistory(System.currentTimeMillis() - 24 * 3_600_000L, isMmol, null)
@@ -66,7 +65,6 @@ fun RecentReadingsScreen() {
     }
     ScreenScaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(contentPadding = PaddingValues(top = 32.dp, bottom = 28.dp, start = 20.dp, end = 20.dp)) {
-            item { WearSectionTitle(stringResource(R.string.readings)) }
             if (readings.isEmpty()) {
                 item { Text(stringResource(R.string.nodata), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
@@ -77,7 +75,6 @@ fun RecentReadingsScreen() {
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(formatter.format(Date(point.timestamp)), style = MaterialTheme.typography.labelLarge)
-                        Text(if (isMmol) "mmol/L" else "mg/dL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(formatWearGlucose(point.value, isMmol), style = MaterialTheme.typography.titleLarge, color = color)
                 }

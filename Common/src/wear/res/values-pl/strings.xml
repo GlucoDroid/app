@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wear_sensor_day_label">Dzień</string>
+    <string name="wear_sensor_day_format">Dzień %1$s</string>
+</resources>

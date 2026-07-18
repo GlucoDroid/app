@@ -133,6 +133,7 @@
                 <data android:host="*" android:pathPrefix="/wakestream" android:scheme="wear" />
                 <data android:host="*" android:pathPrefix="/askforstart" android:scheme="wear" />
                 <data android:host="*" android:pathPrefix="/calibrate" android:scheme="wear" />
+                <data android:host="*" android:pathPrefix="/sync2" android:scheme="wear" />
             </intent-filter>
         </service>
 

@@ -48,7 +48,6 @@ fun WearApp() {
         ) {
             composable(WearRoutes.MAIN) {
                 MainScreen(
-                    onOpenChart = { navController.navigate(WearRoutes.CHART) },
                     onOpenSettings = { navController.navigate(WearRoutes.SETTINGS) },
                     onOpenSensor = { navController.navigate(WearRoutes.SENSOR) },
                     onOpenReadings = { navController.navigate(WearRoutes.READINGS) },

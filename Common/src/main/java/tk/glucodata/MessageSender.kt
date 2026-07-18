@@ -295,6 +295,8 @@ companion object {
     const val MESSAGES_PATH = "/messages"
     const val CALIBRATE_PATH = "/calibrate"
     const val SENSOR_HANDOFF_PATH = "/sensorhandoff"
+    const val SYNC2_REQ_PATH = "/sync2/req"
+    const val SYNC2_CHUNK_PATH = "/sync2/chunk"
     val scope = CoroutineScope(Dispatchers.IO+SupervisorJob()  )
     private var messagesender: MessageSender? = null
     @Volatile private var wearableApiUnavailable = false
@@ -360,6 +362,12 @@ companion object {
         val sender = messagesender ?: return
         val ar = byteArrayOf(0);
         sender.sendmessage(WAKESTREAM_PATH, ar)
+    }
+
+    @JvmStatic
+    public fun sendSyncMessage(path: String, data: ByteArray) {
+        val sender = messagesender ?: return
+        sender.sendmessage(path, data)
     }
 
     @Keep
