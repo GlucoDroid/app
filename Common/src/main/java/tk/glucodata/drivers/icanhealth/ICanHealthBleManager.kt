@@ -28,7 +28,6 @@ import java.util.ArrayDeque
 import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.UUID
-import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.math.abs
 import kotlin.math.round
 import tk.glucodata.Applic
@@ -207,7 +206,6 @@ class ICanHealthBleManager(
     @Volatile private var vendorSoftwareVersion: String = ""
     private val pendingHistoryBatch = LinkedHashMap<Int, PendingHistoryReading>()
     private val recentLiveGlucoseMgdl = ArrayDeque<Float>(RECENT_GLUCOSE_WINDOW_SIZE)
-    private val rejectedOnboardingAddresses = CopyOnWriteArraySet<String>()
 
     private var provisionalSensorIdForAdoption: String? =
         serial.takeIf { ICanHealthConstants.isProvisionalSensorId(it) }
@@ -814,12 +812,8 @@ class ICanHealthBleManager(
     }
 
     fun setOnboardingDeviceSn(deviceSnOrCode: String?) {
-        val normalized = ICanHealthConstants.normalizeOnboardingDeviceSn(deviceSnOrCode)
+        onboardingDeviceSn = ICanHealthConstants.normalizeOnboardingDeviceSn(deviceSnOrCode)
             .takeIf { it.isNotBlank() }
-        if (normalized != onboardingDeviceSn) {
-            rejectedOnboardingAddresses.clear()
-        }
-        onboardingDeviceSn = normalized
     }
 
     fun setConfiguredAuthUserId(userId: String?) {
@@ -1079,10 +1073,6 @@ class ICanHealthBleManager(
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
         val trimmedName = deviceName?.trim()?.takeIf { it.isNotEmpty() } ?: return false
-        val candidateAddress = address?.trim()?.uppercase(Locale.US)
-        if (candidateAddress != null && candidateAddress in rejectedOnboardingAddresses) {
-            return false
-        }
         val knownAddress = mActiveDeviceAddress?.takeIf { it.isNotBlank() }
         if (knownAddress != null) {
             return address != null && address.equals(knownAddress, ignoreCase = true)
@@ -1122,16 +1112,6 @@ class ICanHealthBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         if (stop) return
-        val stateAddress = gatt.device?.address?.trim()?.uppercase(Locale.US)
-        if (stateAddress != null && stateAddress in rejectedOnboardingAddresses) {
-            Log.d(TAG, "Ignoring GATT state=$newState from rejected onboarding candidate $stateAddress")
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                runCatching { gatt.disconnect() }
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                runCatching { gatt.close() }
-            }
-            return
-        }
         val currentGatt = mBluetoothGatt
         if (currentGatt != null && currentGatt !== gatt) {
             Log.d(TAG, "Ignoring stale GATT state=$newState status=$status for $SerialNumber")
