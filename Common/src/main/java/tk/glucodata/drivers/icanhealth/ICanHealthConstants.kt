@@ -11,6 +11,7 @@ package tk.glucodata.drivers.icanhealth
 
 import java.util.UUID
 import java.util.Locale
+import tk.glucodata.Log
 
 object ICanHealthConstants {
     private val FULL_CANONICAL_HEX_SENSOR_ID_REGEX = Regex("^[0-9A-Z]{16}$", RegexOption.IGNORE_CASE)
@@ -205,7 +206,11 @@ object ICanHealthConstants {
 
     @JvmStatic
     fun normalizeOnboardingDeviceSn(source: String?): String {
-        val sanitized = sanitizeSensorIdentity(source)
+        val sanitized = source
+            ?.trim()
+            ?.uppercase(Locale.US)
+            ?.filter { it.isLetterOrDigit() }
+            .orEmpty()
         if (sanitized.isEmpty()) {
             return ""
         }
@@ -214,41 +219,6 @@ object ICanHealthConstants {
         }
         return sanitized
     }
-
-    /**
-     * The launcher QR and DIS serial are different representations of the same
-     * physical sensor identity. The vendor launcher uses the leading 8 or 9
-     * characters as its short serial, depending on the active-code family.
-     */
-    @JvmStatic
-    fun onboardingIdentityPrefix(source: String?): String {
-        val normalized = normalizeOnboardingDeviceSn(source)
-        return deriveShortSnFromActiveCode(normalized)
-    }
-
-    @JvmStatic
-    fun matchesOnboardingIdentity(onboardingDeviceSn: String?, deviceSerial: String?): Boolean {
-        val expected = normalizeOnboardingDeviceSn(onboardingDeviceSn)
-        val observed = sanitizeSensorIdentity(deviceSerial)
-        if (expected.isEmpty() || observed.isEmpty()) {
-            return false
-        }
-        val prefix = deriveShortSnFromActiveCode(expected)
-        if (prefix.length < 8) {
-            return false
-        }
-        if (expected == observed) {
-            return true
-        }
-        return observed.startsWith(prefix)
-    }
-
-    private fun sanitizeSensorIdentity(source: String?): String =
-        source
-            ?.trim()
-            ?.uppercase(Locale.US)
-            ?.filter { it.isLetterOrDigit() }
-            .orEmpty()
 
     private fun deriveShortSnFromActiveCode(activeCode: String): String {
         if (activeCode.length < 12) {
