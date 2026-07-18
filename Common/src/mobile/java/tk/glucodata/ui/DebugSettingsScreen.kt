@@ -173,8 +173,9 @@ fun DebugSettingsScreen(navController: NavController) {
                             } catch (e: Exception) {
                                 Log.e("DebugSettings", "Share failed", e)
                                 withContext(Dispatchers.Main) {
-                                    logContent += "\n[Error sharing: ${e.message}]"
-                                    Toast.makeText(context, "Share failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                    val detail = e.message ?: e.javaClass.simpleName
+                                    logContent += "\n[Error sharing: $detail]"
+                                    Toast.makeText(context, "Share failed: $detail", Toast.LENGTH_LONG).show()
                                 }
                             }
                         }
