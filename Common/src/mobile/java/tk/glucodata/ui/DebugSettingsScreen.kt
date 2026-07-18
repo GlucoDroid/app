@@ -2,6 +2,8 @@ package tk.glucodata.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -142,6 +144,7 @@ fun DebugSettingsScreen(navController: NavController) {
                     }
                     // Share sanitized log via system share sheet
                     IconButton(onClick = {
+                        Log.d("DebugSettings", "Share button clicked")
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
                                 val exportDir = File(context.cacheDir, "exports").also { it.mkdirs() }
@@ -160,11 +163,19 @@ fun DebugSettingsScreen(navController: NavController) {
                                     putExtra(Intent.EXTRA_STREAM, uri)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
+                                val chooser = Intent.createChooser(intent, context.getString(R.string.share_log))
+                                // NEW_TASK lets the chooser launch even if context isn't an Activity
+                                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 withContext(Dispatchers.Main) {
-                                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_log)))
+                                    Log.d("DebugSettings", "Starting chooser activity")
+                                    context.startActivity(chooser)
                                 }
                             } catch (e: Exception) {
-                                withContext(Dispatchers.Main) { logContent += "\n[Error sharing: ${e.message}]" }
+                                Log.e("DebugSettings", "Share failed", e)
+                                withContext(Dispatchers.Main) {
+                                    logContent += "\n[Error sharing: ${e.message}]"
+                                    Toast.makeText(context, "Share failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                     }) {
