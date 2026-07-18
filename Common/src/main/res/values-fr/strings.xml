@@ -370,7 +370,7 @@
     <string name="import_history_desc">Importer des données de glucose depuis un fichier CSV</string>
     <string name="get_started_desc">Commencez par ajouter votre capteur</string>
     <string name="select_sensor">Sélectionner le type de capteur</string>
-    <string name="select_sibionics_type">Sélectionner le type de capteur</string>
+    <string name="select_sibionics_type">Choisir un capteur Sibionics</string>
     <string name="or_divider">"  ou  "</string>
     <string name="no_sensors_connected">Aucun capteur connecté</string>
     <string name="enter_sensor_codes">Entrer les codes du capteur</string>
@@ -386,7 +386,7 @@
     <string name="select_gallery_button">Sélectionner depuis la Galerie</string>
     <string name="skip_fake_sensor">Ignorer (Utiliser faux capteur)</string>
     <string name="enter_code_manually">Entrer le code manuellement</string>
-    <string name="choose_sibionics_variant">Choisissez votre variante de capteur Sibionics</string>
+    <string name="choose_sibionics_variant">Sélectionnez le modèle indiqué sur l’emballage.</string>
     <string name="continue_action">Continuer</string>
     <string name="sensor_init_failed">Initialisation du capteur échouée</string>
     <string name="sensor_lost_restart">Erreur: Capteur perdu. Veuillez recommencer la configuration.</string>
@@ -490,7 +490,7 @@
     <string name="auto_calibration_mode">Algorithme du capteur</string>
     <string name="sibionics_custom_algorithm">Modèle adaptatif du capteur (expérimental)</string>
     <string name="sibionics_custom_algorithm_desc">Compensation de la dérive du capteur, du retard physiologique et des artefacts</string>
-    <string name="sibionics_stock_algorithm_desc">Modèle standard du capteur</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics par défaut</string>
     <string name="sibionics_stock_algorithm_detail">Utiliser les étalonnages du lecteur dans l’algorithme du capteur</string>
     <string name="sibionics_restart_algorithm_desc">Reconstruire l’état minute par minute depuis l’historique du capteur</string>
     <string name="juggluco_native">Juggluco natif</string>
@@ -623,7 +623,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibrate_a">Mode visuel</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">Étalonnage</string>
     <string name="calibration_algorithm">Calibration Algorithm</string>
     <string name="calibrations">Calibrations</string>
     <string name="can_t_play">"Can't play "</string>
@@ -1335,8 +1335,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">Sélectionné : %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Utiliser de fausses infos QR depuis ce nom BLE</string>
     <string name="sibionics_use_ble_device">Utiliser cet appareil Bluetooth</string>
-    <string name="sibionics_managed_driver_title">Pilote géré sans lib</string>
-    <string name="sibionics_managed_driver_desc">Utiliser le pilote Kotlin BLE/protocole au lieu de l’ancienne bibliothèque native Sibionics. Expérimental ; laissez désactivé si ce capteur fonctionne déjà en mode historique.</string>
+    <string name="sibionics_legacy_driver_title">Pilote historique</string>
+    <string name="sibionics_legacy_driver_desc">Utilisez l’ancien pilote propriétaire uniquement pour une installation existante.</string>
     <string name="sibionics_managed_sensor_added">Capteur Sibionics géré ajouté : %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -1954,10 +1954,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_libre_nfc_caveat">Les capteurs Libre s\'activent d\'abord avec le NFC du téléphone. Après l\'activation, cette montre peut prendre le relais.</string>
     <string name="sibionics_glucose_model">Modèle de glucose</string>
     <string name="sibionics_stock_model_detail">Algorithme exact du capteur Sibionics</string>
-    <string name="sibionics_responsive_algorithm">Estimateur réactif</string>
+    <string name="sibionics_responsive_algorithm">Réponse rapide</string>
     <string name="sibionics_responsive_algorithm_desc">Estimateur original de la glycémie et de sa vitesse</string>
-    <string name="sibionics_balanced_algorithm">Suivi équilibré</string>
+    <string name="sibionics_balanced_algorithm">Lissage léger</string>
     <string name="sibionics_balanced_algorithm_desc">Réduction du bruit limitée, proche du modèle standard</string>
-    <string name="sibionics_state_algorithm">Modèle d’état chimique</string>
+    <string name="sibionics_state_algorithm">Correction adaptative</string>
     <string name="sibionics_state_algorithm_desc">Compensation de la dérive du capteur, du retard physiologique et des artefacts</string>
+    <string name="sibionics_auto_reset_22_desc">Réinitialisation vers le 22e jour, de préférence lorsque la glycémie est plus stable. Une réinitialisation de sécurité a lieu avant expiration même si ce réglage est désactivé.</string>
+    <string name="sibionics_reset_reminder_title">Réinitialisation de Sibionics 2 bientôt requise</string>
+    <string name="sibionics_reset_reminder_text">Le capteur atteindra son point de réinitialisation dans environ %1$d heures. Réinitialisez-le à temps pour le maintenir actif.</string>
+    <string name="sibionics_reset_postpone">Reporter de 2 heures</string>
+    <string name="sibionics_reset_reminder_channel">Rappels de réinitialisation Sibionics</string>
+    <string name="sibionics_reset_reminder_channel_desc">Rappels et actions pour réinitialiser Sibionics 2 avant son expiration</string>
 </resources>

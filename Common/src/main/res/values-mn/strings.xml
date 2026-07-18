@@ -408,7 +408,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="resettitle">Дахин тохируулах</string>
     <string name="resetmessage">Clears transmitter memory. Should be pressed before using a new sensor in an already used transmitter.</string>
     <string name="nolibrelink">Use the EverSense Broadcast instead. See help.</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">Тохируулга</string>
     <string name="exclude">Exclude</string>
     <string name="calibratepast">Apply to past</string>
     <string name="bloodvar">Blood glucose:</string>
@@ -610,7 +610,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_setup_title">Sibionics Setup</string>
     <string name="scan_sensor_qr">Scan Sensor QR Code</string>
     <string name="scan_sensor_qr_desc">Scan the data matrix on the sensor packaging</string>
-    <string name="select_sibionics_type">Select Sensor Type</string>
+    <string name="select_sibionics_type">Sibionics мэдрэгч сонгох</string>
     <string name="scan_transmitter">Scan Transmitter</string>
     <string name="connecting">Connecting...</string>
     <string name="setup_complete">Setup Complete</string>
@@ -763,7 +763,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="select_gallery_button">Select from Gallery</string>
     <string name="skip_fake_sensor">Skip (Use Fake Sensor)</string>
     <string name="enter_code_manually">Enter Code Manually</string>
-    <string name="choose_sibionics_variant">Choose your Sibionics sensor variant</string>
+    <string name="choose_sibionics_variant">Савлагаан дээрх загварыг сонгоно уу.</string>
     <string name="continue_action">Continue</string>
     <string name="sensor_init_failed">Sensor initialization failed</string>
     <string name="sensor_lost_restart">Error: Sensor lost. Please restart setup.</string>
@@ -811,7 +811,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="auto_calibration_mode">Мэдрэгчийн алгоритм</string>
     <string name="sibionics_custom_algorithm">Дасан зохицох мэдрэгчийн загвар (туршилтын)</string>
     <string name="sibionics_custom_algorithm_desc">Мэдрэгчийн хазайлт, физиологийн хоцролт ба артефактын нөхөн олговор</string>
-    <string name="sibionics_stock_algorithm_desc">Мэдрэгчийн үндсэн загвар</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics үндсэн</string>
     <string name="sibionics_stock_algorithm_detail">Глюкометрийн тохируулгыг мэдрэгчийн алгоритмд ашиглах</string>
     <string name="sibionics_restart_algorithm_desc">Хадгалсан мэдрэгчийн түүхээс минутын алгоритмын төлөвийг сэргээнэ</string>
     <string name="juggluco_native">Juggluco native</string>
@@ -1474,8 +1474,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">Selected: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Use fake QR info from this BLE name</string>
     <string name="sibionics_use_ble_device">Use this Bluetooth device</string>
-    <string name="sibionics_managed_driver_title">Managed lib-free driver</string>
-    <string name="sibionics_managed_driver_desc">Use the Kotlin BLE/protocol driver instead of the legacy native Sibionics library. Experimental; keep it off if this sensor already works in legacy mode.</string>
+    <string name="sibionics_legacy_driver_title">Хуучин драйвер</string>
+    <string name="sibionics_legacy_driver_desc">Хуучин өмчийн драйверийг зөвхөн одоогийн тохиргоотой нийцүүлэхэд ашиглана.</string>
     <string name="sibionics_managed_sensor_added">Managed Sibionics sensor added: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -2060,10 +2060,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wrongcode">Wrong QR code</string>
     <string name="sibionics_glucose_model">Глюкозын загвар</string>
     <string name="sibionics_stock_model_detail">Sibionics мэдрэгчийн нарийн алгоритм</string>
-    <string name="sibionics_responsive_algorithm">Хурдан үнэлэгч</string>
+    <string name="sibionics_responsive_algorithm">Хурдан хариу</string>
     <string name="sibionics_responsive_algorithm_desc">Глюкоз ба өөрчлөлтийн хурдыг чиг хандлагаар үнэлэх анхны загвар</string>
-    <string name="sibionics_balanced_algorithm">Тэнцвэртэй хянагч</string>
+    <string name="sibionics_balanced_algorithm">Хөнгөн жигдрүүлэлт</string>
     <string name="sibionics_balanced_algorithm_desc">Үндсэн загварыг ойроос дагасан хязгаарлагдмал шуугиан бууруулалт</string>
-    <string name="sibionics_state_algorithm">Химийн төлөвийн загвар</string>
+    <string name="sibionics_state_algorithm">Дасан зохицох залруулга</string>
     <string name="sibionics_state_algorithm_desc">Мэдрэгчийн хазайлт, физиологийн хоцролт ба артефактын нөхөн олговор</string>
+    <string name="sibionics_auto_reset_22_desc">22 дахь хоногийн орчим, глюкоз тогтуун үед дахин тохируулна. Үүнийг унтраасан ч хугацаа дуусахаас өмнө хамгаалалтын дахин тохируулга хийгдэнэ.</string>
+    <string name="sibionics_reset_reminder_title">Sibionics 2 дахин тохируулах хугацаа ойртож байна</string>
+    <string name="sibionics_reset_reminder_text">Мэдрэгч ойролцоогоор %1$d цагийн дараа дахин тохируулах цэгт хүрнэ. Ажиллуулахын тулд хугацаанд нь тохируулна уу.</string>
+    <string name="sibionics_reset_postpone">2 цагаар хойшлуулах</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics дахин тохируулах сануулга</string>
+    <string name="sibionics_reset_reminder_channel_desc">Sibionics 2 дуусахаас өмнө дахин тохируулах сануулга ба үйлдэл</string>
 </resources>

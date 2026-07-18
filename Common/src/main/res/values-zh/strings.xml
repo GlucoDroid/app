@@ -416,7 +416,7 @@
     <string name="import_history_desc">从 CSV 文件导入血糖数据</string>
     <string name="get_started_desc">首先添加您的传感器</string>
     <string name="select_sensor">选择传感器类型</string>
-    <string name="select_sibionics_type">选择传感器类型</string>
+    <string name="select_sibionics_type">选择 Sibionics 传感器</string>
     <string name="or_divider">"  或  "</string>
     <string name="no_sensors_connected">没有连接的传感器</string>
     <string name="enter_sensor_codes">输入传感器代码</string>
@@ -436,7 +436,7 @@
     <string name="select_gallery_button">从图库选择</string>
     <string name="skip_fake_sensor">跳过 (使用模拟传感器)</string>
     <string name="enter_code_manually">手动输入代码</string>
-    <string name="choose_sibionics_variant">选择您的 Sibionics 传感器型号</string>
+    <string name="choose_sibionics_variant">请选择包装上标示的型号。</string>
     <string name="continue_action">继续</string>
     <string name="sensor_init_failed">传感器初始化失败</string>
     <string name="sensor_lost_restart">错误：传感器丢失。重新开始设置。</string>
@@ -555,7 +555,7 @@
     <string name="auto_calibration_mode">传感器算法</string>
     <string name="sibionics_custom_algorithm">自适应传感器模型（实验性）</string>
     <string name="sibionics_custom_algorithm_desc">补偿传感器漂移、生理延迟和信号伪影</string>
-    <string name="sibionics_stock_algorithm_desc">原厂传感器模型</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics 默认</string>
     <string name="sibionics_stock_algorithm_detail">在传感器算法内部使用血糖仪校准</string>
     <string name="sibionics_restart_algorithm_desc">从已保存的传感器历史重建每分钟算法状态</string>
     <string name="juggluco_native">Juggluco 原生</string>
@@ -683,7 +683,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibrate_a">视觉模式</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">校准</string>
     <string name="calibration_algorithm">Calibration Algorithm</string>
     <string name="calibrations">Calibrations</string>
     <string name="caresens_air_scan_instruction">扫描 CareSens Air 包装上的传感器代码</string>
@@ -1345,8 +1345,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">已选择：%1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">使用该 BLE 名称生成伪二维码信息</string>
     <string name="sibionics_use_ble_device">使用此 Bluetooth 设备</string>
-    <string name="sibionics_managed_driver_title">无专有库托管驱动</string>
-    <string name="sibionics_managed_driver_desc">使用 Kotlin BLE/协议驱动，而不是旧的 Sibionics 原生库。实验性；如果此传感器在旧模式下已正常工作，请保持关闭。</string>
+    <string name="sibionics_legacy_driver_title">旧版驱动</string>
+    <string name="sibionics_legacy_driver_desc">仅为兼容现有设置时使用旧版专有驱动。</string>
     <string name="sibionics_managed_sensor_added">已添加托管 Sibionics 传感器：%1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -1964,10 +1964,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_libre_nfc_caveat">Libre 传感器需先用手机 NFC 激活。激活后，这块手表可以接管。</string>
     <string name="sibionics_glucose_model">葡萄糖模型</string>
     <string name="sibionics_stock_model_detail">精确的 Sibionics 原厂算法</string>
-    <string name="sibionics_responsive_algorithm">快速估算模型</string>
+    <string name="sibionics_responsive_algorithm">快速响应</string>
     <string name="sibionics_responsive_algorithm_desc">原始的趋势感知葡萄糖与变化速度估算模型</string>
-    <string name="sibionics_balanced_algorithm">均衡跟踪模型</string>
+    <string name="sibionics_balanced_algorithm">轻度平滑</string>
     <string name="sibionics_balanced_algorithm_desc">紧随原厂模型的有限降噪</string>
-    <string name="sibionics_state_algorithm">化学状态模型</string>
+    <string name="sibionics_state_algorithm">自适应校正</string>
     <string name="sibionics_state_algorithm_desc">补偿传感器漂移、生理延迟和信号伪影</string>
+    <string name="sibionics_auto_reset_22_desc">接近第 22 天时重置，并优先选择血糖较平稳的时段。即使关闭此项，也会在到期前执行安全重置。</string>
+    <string name="sibionics_reset_reminder_title">Sibionics 2 即将需要重置</string>
+    <string name="sibionics_reset_reminder_text">传感器约在 %1$d 小时后到达重置时间。请及时重置以保持运行。</string>
+    <string name="sibionics_reset_postpone">推迟 2 小时</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics 重置提醒</string>
+    <string name="sibionics_reset_reminder_channel_desc">Sibionics 2 到期前的重置提醒和操作</string>
 </resources>

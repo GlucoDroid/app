@@ -446,10 +446,6 @@ internal class SibionicsAdaptiveAlgorithmContext {
             DataInputStream(ByteArrayInputStream(snapshot)).use { input ->
                 if (input.readInt() != SNAPSHOT_MAGIC) return@use false
                 val version = input.readInt()
-                if (version < SNAPSHOT_VERSION) {
-                    reset()
-                    return@use true
-                }
                 if (version != SNAPSHOT_VERSION) return@use false
                 val savedSensitivity = input.readFloat()
                 if (!savedSensitivity.isFinite() || abs(savedSensitivity - decodedSensitivity) > 0.0001f) {
@@ -480,6 +476,8 @@ internal class SibionicsAdaptiveAlgorithmContext {
         if (!restored) reset()
         return restored
     }
+
+    fun continuationIndex(): Int? = lastIndex.takeIf { initialized && it >= CUSTOM_MODEL_WARMUP_INDEX }
 
     private fun isStateValid(): Boolean {
         if (!initialized) return true

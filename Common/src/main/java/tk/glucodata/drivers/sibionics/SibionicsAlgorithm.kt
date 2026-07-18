@@ -231,6 +231,17 @@ class SibionicsAlgorithmContext(
         AlgorithmFamily.V116A -> v116Core.latestChemicalSignal
     }
 
+    /** Last one-minute input represented by the active custom-model snapshot. */
+    internal fun customContinuationIndex(): Int? = when (selection.model) {
+        SibionicsCustomAlgorithmModel.STOCK -> null
+        SibionicsCustomAlgorithmModel.STATE_MODEL -> adaptiveCore.continuationIndex()
+        SibionicsCustomAlgorithmModel.BALANCED_TRACKER -> balancedCore.continuationIndex()
+        SibionicsCustomAlgorithmModel.RESPONSIVE_ESTIMATOR -> responsiveCore.continuationIndex()
+    }
+
+    internal fun hasExactContinuation(nextIndex: Int): Boolean =
+        !selection.customModelEnabled || customContinuationIndex() == nextIndex - 1
+
     fun snapshot(): ByteArray = ByteArrayOutputStream().use { bytes ->
         DataOutputStream(bytes).use { output ->
             output.writeInt(SNAPSHOT_MAGIC)

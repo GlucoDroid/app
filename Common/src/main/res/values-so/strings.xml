@@ -429,7 +429,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
  <string name="resettitle">Dib u dajin</string>
  <string name="resetmessage">Waxay nadiifisaa xusuusta gudbiyaha. Waa in la cadaadiyo ka hor inta aan la isticmaalin dareemaha cusub gudbiye hore loo isticmaalay.</string>
  <string name="nolibrelink">Bedelkeeda isticmaal EverSense Broadcast. Caawimo eeg</string>
- <string name="calibration">Calibration</string>
+ <string name="calibration">Qalabayn</string>
  <string name="exclude">Ka saar</string>
  <string name="calibratepast">Codso wixii hore</string>
  <string name="bloodvar">Gulukoosta dhiigga:</string>
@@ -655,7 +655,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="sibionics_setup_title">Dejinta Sibionics</string>
     <string name="scan_sensor_qr">Sawirka Sensor code QR</string>
     <string name="scan_sensor_qr_desc">Sawir shaxanka xogta ee baakadaha dareemayaasha</string>
-    <string name="select_sibionics_type">Dooro Nooca Sensor</string>
+    <string name="select_sibionics_type">Dooro dareeme Sibionics</string>
     <string name="scan_transmitter">Iskaan Wariyaha</string>
 
     <string name="connecting">Isku xidhka...</string>
@@ -839,7 +839,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="skip_fake_sensor">Ka bood (Isticmaal sensor been abuur ah)</string>
     <string name="enter_code_manually">Gacanta u geli Koodhka</string>
     
-    <string name="choose_sibionics_variant">Dooro kala duwanaanshaha dareemayaashaaga Sibionics</string>
+    <string name="choose_sibionics_variant">Dooro nooca ku qoran baakadka.</string>
     <string name="continue_action">Sii wad</string>
     
     <string name="sensor_init_failed">Dareemida bilawga waa fashilantay</string>
@@ -1633,6 +1633,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="sibionics_ble_probe_desc">Haddii dareemahaagu halkan ka muuqdo, Bluetooth waa nool yahay. Sawirka QR ayaa wali la door bidaa in si buuxda loo habeeyo.</string>
     <string name="sibionics_ble_probe_empty">Wali lama helin FF30 aaladaha Sibionics</string>
     <string name="sibionics_ble_selected">La xushay: %1$s</string>
+    <string name="sibionics_legacy_driver_title">Darawalka hore</string>
+    <string name="sibionics_legacy_driver_desc">Isticmaal darawalka gaarka ah ee hore keliya si uu ula jaanqaado habayn jirta.</string>
     <string name="sibionics_use_fake_qr_from_ble">Isticmaal macluumaadka QR ee been abuurka ah ee magacan BLE</string>
     <string name="wear_transport">Gudbinta Wear OS</string>
     <string name="wear_transport_desc">Habee gudbinta xogta Wear OS iyo isku xidhka xaaladda</string>
@@ -2179,4 +2181,14 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="sensor_display_select">Dooro dareemaha muujinta</string>
     <string name="sensor_display_selected">Muujinta dareemaha ayaa la doortay</string>
     <string name="wrongcode">Koodhka QR ee khaldan</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics caadiga ah</string>
+    <string name="sibionics_responsive_algorithm">Jawaab degdeg ah</string>
+    <string name="sibionics_balanced_algorithm">Simid fudud</string>
+    <string name="sibionics_state_algorithm">Sixid la-qabsi leh</string>
+    <string name="sibionics_auto_reset_22_desc">Dib u dejin ku dhow maalinta 22aad, iyadoo la doorbidayo gulukoos deggan. Kahor dhicitaanka dib u dejin badbaado ayaa dhacaysa xitaa marka tan la damiyo.</string>
+    <string name="sibionics_reset_reminder_title">Dib-u-dejinta Sibionics 2 way soo dhowdahay</string>
+    <string name="sibionics_reset_reminder_text">Dareemuhu wuxuu gaari doonaa waqtiga dib-u-dejinta qiyaastii %1$d saacadood gudahood. Dib u deji waqtigeeda si uu u sii shaqeeyo.</string>
+    <string name="sibionics_reset_postpone">Dib u dhig 2 saacadood</string>
+    <string name="sibionics_reset_reminder_channel">Xusuusinta dib-u-dejinta Sibionics</string>
+    <string name="sibionics_reset_reminder_channel_desc">Xusuusin iyo ficillo lagu dib u dejiyo Sibionics 2 ka hor intuusan dhicin</string>
 </resources>

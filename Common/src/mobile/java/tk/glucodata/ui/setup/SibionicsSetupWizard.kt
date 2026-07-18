@@ -56,16 +56,23 @@ import kotlinx.coroutines.withContext
 import tk.glucodata.drivers.sibionics.SibionicsConstants
 import tk.glucodata.drivers.sibionics.SibionicsRegistry
 
-enum class SibionicsType(val displayNameRes: Int, val subtype: Int) {
+enum class SibionicsType(val displayNameRes: Int, val subtype: Int, val setupVisible: Boolean = true) {
     EU(R.string.eusibionics, 0),
     HEMATONIX(R.string.hematonix, 1),
     CHINESE(R.string.chsibionics, 2),
     SIBIONICS2(R.string.sibionics2, 3),
-    GS3(R.string.gs3, 4),
+    GS3(R.string.gs3, 4, setupVisible = false),
 }
 
 private fun SibionicsType.toManagedVariant(): SibionicsConstants.Variant =
     SibionicsConstants.Variant.fromLegacySubtype(subtype)
+
+internal fun SibionicsType.acceptsBleSetupDevice(name: String?): Boolean =
+    when (this) {
+        SibionicsType.SIBIONICS2 -> SibionicsConstants.isSibionics2TransmitterName(name)
+        SibionicsType.GS3 -> false
+        else -> !name.isNullOrBlank() && !SibionicsConstants.isSibionics2TransmitterName(name)
+    }
 
 enum class SibionicsSetupStep {
     SELECT_TYPE,
@@ -362,6 +369,17 @@ fun constructFakeSibionicsQr(input: String, targetLength: Int = 59): String? {
     return tk.glucodata.PhotoScan.buildSibionics2TransmitterPayload(trimmedInput)
 }
 
+internal fun constructBleOnlySibionicsQr(deviceName: String): String? {
+    val normalized = SibionicsConstants.normalizeBleName(deviceName)
+    if (normalized.length !in 8..16) return null
+    val shortName = (normalized.takeLast(4) + normalized).take(11).padEnd(11, '0')
+    val syntheticName16 = "00000$shortName"
+    val desiredLength = 70
+    val magicCode = "0697283164"
+    val prefix = magicCode + "0".repeat(desiredLength - magicCode.length - syntheticName16.length - 1)
+    return prefix + syntheticName16 + "X"
+}
+
 /**
  * Modern Material 3 Expressive wizard for setting up Sibionics sensors.
  */
@@ -376,10 +394,12 @@ fun SibionicsSetupWizard(
     val context = LocalContext.current
     var currentStep by remember { mutableStateOf(SibionicsSetupStep.SELECT_TYPE) }
     var selectedType by remember { mutableStateOf(SibionicsType.EU) }
-    var useManagedDriver by remember { mutableStateOf(false) }
+    var useLegacyDriver by remember { mutableStateOf(false) }
+    val useManagedDriver = !useLegacyDriver
     var sensorPtr by remember { mutableStateOf(0L) }
     var sensorName by remember { mutableStateOf("") }
     var resetTransmitter by remember { mutableStateOf(false) } // Default false as requested
+    var pendingLegacyTransmitterName by remember { mutableStateOf<String?>(null) }
     var scannerTouchActive by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val handleDismiss: () -> Unit = {
@@ -412,11 +432,39 @@ fun SibionicsSetupWizard(
 
                 Natives.setSensorptrSiSubtype(ptr, selectedType.subtype)
 
-                currentStep =
-                    if (selectedType == SibionicsType.SIBIONICS2)
+                val pendingTransmitter = pendingLegacyTransmitterName
+                pendingLegacyTransmitterName = null
+                if (selectedType == SibionicsType.SIBIONICS2 && pendingTransmitter != null) {
+                    val transmitterPayload = constructFakeSibionicsQr(pendingTransmitter, targetLength = 59)
+                    val paired = transmitterPayload != null &&
+                        Natives.siSensorptrTransmitterScan(ptr, transmitterPayload)
+                    if (paired) {
+                        currentStep = SibionicsSetupStep.CONNECTING
+                        finishSetup(ptr, resetTransmitter)
+                        scope.launch {
+                            kotlinx.coroutines.delay(4000)
+                            onComplete()
+                        }
+                    } else {
+                        currentStep = SibionicsSetupStep.SCAN_TRANSMITTER
+                        tk.glucodata.Applic.Toaster(
+                            tk.glucodata.Applic.app.getString(R.string.failed_to_connect) + pendingTransmitter
+                        )
+                    }
+                } else {
+                    currentStep = if (selectedType == SibionicsType.SIBIONICS2) {
                         SibionicsSetupStep.SCAN_TRANSMITTER
-                    else
+                    } else {
                         SibionicsSetupStep.CONNECTING
+                    }
+                    if (selectedType != SibionicsType.SIBIONICS2) {
+                        finishSetup(ptr, reset = false)
+                        scope.launch {
+                            kotlinx.coroutines.delay(1500)
+                            onComplete()
+                        }
+                    }
+                }
             }
         }
 
@@ -479,13 +527,13 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SELECT_TYPE -> SelectTypeStep(
                     compact = ui.compact,
                     selectedType = selectedType,
-                    useManagedDriver = useManagedDriver,
+                    useLegacyDriver = useLegacyDriver,
                     onNavigateToReadiness = onNavigateToReadiness,
                     onTypeSelected = { type ->
                         selectedType = type
                     },
-                    onManagedDriverChanged = { enabled ->
-                        useManagedDriver = enabled
+                    onLegacyDriverChanged = { enabled ->
+                        useLegacyDriver = enabled
                     },
                     onNext = {
                         // Always go to SCAN_SENSOR to ensure sensor structure is created.
@@ -540,6 +588,46 @@ fun SibionicsSetupWizard(
                         scope.launch {
                             kotlinx.coroutines.delay(1500)
                             onComplete()
+                        }
+                    },
+                    onBleDeviceEntry = { device ->
+                        if (useManagedDriver) {
+                            val record = SibionicsRegistry.addSensorAndStart(
+                                context = context.applicationContext,
+                                rawInput = device.name,
+                                address = device.address,
+                                displayName = device.name,
+                                variant = selectedType.toManagedVariant(),
+                                bleName = device.name,
+                            )
+                            sensorName = record.displayName
+                            currentStep = SibionicsSetupStep.CONNECTING
+                            tk.glucodata.Applic.Toaster(
+                                tk.glucodata.Applic.app.getString(R.string.sibionics_managed_sensor_added, record.displayName)
+                            )
+                            scope.launch {
+                                kotlinx.coroutines.delay(1500)
+                                onComplete()
+                            }
+                        } else {
+                            val fakeQr = constructBleOnlySibionicsQr(device.name)
+                            if (fakeQr == null) {
+                                tk.glucodata.Applic.Toaster(
+                                    tk.glucodata.Applic.app.getString(R.string.invalid_device_name) + device.name
+                                )
+                                return@ScanSensorStep
+                            }
+                            pendingLegacyTransmitterName = device.name.takeIf {
+                                selectedType == SibionicsType.SIBIONICS2
+                            }
+                            tk.glucodata.MainActivity.thisone?.runOnUiThread {
+                                tk.glucodata.PhotoScan.connectSensor(
+                                    fakeQr,
+                                    tk.glucodata.MainActivity.thisone,
+                                    tk.glucodata.MainActivity.REQUEST_BARCODE,
+                                    0L,
+                                )
+                            }
                         }
                     },
                     onScannerTouchInteractionChanged = { active ->
@@ -639,6 +727,7 @@ fun ScanSensorStep(
     onInlineScanResult: (String) -> Unit,
     onManualEntry: (String) -> Unit,
     onManagedEntry: (String, BleDeviceScanner.SibionicsBleDevice?) -> Unit,
+    onBleDeviceEntry: (BleDeviceScanner.SibionicsBleDevice) -> Unit,
     onScannerTouchInteractionChanged: (Boolean) -> Unit
 ) {
     val contentPadding = if (compact) 12.dp else 16.dp
@@ -653,8 +742,11 @@ fun ScanSensorStep(
     var galleryDecodeInProgress by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val selectedBleDevice = remember(bleProbeDevices, selectedBleAddress) {
-        bleProbeDevices.firstOrNull { it.address == selectedBleAddress }
+    val matchingBleDevices = remember(bleProbeDevices, selectedType) {
+        bleProbeDevices.filter { selectedType.acceptsBleSetupDevice(it.name) }
+    }
+    val selectedBleDevice = remember(matchingBleDevices, selectedBleAddress) {
+        matchingBleDevices.firstOrNull { it.address == selectedBleAddress }
     }
     val launchFullscreenScan = rememberUnifiedQrScanLauncher(
         requestCode = tk.glucodata.MainActivity.REQUEST_BARCODE,
@@ -675,10 +767,11 @@ fun ScanSensorStep(
         onDispose { onScannerTouchInteractionChanged(false) }
     }
 
-    LaunchedEffect(bleProbeScanning) {
+    LaunchedEffect(bleProbeScanning, selectedType) {
         if (bleProbeScanning) {
             try {
                 BleDeviceScanner.scanForSibionicsByService().collect { found ->
+                    if (!selectedType.acceptsBleSetupDevice(found.name)) return@collect
                     bleProbeDevices = bleProbeDevices
                         .toMutableList()
                         .apply {
@@ -690,9 +783,6 @@ fun ScanSensorStep(
                             }
                         }
                         .sortedBy { it.name.uppercase() }
-                    if (selectedBleAddress == null) {
-                        selectedBleAddress = found.address
-                    }
                 }
             } finally {
                 bleProbeScanning = false
@@ -781,122 +871,90 @@ fun ScanSensorStep(
                 modifier = Modifier.padding(top = if (compact) 10.dp else 12.dp, bottom = if (compact) 16.dp else 20.dp)
             )
 
-            Surface(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainerLow
+                verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
             ) {
-                Column(
+                OutlinedButton(
+                    onClick = {
+                        bleProbeDevices = emptyList()
+                        selectedBleAddress = null
+                        bleProbeScanning = true
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(if (compact) 12.dp else 14.dp)
+                        .height(buttonHeight)
                 ) {
+                    if (bleProbeScanning) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(if (compact) 18.dp else 20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.scanning_devices))
+                    } else {
+                        Icon(Icons.Default.BluetoothSearching, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.search_bluetooth))
+                    }
+                }
+
+                if (matchingBleDevices.isEmpty() && !bleProbeScanning) {
                     Text(
-                        text = stringResource(R.string.sibionics_ble_probe_title),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = stringResource(R.string.sibionics_ble_probe_desc),
+                        text = stringResource(R.string.sibionics_ble_probe_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     )
+                }
 
-                    OutlinedButton(
-                        onClick = {
-                            bleProbeDevices = emptyList()
-                            selectedBleAddress = null
-                            bleProbeScanning = true
+                matchingBleDevices.forEach { item ->
+                    val selected = item.address == selectedBleAddress
+                    ListItem(
+                        headlineContent = { Text(text = item.name, maxLines = 1) },
+                        supportingContent = {
+                            Text(text = "${item.address} • RSSI ${item.rssi}", maxLines = 1)
                         },
+                        leadingContent = { Icon(Icons.Default.Bluetooth, contentDescription = null) },
+                        trailingContent = {
+                            if (selected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        },
+                        colors = ListItemDefaults.colors(
+                            containerColor = if (selected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                Color.Transparent
+                            },
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(buttonHeight)
-                    ) {
-                        if (bleProbeScanning) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(if (compact) 18.dp else 20.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.scanning_devices))
-                        } else {
-                            Icon(Icons.Default.BluetoothSearching, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.search_bluetooth))
-                        }
-                    }
-
-                    if (bleProbeDevices.isEmpty() && !bleProbeScanning) {
-                        Text(
-                            text = stringResource(R.string.sibionics_ble_probe_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 10.dp)
-                        )
-                    }
-
-                    if (bleProbeDevices.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        bleProbeDevices.forEach { item ->
-                            val selected = (item.address == selectedBleAddress)
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = item.name,
-                                        maxLines = 1
-                                    )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        text = "${item.address} • RSSI ${item.rssi}",
-                                        maxLines = 1
-                                    )
-                                },
-                                leadingContent = { Icon(Icons.Default.Bluetooth, contentDescription = null) },
-                                trailingContent = {
-                                    if (selected) {
-                                        Icon(Icons.Default.Check, contentDescription = null)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (selected) MaterialTheme.colorScheme.primaryContainer
-                                        else Color.Transparent
-                                    )
-                                    .clickable { selectedBleAddress = item.address }
-                            )
-                        }
-                    }
-
-                    if ((selectedType != SibionicsType.SIBIONICS2 || useManagedDriver) && selectedBleDevice != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = stringResource(R.string.sibionics_ble_selected, selectedBleDevice.name),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = {
-                                if (useManagedDriver) {
-                                    onManagedEntry(selectedBleDevice.name, selectedBleDevice)
-                                } else {
-                                    onManualEntry(selectedBleDevice.name)
-                                }
+                            .clip(RoundedCornerShape(if (compact) 14.dp else 16.dp))
+                            .clickable {
+                                selectedBleAddress = if (selected) null else item.address
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(buttonHeight)
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (useManagedDriver) R.string.sibionics_use_ble_device
-                                    else R.string.sibionics_use_fake_qr_from_ble
-                                )
-                            )
-                        }
+                    )
+                }
+
+                if (selectedBleDevice != null) {
+                    Button(
+                        onClick = { onBleDeviceEntry(selectedBleDevice) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(buttonHeight),
+                    ) {
+                        Icon(Icons.Default.Bluetooth, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "${stringResource(R.string.use_bluetooth)} · ${selectedBleDevice.name}",
+                            maxLines = 1,
+                        )
                     }
                 }
             }
@@ -919,25 +977,6 @@ fun ScanSensorStep(
                 Text(stringResource(R.string.select_gallery_button))
             }
 
-            // Skip Button for Sibionics 2 - allows bypassing sensor scan since it uses Bluetooth connection
-            // We pass a randomly generated valid-looking sensor code.
-            if (!useManagedDriver && SibionicsType.SIBIONICS2 == selectedType) {
-                Spacer(modifier = Modifier.height(sectionGap))
-                OutlinedButton(
-                    onClick = {
-                        // random 16-char alphanumeric serial
-                        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-                        val randomSerial = (1..16).map { chars.random() }.joinToString("")
-                        // Append dummy char because native parser drops the last character
-                        val randomCode = "FAKEBATCH$" + randomSerial + "X" 
-                        onManualEntry(randomCode)
-                    },
-                    modifier = Modifier.fillMaxWidth().height(buttonHeight)
-                ) {
-                   Text(stringResource(R.string.skip_fake_sensor)) 
-                }
-            }
-
             Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
 
             TextButton(
@@ -957,10 +996,10 @@ fun ScanSensorStep(
 fun SelectTypeStep(
     compact: Boolean,
     selectedType: SibionicsType,
-    useManagedDriver: Boolean,
+    useLegacyDriver: Boolean,
     onNavigateToReadiness: () -> Unit,
     onTypeSelected: (SibionicsType) -> Unit,
-    onManagedDriverChanged: (Boolean) -> Unit,
+    onLegacyDriverChanged: (Boolean) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -974,140 +1013,127 @@ fun SelectTypeStep(
             .fillMaxSize()
             .padding(horizontal = horizontalPadding, vertical = verticalPadding)
     ) {
-        // Header with generous spacing
-        Spacer(modifier = Modifier.height(if (compact) 4.dp else 8.dp))
+        Spacer(modifier = Modifier.height(if (compact) 12.dp else 18.dp))
         Text(
             text = stringResource(R.string.select_sibionics_type),
-            style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
         )
-        Spacer(modifier = Modifier.height(if (compact) 6.dp else 8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.choose_sibionics_variant),
-            style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
+        Spacer(modifier = Modifier.height(if (compact) 10.dp else 12.dp))
         tk.glucodata.ui.CgmReadinessSetupBanner(onOpenReadiness = onNavigateToReadiness)
-        Spacer(modifier = Modifier.height(if (compact) 16.dp else 24.dp))
+        Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
 
         // Selection Cards (M3 Expressive - no dividers, surface tonality)
         val listScrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(listScrollState)
-                .selectableGroup(),
+                .verticalScroll(listScrollState),
             verticalArrangement = Arrangement.spacedBy(listGap) // Generous spacing instead of dividers
         ) {
-            SibionicsType.values().forEach { type ->
-                val isSelected = (type == selectedType)
+            Column(
+                modifier = Modifier.selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(listGap),
+            ) {
+                SibionicsType.entries.filter { it.setupVisible }.forEach { type ->
+                    val isSelected = (type == selectedType)
 
-                val containerColor by animateColorAsState(
-                    targetValue = if (isSelected) 
-                        MaterialTheme.colorScheme.primaryContainer
-                    else 
-                        MaterialTheme.colorScheme.surfaceContainerHigh,
-                    animationSpec = androidx.compose.animation.core.tween(250),
-                    label = "containerColor"
-                )
+                    val containerColor by animateColorAsState(
+                        targetValue = if (isSelected)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "containerColor"
+                    )
                 
-                // Animate border
-                val borderColor by animateColorAsState(
-                    targetValue = if (isSelected) 
-                        MaterialTheme.colorScheme.primary
-                    else 
-                        Color.Transparent,
-                    animationSpec = androidx.compose.animation.core.tween(250),
-                    label = "borderColor"
-                )
-                val checkAlpha by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isSelected) 1f else 0f,
-                    animationSpec = androidx.compose.animation.core.tween(180),
-                    label = "checkAlpha"
-                )
-                val cardShape = RoundedCornerShape(if (compact) 18.dp else 20.dp)
+                    val borderColor by animateColorAsState(
+                        targetValue = if (isSelected)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            Color.Transparent,
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "borderColor"
+                    )
+                    val checkAlpha by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (isSelected) 1f else 0f,
+                        animationSpec = androidx.compose.animation.core.tween(180),
+                        label = "checkAlpha"
+                    )
+                    val cardShape = RoundedCornerShape(if (compact) 18.dp else 20.dp)
                 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    onClick = { onTypeSelected(type) },
-                    shape = cardShape,
-                    color = containerColor,
-                    border = androidx.compose.foundation.BorderStroke(2.dp, borderColor),
-                    tonalElevation = if (isSelected) 0.dp else 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(cardPadding),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onTypeSelected(type) },
+                        shape = cardShape,
+                        color = containerColor,
+                        border = androidx.compose.foundation.BorderStroke(2.dp, borderColor),
+                        tonalElevation = if (isSelected) 0.dp else 1.dp
                     ) {
-                        // Content
-                        Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(cardPadding),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
                                 text = stringResource(type.displayNameRes),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                color = if (isSelected) 
+                                color = if (isSelected)
                                     MaterialTheme.colorScheme.onPrimaryContainer
-                                else 
-                                    MaterialTheme.colorScheme.onSurface
+                                else
+                                    MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
                             )
-                        }
                         
-                        Box(
-                            modifier = Modifier.size(if (compact) 24.dp else 28.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = checkAlpha),
-                                modifier = Modifier.size(if (compact) 20.dp else 24.dp)
-                            )
+                            Box(
+                                modifier = Modifier.size(if (compact) 24.dp else 28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = checkAlpha),
+                                    modifier = Modifier.size(if (compact) 20.dp else 24.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.sibionics_legacy_driver_title)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(R.string.sibionics_legacy_driver_desc),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                trailingContent = {
+                    StyledSwitch(
+                        checked = useLegacyDriver,
+                        onCheckedChange = onLegacyDriverChanged,
+                    )
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(if (compact) 16.dp else 18.dp))
+                    .clickable { onLegacyDriverChanged(!useLegacyDriver) },
+            )
+            Spacer(modifier = Modifier.height(2.dp))
         }
 
         Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(if (compact) 18.dp else 20.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = 1.dp,
-            onClick = { onManagedDriverChanged(!useManagedDriver) },
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(cardPadding),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.sibionics_managed_driver_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.sibionics_managed_driver_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                StyledSwitch(
-                    checked = useManagedDriver,
-                    onCheckedChange = onManagedDriverChanged
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(if (compact) 16.dp else 24.dp))
-        
         // Full-width Next button (M3 Expressive - prominent primary action)
         Button(
             onClick = onNext,

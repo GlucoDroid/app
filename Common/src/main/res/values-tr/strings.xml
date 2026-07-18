@@ -462,7 +462,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="import_history_desc">CSV dosyasından glikoz verilerini içe aktar</string>
     <string name="get_started_desc">Sensörünüzü ekleyerek başlayın</string>
     <string name="select_sensor">Sensör Tipini Seçin</string>
-    <string name="select_sibionics_type">Sensör Tipini Seçin</string>
+    <string name="select_sibionics_type">Bir Sibionics sensörü seçin</string>
     <string name="or_divider">"  veya  "</string>
     <string name="no_sensors_connected">Bağlı sensör yok</string>
     <string name="enter_sensor_codes">Sensör Kodlarını Girin</string>
@@ -482,7 +482,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="select_gallery_button">Galeriden Seç</string>
     <string name="skip_fake_sensor">Atla (Sahte sensör kullan)</string>
     <string name="enter_code_manually">Kodu manuel girin</string>
-    <string name="choose_sibionics_variant">Sibionics sensör varyantınızı seçin</string>
+    <string name="choose_sibionics_variant">Ambalajda belirtilen modeli seçin.</string>
     <string name="continue_action">Devam Et</string>
     <string name="sensor_init_failed">Sensör başlatma başarısız</string>
     <string name="sensor_lost_restart">Hata: Sensör kayboldu. Kurulumu yeniden başlatın.</string>
@@ -596,7 +596,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="auto_calibration_mode">Sensör algoritması</string>
     <string name="sibionics_custom_algorithm">Uyarlanabilir sensör modeli (deneysel)</string>
     <string name="sibionics_custom_algorithm_desc">Sensör kayması, fizyolojik gecikme ve artefakt telafisi</string>
-    <string name="sibionics_stock_algorithm_desc">Standart sensör modeli</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics varsayılanı</string>
     <string name="sibionics_stock_algorithm_detail">Ölçüm kalibrasyonlarını sensör algoritması içinde kullan</string>
     <string name="sibionics_restart_algorithm_desc">Dakikalık algoritma durumunu kayıtlı sensör geçmişinden yeniden oluştur</string>
     <string name="juggluco_native">Juggluco yerel</string>
@@ -721,7 +721,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="calibrate_a">Görsel mod</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">Kalibrasyon</string>
     <string name="calibration_algorithm">Calibration Algorithm</string>
     <string name="calibrations">Calibrations</string>
     <string name="caresens_air_scan_instruction">CareSens Air paketinizdeki sensör kodunu tarayın</string>
@@ -1357,8 +1357,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="sibionics_ble_selected">Seçilen: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Bu BLE adından sahte QR bilgisi kullan</string>
     <string name="sibionics_use_ble_device">Bu Bluetooth cihazını kullan</string>
-    <string name="sibionics_managed_driver_title">Lib içermeyen yönetilen sürücü</string>
-    <string name="sibionics_managed_driver_desc">Eski yerel Sibionics kitaplığı yerine Kotlin BLE/protokol sürücüsünü kullanır. Deneyseldir; bu sensör eski modda zaten çalışıyorsa kapalı bırakın.</string>
+    <string name="sibionics_legacy_driver_title">Eski sürücü</string>
+    <string name="sibionics_legacy_driver_desc">Eski özel sürücüyü yalnızca mevcut bir kurulumla uyumluluk için kullanın.</string>
     <string name="sibionics_managed_sensor_added">Yönetilen Sibionics sensörü eklendi: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -1976,10 +1976,16 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="wear_libre_nfc_caveat">Libre sensörleri önce telefonun NFC\'siyle etkinleştirilir. Etkinleştirmeden sonra bu saat devralabilir.</string>
     <string name="sibionics_glucose_model">Glikoz modeli</string>
     <string name="sibionics_stock_model_detail">Tam Sibionics sensör algoritması</string>
-    <string name="sibionics_responsive_algorithm">Hızlı tahminleyici</string>
+    <string name="sibionics_responsive_algorithm">Hızlı tepki</string>
     <string name="sibionics_responsive_algorithm_desc">Özgün eğilim duyarlı glikoz ve hız tahminleyicisi</string>
-    <string name="sibionics_balanced_algorithm">Dengeli izleyici</string>
+    <string name="sibionics_balanced_algorithm">Hafif yumuşatma</string>
     <string name="sibionics_balanced_algorithm_desc">Standart modele yakın, sınırlı gürültü azaltma</string>
-    <string name="sibionics_state_algorithm">Kimyasal durum modeli</string>
+    <string name="sibionics_state_algorithm">Uyarlamalı düzeltme</string>
     <string name="sibionics_state_algorithm_desc">Sensör kayması, fizyolojik gecikme ve artefakt telafisi</string>
+    <string name="sibionics_auto_reset_22_desc">22. gün civarında, tercihen glikoz daha sakinken sıfırlanır. Bu kapalı olsa bile süre dolmadan güvenlik sıfırlaması yapılır.</string>
+    <string name="sibionics_reset_reminder_title">Sibionics 2 sıfırlama zamanı yaklaşıyor</string>
+    <string name="sibionics_reset_reminder_text">Sensör yaklaşık %1$d saat içinde sıfırlama noktasına ulaşacak. Çalışmaya devam etmesi için zamanında sıfırlayın.</string>
+    <string name="sibionics_reset_postpone">2 saat ertele</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics sıfırlama hatırlatıcıları</string>
+    <string name="sibionics_reset_reminder_channel_desc">Sibionics 2 süresi dolmadan önce sıfırlama hatırlatıcıları ve işlemleri</string>
 </resources>

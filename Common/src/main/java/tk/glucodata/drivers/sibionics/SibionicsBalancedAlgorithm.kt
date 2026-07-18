@@ -151,14 +151,10 @@ internal class SibionicsBalancedAlgorithmContext {
             DataInputStream(ByteArrayInputStream(snapshot)).use { input ->
                 if (input.readInt() != SNAPSHOT_MAGIC) return@use false
                 val version = input.readInt()
-                if (version !in LEGACY_SNAPSHOT_VERSION..SNAPSHOT_VERSION) return@use false
+                if (version != SNAPSHOT_VERSION) return@use false
                 val savedSensitivity = input.readFloat()
                 if (!savedSensitivity.isFinite() || abs(savedSensitivity - decodedSensitivity) > 0.0001f) {
                     return@use false
-                }
-                if (version < SNAPSHOT_VERSION) {
-                    reset()
-                    return@use true
                 }
                 initialized = input.readBoolean()
                 level = input.readFloat()
@@ -176,6 +172,8 @@ internal class SibionicsBalancedAlgorithmContext {
         if (!restored) reset()
         return restored
     }
+
+    fun continuationIndex(): Int? = lastIndex.takeIf { initialized && it >= 0 }
 
     fun applyIntegratedCalibration(
         stockMmol: Float,
@@ -335,7 +333,6 @@ internal class SibionicsBalancedAlgorithmContext {
 
     private companion object {
         private const val SNAPSHOT_MAGIC = 0x5349_4241
-        private const val LEGACY_SNAPSHOT_VERSION = 1
         private const val SNAPSHOT_VERSION = 4
         private const val DEFAULT_SENSITIVITY = 1.27f
         private const val BASE_LEVEL_GAIN = 0.35f

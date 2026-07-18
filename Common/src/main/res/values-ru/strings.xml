@@ -503,7 +503,7 @@
     <string name="import_history_desc">Импорт данных сахара из файла экспорта JugglucoNG</string>
     <string name="get_started_desc">Начните с добавления вашего сенсора</string>
     <string name="select_sensor">Выберите тип сенсора</string>
-    <string name="select_sibionics_type">Выберите тип сенсора</string>
+    <string name="select_sibionics_type">Выберите сенсор Sibionics</string>
     <string name="or_divider">"  или  "</string>
     <string name="no_sensors_connected">Нет подключенных сенсоров</string>
     <string name="enter_sensor_codes">Введите коды сенсора</string>
@@ -523,7 +523,7 @@
     <string name="select_gallery_button">Выбрать из Галереи</string>
     <string name="skip_fake_sensor">Пропустить (Исп. фиктивный сенсор)</string>
     <string name="enter_code_manually">Ввести код вручную</string>
-    <string name="choose_sibionics_variant">Выберите вариант сенсора Sibionics</string>
+    <string name="choose_sibionics_variant">Укажите модель с упаковки.</string>
     <string name="continue_action">Продолжить</string>
     <string name="sensor_init_failed">Инициализация сенсора не удалась</string>
     <string name="sensor_lost_restart">Ошибка: Сенсор потерян. Перезапустите настройку.</string>
@@ -639,7 +639,7 @@
     <string name="auto_calibration_mode">Алгоритм датчика</string>
     <string name="sibionics_custom_algorithm">Адаптивная модель датчика (экспериментальная)</string>
     <string name="sibionics_custom_algorithm_desc">Компенсация дрейфа датчика, физиологической задержки и артефактов</string>
-    <string name="sibionics_stock_algorithm_desc">Штатная модель датчика</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics по умолчанию</string>
     <string name="sibionics_stock_algorithm_detail">Использовать калибровки внутри алгоритма датчика</string>
     <string name="sibionics_restart_algorithm_desc">Восстановить минутное состояние алгоритма из сохранённой истории датчика</string>
     <string name="juggluco_native">Нативный Juggluco</string>
@@ -785,7 +785,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibrate_a">Визуальный режим</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">Калибровка</string>
     <string name="calibrations">Calibrations</string>
     <string name="caresens_air_scan_instruction">Отсканируйте код датчика на упаковке CareSens Air.</string>
     <string name="caresens_air_sensor">CareSens Air</string>
@@ -1375,8 +1375,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">Выбрано: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Использовать фейковый QR из этого BLE-имени</string>
     <string name="sibionics_use_ble_device">Использовать это Bluetooth-устройство</string>
-    <string name="sibionics_managed_driver_title">Управляемый драйвер без lib</string>
-    <string name="sibionics_managed_driver_desc">Использовать Kotlin BLE/протокольный драйвер вместо старой нативной библиотеки Sibionics. Экспериментально; оставьте выключенным, если датчик уже работает в старом режиме.</string>
+    <string name="sibionics_legacy_driver_title">Старый драйвер</string>
+    <string name="sibionics_legacy_driver_desc">Старый проприетарный драйвер — только для совместимости с существующей установкой.</string>
     <string name="sibionics_managed_sensor_added">Управляемый датчик Sibionics добавлен: %1$s</string>
     <string name="wear_transport">Транспорт Wear</string>
     <string name="wear_transport_desc">Настройка обмена данных с Wear OS и состояния синхронизации.</string>
@@ -1994,10 +1994,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_replace">Заменить</string>
     <string name="sibionics_glucose_model">Модель глюкозы</string>
     <string name="sibionics_stock_model_detail">Точный штатный алгоритм Sibionics</string>
-    <string name="sibionics_responsive_algorithm">Быстрая модель</string>
+    <string name="sibionics_responsive_algorithm">Быстрый отклик</string>
     <string name="sibionics_responsive_algorithm_desc">Исходная модель уровня и скорости изменения глюкозы</string>
-    <string name="sibionics_balanced_algorithm">Сбалансированная модель</string>
+    <string name="sibionics_balanced_algorithm">Лёгкое сглаживание</string>
     <string name="sibionics_balanced_algorithm_desc">Ограниченное подавление шума с близким следованием штатной модели</string>
-    <string name="sibionics_state_algorithm">Химическая модель состояния</string>
+    <string name="sibionics_state_algorithm">Адаптивная коррекция</string>
     <string name="sibionics_state_algorithm_desc">Компенсация дрейфа датчика, физиологической задержки и артефактов</string>
+    <string name="sibionics_auto_reset_22_desc">Сброс около 22-го дня в более спокойный период глюкозы. Перед окончанием срока защитный сброс сработает, даже если настройка выключена.</string>
+    <string name="sibionics_reset_reminder_title">Скоро потребуется сброс Sibionics 2</string>
+    <string name="sibionics_reset_reminder_text">Датчик достигнет времени сброса примерно через %1$d ч. Сбросьте его вовремя, чтобы он продолжил работать.</string>
+    <string name="sibionics_reset_postpone">Отложить на 2 часа</string>
+    <string name="sibionics_reset_reminder_channel">Напоминания о сбросе Sibionics</string>
+    <string name="sibionics_reset_reminder_channel_desc">Напоминания и действия для сброса Sibionics 2 до истечения срока</string>
 </resources>

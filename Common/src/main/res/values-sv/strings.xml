@@ -410,7 +410,7 @@
     <string name="import_history_desc">Importera glukosdata från CSV-fil</string>
     <string name="get_started_desc">Börja med att lägga till din sensor</string>
     <string name="select_sensor">Välj sensortyp</string>
-    <string name="select_sibionics_type">Välj sensortyp</string>
+    <string name="select_sibionics_type">Välj en Sibionics-sensor</string>
     <string name="or_divider">"  eller  "</string>
     <string name="no_sensors_connected">Inga sensorer anslutna</string>
     <string name="enter_sensor_codes">Ange sensorkoder</string>
@@ -430,7 +430,7 @@
     <string name="select_gallery_button">Välj från Galleri</string>
     <string name="skip_fake_sensor">Hoppa över (Använd falsk sensor)</string>
     <string name="enter_code_manually">Ange kod manuellt</string>
-    <string name="choose_sibionics_variant">Välj din Sibionics-sensorvariant</string>
+    <string name="choose_sibionics_variant">Välj modellen som står på förpackningen.</string>
     <string name="continue_action">Fortsätt</string>
     <string name="sensor_init_failed">Sensorinitiering misslyckades</string>
     <string name="sensor_lost_restart">Fel: Sensor förlorad. Starta om installationen.</string>
@@ -544,7 +544,7 @@
     <string name="auto_calibration_mode">Sensoralgoritm</string>
     <string name="sibionics_custom_algorithm">Adaptiv sensormodell (experimentell)</string>
     <string name="sibionics_custom_algorithm_desc">Kompensation för sensordrift, fysiologisk fördröjning och artefakter</string>
-    <string name="sibionics_stock_algorithm_desc">Standardmodell för sensor</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics standard</string>
     <string name="sibionics_stock_algorithm_detail">Använd kalibreringar i sensoralgoritmen</string>
     <string name="sibionics_restart_algorithm_desc">Återskapa minutalgoritmens tillstånd från sparad sensorhistorik</string>
     <string name="juggluco_native">Juggluco inbyggd</string>
@@ -672,7 +672,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibrate_a">Visuellt läge</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">Kalibrering</string>
     <string name="calibration_algorithm">Calibration Algorithm</string>
     <string name="calibrations">Calibrations</string>
     <string name="caresens_air_scan_instruction">Skanna sensorkoden på ditt CareSens Air-paket</string>
@@ -1329,8 +1329,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">Vald: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Använd falsk QR-info från detta BLE-namn</string>
     <string name="sibionics_use_ble_device">Använd denna Bluetooth-enhet</string>
-    <string name="sibionics_managed_driver_title">Hanterad lib-fri drivrutin</string>
-    <string name="sibionics_managed_driver_desc">Använd Kotlin BLE/protokolldrivrutinen i stället för det äldre inbyggda Sibionics-biblioteket. Experimentellt; lämna av om sensorn redan fungerar i äldre läge.</string>
+    <string name="sibionics_legacy_driver_title">Äldre drivrutin</string>
+    <string name="sibionics_legacy_driver_desc">Använd den gamla proprietära drivrutinen endast för en befintlig konfiguration.</string>
     <string name="sibionics_managed_sensor_added">Hanterad Sibionics-sensor tillagd: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -1947,11 +1947,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_replace">Ersätt</string>
     <string name="sibionics_glucose_model">Glukosmodell</string>
     <string name="sibionics_stock_model_detail">Exakt Sibionics-sensoralgoritm</string>
-    <string name="sibionics_responsive_algorithm">Responsiv skattare</string>
+    <string name="sibionics_responsive_algorithm">Snabb respons</string>
     <string name="sibionics_responsive_algorithm_desc">Ursprunglig trendstyrd skattare för glukos och hastighet</string>
-    <string name="sibionics_balanced_algorithm">Balanserad spårning</string>
+    <string name="sibionics_balanced_algorithm">Lätt utjämning</string>
     <string name="sibionics_balanced_algorithm_desc">Begränsad brusreducering nära standardmodellen</string>
-    <string name="sibionics_state_algorithm">Kemisk tillståndsmodell</string>
+    <string name="sibionics_state_algorithm">Adaptiv korrigering</string>
     <string name="sibionics_state_algorithm_desc">Kompensation för sensordrift, fysiologisk fördröjning och artefakter</string>
     <string name="wear_libre_nfc_caveat">Libre-sensorer aktiveras först med telefonens NFC. Efter aktivering kan den här klockan ta över.</string>
+    <string name="sibionics_auto_reset_22_desc">Återställ runt dag 22, helst när glukosen är stabilare. En säkerhetsåterställning sker före utgång även när detta är avstängt.</string>
+    <string name="sibionics_reset_reminder_title">Återställning av Sibionics 2 närmar sig</string>
+    <string name="sibionics_reset_reminder_text">Sensorn når återställningstidpunkten om cirka %1$d timmar. Återställ den i tid för fortsatt drift.</string>
+    <string name="sibionics_reset_postpone">Skjut upp 2 timmar</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics återställningspåminnelser</string>
+    <string name="sibionics_reset_reminder_channel_desc">Påminnelser och åtgärder för att återställa Sibionics 2 före utgång</string>
 </resources>

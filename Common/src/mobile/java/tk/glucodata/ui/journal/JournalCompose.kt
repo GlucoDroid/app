@@ -744,7 +744,9 @@ fun JournalEntrySheet(
     }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = draft.timestamp)
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = journalTimestampToPickerUtcDateMillis(draft.timestamp)
+        )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -3147,15 +3149,6 @@ private fun suggestedCarbAmountForFraction(fraction: Float): String {
 private fun adjustIntegerDraft(value: String, delta: Int, minValue: Int = 0): String {
     val current = value.parseIntOrNull() ?: 0
     return (current + delta).coerceAtLeast(minValue).toString()
-}
-
-private fun mergeJournalDate(currentTimestamp: Long, selectedDayTimestamp: Long): Long {
-    val current = Calendar.getInstance().apply { timeInMillis = currentTimestamp }
-    val selected = Calendar.getInstance().apply { timeInMillis = selectedDayTimestamp }
-    current.set(Calendar.YEAR, selected.get(Calendar.YEAR))
-    current.set(Calendar.MONTH, selected.get(Calendar.MONTH))
-    current.set(Calendar.DAY_OF_MONTH, selected.get(Calendar.DAY_OF_MONTH))
-    return current.timeInMillis
 }
 
 private fun mergeJournalTime(currentTimestamp: Long, selectedTime: Pair<Int, Int>): Long {

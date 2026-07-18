@@ -657,7 +657,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_setup_title">Sibionics Setup</string>
     <string name="scan_sensor_qr">Scan Sensor QR Code</string>
     <string name="scan_sensor_qr_desc">Scan the data matrix on the sensor packaging</string>
-    <string name="select_sibionics_type">Select Sensor Type</string>
+    <string name="select_sibionics_type">Choose a Sibionics sensor</string>
     <string name="scan_transmitter">Scan Transmitter</string>
 
     <string name="connecting">Connecting...</string>
@@ -841,7 +841,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="skip_fake_sensor">Skip (Use Fake Sensor)</string>
     <string name="enter_code_manually">Enter Code Manually</string>
     
-    <string name="choose_sibionics_variant">Choose your Sibionics sensor variant</string>
+    <string name="choose_sibionics_variant">Select the model shown on its packaging.</string>
     <string name="continue_action">Continue</string>
     
     <string name="sensor_init_failed">Sensor initialization failed</string>
@@ -895,7 +895,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="auto_calibration_mode">Sensor algorithm</string>
     <string name="sibionics_custom_algorithm">Adaptive sensor model (experimental)</string>
     <string name="sibionics_custom_algorithm_desc">Sensor drift, physiological lag and artifact compensation</string>
-    <string name="sibionics_stock_algorithm_desc">Stock sensor model</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics default</string>
     <string name="sibionics_stock_algorithm_detail">Use calibrations inside the sensor algorithm</string>
     <string name="sibionics_restart_algorithm_desc">Rebuild the one-minute algorithm state from saved sensor history</string>
     <string name="juggluco_native">Juggluco native</string>
@@ -1642,8 +1642,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">Selected: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Use fake QR info from this BLE name</string>
     <string name="sibionics_use_ble_device">Use this Bluetooth device</string>
-    <string name="sibionics_managed_driver_title">Managed lib-free driver</string>
-    <string name="sibionics_managed_driver_desc">Use the Kotlin BLE/protocol driver instead of the legacy native Sibionics library. Experimental; keep it off if this sensor already works in legacy mode.</string>
+    <string name="sibionics_legacy_driver_title">Legacy driver</string>
+    <string name="sibionics_legacy_driver_desc">Use the old proprietary driver only for compatibility with an existing setup.</string>
     <string name="sibionics_managed_sensor_added">Managed Sibionics sensor added: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -2197,10 +2197,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wrongcode">Wrong QR code</string>
     <string name="sibionics_glucose_model">Glucose model</string>
     <string name="sibionics_stock_model_detail">Exact Sibionics sensor algorithm</string>
-    <string name="sibionics_responsive_algorithm">Responsive estimator</string>
+    <string name="sibionics_responsive_algorithm">Fast response</string>
     <string name="sibionics_responsive_algorithm_desc">Original trend-aware glucose and velocity estimator</string>
-    <string name="sibionics_balanced_algorithm">Balanced tracker</string>
+    <string name="sibionics_balanced_algorithm">Light smoothing</string>
     <string name="sibionics_balanced_algorithm_desc">Bounded noise reduction that follows the stock model closely</string>
-    <string name="sibionics_state_algorithm">Chemical state model</string>
+    <string name="sibionics_state_algorithm">Adaptive correction</string>
     <string name="sibionics_state_algorithm_desc">Sensor drift, physiological lag and artifact compensation</string>
+    <string name="sibionics_auto_reset_22_desc">Reset near 22 days, preferring a steadier glucose window. A final safety reset runs before expiry even when this is off.</string>
+    <string name="sibionics_reset_reminder_title">Sibionics 2 reset coming up</string>
+    <string name="sibionics_reset_reminder_text">The sensor reaches its reset point in about %1$d hours. Reset it in time to keep it running.</string>
+    <string name="sibionics_reset_postpone">Postpone 2 hours</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics reset reminders</string>
+    <string name="sibionics_reset_reminder_channel_desc">Reminders and actions for resetting Sibionics 2 before it expires</string>
 </resources>

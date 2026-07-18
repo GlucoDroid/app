@@ -485,7 +485,7 @@
     <string name="import_history_desc">Importuj dane glukozy z pliku CSV</string>
     <string name="get_started_desc">Rozpocznij, dodając swój sensor</string>
     <string name="select_sensor">Wybierz Typ Sensora</string>
-    <string name="select_sibionics_type">Wybierz Typ Sensora</string>
+    <string name="select_sibionics_type">Wybierz sensor Sibionics</string>
     <string name="or_divider">"  lub  "</string>
     <string name="no_sensors_connected">Brak połączonych sensorów</string>
     <string name="enter_sensor_codes">Wprowadź Kody Sensora</string>
@@ -505,7 +505,7 @@
     <string name="select_gallery_button">Wybierz z Galerii</string>
     <string name="skip_fake_sensor">Pomiń (Użyj fałszywego sensora)</string>
     <string name="enter_code_manually">Wprowadź kod ręcznie</string>
-    <string name="choose_sibionics_variant">Wybierz wariant sensora Sibionics</string>
+    <string name="choose_sibionics_variant">Wybierz model podany na opakowaniu.</string>
     <string name="continue_action">Kontynuuj</string>
     <string name="sensor_init_failed">Inicjalizacja sensora nie powiodła się</string>
     <string name="sensor_lost_restart">Błąd: Utracono sensor. Uruchom ponownie konfigurację.</string>
@@ -619,7 +619,7 @@
     <string name="auto_calibration_mode">Algorytm sensora</string>
     <string name="sibionics_custom_algorithm">Adaptacyjny model sensora (eksperymentalny)</string>
     <string name="sibionics_custom_algorithm_desc">Kompensacja dryfu sensora, opóźnienia fizjologicznego i artefaktów</string>
-    <string name="sibionics_stock_algorithm_desc">Standardowy model sensora</string>
+    <string name="sibionics_stock_algorithm_desc">Domyślny Sibionics</string>
     <string name="sibionics_stock_algorithm_detail">Używaj kalibracji wewnątrz algorytmu sensora</string>
     <string name="sibionics_restart_algorithm_desc">Odtwórz stan minutowego algorytmu z zapisanej historii sensora</string>
     <string name="juggluco_native">Natywny Juggluco</string>
@@ -1364,8 +1364,8 @@
     <string name="sibionics_ble_selected">Wybrano: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Użyj fałszywych danych QR z tej nazwy BLE</string>
     <string name="sibionics_use_ble_device">Użyj tego urządzenia Bluetooth</string>
-    <string name="sibionics_managed_driver_title">Zarządzany sterownik bez lib</string>
-    <string name="sibionics_managed_driver_desc">Użyj sterownika Kotlin BLE/protokołu zamiast starej natywnej biblioteki Sibionics. Eksperymentalne; zostaw wyłączone, jeśli ten sensor już działa w trybie legacy.</string>
+    <string name="sibionics_legacy_driver_title">Starszy sterownik</string>
+    <string name="sibionics_legacy_driver_desc">Używaj starego zastrzeżonego sterownika tylko ze zgodną istniejącą konfiguracją.</string>
     <string name="sibionics_managed_sensor_added">Dodano zarządzany sensor Sibionics: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -1982,10 +1982,16 @@
     <string name="ottai_credentials_replace">Zastąp</string>
     <string name="sibionics_glucose_model">Model glukozy</string>
     <string name="sibionics_stock_model_detail">Dokładny algorytm sensora Sibionics</string>
-    <string name="sibionics_responsive_algorithm">Szybki estymator</string>
+    <string name="sibionics_responsive_algorithm">Szybka reakcja</string>
     <string name="sibionics_responsive_algorithm_desc">Pierwotny estymator glukozy i szybkości oparty na trendzie</string>
-    <string name="sibionics_balanced_algorithm">Zrównoważone śledzenie</string>
+    <string name="sibionics_balanced_algorithm">Lekkie wygładzanie</string>
     <string name="sibionics_balanced_algorithm_desc">Ograniczona redukcja szumu blisko modelu standardowego</string>
-    <string name="sibionics_state_algorithm">Chemiczny model stanu</string>
+    <string name="sibionics_state_algorithm">Korekcja adaptacyjna</string>
     <string name="sibionics_state_algorithm_desc">Kompensacja dryfu sensora, opóźnienia fizjologicznego i artefaktów</string>
+    <string name="sibionics_auto_reset_22_desc">Reset około 22. dnia, najlepiej przy stabilniejszej glukozie. Przed wygaśnięciem reset bezpieczeństwa nastąpi nawet po wyłączeniu tej opcji.</string>
+    <string name="sibionics_reset_reminder_title">Zbliża się reset Sibionics 2</string>
+    <string name="sibionics_reset_reminder_text">Sensor osiągnie moment resetu za około %1$d godz. Zresetuj go na czas, aby działał dalej.</string>
+    <string name="sibionics_reset_postpone">Odłóż o 2 godziny</string>
+    <string name="sibionics_reset_reminder_channel">Przypomnienia o resecie Sibionics</string>
+    <string name="sibionics_reset_reminder_channel_desc">Przypomnienia i działania do resetowania Sibionics 2 przed wygaśnięciem</string>
 </resources>

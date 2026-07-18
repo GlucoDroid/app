@@ -53,6 +53,7 @@ class SibionicsDeviceBindingTest {
         assertFalse(identity.sensorId.equals("SIBI:P225043JMV", ignoreCase = true))
         assertFalse(identity.displayName.equals("P225043JMV", ignoreCase = true))
         assertTrue(identity.bleName.equals("P225043JMV", ignoreCase = true))
+        assertTrue(identity.qrDerived)
     }
 
     @Test
@@ -69,6 +70,20 @@ class SibionicsDeviceBindingTest {
         assertEquals("SIBI:0683013AQT9", identity.sensorId)
         assertEquals("0683013A", identity.shortCode)
         assertEquals("P225043JMV", identity.bleName)
+        assertTrue(identity.qrDerived)
+    }
+
+    @Test
+    fun bleOnlyIdentityRetainsTheFullAdvertisedName() {
+        val identity = SibionicsRegistry.buildIdentity(
+            rawInput = "HEMATONIX42",
+            bleName = "HEMATONIX42",
+            variant = SibionicsConstants.Variant.HEMATONIX,
+        )
+
+        assertEquals("HEMATONIX42", identity.displayName)
+        assertEquals("HEMATONIX42", identity.bleName)
+        assertFalse(identity.qrDerived)
     }
 
     @Test

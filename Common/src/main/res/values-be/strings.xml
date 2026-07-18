@@ -358,7 +358,7 @@
     <string name="import_history_desc">Імпарт дадзеных глюкозы з CSV файла</string>
     <string name="get_started_desc">Пачніце з дадання вашага сэнсара</string>
     <string name="select_sensor">Выберыце тып сэнсара</string>
-    <string name="select_sibionics_type">Выберыце тып сэнсара</string>
+    <string name="select_sibionics_type">Выберыце сэнсар Sibionics</string>
     <string name="or_divider">"  або  "</string>
     <string name="no_sensors_connected">Няма падлучаных сэнсараў</string>
     <string name="enter_sensor_codes">Увядзіце коды сэнсара</string>
@@ -378,7 +378,7 @@
     <string name="select_gallery_button">Выбраць з Галерэі</string>
     <string name="skip_fake_sensor">Прапусціць (Вык. фіктыўны сэнсар)</string>
     <string name="enter_code_manually">Увесці код уручную</string>
-    <string name="choose_sibionics_variant">Выберыце варыянт сэнсара Sibionics</string>
+    <string name="choose_sibionics_variant">Выберыце мадэль, указаную на ўпакоўцы.</string>
     <string name="continue_action">Працягнуць</string>
     <string name="sensor_init_failed">Ініцыялізацыя сэнсара не атрымалася</string>
     <string name="sensor_lost_restart">Памылка: Сэнсар страчаны. Перазапусціце наладу.</string>
@@ -533,7 +533,7 @@
     <string name="auto_calibration_mode">Алгарытм датчыка</string>
     <string name="sibionics_custom_algorithm">Адаптыўная мадэль датчыка (эксперыментальная)</string>
     <string name="sibionics_custom_algorithm_desc">Кампенсацыя дрэйфу датчыка, фізіялагічнай затрымкі і артэфактаў</string>
-    <string name="sibionics_stock_algorithm_desc">Штатная мадэль датчыка</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics па змаўчанні</string>
     <string name="sibionics_stock_algorithm_detail">Выкарыстоўваць каліброўкі ўнутры алгарытму датчыка</string>
     <string name="sibionics_restart_algorithm_desc">Аднавіць стан хвіліннага алгарытму з захаванай гісторыі датчыка</string>
     <string name="juggluco_native">Родны Juggluco</string>
@@ -662,7 +662,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibrate_a">Візуальны рэжым</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">Каліброўка</string>
     <string name="calibration_algorithm">Calibration Algorithm</string>
     <string name="calibrations">Calibrations</string>
     <string name="caresens_air_scan_instruction">Адсканіруйце код датчыка на ўпакоўцы CareSens Air</string>
@@ -1328,8 +1328,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">Выбрана: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Выкарыстаць фэйкавы QR з гэтай BLE-назвы</string>
     <string name="sibionics_use_ble_device">Выкарыстаць гэту Bluetooth-прыладу</string>
-    <string name="sibionics_managed_driver_title">Кіраваны драйвер без lib</string>
-    <string name="sibionics_managed_driver_desc">Выкарыстоўваць Kotlin BLE/пратакольны драйвер замест старой натыўнай бібліятэкі Sibionics. Эксперыментальна; пакіньце выключаным, калі датчык ужо працуе ў старым рэжыме.</string>
+    <string name="sibionics_legacy_driver_title">Састарэлы драйвер</string>
+    <string name="sibionics_legacy_driver_desc">Стары прапрыетарны драйвер — толькі для сумяшчальнасці з існуючай устаноўкай.</string>
     <string name="sibionics_managed_sensor_added">Кіраваны датчык Sibionics дададзены: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -2015,10 +2015,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_replace">Замяніць</string>
     <string name="sibionics_glucose_model">Мадэль глюкозы</string>
     <string name="sibionics_stock_model_detail">Дакладны штатны алгарытм Sibionics</string>
-    <string name="sibionics_responsive_algorithm">Хуткая мадэль</string>
+    <string name="sibionics_responsive_algorithm">Хуткі водгук</string>
     <string name="sibionics_responsive_algorithm_desc">Пачатковая мадэль узроўню і хуткасці змены глюкозы</string>
-    <string name="sibionics_balanced_algorithm">Збалансаваная мадэль</string>
+    <string name="sibionics_balanced_algorithm">Лёгкае згладжванне</string>
     <string name="sibionics_balanced_algorithm_desc">Абмежаванае прыглушэнне шуму з блізкім следаваннем штатнай мадэлі</string>
-    <string name="sibionics_state_algorithm">Хімічная мадэль стану</string>
+    <string name="sibionics_state_algorithm">Адаптыўная карэкцыя</string>
     <string name="sibionics_state_algorithm_desc">Кампенсацыя дрэйфу датчыка, фізіялагічнай затрымкі і артэфактаў</string>
+    <string name="sibionics_auto_reset_22_desc">Скід каля 22-га дня ў больш спакойны перыяд глюкозы. Перад заканчэннем тэрміну ахоўны скід спрацуе, нават калі налада выключана.</string>
+    <string name="sibionics_reset_reminder_title">Хутка спатрэбіцца перазапуск Sibionics 2</string>
+    <string name="sibionics_reset_reminder_text">Датчык дасягне часу перазапуску прыкладна праз %1$d г. Перазапусціце яго своечасова, каб ён працягнуў працу.</string>
+    <string name="sibionics_reset_postpone">Адкласці на 2 гадзіны</string>
+    <string name="sibionics_reset_reminder_channel">Напаміны пра перазапуск Sibionics</string>
+    <string name="sibionics_reset_reminder_channel_desc">Напаміны і дзеянні для перазапуску Sibionics 2 да заканчэння тэрміну</string>
 </resources>

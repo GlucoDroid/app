@@ -3,6 +3,7 @@ package tk.glucodata.drivers.sibionics
 import kotlin.math.abs
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -405,6 +406,68 @@ class SibionicsAdaptiveAlgorithmTest {
     }
 
     @Test
+    fun discardedLegacyStateIsNotReportedAsRestored() {
+        val original = SibionicsAdaptiveAlgorithmContext().apply { configure(1.4f) }
+        original.process(
+            6f, 6f, 34f, 2_900f, 120, 120 * 60_000L, emptyList(),
+            chemicalMmol = 6f,
+            vendorStockMmol = 6f,
+        )
+        val incompatible = original.snapshot().also { bytes ->
+            java.nio.ByteBuffer.wrap(bytes, Int.SIZE_BYTES, Int.SIZE_BYTES)
+                .putInt(4)
+        }
+
+        val restored = SibionicsAdaptiveAlgorithmContext().apply { configure(1.4f) }
+        assertFalse(restored.restore(incompatible))
+        assertEquals(null, restored.continuationIndex())
+    }
+
+    @Test
+    fun wrapperSnapshotsRequireExactCustomContinuationIndex() {
+        val selections = listOf(
+            SibionicsAlgorithmSelection.STATE_MODEL_CALIBRATED,
+            SibionicsAlgorithmSelection.BALANCED_TRACKER_CALIBRATED,
+            SibionicsAlgorithmSelection.RESPONSIVE_ESTIMATOR_CALIBRATED,
+        )
+        selections.forEach { selection ->
+            val context = SibionicsAlgorithmContext("continuation-${selection.storageId}").apply {
+                configure(
+                    "46HU804EBJ4",
+                    1.4f,
+                    SibionicsConstants.Variant.CHINESE,
+                    selection,
+                )
+            }
+            repeat(140) { offset ->
+                val index = offset + 1
+                context.process(
+                    rawMmol = 5.5f + (offset % 7) * 0.05f,
+                    temperatureC = 34f,
+                    index = index,
+                    mode = SibionicsAlgorithmMode.LIVE,
+                    impedance = 2_900f,
+                    eventTimeMs = index * 60_000L,
+                )
+            }
+
+            val restored = SibionicsAlgorithmContext("restored-${selection.storageId}").apply {
+                configure(
+                    "46HU804EBJ4",
+                    1.4f,
+                    SibionicsConstants.Variant.CHINESE,
+                    selection,
+                )
+            }
+            assertTrue(restored.restore(context.snapshot()))
+            assertEquals(140, restored.customContinuationIndex())
+            assertTrue(restored.hasExactContinuation(141))
+            assertFalse(restored.hasExactContinuation(140))
+            assertFalse(restored.hasExactContinuation(142))
+        }
+    }
+
+    @Test
     fun lifetimesMatchEachSibionicsSeries() {
         val day = SibionicsConstants.DAY_MS
         assertEquals(14L * day, SibionicsConstants.Variant.EU.officialLifetimeMs)
@@ -418,17 +481,36 @@ class SibionicsAdaptiveAlgorithmTest {
 
     @Test
     fun gs1ResetUsesObservedFf32Payload() {
+        val expected = byteArrayOf(0x24, 0xE7.toByte(), 0x6F, 0x34)
         assertArrayEquals(
-            byteArrayOf(0x24, 0xE7.toByte(), 0x6F, 0x34),
+            expected,
             SibionicsProtocol.buildGs1ResetPacket(),
+        )
+        assertArrayEquals(
+            expected,
+            SibionicsProtocol.buildMaintenanceResetPacket(SibionicsConstants.Variant.EU),
+        )
+        assertArrayEquals(
+            expected,
+            SibionicsProtocol.buildMaintenanceResetPacket(SibionicsConstants.Variant.HEMATONIX),
         )
     }
 
     @Test
     fun chineseResetUsesObservedAa55Payload() {
+        val expected = byteArrayOf(0xAA.toByte(), 0x55, 0x10, 0xF1.toByte())
+        assertArrayEquals(expected, SibionicsProtocol.buildChineseResetPacket())
         assertArrayEquals(
-            byteArrayOf(0xAA.toByte(), 0x55, 0x10, 0xF1.toByte()),
-            SibionicsProtocol.buildChineseResetPacket(),
+            expected,
+            SibionicsProtocol.buildMaintenanceResetPacket(SibionicsConstants.Variant.CHINESE),
+        )
+    }
+
+    @Test
+    fun sibionics2ResetKeepsEncryptedV120Command() {
+        assertArrayEquals(
+            SibionicsProtocol.buildResetPacket(0),
+            SibionicsProtocol.buildMaintenanceResetPacket(SibionicsConstants.Variant.SIBIONICS2),
         )
     }
 

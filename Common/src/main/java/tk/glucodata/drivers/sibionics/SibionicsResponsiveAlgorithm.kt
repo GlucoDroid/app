@@ -173,6 +173,8 @@ internal class SibionicsResponsiveAlgorithmContext {
         }
     }.getOrDefault(false).also { restored -> if (!restored) reset() }
 
+    fun continuationIndex(): Int? = lastIndex.takeIf { initialized && it >= 0 }
+
     fun applyIntegratedCalibration(
         stockMmol: Float,
         eventTimeMs: Long,

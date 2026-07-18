@@ -1084,11 +1084,7 @@ public:
                                                       sensordir.length() - 16);
   }
   [[nodiscard]] std::string_view showsensorname() const {
-    if (isSibionics()) {
-      if (siSubtype() != 3 && getinfo()->siDeviceName[0])
-        return std::string_view((char *)getinfo()->siDeviceName,
-                                getinfo()->siDeviceNamelen);
-    } else {
+    if (!isSibionics()) {
       if (isLibre3())
         return std::string_view(sensordir.data() + sensordir.length() - 9, 9);
       if (isAiDex())

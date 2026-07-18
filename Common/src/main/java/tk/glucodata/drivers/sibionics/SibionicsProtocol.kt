@@ -183,6 +183,15 @@ object SibionicsProtocol {
     fun buildChineseResetPacket(): ByteArray =
         byteArrayOf(0xAA.toByte(), 0x55, 0x10, 0xF1.toByte())
 
+    fun buildMaintenanceResetPacket(variant: SibionicsConstants.Variant): ByteArray = when (variant) {
+        SibionicsConstants.Variant.EU,
+        SibionicsConstants.Variant.HEMATONIX -> buildGs1ResetPacket()
+
+        SibionicsConstants.Variant.CHINESE -> buildChineseResetPacket()
+        SibionicsConstants.Variant.SIBIONICS2,
+        SibionicsConstants.Variant.GS3 -> buildResetPacket(0)
+    }
+
     fun estimateChineseHistoryTotal(
         previousTotal: Int,
         receivedCount: Int,

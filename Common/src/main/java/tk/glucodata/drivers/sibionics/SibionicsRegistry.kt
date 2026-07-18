@@ -28,6 +28,9 @@ object SibionicsRegistry {
     private const val PREF_LAST_READING_TIME_PREFIX = "sibionics_managed_last_reading_time_"
     private const val PREF_ALGORITHM_STATE_PREFIX = "sibionics_managed_algorithm_state_"
     private const val PREF_AUTO_RESET_DAYS_PREFIX = "sibionics_managed_auto_reset_days_"
+    private const val PREF_RESET_POSTPONED_UNTIL_PREFIX = "sibionics_managed_reset_postponed_until_"
+    private const val PREF_RESET_REMINDER_AT_PREFIX = "sibionics_managed_reset_reminder_at_"
+    private const val PREF_RESET_REQUESTED_PREFIX = "sibionics_managed_reset_requested_"
     private const val PREF_CUSTOM_ALGORITHM_PREFIX = "sibionics_managed_custom_algorithm_"
     private const val PREF_ALGORITHM_SELECTION_PREFIX = "sibionics_managed_algorithm_selection_"
     private const val PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX = "sibionics_managed_rebuild_fingerprint_"
@@ -46,6 +49,7 @@ object SibionicsRegistry {
         val variant: SibionicsConstants.Variant,
         val shortCode: String,
         val bleName: String = "",
+        val legacyNativeName: String = "",
     ) {
         fun matchesId(id: String?): Boolean =
             SibionicsConstants.matchesId(sensorId, id) ||
@@ -59,6 +63,7 @@ object SibionicsRegistry {
         val displayName: String,
         val shortCode: String,
         val bleName: String,
+        val qrDerived: Boolean,
     )
 
     fun prefs(context: Context): SharedPreferences =
@@ -99,6 +104,7 @@ object SibionicsRegistry {
             displayName = display.ifBlank { "${variant.displayLabel} $shortCode" },
             shortCode = shortCode,
             bleName = resolvedBleName,
+            qrDerived = framedQrName != null,
         )
     }
 
@@ -128,6 +134,7 @@ object SibionicsRegistry {
             ?: SibionicsConstants.normalizeBleAddress(existing?.address)
             ?: ""
         val visible = usableDisplayName(displayName)
+            ?: identity.displayName.takeIf { identity.qrDerived }
             ?: usableDisplayName(existing?.displayName)
             ?: identity.displayName
         val bleName = deriveBleName(bleNameOverride)
@@ -135,7 +142,15 @@ object SibionicsRegistry {
             .ifBlank { identity.bleName }
             .ifBlank { deriveBleName(displayName) ?: "" }
             .ifBlank { existing?.bleName.orEmpty() }
-        val record = SensorRecord(sensorId, normalizedAddress, visible, variant, shortCode, bleName)
+        val record = SensorRecord(
+            sensorId = sensorId,
+            address = normalizedAddress,
+            displayName = visible,
+            variant = variant,
+            shortCode = shortCode,
+            bleName = bleName,
+            legacyNativeName = existing?.legacyNativeName.orEmpty(),
+        )
         if (idx >= 0) records[idx] = record else records.add(record)
         writeRecords(context, records)
         saveVariant(context, sensorId, variant)
@@ -234,12 +249,26 @@ object SibionicsRegistry {
             remove(PREF_LAST_READING_TIME_PREFIX + id)
             remove(PREF_ALGORITHM_STATE_PREFIX + id)
             remove(PREF_AUTO_RESET_DAYS_PREFIX + id)
+            remove(PREF_RESET_POSTPONED_UNTIL_PREFIX + id)
+            remove(PREF_RESET_REMINDER_AT_PREFIX + id)
+            remove(PREF_RESET_REQUESTED_PREFIX + id)
             remove(PREF_CUSTOM_ALGORITHM_PREFIX + id)
             remove(PREF_ALGORITHM_SELECTION_PREFIX + id)
             remove(PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX + id)
             remove(PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX + id)
         }.apply()
         ManagedSensorUiSignals.markDeviceListDirty()
+        SensorIdentity.invalidateCaches()
+    }
+
+    internal fun bindLegacyNativeName(context: Context, sensorId: String, legacyNativeName: String) {
+        val normalized = legacyNativeName.trim().takeIf(SensorIdentity::isUsableSensorId) ?: return
+        val records = persistedRecords(context).toMutableList()
+        val index = records.indexOfFirst { it.matchesId(sensorId) }
+        val existing = records.getOrNull(index) ?: return
+        if (existing.legacyNativeName.equals(normalized, ignoreCase = true)) return
+        records[index] = existing.copy(legacyNativeName = normalized)
+        writeRecords(context, records)
         SensorIdentity.invalidateCaches()
     }
 
@@ -270,10 +299,46 @@ object SibionicsRegistry {
     fun loadAutoResetDays(context: Context, sensorId: String): Int =
         prefs(context).getInt(PREF_AUTO_RESET_DAYS_PREFIX + sensorId, 300)
 
+    fun hasAutoResetSetting(context: Context, sensorId: String): Boolean =
+        prefs(context).contains(PREF_AUTO_RESET_DAYS_PREFIX + sensorId)
+
     fun saveAutoResetDays(context: Context, sensorId: String, days: Int) {
         prefs(context).edit()
             .putInt(PREF_AUTO_RESET_DAYS_PREFIX + sensorId, days.coerceIn(1, 300))
             .apply()
+    }
+
+    fun loadResetPostponedUntilMs(context: Context, sensorId: String): Long =
+        prefs(context).getLong(PREF_RESET_POSTPONED_UNTIL_PREFIX + sensorId, 0L)
+
+    fun postponeReset(context: Context, sensorId: String, untilMs: Long) {
+        prefs(context).edit()
+            .putLong(PREF_RESET_POSTPONED_UNTIL_PREFIX + sensorId, untilMs.coerceAtLeast(0L))
+            .apply()
+    }
+
+    fun loadResetReminderAtMs(context: Context, sensorId: String): Long =
+        prefs(context).getLong(PREF_RESET_REMINDER_AT_PREFIX + sensorId, 0L)
+
+    fun markResetReminderShown(context: Context, sensorId: String, nowMs: Long) {
+        prefs(context).edit()
+            .putLong(PREF_RESET_REMINDER_AT_PREFIX + sensorId, nowMs.coerceAtLeast(0L))
+            .apply()
+    }
+
+    fun requestReset(context: Context, sensorId: String) {
+        prefs(context).edit().putBoolean(PREF_RESET_REQUESTED_PREFIX + sensorId, true).apply()
+    }
+
+    fun isResetRequested(context: Context, sensorId: String): Boolean =
+        prefs(context).getBoolean(PREF_RESET_REQUESTED_PREFIX + sensorId, false)
+
+    fun clearResetMaintenanceState(context: Context, sensorId: String) {
+        prefs(context).edit().apply {
+            remove(PREF_RESET_POSTPONED_UNTIL_PREFIX + sensorId)
+            remove(PREF_RESET_REMINDER_AT_PREFIX + sensorId)
+            remove(PREF_RESET_REQUESTED_PREFIX + sensorId)
+        }.apply()
     }
 
     fun loadCustomAlgorithmEnabled(context: Context, sensorId: String): Boolean =
@@ -486,6 +551,7 @@ object SibionicsRegistry {
             r.variant.id,
             r.shortCode,
             r.bleName,
+            r.legacyNativeName.replace('|', ' '),
         ).joinToString("|")
 
     private fun parseRecord(line: String): SensorRecord? {
@@ -499,6 +565,7 @@ object SibionicsRegistry {
             variant = SibionicsConstants.Variant.fromId(parts[3]),
             shortCode = parts[4].ifBlank { SibionicsConstants.Variant.fromId(parts[3]).fallbackShortCode },
             bleName = parts.getOrNull(5).orEmpty(),
+            legacyNativeName = parts.getOrNull(6).orEmpty(),
         )
     }
 
@@ -627,6 +694,13 @@ object SibionicsManagedSensorIdentityAdapter : tk.glucodata.drivers.ManagedSenso
     override fun removePersistedSensor(context: Context, sensorId: String?) {
         SibionicsRegistry.removeSensor(context, sensorId)
     }
+
+    override fun resolveNativeHistorySensorNames(sensorId: String?): List<String> =
+        SibionicsRegistry.findRecord(Applic.app, sensorId)
+            ?.legacyNativeName
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::listOf)
+            .orEmpty()
 
     override fun isExternallyManagedBleSensor(sensorId: String?): Boolean =
         SibionicsRegistry.findRecord(Applic.app, sensorId) != null

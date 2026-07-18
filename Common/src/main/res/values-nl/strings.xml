@@ -478,7 +478,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="import_history_desc">Importeer glucosegegevens uit een CSV-bestand</string>
     <string name="get_started_desc">Ga aan de slag door je sensor toe te voegen</string>
     <string name="select_sensor">Selecteer sensortype</string>
-    <string name="select_sibionics_type">Selecteer sensortype</string>
+    <string name="select_sibionics_type">Kies een Sibionics-sensor</string>
     <string name="or_divider">"  of  "</string>
     <string name="no_sensors_connected">Geen sensoren verbonden</string>
     
@@ -501,7 +501,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="select_gallery_button">Selecteer uit galerij</string>
     <string name="skip_fake_sensor">Overslaan (Gebruik nepsensor)</string>
     <string name="enter_code_manually">Code handmatig invoeren</string>
-    <string name="choose_sibionics_variant">Kies je Sibionics-sensorvariant</string>
+    <string name="choose_sibionics_variant">Kies het model dat op de verpakking staat.</string>
     <string name="continue_action">Doorgaan</string>
     
     <string name="sensor_init_failed">Sensorinitialisatie mislukt</string>
@@ -621,7 +621,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="auto_calibration_mode">Sensoralgoritme</string>
     <string name="sibionics_custom_algorithm">Adaptief sensormodel (experimenteel)</string>
     <string name="sibionics_custom_algorithm_desc">Compensatie van sensordrift, fysiologische vertraging en artefacten</string>
-    <string name="sibionics_stock_algorithm_desc">Standaard sensormodel</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics-standaard</string>
     <string name="sibionics_stock_algorithm_detail">Meterkalibraties binnen het sensoralgoritme gebruiken</string>
     <string name="sibionics_restart_algorithm_desc">Bouw de minuutstatus opnieuw op uit de opgeslagen sensorgeschiedenis</string>
     <string name="juggluco_native">Juggluco natief</string>
@@ -1372,8 +1372,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="sibionics_ble_selected">Geselecteerd: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Gebruik nep-QR-info van deze BLE-naam</string>
     <string name="sibionics_use_ble_device">Gebruik dit Bluetooth-apparaat</string>
-    <string name="sibionics_managed_driver_title">Beheerde lib-vrije driver</string>
-    <string name="sibionics_managed_driver_desc">Gebruik de Kotlin BLE/protocoldriver in plaats van de oude native Sibionics-bibliotheek. Experimenteel; laat dit uit als deze sensor al werkt in legacy-modus.</string>
+    <string name="sibionics_legacy_driver_title">Legacy-stuurprogramma</string>
+    <string name="sibionics_legacy_driver_desc">Gebruik het oude propriëtaire stuurprogramma alleen voor een bestaande installatie.</string>
     <string name="sibionics_managed_sensor_added">Beheerde Sibionics-sensor toegevoegd: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
@@ -1991,10 +1991,16 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="wear_libre_nfc_caveat">Libre-sensoren worden eerst met de NFC van de telefoon geactiveerd. Na activering kan dit horloge overnemen.</string>
     <string name="sibionics_glucose_model">Glucosemodel</string>
     <string name="sibionics_stock_model_detail">Exact Sibionics-sensoralgoritme</string>
-    <string name="sibionics_responsive_algorithm">Responsieve schatter</string>
+    <string name="sibionics_responsive_algorithm">Snelle respons</string>
     <string name="sibionics_responsive_algorithm_desc">Oorspronkelijke trendgestuurde schatter van glucose en snelheid</string>
-    <string name="sibionics_balanced_algorithm">Gebalanceerde tracker</string>
+    <string name="sibionics_balanced_algorithm">Lichte afvlakking</string>
     <string name="sibionics_balanced_algorithm_desc">Begrensde ruisonderdrukking dicht bij het standaardmodel</string>
-    <string name="sibionics_state_algorithm">Chemisch toestandsmodel</string>
+    <string name="sibionics_state_algorithm">Adaptieve correctie</string>
     <string name="sibionics_state_algorithm_desc">Compensatie van sensordrift, fysiologische vertraging en artefacten</string>
+    <string name="sibionics_auto_reset_22_desc">Reset rond dag 22, bij voorkeur tijdens stabielere glucose. Vóór het verlopen volgt altijd een veiligheidsreset, ook als dit uitstaat.</string>
+    <string name="sibionics_reset_reminder_title">Reset van Sibionics 2 komt eraan</string>
+    <string name="sibionics_reset_reminder_text">De sensor bereikt over ongeveer %1$d uur het resetmoment. Reset hem op tijd om hem actief te houden.</string>
+    <string name="sibionics_reset_postpone">2 uur uitstellen</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics-resetherinneringen</string>
+    <string name="sibionics_reset_reminder_channel_desc">Herinneringen en acties om Sibionics 2 vóór afloop te resetten</string>
 </resources>

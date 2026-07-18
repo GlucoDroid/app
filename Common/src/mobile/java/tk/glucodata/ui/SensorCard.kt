@@ -37,8 +37,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.draw.alpha
 
-import androidx.compose.animation.AnimatedVisibility
-
 import androidx.compose.material.icons.filled.AccessTime
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.Notify
@@ -1780,93 +1778,20 @@ fun SensorCard(
                     Text(stringResource(R.string.reset_sensor))
                 }
 
-                // Auto-reset days stepper (hardware reset scheduling, not algorithm-related)
-                val isAutoResetEnabled = sensor.autoResetDays < 25
-                var daysValue by remember(sensor.autoResetDays) {
-                    mutableStateOf(if (isAutoResetEnabled) sensor.autoResetDays else 20)
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.auto_reset_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    AnimatedVisibility(visible = isAutoResetEnabled) {
-                        Surface(
-                            shape = MaterialTheme.shapes.large,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(4.dp)
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        if (daysValue > 1) {
-                                            daysValue--
-                                            viewModel.setAutoResetDays(sensor.serial, daysValue)
-                                        }
-                                    },
-                                    enabled = daysValue > 1,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Remove,
-                                        contentDescription = "Decrease",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = if (daysValue > 1) MaterialTheme.colorScheme.onSurfaceVariant
-                                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                    )
-                                }
-                                Surface(
-                                    shape = MaterialTheme.shapes.medium,
-                                    color = MaterialTheme.colorScheme.primaryContainer
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.auto_reset_days, daysValue),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        if (daysValue < 22) {
-                                            daysValue++
-                                            viewModel.setAutoResetDays(sensor.serial, daysValue)
-                                        }
-                                    },
-                                    enabled = daysValue < 22,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Increase",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = if (daysValue < 22) MaterialTheme.colorScheme.onSurfaceVariant
-                                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    StyledSwitch(
+                if (sensor.isSibionics2) {
+                    val isAutoResetEnabled = sensor.autoResetDays < 300
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.auto_reset_title),
+                        subtitle = stringResource(R.string.sibionics_auto_reset_22_desc),
                         checked = isAutoResetEnabled,
                         onCheckedChange = { enabled ->
-                            val newValue = if (enabled) daysValue else 300
-                            viewModel.setAutoResetDays(sensor.serial, newValue)
-                        }
+                            viewModel.setAutoResetDays(sensor.serial, if (enabled) 22 else 300)
+                        },
+                        icon = Icons.Default.Schedule,
+                        position = CardPosition.SINGLE,
+                        modifier = Modifier.padding(bottom = 8.dp),
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
             }
 
             if (sensor.isMq) {
