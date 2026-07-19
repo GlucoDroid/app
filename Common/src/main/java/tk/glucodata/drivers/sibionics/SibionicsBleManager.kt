@@ -154,6 +154,7 @@ class SibionicsBleManager(
     @Volatile private var rebuildGeneration: Long = 0L
     @Volatile private var calibrationRevision: Long = 0L
     @Volatile private var rebuildAfterNextSourceSample: Boolean = false
+    @Volatile private var preserveResumeStateOnRemoval: Boolean = false
 
     @Volatile private var algorithm = SibionicsAlgorithmContext(serial)
     private val authTimeoutRunnable = Runnable {
@@ -325,10 +326,18 @@ class SibionicsBleManager(
 
     override fun terminateManagedSensor(wipeData: Boolean) {
         Log.i(SibionicsConstants.TAG, "terminateManagedSensor serial=$SerialNumber wipeData=$wipeData")
+        preserveResumeStateOnRemoval = !wipeData
+        if (preserveResumeStateOnRemoval) flushAlgorithmCheckpointIfDirty()
         softDisconnect()
         rebuildGeneration++
-        sampleJournal?.clear()
-        Applic.app?.let { SibionicsRegistry.removeSensor(it, SerialNumber) }
+        if (wipeData) sampleJournal?.clear()
+        Applic.app?.let {
+            SibionicsRegistry.removeSensor(
+                context = it,
+                sensorId = SerialNumber,
+                preserveResumeState = preserveResumeStateOnRemoval,
+            )
+        }
         // The owning removal flow calls SensorBluetooth.sensorEnded() after
         // persistence is gone. Reconciling here is re-entrant: it can free this
         // callback while terminateManagedSensor() is still executing.
@@ -336,8 +345,14 @@ class SibionicsBleManager(
     }
 
     override fun removeManagedPersistence(context: Context) {
-        SibionicsSampleJournal(sampleJournalFile(context, SerialNumber)).clear()
-        SibionicsRegistry.removeSensor(context, SerialNumber)
+        if (!preserveResumeStateOnRemoval) {
+            SibionicsSampleJournal(sampleJournalFile(context, SerialNumber)).clear()
+        }
+        SibionicsRegistry.removeSensor(
+            context = context,
+            sensorId = SerialNumber,
+            preserveResumeState = preserveResumeStateOnRemoval,
+        )
     }
 
     override fun close() {

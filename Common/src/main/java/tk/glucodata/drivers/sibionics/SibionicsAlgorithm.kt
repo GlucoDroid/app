@@ -346,7 +346,13 @@ class SibionicsAlgorithmContext(
 
     private fun replayValue(rawMmol: Float, candidate: Float?): Float {
         if (candidate != null && isUsableCandidate(candidate)) {
-            replayDeltaMmol = candidate - rawMmol
+            val delta = candidate - rawMmol
+            replayDeltaMmol = delta
+            // A replay sample is normally newer backfill received immediately before the
+            // current live sample. Keep the live fallback aligned with that newer exact
+            // correction; otherwise a reconnect can reuse an older live delta and create a
+            // one- or two-minute spike that disappears when the same journal is rebuilt.
+            liveDeltaMmol = delta
             return candidate
         }
         return if (isUsableDelta(replayDeltaMmol)) {

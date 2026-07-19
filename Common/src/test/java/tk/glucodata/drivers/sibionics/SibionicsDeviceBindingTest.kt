@@ -23,6 +23,28 @@ class SibionicsDeviceBindingTest {
     }
 
     @Test
+    fun managedMirrorIdentityMatchesItsShortNativeAlias() {
+        assertTrue(
+            SibionicsRegistry.matchesNativeMirrorIdentity(
+                "SIBI:P225043JMV",
+                "P225043JMV",
+            ),
+        )
+        assertTrue(
+            SibionicsRegistry.matchesNativeMirrorIdentity(
+                "P225043JMV",
+                "SIBI:P225043JMV",
+            ),
+        )
+        assertFalse(
+            SibionicsRegistry.matchesNativeMirrorIdentity(
+                "SIBI:P225043JMV",
+                "46HU804EBJ4",
+            ),
+        )
+    }
+
+    @Test
     fun sibionics2StartsWithItsKnownV120ProtocolInsteadOfUnknown() {
         assertEquals(
             SibionicsConstants.ProtocolMode.V120,

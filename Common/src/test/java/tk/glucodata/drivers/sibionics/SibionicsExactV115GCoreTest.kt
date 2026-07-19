@@ -108,6 +108,37 @@ class SibionicsExactV115GCoreTest {
     }
 
     @Test
+    fun newerReplayCorrectionSupersedesStaleLiveFallbackAfterReconnect() {
+        val rows = replayRows().associateBy { it.index }
+        val algorithm = SibionicsAlgorithmContext("reconnect-history-to-live")
+        algorithm.configure(shortCode = "", sensitivity = 1.40f)
+
+        (25..30).forEach { index ->
+            val row = rows.getValue(index)
+            algorithm.process(row.rawMmol, row.temperatureC, row.index, SibionicsAlgorithmMode.REPLAY)
+        }
+        rows.getValue(31).let { row ->
+            algorithm.process(row.rawMmol, row.temperatureC, row.index, SibionicsAlgorithmMode.LIVE)
+        }
+        (32..35).forEach { index ->
+            val row = rows.getValue(index)
+            algorithm.process(row.rawMmol, row.temperatureC, row.index, SibionicsAlgorithmMode.REPLAY)
+        }
+
+        val current = rows.getValue(36)
+        assertEquals(
+            6.0f,
+            algorithm.process(
+                current.rawMmol,
+                current.temperatureC,
+                current.index,
+                SibionicsAlgorithmMode.LIVE,
+            ),
+            0.0001f,
+        )
+    }
+
+    @Test
     fun replayMatchesProprietaryV115GOutput() {
         val core = SibionicsExactV115GCore(decodedSensitivity = 1.40f)
         var displayCount = 0
