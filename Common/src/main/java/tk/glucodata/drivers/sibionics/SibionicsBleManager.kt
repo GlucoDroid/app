@@ -1002,14 +1002,7 @@ class SibionicsBleManager(
             return null
         }
 
-        // Pin emitted timestamps to the sensor's minute grid. Raw eventMs
-        // jitters around the grid (BLE delivery/clock parsing), which let the
-        // native minute-indexed high-water land ahead of the next reading and
-        // trip SuperGattCallback's stale-guard — freezing the exchange/watch
-        // stream. Grid times are monotonic in index and index-exact in the
-        // native store. The algorithm above still sees the original eventMs.
-        val gridMs = startTimeMs + index * SibionicsConstants.READING_INTERVAL_MS
-        return EmittedReading(gridMs, glucoseMgdl, rawMgdl, temperatureC, impedance, index, live)
+        return EmittedReading(eventMs, glucoseMgdl, rawMgdl, temperatureC, impedance, index, live)
     }
 
     private fun integratedCalibratedMmol(stockMmol: Float, eventMs: Long): Float {
