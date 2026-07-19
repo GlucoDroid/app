@@ -6,6 +6,51 @@ import org.junit.Test
 class DashboardChartRangeTests {
 
     @Test
+    fun manualRangeUsesTotalDragFromItsStartingRange() {
+        val range = manuallyAdjustedChartYRange(
+            startMin = 0f,
+            startMax = 13f,
+            totalDragY = 50f,
+            chartHeight = 500f,
+            adjustsMax = true,
+            minimumSpan = 6f
+        )
+
+        assertEquals(0f, range.min, 0.001f)
+        assertEquals(15.6f, range.max, 0.001f)
+    }
+
+    @Test
+    fun manualRangeKeepsTheOppositeEdgeAnchored() {
+        val range = manuallyAdjustedChartYRange(
+            startMin = 3f,
+            startMax = 13f,
+            totalDragY = -50f,
+            chartHeight = 500f,
+            adjustsMax = false,
+            minimumSpan = 6f
+        )
+
+        assertEquals(1f, range.min, 0.001f)
+        assertEquals(13f, range.max, 0.001f)
+    }
+
+    @Test
+    fun manualRangeIgnoresInvalidGeometry() {
+        val range = manuallyAdjustedChartYRange(
+            startMin = 0f,
+            startMax = 13f,
+            totalDragY = 50f,
+            chartHeight = 0f,
+            adjustsMax = true,
+            minimumSpan = 6f
+        )
+
+        assertEquals(0f, range.min, 0.001f)
+        assertEquals(13f, range.max, 0.001f)
+    }
+
+    @Test
     fun autoRangeKeepsBaselineWhileVisibleValuesAreInsideIt() {
         val range = autoExpandedChartYRange(
             baselineMin = 0f,

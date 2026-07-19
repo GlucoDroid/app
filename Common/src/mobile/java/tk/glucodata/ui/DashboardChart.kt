@@ -1407,6 +1407,8 @@ fun InteractiveGlucoseChart(
         animationSpec = yRangeAnimationSpec,
         label = "ChartYMaxAutoRange"
     )
+    val renderedYMin = if (isYAxisAdjusting) baselineYMin else displayYMin
+    val renderedYMax = if (isYAxisAdjusting) baselineYMax else displayYMax
 
     // --- INTERACTION STATE ---
     var selectedPoint by remember { mutableStateOf<GlucosePoint?>(null) }
@@ -1528,6 +1530,8 @@ fun InteractiveGlucoseChart(
     val currentInteractionData by rememberUpdatedState(interactionData)
     val currentViewMode by rememberUpdatedState(viewMode)
     val currentCalibratedValueResolver by rememberUpdatedState(calibratedValueResolver)
+    val currentRenderedYMin by rememberUpdatedState(renderedYMin)
+    val currentRenderedYMax by rememberUpdatedState(renderedYMax)
     // The pointerInput lambda below is keyed on previewWindowReservedIntPx and otherwise
     // long-lived, so it would otherwise capture these as stale snapshots — when the
     // prediction horizon, zoom level, or expansion progress change, gesture clamping
@@ -1816,10 +1820,10 @@ fun InteractiveGlucoseChart(
                                 val clampedX = position.x.coerceIn(0f, usefulWidth)
                                 val tapTime = viewportStart + ((clampedX / usefulWidth).toDouble() * downDuration)
                                 val normalizedY = 1f - (position.y / chartHeight).coerceIn(0f, 1f)
-                                val suggestedValue = if (displayYMax - displayYMin < 0.001f) {
-                                    displayYMin
+                                val suggestedValue = if (currentRenderedYMax - currentRenderedYMin < 0.001f) {
+                                    currentRenderedYMin
                                 } else {
-                                    (normalizedY * (displayYMax - displayYMin)) + displayYMin
+                                    (normalizedY * (currentRenderedYMax - currentRenderedYMin)) + currentRenderedYMin
                                 }
                                 return ChartTimelineTapSuggestion(
                                     timestamp = tapTime.toLong(),
@@ -1836,6 +1840,9 @@ fun InteractiveGlucoseChart(
                             var accumulatedPanX = 0f
                             var accumulatedPanY = 0f
                             var lockedPanAxis = 0 // 0 undecided, 1 horizontal, 2 vertical
+                            var yGestureStartMin = 0f
+                            var yGestureStartMax = 0f
+                            var yGestureAdjustsMax = false
                             var lastPointerCount = 1
                             val longPressJob = if (onTimelineTap != null && !isDoubleTapStart) {
                                 coroutineScope.launch {
@@ -1868,8 +1875,8 @@ fun InteractiveGlucoseChart(
                                     } else {
                                         pointAtTouch.value
                                     }
-                                    val liveYMin = displayYMin
-                                    val liveYMax = displayYMax
+                                    val liveYMin = currentRenderedYMin
+                                    val liveYMax = currentRenderedYMax
                                     val dataY =
                                         chartHeight - ((v - liveYMin) / (liveYMax - liveYMin)) * chartHeight
                                     abs(down.position.y - dataY) < touchThreshold
@@ -1893,6 +1900,11 @@ fun InteractiveGlucoseChart(
                                 if (pointerCount == 0 || newChange.changedToUp()) break
                                 if (pointerCount != lastPointerCount) {
                                     longPressJob?.cancel()
+                                    lockedPanAxis = 0
+                                    accumulatedPanX = 0f
+                                    accumulatedPanY = 0f
+                                    isYAxisAdjusting = false
+                                    totalDragDistance = maxOf(totalDragDistance, viewConfiguration.touchSlop)
                                     change = newChange
                                     lastPointerCount = pointerCount
                                     velocityTracker.resetTracking()
@@ -1977,31 +1989,40 @@ fun InteractiveGlucoseChart(
                                         accumulatedPanX += panX
                                         accumulatedPanY += panY
 
-                                        if (totalDragDistance > viewConfiguration.touchSlop) {
+                                        val displacement = kotlin.math.sqrt(
+                                            accumulatedPanX * accumulatedPanX + accumulatedPanY * accumulatedPanY
+                                        )
+                                        if (displacement > viewConfiguration.touchSlop) {
                                             longPressJob?.cancel()
                                             dismissJournalActionIfNeeded()
                                             if (lockedPanAxis == 0) {
                                                 lockedPanAxis = if (abs(accumulatedPanX) > abs(accumulatedPanY)) 1 else 2
-                                                isYAxisAdjusting = lockedPanAxis == 2
+                                                if (lockedPanAxis == 2) {
+                                                    yGestureStartMin = currentRenderedYMin
+                                                    yGestureStartMax = currentRenderedYMax
+                                                    yGestureAdjustsMax = newChange.position.y < contentHeight / 2f
+                                                    baselineYMin = yGestureStartMin
+                                                    baselineYMax = yGestureStartMax
+                                                    isYAxisAdjusting = true
+                                                }
                                             }
                                         }
 
                                         if (lockedPanAxis == 1) {
                                             // Horizontal pan
                                             panViewportByPixels(panX, usefulWidth)
-                                        } else if (lockedPanAxis == 2 && totalDragDistance > 30f) {
+                                        } else if (lockedPanAxis == 2 && abs(accumulatedPanY) > 30f) {
                                             // Vertical scale
-                                            val liveYMin = displayYMin
-                                            val liveYMax = displayYMax
-                                            val scaleFactor =
-                                                panY * (liveYMax - liveYMin) / contentHeight * 2f
-                                            if (change.position.y < contentHeight / 2f) {
-                                                baselineYMax =
-                                                    (liveYMax + scaleFactor).coerceAtLeast(baselineYMin + minYAxisSpan)
-                                            } else {
-                                                baselineYMin = (liveYMin + scaleFactor)
-                                                    .coerceIn(0f, (baselineYMax - minYAxisSpan).coerceAtLeast(0f))
-                                            }
+                                            val manualRange = manuallyAdjustedChartYRange(
+                                                startMin = yGestureStartMin,
+                                                startMax = yGestureStartMax,
+                                                totalDragY = accumulatedPanY,
+                                                chartHeight = contentHeight,
+                                                adjustsMax = yGestureAdjustsMax,
+                                                minimumSpan = minYAxisSpan
+                                            )
+                                            baselineYMin = manualRange.min
+                                            baselineYMax = manualRange.max
                                         }
                                     }
                                     newChange.consume()
@@ -2135,10 +2156,10 @@ fun InteractiveGlucoseChart(
             val heightPx = constraints.maxHeight.toFloat()
             val chartHeightPx = (heightPx - chartUnderlayBottomPx - previewWindowReservedPx - bottomAxisHeightPx - chartPlotBottomGapPx).coerceAtLeast(1f)
             
-            val ySpanForGradient = displayYMax - displayYMin
+            val ySpanForGradient = renderedYMax - renderedYMin
             fun thresholdY(value: Float): Float {
                 return if (ySpanForGradient > 0.001f) {
-                    (chartHeightPx * (1f - (value - displayYMin) / ySpanForGradient)).coerceIn(-2000f, chartHeightPx + 2000f)
+                    (chartHeightPx * (1f - (value - renderedYMin) / ySpanForGradient)).coerceIn(-2000f, chartHeightPx + 2000f)
                 } else {
                     0f
                 }
@@ -2329,8 +2350,8 @@ fun InteractiveGlucoseChart(
 
                 // Maps Value to Y (Inverted: High value = Low Y)
                 // Hoist state reads for performance loop
-                val cYMin = displayYMin
-                val cYMax = displayYMax
+                val cYMin = renderedYMin
+                val cYMax = renderedYMax
                 val cYRange = cYMax - cYMin
                 
                 fun valToY(v: Float): Float {
@@ -3308,8 +3329,8 @@ fun InteractiveGlucoseChart(
             val journalChipMinGapPx = with(LocalDensity.current) { 90.dp.toPx() }
             val journalActionChipYOffsetPx = with(LocalDensity.current) { (chartHeightPx - 34.dp.toPx()).coerceAtLeast(12.dp.toPx()) }
             val overlayValueToY: (Float) -> Float = { value ->
-                val range = (displayYMax - displayYMin).takeIf { it > 0.001f } ?: 1f
-                (chartHeightPx - ((value - displayYMin) / range) * chartHeightPx).coerceIn(0f, chartHeightPx)
+                val range = (renderedYMax - renderedYMin).takeIf { it > 0.001f } ?: 1f
+                (chartHeightPx - ((value - renderedYMin) / range) * chartHeightPx).coerceIn(0f, chartHeightPx)
             }
             fun markerOverlayY(marker: JournalChartMarker): Float? {
                 return marker.chartGlucoseValue

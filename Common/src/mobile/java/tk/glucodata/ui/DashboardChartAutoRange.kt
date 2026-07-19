@@ -37,3 +37,38 @@ internal fun autoExpandedChartYRange(
 
     return ChartYRange(min = low, max = high)
 }
+
+internal fun manuallyAdjustedChartYRange(
+    startMin: Float,
+    startMax: Float,
+    totalDragY: Float,
+    chartHeight: Float,
+    adjustsMax: Boolean,
+    minimumSpan: Float
+): ChartYRange {
+    if (
+        !startMin.isFinite() ||
+        !startMax.isFinite() ||
+        startMax <= startMin ||
+        !totalDragY.isFinite() ||
+        !chartHeight.isFinite() ||
+        chartHeight <= 0f
+    ) {
+        return ChartYRange(min = startMin, max = startMax)
+    }
+
+    val safeMinimumSpan = minimumSpan.takeIf { it.isFinite() && it > 0f } ?: 0.1f
+    val scaleDelta = totalDragY * (startMax - startMin) / chartHeight * 2f
+    return if (adjustsMax) {
+        ChartYRange(
+            min = startMin,
+            max = (startMax + scaleDelta).coerceAtLeast(startMin + safeMinimumSpan)
+        )
+    } else {
+        ChartYRange(
+            min = (startMin + scaleDelta)
+                .coerceIn(0f, (startMax - safeMinimumSpan).coerceAtLeast(0f)),
+            max = startMax
+        )
+    }
+}
