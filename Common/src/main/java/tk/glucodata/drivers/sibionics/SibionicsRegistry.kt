@@ -9,6 +9,7 @@ import java.io.DataOutputStream
 import java.util.Base64
 import tk.glucodata.Applic
 import tk.glucodata.Log
+import tk.glucodata.Natives
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
 import tk.glucodata.SuperGattCallback
@@ -236,9 +237,15 @@ object SibionicsRegistry {
     @JvmStatic
     fun removeSensor(context: Context, sensorId: String?) {
         val record = findRecord(context, sensorId) ?: return
-        writeRecords(context, persistedRecords(context).filter { !it.matchesId(record.sensorId) })
+        finishNativeMirror(record)
         val id = record.sensorId
-        prefs(context).edit().apply {
+        val remainingRecords = persistedRecords(context).filter { !it.matchesId(record.sensorId) }
+        val remainingSet = remainingRecords.map { encodeRecord(it) }.toSet()
+        val committed = prefs(context).edit().apply {
+            // Keep record removal and all driver state deletion in one durable
+            // transaction. This is a lifecycle boundary: a process restart must
+            // never observe a deleted record with only half its state removed.
+            putStringSet(PREF_SENSORS, remainingSet)
             remove(PREF_LAST_INDEX_PREFIX + id)
             remove(PREF_START_TIME_PREFIX + id)
             remove(PREF_PROTOCOL_PREFIX + id)
@@ -256,9 +263,46 @@ object SibionicsRegistry {
             remove(PREF_ALGORITHM_SELECTION_PREFIX + id)
             remove(PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX + id)
             remove(PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX + id)
-        }.apply()
+        }.commit()
+        if (!committed) {
+            Log.e(SibionicsConstants.TAG, "Failed to persist removal of $id")
+        }
         ManagedSensorUiSignals.markDeviceListDirty()
         SensorIdentity.invalidateCaches()
+    }
+
+    /**
+     * Managed Sibionics readings are mirrored into a native sensor shell for
+     * charts, followers and Wear sync. That shell is deliberately not the BLE
+     * owner, but it still appears in Natives.activeSensors(). If it is left
+     * active, SensorBluetooth immediately recreates a legacy callback after the
+     * managed record is removed.
+     */
+    private fun finishNativeMirror(record: SensorRecord) {
+        val aliases = linkedSetOf<String>()
+        fun addAlias(value: String?) {
+            value?.trim()?.takeIf { it.isNotBlank() }?.let(aliases::add)
+        }
+        addAlias(record.sensorId)
+        addAlias(SibionicsConstants.stripManagedPrefix(record.sensorId))
+        addAlias(record.legacyNativeName)
+        addAlias(record.displayName)
+        addAlias(record.bleName)
+
+        val activeMatches = runCatching { Natives.activeSensors().orEmpty() }
+            .getOrDefault(emptyArray())
+            .filter { active -> aliases.any { it.equals(active, ignoreCase = true) } }
+        val candidates = (activeMatches + aliases).distinctBy { it.lowercase() }
+        for (candidate in candidates) {
+            val sensorPtr = runCatching { Natives.str2sensorptr(candidate) }
+                .onFailure { Log.stack(SibionicsConstants.TAG, "removeSensor(str2sensorptr $candidate)", it) }
+                .getOrDefault(0L)
+            if (sensorPtr == 0L) continue
+            runCatching { Natives.finishfromSensorptr(sensorPtr) }
+                .onSuccess { Log.i(SibionicsConstants.TAG, "Finished native mirror for ${record.sensorId} as $candidate") }
+                .onFailure { Log.stack(SibionicsConstants.TAG, "removeSensor(finishfromSensorptr $candidate)", it) }
+            return
+        }
     }
 
     internal fun bindLegacyNativeName(context: Context, sensorId: String, legacyNativeName: String) {

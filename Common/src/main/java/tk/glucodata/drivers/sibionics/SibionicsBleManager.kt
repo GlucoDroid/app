@@ -316,11 +316,15 @@ class SibionicsBleManager(
     }
 
     override fun terminateManagedSensor(wipeData: Boolean) {
+        Log.i(SibionicsConstants.TAG, "terminateManagedSensor serial=$SerialNumber wipeData=$wipeData")
         softDisconnect()
         rebuildGeneration++
         sampleJournal?.clear()
         Applic.app?.let { SibionicsRegistry.removeSensor(it, SerialNumber) }
-        SensorBluetooth.updateDevices()
+        // The owning removal flow calls SensorBluetooth.sensorEnded() after
+        // persistence is gone. Reconciling here is re-entrant: it can free this
+        // callback while terminateManagedSensor() is still executing.
+        UiRefreshBus.requestStatusRefresh()
     }
 
     override fun removeManagedPersistence(context: Context) {
