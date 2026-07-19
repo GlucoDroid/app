@@ -1363,35 +1363,48 @@ fun InteractiveGlucoseChart(
     // Manual scaling establishes the baseline; visible outliers may temporarily expand it.
     var baselineYMin by rememberSaveable { mutableFloatStateOf(graphRangeDefaults.first) }
     var baselineYMax by rememberSaveable { mutableFloatStateOf(graphRangeDefaults.second) }
+    var isYAxisAdjusting by remember { mutableStateOf(false) }
 
     LaunchedEffect(graphRangeDefaults) {
         baselineYMin = graphRangeDefaults.first
         baselineYMax = graphRangeDefaults.second
     }
 
-    val automaticYRange = remember(baselineYMin, baselineYMax, visibleValueRange, isMmol) {
-        autoExpandedChartYRange(
-            baselineMin = baselineYMin,
-            baselineMax = baselineYMax,
-            visibleMin = visibleValueRange.first,
-            visibleMax = visibleValueRange.second,
-            isMmol = isMmol
+    val automaticYRange = remember(
+        baselineYMin,
+        baselineYMax,
+        visibleValueRange,
+        isMmol,
+        isYAxisAdjusting
+    ) {
+        if (isYAxisAdjusting) {
+            ChartYRange(min = baselineYMin, max = baselineYMax)
+        } else {
+            autoExpandedChartYRange(
+                baselineMin = baselineYMin,
+                baselineMax = baselineYMax,
+                visibleMin = visibleValueRange.first,
+                visibleMax = visibleValueRange.second,
+                isMmol = isMmol
+            )
+        }
+    }
+    val yRangeAnimationSpec = if (isYAxisAdjusting) {
+        tween<Float>(durationMillis = 0)
+    } else {
+        spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessLow
         )
     }
     val displayYMin by animateFloatAsState(
         targetValue = automaticYRange.min,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = yRangeAnimationSpec,
         label = "ChartYMinAutoRange"
     )
     val displayYMax by animateFloatAsState(
         targetValue = automaticYRange.max,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = yRangeAnimationSpec,
         label = "ChartYMaxAutoRange"
     )
 
@@ -1637,6 +1650,7 @@ fun InteractiveGlucoseChart(
                             }
                         }
                         isUserInteracting = true
+                        isYAxisAdjusting = false
                         try {
                             // FIX: Use requireUnconsumed = true (default) to respect z-order.
                             // This prevents the chart from hijacking touches meant for the floating buttons.
@@ -1819,6 +1833,9 @@ fun InteractiveGlucoseChart(
                             var longPressTriggered = false
                             var change = down
                             var totalDragDistance = 0f
+                            var accumulatedPanX = 0f
+                            var accumulatedPanY = 0f
+                            var lockedPanAxis = 0 // 0 undecided, 1 horizontal, 2 vertical
                             var lastPointerCount = 1
                             val longPressJob = if (onTimelineTap != null && !isDoubleTapStart) {
                                 coroutineScope.launch {
@@ -1957,16 +1974,22 @@ fun InteractiveGlucoseChart(
                                         val panY = newChange.position.y - change.position.y
                                         val dragDist = kotlin.math.sqrt(panX * panX + panY * panY)
                                         totalDragDistance += dragDist
+                                        accumulatedPanX += panX
+                                        accumulatedPanY += panY
 
                                         if (totalDragDistance > viewConfiguration.touchSlop) {
                                             longPressJob?.cancel()
                                             dismissJournalActionIfNeeded()
+                                            if (lockedPanAxis == 0) {
+                                                lockedPanAxis = if (abs(accumulatedPanX) > abs(accumulatedPanY)) 1 else 2
+                                                isYAxisAdjusting = lockedPanAxis == 2
+                                            }
                                         }
 
-                                        if (abs(panX) > abs(panY)) {
+                                        if (lockedPanAxis == 1) {
                                             // Horizontal pan
                                             panViewportByPixels(panX, usefulWidth)
-                                        } else if (totalDragDistance > 30f) {
+                                        } else if (lockedPanAxis == 2 && totalDragDistance > 30f) {
                                             // Vertical scale
                                             val liveYMin = displayYMin
                                             val liveYMax = displayYMax
@@ -2050,7 +2073,7 @@ fun InteractiveGlucoseChart(
                                             }
                                         }
                                     }
-                                } else if (!isOneFingerZoom) {
+                                } else if (!isOneFingerZoom && lockedPanAxis != 2) {
                                     // FLING - simple defaults
                                     val velocity = velocityTracker.calculateVelocity()
                                     val vx = velocity.x
@@ -2085,6 +2108,7 @@ fun InteractiveGlucoseChart(
                                 }
                             }
                         } finally {
+                            isYAxisAdjusting = false
                             isUserInteracting = false
                             lastInteractionTimestamp = System.currentTimeMillis()
                         }
