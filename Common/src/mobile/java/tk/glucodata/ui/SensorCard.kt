@@ -1787,89 +1787,96 @@ fun SensorCard(
                     fun setAutoResetEnabled(enabled: Boolean) {
                         viewModel.setAutoResetDays(sensor.serial, if (enabled) daysValue else 300)
                     }
-
-                    Row(
+                    BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .toggleable(
-                                value = isAutoResetEnabled,
-                                role = Role.Switch,
-                                onValueChange = ::setAutoResetEnabled,
-                            )
-                            .heightIn(min = 64.dp)
-                            .padding(start = 12.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .padding(bottom = 8.dp),
                     ) {
-                        Text(
-                            text = stringResource(R.string.auto_reset_title),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (isAutoResetEnabled) {
-                            Surface(
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier.padding(end = 8.dp),
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 2.dp),
+                        Row(
+                            modifier = Modifier
+                                // The content column starts after the 4 dp sensor rail and has
+                                // another 16 dp inset. Expand asymmetrically through both while
+                                // keeping the row contents on the original 20/16 dp grid.
+                                .requiredWidth(maxWidth + 36.dp)
+                                .offset(x = (-2).dp)
+                                .toggleable(
+                                    value = isAutoResetEnabled,
+                                    role = Role.Switch,
+                                    onValueChange = ::setAutoResetEnabled,
+                                )
+                                .heightIn(min = 56.dp)
+                                .padding(start = 20.dp, end = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.auto_reset_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (isAutoResetEnabled) {
+                                Surface(
+                                    shape = MaterialTheme.shapes.large,
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    modifier = Modifier.padding(end = 8.dp),
                                 ) {
-                                    IconButton(
-                                        onClick = {
-                                            if (daysValue > 1) {
-                                                daysValue--
-                                                viewModel.setAutoResetDays(sensor.serial, daysValue)
-                                            }
-                                        },
-                                        enabled = daysValue > 1,
-                                        modifier = Modifier.size(36.dp),
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 2.dp),
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Remove,
-                                            contentDescription = stringResource(R.string.outbound_api_decrease_value),
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                    Surface(
-                                        shape = MaterialTheme.shapes.medium,
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.auto_reset_days, daysValue),
-                                            style = MaterialTheme.typography.labelLarge,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            if (daysValue < 22) {
-                                                daysValue++
-                                                viewModel.setAutoResetDays(sensor.serial, daysValue)
-                                            }
-                                        },
-                                        enabled = daysValue < 22,
-                                        modifier = Modifier.size(36.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = stringResource(R.string.outbound_api_increase_value),
-                                            modifier = Modifier.size(18.dp),
-                                        )
+                                        IconButton(
+                                            onClick = {
+                                                if (daysValue > 1) {
+                                                    daysValue--
+                                                    viewModel.setAutoResetDays(sensor.serial, daysValue)
+                                                }
+                                            },
+                                            enabled = daysValue > 1,
+                                            modifier = Modifier.size(40.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Remove,
+                                                contentDescription = stringResource(R.string.outbound_api_decrease_value),
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                        Surface(
+                                            shape = MaterialTheme.shapes.medium,
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.auto_reset_days, daysValue),
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                if (daysValue < 22) {
+                                                    daysValue++
+                                                    viewModel.setAutoResetDays(sensor.serial, daysValue)
+                                                }
+                                            },
+                                            enabled = daysValue < 22,
+                                            modifier = Modifier.size(40.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = stringResource(R.string.outbound_api_increase_value),
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
                                     }
                                 }
                             }
+                            StyledSwitch(
+                                checked = isAutoResetEnabled,
+                                onCheckedChange = null,
+                            )
                         }
-                        StyledSwitch(
-                            checked = isAutoResetEnabled,
-                            onCheckedChange = null,
-                        )
                     }
                 }
             }
