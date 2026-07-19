@@ -1,6 +1,7 @@
 package tk.glucodata
 
 import java.nio.ByteBuffer
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import tk.glucodata.Log.doLog
@@ -27,11 +28,13 @@ object WearSync2 {
     private const val TAIL_TRIPLES = 8
     private const val PUSH_THROTTLE_MS = 45_000L
     private const val BACKFILL_HORIZON_SEC = 24L * 3600L
+    private const val REMOVAL_TOMBSTONE_MS = 10L * 60L * 1000L
 
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "WearSync2").apply { isDaemon = true }
     }
     private val lastPushMs = AtomicLong(0L)
+    private val removalTombstones = ConcurrentHashMap<String, Long>()
 
     // ---- phone side ----
 
@@ -72,12 +75,23 @@ object WearSync2 {
                 val serialBytes = ByteArray(len); buf.get(serialBytes)
                 val serial = String(serialBytes, Charsets.UTF_8)
                 if (serial.isEmpty()) return@execute
+                // Resolve this while the managed record still exists; after it
+                // is removed, a native short alias (for example P225043JMV)
+                // can no longer be related back to SIBI:P225043JMV safely.
+                val removedWasCurrent = SensorIdentity.matches(SensorIdentity.resolveMainSensor(), serial)
+                removalTombstones[removalKey(serial)] = System.currentTimeMillis()
                 tk.glucodata.drivers.ManagedSensorIdentityRegistry.removePersistedSensor(Applic.app, serial)
+                // removePersistedSensor finishes the managed driver's native
+                // mirror. Remove any live callback as well, then reconcile so
+                // neither the Sensors screen nor dashboard can retain it.
+                SensorBluetooth.sensorEnded(serial)
                 runCatching {
-                    if (Natives.lastsensorname()?.equals(serial, ignoreCase = true) == true) {
-                        Natives.setcurrentsensor("")
+                    if (removedWasCurrent || SensorIdentity.matches(Natives.lastsensorname(), serial)) {
+                        val replacement = SensorBluetooth.resolveReplacementSensorSerial(serial)
+                        SensorBluetooth.setCurrentSensorSelection(replacement ?: "")
                     }
                 }
+                SensorBluetooth.updateDevices()
                 UiRefreshBus.requestDataRefresh()
                 if (doLog) Log.i(LOG_ID, "mirrored removal of $serial")
             }.onFailure { Log.stack(LOG_ID, "onRemove", it) }
@@ -175,6 +189,10 @@ object WearSync2 {
                 val serialBytes = ByteArray(serialLen); buf.get(serialBytes)
                 val serial = String(serialBytes, Charsets.UTF_8)
                 if (serial.isEmpty() || count <= 0) return@execute
+                if (shouldIgnoreRemovedSensor(serial)) {
+                    if (doLog) Log.i(LOG_ID, "ignored stale chunk for removed sensor $serial")
+                    return@execute
+                }
                 var written = 0
                 var earliest = 0L
                 for (i in 0 until count) {
@@ -209,5 +227,21 @@ object WearSync2 {
                 if (doLog) Log.i(LOG_ID, "ingested $written/$count triples for $serial final=$final")
             }.onFailure { Log.stack(LOG_ID, "onChunk", it) }
         }
+    }
+
+    private fun removalKey(serial: String): String = serial.trim().uppercase()
+
+    private fun shouldIgnoreRemovedSensor(serial: String): Boolean {
+        val key = removalKey(serial)
+        val removedAt = removalTombstones[key] ?: return false
+        val persistedAgain = runCatching {
+            tk.glucodata.drivers.ManagedSensorIdentityRegistry.persistedSensorIds(Applic.app)
+                .any { SensorIdentity.matches(it, serial) }
+        }.getOrDefault(false)
+        if (persistedAgain || System.currentTimeMillis() - removedAt > REMOVAL_TOMBSTONE_MS) {
+            removalTombstones.remove(key, removedAt)
+            return false
+        }
+        return true
     }
 }
