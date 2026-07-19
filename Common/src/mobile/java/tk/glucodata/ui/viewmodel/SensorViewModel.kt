@@ -426,8 +426,9 @@ class SensorViewModel : ViewModel() {
                         var autoResetDays = Natives.getAutoResetDays(gatt.dataptr)
                         val isSi2 = Natives.isSibionics2(gatt.dataptr)
                         val isSi = Natives.isSibionics(gatt.dataptr)
-                        // Sibionics 2 resets at its 22-day official lifetime.
-                        if (isSi2 && autoResetDays in 0 until 300 && autoResetDays != 22) {
+                        // Managed and legacy Sibionics 2 both default to 22 days, while preserving
+                        // an explicit earlier reset target selected with the sensor-card stepper.
+                        if (isSi2 && autoResetDays !in 1..22 && autoResetDays != 300) {
                             Natives.setAutoResetDays(gatt.dataptr, 22)
                             autoResetDays = 22
                         }

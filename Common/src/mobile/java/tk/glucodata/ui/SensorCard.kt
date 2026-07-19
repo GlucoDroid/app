@@ -5,6 +5,7 @@ package tk.glucodata.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.*
@@ -1779,18 +1780,97 @@ fun SensorCard(
                 }
 
                 if (sensor.isSibionics2) {
-                    val isAutoResetEnabled = sensor.autoResetDays < 300
-                    SettingsSwitchItem(
-                        title = stringResource(R.string.auto_reset_title),
-                        subtitle = stringResource(R.string.sibionics_auto_reset_22_desc),
-                        checked = isAutoResetEnabled,
-                        onCheckedChange = { enabled ->
-                            viewModel.setAutoResetDays(sensor.serial, if (enabled) 22 else 300)
-                        },
-                        icon = Icons.Default.Schedule,
-                        position = CardPosition.SINGLE,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
+                    val isAutoResetEnabled = sensor.autoResetDays in 1..22
+                    var daysValue by remember(sensor.serial, sensor.autoResetDays) {
+                        mutableIntStateOf(sensor.autoResetDays.takeIf { it in 1..22 } ?: 22)
+                    }
+                    fun setAutoResetEnabled(enabled: Boolean) {
+                        viewModel.setAutoResetDays(sensor.serial, if (enabled) daysValue else 300)
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .toggleable(
+                                value = isAutoResetEnabled,
+                                role = Role.Switch,
+                                onValueChange = ::setAutoResetEnabled,
+                            )
+                            .heightIn(min = 64.dp)
+                            .padding(start = 12.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.auto_reset_title),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (isAutoResetEnabled) {
+                            Surface(
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                modifier = Modifier.padding(end = 8.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 2.dp),
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            if (daysValue > 1) {
+                                                daysValue--
+                                                viewModel.setAutoResetDays(sensor.serial, daysValue)
+                                            }
+                                        },
+                                        enabled = daysValue > 1,
+                                        modifier = Modifier.size(36.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Remove,
+                                            contentDescription = stringResource(R.string.outbound_api_decrease_value),
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                    Surface(
+                                        shape = MaterialTheme.shapes.medium,
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.auto_reset_days, daysValue),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            if (daysValue < 22) {
+                                                daysValue++
+                                                viewModel.setAutoResetDays(sensor.serial, daysValue)
+                                            }
+                                        },
+                                        enabled = daysValue < 22,
+                                        modifier = Modifier.size(36.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = stringResource(R.string.outbound_api_increase_value),
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        StyledSwitch(
+                            checked = isAutoResetEnabled,
+                            onCheckedChange = null,
+                        )
+                    }
                 }
             }
 

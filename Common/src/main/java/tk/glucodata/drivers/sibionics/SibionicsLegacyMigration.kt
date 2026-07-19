@@ -53,7 +53,7 @@ object SibionicsLegacyMigration {
             .takeIf { it.length in 8..16 }
         val normalizedAutoResetDays = when {
             variant != SibionicsConstants.Variant.SIBIONICS2 -> SibionicsResetPolicy.DISABLED_DAYS
-            autoResetDays in 1 until SibionicsResetPolicy.DISABLED_DAYS -> SibionicsResetPolicy.ENABLED_DAYS
+            SibionicsResetPolicy.isEnabled(autoResetDays) -> autoResetDays
             autoResetDays == SibionicsResetPolicy.DISABLED_DAYS -> SibionicsResetPolicy.DISABLED_DAYS
             else -> SibionicsResetPolicy.ENABLED_DAYS
         }

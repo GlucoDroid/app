@@ -27,11 +27,19 @@ internal object SibionicsResetPolicy {
     ): Int {
         if (variant != SibionicsConstants.Variant.SIBIONICS2) return DISABLED_DAYS
         if (!hasPersistedSetting) return ENABLED_DAYS
-        return if (persistedDays in 1 until DISABLED_DAYS) ENABLED_DAYS else DISABLED_DAYS
+        return when {
+            persistedDays in 1..ENABLED_DAYS -> persistedDays
+            persistedDays == DISABLED_DAYS -> DISABLED_DAYS
+            else -> ENABLED_DAYS
+        }
     }
 
-    fun dueAtMs(startTimeMs: Long): Long =
-        startTimeMs + ENABLED_DAYS * SibionicsConstants.DAY_MS
+    fun isEnabled(days: Int): Boolean = days in 1..ENABLED_DAYS
+
+    fun dueAtMs(startTimeMs: Long, autoResetDays: Int = ENABLED_DAYS): Long {
+        val effectiveDays = if (isEnabled(autoResetDays)) autoResetDays else ENABLED_DAYS
+        return startTimeMs + effectiveDays.toLong() * SibionicsConstants.DAY_MS
+    }
 
     fun hardDeadlineMs(startTimeMs: Long): Long =
         startTimeMs + SibionicsConstants.SIBIONICS2_EXPECTED_LIFETIME_MS - EXPECTED_END_GUARD_MS
@@ -39,7 +47,7 @@ internal object SibionicsResetPolicy {
     fun evaluate(
         nowMs: Long,
         startTimeMs: Long,
-        autoResetEnabled: Boolean,
+        autoResetDays: Int,
         postponedUntilMs: Long,
         lastReminderAtMs: Long,
         glucoseMgdl: Float,
@@ -47,7 +55,7 @@ internal object SibionicsResetPolicy {
     ): Decision {
         if (startTimeMs <= 0L || nowMs < startTimeMs) return Decision()
 
-        val dueAt = dueAtMs(startTimeMs)
+        val dueAt = dueAtMs(startTimeMs, autoResetDays)
         val resetWindowAt = dueAt - REMINDER_LEAD_MS
         val hardDeadline = hardDeadlineMs(startTimeMs)
         if (nowMs >= hardDeadline) {
@@ -59,7 +67,7 @@ internal object SibionicsResetPolicy {
             !postponeActive &&
             (lastReminderAtMs <= 0L || nowMs - lastReminderAtMs >= POSTPONE_MS)
 
-        if (!autoResetEnabled || nowMs < resetWindowAt || postponeActive) {
+        if (!isEnabled(autoResetDays) || nowMs < resetWindowAt || postponeActive) {
             return Decision(showReminder = reminderDue)
         }
 

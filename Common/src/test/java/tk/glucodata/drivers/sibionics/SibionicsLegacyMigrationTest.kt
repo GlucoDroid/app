@@ -50,6 +50,23 @@ class SibionicsLegacyMigrationTest {
     }
 
     @Test
+    fun `sibionics 2 migration preserves an explicit earlier reset day`() {
+        val candidate = SibionicsLegacyMigration.LegacySnapshot(
+            nativeName = "0683013AQT9",
+            address = null,
+            subtype = 3,
+            shortCode = "0683013A",
+            bleName = "P225043JMV",
+            startTimeMs = 1_784_000_000_000L,
+            viewMode = 0,
+            autoResetDays = 9,
+        ).run { SibionicsLegacyMigration.run { toCandidate() } }
+
+        requireNotNull(candidate)
+        assertEquals(9, candidate.autoResetDays)
+    }
+
+    @Test
     fun `gs3 and already managed shells are not migrated`() {
         val gs3 = snapshot(name = "GS3ABC123", subtype = 4)
         val managed = snapshot(name = "SIBI:46HU804EBJ4", subtype = 2)

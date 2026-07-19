@@ -1,5 +1,6 @@
 package tk.glucodata.drivers.sibionics
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,5 +46,11 @@ class SibionicsSessionPolicyTest {
                 hasReceivedLiveReading = false,
             ),
         )
+    }
+
+    @Test
+    fun gattConnectionTimeoutUsesShortRecoveryDelay() {
+        assertEquals(500L, SibionicsSessionPolicy.reconnectDelayMs(status = 147, normalDelayMs = 8_000L))
+        assertEquals(8_000L, SibionicsSessionPolicy.reconnectDelayMs(status = 133, normalDelayMs = 8_000L))
     }
 }

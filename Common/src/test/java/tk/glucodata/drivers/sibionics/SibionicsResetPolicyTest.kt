@@ -11,7 +11,7 @@ class SibionicsResetPolicyTest {
     private val hardDeadline = SibionicsResetPolicy.hardDeadlineMs(start)
 
     @Test
-    fun `sibionics 2 defaults and normalizes enabled reset to 22 days`() {
+    fun `sibionics 2 defaults to 22 days and preserves an earlier target`() {
         assertEquals(
             22,
             SibionicsResetPolicy.normalizedDays(
@@ -21,7 +21,7 @@ class SibionicsResetPolicyTest {
             ),
         )
         assertEquals(
-            22,
+            9,
             SibionicsResetPolicy.normalizedDays(
                 SibionicsConstants.Variant.SIBIONICS2,
                 persistedDays = 9,
@@ -36,6 +36,23 @@ class SibionicsResetPolicyTest {
                 hasPersistedSetting = true,
             ),
         )
+    }
+
+    @Test
+    fun `selected reset day controls the comfortable reset window`() {
+        val selectedDue = SibionicsResetPolicy.dueAtMs(start, autoResetDays = 9)
+        val before = decision(
+            nowMs = selectedDue - SibionicsResetPolicy.REMINDER_LEAD_MS - 1L,
+            autoResetDays = 9,
+        )
+        val comfortable = decision(
+            nowMs = selectedDue - SibionicsResetPolicy.REMINDER_LEAD_MS,
+            autoResetDays = 9,
+        )
+
+        assertEquals(start + 9L * SibionicsConstants.DAY_MS, selectedDue)
+        assertFalse(before.resetNow)
+        assertTrue(comfortable.resetNow)
     }
 
     @Test
@@ -58,11 +75,11 @@ class SibionicsResetPolicyTest {
     fun `reminder starts four hours before the 22 day reset point`() {
         val before = decision(
             nowMs = due - SibionicsResetPolicy.REMINDER_LEAD_MS - 1L,
-            autoResetEnabled = false,
+            autoResetDays = SibionicsResetPolicy.DISABLED_DAYS,
         )
         val atWindow = decision(
             nowMs = due - SibionicsResetPolicy.REMINDER_LEAD_MS,
-            autoResetEnabled = false,
+            autoResetDays = SibionicsResetPolicy.DISABLED_DAYS,
         )
 
         assertFalse(before.showReminder)
@@ -107,7 +124,7 @@ class SibionicsResetPolicyTest {
         )
         val hard = decision(
             nowMs = hardDeadline,
-            autoResetEnabled = false,
+            autoResetDays = SibionicsResetPolicy.DISABLED_DAYS,
             postponedUntilMs = hardDeadline + SibionicsResetPolicy.POSTPONE_MS,
         )
 
@@ -119,14 +136,14 @@ class SibionicsResetPolicyTest {
 
     private fun decision(
         nowMs: Long,
-        autoResetEnabled: Boolean = true,
+        autoResetDays: Int = SibionicsResetPolicy.ENABLED_DAYS,
         postponedUntilMs: Long = 0L,
         glucose: Float = 120f,
         rate: Float = 0f,
     ): SibionicsResetPolicy.Decision = SibionicsResetPolicy.evaluate(
         nowMs = nowMs,
         startTimeMs = start,
-        autoResetEnabled = autoResetEnabled,
+        autoResetDays = autoResetDays,
         postponedUntilMs = postponedUntilMs,
         lastReminderAtMs = 0L,
         glucoseMgdl = glucose,
