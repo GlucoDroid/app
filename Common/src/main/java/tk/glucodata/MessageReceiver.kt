@@ -67,6 +67,9 @@ class MessageReceiver: WearableListenerService() {
             MessageSender.SYNC2_CHUNK_PATH -> {
                 if (isWearable) WearSync2.onChunk(data)
             }
+            MessageSender.SYNC2_REMOVE_PATH -> {
+                if (isWearable) WearSync2.onRemove(data)
+            }
             MessageSender.SENSOR_HANDOFF_PATH -> {
                 if (isWearable) {
                     // Persist the identity only. Do NOT flip the watch into

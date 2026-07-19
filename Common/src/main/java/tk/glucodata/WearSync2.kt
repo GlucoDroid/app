@@ -44,6 +44,46 @@ object WearSync2 {
         executor.execute { runCatching { serveSince(tailStartSec()) }.onFailure { Log.stack(LOG_ID, "pushTail", it) } }
     }
 
+    /** Tell the watch a sensor was removed on the phone. */
+    @JvmStatic
+    fun pushRemoval(serial: String?) {
+        if (Applic.isWearable || serial.isNullOrBlank()) return
+        executor.execute {
+            runCatching {
+                val serialBytes = serial.toByteArray(Charsets.UTF_8)
+                val buf = ByteBuffer.allocate(2 + serialBytes.size)
+                buf.put(VERSION.toByte())
+                buf.put(serialBytes.size.toByte())
+                buf.put(serialBytes)
+                MessageSender.sendSyncMessage(MessageSender.SYNC2_REMOVE_PATH, buf.array())
+                if (doLog) Log.i(LOG_ID, "pushed removal of $serial")
+            }.onFailure { Log.stack(LOG_ID, "pushRemoval", it) }
+        }
+    }
+
+    /** Watch side: mirror a phone-side sensor removal. */
+    @JvmStatic
+    fun onRemove(data: ByteArray?) {
+        executor.execute {
+            runCatching {
+                val buf = ByteBuffer.wrap(data ?: return@execute)
+                if (buf.get().toInt() != VERSION) return@execute
+                val len = buf.get().toInt() and 0xFF
+                val serialBytes = ByteArray(len); buf.get(serialBytes)
+                val serial = String(serialBytes, Charsets.UTF_8)
+                if (serial.isEmpty()) return@execute
+                tk.glucodata.drivers.ManagedSensorIdentityRegistry.removePersistedSensor(Applic.app, serial)
+                runCatching {
+                    if (Natives.lastsensorname()?.equals(serial, ignoreCase = true) == true) {
+                        Natives.setcurrentsensor("")
+                    }
+                }
+                UiRefreshBus.requestDataRefresh()
+                if (doLog) Log.i(LOG_ID, "mirrored removal of $serial")
+            }.onFailure { Log.stack(LOG_ID, "onRemove", it) }
+        }
+    }
+
     /** Serve the full backfill horizon (fresh-watch bootstrap). */
     @JvmStatic
     fun serveAll() {
@@ -154,8 +194,15 @@ object WearSync2 {
                     written++
                 }
                 if (written > 0) {
+                    // The companion follows the phone's served sensor: after a
+                    // sensor swap the watch's stale current selection otherwise
+                    // sticks to the dead sensor ("No data" with fresh chunks
+                    // landing in the new one).
                     runCatching {
-                        if (Natives.lastsensorname().isNullOrEmpty()) Natives.setcurrentsensor(serial)
+                        val current = Natives.lastsensorname()
+                        if (current.isNullOrEmpty() || !current.equals(serial, ignoreCase = true)) {
+                            Natives.setcurrentsensor(serial)
+                        }
                     }
                     UiRefreshBus.requestDataRefresh()
                 }

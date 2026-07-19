@@ -297,6 +297,7 @@ companion object {
     const val SENSOR_HANDOFF_PATH = "/sensorhandoff"
     const val SYNC2_REQ_PATH = "/sync2/req"
     const val SYNC2_CHUNK_PATH = "/sync2/chunk"
+    const val SYNC2_REMOVE_PATH = "/sync2/remove"
     val scope = CoroutineScope(Dispatchers.IO+SupervisorJob()  )
     private var messagesender: MessageSender? = null
     @Volatile private var wearableApiUnavailable = false
