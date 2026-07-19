@@ -80,7 +80,11 @@ object SibionicsProtocol {
 
         fun eventTimeMs(nowMs: Long): Long {
             val offsetSeconds = addTimeSeconds - numOfUnreceived * 60
-            return nowMs + offsetSeconds * 1000L
+            // Chinese firmware occasionally reports a positive addTime after reconnect.
+            // It is not a trustworthy future wall-clock timestamp: the legacy driver also
+            // anchored these packets at receipt time. Persisting it verbatim advances the
+            // native high-water mark and suppresses the following legitimate minute(s).
+            return nowMs + offsetSeconds.coerceAtMost(0) * 1000L
         }
     }
 

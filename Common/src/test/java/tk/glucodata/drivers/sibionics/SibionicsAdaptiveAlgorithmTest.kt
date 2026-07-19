@@ -525,13 +525,27 @@ class SibionicsAdaptiveAlgorithmTest {
         assertEquals(12_341, SibionicsProtocol.estimateChineseHistoryTotal(12_341, 11, batch))
     }
 
-    private fun chineseEntry(index: Int, unreceived: Int) = SibionicsProtocol.ChineseEntry(
+    @Test
+    fun chinesePositiveAddTimeCannotCreateFutureReading() {
+        val now = 1_784_473_517_000L
+        val live = chineseEntry(index = 8_364, unreceived = 0, addTimeSeconds = 116)
+        val delayedHistory = chineseEntry(index = 8_363, unreceived = 2, addTimeSeconds = 4)
+
+        assertEquals(now, live.eventTimeMs(now))
+        assertEquals(now - 116_000L, delayedHistory.eventTimeMs(now))
+    }
+
+    private fun chineseEntry(
+        index: Int,
+        unreceived: Int,
+        addTimeSeconds: Int = 0,
+    ) = SibionicsProtocol.ChineseEntry(
         index = index,
         rawTemperature = 0,
         rawImpedance = 0,
         rawGlucose = 0,
         status = 0,
         numOfUnreceived = unreceived,
-        addTimeSeconds = 0,
+        addTimeSeconds = addTimeSeconds,
     )
 }
