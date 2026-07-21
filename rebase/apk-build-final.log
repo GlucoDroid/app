@@ -1,0 +1,28 @@
+no main manifest attribute, in /home/rob/git/GlucoDroid/app/gradle/wrapper/gradle-wrapper.jar
+Starting a Gradle Daemon (subsequent builds will be faster)
+Calculating task graph as configuration cache cannot be reused because file 'Common/build.gradle' has changed.
+Type-safe project accessors is an incubating feature.
+
+[Incubating] Problems report is available at: file:///home/rob/git/GlucoDroid/app/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Task 'assembleMobileLibre3SiDexNogoogleRelease' not found in root project 'Glucodata' and its subprojects.
+
+* Try:
+> Run gradlew tasks to get a list of available tasks.
+> For more on name expansion, please refer to https://docs.gradle.org/8.14.5/userguide/command_line_interface.html#sec:name_abbreviation in the Gradle documentation.
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.5/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 12s
+Configuration cache entry stored.
