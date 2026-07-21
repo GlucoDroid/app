@@ -1076,17 +1076,21 @@ private fun AlertSettingsExpanded(
                 }
                 
                 // === Durations Section (If applicable) ===
-                if (config.durationMinutes != null || config.forecastMinutes != null) {
+                val showGenericDuration = config.durationMinutes != null &&
+                    config.type != AlertType.LOW && config.type != AlertType.VERY_LOW
+                if (showGenericDuration || config.forecastMinutes != null) {
                      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        config.durationMinutes?.let {
-                            Box(Modifier.weight(1f)) {
-                                DurationSlider(
-                                    label = stringResource(R.string.alert_after),
-                                    value = it,
-                                    range = 5..120,
-                                    stepSize = 5,
-                                    onValueChange = { v -> onConfigChange(config.copy(durationMinutes = v)) }
-                                )
+                        if (showGenericDuration) {
+                            config.durationMinutes?.let {
+                                Box(Modifier.weight(1f)) {
+                                    DurationSlider(
+                                        label = stringResource(R.string.alert_after),
+                                        value = it,
+                                        range = 5..120,
+                                        stepSize = 5,
+                                        onValueChange = { v -> onConfigChange(config.copy(durationMinutes = v)) }
+                                    )
+                                }
                             }
                         }
                         config.forecastMinutes?.let {
@@ -1103,6 +1107,7 @@ private fun AlertSettingsExpanded(
                     }
                 }
 
+<<<<<<< HEAD
                 // === Sensor-expiry pre-warnings (multi-select, this type only) ===
                 if (config.type == AlertType.SENSOR_EXPIRY) {
                     SensorExpiryThresholdSelector(
@@ -1116,11 +1121,57 @@ private fun AlertSettingsExpanded(
                             onConfigChange(config.copy(expiryWarningMinutes = next))
                         }
                     )
+=======
+                // === Sustained Low Toggle (LOW / VERY_LOW only) ===
+                if (config.type == AlertType.LOW || config.type == AlertType.VERY_LOW) {
+                    val sustainedEnabled = config.durationMinutes != null
+                    val otherDurationActive = config.forecastMinutes != null
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    stringResource(R.string.sustained_low_toggle),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    stringResource(R.string.sustained_low_toggle_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            StyledSwitch(
+                                checked = sustainedEnabled,
+                                onCheckedChange = { on ->
+                                    if (on) {
+                                        val seed = config.durationMinutes ?: 10
+                                        onConfigChange(config.copy(durationMinutes = seed))
+                                    } else if (!otherDurationActive) {
+                                        onConfigChange(config.copy(durationMinutes = null))
+                                    }
+                                }
+                            )
+                        }
+                        if (sustainedEnabled) {
+                            DurationSlider(
+                                label = stringResource(R.string.sustained_low_duration),
+                                value = config.durationMinutes ?: 10,
+                                range = 5..30,
+                                stepSize = 5,
+                                onValueChange = { v -> onConfigChange(config.copy(durationMinutes = v)) }
+                            )
+                        }
+                    }
+>>>>>>> 01da0d0ec (feat(alerts): sustained-low gate for LOW/VERY_LOW (#7))
                 }
             }
         )
     }
 }
+<<<<<<< HEAD
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1177,6 +1228,8 @@ private fun SensorExpiryThresholdSelector(
         }
     }
 }
+=======
+>>>>>>> 01da0d0ec (feat(alerts): sustained-low gate for LOW/VERY_LOW (#7))
         
 //        HorizontalDivider()
         

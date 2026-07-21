@@ -1,5 +1,6 @@
 package tk.glucodata.alerts
 
+import java.util.EnumSet
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -30,7 +31,12 @@ object AlertRuntimeManager {
     private var lastRate: Float = Float.NaN
     private var lastDisplaySnapshot: CurrentDisplaySource.Snapshot? = null
     private var persistentHighStartedAtMs: Long = 0L
+<<<<<<< HEAD
     private var lastLoggedExpiryEndMs: Long = Long.MIN_VALUE
+=======
+    private val sustainedLowStartedAtMs = mutableMapOf<AlertType, Long>()
+    private val sustainedLowEligible = EnumSet.of(AlertType.LOW, AlertType.VERY_LOW)
+>>>>>>> 01da0d0ec (feat(alerts): sustained-low gate for LOW/VERY_LOW (#7))
     private val standardEpisodes = AlertEpisodeState<AlertType>()
     private val sensorExpiryState = SensorExpiryAlertState(AlertRepository.sensorExpiryWarnedStore)
     private val fallingDeltaState = DeltaAlarmState(falling = true)
@@ -154,7 +160,7 @@ object AlertRuntimeManager {
         val standardAlertEvaluation = if (glucoseAlertsBlocked) {
             AlertRuntimeEvaluation()
         } else {
-            evaluateStandardGlucoseAlertsLocked()
+            evaluateStandardGlucoseAlertsLocked(nowMs)
         }
         evaluateMissedReadingLocked(nowMs)
         if (!glucoseAlertsBlocked) {
@@ -205,7 +211,7 @@ object AlertRuntimeManager {
         }
     }
 
-    private fun evaluateStandardGlucoseAlertsLocked(): AlertRuntimeEvaluation {
+    private fun evaluateStandardGlucoseAlertsLocked(nowMs: Long): AlertRuntimeEvaluation {
         val glucoseValue = currentGlucoseValueLocked() ?: return AlertRuntimeEvaluation()
         val rate = currentRateLocked()
         val configs = standardGlucoseAlertTypes.associateWith { AlertRepository.loadConfig(it) }
@@ -217,11 +223,18 @@ object AlertRuntimeManager {
             clearRuntimeAlert(type, "standard-condition-cleared")
         }
 
+        updateSustainedLowTimersLocked(activeTypes, configs, nowMs)
+
         val type = standardGlucoseAlertTypes.firstOrNull { it in activeTypes }
             ?: return AlertRuntimeEvaluation()
         val condition = activeConditions[type] ?: return AlertRuntimeEvaluation()
 
         if (!transition.shouldTryFire(type)) {
+            return AlertRuntimeEvaluation(standardGlucoseAlertHandled = true)
+        }
+
+        if (!isSustainedLowSatisfiedLocked(type, configs[type], nowMs)) {
+            standardEpisodes.markPendingDelivery(type)
             return AlertRuntimeEvaluation(standardGlucoseAlertHandled = true)
         }
 
@@ -247,6 +260,33 @@ object AlertRuntimeManager {
             standardGlucoseAlertHandled = true,
             standardGlucoseAlertStarted = triggered
         )
+    }
+
+    private fun updateSustainedLowTimersLocked(
+        activeTypes: Set<AlertType>,
+        configs: Map<AlertType, AlertConfig>,
+        nowMs: Long
+    ) {
+        activeTypes.filter { it in sustainedLowEligible }.forEach { type ->
+            val cfg = configs[type]
+            val sustainedMs = (cfg?.durationMinutes ?: 0) * 60_000L
+            if (sustainedMs > 0L && sustainedLowStartedAtMs[type] == null) {
+                sustainedLowStartedAtMs[type] = lastReadingTimeMs.takeIf { it > 0L } ?: nowMs
+            }
+        }
+        sustainedLowEligible.forEach { type ->
+            if (type !in activeTypes) {
+                sustainedLowStartedAtMs.remove(type)
+            }
+        }
+    }
+
+    private fun isSustainedLowSatisfiedLocked(type: AlertType, config: AlertConfig?, nowMs: Long): Boolean {
+        if (type !in sustainedLowEligible) return true
+        val minutes = config?.durationMinutes ?: return true
+        if (minutes <= 0) return true
+        val started = sustainedLowStartedAtMs[type] ?: return true
+        return nowMs - started >= minutes * 60_000L
     }
 
     private fun resolveActiveStandardGlucoseAlerts(
