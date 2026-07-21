@@ -10,18 +10,22 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
+import okhttp3.ConnectionPool
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorUiFamily
 
@@ -42,6 +46,33 @@ object OutboundApi {
     private val lastNetworkUnavailableStatusAtMs = AtomicLong(0)
     private val sendExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "OutboundApiSend")
+    }
+
+    // OkHttp client with HTTP/2 PING-based keep-alive. The system-internal
+    // com.android.okhttp used by HttpURLConnection is not configurable from app
+    // code and reuses TCP sockets until the server (Telegram's nginx, default
+    // keepalive_timeout=75s) closes them — at which point subsequent sends fail
+    // with "unexpected end of stream". PINGing every 55s keeps the socket warm
+    // (75s - 20s margin). retryOnConnectionFailure(true) is the safety net for
+    // the rare stale-between-pings case. The ConnectionPool keeps up to 5
+    // idle connections for 10 minutes, which is plenty for the realistic
+    // destination count in a single config.
+    internal val httpClient: OkHttpClient by lazy {
+        // TODO(handoff §8.4): add an okhttp3.EventListener for connection-health
+        // telemetry (PING/send/failure counts) and expose in DebugSettingsScreen.
+        // pingInterval is only effective under HTTP/2. All current destinations
+        // (api.telegram.org, api.vk.com, glucodroid.cloud) speak HTTPS+H2, so
+        // the PING is load-bearing. If a future HTTP/1.1-only destination is
+        // added, the PING becomes a no-op for it and retryOnConnectionFailure
+        // is the only safety net.
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .pingInterval(55, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .connectionPool(ConnectionPool(5, 10, TimeUnit.MINUTES))
+            .build()
     }
 
     private const val IN_DESTINATION_ID = "destination_id"
@@ -468,6 +499,7 @@ object OutboundApi {
             }
         }
         val trendArrow: String get() = trendArrow(trendName)
+        val trendArrowEmoji: String get() = trendArrowEmoji(trendName)
         val iob: Float get() = runCatching { Natives.getIOBvalue(timeMillis) }.getOrDefault(Float.NaN)
         val journal: JournalSnapshot get() = loadJournalSnapshot(timeMillis)
         val displayText: String
@@ -547,6 +579,7 @@ object OutboundApi {
             })
             .replace("{trend}", reading.trendName)
             .replace("{trend_arrow}", reading.trendArrow)
+            .replace("{trend_arrow_emoji}", reading.trendArrowEmoji)
             .replace("{rate_mgdl}", formatNumber(reading.rateMgdlPerMinute, 1))
             .replace("{rate_mmol}", formatNumber(reading.rateMmolPerMinute, 3))
             .replace("{timestamp}", reading.timeMillis.toString())
@@ -626,6 +659,18 @@ object OutboundApi {
             "DoubleDown" -> "\u2193\u2193"
             else -> "\u2192"
         }
+
+    private fun trendArrowEmoji(trendName: String): String =
+        when (trendName) {
+            "DoubleUp" -> "\u2b06\ufe0f\u2b06\ufe0f"       // \u2b06\ufe0f\u2b06\ufe0f
+            "SingleUp" -> "\u2b06\ufe0f"                    // \u2b06\ufe0f
+            "FortyFiveUp" -> "\u2197\ufe0f"                 // \u2197\ufe0f
+            "Flat" -> "\u27a1\ufe0f"                        // \u27a1\ufe0f
+            "FortyFiveDown" -> "\u2198\ufe0f"               // \u2198\ufe0f
+            "SingleDown" -> "\u2b07\ufe0f"                  // \u2b07\ufe0f
+            "DoubleDown" -> "\u2b07\ufe0f\u2b07\ufe0f"      // \u2b07\ufe0f\u2b07\ufe0f
+            else -> "\u27a1\ufe0f"                          // \u27a1\ufe0f
+        }
 }
 
 class OutboundApiWorker(
@@ -691,6 +736,7 @@ class OutboundApiWorker(
                             delayMs = (destination.staleThresholdMinutes.coerceIn(1, 120) * 60_000L) +
                                 OutboundApiSettings.STALE_CHECK_SLACK_MS
                         )
+                        TelegramKeepAliveScheduler.schedule(context.applicationContext)
                     }
                     Result.success()
                 } else {
@@ -854,6 +900,9 @@ class OutboundApiWorker(
             )
         }
 
+        // Note: sendVk/sendJson share the OkHttp client via executePostOnce —
+        // do not re-introduce HttpURLConnection here. See OutboundApi.httpClient
+        // and the OkHttp transport migration in this file.
         private fun sendVk(
             destination: OutboundApiSettings.Destination,
             reading: OutboundApi.Reading,
@@ -875,6 +924,7 @@ class OutboundApiWorker(
             )
         }
 
+        // Shares the OkHttp client via executePostOnce (see comment above).
         private fun sendJson(
             destination: OutboundApiSettings.Destination,
             reading: OutboundApi.Reading,
@@ -931,24 +981,26 @@ class OutboundApiWorker(
             readTimeoutMs: Int,
             parseMessageId: (String) -> Long?
         ): SendResponse {
-            val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = connectTimeoutMs
-                readTimeout = readTimeoutMs
-                doOutput = true
-                setRequestProperty("Content-Type", contentType)
-                setRequestProperty("Accept", "application/json, text/plain")
-                setRequestProperty("User-Agent", "JugglucoNG API destinations")
-                applyHeaders(headers)
-            }
+            // connectTimeoutMs / readTimeoutMs are kept in the signature for
+            // caller compatibility but are now governed by the OkHttpClient's
+            // timeouts (see httpClient in OutboundApi).
+            @Suppress("UNUSED_PARAMETER") val _unusedConnect = connectTimeoutMs
+            @Suppress("UNUSED_PARAMETER") val _unusedRead = readTimeoutMs
 
-            try {
-                connection.outputStream.use { stream ->
-                    stream.write(body)
-                }
+            val mediaType = contentType.toMediaTypeOrNull()
+            val requestBody: RequestBody = body.toRequestBody(mediaType)
+            val builder = Request.Builder().url(urlString)
+            builder.header("Content-Type", contentType)
+            builder.header("Accept", "application/json, text/plain")
+            builder.header("User-Agent", "JugglucoNG API destinations")
+            builder.applyHeaders(headers)
+            val request = builder.post(requestBody).build()
 
-                val code = connection.responseCode
-                val responseText = readResponse(connection, code)
+            val call = OutboundApi.httpClient.newCall(request)
+            val response: Response = call.execute()
+            return response.use {
+                val code = response.code
+                val responseText = response.body?.string().orEmpty()
                 parseApiError(responseText)?.let { apiError ->
                     val responseCode = apiError.code ?: code
                     return SendResponse(
@@ -960,15 +1012,13 @@ class OutboundApiWorker(
                 }
                 val ok = code in 200..299
                 val messageId = if (ok) parseMessageId(responseText) else null
-                return SendResponse(
+                SendResponse(
                     code = code,
                     ok = ok,
                     retryable = code == 429 || code >= 500,
                     error = if (ok) null else responseText.take(500).ifBlank { "HTTP $code" },
                     messageId = messageId
                 )
-            } finally {
-                connection.disconnect()
             }
         }
 
@@ -1028,7 +1078,7 @@ class OutboundApiWorker(
                 .put("message", message)
         }
 
-        private fun HttpURLConnection.applyHeaders(rawHeaders: String) {
+        private fun Request.Builder.applyHeaders(rawHeaders: String) {
             rawHeaders.lineSequence()
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
@@ -1039,7 +1089,7 @@ class OutboundApiWorker(
                     val value = line.substring(separator + 1).trim()
                     if (name.equals("Content-Type", ignoreCase = true)) return@forEach
                     if (name.isNotEmpty() && value.isNotEmpty()) {
-                        setRequestProperty(name, value)
+                        header(name, value)
                     }
                 }
         }
@@ -1058,23 +1108,6 @@ class OutboundApiWorker(
             hash = 31 * hash + reading.timeMillis.hashCode()
             hash = 31 * hash + reading.mgdl
             return hash and Int.MAX_VALUE
-        }
-
-        private fun readResponse(connection: HttpURLConnection, code: Int): String {
-            val stream = if (code in 200..299) {
-                connection.inputStream
-            } else {
-                connection.errorStream ?: runCatching { connection.inputStream }.getOrNull()
-            } ?: return ""
-            return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-                buildString {
-                    var line = reader.readLine()
-                    while (line != null) {
-                        append(line)
-                        line = reader.readLine()
-                    }
-                }
-            }
         }
 
         private fun parseVkError(responseText: String): ApiError? {

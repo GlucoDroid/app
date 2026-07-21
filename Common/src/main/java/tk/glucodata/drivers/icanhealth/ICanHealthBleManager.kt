@@ -1112,9 +1112,6 @@ class ICanHealthBleManager(
 
     override fun matchScanResult(result: ScanResult): Boolean {
         val address = result.device?.address?.trim()?.uppercase(Locale.US)
-        if (address != null && address in rejectedOnboardingAddresses) {
-            return false
-        }
         val knownAddress = mActiveDeviceAddress?.takeIf { it.isNotBlank() }
         if (knownAddress != null) {
             return address != null && address.equals(knownAddress, ignoreCase = true)
