@@ -1580,6 +1580,16 @@
     <string name="journal_metric_activity_today">Aktywność dziś</string>
     <string name="journal_no_active_insulin">Brak aktywnej insuliny</string>
     <string name="journal_active_now_percent">%1$d%% aktywne</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">Pokaż efektywne IOB (eIOB)</string>
+    <string name="journal_eiob_display_desc">Pokaż insulinę skorygowaną o aktywność obok IOB</string>
+    <string name="journal_iob_expanded">Pozostałe IOB: %1$s U</string>
+    <string name="journal_eiob_expanded">Aktywne eIOB: %1$s U</string>
+    <string name="journal_dashboard_quickadd_title">Szybkie dodawanie na pulpicie</string>
+    <string name="journal_dashboard_quickadd_desc">Pokaż przycisk + Dziennika</string>
+    <string name="journal_quickadd_always_now_title">Używaj bieżącego czasu</string>
+    <string name="journal_quickadd_always_now_desc">Rozpocznij wpis teraz, nawet po wybraniu punktu wykresu</string>
     <string name="journal_visible_events">Widoczne zdarzenia</string>
     <string name="journal_empty">Brak zdarzeń dziennika w tym oknie</string>
     <string name="journal_type_insulin">Insulina</string>

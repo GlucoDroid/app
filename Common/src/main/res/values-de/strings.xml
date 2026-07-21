@@ -1620,11 +1620,11 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="journal_metric_iob">IOB</string>
     <string name="journal_metric_eiob">eIOB %1$s E</string>
     <string name="journal_eiob_display_title">Effektives IOB (eIOB) anzeigen</string>
-    <string name="journal_eiob_display_desc">Aktivitätsbasiertes Insulin an Bord zusätzlich zum klassischen IOB anzeigen</string>
-    <string name="journal_quickadd_always_now_title">Schnelleintrag immer zur aktuellen Zeit</string>
-    <string name="journal_quickadd_always_now_desc">Die Plus-Taste legt neue Einträge auch bei ausgewähltem Diagrammpunkt zur aktuellen Zeit an. Nachtragen über das Zeitfeld des Eintrags, das Diagramm-Menü oder eine Messwertzeile</string>
+    <string name="journal_eiob_display_desc">Aktivitätsbasiertes Insulin neben IOB anzeigen</string>
     <string name="journal_dashboard_quickadd_title">Schnelleintrag auf dem Dashboard</string>
-    <string name="journal_dashboard_quickadd_desc">Journal-Plus-Taste auf dem Dashboard anzeigen</string>
+    <string name="journal_dashboard_quickadd_desc">Plus-Taste für das Journal anzeigen</string>
+    <string name="journal_quickadd_always_now_title">Aktuelle Zeit verwenden</string>
+    <string name="journal_quickadd_always_now_desc">Einträge jetzt starten, auch wenn ein Diagrammpunkt ausgewählt ist</string>
     <string name="notification_show_iob_title">Insulin an Bord anzeigen</string>
     <string name="notification_show_iob_desc">IOB/eIOB aus dem Journal in der Statuszeile</string>
     <string name="notification_show_cob_title">Kohlenhydrate an Bord anzeigen</string>

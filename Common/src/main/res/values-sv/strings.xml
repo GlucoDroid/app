@@ -1545,6 +1545,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_activity_today">Aktivitet idag</string>
     <string name="journal_no_active_insulin">Inget aktivt insulin</string>
     <string name="journal_active_now_percent">%1$d%% aktivt</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">Visa effektivt IOB (eIOB)</string>
+    <string name="journal_eiob_display_desc">Visa aktivitetsjusterat insulin bredvid IOB</string>
+    <string name="journal_iob_expanded">Återstående IOB: %1$s U</string>
+    <string name="journal_eiob_expanded">Aktivt eIOB: %1$s U</string>
+    <string name="journal_dashboard_quickadd_title">Snabbregistrering på översikten</string>
+    <string name="journal_dashboard_quickadd_desc">Visa journalens +-knapp</string>
+    <string name="journal_quickadd_always_now_title">Använd aktuell tid</string>
+    <string name="journal_quickadd_always_now_desc">Starta posten nu, även om en diagrampunkt är vald</string>
     <string name="journal_visible_events">Synliga händelser</string>
     <string name="journal_empty">Inga journalhändelser i det här fönstret ännu</string>
     <string name="journal_type_insulin">Insulin</string>

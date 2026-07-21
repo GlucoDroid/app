@@ -1573,6 +1573,16 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="journal_metric_activity_today">Bugünkü aktivite</string>
     <string name="journal_no_active_insulin">Aktif insülin yok</string>
     <string name="journal_active_now_percent">%1$d%% aktif</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">Etkin IOB’yi (eIOB) göster</string>
+    <string name="journal_eiob_display_desc">Etkinliğe göre ayarlanmış insülini IOB’nin yanında göster</string>
+    <string name="journal_iob_expanded">Kalan IOB: %1$s U</string>
+    <string name="journal_eiob_expanded">Etkin eIOB: %1$s U</string>
+    <string name="journal_dashboard_quickadd_title">Panoda hızlı ekleme</string>
+    <string name="journal_dashboard_quickadd_desc">Günlüğün + düğmesini göster</string>
+    <string name="journal_quickadd_always_now_title">Geçerli saati kullan</string>
+    <string name="journal_quickadd_always_now_desc">Grafik noktası seçili olsa da kaydı şimdi başlat</string>
     <string name="journal_visible_events">Görünür olaylar</string>
     <string name="journal_empty">Bu aralıkta henüz günlük olayı yok</string>
     <string name="journal_type_insulin">İnsülin</string>

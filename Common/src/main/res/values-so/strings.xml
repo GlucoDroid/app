@@ -1833,6 +1833,10 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Muuji IOB wax ku ool ah (eIOB)</string>
     <string name="journal_eiob_display_desc">Sidoo kale muuji insuliinta ku salaysan dhaqdhaqaaqa ee jirka ku jirta, kana barbar dhig IOB-ga caadiga ah</string>
+    <string name="journal_dashboard_quickadd_title">Ku dar degdeg ah dashboard-ka</string>
+    <string name="journal_dashboard_quickadd_desc">Muuji badhanka + ee joornaalka</string>
+    <string name="journal_quickadd_always_now_title">Isticmaal wakhtiga hadda</string>
+    <string name="journal_quickadd_always_now_desc">Bilow gelinta hadda, xitaa marka dhibic jaantus la doortay</string>
     <string name="notification_show_iob_title">Muuji insulin jirka ku jirta</string>
     <string name="notification_show_iob_desc">IOB/eIOB-ka joornaalka ee xariiqda xaaladda</string>
     <string name="notification_show_cob_title">Muuji karbohaydraytka jirka ku jira</string>

@@ -1561,6 +1561,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_activity_today">今日活动</string>
     <string name="journal_no_active_insulin">无活跃胰岛素</string>
     <string name="journal_active_now_percent">%1$d%% 活跃</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">显示有效 IOB (eIOB)</string>
+    <string name="journal_eiob_display_desc">在 IOB 旁显示活动校正后的胰岛素</string>
+    <string name="journal_iob_expanded">剩余 IOB：%1$s U</string>
+    <string name="journal_eiob_expanded">有效 eIOB：%1$s U</string>
+    <string name="journal_dashboard_quickadd_title">在仪表板快速添加</string>
+    <string name="journal_dashboard_quickadd_desc">显示日志 + 按钮</string>
+    <string name="journal_quickadd_always_now_title">使用当前时间</string>
+    <string name="journal_quickadd_always_now_desc">即使已选择图表点，也从现在开始记录</string>
     <string name="journal_visible_events">可见事件</string>
     <string name="journal_empty">此时间窗口内还没有日志事件</string>
     <string name="journal_type_insulin">胰岛素</string>

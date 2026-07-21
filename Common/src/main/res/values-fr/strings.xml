@@ -1551,6 +1551,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_activity_today">Activité aujourd’hui</string>
     <string name="journal_no_active_insulin">Aucune insuline active</string>
     <string name="journal_active_now_percent">%1$d%% actif</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">Afficher l’IOB effectif (eIOB)</string>
+    <string name="journal_eiob_display_desc">Afficher l’insuline ajustée à l’activité à côté de l’IOB</string>
+    <string name="journal_iob_expanded">IOB restant : %1$s U</string>
+    <string name="journal_eiob_expanded">eIOB actif : %1$s U</string>
+    <string name="journal_dashboard_quickadd_title">Ajout rapide sur le tableau de bord</string>
+    <string name="journal_dashboard_quickadd_desc">Afficher le bouton + du journal</string>
+    <string name="journal_quickadd_always_now_title">Utiliser l’heure actuelle</string>
+    <string name="journal_quickadd_always_now_desc">Démarrer l’entrée maintenant, même si un point du graphique est sélectionné</string>
     <string name="journal_visible_events">Événements visibles</string>
     <string name="journal_empty">Aucun événement de journal dans cette fenêtre pour le moment</string>
     <string name="journal_type_insulin">Insuline</string>

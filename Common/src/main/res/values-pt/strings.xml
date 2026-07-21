@@ -1546,6 +1546,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_activity_today">Atividade hoje</string>
     <string name="journal_no_active_insulin">Sem insulina ativa</string>
     <string name="journal_active_now_percent">%1$d%% ativo</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">Mostrar IOB efetivo (eIOB)</string>
+    <string name="journal_eiob_display_desc">Mostrar insulina ajustada à atividade junto ao IOB</string>
+    <string name="journal_iob_expanded">IOB restante: %1$s U</string>
+    <string name="journal_eiob_expanded">eIOB ativo: %1$s U</string>
+    <string name="journal_dashboard_quickadd_title">Adição rápida no painel</string>
+    <string name="journal_dashboard_quickadd_desc">Mostrar o botão + do Diário</string>
+    <string name="journal_quickadd_always_now_title">Usar a hora atual</string>
+    <string name="journal_quickadd_always_now_desc">Iniciar a entrada agora, mesmo com um ponto do gráfico selecionado</string>
     <string name="journal_visible_events">Eventos visíveis</string>
     <string name="journal_empty">Ainda não há eventos do diário nesta janela</string>
     <string name="journal_type_insulin">Insulina</string>

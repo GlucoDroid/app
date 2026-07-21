@@ -1588,6 +1588,16 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="journal_metric_activity_today">Activiteit vandaag</string>
     <string name="journal_no_active_insulin">Geen actieve insuline</string>
     <string name="journal_active_now_percent">%1$d%% actief</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">Effectieve IOB (eIOB) tonen</string>
+    <string name="journal_eiob_display_desc">Toon activiteitsgecorrigeerde insuline naast IOB</string>
+    <string name="journal_iob_expanded">Resterende IOB: %1$s U</string>
+    <string name="journal_eiob_expanded">Actieve eIOB: %1$s U</string>
+    <string name="journal_dashboard_quickadd_title">Snel toevoegen op het dashboard</string>
+    <string name="journal_dashboard_quickadd_desc">Toon de +-knop van het journaal</string>
+    <string name="journal_quickadd_always_now_title">Huidige tijd gebruiken</string>
+    <string name="journal_quickadd_always_now_desc">Start de invoer nu, ook als een grafiekpunt is geselecteerd</string>
     <string name="journal_visible_events">Zichtbare gebeurtenissen</string>
     <string name="journal_empty">Nog geen dagboekitems in dit venster</string>
     <string name="journal_type_insulin">Insuline</string>

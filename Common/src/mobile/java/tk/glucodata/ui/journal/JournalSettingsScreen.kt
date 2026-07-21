@@ -229,6 +229,37 @@ fun JournalSettingsScreen(
                     enabled = journalEnabled
                 )
             }
+            item(key = "journal_dashboard_quickadd_group") {
+                val showCurrentTimeOption = journalEnabled && journalDashboardQuickAddButton
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.journal_dashboard_quickadd_title),
+                        subtitle = stringResource(R.string.journal_dashboard_quickadd_desc),
+                        checked = journalDashboardQuickAddButton,
+                        onCheckedChange = { viewModel.setJournalDashboardQuickAddButton(it) },
+                        icon = Icons.Default.Add,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        position = if (showCurrentTimeOption) CardPosition.TOP else CardPosition.SINGLE,
+                        enabled = journalEnabled
+                    )
+                    AnimatedVisibility(
+                        visible = showCurrentTimeOption,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        SettingsSwitchItem(
+                            title = stringResource(R.string.journal_quickadd_always_now_title),
+                            subtitle = stringResource(R.string.journal_quickadd_always_now_desc),
+                            checked = journalQuickAddAlwaysNow,
+                            onCheckedChange = { viewModel.setJournalQuickAddAlwaysNow(it) },
+                            icon = Icons.Default.History,
+                            iconTint = MaterialTheme.colorScheme.secondary,
+                            position = CardPosition.BOTTOM,
+                            enabled = journalEnabled
+                        )
+                    }
+                }
+            }
             item(key = "open_journal") {
                 JournalActionRow(
                     onHistoryClick = {
@@ -236,30 +267,6 @@ fun JournalSettingsScreen(
                             if (journalNavigationTabEnabled) "journal" else "settings/journal/history"
                         )
                     }
-                )
-            }
-            item(key = "journal_quickadd_always_now") {
-                SettingsSwitchItem(
-                    title = stringResource(R.string.journal_quickadd_always_now_title),
-                    subtitle = stringResource(R.string.journal_quickadd_always_now_desc),
-                    checked = journalQuickAddAlwaysNow,
-                    onCheckedChange = { viewModel.setJournalQuickAddAlwaysNow(it) },
-                    icon = Icons.Default.History,
-                    iconTint = MaterialTheme.colorScheme.secondary,
-                    position = CardPosition.SINGLE,
-                    enabled = journalEnabled
-                )
-            }
-            item(key = "journal_dashboard_quickadd") {
-                SettingsSwitchItem(
-                    title = stringResource(R.string.journal_dashboard_quickadd_title),
-                    subtitle = stringResource(R.string.journal_dashboard_quickadd_desc),
-                    checked = journalDashboardQuickAddButton,
-                    onCheckedChange = { viewModel.setJournalDashboardQuickAddButton(it) },
-                    icon = Icons.Default.Add,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    position = CardPosition.SINGLE,
-                    enabled = journalEnabled
                 )
             }
             item(key = "journal_intelligence") {

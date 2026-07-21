@@ -1875,11 +1875,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_iob">IOB</string>
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Show effective IOB (eIOB)</string>
-    <string name="journal_eiob_display_desc">Also display activity-based insulin on board next to classic IOB</string>
-    <string name="journal_quickadd_always_now_title">Quick add always uses the current time</string>
-    <string name="journal_quickadd_always_now_desc">The + button starts new entries at the current time even while a chart point is selected. Backdate via the entry\'s time field, the chart menu, or a reading row</string>
-    <string name="journal_dashboard_quickadd_title">Quick add on the dashboard</string>
-    <string name="journal_dashboard_quickadd_desc">Show the journal + button on the dashboard</string>
+    <string name="journal_eiob_display_desc">Show activity-based insulin next to IOB</string>
+    <string name="journal_dashboard_quickadd_title">Dashboard quick add</string>
+    <string name="journal_dashboard_quickadd_desc">Show the Journal + button</string>
+    <string name="journal_quickadd_always_now_title">Use the current time</string>
+    <string name="journal_quickadd_always_now_desc">Start new entries now, even when a chart point is selected</string>
     <string name="notification_show_iob_title">Show insulin on board</string>
     <string name="notification_show_iob_desc">IOB/eIOB from the journal in the status line</string>
     <string name="notification_show_cob_title">Show carbs on board</string>

@@ -1560,6 +1560,16 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="journal_metric_activity_today">Өнөөдрийн идэвх</string>
     <string name="journal_no_active_insulin">Идэвхтэй инсулин байхгүй</string>
     <string name="journal_active_now_percent">%1$d%% идэвхтэй</string>
+    <string name="journal_metric_iob">IOB</string>
+    <string name="journal_metric_eiob">eIOB %1$s U</string>
+    <string name="journal_eiob_display_title">Үр дүнтэй IOB (eIOB)-г харуулах</string>
+    <string name="journal_eiob_display_desc">Идэвхээр тохируулсан инсулиныг IOB-ийн хажууд харуулах</string>
+    <string name="journal_iob_expanded">IOB %1$s U үлдсэн</string>
+    <string name="journal_eiob_expanded">eIOB %1$s U үйлчилж байна</string>
+    <string name="journal_dashboard_quickadd_title">Хяналтын самбарт хурдан нэмэх</string>
+    <string name="journal_dashboard_quickadd_desc">Журналын + товчийг харуулах</string>
+    <string name="journal_quickadd_always_now_title">Одоогийн цагийг ашиглах</string>
+    <string name="journal_quickadd_always_now_desc">Графикийн цэг сонгосон ч бичлэгийг одоо эхлүүлэх</string>
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>
     <string name="journal_type_insulin">Insulin</string>
