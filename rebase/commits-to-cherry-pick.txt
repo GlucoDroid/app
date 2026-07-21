@@ -1,0 +1,1022 @@
+091e32f6f First files
+69c86c9a7 README
+547685772 Removed my header
+a19cfd571 Removed files
+3ca6d9c70 Remove nohup.out
+ecedba70e Changed readme
+6b2d6502d newline
+bb13be8d6 to
+007d96b65 that
+86b9f6925 that
+0457d0f85 Juggluco 4.6.2 networkabsent no longer called on onLost
+25964cf98 Removes
+2c785f476 added html
+b44c08215 added LibAscon
+19101c25b added LibAscon
+b723035b9 4.6.3: Glucose floating over other apps
+17d64d186 4.6.4 novalue floating
+4d9342466 4.6.6: Floating glucose config
+704021066 4.6.7b: Untouchable floating glucose option
+afad761c5 4.7.0: Floating Glucose on WearOS
+388b07d72 4.7.3: Terminate button, activate Freestyle Libre 3
+a954d0be6 .            .
+d0e978860 add new line
+1f1fe3520 4.7.4: Libreview changes
+07c24cd04 index.html
+f2095e315 4.8.0: Nightscout server
+3b894937f 4.8.2
+3d7b2c1aa 4.8.3
+1b3ffd36a 4.8.4: webserver and floating glucose help translated into Dutch
+7b0bad471 4.9.0: /api/v1/treatments
+52681de13 4.9.1: api-secret or token
+7a8667506 4.9.3
+a9ee08914 4.10.0: upload glucose to Nightscout
+d4a5d30be 4.10.1: autoconnect
+bed456395 4.10.3
+47166e963 4.10.5
+1c9d5e402 4.10.6
+7ffd4845e README.md
+04f31f955 4.10.7
+26cfe307b 4.11.0: Watchdrip
+78ee7b407 4.11.0: Watchdrip
+316134f1c 4.11.0: Watchdrip
+d9936af38 4.11.1+180
+758e01119 4.12.0: TicWatch Pro
+b720ae736 six
+336ced530 4.12.1
+d409f7fba 4.12.2
+8b9e7f6c7 4.12.2
+ba966318e sha1.hpp
+06eeefa96 GraphLine
+80fd5ca1a gradle
+ab6dde2ab 4.12.3
+bcacdb445 4.12.3
+b8b84827b 4.13.3: NFC NovoPens
+e9391138b 4.14.1
+f9cabc5ec 4.12.2
+d0eb7c7bc 4.14.3
+5e8a5507b 4.14.5
+a1796aa35 Android 13
+65993a6ab juggluco.nl
+a0e675e15 4.15.0
+a8f3f5148 4.16.0
+09ced33f2 4.16.1
+90c6c8c85 4.16.2
+e76e38f99 4.16.3
+f343152d4 4.16.4
+bb89534b3 4.17.0
+ea1fe7b7e 4.17.0
+e672cb534 4.17.1
+e32efbfc6 4.17.1
+c87d1788e 4.17.1
+b85afe335 mirrorsendsamounts
+053aa2c02 4.17.2
+364944b10 4.14.1
+c6c7d561a Belarusian
+982e207d5 adb
+de4719b68 befr
+bc96ccfce help
+a18695e25 Merge remote-tracking branch 'origin/primary' into primary
+1d9adf833 change months
+a0721afd8 betalk
+947aaadd5 4.17.5
+29e71f474 4.17.6
+d99151adf 4.18.0
+56beb2934 server4.18.0
+cd19fc546 Merge branch 'j-kaltes:primary' into primary
+ff336e876 uk
+97a66fe8d add uk
+cede036fe uk
+9801095aa Merge branch 'Geniy83-primary' into primary
+a14dced05 uk
+4b6719cf8 4.19.0
+9bc44cc6a 4.19.1
+b414a925b 2.29.1
+57e049c3a zh
+08940dbe1 zh2
+6f322f225 zh2
+cd99da7cc 5.1.4
+a46c0dc2c 5.1.4
+92fa5ea63 readme
+0a1a021e6 readme
+bed161d2e 5.1.5
+8bed24a27 5.1.9
+52a095437 5.1.10
+7a2b5837e disconnect
+bb134dc85 phase2
+881a0f416 CompositeRawDatacharacteristic
+524875128 Fix Libre2 handshake failed with GATT_CONN_TERMINATE_PEER_USER(19)
+ca8cf5d08 no spacechange
+35f3950b2 removeagain
+d36ad214a Merge branch 'status19' of https://github.com/ah7675/Juggluco into ah7675-status19
+6487e0d94 Merge branch 'ah7675-status19' into primary
+841432818 space back
+b123c261b BuildAnalyzer
+f6b576fca 5.1.13
+e34ada895 6.0.0
+d2cb4f5ab 6.0.0
+e0df77d53 readme
+7cc6c5cf1 6.0.1
+533947321 6.0.2
+07c86625a 6.0.4
+a42e86eba 6.0.5
+b31472a99 6.0.6
+e3a53525e 7.0.0
+28dba707d 7.0.0-b
+544c44bdc 7.0.1
+7605f4dbd 7.0.2
+0f6806ad5 7.1.0
+ccf751fd4 7.1.1
+428a446af 7.1.2
+5f8824e07 7.1.3
+25f2a3582 7.1.4
+5639ef8e8 7.1.5
+bb23475fc 7.1.6
+b93c1c005 7.1.7
+4bf2be677 7.1.7-wear
+0f874bd85 7.1.8
+68bf0e996 translate
+782e03937 7.1.9
+84aa5ed73 7.1.9
+2bb8df8b3 7.1.10
+bfd0b4795 7.1.11
+b4d7e321f 7.1.12
+06a39a7fa 7.1.12b
+cbc1a3c9e 7.1.13
+2ea840b50 7.1.14
+222e3649a 7.1.15
+79be04fa9 7.1.16
+c55e3cdea 7.1.17
+d1c8cc772 7.1.18
+3bc26d1a2 7.1.19
+62fba4fd8 windows
+051585d54 ``
+84de43922 ``
+f29b5fda8 ``
+ac6ec7b0b ``
+e18d9bebf 7.1.20
+1c4046f88 7.1.21
+93d3eff5c 7.1.22
+561014046 7.2.0
+45ba47d1b 7.2.1
+cf83107d7 7.3.0
+a46b60408 7.3.0-wear
+6480e155c 7.3.0-last
+e187ac426 Android Wear
+a6ce889ed 7.4.0
+0f7336633 missing
+3cd91159b 7.4.1
+fd38270ac 7.4.2
+40191a189 7.4.3
+bb81c8ab2 7.4.4
+2969a31d7 7.4.5
+851add873 7.5.0
+f27205eb7 token
+4f718eba3 7.6.0
+5879b8968 7.6.1
+90f7e1847 7.6.3
+e8f3a7e84 7.6.4
+04b0007e4 7.6.5
+d1e781858 7.6.5
+b9b3f8b54 8.0.0
+6b14a0213 translations
+0f3392011 nokey
+134228cc1 strings.xml
+aced8feaa moretranslations
+507aefb58 8.0.1
+26319f073 8.0.2
+59683cbb6 8.0.3
+2f1fbd5db 8.0.5
+953df895f rugalaxy
+6c770043e 8.0.6
+65667ad9c 8.0.7
+a3824b9ff 8.0.8
+52de6b964 8.0.10
+8843030e0 8.0.12
+42eb56add 8.0.13
+5d8a43c60 8.0.14
+809ae4611 8.0.15
+faf35c279 8.0.16
+d13379428 8.0.17
+c80b93544 8.0.18
+9a128b227 8.0.18
+df689fd47 8.0.19
+1c4f8ea4a 8.0.20
+6891fe6f2 8.0.21
+e3b96bf4e 8.0.22
+11944058b timevalues
+8b575046e nogradlew
+b52083b23 8.0.23
+e588a8fd7 README.md
+ca257039b nl
+f6218e94c from
+53bb6a213 nonl
+7a7283cd4 nl
+41232a438 8.0.24
+8804c9cd3 .
+fb0159887 Merge branch 'shaneharper123-documentation_corrections' into primary
+e92c9aa80 8.1.0
+e4c1dd673 8.1.1
+9b5cd4b94 8.1.2
+78821872c 8.1.2
+7240e07a7 8.1.3
+3ea5100c8 8.1.4
+dbd9dc8e2 8.1.5
+495208306 Fix some russian text
+430933371 Fix meal labels
+e537557f4 Fix some  more labels
+198487810 Fix some  more labels
+21c0694ca Merge branch 'Lisabeta-primary' into primary
+b9d91a4b3 8.1.6
+ece669d67 Swedish translation
+35caec9e2 Merge branch 'bobnils-Swedish' into primary
+c23c0f209 sv1
+f0476f2dd Swedish translation fix
+bf67d8a51 Merge branch 'bobnils-Sweidsh-fix-1' into primary
+daecadc3f Swedish translation fix
+5bced6ac3 Swedish translation fix
+330704da0 Merge pull request #202 from bobnils/Sweidsh-fix-3
+ebccfdda3 README
+ceb74aa7c Merge branch 'primary' of https://github.com/j-kaltes/Juggluco into primary
+d4e596856 8.1.7
+7b4111c8e googlesearch
+9ac53bebd hpp
+5980c1cf4 quotes
+a613df46a quotes
+89db61ca6 8.2.0
+d2490dfd2 8.2.1
+9673c0f74 8.2.2
+d9934b1d4 readme
+40c3a14b8 noana
+48946db80 line
+6b19544eb pict
+a23639556 0
+011853bd7 8.2.7
+06662435a 9.0.0b
+857917aec extra
+5fedcbfbe 9.0.1
+46532afeb 9.0.2
+9c62a2870 9.0.2
+d20586bf5 9.0.3
+30c152135 Update strings.xml PL
+40a31c7e7 Update pljugglucotext.cpp PL
+66f05dadc Merge branch 'froster82-patch-1' into primary
+8904f90be Update strings.xml new strings at the end
+f9ed08956 9.0.3-rev1
+88c74229d Merge branch 'patch-2' of https://github.com/froster82/Juggluco into froster82-patch-2
+b6cf3b692 Merge branch 'froster82-patch-2' into primary
+01643a88a pl2
+8262d8fd4 9.0.4
+1fdd61250 9.0.5
+92d783284 9.0.6
+80fb428f5 9.0.7
+ae61cca6d 9.0.7
+ac97c2bd4 9.0.8
+1c9bade72 9.0.10
+7787782e8 9.0.11
+f0573d092 Update strings.xml
+38a46833a Merge branch 'froster82-froster82-patch-1---Added-Close-button-translation-to-strings' into primary
+50e0cb5ac 9.0.12
+1ffe6ef40 9.0.13
+2604b70b8 9.0.14
+3b8ce6f9e 9.0.14
+ff6e0f72d backupinfo.cpp
+5cb25399f 9.0.15
+11627269e 9.0.16
+4baad0c48 9.0.17
+73eee3c3a 9.0.17
+9c48d9508 9.0.18
+a5acdfc0b 9.0.19
+530e334e4 9.0.20
+f46f65fb5 9.0.22
+723a74753 9.0.22-3
+00343271d 9.0.23
+e6394b8be 9.0.23
+49483e2d5 9.0.25
+7b522e068 9.0.26
+62559e63c 9.0.27
+9b57355c9 pics
+e1af67992 9.0.27-b
+499d4938b 9.0.28
+3312eb247 9.0.29
+9d61fd647 9.0.30
+b662c2548 cmdline
+dbf3850aa readme
+249f7611b 9.1.0
+6979c449a 9.1.2
+e488525ef 9.1.3
+977962221 consts
+95b7c1c5f 9.2.0
+d7f1d569e cmdline
+a1e3c81e3 9.2.1
+edc678b3b commandline
+b29698ae4 9.2.2
+46bfe2790 9.3.0
+8e7de04f6 9.3.2
+79a7ebd2b 9.3.3
+016fd51f6 README.me
+e637b2212 9.4.0
+d55d38af5 9.4.3
+32898c54b Update pljugglucotext.cpp
+ed8a8110c Update pljugglucotext.cpp
+274e585d9 Update strings.xml PL
+ec11cef36 9.5.0
+b14eb5500 9.5.1
+2c6cf125d 9.5.2
+dfad28738 Merge branch 'j-kaltes:primary' into froster82-9.4.3---PL-text-update
+a2d723227 strings
+7d9bef03c strings
+fdbf8fabc amountsname
+351faa727 space
+7ade98453 9.6.1
+e74b9b22b 9.6.1
+664e8eb2c Merge branch 'j-kaltes:primary' into froster82-9.4.3---PL-text-update
+6fbd64aa9 Update strings PL - 9.6.1
+83ba4fdfc Merge branch 'froster82-froster82-9.4.3---PL-text-update' into primary
+d6e788922 9.7.0-1
+5cf607c50 9.7.1
+023abbd5b 9.7.1-1
+43cefd1ac 9.7.4
+5df621739 JugglucoServer9.7.4-3
+bc43dd0e7 JugglucoServer9.7.4-4
+9492f75b0 9.7.5
+03bdc3c14 9.7.5
+81c5956a1 9.7.5-1
+075acf2ae README
+9b1d116d1 export
+eef7fa589 9.7.5-2
+43e3ba283 9.7.6
+eb53f8bb0 9.7.7
+b62ef1855 9.8.0
+1c4b32b30 10.0.1
+d4bd74b29 10.0.2
+dd9e3b667 10.0.4
+018d9af24 10.0.5
+ef9a6e555 10.0.6b
+06c1d8e95 10.0.7
+80cc17c4e 10.0.8
+ad080cf09 10.1.0
+3ec2533fe 10.1.1
+ef7375d39 10.1.2
+1b490555d 10.2.2
+c8995be67 10.2.3
+c6b4d0085 10.3.1
+194017bff README.md
+4af51c0b9 README.md
+58b5a78e8 2space
+729650b41 espace
+6e51d2fd3 <br>
+21de67e55 10.3.2
+9b2968d08 10.3.2
+38b17999f 10.3.4
+58cfb6530 10.3.6
+1493d2adf 10.3.7
+3eea0943a 10.3.8
+d80a10383 10.3.9
+186964a01 10.3.12
+20df2e1e9 Fix SIGSEGV to SIG_DFL crash by replacing system() with custom fork/exec implementation
+0736f99c5 Fix build errors: declare portrait mode variable and implement missing JCurve::showvalue function
+2f4fddec5 Change screenOrientation to portrait in Common/src/mobile/AndroidManifest.xml
+4392e1785 JugglucoNG 0.1.20 Initial commit: 1. Sibionics 2 reset error fixes 2. Sibionics calibration algorithm options (Auto, Raw, Auto + Raw), "Clear" (calibration reset) and "Clear all" (full reset) buttons 3. Basic bottom navigation bar 4. Portrait mode enabled 5. Automatic dark mode
+3521d0ad7 Add .gitignore for build and local files
+372274b35 Add .gitignore for build and local files
+229ba52f4 Stop tracking ide files and ignore .idea
+0b1a08f7c Update README and  screenshots
+1f0865d7d Update README and  screenshots
+5924e6964 Update README and  screenshots
+ecfd87542 feat: migrate mobile app to Material 3 theme
+79e74a35b Material 3 initial build
+daaf8acde Material 3 initial build
+5558490c6 Material 3 initial build
+66974a9ea Mirror implementation and M3 view support
+f08d3b136 Manual fix of Mirror functionality - working build
+79a516092 Apply Android 16 compatibility fixes and save Mirror UI work
+5f2925fe8 Final cleanup of MainActivity.java for Android 16 compliance
+d7232ea9e WIP: dev current reverted state
+3698f8553 Start dev-experiment independent
+94b87f46d Restore ONLY performance optimizations, exclude 24h window feature
+c682b471f Add commented memory leak fix - usage counting
+165cf9f6b feat(custom-cal): Working Custom Calibration Reset implementation
+a044e8409 refactor(custom-cal): Clean single-point-of-control architecture
+5832c3eae fix(custom-cal): Remove 30min timeout, keep only gap-closes exit
+4284b11cd Merge feature/custom-cal-fixed: Clean Custom Calibration Reset implementation
+46882953d feat: Separate Sibionics feature guards
+aa6a36bfd fix: Add isSibionics guard to Calibration Mode selector
+e1efa6cc2 feat: Modern sensor onboarding UX
+2318e94c5 Redesign and fixes
+1b7cb1ad0 Redesign and fixes
+e598680ea Redesign and fixes
+e5aa227eb Redesign and fixes
+c22b76ca9 Redesign and fixes
+80423aa2b AOD, Notification settings, Restart app, Sensor card, Noise level indcator
+02820241b Calibration v2
+d92cfe158 Alarms v2
+c1eee1cff Alarms v2
+250f00df6 Custom alerts v1
+3d0a3fc74 Custom alerts v2
+6fd14b1ff Floating glucose, various fixes.
+04f4a5de6 Aidex probe test
+452783bee Aidex probe, The app is set to decrypt using Zero IV (AES-CFB) and inject glucose data into the history/graph.
+a7a4773df Aidex Probe Kotlin v1
+db2e81814 Aidex v1 broadcast only
+0100d48ba Aidex v2 pair and reset
+5adda7556 Aidex v3 mostly functional
+614da14fd Aidex v4 calibration, ui, various fixes
+022cb43ea Aidex v5, redesign, calibration, statistics, reports.
+ee767a208 Aidex v5, redesign, calibration, statistics, reports.
+e29b65fdc Aidex v6, raw value support. Mirror screen redesign.
+57494053b Aidex v6, raw value support. Mirror screen redesign. Native parser test
+3280fd58f Aidex v6, raw value support. Mirror screen redesign. Native parser test, AidexXOperation
+0893430ce Only the CCCD timeout/retry behavior you requested: supplementary CCCDs (0xF001/0xF003) are best-effort/non-fatal main-chain CCCDs remain strict Main-chain CCCD presence is now mandatory before starting queue ( (line 4363)).
+d6f1f2e94 Widget fix
+2b68486e3 GMS/Gspace/Huawei fixes, raw mode for Aidex fix, various startup fixes
+71d4bf89b GMS/Gspace/Huawei fixes, raw mode for Aidex fix extended
+ddef7a5a5 CameraX QR scanner, time range picker redesign
+5414150de Full screen chart test v1
+b1b7e95bb Full screen chart test v2
+6d7373e1e Aidex V4, Sibionics fixes, CameraX QR scan, Watch/Web server settings screens
+eae963221 Aidex V4, Sibionics fixes, CameraX QR scan, Watch/Web server settings screens
+f7da857c6 .gitignore cleanup
+d669d77f9 .gitignore cleanup
+6bd026d91 cleanup
+88998e522 Alert/alarm fixes, Dexcom fixes, Sibionics fixes
+7069aa652 Alarm and alerts overhaul, Sibionics fixes, settings UI improvments
+52e838665 Add pure Kotlin AiDex native driver (crypto, protocol, data) with 77 unit tests
+d3af7007b Add AiDex BLE layer: per-sensor GATT manager, reconnect strategy, 31 unit tests
+c84a64882 Add multi-sensor orchestrator: registry, main sensor, health checks, 85 unit tests
+9b34a6956 Integrate native AiDex driver into SensorBluetooth via factory bridge
+183c24263 Wire native AiDex driver into UI via shared AiDexDriver interface
+3715ba149 Fix native driver for real-world use: correct opcode map, device info + start time parser, CRC validation, always-on native mode
+3ce5a53f7 Fix F001 CCCD: use notification (01 00) not indication (02 00) — F001 has NOTIFY property, not INDICATE. Also handle status=3 as bonding retry trigger.
+538500f75 Defer key exchange until SMP bonding completes — sensor ignores challenge writes on unencrypted link
+5dbfcfbb1 Fix key exchange: strip X- prefix from serial before crypto derivation
+bc3a2520d Fix no-data-after-streaming: re-register F003/F002 CCCDs after key exchange
+58da7cba2 Wire data to JNI storage: live F003 and history entries now persist via aidexProcessData
+adb097ce8 Fix 10 real-world bugs found from sensor test logs
+7eb3839ad Fix history storage: override bogus sensorstartmsec from addsensor
+4c4cde755 Fix unpair/broadcast-only reconnect and history dedup bugs
+402822cf2 Floating glucose and AOD redesign and fixes
+c58f00948 Version bump
+a1caa7669 Fix reset + auto-activate sensor after reset
+64870126f Harden AiDex native driver: 13 bug fixes from code review
+8b5ca44ec Phase 10: Fix 4 user-reported issues — glucose gaps, slow sync, notification text, calibration UI
+2ab1a00ad Phase 10b: Remove 0x21 retries, remove warmup gate, add broadcast scan, polish calibration UI
+6636eabfe Nightscout uploader fixes
+f2968b26f Nightscout uploader fixes
+286392a77 Fix broadcast scan not starting after unpair and auth failure
+ce3556b80 Nightscout uploader hardening, turn server fixes
+9726de611 Dashboard screen updates fixes, Aidex warmup
+d701e0d12 Mirror fixes, UiRefreshbus, aiDexDashboardStatus
+a4f543d02 Aidex native driver broadcast, dashboard sensor status fix, improved history fetching,
+0ac4a1181 0.7.2
+38cfce5a3 UI adjustments
+847900462 Chart and dashboard refactor
+0bf83b675 Chart and dashboard refactor v2
+c04a27706 Mirror direction, dashboard fixes
+aa7345cfc 0.7.3
+3286edf25 requestStatusRefresh viewmod fix
+f7e56ba8a Aidex watchdrip fix
+fac85dd9e Aidex watchdrip fix
+8e60292cc Revert "Aidex watchdrip fix"
+821b97b8f Revert "Aidex watchdrip fix"
+4b18c218d Dashboard values 2 rows fix
+c6eb75726 Recover Claude Aidex changes
+d066eb758 Aiexdex watchdrip fix v2
+e5553e0fa Aiexdex watchdrip fix v3, improved hero ard font scaling
+1e23512f7 Battery optimization refactor
+fa7a0ce17 Battery optimization refactor stage 2 — notifications
+04f4d4a25 Currentglucose v1, AOD calibration values
+9b86f9bda Currentglucose v2, major refactor
+a561a674b Currentglucose v3
+e566f9e1f Aidex dub device fix, start sensor fix, warmup fix, removed expectedEnd for aidex, clean up logging
+b43a77d60 Aidex v.1.8.1 F003 correction, runtime/warmup refactor
+4cb0dc9df Aidex v.1.8.1 F003 correction, runtime/warmup refactor
+13adfed64 Aidex reconnect hardening
+4df1293d8 Chart smooth option
+196eb2a45 Chart smooth 2-7 min
+eb2514d4b Live continuity battery optimization policy
+505ee3595 Graph smoothing, preview window, AOD adjustments
+cdba61222 Raw dublicate fix
+1cc51e4a6 Raw dublicate fix
+4a91a0d4f Libre3 nfc command, xdrip calibration source fix, graph smoothing, preview window
+b535d9ded Sensor source resolver
+9f093eb22 Data/graph smoothing v2
+d60ab2ee4 Output data sources refactor
+26d22206c Output data sources refactor v2, Data/graph smoothing with chunks v3
+c3f3ac847 Proguard fix, sibionics history fixrelease/minified reflection breakage, startup selected-sensor history not recovering, live/history timestamp mismatch, wrong raw-lane handling for mode 2
+2dce1c981 Aidex mirror support, mirror calibration, mirror reconnect
+a2a28fe07 Legacy sensor dublicate bugfix
+a56830141 cmd
+9acddcca8 Aidex notify fix
+a94b06924 LibreView settings screen
+03a5fe69b UI performance improvement, Aidex history fetching delay reduction
+2a2d567c8 Libreview wizard ui tweaks, sensors screen polling fix
+c6a97a86e Aidex churn fix, history merge
+d4632ca96 Libre 3 manual Receiver ID
+a077e94a8 Aidex broadcast fallback
+79e781bf0 Aidex broadcast fallback v2, permission fix, PreferredCurrentSensor
+ad3d02860 0.8.3, Aidex DP v1, auto-broadcast fallback, reset timezone fix, previewWindowMode fix
+5cc0b2eaf Readme
+3cea486a4 cmdline
+0908d007b Aidex history shift adjustment
+ae980bbc2 Mirror cmdline
+34f5ff273 Aidex robust runtime reconnect/recovery
+294252275 Follower alerts support, custom sound player
+9b7f1e818 Aidex device info and local startup fix
+444158ee4 Aidex reconnect fix and refactor, raw values cap
+a7f3f7366 Notification trendarrow
+3fcc74728 Stats screen: time range picker, IQR, cards sizing fix, temperature zoom, updated translation.
+dd8a2681c Stats screen: date range picker control, tiles rounded corners shape correction
+f7094a446 History screen redesign
+11df5c749 0.8.4-Alpha
+9a324c40b Update README.md
+74113c149 Update README.md
+33243bc6b Update README for version 0.8.4-Alpha changes
+de721bb34 Display trend source, trendarrow handling refactor
+615247042 AOD timeout on inactivity
+d11086b9b Aidex reconnect churn fix
+861ef3f17 Aidex recovery
+993122b46 Aidex recovery v2
+747d59b96 Floating glucose landscape dynamic island
+b91b18ce0 Aidex DP v1
+b2cfa5dbc Aidex DP wired
+7ba5f2b54 Aidex DP wired v2, history display merge
+1697ba7e5 Alarms routing, swipeDismissIntent
+da72b777f Proguard notifiations
+52b54bf99 ICE and TURN fixes
+28206c253 Aidex CCCD bond fallbackm, history display merge
+3a852d4d4 0.8.5
+f1a3636de Aidex history fix
+f60d8889b Aidex dp restore
+30a9c16e5 Widgets update v1
+1e67643d3 Custom alerts fix
+61f07626f Aidex raw gap fix
+1a1314eed Watchdrip chart fix
+39ef76c87 AOD instant update, Widget fix, Floating glucose fix
+348d09c67 0.8.5, Aidex reconnect fix
+37467534e Add main-based iCan managed driver integration
+47c261828 Deduplicate published sensor cards by canonical id
+82e5364e5 Canonicalize managed history authority
+f11605bf3 Fix managed dashboard status and duplicate live dispatch
+4da582ea9 Fix unit tests on Java 25 by preferring Java 17
+fc49b2edd Tighten dashboard history to selected-sensor Room flow
+bab92ef29 Managed Callback Promotion / Calibration Follow-up
+e332d01c3 Fix iCan raw current mapping and stats cache
+18bde13c1 Remove unsafe iCan pseudo-raw projection
+448edd75f iCan lifetime fix, dashboardchart performance, dashbordviewmodel date limit fix
+1ca658389 Dashboardchart performance
+558214e79 Cut shared data-flow rewrites back to 37467534 baseline
+fa92c99e4 Restore managed sensor runtime and gate iCan generic calibration
+054485340 Remove managed calibration opt-out seam
+978e26e70 iCan connect status, proguard history
+6cee80b08 Calibration chart performance
+f0f300cd1 Calibration reactivity, Stats screen update speedup
+bf049c036 Sibionics/aidex sync reactive, mirror restored
+15022d4fa Dashboard background refresh
+9ff058aac Managed sensors/SensorIdentity merge imports, iCan 31 days
+78aff26c6 Custom alerts time range selection
+8a910bc79 iCan mirror
+e2a0719c7 iCan startup screen link fix, Dashboard background refresh v3
+d8562dfb0 Setup screen finish animation
+df8291763 Talker
+96f227050 Signal Loss vs Missed reading split bugfix
+e1c16061d App version in Settings
+0641e5685 Calibration list delete action haptics and more drag
+2ab4ca884 Stats calibration root-cause correction: stats was calibrating the wrong unit space Stats bugfix
+98ef551f9 Give the Sensors-card `Disconnect` action width priority over `Reconnect`
+ccbf963a5 iCan temp
+77d4c9e03 MQ v1
+72975ac80 MQ v2
+1e37d6bc9 Stats performance, dashboard performance, iCan dub values, widget bg fix, xdrip fix  MQ v3
+bd19b632d MQ v3
+e2af95985 Journal v6
+f429554f9 MQ v4
+5f2611fe3 Aidex reconnect bugfix
+ddba42d86 Delete history readings
+9e5823c2f MQ cloud
+b87f2210d Virtual sensor support: MQ cloud v2, Nightscout follower
+11b2d4dfe iCan expected end 28 days
+d4cb94be5 Legacy widget background fix
+4cc358f3e Journal v1
+646762e0d MQ local cloud-history import gap-fill
+bb220fc70 feat: complete Ukrainian and Belarusian translations
+5a6d5484d Journal v2 Smoothed dashboard insulin curves Extended subtle connector lines Muted the chart FAB-menu colors
+b53c2035d Journal v3
+b168df573 Predictive simulation v1, Default chart range 0-13
+357fe5ec9 Add multi-series predictive chart polish
+fd3a83dda Expose predictive simulation profile controls
+7a9912c55 Add predictive forecast horizon control
+197a19589 Fix predictive chart live viewport
+e24ae2ddc Add journal dose pairing calculator
+c9c22f994 Make journal dose calculator IOB-aware
+b7454ee34 CGM readiness, Settings export
+114ddaa1d iCan i6 fix
+ad1336387 MQ identity fixes
+8307f0d27 CGM readiness
+1bf660566 Smoothing trendarrow
+14041eba6 Calibration background recovery
+d12eb4d44 Aidex 15 day fallback, Prediction chart labels alignment, MQ identity
+158d0c4a4 Merge branch 'main' into uk-be-translation-complete
+875ac4e9e Merge pull request #18 from chexov/uk-be-translation-complete
+cf2638875 Update README for version 0.9.0-Alpha features
+f14e746df Smoothing hero trend & prediction
+82b49c18d Journal dose assist: render placeholders when no suggestion
+1e46e5cff Sibionics raw value fix
+f42c961f7 Widget update fix, legacy widget layout
+093d779b7 MQ follower screen redesign
+79db2b7f8 Dashboard chart heartbeat, background restore
+045af1cd0 Stable Room sensor id for dashboard/history/stat queries (used with mirror)
+c757d5dd6 Journal ui adjustments
+8509708c4 Journal export
+326f6845d Aidex history fix
+5d381cd7c Mirror file payloads
+68fffb442 Mirror reading row
+38ee471e3 Widgets flow
+37e721a1b 0.9.1
+560342fc7 Reading row dub
+3336b0c16 iCan signal loss/history recovery
+bb1d4d63b Journal activity timeline, tap on chart in the future to add new item
+2983d34c1 Aidex calibration fix
+e9d3631ea Sibionics calibration fix
+a806b48cd Data import fix
+1d76c6781 Performance optimizations
+1675cc599 Journal nightscout upload
+a9c556144 Chart in prediction mode stuck fix
+c6a61fb6d 0.9.2
+a571be471 AOD not updating fix
+89464ef0c iCan history fetch indexes
+176bc38a7 Journal nightscout upload fix
+7e4f9e4f6 Aidex reconnect missing onDescriptorWrite fix
+b85351c51 iCan softReconnect
+943697e42 ICE/TURN support
+101b071b2 Google Health connect
+079970e20 Aidex key storage/reconnect
+a69e0a994 Merged multi-sensor flow, mg/mmol
+27494c4a1 Composehost split/refactor
+d64d1a744 Anytime v1
+15d761ac0 Anytime v2
+40a502b16 Aidex broadcast mode stability and status policy
+9c9182485 iCan sensor disconnect fix, 28 days expected lifetime
+8f5fd03c5 Alert display source fix
+c61f62a95 Kerfstok fix
+b151205da 0.9.3, updated translations, alert fix
+aebd4e878 API destinations
+300aa203f Sensor identity findGatt
+962800de6 API destinations v2
+49eef2011 Alarm and alerts tweaks and bugfix
+b9669e8e8 Anytime v2
+d1180074f Anytime v3
+b1866959f Anytime v4
+20dcb7285 Anytime v5
+0f3f3854c Anytime v6
+56ba5264e Anytime v7
+8219ae6f1 Anytime v8
+787c0ddd8 Anytime v9
+7d0b2b448 Anytime v10
+74f3d2780 Anytime v11
+1daffa7cc Anytime v12
+71e9e1a1f Anytime v13
+5587ed375 iCan hardening
+b384df08a Alerts sound fix
+c75f9a006 Watchdrip chart calibration fix
+d0c117d5c API destinations v3
+770effb88 Anytime wizard QR check
+46845679c ICE/TURN mirror reconnect fix, Calibration display centralized gate
+2bbc1ec51 Alert duration
+4b3b20205 Aidex bugfixes
+0eac28b1d Journal Meal curve selector
+fc27de3f7 Raw lane refactor
+75e505442 0.9.4
+f998e68b6 Proguard
+64409e189 Key exchange reconnect revert
+eff45c3dc Key exchange reconnect revert
+c000d32a8 0.9.5
+468608f14 Anytime v14
+e66bc4e5d Add Mongolian translation
+ddf0237e7 Anytime v15
+06eadcd17 Anytime v16, CT5
+66ca8cc56 Sibionics 2 newest QR parsing fix
+f479e35a8 Watchdrip alert fix
+d883aeb6b Smooth only exchange outputs
+84de82e71 Raw-auto mode persistence
+8a14bfc38 Journal dpi bottom sheet fix
+a160f0dda Raw-auto persistence v2
+c2f8246c5 Anytime v17 batch history
+0526b2a01 ICE/TURN fix
+8e6b67a2b Compact bottom sheet
+75e99ffcc 0.9.6
+6f7658a32 Merge pull request #30 from erdenemunkh/add-mongolian-translation
+89584cf3b Add Mongolian language in Settings
+8127ce2fa Merge pull request #32 from erdenemunkh/add-mongolian-translation
+7e8a2a823 journal-export-wip
+e70545819 Journal food library, advanced food absorption WIP
+681494f5c Outbound API auto value tokens
+87f49ac80 Chart range crash fix
+b07144708 Smoothing external outputs enabled by default
+81a6fd6af Raw/auto mode persistence fix
+d4112b0bf Advanced export
+5b430de28 Mirror bugfix (untested)
+b25febb83 Anytime calibration support
+d485e7faf Anytime calibration support extended
+91bfd26fa Calibration overwrite disabled
+4517f9d25 Sensor selection list adjustments, bottom sheet fix
+46358ef40 Outbound api optimisation refactor
+0c317877f 0.9.7
+607226a49 fix: backup thread null-connection crash in changehost()
+3127a8b0f fix: null-guard connect in all updateone send functions (closes #13)
+cb3359f79 fix: initialize sendsocks in Backup constructor to prevent crash on connection edit after restart
+e480257ae fix: allow hostnames without crashing in Add Connection dialog
+65192e3ad fix: re-arm follower sensor selection after crash-restart
+571a6d3d2 fix: restart NightscoutFollower after process kill
+b211f44a0 fix: start Nightscout follower polling immediately on process restart
+6a12cee16 Merge pull request #34 from robster7674/pr/nightscout-follower
+fc30d56fe Merge branch 'main' into pr/cpp-crash-fixes
+07b6c44ed Merge pull request #35 from robster7674/pr/cpp-crash-fixes
+54798c318 Anytime calibration status
+c0e840f2a CGM sync test strings
+bdba7bf38 Alert episode state
+5663b6236 AAPS journal treatments reciever
+f8be0e3a1 Anytime calibration v2, ManagedSensorCalibrationSource
+f346c5545 Journal food db
+7a6f8c5b1 API source extended
+2ba707565 CGM readiness startup screen and nfc for libre
+01e087e34 History backfill overflow fix
+bdefdfb7e Journal food db v2, UI adjustments
+93be68700 0.9.8
+4807e441b fix(audio): override silent mode for alarms and spoken readings
+903c3e54f fix(audio): wire haptic profile to alarm sound volume (revive dead intent)
+a082d52d1 fix(audio): show intensity profile for sound-only alerts; enforce TTS min volume
+c2a9e278a feat(tts): voice filtering, test fix, and speak schedule
+4046ff3fd feat(tts): friendly voice names, preview play/pause, and git workflow rule
+3b4d10a45 fix(tts): speak 'Missed readings' when test is tapped with no current reading
+08c3bb2f6 feat(mirror): add Test button to connection dialog for TCP connectivity check
+dc4616f5e fix(mirror): rename TestState to ConnTestState to avoid conflict with NightscoutSettingsScreen
+a40e03a3f feat(mirror): real Juggluco protocol test; Test button in connection card
+35d3838c4 fix: rename "Direct IP" connection type to "Direct"
+0f96806f5 fix(debug): use light grey text on dark console background
+d832775eb fix: use Locale.US in DisplayValueResolver.format for TTS-safe decimal separator (closes #12)
+2d5a287c7 test: add SpeakSchedule + Talker + NightscoutFollowerRegistry unit tests
+2f25a2c0e test: add NightscoutFollowerIntegrationTests (52 cases) for parseEntry, normalizeUrl, deriveSensorId
+80b4da155 ci: add GitHub Actions workflow for Nightscout Follower tests
+428b20833 fix tests: resolve compilation errors in 3 test files
+e1e4ce979 Merge pull request #39 from robster7674/pr/audio-tts
+bfe54470e Merge pull request #40 from robster7674/pr/tests-ci
+3f382dbb2 Merge pull request #41 from robster7674/pr/mirror-test
+0dedf3acd Anytime CT4 battery levels
+5edd51834 Anytime discovery fix
+249c1ef9b Alerts raw/auto and forecast math corrected
+fa6608cb8 A17 notification bitmap
+aea89af91 Debug screen colors
+3caef0f76 0.9.9
+45d0bee89 fix(nsf): survive transient BT-off events without killing the poll loop
+93071f507 feat(nsf): 59s self-healing probe for stuck poll loop
+fff81cfba Merge pull request #44 from robster7674/pr/nsf-reliability-fixes
+e7d2c108a Decimal separator in TTS fix corrected, Nightscout follower tests fix
+ec6c6052b Anytime discovery fix
+79847f0ab Anytime clear calibration
+07761e704 Resets transient Anytime runtime state, fixed the mg/dL x10 lower-bound constant/comment so native low glucose is not treated as a 3.0 mmol/L clamp, parses CT4 0x0D raw-history dumps with the same wide-history parser as 0x22,  drops LINEAR fallback Auto rows when native/factory algorithm is expected, so the app stops storing fake floor values as real glucose.
+de422fe89 Fix Anytime native failure handling
+187d0ef60 Fix Anytime teardown and raw prefix replay
+61eee1cc6 Fix Anytime post-init raw prefix replay
+41db5c729 Fix stale managed current sensor selection
+f27df7fd6 Smooze alert bugfix
+1b908bd44 Custom time range alert fix, missing signal alert fix
+b14d0f168 Anytime temperature
+57958db27 Local time in webserver /api/v1/
+adf9a0a11 Webserver smoothing bugfix
+5592229b3 API source reconect/reimport
+c54643541 Mirror extended port range
+a1982bfc7 fix: allow privileged ports (e.g. 443) in mirror and SSL port validation
+9b00a717b feat(nightscout): two-phase connection test and Off/Upload/Follow redesign
+ab5dcae6a Mirror startup bugfix
+e020b2e51 Sibionics armv7 fix, raw data persistence
+9db0d738c 0.9.9, 900
+a38d798d8 Merge branch 'main' into pr/nightscout-ui
+f3e4524e3 Merge pull request #45 from robster7674/pr/nightscout-ui
+d2d992b20 Revert "0.9.9, 900"
+21aa90d51 0.9.9, 900
+e1d30b9c8 Fix Nightscout upload settings auth
+3480421b2 Keep Anytime raw history on invalid native glucose
+dbdd90e7c Fix alarm-mode glucose alert wake delivery
+8595d5d17 Anytime 5p fix
+6e4b9e150 Fix locked alert wake and expiry gating
+c75ecd8fd Dashboard chart 24h preview navigator now anchors to the live/right edge on startup
+2617a615e Fix Nightscout JSON export paths
+04fe792d6 Main-sensor resolution now considers both Natives.activeSensors() and live SensorBluetooth.mygatts() callbacks, so managed sensors like Nightscout follower can remain selected while AiDex/native sensors are active.
+da75d4863 Sensors UI now uses the central resolver directly instead of re-filtering against native-only active sensors.
+3f0972baa Notification/AOD prediction
+b7bd775eb Avoid stats reload churn on refresh
+414d2f14e Align glucose range colors
+063836a8d Polish alert settings expansion motion
+131e95cf1 Add calibration model data table
+3a72d124e Implement journal treatment transfers
+84c9f098c Fix Anytime history duplication
+3491d946b Add main settings alert master switch
+0aa89ba30 Keep stats responsive during refresh
+a00f6ebba Refine glucose range color interpolation
+31df8de16 Refine calibration model chart and weighting
+7d49ab321 Fix Anytime current alias duplication
+136c66071 Preserve chart pan with selected scrub chips
+280913d0d Fix alert snooze rearm handling
+aa954ca01 Fix indexed Room history bucket replacement
+640286abd Refine expressive journal navigation
+31f5a3cd8 Refine calibration model chart semantics
+20403c556 Normalize exchange trend outputs
+988bcb400 Sensor screen current value tooltip
+8032582d5 Refine expressive journal navigation — Reading row adjustments
+c5688ddaf Refine expressive journal navigation - v2
+1bb672ad1 Align dashboard chart and reading row grid
+5c88e386c Build out journal tab workflow
+77e5c919b Fix calibrated stream export
+78d8389f9 Extract journal tab screen
+95b516d3b Redesign journal history actions
+437b56366 Aidex discard control/calibration value
+20501caac Refine journal overview and ledger rows
+fa8f9ea5c Refine journal row actions and fab
+ac67545d6 Restore dashboard reading row behavior
+bd8970f8a Disable journal by default
+e431579ff Restore reading row sizing
+cae233ce7 Refine journal chips and menu defaults
+d7388ccfb Refine journal chips and add FAB
+0a617c68e Adjust journal chip typography hierarchy
+39248eed1 Align journal FAB and nav order
+e1ae1d82a Align expressive FAB geometry
+ce50547f7 Use food label in journal carb sheet
+f42718131 Raise chart journal action menu
+dd63219be Fix journal chart action menu defaults
+9762e2eda Keep history reading rows classic
+2930e7d0d Restore history reading add action
+a131147bf 1.0.0 (1000)
+597dc0b74 Fix alert source lanes and dismiss behavior
+39e6635da Polish floating overlay contrast and AOD alignment
+a22570831 Align alerts with dashboard source and refine dismiss UI
+8d0c31746 Show dismiss action in expanded alert editors
+69a5390a5 Move notification dismiss action to global alert settings
+12cbb1e10 Fix transparent overlay light mode contrast
+ca8038014 Align overlay arrow and AOD contrast
+75b2a35dd Libreview bugfix
+ad09c5f68 Nightscout amount import/export
+620fffd4a Small ui tweaks
+316ac0f55 Soften transparent overlay arrow halo
+b086ad280 1.0.1 (1001)
+a9b1228ba Update README.md
+ae580e480 feat: redesign Nightscout settings UI
+1a6935153 fix(debug): use light grey text on dark console background
+fd826dcc0 fix: backup thread null-connection crash + follower revival after crash-restart
+684cab31e feat(nightscout): two-phase test connection with entries auth check
+12f2acc75 fix: use Locale.US in DisplayValueResolver.format for TTS-safe decimal separator (closes #12)
+56252ea42 feat(tts): friendly voice names, preview play/pause, and git workflow rule
+303e1009a fix: allow hostnames in Add Connection dialog (not just IP addresses)
+aba4e42fe fix: allow privileged ports (e.g. 443) in mirror and SSL port validation
+30e8d8f86 chore: update build task name in CLAUDE.md
+09898239c revert: restore assembleMobileLibre3SiDexGoogleReleaser build task
+22d91c658 fix: restore releaser build type to build.gradle
+828fc34c0 fix: allow hostnames without crashing in Add Connection dialog
+90155e9cd fix tests: resolve compilation errors in 3 test files
+572f167c4 fix: allow hostnames in Add Connection dialog (not just IP addresses)
+d7c7b9376 fix: allow hostnames without crashing in Add Connection dialog
+7050079a2 fix: resolve 3 test compilation errors and 3 incorrect assertions
+4076e3df9 fix: speak 'Missed readings' when TTS reading is stale
+2669e48b9 feat: rebrand to GlucoDroid — package com.glucodroid, pulse logo, iOS plan
+efb50b44b feat(debug): add text selection, copy, share, and log sanitizer
+3c09b90d3 fix: app label GlucoDroid; add Nightscout Follower to source picker
+46fc35641 chore: register Play Store package cloud.glucosedroid
+c7c084e7b fix: dismiss keyboard and navigate back on Nightscout setup Done
+59a5d2809 fix: gate Done navigation on setup being complete
+ed0c264ce fix: dashboard nav tab now reliably navigates from any settings screen
+cda19acd3 Update README with new app icon and project details
+3c67edb09 feat: mirror Nightscout follower readings to native storage for Juggluco device sync
+103b21ae9 chore: update APK filename and about text branding to JugglucoNG
+1255479ed chore: add glucodroid.cloud attribution to about text
+7b776bf50 Add Android UX QA workflow with emulator tests
+0b0067a25 Fix Java 21 compatibility: Remove deprecated MaxPermSize JVM option
+bca4c2ba3 Fix CMake build: Add recursive submodule checkout to all jobs
+c42dcacc2 Fix: AiDexHistoryPolicy normalization should rewind when persisted index exceeds newest
+9c4e07ae2 build: increase Kotlin/Gradle daemon heap to 4 GB
+ef1573be0 build: revert heap to 2 GB, cap workers at 4
+8cbdfb1c8 Fix AiDexHistoryPolicy: remove raw→brief capping, restore +10 threshold
+2042232f6 docs: update Voice settings help with accurate volume stream behavior
+cb9420f82 fix: package cloud.glucodroid (no .r suffix), fix log save on SAF pipe fds
+856cce0fe fix(issue-25): EINTR retry on read, surface Save failed toast
+5642d6365 build: cap heap at 2 GB Gradle / 1 GB Kotlin, max 2 workers
+0bbd1768e chore: bump version to 0.2.0-Alpha (versionCode 821)
+7e3a21b06 test: add JVM-based stability tests for history pipeline race conditions
+467ca36a2 docs: add TESTING.md with JVM test run instructions and CAX setup guide
+a9fee5765 fix(ci): replace bash [[ ]] with POSIX [ ] syntax for shell compatibility
+4d83a7308 feat: add phoenix-VM device test cycle script for Hetzner CAX
+d1f4f11c4 feat: add Hetzner CAX31 phoenix VM test infrastructure and test plan
+9f06fa576 feat(ci): add CX11 Hetzner lint runner with auto GitHub issue filing
+70e1581e0 fix(lint-ci): switch to cpx32, fix Kotlin OOM, extend NDK stub
+8019d67d4 fix(lint-ci): revert NDK stub to source.properties only
+ed25262fb fix(lint-ci): use in-process Kotlin strategy to avoid daemon OOM
+45c89819a fix(lint-ci): strip old jvmargs before appending remote heap settings
+7f35a1280 fix(lint-ci): add SSH keepalive, cap heap at 4g, robust server delete
+f1688cc12 fix(lint-ci): fix Python issue filer — use temp file + env vars
+3ed44af18 fix(hetzner): correct provisioning steps from trial run
+929a6ea40 fix(hetzner): replace Waydroid with Redroid for Android device tests
+c1a52d37e fix(lint): address all error-level lint findings from run 20260525
+9585a7e44 fix(hetzner): use grep to capture snapshot ID from create-image output
+84e50530a feat(device-test): add synthetic glucose injection for race condition testing
+313a1e457 feat(test): add Scenario E cold-start BatteryTrace pipeline verification
+4ab1bed9f feat(stats): add raw CSV export to Statistics share sheet
+028684cf6 fix(tts): suppress missed-reading speech when alert is disabled
+d999a622b fix(ci): replace bash [[ ]] with POSIX [ ] in workflow; use dynamic APK path
+dcd258703 fix(tests): add org.json test dependency; correct daysText assertion in ManagedSensorStatusPolicyTests
+cbf864cc5 chore: protect app name/package in CLAUDE.md; add resValue to release build type
+ecefd9829 chore: address dependency audit findings
+2e2b8e81b fix: downgrade AGP from nonexistent 8.14.0 to 8.13.2; fix emulator script
+00dd0f679 fix(ci): resolve OOM failures in GitHub Actions build
+c76c8da1b fix: unit test sort order, releaselog app_name, and branding in all locales
+6b1b1c716 fix: rename iCan sensor label from "iCan i3 / Sinocare" to "iCan i3 / i6"
+9de44c397 chore(deps): update library dependencies to latest stable versions
+44b7fe310 perf(battery): reduce battery drain across AOD, BLE, TTS, and Libre2 paths
+f5a259c59 perf(battery): cache WakeLock + prefs; add power-regression tests
+005dec4db build: switch to nogoogle release variant for sideload/F-Droid distribution
+9732cea60 docs: add Wear OS GMS decoupling PRD for future session
+5848749f6 docs: document submodule init step required after fresh clone
+db6cd3f44 feat: bump versionCode to 822, consolidate to global default, reorder About section
+04e16192a build: add F-Droid repo workflow, metadata, and Firebase Test Lab scripts
+8801be4c9 perf: pin navigation-compose back to 2.8.5 to fix Dashboard tap lag
+13adb9016 fix: restore nogoogle minSdk to MINSDK (21) after upstream bump to 23
+832495a18 fix: update nogoogle minSdk to 23; work-runtime-ktx 2.11.2 requires it
+f409dbdf3 fix: resolve leftover conflict marker in Talker.java (second occurrence)
+12626d09c feat: bump to v0.2.3-alpha (versionCode 823), rebase on JugglucoNG v1.0.0-Alpha
+0b1e0b317 fix(debug): stream-sanitize logs to prevent OOM on large files
+a51114201 fix(battery): implement onStop() to release TTS wake lock on utterance interruption
+8772d3b9f feat: bump to v0.2.4-alpha (versionCode 824), rebase on JugglucoNG v1.0.1-Alpha
+e7fd26e5e fix(nightscout): replace isActive with mode != OFF in receiveTreatments switch
+c6e75a691 fix(tts): prevent wake lock dropout on QUEUE_FLUSH and make nexttime volatile
+4005f6c48 fix(nsf): replace regex with isSha1Hex to eliminate ICU JNI crash
+e469619d4 feat: bump to v0.2.4.1-alpha (versionCode 8241)
+94266fcd2 ci: add static analysis and race detection workflow
+7b12bc844 fix(tts): stop settings-save from resetting nexttime; bump v0.2.4.2-alpha
+9e5544958 ci: add Redroid kernel probe job on ARM64 runner
+97c2934b4 fix(ci): use set -eu instead of set -euo pipefail in emulator script
+82ae01bec feat: bump to v0.2.4.3-alpha (versionCode 8243)
+f25850467 docs(chatbots): audit existing Telegram integration and Delta Chat options
+dabf8b739 docs: outbound-api architecture guide; align audit with v1/v2 plan
+a1fe95e5f feat(outbound): telegram bubble refresh (edit-in-place, status emoji, stale/missed)
+604d7ddcb ci: add Firebase Test Lab workflow (Robo + instrumented, Pixel 6 API 33)
+86c856f1a fix(ci): remove invalid --robo-max-depth flag from gcloud command
+c6a746548 ci: remove Android UX QA with Emulator workflow
+c97cbf558 fix(nsf): reset recording guards after poll exception to prevent sensor stall
+6772de140 fix(ci): use plain GCS bucket for FTL results instead of appspot
+5be85f249 feat(ci): add virtual UX matrix + power/wake job to Firebase Test Lab workflow
+ea685bb5a fix(perf): remove blocking IO from getCachedCalibrations
+247e3ff11 fix(ci): fix emulator script execution and add lint baseline
+d944a96dc feat(ci): add power_only toggle and extended physical power audit
+d571d363c feat(outbound): add glucodroid.cloud destination preset
+34f121601 fix(telegram): fix stale-check threading, missed transition, and preset gate
+a6248051a fix(ci): skip virtual-power job when power_only is set
+97b4121e4 merge(chatbots): resolve conflicts and fix postEdit transient-error handling
+4c0275661 fix(ui): remove redundant Add Destination button from outbound API screen
+d661f3976 fix(telegram): fix edit-in-place for test sends and identical content
+1f4dd67d8 fix(telegram): migrate legacy chat template to include {status_emoji}
+1e7917500 fix(telegram): treat 429/5xx edit failures as transient, not definitive
+668025ffd fix(telegram): increase default refresh window from 5 to 15 minutes
+662f85eb9 fix(telegram): restrict legacy template migration to Telegram preset only
+ff9401c48 fix(telegram): update stale clock on suppressed readings
+c4f143a7c fix(lint): mark new outbound_api strings as translatable=false to resolve 14 MissingTranslation errors
+ea444b129 revert: remove lint fix to enable reviewable PR
+9b46b3cd3 feat(outbound): add glucodroid.cloud destination preset
+60890da73 fix(telegram): retry stale/missed notification on transient network error
+51d34d24e fix(telegram): scope transient-error retry to failed recipients only
+6555f54ae fix(lint): mark new outbound_api strings as translatable=false
+e7f71352b fix(telegram): replace retryFor guard with STALE_THROTTLE_MS to fix missed-threshold suppression
+22197ea46 fix(telegram): post stale/missed as new messages instead of editing bubble
+334c10b03 refactor(telegram): derive STALE_THROTTLE_MS from TRANSIENT_RETRY_DELAY_MS
+55bedfe37 fix(ui): collapse AI Destination items by default
+a2b03cea8 fix(ui): don't auto-expand after delete when nothing was open
+e27272163 fix(ui): only move focus when the deleted card was open
+dbaedbf1b fix(ci): prevent FTL startup crash on Pixel devices without Google Play Services
+4c49321f4 fix: address greptile review feedback
+cbf5f392e fix(ui): collapse AI Destination items by default (#43)
+557ac39ff Merge PR #44: fix FTL startup crash on devices without Google Play Services
+cb6843ba6 fix(telegram): disable edit-in-place by default and migrate existing settings
+c97510e50 refactor(settings): clean up decodeDestinations — deduplicate staleThreshold parse, simplify migration predicate, align in-memory settingsVersion with post-migration state
+a250fe2d9 fix(telegram+ui): restore Telegram notifications and collapse AI Destination by default
+af9d27fff Merge pull request #46 from robster7674/review/ai-destination-migration-cleanup
+708a8dae9 fix(telegram): restore edit-in-place bubble refresh for normal readings
+0314ffc81 fix(telegram): restore in-place editing with proper v0→v1 migration
+95d066a58 feat(outbound): add {trend_arrow_emoji} template token for white-on-grey emoji arrows
+051b88e85 fix(telegram): fix in-place editing migration for PR #45 broken data
+d20b8bc39 fix(telegram): persist healed in-place editing state to disk
+14fac81c9 fix(outbound): switch outbound HTTP to OkHttp with HTTP/2 PING keep-alive (#48)
+039abf616 chore(release): bump version to 0.2.4.4-alpha
+871c6225b fix(ui): swap to androidx.lifecycle.compose.LocalLifecycleOwner
+370dd03a1 fix(setup): warm ML Kit barcode scanner at startup; defer getClient out of measure pass
+90da0aa81 fix(setup): warm ML Kit barcode scanner at startup (v0.2.4.6-alpha)
+4305c1fbd fix(outbound): switch glucodroid.cloud endpoint to /api/v1/entries (#54)
+f68007e64 chore(release): bump version to 0.2.4.6.1-alpha (#55)
+c0d69b67b chore: ignore .kilo/ and glucodroid.code-workspace local artifacts
+c100893c7 chore(rebase): replay JugglucoNG 1.0.2 + 1.0.3-Alpha onto fork (#1)
+67bb1a62e fix(release): bump versionCode above 82461 and restore GlucoDroid app_name in all locales (#2)
+695311364 fix(rebase): restore GlucoDroid local patches + fix compile errors for v0.3.0.2-alpha (#3)
+d36038d35 fix(release): update about_upstream from v1.0.0-Alpha to v1.0.3-Alpha (#4)
+836ca6d21 fix(ci): restore debug app_name resource and clear 23 Android Lint errors (#5)
+53b4b7323 fix(outbound): glucodroid.cloud URL handling (v0.3.0.4-alpha) (#6)
+01da0d0ec feat(alerts): sustained-low gate for LOW/VERY_LOW (#7)
+20df10a8d fix(outbound): auto-heal custom-JSON destinations with bare subdomain + cloud default name (v0.3.0.5-alpha) (#8)
+fd1457c90 fix(debug): share chooser launches even from non-Activity context (#46)
+60742b797 fix(iCan): drop post-rebase post-connection identity rejection (#47)
+2e26bfeb0 chore(release): bump versionCode/Name for v0.3.0.6-alpha (i6 fix) (#48)
