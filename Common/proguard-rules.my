@@ -64,15 +64,12 @@
     public final float getCalibratedValue(float,long,boolean,boolean,java.lang.String);
     public final boolean shouldHideInitialWhenCalibrated();
     public final boolean shouldOverwriteSensorValues();
-<<<<<<< HEAD
-=======
     public final long getRevision();
     public static void notifyExternalCalibrationPipelineChanged();
     public static double[] getActiveCalibrationAnchors(java.lang.String,boolean);
     public static float[] getIntegratedCalibratedSeries(float[],long[],boolean,java.lang.String);
     public static long getIntegratedCalibrationFingerprint(java.lang.String,boolean);
     public static void seedIntegratedCalibrationBaseline(float[],long[],boolean,java.lang.String);
->>>>>>> rebase/test-1.0.4-merge
     public final java.lang.String exportProfileForSensorAsJson(java.lang.String);
     public final *** importProfileFromJsonBlocking(java.lang.String,boolean,java.lang.String);
     public final *** importMirrorProfileFromJsonBlocking(java.lang.String,java.lang.String);
@@ -102,13 +99,6 @@
 }
 
 # Keep OutboundApiJournalSnapshot name and reflected members stable.
-<<<<<<< HEAD
-# OutboundApi and ApiGlucoseSourceManager (src/main) resolve this mobile-only
-# object by name: snapshotJson() backs the {iob}/{cob}/{journal}/{journal_events}
-# message-template tokens, and importFromJson*() ingests API journal payloads.
-# Without this, R8 renames/strips the class and the reflection silently yields an
-# empty snapshot (tokens render as "0 - 0 - 0 - 0 -  -").
-=======
 # OutboundApi, ApiGlucoseSourceManager and JugglucoSend (src/main) resolve this
 # mobile-only object by name: snapshotJson() backs the {iob}/{cob}/{journal}/
 # {journal_events} message-template tokens, importFromJson*() ingests API
@@ -116,16 +106,12 @@
 # IOB/eIOB/COB extras. Without this, R8 renames/strips the class and the
 # reflection silently yields an empty snapshot (tokens render as
 # "0 - 0 - 0 - 0 -  -") / a broadcast without IOB.
->>>>>>> rebase/test-1.0.4-merge
 -keepnames class tk.glucodata.OutboundApiJournalSnapshot
 -keepclassmembers class tk.glucodata.OutboundApiJournalSnapshot {
     public static java.lang.String snapshotJson(long);
     public static int importFromJson(java.lang.String);
     public static int importFromJsonForSource(java.lang.String,java.lang.String);
-<<<<<<< HEAD
-=======
     public static float[] broadcastIobSnapshot(long);
->>>>>>> rebase/test-1.0.4-merge
 }
 
 #-keep class tk.glucodata.watchface.WatchFaceService
