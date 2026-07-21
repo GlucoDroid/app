@@ -54,11 +54,11 @@ fun FloatingSettingsSheet(
     val showArrow by repository.showArrow.collectAsState(initial = true)
 
     // Permission State
-    var hasPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-    
+    var hasPermission by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else false) }
+
     // Resume detection to re-check permission
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-        hasPermission = Settings.canDrawOverlays(context)
+        hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else false
     }
 
     ModalBottomSheet(

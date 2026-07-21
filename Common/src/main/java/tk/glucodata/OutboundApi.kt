@@ -3,6 +3,7 @@ package tk.glucodata
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import androidx.annotation.Keep
 import androidx.work.Data
 import androidx.work.Worker
@@ -381,6 +382,11 @@ object OutboundApi {
     private fun hasUsableNetwork(context: Context): Boolean {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return true
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            // ConnectivityManager.activeNetwork / getNetworkCapabilities require API 23+.
+            // Assume usable on pre-M to preserve previous behaviour.
+            return true
+        }
         val network = manager.activeNetwork ?: return false
         val capabilities = manager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)

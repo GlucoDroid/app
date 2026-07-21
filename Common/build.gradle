@@ -429,6 +429,7 @@ buildTypes {
          manifestPlaceholders["debuggable"] = "true"
         applicationIdSuffix ".debug"
             versionNameSuffix 'DEBUG'
+            resValue "string", "app_name", "GlucoDroid Debug"
 
             buildConfigField 'int', 'isReleaseID', '0'
              buildConfigField 'int', 'doLog', '1'
